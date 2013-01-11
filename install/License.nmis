@@ -1,0 +1,9 @@
+%hash = (
+  'created' => '31-Nov-2011 00:00:00',
+  'node_count' => '10000',
+  'country' => 'Australia',
+  'email' => 'contact@opmantek.com',
+  'name' => 'Opmantek Contact Centre',
+  'updated' => '31-Nov-2011 00:00:00',
+  'company' => 'Opmantek'
+);

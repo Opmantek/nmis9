@@ -1,0 +1,27 @@
+%hash = (
+  '1' => {
+    'Order' => '1',
+    'Name' => 'NMIS8',
+    'Link' => '/cgi-nmis8/nmiscgi.pl'
+  },
+  '2' => {
+    'Order' => '2',
+    'Name' => 'IPSLA',
+    'Link' => '/cgi-nmis8/ipsla.pl'
+  },
+  '3' => {
+    'Order' => '2',
+    'Name' => 'NMIS Commmunity',
+    'Link' => 'http://community.opmantek.com'
+  },
+  '4' => {
+    'Order' => '3',
+    'Name' => 'Google',
+    'Link' => 'http://google.com'
+  },
+  '5' => {
+    'Order' => '4',
+    'Name' => 'Your Link Here',
+    'Link' => 'http://wolframalpha.com'
+  }
+);

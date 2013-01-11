@@ -1,0 +1,18 @@
+%hash = (
+  '192.168.30.0' => {
+    'link' => 'LAN',
+    'depend' => 'N/A',
+    'interface1' => 'LAN',
+    'node2' => 'c800-isdn-test',
+    'ifSpeed' => 10000000,
+    'node1' => 'linksys',
+    'net' => 'wan',
+    'interface2' => 'Ethernet0',
+    'ifIndex2' => 4,
+    'subnet' => '192.168.30.0',
+    'role' => 'core',
+    'ifIndex1' => 2,
+    'mask' => '255.255.255.0',
+    'ifType' => 'ethernetCsmacd'
+  }
+);

@@ -1,0 +1,48 @@
+%hash = (
+ 
+   '5' => {
+    'logFileName' => 'ciscopix.log',
+    'logName' => 'Cisco_PIX',
+    'logDescr' => 'Cisco PIX-ASA Firewall Syslog [local2]'
+  },
+   '7' => {
+    'logFileName' => '/var/log/messages',
+    'logName' => 'Messages',
+    'logDescr' => 'Messages'
+  },
+  '2' => {
+    'logFileName' => 'event.log',
+    'logName' => 'Event_Log',
+    'logDescr' => 'Event Log'
+  },
+  '1' => {
+    'logFileName' => 'nmis.log',
+    'logName' => 'NMIS_Log',
+    'logDescr' => 'NMIS Log'
+  },
+  '9' => {
+    'logFileName' => '/var/log/httpd/error_log',
+    'logName' => 'Apache_Error_Log',
+    'logDescr' => 'Apache Error Log'
+  },
+  '8' => {
+    'logFileName' => '/var/log/httpd/access_log',
+    'logName' => 'Apache_Access_Log',
+    'logDescr' => 'Apache Access Log'
+  },
+  '3' => {
+    'logFileName' => 'cisco.log',
+    'logName' => 'Router_Syslog',
+    'logDescr' => 'Router Syslog [local1]'
+  },
+   '4' => {
+    'logFileName' => 'switch.log',
+    'logName' => 'Switch_Syslog',
+    'logDescr' => 'Switch Syslog [local3]'
+  },
+     '6' => {
+    'logFileName' => 'unclassified.log',
+    'logName' => 'Generic_Syslog',
+    'logDescr' => 'Generic Device Syslog [local7 default]'
+  }
+);

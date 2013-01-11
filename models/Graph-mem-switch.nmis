@@ -1,0 +1,72 @@
+#
+## $Id: Graph-mem-switch.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => '% Mem. Util.'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:MemUsedD=$database:MemoryUsedDRAM:AVERAGE',
+			'DEF:MemFreeD=$database:MemoryFreeDRAM:AVERAGE',
+			'DEF:MemUsedM=$database:MemoryUsedMBUF:AVERAGE',
+			'DEF:MemFreeM=$database:MemoryFreeMBUF:AVERAGE',
+			'DEF:MemUsedC=$database:MemoryUsedCLUSTER:AVERAGE',
+			'DEF:MemFreeC=$database:MemoryFreeCLUSTER:AVERAGE',
+			'CDEF:totalMemD=MemUsedD,MemFreeD,+',
+			'CDEF:perUsedMemD=MemUsedD,totalMemD,/,100,*',
+			'CDEF:totalMemM=MemUsedM,MemFreeM,+',
+			'CDEF:perUsedMemM=MemUsedM,totalMemM,/,100,*',
+			'CDEF:totalMemC=MemUsedC,MemFreeC,+',
+			'CDEF:perUsedMemC=MemUsedC,totalMemC,/,100,*',
+			'LINE2:perUsedMemD#0000ff:% DRAM Mem Used',
+			'LINE2:perUsedMemM#00ff00:% MBUF Mem Used',
+			'LINE2:perUsedMemC#ffff00:% CLUSTER Mem Used',
+			'GPRINT:perUsedMemD:AVERAGE:DRAM Mem Used %1.2lf',
+			'GPRINT:perUsedMemM:AVERAGE:MBUF Mem Used %1.2lf',
+			'GPRINT:perUsedMemC:AVERAGE:CLUSTER Mem Used %1.2lf',
+			'GPRINT:MemUsedD:AVERAGE:DRAM Mem Used %1.0lf bytes',
+			'GPRINT:MemFreeD:AVERAGE:DRAM Mem Free %1.0lf bytes',
+			'GPRINT:totalMemD:AVERAGE:Total DRAM Mem %1.0lf bytes',
+			'GPRINT:MemUsedM:AVERAGE:MBUF Mem Used %1.0lf bytes',
+			'GPRINT:MemFreeM:AVERAGE:MBUF Mem Free %1.0lf bytes',
+			'GPRINT:totalMemM:AVERAGE:Total MBUF Mem %1.0lf bytes',
+			'GPRINT:MemUsedC:AVERAGE:CLUSTER Mem Used %1.0lf bytes',
+			'GPRINT:MemFreeC:AVERAGE:CLUSTER Mem Free %1.0lf bytes',
+			'GPRINT:totalMemC:AVERAGE:Total CLUSTER Mem %1.0lf bytes'
+		]
+	}
+);
+

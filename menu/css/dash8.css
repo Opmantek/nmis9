@@ -1,0 +1,427 @@
+/*
+  $Id: dash8.css,v 8.21 2012/08/31 07:04:49 keiths Exp $
+
+  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+  
+  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+  
+  This file is part of Network Management Information System ("NMIS").
+  
+  NMIS is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  NMIS is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with NMIS (most likely in a file named LICENSE).  
+  If not, see <http://www.gnu.org/licenses/>
+  
+  For further information on NMIS or for a license other than GPL please see
+  www.opmantek.com or email contact@opmantek.com 
+  
+  User group details:
+  http://support.opmantek.com/users/
+  
+*/
+/* An id is more specific than a class is more specific than an element. */
+/* base font = 14
+ 14px = 1em
+ layout */
+
+body {
+    font: 14px/1.5 Arial,Helvetica,sans-serif;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    /* SKIN: This is the "Canvas" Background Colour, #F5F5F5 is WhiteSmoke. */
+    color: #000000;
+    background-color: #F5F5F5;
+}
+#body_wrapper {
+    margin-left: auto;
+    margin-right: auto;
+    text-align: left;
+    width: 100%;
+}
+#header {
+    background-color: white;
+    height: 60px;
+    width: auto;
+}
+#content_ID {
+    margin: 10px 0 0 10px;
+    padding: 20px 0 10px;
+    position: absolute;
+}
+#net_health {
+    left: 1005px;
+    position: absolute;
+    top: 20px;
+    width: 240px;
+    z-index: auto;
+}
+.nav {
+    height: 22px;
+    padding: 8px;
+    text-align: center;
+    width: auto;
+    /* SKIN: This is the "Navigation Headering". #26465B */
+    color: #707175;
+    background-color: white;
+}
+.nav .title {
+    float: left;
+    font-size: 20px;
+    font-weight: 700;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+.nav .logo {
+    float: left;
+}
+a img {
+    border: 0 none;
+    vertical-align: middle;
+}
+.nav .left,
+span .left {
+    float: left;
+}
+.nav .right,
+span .right {
+    float: right;
+}
+.nav .center,
+span .center {
+    float: center;
+}
+.nav select {
+    width: auto;
+}
+.line {
+    border: 0 none;
+    display: block;
+    float: left;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    width: 2em;
+}
+div.graph {
+    border: 1px solid #CCCCCC;
+    float: left;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    width: 100px;
+}
+div.graph > div {
+    height: 100%;
+}
+td.menu_vr {
+    padding: 5px;
+}
+td.menu_vr div {
+    padding: 0 0 5px;
+}
+table.networkHealth {
+    width: 500px;
+}
+table.networkHealth img {
+    float: right;
+}
+.smallbold {
+    font-family: Tahoma,Verdana,Arial,Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* set defaults for table styles */
+table {
+		font: normal normal normal 1.0em/1.5 Arial, Helvetica, sans-serif;
+		vertical-align: middle ;
+		padding: 1.0em;
+		min-width: 10em;
+		background-color: #E9E9E9;
+		text-align: left;
+		width: 100%;
+		border-collapse: collapse;
+		display: table;
+		border: 1px solid #404040;
+}
+
+th.title {
+		text-align:left;
+		border-bottom: none;
+		width: 100%;
+		font-weight: bold;
+		/* SKIN: This is the "Table Title". #404040 */
+		color: white;
+		background-color: #606060;
+}
+
+th.header, td.header, div.header {
+		padding: 0.5em;
+		border: 1px solid #999999;
+	  text-align: left;
+	  font-weight: bold;
+	  font-size: 0.9em;
+		/* SKIN: This is the "Table Headers". */
+	  color: white;
+	  background-color: #777777;
+}
+
+th.metrics , td.metrics {
+		padding: 0.5em;
+		border: 1px solid #999999;
+	  text-align: left;
+	  font-weight: bold;
+	  font-size: 0.9em;
+		/* SKIN: This is the "Table Metrics". */
+	  color: green;
+	  background-color: white;
+}
+
+td.info {
+		font-size: 0.9em;
+		border: 1px solid #999999;
+		padding: 0.5em;
+		text-align: center;
+		white-space: wrap;
+		min-width: 5em;
+		max-width: 10em;
+}
+
+th.info {
+		font-size: 0.9em;
+		border: 1px solid #999999;
+		padding: 0.5em;
+		text-align: center;
+		white-space: wrap;
+		min-width: 5em;
+		max-width: 10em;
+}
+
+.lft {
+		font-size: 0.9em;
+		border: 1px solid #999999;
+		padding: 0.5em;
+		text-align: left;
+		white-space: wrap;
+		min-width: 5em;
+		max-width: 10em;
+}
+
+.rht {
+		font-size: 0.9em;
+		border: 1px solid #999999;
+		padding: 0.5em;
+		text-align: right;
+		white-space: wrap;
+		min-width: 5em;
+		max-width: 10em;
+}
+
+.wrap {
+		white-space: wrap;
+}
+
+.nowrap {
+		white-space: nowrap;
+}
+
+.Plain {
+		/* SKIN: This is the "Table Rows". */
+		color: black;
+		background-color: white;
+}
+
+.heading {
+		/* SKIN: This is the "Widget Headings". */
+	  color: white;
+	  background-color: #777777;
+}
+
+.heading3 {
+		/* SKIN: This is the "Widget Headings 3". */
+	  color: black;
+	  background-color: #aaaaaa;
+	  border: 1px solid #999999;
+}
+
+.noborder {
+	  border: 0px solid #000000;
+}
+
+.tiny {
+	  font-size: 0.2em;
+}
+
+/* these will overide the jd_menu defaults. */
+ul.jd_menu,
+ul.jd_menu ul,
+ul.jd_menu_vertical,
+ul.jd_menu_vertical ul {
+	  color: white;
+	  background-color: #518C1E;
+	  border: 1px solid #518C1E;
+	  letter-spacing: 1px;
+}
+/* these make the vertical a bit smaller */
+ul.jd_menu_vertical li.jdm_hover,
+ul.jd_menu_vertical li.jdm_active {
+	  color: white;
+		background-color: #70BC44;
+		border: 1px solid #518C1E;
+		border-left: 1px solid #8FEC6A;
+		border-top: 1px solid #8FEC6A;
+	  letter-spacing: 1px;
+}
+/* these make the vertical a bit smaller */
+ul.jd_menu li.jdm_hover,
+ul.jd_menu li.jdm_active {
+	  color: white;
+		background-color: #70BC44;
+		border: 1px solid #518C1E;
+		border-left: 1px solid #8FEC6A;
+		border-top: 1px solid #8FEC6A;
+	  letter-spacing: 1px;
+}
+
+/* SKIN: These are the "Status Colours". If the boss says nothing should 
+         ever be red, this is where you can tone it down. */
+.Normal {
+		background-color:#00ff00
+}
+
+.Error {
+		background-color:#ffff00
+}
+
+.Warning {
+		background-color:#ffdd00
+}
+
+.Minor {
+		background-color:#ffbb00
+}
+
+.Major {
+		background-color:#ff8800
+}
+
+.Critical {
+		background-color:#ff4400
+}
+
+.Fatal {
+		background-color:#ff2200
+}
+
+/* these will overide the jquery ui defaults for all dialogs. */
+.ui-dialog {   
+		font-family: Tahoma,Verdana,Arial,Helvetica;
+		font-size: 12px;
+		vertical-align: middle ;
+		background-color: #FCFCFC;
+		color: #333333;
+		border: 1px solid #AAAAAA;
+		text-align: left;
+		width: auto;
+		padding: 0;
+		margin: 0;
+		background: none;
+}
+
+.ui-widget-header {
+	border: 0px solid #aaaaaa;
+	font-weight: normal; 
+
+}
+	
+/* .ui-dialog-titlebar { padding: .4em 1em; } */
+
+.ui-dialog .ui-dialog-content
+{   
+		position: relative;
+		padding: 0;
+		margin: 2px 0 0 2px;;
+		border: 0 none;
+		overflow: auto;
+		/* SKIN: This is the Widget Background Colour, #C79D6A is "wheat" a darker off white. */
+		color: #222222;
+		background-color: white; 
+}
+
+.ui-dialog .ui-dialog-title 
+{
+		color: #222222;
+		text-align:left;
+		float: left;
+		padding: 2px;
+		margin: 0em 16px 0em 0;
+}
+    
+.ui-dialog .ui-dialog-titlebar 
+{ 
+		position: relative;
+		padding: 0;
+		margin:0;
+}
+
+.ui-dialog-content a,
+.ui-dialog-content a:hover,a:visited,a:link,a:active
+{
+		text-decoration:underline;
+		font-weight: bolder;
+		text-align: left;
+		color: #0000ee;
+		margin: 2px 0 0 2px;
+}
+
+.ui-dialog input,
+.ui-dialog select,
+.ui-dialog textarea,
+.ui-dialog button,
+.ui-dialog p
+{
+		font-family: Tahoma,Verdana,Arial,Helvetica;
+		font-size: 12px;
+		vertical-align: middle ;
+		background-color: #FCFCFC;
+		color: #333333;
+		text-align: left;
+		width: auto;
+		margin: 2px;
+		padding: 0;
+}
+
+.ui-widget { 
+		/* SKIN: This is the Widget Background Colour, #C79D6A is "wheat" a darker off white. */
+		background-color: white;
+}
+
+ul#icons li {
+		cursor: pointer;
+		float: right;
+		list-style: none outside none;
+		margin: 0;
+		padding: 0;
+}
+
+/* error document returned by cgi::debug */	 
+plaintext {
+		color:red;
+		text-align:left;
+		line-height: 80%;
+		margin-left: 3px;
+}
+
+.notwide {
+	width: auto;
+}

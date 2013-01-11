@@ -1,0 +1,65 @@
+%hash = (
+  'dns' => {
+    'Service_Type' => 'dns',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => '',
+    'Name' => 'dns'
+  },
+  'http' => {
+    'Service_Type' => 'script',
+    'Port' => '80',
+    'Poll_Interval' => '5m',
+    'Service_Name' => '',
+    'Name' => 'http'
+  },
+  'pop3' => {
+    'Service_Type' => 'script',
+    'Port' => '110',
+    'Poll_Interval' => '5m',
+    'Service_Name' => '',
+    'Name' => 'pop3'
+  },
+  'http_server' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'httpd',
+    'Name' => 'HTTP_Server'
+  },
+  'mysqld_daemon' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'mysqld',
+    'Name' => 'mysqld_daemon'
+  },
+  'port22' => {
+    'Service_Type' => 'port',
+    'Port' => 'tcp:22',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'SSH',
+    'Name' => 'port22'
+  },
+  'port25' => {
+    'Service_Type' => 'port',
+    'Port' => 'tcp:25',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'SMTP',
+    'Name' => 'port25'
+  },
+  'port80' => {
+    'Service_Type' => 'port',
+    'Port' => 'tcp:80',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'HTTP',
+    'Name' => 'port80'
+  },
+  'port53' => {
+    'Service_Type' => 'port',
+    'Port' => 'udp:53',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'DNS',
+    'Name' => 'port53'
+  }
+);

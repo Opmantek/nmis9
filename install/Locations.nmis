@@ -1,0 +1,17 @@
+%hash = (
+  'default' => {
+    'Longitude' => '174 46 E',
+    'Address2' => '',
+    'Room Number' => '',
+    'Floor' => '',
+    'City' => '',
+    'Postcode' => '',
+    'State' => '',
+    'Latitude' => '36 51 S',
+    'Country' => '',
+    'Altitude' => '',
+    'Address1' => 'home',
+    'Suburb' => '',
+    'Location' => 'default'
+  }
+);

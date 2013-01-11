@@ -1,0 +1,65 @@
+#
+## $Id: Graph-csscontent.nmis,v 8.1 2011/11/11 03:08:35 keiths Exp $
+#
+#  Autor: Kai Poenisch
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+	},
+	'vlabel' => {
+		'standard' => ' '
+	},
+	'option' => {
+		'standard' => [
+			'DEF:CSScontentHits=$database:CSScontentHits:MAX',
+			'DEF:CSScontentBytes=$database:CSScontentBytes:AVERAGE',
+        	   	'CDEF:contentbytes=CSScontentBytes,1024,/',
+			'CDEF:contenthits=CSScontentHits,1,*',
+			'AREA:contenthits#00ff00:Hits',
+			'LINE1:contentbytes#0000ff:Bytes/sec',
+	           	'GPRINT:CSScontentHits:LAST:last Hits %1.2lf',
+	           	'GPRINT:CSScontentHits:MAX:max Hits %1.2lf',
+	           	'GPRINT:CSScontentBytes:LAST:last KBytes %1.2lf',
+	           	'GPRINT:CSScontentBytes:MAX:max KBytes %1.2lf',
+		]
+	}
+);
+#			'LINE1:CSSgroupHits#00ff00:Hits Avg',
+#        	   	'LINE1:CSSgroupBytes#0000ff:Bytes max',
+#        	   	'LINE1:CSSgroupCurCon#00ffff:Current Connections',
+#	           	'GPRINT:CSSgroupCurCon:LAST:current Con %1.2lf %s',
+#			'DEF:CSSgroupCurCon=$database:CSSgroupCurCon:MAX',
+#                   	'DEF:apChassisInstMem=$database:apChassisInstMem:AVERAGE',
+#	           	'DEF:apChassisHeapFree=$database:apChassisHeapFree:AVERAGE',
+#    	           	'CDEF:perFreeMem=apChassisHeapFree,apChassisInstMem,/,100,*',  
+#               		'LINE1:perFreeMem#0000ff:Free Mem',
+#                   	'GPRINT:apChassisCPUAvg:AVERAGE:Avg CPU %1.2lf',
+#	           	'GPRINT:apChassisCPUAvg:MAX:Max CPU %1.2lf',
+#    	           	'GPRINT:apChassisCPUAvg:LAST:current CPU %1.2lf',
+#    		   	'GPRINT:apChassisInstMem:MAX:Inst Mem %1.2lf %s',
+#               		'GPRINT:apChassisHeapFree:AVERAGE:Avg Mem Free %1.2lf %s',
+#                   	'GPRINT:apChassisHeapFree:MAX:Max Mem Free %1.2lf %s',

@@ -1,0 +1,922 @@
+%hash = (
+  '32' => {
+    'index' => '32',
+    'ifType' => 'frameRelay'
+  },
+  '127' => {
+    'index' => '127',
+    'ifType' => 'docsCableMaclayer'
+  },
+  '90' => {
+    'index' => '90',
+    'ifType' => 'hostPad'
+  },
+  '71' => {
+    'index' => '71',
+    'ifType' => 'ieee80211'
+  },
+  '118' => {
+    'index' => '118',
+    'ifType' => 'hdlc'
+  },
+  '206' => {
+    'index' => '206',
+    'ifType' => 'econet'
+  },
+  '102' => {
+    'index' => '102',
+    'ifType' => 'voiceFXS'
+  },
+  '200' => {
+    'index' => '200',
+    'ifType' => 'teLink'
+  },
+  '18' => {
+    'index' => '18',
+    'ifType' => 'ds1'
+  },
+  '125' => {
+    'index' => '125',
+    'ifType' => 'fast'
+  },
+  '16' => {
+    'index' => '16',
+    'ifType' => 'lapb'
+  },
+  '44' => {
+    'index' => '44',
+    'ifType' => 'frameRelayService'
+  },
+  '55' => {
+    'index' => '55',
+    'ifType' => 'ieee80212'
+  },
+  '84' => {
+    'index' => '84',
+    'ifType' => 'async'
+  },
+  '27' => {
+    'index' => '27',
+    'ifType' => 'nsip'
+  },
+  '190' => {
+    'index' => '190',
+    'ifType' => 'imt'
+  },
+  '161' => {
+    'index' => '161',
+    'ifType' => 'ieee8023adLag'
+  },
+  '194' => {
+    'index' => '194',
+    'ifType' => 'atmVciEndPt'
+  },
+  '95' => {
+    'index' => '95',
+    'ifType' => 'radsl'
+  },
+  '57' => {
+    'index' => '57',
+    'ifType' => 'hippiInterface'
+  },
+  '220' => {
+    'index' => '220',
+    'ifType' => 'homepna'
+  },
+  '20' => {
+    'index' => '20',
+    'ifType' => 'basicISDN'
+  },
+  '109' => {
+    'index' => '109',
+    'ifType' => 'ipOverCdlc'
+  },
+  '163' => {
+    'index' => '163',
+    'ifType' => 'frf16MfrBundle'
+  },
+  '89' => {
+    'index' => '89',
+    'ifType' => 'propCnls'
+  },
+  '151' => {
+    'index' => '151',
+    'ifType' => 'srp'
+  },
+  '148' => {
+    'index' => '148',
+    'ifType' => 'dvbRccUpstream'
+  },
+  '175' => {
+    'index' => '175',
+    'ifType' => 'nfas'
+  },
+  '31' => {
+    'index' => '31',
+    'ifType' => 'sip'
+  },
+  '35' => {
+    'index' => '35',
+    'ifType' => 'arcnet'
+  },
+  '11' => {
+    'index' => '11',
+    'ifType' => 'starLan'
+  },
+  '208' => {
+    'index' => '208',
+    'ifType' => 'pon622'
+  },
+  '78' => {
+    'index' => '78',
+    'ifType' => 'ipSwitch'
+  },
+  '93' => {
+    'index' => '93',
+    'ifType' => 'x213'
+  },
+  '106' => {
+    'index' => '106',
+    'ifType' => 'atmFuni'
+  },
+  '157' => {
+    'index' => '157',
+    'ifType' => 'propWirelessP2P'
+  },
+  '29' => {
+    'index' => '29',
+    'ifType' => 'ultra'
+  },
+  '65' => {
+    'index' => '65',
+    'ifType' => 'v36'
+  },
+  '197' => {
+    'index' => '197',
+    'ifType' => 'propAtm'
+  },
+  '203' => {
+    'index' => '203',
+    'ifType' => 'sipTg'
+  },
+  '138' => {
+    'index' => '138',
+    'ifType' => 'digitalPowerline'
+  },
+  '114' => {
+    'index' => '114',
+    'ifType' => 'ipOverAtm'
+  },
+  '199' => {
+    'index' => '199',
+    'ifType' => 'infiniband'
+  },
+  '58' => {
+    'index' => '58',
+    'ifType' => 'frameRelayInterconnect'
+  },
+  '226' => {
+    'index' => '226',
+    'ifType' => 'qam'
+  },
+  '15' => {
+    'index' => '15',
+    'ifType' => 'fddi'
+  },
+  '153' => {
+    'index' => '153',
+    'ifType' => 'voiceOverFrameRelay'
+  },
+  '211' => {
+    'index' => '211',
+    'ifType' => 'voiceEMFGD'
+  },
+  '81' => {
+    'index' => '81',
+    'ifType' => 'ds0'
+  },
+  '137' => {
+    'index' => '137',
+    'ifType' => 'l3ipxvlan'
+  },
+  '60' => {
+    'index' => '60',
+    'ifType' => 'aflane8025'
+  },
+  '73' => {
+    'index' => '73',
+    'ifType' => 'escon'
+  },
+  '101' => {
+    'index' => '101',
+    'ifType' => 'voiceFXO'
+  },
+  '76' => {
+    'index' => '76',
+    'ifType' => 'isdnu'
+  },
+  '86' => {
+    'index' => '86',
+    'ifType' => 'iso88025Dtr'
+  },
+  '62' => {
+    'index' => '62',
+    'ifType' => 'fastEther'
+  },
+  '67' => {
+    'index' => '67',
+    'ifType' => 'g703at2mb'
+  },
+  '204' => {
+    'index' => '204',
+    'ifType' => 'sipSig'
+  },
+  '165' => {
+    'index' => '165',
+    'ifType' => 'h323Proxy'
+  },
+  '198' => {
+    'index' => '198',
+    'ifType' => 'voiceOverCable'
+  },
+  '139' => {
+    'index' => '139',
+    'ifType' => 'mediaMailOverIp'
+  },
+  '129' => {
+    'index' => '129',
+    'ifType' => 'docsCableUpstream'
+  },
+  '2' => {
+    'index' => '2',
+    'ifType' => 'regular1822'
+  },
+  '17' => {
+    'index' => '17',
+    'ifType' => 'sdlc'
+  },
+  '186' => {
+    'index' => '186',
+    'ifType' => 'digitalWrapperOverheadChannel'
+  },
+  '110' => {
+    'index' => '110',
+    'ifType' => 'ipOverClaw'
+  },
+  '82' => {
+    'index' => '82',
+    'ifType' => 'ds0Bundle'
+  },
+  '147' => {
+    'index' => '147',
+    'ifType' => 'dvbRccDownstream'
+  },
+  '228' => {
+    'index' => '228',
+    'ifType' => 'cblVectaStar'
+  },
+  '218' => {
+    'index' => '218',
+    'ifType' => 'pdnEtherLoop2'
+  },
+  '202' => {
+    'index' => '202',
+    'ifType' => 'virtualTg'
+  },
+  '168' => {
+    'index' => '168',
+    'ifType' => 'hdsl2'
+  },
+  '184' => {
+    'index' => '184',
+    'ifType' => 'propBWAp2Mp'
+  },
+  '135' => {
+    'index' => '135',
+    'ifType' => 'l2vlan'
+  },
+  '14' => {
+    'index' => '14',
+    'ifType' => 'hyperchannel'
+  },
+  '112' => {
+    'index' => '112',
+    'ifType' => 'virtualIpAddress'
+  },
+  '69' => {
+    'index' => '69',
+    'ifType' => 'fastEtherFX'
+  },
+  '172' => {
+    'index' => '172',
+    'ifType' => 'dvbAsiIn'
+  },
+  '191' => {
+    'index' => '191',
+    'ifType' => 'mvl'
+  },
+  '145' => {
+    'index' => '145',
+    'ifType' => 'gsn'
+  },
+  '49' => {
+    'index' => '49',
+    'ifType' => 'aal5'
+  },
+  '24' => {
+    'index' => '24',
+    'ifType' => 'softwareLoopback'
+  },
+  '178' => {
+    'index' => '178',
+    'ifType' => 'gr303IDT'
+  },
+  '224' => {
+    'index' => '224',
+    'ifType' => 'fcipLink'
+  },
+  '140' => {
+    'index' => '140',
+    'ifType' => 'dtm'
+  },
+  '187' => {
+    'index' => '187',
+    'ifType' => 'aal2'
+  },
+  '223' => {
+    'index' => '223',
+    'ifType' => 'actelisMetaLOOP'
+  },
+  '104' => {
+    'index' => '104',
+    'ifType' => 'voiceOverIp'
+  },
+  '124' => {
+    'index' => '124',
+    'ifType' => 'interleave'
+  },
+  '131' => {
+    'index' => '131',
+    'ifType' => 'tunnel'
+  },
+  '181' => {
+    'index' => '181',
+    'ifType' => 'propDocsWirelessDownstream'
+  },
+  '79' => {
+    'index' => '79',
+    'ifType' => 'rsrb'
+  },
+  '121' => {
+    'index' => '121',
+    'ifType' => 'x25mlp'
+  },
+  '212' => {
+    'index' => '212',
+    'ifType' => 'voiceFGDEANA'
+  },
+  '154' => {
+    'index' => '154',
+    'ifType' => 'idsl'
+  },
+  '23' => {
+    'index' => '23',
+    'ifType' => 'ppp'
+  },
+  '96' => {
+    'index' => '96',
+    'ifType' => 'sdsl'
+  },
+  '126' => {
+    'index' => '126',
+    'ifType' => 'ip'
+  },
+  '159' => {
+    'index' => '159',
+    'ifType' => 'rfc1483'
+  },
+  '160' => {
+    'index' => '160',
+    'ifType' => 'usb'
+  },
+  '47' => {
+    'index' => '47',
+    'ifType' => 'hippi'
+  },
+  '176' => {
+    'index' => '176',
+    'ifType' => 'tr008'
+  },
+  '8' => {
+    'index' => '8',
+    'ifType' => 'iso88024TokenBus'
+  },
+  '98' => {
+    'index' => '98',
+    'ifType' => 'iso88025CRFPInt'
+  },
+  '209' => {
+    'index' => '209',
+    'ifType' => 'bridge'
+  },
+  '37' => {
+    'index' => '37',
+    'ifType' => 'atm'
+  },
+  '216' => {
+    'index' => '216',
+    'ifType' => 'gtp'
+  },
+  '43' => {
+    'index' => '43',
+    'ifType' => 'smdsDxi'
+  },
+  '117' => {
+    'index' => '117',
+    'ifType' => 'gigabitEthernet'
+  },
+  '5' => {
+    'index' => '5',
+    'ifType' => 'rfc877x25'
+  },
+  '195' => {
+    'index' => '195',
+    'ifType' => 'opticalChannel'
+  },
+  '170' => {
+    'index' => '170',
+    'ifType' => 'ds1FDL'
+  },
+  '33' => {
+    'index' => '33',
+    'ifType' => 'rs232'
+  },
+  '21' => {
+    'index' => '21',
+    'ifType' => 'primaryISDN'
+  },
+  '63' => {
+    'index' => '63',
+    'ifType' => 'isdn'
+  },
+  '7' => {
+    'index' => '7',
+    'ifType' => 'iso88023Csmacd'
+  },
+  '227' => {
+    'index' => '227',
+    'ifType' => 'lmp'
+  },
+  '26' => {
+    'index' => '26',
+    'ifType' => 'ethernet3Mbit'
+  },
+  '80' => {
+    'index' => '80',
+    'ifType' => 'atmLogical'
+  },
+  '193' => {
+    'index' => '193',
+    'ifType' => 'frDlciEndPt'
+  },
+  '119' => {
+    'index' => '119',
+    'ifType' => 'lapf'
+  },
+  '180' => {
+    'index' => '180',
+    'ifType' => 'propDocsWirelessMaclayer'
+  },
+  '99' => {
+    'index' => '99',
+    'ifType' => 'myrinet'
+  },
+  '179' => {
+    'index' => '179',
+    'ifType' => 'isup'
+  },
+  '162' => {
+    'index' => '162',
+    'ifType' => 'bgppolicyaccounting'
+  },
+  '72' => {
+    'index' => '72',
+    'ifType' => 'ibm370parChan'
+  },
+  '74' => {
+    'index' => '74',
+    'ifType' => 'dlsw'
+  },
+  '182' => {
+    'index' => '182',
+    'ifType' => 'propDocsWirelessUpstream'
+  },
+  '61' => {
+    'index' => '61',
+    'ifType' => 'cctEmul'
+  },
+  '108' => {
+    'index' => '108',
+    'ifType' => 'pppMultilinkBundle'
+  },
+  '230' => {
+    'index' => '230',
+    'ifType' => 'adsl2'
+  },
+  '115' => {
+    'index' => '115',
+    'ifType' => 'iso88025Fiber'
+  },
+  '92' => {
+    'index' => '92',
+    'ifType' => 'frameRelayMPI'
+  },
+  '103' => {
+    'index' => '103',
+    'ifType' => 'voiceEncap'
+  },
+  '201' => {
+    'index' => '201',
+    'ifType' => 'q2931'
+  },
+  '10' => {
+    'index' => '10',
+    'ifType' => 'iso88026Man'
+  },
+  '113' => {
+    'index' => '113',
+    'ifType' => 'mpc'
+  },
+  '152' => {
+    'index' => '152',
+    'ifType' => 'voiceOverAtm'
+  },
+  '189' => {
+    'index' => '189',
+    'ifType' => 'atmRadio'
+  },
+  '225' => {
+    'index' => '225',
+    'ifType' => 'rpr'
+  },
+  '142' => {
+    'index' => '142',
+    'ifType' => 'ipForward'
+  },
+  '207' => {
+    'index' => '207',
+    'ifType' => 'pon155'
+  },
+  '91' => {
+    'index' => '91',
+    'ifType' => 'termPad'
+  },
+  '167' => {
+    'index' => '167',
+    'ifType' => 'mfSigLink'
+  },
+  '107' => {
+    'index' => '107',
+    'ifType' => 'atmIma'
+  },
+  '48' => {
+    'index' => '48',
+    'ifType' => 'modem'
+  },
+  '87' => {
+    'index' => '87',
+    'ifType' => 'eplrs'
+  },
+  '77' => {
+    'index' => '77',
+    'ifType' => 'lapd'
+  },
+  '174' => {
+    'index' => '174',
+    'ifType' => 'plc'
+  },
+  '214' => {
+    'index' => '214',
+    'ifType' => 'mpegTransport'
+  },
+  '133' => {
+    'index' => '133',
+    'ifType' => 'ces'
+  },
+  '123' => {
+    'index' => '123',
+    'ifType' => 'trasnpHdlc'
+  },
+  '149' => {
+    'index' => '149',
+    'ifType' => 'atmVirtual'
+  },
+  '50' => {
+    'index' => '50',
+    'ifType' => 'sonetPath'
+  },
+  '221' => {
+    'index' => '221',
+    'ifType' => 'gfp'
+  },
+  '39' => {
+    'index' => '39',
+    'ifType' => 'sonet'
+  },
+  '64' => {
+    'index' => '64',
+    'ifType' => 'v11'
+  },
+  '210' => {
+    'index' => '210',
+    'ifType' => 'linegroup'
+  },
+  '97' => {
+    'index' => '97',
+    'ifType' => 'vdsl'
+  },
+  '41' => {
+    'index' => '41',
+    'ifType' => 'iso88022llc'
+  },
+  '12' => {
+    'index' => '12',
+    'ifType' => 'proteon10Mbit'
+  },
+  '52' => {
+    'index' => '52',
+    'ifType' => 'smdsIcip'
+  },
+  '173' => {
+    'index' => '173',
+    'ifType' => 'dvbAsiOut'
+  },
+  '56' => {
+    'index' => '56',
+    'ifType' => 'fibreChannel'
+  },
+  '66' => {
+    'index' => '66',
+    'ifType' => 'g703at64k'
+  },
+  '45' => {
+    'index' => '45',
+    'ifType' => 'v35'
+  },
+  '229' => {
+    'index' => '229',
+    'ifType' => 'docsCableMCmtsDownstream'
+  },
+  '19' => {
+    'index' => '19',
+    'ifType' => 'e1'
+  },
+  '54' => {
+    'index' => '54',
+    'ifType' => 'propMultiplexor'
+  },
+  '70' => {
+    'index' => '70',
+    'ifType' => 'channel'
+  },
+  '68' => {
+    'index' => '68',
+    'ifType' => 'qllc'
+  },
+  '188' => {
+    'index' => '188',
+    'ifType' => 'radioMAC'
+  },
+  '1' => {
+    'index' => '1',
+    'ifType' => 'other'
+  },
+  '166' => {
+    'index' => '166',
+    'ifType' => 'mpls'
+  },
+  '116' => {
+    'index' => '116',
+    'ifType' => 'tdlc'
+  },
+  '88' => {
+    'index' => '88',
+    'ifType' => 'arap'
+  },
+  '136' => {
+    'index' => '136',
+    'ifType' => 'l3ipvlan'
+  },
+  '30' => {
+    'index' => '30',
+    'ifType' => 'ds3'
+  },
+  '141' => {
+    'index' => '141',
+    'ifType' => 'dcn'
+  },
+  '144' => {
+    'index' => '144',
+    'ifType' => 'ieee1394'
+  },
+  '100' => {
+    'index' => '100',
+    'ifType' => 'voiceEM'
+  },
+  '222' => {
+    'index' => '222',
+    'ifType' => 'ciscoISLvlan'
+  },
+  '128' => {
+    'index' => '128',
+    'ifType' => 'docsCableDownstream'
+  },
+  '25' => {
+    'index' => '25',
+    'ifType' => 'eon'
+  },
+  '120' => {
+    'index' => '120',
+    'ifType' => 'v37'
+  },
+  '28' => {
+    'index' => '28',
+    'ifType' => 'slip'
+  },
+  '83' => {
+    'index' => '83',
+    'ifType' => 'bsc'
+  },
+  '75' => {
+    'index' => '75',
+    'ifType' => 'isdns'
+  },
+  '40' => {
+    'index' => '40',
+    'ifType' => 'x25ple'
+  },
+  '134' => {
+    'index' => '134',
+    'ifType' => 'atmSubInterface'
+  },
+  '156' => {
+    'index' => '156',
+    'ifType' => 'ss7SigLink'
+  },
+  '192' => {
+    'index' => '192',
+    'ifType' => 'reachDSL'
+  },
+  '59' => {
+    'index' => '59',
+    'ifType' => 'aflane8023'
+  },
+  '215' => {
+    'index' => '215',
+    'ifType' => 'sixToFour'
+  },
+  '177' => {
+    'index' => '177',
+    'ifType' => 'gr303RDT'
+  },
+  '150' => {
+    'index' => '150',
+    'ifType' => 'mplsTunnel'
+  },
+  '130' => {
+    'index' => '130',
+    'ifType' => 'a12MppSwitch'
+  },
+  '155' => {
+    'index' => '155',
+    'ifType' => 'compositeLink'
+  },
+  '53' => {
+    'index' => '53',
+    'ifType' => 'propVirtual'
+  },
+  '217' => {
+    'index' => '217',
+    'ifType' => 'pdnEtherLoop1'
+  },
+  '122' => {
+    'index' => '122',
+    'ifType' => 'x25huntGroup'
+  },
+  '143' => {
+    'index' => '143',
+    'ifType' => 'msdsl'
+  },
+  '22' => {
+    'index' => '22',
+    'ifType' => 'propPointToPointSerial'
+  },
+  '42' => {
+    'index' => '42',
+    'ifType' => 'localTalk'
+  },
+  '158' => {
+    'index' => '158',
+    'ifType' => 'frForward'
+  },
+  '205' => {
+    'index' => '205',
+    'ifType' => 'docsCableUpstreamChannel'
+  },
+  '46' => {
+    'index' => '46',
+    'ifType' => 'hssi'
+  },
+  '219' => {
+    'index' => '219',
+    'ifType' => 'opticalChannelGroup'
+  },
+  '13' => {
+    'index' => '13',
+    'ifType' => 'proteon80Mbit'
+  },
+  '105' => {
+    'index' => '105',
+    'ifType' => 'atmDxi'
+  },
+  '6' => {
+    'index' => '6',
+    'ifType' => 'ethernetCsmacd'
+  },
+  '85' => {
+    'index' => '85',
+    'ifType' => 'cnr'
+  },
+  '3' => {
+    'index' => '3',
+    'ifType' => 'hdh1822'
+  },
+  '36' => {
+    'index' => '36',
+    'ifType' => 'arcnetPlus'
+  },
+  '185' => {
+    'index' => '185',
+    'ifType' => 'sonetOverheadChannel'
+  },
+  '94' => {
+    'index' => '94',
+    'ifType' => 'adsl'
+  },
+  '183' => {
+    'index' => '183',
+    'ifType' => 'hiperlan2'
+  },
+  '213' => {
+    'index' => '213',
+    'ifType' => 'voiceDID'
+  },
+  '111' => {
+    'index' => '111',
+    'ifType' => 'stackToStack'
+  },
+  '9' => {
+    'index' => '9',
+    'ifType' => 'iso88025TokenRing'
+  },
+  '51' => {
+    'index' => '51',
+    'ifType' => 'sonetVT'
+  },
+  '146' => {
+    'index' => '146',
+    'ifType' => 'dvbRccMacLayer'
+  },
+  '38' => {
+    'index' => '38',
+    'ifType' => 'miox25'
+  },
+  '4' => {
+    'index' => '4',
+    'ifType' => 'ddnX25'
+  },
+  '34' => {
+    'index' => '34',
+    'ifType' => 'para'
+  },
+  '132' => {
+    'index' => '132',
+    'ifType' => 'coffee'
+  },
+  '164' => {
+    'index' => '164',
+    'ifType' => 'h323Gatekeeper'
+  },
+  '169' => {
+    'index' => '169',
+    'ifType' => 'shdsl'
+  },
+  '196' => {
+    'index' => '196',
+    'ifType' => 'opticalTransport'
+  },
+  '171' => {
+    'index' => '171',
+    'ifType' => 'pos'
+  }
+);

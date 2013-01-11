@@ -1,0 +1,47 @@
+%hash = (
+  'anonymous' => {
+    'user' => 'anonymous',
+    'groups' => 'none',
+    'privilege' => 'guest'
+  },
+  'manager' => {
+    'user' => 'manager',
+    'groups' => 'all',
+    'privilege' => 'manager'
+  },
+  'operator' => {
+    'user' => 'operator',
+    'groups' => 'all',
+    'privilege' => 'operator'
+  },
+  'nmis' => {
+    'user' => 'nmis',
+    'groups' => 'all',
+    'privilege' => 'administrator'
+  },
+  'nmisadm' => {
+    'user' => 'nmisadm',
+    'groups' => 'all',
+    'privilege' => 'administrator'
+  },
+  'nmismst' => {
+    'user' => 'nmismst',
+    'groups' => 'all',
+    'privilege' => 'operator'
+  },
+  'dc_ops' => {
+    'user' => 'dc_ops',
+    'groups' => 'network,DataCenter,Sales',
+    'privilege' => 'operator'
+  },
+  'wan_ops' => {
+    'user' => 'wan_ops',
+    'groups' => 'network,Campus,Branches,HeadOffice',
+    'privilege' => 'operator'
+  },
+  'guest' => {
+    'user' => 'guest',
+    'groups' => 'none',
+    'privilege' => 'guest'
+  }
+);

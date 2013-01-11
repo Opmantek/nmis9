@@ -1,0 +1,22 @@
+%hash = (
+  'localhost' => {
+    'cbqos' => 'none',
+    'threshold' => 'true',
+    'roleType' => 'distribution',
+    'webserver' => 'true',
+    'community' => 'nmisGig8',
+    'group' => 'NMIS8',
+    'collect' => 'true',
+    'calls' => 'false',
+    'timezone' => '0',
+    'depend' => 'N/A',
+    'services' => undef,
+    'name' => 'localhost',
+    'active' => 'true',
+    'port' => '161',
+    'host' => '127.0.0.1',
+    'rancid' => 'true',
+    'netType' => 'lan',
+    'ping' => 'true'
+  }
+);

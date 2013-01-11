@@ -1,0 +1,102 @@
+#
+## $Id: Graph-frag.nmis,v 8.3 2012/10/21 23:53:06 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Fragmentation/Reassembly'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ipReasmReqds=$database:ipReasmReqds:AVERAGE',
+			'DEF:ipReasmOKs=$database:ipReasmOKs:AVERAGE',
+			'DEF:ipReasmFails=$database:ipReasmFails:AVERAGE',
+			'DEF:ipFragOKs=$database:ipFragOKs:AVERAGE',
+			'DEF:ipFragFails=$database:ipFragFails:AVERAGE',
+			'DEF:ipFragCreates=$database:ipFragCreates:AVERAGE',
+			'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
+			'DEF:MipReasmReqds=$database:ipReasmReqds:MAX',
+			'DEF:MipReasmOKs=$database:ipReasmOKs:MAX',
+			'DEF:MipReasmFails=$database:ipReasmFails:MAX',
+			'DEF:MipFragOKs=$database:ipFragOKs:MAX',
+			'DEF:MipFragFails=$database:ipFragFails:MAX',
+			'DEF:MipFragCreates=$database:ipFragCreates:MAX',
+			'CDEF:ReasmReqds=ipReasmReqds,ipInDelivers,/,100,*',
+			'CDEF:ReasmOKs=ipReasmOKs,ipInDelivers,/,100,*',
+			'CDEF:ReasmFails=ipReasmFails,ipInDelivers,/,100,*',
+			'CDEF:FragOKs=ipFragOKs,ipInDelivers,/,100,*',
+			'CDEF:FragFails=ipFragFails,ipInDelivers,/,100,*',
+			'CDEF:FragCreates=ipFragCreates,ipInDelivers,/,100,*',
+			'CDEF:MReasmReqds=MipReasmReqds,ipInDelivers,/,100,*',
+			'CDEF:MReasmOKs=MipReasmOKs,ipInDelivers,/,100,*',
+			'CDEF:MReasmFails=MipReasmFails,ipInDelivers,/,100,*',
+			'CDEF:MFragOKs=MipFragOKs,ipInDelivers,/,100,*',
+			'CDEF:MFragFails=MipFragFails,ipInDelivers,/,100,*',
+			'CDEF:MFragCreates=MipFragCreates,ipInDelivers,/,100,*',
+			'LINE1:FragOKs#00ff00:Fragmentation OK',
+			'LINE2:FragFails#ff0000:Fragmentation Fail',
+			'LINE1:ReasmOKs#0033aa:Reassembly OK',
+			'LINE2:ReasmFails#000000:Reassembly Fail',
+			'GPRINT:ReasmReqds:AVERAGE:Avg ReasmReqd %1.2lf %%',
+			'GPRINT:MReasmReqds:MAX:Max ReasmReqd %1.2lf %%',
+			'GPRINT:ReasmOKs:AVERAGE:Avg ReasmOK %1.2lf %%',
+			'GPRINT:MReasmOKs:MAX:Max ReasmOK %1.2lf %%',
+			'GPRINT:ReasmFails:AVERAGE:Avg ReasmFail %1.2lf %%',
+			'GPRINT:MReasmFails:MAX:Max ReasmFail %1.2lf %%',
+			'GPRINT:FragOKs:AVERAGE:Avg FragOK %1.2lf %%',
+			'GPRINT:MFragOKs:MAX:Max FragOK %1.2lf %%',
+			'GPRINT:FragFails:AVERAGE:Avg FragFail %1.2lf %%',
+			'GPRINT:MFragFails:MAX:Max FragFail %1.2lf %%',
+			'GPRINT:FragCreates:AVERAGE:Avg FragCreate %1.2lf %%',
+			'GPRINT:MFragCreates:MAX:Max FragCreate %1.2lf %%',
+			'COMMENT:   Calculated as a % of ipInDelivers'
+		],
+		'small' => [
+			'DEF:ipReasmOKs=$database:ipReasmOKs:AVERAGE',
+			'DEF:ipReasmFails=$database:ipReasmFails:AVERAGE',
+			'DEF:ipFragOKs=$database:ipFragOKs:AVERAGE',
+			'DEF:ipFragFails=$database:ipFragFails:AVERAGE',
+			'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
+			'CDEF:ReasmOKs=ipReasmOKs,ipInDelivers,/,100,*',
+			'CDEF:ReasmFails=ipReasmFails,ipInDelivers,/,100,*',
+			'CDEF:FragOKs=ipFragOKs,ipInDelivers,/,100,*',
+			'CDEF:FragFails=ipFragFails,ipInDelivers,/,100,*',
+			'LINE1:FragOKs#00ff00:Fragmentation OK',
+			'LINE2:FragFails#ff0000:Fragmentation Fail',
+			'LINE1:ReasmOKs#0033aa:Reassembly OK',
+			'LINE2:ReasmFails#000000:Reassembly Fail',
+			'COMMENT:   Calculated as a % of ipInDelivers'
+		]
+	}
+);

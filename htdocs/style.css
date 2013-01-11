@@ -1,0 +1,117 @@
+   @charset "utf-8";
+  /* 	NMIS Front End
+		  Developed By James Greenwood
+		  V0.1
+	  */
+	  
+
+	  h4 {
+  background-color: #595a59;
+  color: white;
+  margin: 0px;
+  padding-left: 1em;
+  width: auto;
+  }
+  #status
+  {
+	background-color: #fff;
+	width:400px;
+  -moz-border-radius: 5px;
+	border-radius: 5px;
+
+  }
+  
+ 
+  table {
+	  background-color:#fff;
+	  text-align:left;
+	  background-color: white;
+	  font-size:15px;
+	  width:100%;
+	  padding:5px;
+
+  }
+  
+  th
+  {
+	  font-size:20px;
+	  background-color:#0F9;
+  }
+  
+  .sys_expand {
+	  width:15px;
+	  background-image:url(../menu/img/v8/page_next.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_alert {
+	  background-image:url(../menu/img/v8/sys_alert.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_critical {
+	  background-image:url(../menu/img/v8/sys_critical.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_debug {
+	  background-image:url(../menu/img/v8/sys_debug.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_emergency {
+	  background-image:url(../menu/img/v8/sys_emergency.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_error {
+	  background-image:url(../menu/img/v8/sys_error.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_inform {
+	  background-image:url(../menu/img/v8/sys_informational.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_notif {
+	  background-image:url(../menu/img/v8/sys_notification.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  .sys_warn {
+	  background-image:url(../menu/img/v8/sys_warning.gif);
+	  background-repeat:no-repeat;
+	  background-position:left center;
+  }
+  
+	td.sev_unknown {
+	  color: black;
+	  background-color: white;
+  }
+  .sev_Normal {
+	  color: #green;
+  }
+  .sev_Error {
+	  color: #ffff00;
+  }
+  .sev_Warning {
+	  color: #f66c15;
+  }
+  .sev_Minor {
+	  color: #ffbb00;
+  }
+  .sev_Major {
+	  color: #ff7700;
+  }
+  .sev_Critical {
+	  color: red;
+  }
+  .sev_Fatal {
+	  color: red;
+  }
+  
+  
+  
+  
+  

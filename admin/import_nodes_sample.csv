@@ -1,0 +1,4 @@
+name,host,group,role,community
+import_test1,127.0.0.1,Branches,core,nmisGig8
+import_test2,127.0.0.1,Sales,core,nmisGig8
+import_test3,127.0.0.1,DataCenter,core,nmisGig8

@@ -1,0 +1,58 @@
+#
+## $Id: Graph-mem-dram.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => '% Memory Utilisation'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:MemUsed=$database:MemoryUsedDRAM:AVERAGE',
+			'DEF:MemFree=$database:MemoryFreeDRAM:AVERAGE',
+			'CDEF:totalMem=MemUsed,MemFree,+',
+			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
+			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
+			'AREA:perFreeMem#cccccc',
+			'STACK:perUsedMem#cccccc',
+			'LINE2:perFreeMem#0000ff:% DRAM Mem Free',
+			'LINE2:perUsedMem#000000:% DRAM Mem Used\\n',
+			'GPRINT:MemUsed:AVERAGE:DRAM Mem Used %1.0lf bytes',
+			'GPRINT:MemFree:AVERAGE:DRAM Mem Free %1.0lf bytes',
+			'GPRINT:totalMem:AVERAGE:Total DRAM Mem %1.0lf bytes\\n',
+			'GPRINT:perUsedMem:AVERAGE:DRAM Mem Used %1.2lf %%',
+			'GPRINT:perFreeMem:AVERAGE:DRAM Mem Free %1.2lf %%'
+		]
+	}
+);

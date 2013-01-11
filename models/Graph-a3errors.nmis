@@ -1,0 +1,82 @@
+#
+## $Id: Graph-a3errors.nmis,v 8.2 2011/08/28 15:11:41 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'System Error Count'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:FCSErrors=$database:FCSErrors:AVERAGE', 
+			'DEF:AlignmentErrors=$database:AlignmentErrors:AVERAGE', 
+			'DEF:FrameTooLongs=$database:FrameTooLongs:AVERAGE', 
+			'DEF:ShortEvents=$database:ShortEvents:AVERAGE', 
+			'DEF:Runts=$database:Runts:AVERAGE', 
+			'DEF:TxCollisions=$database:TxCollisions:AVERAGE', 
+			'DEF:LateEvents=$database:LateEvents:AVERAGE', 
+			'DEF:VeryLongEvents=$database:VeryLongEvents:AVERAGE', 
+			'DEF:DataRateMismatches=$database:DataRateMismatches:AVERAGE', 
+			'DEF:AutoPartitions=$database:AutoPartitions:AVERAGE', 
+			'DEF:TotalErrors=$database:TotalErrors:AVERAGE', 
+	        'DEF:ErrorsPerPackets=$database:ErrorsPerPackets:AVERAGE',
+			'LINE1:FCSErrors#0033ff:FCSErrors', 
+			'LINE1:AlignmentErrors#ff0000:AlignmentErrors', 
+			'LINE1:FrameTooLongs#33ff99:FrameTooLongs', 
+			'LINE1:ShortEvents#00aa33:ShortEvents', 
+			'LINE1:Runts#0000aa:Runts', 
+			'LINE1:TxCollisions#aa0000:TxCollisions', 
+			'LINE1:LateEvents#990099:LateEvents', 
+			'LINE1:VeryLongEvents#ff9933:VeryLongEvents', 
+			'LINE1:DataRateMismatches#888888:DataRateMismatches', 
+			'LINE1:AutoPartitions#ff00cc:AutoPartitions', 
+			'LINE1:TotalErrors#3399cc:TotalErrors', 
+	        'LINE1:ErrorsPerPackets#aa0000:Errors Per 10000 Packets',
+	 		'GPRINT:FCSErrors:AVERAGE:FCSErrors %1.0lf',
+			'GPRINT:AlignmentErrors:AVERAGE:AlignmentErrors %1.0lf',
+			'GPRINT:FrameTooLongs:AVERAGE:FrameTooLongs %1.0lf',
+			'GPRINT:ShortEvents:AVERAGE:ShortEvents %1.0lf',
+			'GPRINT:Runts:AVERAGE:Runts %1.0lf',
+			'GPRINT:TxCollisions:AVERAGE:TxCollisions %1.0lf',
+			'GPRINT:LateEvents:AVERAGE:LateEvents %1.0lf',
+			'GPRINT:VeryLongEvents:AVERAGE:VeryLongEvents %1.0lf',
+			'GPRINT:DataRateMismatches:AVERAGE:DataRateMismatches %1.0lf',
+			'GPRINT:AutoPartitions:AVERAGE:AutoPartitions %1.0lf',
+			'GPRINT:TotalErrors:AVERAGE:TotalErrors %1.0lf',
+	        'GPRINT:ErrorsPerPackets:AVERAGE:Avg Errors Per 10000 Packets %1.2lf',
+	       	'GPRINT:ErrorsPerPackets:MAX:MAX Errors Per 10000 Packets %1.2lf'
+		]
+	}
+);
+

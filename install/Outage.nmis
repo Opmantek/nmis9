@@ -1,0 +1,14 @@
+%hash = (
+  'switch-1199975083-1200373200' => {
+    'change' => 'ticket # holiday',
+    'node' => 'switch',
+    'end' => 1200373200,
+    'start' => 1199975083
+  },
+  'adsl-1195240525-1195330525-must be filled' => {
+    'change' => 'must be filled',
+    'node' => 'adsl',
+    'start' => 1195240525,
+    'end' => 1195330525
+  }
+);

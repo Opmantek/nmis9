@@ -1,0 +1,8 @@
+%hash = (
+  'tunnel' => {
+    'sysContact' => 'aaaaaaaaaaa'
+  },
+  'switch' => {
+    'sysLocation' => 'modified by node Config'
+  }
+);

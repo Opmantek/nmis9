@@ -1,0 +1,421 @@
+%hash = (
+  'threshold' => {
+    'name' => {
+      'util_out' => {
+        'item' => 'outputUtil',
+        'event' => 'Proactive Interface Output Utilisation',
+        'select' => {
+          '4' => {
+            'value' => {
+              'critical' => '55',
+              'fatal' => '70',
+              'minor' => '30',
+              'warning' => '20',
+              'major' => '40'
+            },
+            'control' => '$ifSpeed == 1000000000'
+          },
+          '1' => {
+            'value' => {
+              'critical' => '90',
+              'fatal' => '95',
+              'minor' => '70',
+              'warning' => '60',
+              'major' => '80'
+            },
+            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
+          },
+          '3' => {
+            'value' => {
+              'critical' => '65',
+              'fatal' => '80',
+              'minor' => '40',
+              'warning' => '30',
+              'major' => '50'
+            },
+            'control' => '$ifSpeed == 100000000'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '93',
+              'warning' => '80',
+              'minor' => '85',
+              'fatal' => '95',
+              'major' => '90'
+            }
+          },
+          '2' => {
+            'value' => {
+              'critical' => '75',
+              'fatal' => '90',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$ifSpeed == 10000000'
+          }
+        }
+      },
+      'pkt_errors_out' => {
+        'item' => 'ifOutErrorsProc',
+        'event' => 'Proactive Interface Error Output Packets',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'minor' => '0.05',
+              'warning' => '0.02',
+              'major' => '0.1'
+            }
+          }
+        }
+      },
+      'pkt_discards_in' => {
+        'item' => 'ifInDiscardsProc',
+        'event' => 'Proactive Interface Discards Input Packets',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'minor' => '0.05',
+              'warning' => '0.02',
+              'major' => '0.1'
+            }
+          }
+        }
+      },
+      'cpu' => {
+        'item' => 'avgBusy5min',
+        'event' => 'Proactive CPU',
+        'select' => {
+          '10' => {
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'minor' => '40',
+              'warning' => '30',
+              'major' => '50'
+            },
+            'control' => '$roleType =~ /core/'
+          },
+          '20' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$roleType =~ /distribution/'
+          },
+          '30' => {
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'minor' => '60',
+              'warning' => '50',
+              'major' => '70'
+            },
+            'control' => '$roleType =~ /access/'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
+      'hrsmpcpu' => {
+        'item' => 'hrCpuLoad',
+        'event' => 'Proactive CPU',
+        'select' => {
+          '10' => {
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'minor' => '40',
+              'warning' => '30',
+              'major' => '50'
+            },
+            'control' => '$roleType =~ /core/'
+          },
+          '20' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$roleType =~ /distribution/'
+          },
+          '30' => {
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'minor' => '60',
+              'warning' => '50',
+              'major' => '70'
+            },
+            'control' => '$roleType =~ /access/'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
+      'env_temp' => {
+        'item' => 'currentTemp',
+        'event' => 'Proactive Temp',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '90',
+              'critical' => '80',
+              'major' => '70',           
+              'minor' => '60',
+              'warning' => '50'
+            }
+          }
+        }
+      },
+      'reachable' => {
+        'item' => 'reachable',
+        'event' => 'Proactive Reachability',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '60',
+              'fatal' => '50',
+              'minor' => '80',
+              'warning' => '85',
+              'major' => '70'
+            }
+          }
+        }
+      },
+      'response' => {
+        'item' => 'response',
+        'event' => 'Proactive Response Time',
+        'select' => {
+          '1' => {
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'minor' => '300',
+              'warning' => '100',
+              'major' => '1000'
+            },
+            'control' => '$nodeType =~ /example/'
+          },
+          '10' => {
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'minor' => '150',
+              'warning' => '100',
+              'major' => '1000'
+            },
+            'control' => '$group =~ /Sales/'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '2000',
+              'fatal' => '3000',
+              'minor' => '300',
+              'warning' => '150',
+              'major' => '1000'
+            }
+          }
+        }
+      },
+      'mem-proc' => {
+        'item' => 'ProcMemFree',
+        'event' => 'Proactive Memory Free',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '7',
+              'fatal' => '5',
+              'minor' => '12',
+              'warning' => '15',
+              'major' => '9'
+            }
+          }
+        }
+      },
+      'modem_unav' => {
+        'item' => 'ModemsUnavailable',
+        'event' => 'Proactive Modem Utilisation',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '40',
+              'fatal' => '50',
+              'minor' => '20',
+              'warning' => '10',
+              'major' => '30'
+            }
+          }
+        }
+      },
+      'ccpu' => {
+        'item' => 'avgBusy5min',
+        'event' => 'Proactive CPU',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
+      'calls_util' => {
+        'item' => 'percIdle',
+        'event' => 'Proactive Calls Utilisation',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
+      'util_in' => {
+        'item' => 'inputUtil',
+        'event' => 'Proactive Interface Input Utilisation',
+        'select' => {
+          '4' => {
+            'value' => {
+              'critical' => '55',
+              'fatal' => '70',
+              'minor' => '30',
+              'warning' => '20',
+              'major' => '40'
+            },
+            'control' => '$ifSpeed == 1000000000'
+          },
+          '1' => {
+            'value' => {
+              'critical' => '90',
+              'fatal' => '95',
+              'minor' => '70',
+              'warning' => '60',
+              'major' => '80'
+            },
+            'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
+          },
+          '3' => {
+            'value' => {
+              'critical' => '65',
+              'fatal' => '80',
+              'minor' => '40',
+              'warning' => '30',
+              'major' => '50'
+            },
+            'control' => '$ifSpeed == 100000000'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '93',
+              'warning' => '80',
+              'minor' => '85',
+              'fatal' => '95',
+              'major' => '90'
+            }
+          },
+          '2' => {
+            'value' => {
+              'critical' => '75',
+              'fatal' => '90',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$ifSpeed == 10000000'
+          }
+        }
+      },
+      'modem_dead' => {
+        'item' => 'ModemsDead',
+        'event' => 'Proactive Dead Modem',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
+      'pkt_discards_out' => {
+        'item' => 'ifOutDiscardsProc',
+        'event' => 'Proactive Interface Discards Output Packets',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'minor' => '0.05',
+              'warning' => '0.02',
+              'major' => '0.1'
+            }
+          }
+        }
+      },
+      'pkt_errors_in' => {
+        'item' => 'ifInErrorsProc',
+        'event' => 'Proactive Interface Error Input Packets',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '0.25',
+              'fatal' => '0.5',
+              'minor' => '0.05',
+              'warning' => '0.02',
+              'major' => '0.1'
+            }
+          }
+        }
+      },
+      'available' => {
+        'item' => 'available',
+        'event' => 'Proactive Interface Availability',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '40',
+              'fatal' => '30',
+              'minor' => '60',
+              'warning' => '70',
+              'major' => '50'
+            }
+          }
+        }
+      }
+    }
+  }
+);
