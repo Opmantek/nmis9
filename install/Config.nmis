@@ -173,6 +173,7 @@
     'auth_htpasswd_encrypt' => 'crypt',
     'auth_radius_secret' => '',
     'auth_web_key' => 'thisismysecretkey',
+    'auth_sso_domain' => '.opmantek.com',
     'auth_radius_server' => '',
     'auth_expire' => '+30min',
     'auth_ldap_server' => '127.0.0.1',

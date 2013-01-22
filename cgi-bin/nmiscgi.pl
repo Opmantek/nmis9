@@ -81,7 +81,7 @@ my $user;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
+$AU = Auth->new(conf => $C, forward_url=>$Q->{forward_url});  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -131,7 +131,7 @@ my $moduleCode = $M->getModuleCode();
 my $installedModules = $M->installedModules();
 
 ### 2012-12-06 keiths, added a HTML5 complaint header.
-print $q->header(-cookie=>$AU->{cookie});
+print $q->header($headeropts);
 startNmisPage(title => 'NMIS by Opmantek');
 
 my $serverCode = loadServerCode(conf=>$Q->{conf});

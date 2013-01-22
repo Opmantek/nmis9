@@ -63,7 +63,7 @@ use Auth;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new;  # Auth::new will reap init values from NMIS::config
+$AU = Auth->new(conf => $C, forward_url=>$Q->{forward_url});  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
