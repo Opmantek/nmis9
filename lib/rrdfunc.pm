@@ -572,7 +572,7 @@ sub createRRD {
 			and not -r "$dir" 
 		) { 
 			dbg("creating database directory $dir");
-			mkdir $dir, 0775 or warn "Cannot mkdir $dir: $!\n";
+			mkpath $dir, 0775 or warn "Cannot mkdir $dir: $!\n";
 		}
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);

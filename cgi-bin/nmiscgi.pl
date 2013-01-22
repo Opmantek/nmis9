@@ -131,7 +131,7 @@ my $moduleCode = $M->getModuleCode();
 my $installedModules = $M->installedModules();
 
 ### 2012-12-06 keiths, added a HTML5 complaint header.
-print $q->header(-cookie=>$AU->{cookie});
+print $q->header($headeropts);
 startNmisPage(title => 'NMIS by Opmantek');
 
 my $serverCode = loadServerCode(conf=>$Q->{conf});

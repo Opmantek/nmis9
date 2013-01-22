@@ -131,7 +131,7 @@ sub new {
 		_require => 1,
 		dir => $arg{dir},
 		user => undef,
-		config => undef,
+		config => $C,
 		priv => undef,
 		privlevel => 0, # default all
 		cookie => undef,
@@ -154,16 +154,17 @@ sub Require {
 
 sub _loadConf {
 	my $self = shift;
-	if ( not defined $C->{'<nmis_base>'} and $C->{'<nmis_base>'} eq "" ) {
+	if ( not defined $C->{'<nmis_base>'} || $C->{'<nmis_base>'} eq "" ) {
 		$C = loadConfTable();
-	}
+	}	
+	$debug |= ( $C->{auth_debug} eq 'true' );
 }
 
 #----------------------------------
 
 sub _auth_init {
 	my $self = shift;
-	_loadConf;
+	$self->_loadConf;
 	$self->{_require} = $C->{auth_require} if defined $C->{auth_require};
 }
 
@@ -260,12 +261,18 @@ sub verify_id {
 	my $self = shift;
 	my($uname,$cookie,$checksum, $token);
 
-	_loadConf;
+	$self->_loadConf;
 
 	# now taste cookie 
 	$cookie = cookie('nmis_auth');
-	return '' if(!$cookie);                         # not defined
-	return '' if($cookie !~ /^([\w\-]+):(.+)$/);   # bad format
+	if(!$cookie) {
+		logAuth("verify_id: cookie not defined");
+		return ''; # not defined
+	}
+	if($cookie !~ /^([\w\-]+):(.+)$/) {
+		logAuth("verify_id: cookie bad format");
+		return ''; # bad format
+	}
 	($uname, $checksum) = ($1,$2);
 	$token = $uname . ($main::Q->{x_remote_addr} || remote_addr());
 	$token .= (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
@@ -283,7 +290,7 @@ sub user_verify {
 	my $self = shift;
 	my($rv) = 0; # default: refuse
 	my($u,$p) = @_;
-	_loadConf;
+	$self->_loadConf;
 	my $UT = loadUsersTable();
 	my $exit = 0;
 
@@ -328,7 +335,9 @@ sub user_verify {
 
 		} elsif ( $auth eq "ms-ldap" ) {
 			$exit = $self->_ms_ldap_verify($u,$p,0);
-
+		
+		} elsif ( $auth eq "novell-ldap" ) {
+			$exit = _novell_ldap_verify($u,$p,0);
 	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
 	#		$rv = _file_verify($C->{'web-htpasswd-file'},$u,$p,1);
 	#		return $rv if($rv);
@@ -362,7 +371,7 @@ sub _file_verify {
 
 	my $crypthack;
 
-	_loadConf;
+	$self->_loadConf;
 
 	my $debugmessage = "DEBUG: _file_verify($pwfile,$u,$p,$encmode)\n";
 	print STDERR "$debugmessage\n" if $debug;
@@ -428,7 +437,7 @@ sub _ldap_verify {
 	my($ldap);
 	my($attr,@attrlist);
 
-	_loadConf;
+	$self->_loadConf;
 
 	if($sec) {
 		# load the LDAPS module
@@ -460,22 +469,157 @@ sub _ldap_verify {
 	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
 		if( $C->{'auth_ldap_attr'} );
 	
+	# foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
+	# 	foreach $attr ( @attrlist ) {
+	# 		$dn = "$attr=$u,".$context;
+	# 		$msg = $ldap->bind($dn, password=>$p) ;
+	# 		if(!$msg->is_error) {
+	# 			$ldap->unbind();
+	# 			return 1;
+	# 		}
+	# 	}
+	# }
+
+	#if($debug) {
+	#	print STDERR "DEBUG: _ldap_verify: auth_ldap_attr=(";
+	#	print STDERR join(',',@attrlist);
+	#	print STDERR ")\n";
+	#}
+
 	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
+
+		#print STDERR "DEBUG: _ldap_verify: context=$context\n" if $debug;
+
 		foreach $attr ( @attrlist ) {
 			$dn = "$attr=$u,".$context;
+
+			#print STDERR "DEBUG: _ldap_verify: $dn\n" if $debug;
+
 			$msg = $ldap->bind($dn, password=>$p) ;
 			if(!$msg->is_error) {
+
+				#print STDERR "DEBUG: _ldap_verify: bind success\n" if $debug;
+
 				$ldap->unbind();
 				return 1;
 			}
+
+			#elsif ($debug) {
+			#	my $__reason = $msg->error;
+			#	print STDERR "DEBUG: _ldap_verify: bind failed with $__reason\n";
+			#}	
 		}
 	}
-
 	return 0; # not found
 }
 
 #----------------------------------
+#
+# Novell eDirectory LDAP verify a username
+#
 
+sub _novell_ldap_verify {
+	my $self = shift;
+	my($u, $p, $sec) = @_;
+	my($dn,$context,$msg);
+	my($ldap);
+	my($attr,@attrlist);
+
+	$self->_loadConf;
+
+	if($sec) {
+		# load the LDAPS module
+		eval { require IO::Socket::SSL; require Net::LDAPS; };
+		if($@) {
+			logAuth2("no IO::Socket::SSL; Net::LDAPS installed","ERROR");
+			return 0; 
+		} # no Net::LDAPS installed
+	} else {
+		# load the LDAP module
+		eval { require Net::LDAP; };
+		if($@) {
+			logAuth2("no Net::LDAP installed","ERROR");
+			return 0; 
+		} # no Net::LDAP installed
+	}
+
+	# Connect to LDAP and verify username and password
+	if($sec) {
+		$ldap = new Net::LDAPS($C->{'auth_ldaps_server'});
+	} else {
+		$ldap = new Net::LDAP($C->{'auth_ldap_server'});
+	}
+	if(!$ldap) {
+		logAuth2("no LDAP object created, maybe ldap server address missing in configuration of NMIS","ERROR");
+		return 0; 
+	}
+	@attrlist = ( 'uid','cn' );
+	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
+		if( $C->{'auth_ldap_attr'} );
+	
+	#if($debug) {
+	#	print STDERR "DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
+	#	print STDERR join(',',@attrlist);
+	#	print STDERR ")\n";
+	#}
+
+	# TODO: Implement non-anonymous bind
+
+	$msg = $ldap->bind; # Anonymous bind
+	if ($msg->is_error) {
+		logAuth2("cant search LDAP (anonymous bind), need binddn which is uninplemented","TODO");
+		logAuth2("LDAP anonymous bind failed","ERROR");
+		return 0;
+	}
+
+	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
+
+		#print STDERR "DEBUG: _novell_ldap_verify: context=$context\n" if $debug;
+
+		$dn = undef;
+		# Search "attr=user" in each context
+		foreach $attr ( @attrlist ) {
+
+			#print STDERR "DEBUG: _novell_ldap_verify: search ($attr=$u)\n" if $debug;
+
+			$msg = $ldap->search(base=>$context,filter=>"$attr=$u",scope=>"sub",attrs=>["dn"]);
+
+			#print STDERR "DEBUG: _novell_ldap_verify: search result: code=" . $msg->code . ", count=" . $msg->count . "\n" if $debug;
+
+			if ( $msg->is_error ) { #|| ($msg->count != 1)) { # not Found, try next context
+				next;
+			}
+			$dn = $msg->entry(0)->dn;
+		}
+		# if found, use DN to bind
+		# not found => dn is undef
+
+		return 0 unless defined($dn);
+
+		#print STDERR "DEBUG: _novell_ldap_verify: found, trying to bind as $dn\n" if $debug;
+
+		$msg = $ldap->bind($dn, password=>$p) ;
+		if(!$msg->is_error) {
+
+			#print STDERR "DEBUG: _novell_ldap_verify: bind success\n" if $debug;
+
+			$ldap->unbind();
+			return 1;
+		}
+
+		else {
+			#print STDERR "DEBUG: _novell_ldap_verify: bind failed with ". $msg->error . "\n" if $debug;
+
+			# A bind failure in one context is fatal.
+			return 0;
+		}
+	}
+
+	logAuth2("LDAP user not found in any context","ERROR");
+	return 0; # not found in any context
+}
+
+#----------------------------------
 # Microsoft LDAP verify username/password
 #
 # 18-4-10 Jan v. K.
@@ -490,7 +634,7 @@ sub _ms_ldap_verify {
 	my $entry;
 	my $dn;
 
-	_loadConf;
+	$self->_loadConf;
 
 	if($sec) {
 		# load the LDAPS module
@@ -595,7 +739,7 @@ sub generate_cookie {
 	my($exp) = "+1min"; # note this stops wk/mon/yrly autoupdate from working
 	my($token);
 
-	_loadConf;
+	$self->_loadConf;
 
 	return "" if ( ! $authuser );
 
@@ -606,6 +750,7 @@ sub generate_cookie {
 	
 	$token .= (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
 	$token = $authuser . ':' . unpack('%32C*',$token); # checksum
+	
 
 	#$cookie = cookie({name=>'nmis_auth', value=>$token, path=>$C->{'<cgi_url_base>'}, expires=>$exp} ) ;
 	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com") {
@@ -636,14 +781,23 @@ sub do_login {
 	my $config= $args{config};
 	my $msg = $args{msg};
 
-	_loadConf;
+	$self->_loadConf;
 
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
+	# print STDERR " Q is : ".Dumper($Q);
+	my $url = self_url();
+	if( $config ne '' ) {
+		if( index($url, '?') == -1 ) {
+			$url .= "?conf=$config";
+		} else {
+			$url .= "&conf=$config";
+		}
+	}
+	
 	print header(-target=>"_top", -type=>"text/html", -expires=>'now') . "\n";
 	print start_html(
 			-title=>$C->{auth_login_title},
-			-author=>'rwsmith@bislink.net',
 			-base=>'false',
 			-xbase=>&url(-base=>1)."$C->{'<url_base>'}",
 			-target=>'_blank',
@@ -666,7 +820,7 @@ sub do_login {
 		p("Please log in with your appropriate username and password in order to gain access to this system")));
 	
 	print start_Tr,start_td;
-	print start_form({method=>"POST", action=>url(-absolute=>1)."?conf=$config", target=>"_top"}),
+	print start_form({method=>"POST", action=>$url, target=>"_top"}),
 		table({align=>"center", width=>"50%", class=>"noborder"},
 		  Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'}) )) .
 		  Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) )) .
@@ -700,12 +854,13 @@ sub do_force_login {
 	my($javascript);
 	my($err) = shift;
 
-	_loadConf;
+	$self->_loadConf;
 
 	# Javascript that sets window.location to login URL
 	# This is created if auth = y and page != login and !authuser
+	my $forward_url = self_url();
 
-	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
+	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config&forward_url=$forward_url";
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
@@ -734,11 +889,11 @@ sub do_logout {
 	my $config= $args{config};
 	my($cookie,$javascript);
 
-	_loadConf;
+	$self->_loadConf;
 
 	# Javascript that sets window.location to login URL
 	$javascript = "function redir() { window.location = '" . url(-full=>1) . "?auth_type=login&conf=$config'; }";
-	$cookie = cookie({ -name=>'nmis_auth', -value=>'', -path=>$C->{'<cgi_url_base>'}, -expires=>"now"} ) ;
+	$cookie = cookie({ -name=>'nmis_auth', -value=>'', -expires=>"now"} ) ;
 
 	logAuth("INFO logout of user=$self->{user}");
 
@@ -809,7 +964,7 @@ sub get_time {
 sub _radius_verify {
 	my $self = shift;
 	my($user, $pswd) = @_;
-	_loadConf;
+	$self->_loadConf;
 
 	eval { require Authen::Simple::RADIUS; }; # installed from CPAN
 	if($@) {
@@ -843,7 +998,7 @@ sub _tacacs_verify {
 	my $self = shift;
 	my($user, $pswd) = @_;
 
-	_loadConf;
+	$self->_loadConf;
 
 	eval { require Authen::TacacsPlus; }; # installed from CPAN
 	if($@) {
@@ -887,46 +1042,71 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	
-	_loadConf;
+	$self->_loadConf;
 		
 	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
 	
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2012-11-19 keiths, fixing Auth to use Cookies!
-	if ( not $self->SetUser($self->verify_id()) ) {
-		if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {             
-			$username=$ENV{'REMOTE_USER'};     
-	  }
-		elsif ( $type eq "" and $self->{user} eq "" ) {
-			$type = "login";	
-		}
-	}   
+	# if ( not $self->SetUser($self->verify_id()) ) {
+	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {             
+		$username=$ENV{'REMOTE_USER'};
+		if( $type eq 'login' ) {
+			$type = ""; #apache takes care of showing the login screen	
+		}		
+  }
+	# elsif ( $type eq "" and $self->{user} eq "" ) {
+	# 	$type = "login";	
+	# }
+	# }
 
-	if ($username) { # someone is trying to log in
+	print STDERR "DEBUG: loginout type=$type\n" if $debug;
+	
+	if(lc $type eq 'logout') {
+		$self->do_logout(config=>$config); # bye
+		return 0;
+	}
+
+	if ( lc $type eq 'login' ) {
+		$self->do_login(config=>$config);
+		return 0;
+	} 
+
+
+	if (defined($username) && $username ne '') { # someone is trying to log in
+		print STDERR "DEBUG: verifying $username\n" if $debug;
 		if( $self->user_verify($username,$password)) {
+			#print STDERR "DEBUG: user verified $username\n" if $debug;
+			#print STDERR "self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config\n" if $debug;
+
 			# login accepted, set privs
 			$self->SetUser($username);
+
 			# check the name of the NMIS config file specified on url
 			# only bypass for administrator
-			if ($self->{privlevel} ne 1 and $self->{config} ne '' and $config ne $self->{config}) {
+			if ($self->{privlevel} gt 1 and $self->{config} ne '' and $config ne $self->{config}) {
 				$self->do_login(msg=>"Invalid config file specified on url");
 				return 0;
 			}
-#			if ($config ne '') {
-				logAuth("INFO user=$self->{user} logged in with config=$config");
-#			}
+
+			logAuth2("user=$self->{user} logged in with config=$config","INFO");
+
 		} else { # bad login: force it again
 			$self->do_login(config=>$config,msg=>"Invalid username/password combination");
 			return 0;
 		}
-	}
-	elsif ( $type eq 'login') {
-		$self->do_login(config=>$config);
-		return 0;
 	} 
-	elsif($type eq 'logout') {
-		$self->do_logout(config=>$config); # bye
-		return 0;
+	else { # check cookie
+		print STDERR "DEBUG: valid session? check cookie\n" if $debug;
+
+		$username = $self->verify_id();
+		if( $username eq '' ) { # invalid cookie
+			$self->do_force_login(config=>$config,msg=>"Invalid Session");
+			return 0;
+		}
+
+		$self->SetUser( $username );
+		print STDERR "DEBUG: cookie OK\n" if $debug;
 	}
 
 	# user should be set at this point, if not then redirect
@@ -936,12 +1116,11 @@ sub loginout {
 	}
 	
 	# generate the cookie if $self->user is set
-	if ($self->{user}) {
-        push @cookies, $self->generate_cookie($self->{user});
-        $headeropts->{-cookie} = [@cookies];
+	if ($self->{user}) {		
+    push @cookies, $self->generate_cookie($self->{user});
 	}
-	$self->{cookie} = \@cookies;
-
+	$self->{cookie} = @cookies;
+	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
 }
 
@@ -1037,9 +1216,9 @@ sub CheckAccessCmd {
 #
 sub _GetPrivs {
 	my $self = shift;
-	my $user = shift;
+	my $user = lc shift;
 
-	_loadConf;
+	$self->_loadConf;
 	my $GT = loadGroupTable();
 	my $UT = loadUsersTable();
 	my $PMT = loadPrivMapTable();
@@ -1059,6 +1238,7 @@ sub _GetPrivs {
 	$self->{privlevel} = ($PMT->{$UT->{$user}{privilege}}{level} ne '') ? $PMT->{$UT->{$user}{privilege}}{level} : '5';
 
 	$self->{config} = $UT->{$user}{config}; # nmis config file specification (optional)
+	$self->{config} = 'Config.nmis' if $self->{config} eq '';
 
 	my @groups = split /,/, $UT->{$user}{groups};
 

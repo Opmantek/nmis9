@@ -39,7 +39,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Exporter;
 use Net::SMTP;
-use Net::SMTP::SSL;
+# use Net::SMTP::SSL;
 use Net::SNPP;
 use NMIS;
 use func;

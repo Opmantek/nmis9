@@ -39,7 +39,7 @@ use File::Path;
 use File::stat;
 use Time::ParseDate;
 use Time::Local;
-#use CGI::Pretty qw(:standard);
+use CGI::Pretty qw(:standard);
 
 use Data::Dumper;
 $Data::Dumper::Ident=1;
@@ -103,6 +103,7 @@ $VERSION = 1.00;
 
 		htmlElementValues
 		logMsg
+		logAuth2
 		logAuth
 		logIpsla
 		logPolling
@@ -1077,6 +1078,72 @@ sub logMsg {
 	print $handle returnDateStamp().",$string\n" or warn returnTime." logMsg, can't write file $nmis_log. $!\n";
 	close $handle or warn "logMsg, can't close filename: $!";
 	setFileProt($nmis_log);
+}
+
+my %loglevels = ( "EMERG"=>0,"ALERT"=>1,"CRITICAL"=>2,"ERROR"=>3,"WARNING"=>4,"NOTICE"=>5,"INFO"=>6,"DEBUG"=>7);
+my $maxlevel = 7; # TODO: Put this in config file.
+
+#-----------------------------------
+# logAuth2(message,level)
+# message: message text
+# level: [0..7] or string in [EMERG,ALERT,CRITICAL,ERROR,WARNING,NOTICE,INFO,DEBUG]
+# if level < 0, use 0;
+# if level > 7 or any string not in the group, use 7
+# case insensitive
+# arbitrary strings can be used (only at debug level)
+# Only messages below $maxlevel are printed
+
+sub logAuth2($;$) {
+	my $msg = shift;
+	my $level = shift || 3; # default: ERROR
+
+	$level = $loglevels{uc $level} if exists $loglevels{uc $level};
+
+	my $levelmsg;
+	if( $level !~ /^[0-7]$/ ) {
+		$levelmsg = $level;
+		$level = 7;
+	} else {
+		$level = 0 if $level < 0;
+		$level = 7 if $level > 7;
+
+		$levelmsg = (keys %loglevels)[$level];
+	}
+
+	#logAuth("$levelmsg: $msg") if $level <= $maxlevel;
+
+	my $C = $C_cache;
+
+	if ($C eq '') { die "FATAL logAuth, NO Config Loaded: $msg"; }
+	elsif ( not -f $C->{auth_log} and not -d $C->{'<nmis_logs>'} ) {
+		print "ERROR, logAuth can't do anything but NAG YOU\n";
+		warn "ERROR logAuth: the message which killed me was: $msg\n";
+		return undef;
+	}
+
+	dbg($msg);
+	my ($string,$caller,$ln,$fn);
+	for my $i (1..10) {
+		($caller) = (caller($i))[3]; # name sub
+		($ln) = (caller($i-1))[2];  # line number
+		$string = "$caller#$ln".$string;
+		if ($caller =~ /main/ or $caller eq '') {
+			($fn) = (caller($i-1))[1]; # file name
+			$fn =~ s|.*/(.*\.\w+)$|$1| ; # strip directory (basename???)
+			$string =~ s/main|//;
+			$string = "$fn".$string;
+			last;
+		}
+	}
+	$string .= "<br>$msg";
+	$string =~ s/\n/ /g;      #remove all embedded newlines
+
+	my $handle;
+	open($handle,">>$C->{auth_log}") or warn returnTime." logAuth, Couldn't open log file $C->{auth_log}. $!\n";
+	flock($handle, LOCK_EX)  or warn "logAuth, can't lock filename: $!";
+	print $handle returnDateStamp().",$string\n" or warn returnTime." logAuth, can't write file $C->{auth_log}. $!\n";
+	close $handle or warn "logAuth, can't close filename: $!";
+	setFileProt($C->{auth_log});
 }
 
 # message with (class::)method names and line number
