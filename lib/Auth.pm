@@ -262,13 +262,11 @@ sub get_cookie_token
 	my($user_name) = @_;
 
 	my $token;
-	print STDERR "get_cookie_token: using $user_name, ".remote_host()." and key ".$self->{config}->{'auth_web_key'};
 	
 	$token = $user_name . remote_host();
 	$token .= (defined $self->{config}->{'auth_web_key'}) ? $self->{config}->{'auth_web_key'} : $CHOCOLATE_CHIP;
 	$token = unpack('%32C*',$token); # generate checksum
-	
-	print STDERR "GOT TOCKEN $token\n";
+		
 	return $token;
 }
 
@@ -288,7 +286,7 @@ sub verify_id {
 		logAuth("verify_id: cookie bad format");
 		return ''; # bad format
 	}
-	print STDERR "WHAT THE HELL ARE $1, $2";
+
 	($user_name, $checksum) = ($1,$2);
 	my $token = $self->get_cookie_token($user_name);
 
@@ -312,7 +310,7 @@ sub generate_cookie {
 
 	$exp = $self->{config}->{auth_expire} if ( $self->{config}->{auth_expire} ne "" );
 	$exp = "+60min" if ($exp eq ""); # some checking for format
-	print STDERR "Making cookie with $authuser\n";
+	
 	$token = $self->get_cookie_token($authuser);
 	$token = $authuser . ':' . $token; # checksum
 
@@ -321,7 +319,7 @@ sub generate_cookie {
 		$cookie = cookie({name=>'nmis_auth', domain=>$self->{config}->{'auth_sso_domain'}, value=>$token, expires=>$exp} ) ;
 	}
 	else {		
-		$cookie = cookie({name=>'nmis_auth', value=>$token, expires=>$exp} ) ;
+		$cookie = cookie({name=>'nmis_auth', value=>$token, expires=>$exp} ) ;	
 	}
 
 	return $cookie;
@@ -509,47 +507,17 @@ sub _ldap_verify {
 	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
 		if( $self->{config}->{'auth_ldap_attr'} );
 	
-	# foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
-	# 	foreach $attr ( @attrlist ) {
-	# 		$dn = "$attr=$u,".$context;
-	# 		$msg = $ldap->bind($dn, password=>$p) ;
-	# 		if(!$msg->is_error) {
-	# 			$ldap->unbind();
-	# 			return 1;
-	# 		}
-	# 	}
-	# }
-
-	#if($debug) {
-	#	print STDERR "DEBUG: _ldap_verify: auth_ldap_attr=(";
-	#	print STDERR join(',',@attrlist);
-	#	print STDERR ")\n";
-	#}
-
 	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
-
-		#print STDERR "DEBUG: _ldap_verify: context=$context\n" if $debug;
-
 		foreach $attr ( @attrlist ) {
 			$dn = "$attr=$u,".$context;
-
-			#print STDERR "DEBUG: _ldap_verify: $dn\n" if $debug;
-
 			$msg = $ldap->bind($dn, password=>$p) ;
 			if(!$msg->is_error) {
-
-				#print STDERR "DEBUG: _ldap_verify: bind success\n" if $debug;
-
 				$ldap->unbind();
 				return 1;
 			}
-
-			#elsif ($debug) {
-			#	my $__reason = $msg->error;
-			#	print STDERR "DEBUG: _ldap_verify: bind failed with $__reason\n";
-			#}	
 		}
 	}
+
 	return 0; # not found
 }
 
@@ -1037,7 +1005,8 @@ sub loginout {
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
-	my $config = $args{conf};
+	# my $config = $args{conf};
+	my $config = $self->{config};
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	
@@ -1045,20 +1014,13 @@ sub loginout {
 	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
 	
 	#2011-11-14 Integrating changes from Till Dierkesmann
-	### 2012-11-19 keiths, fixing Auth to use Cookies!
-	# if ( not $self->SetUser($self->verify_id()) ) {
+	### 2013-01-22 markd, fixing Auth to use Cookies!
 	if($ENV{'REMOTE_USER'} and ($self->{config}->{auth_method_1} eq "" or $self->{config}->{auth_method_1} eq "apache") ) {             
 		$username=$ENV{'REMOTE_USER'};
 		if( $type eq 'login' ) {
 			$type = ""; #apache takes care of showing the login screen	
 		}		
   }
-	# elsif ( $type eq "" and $self->{user} eq "" ) {
-	# 	$type = "login";	
-	# }
-	# }
-
-	print STDERR "DEBUG: loginout type=$type\n";
 	
 	if(lc $type eq 'logout') {
 		$self->do_logout(config=>$config); # bye
@@ -1068,8 +1030,7 @@ sub loginout {
 	if ( lc $type eq 'login' ) {
 		$self->do_login(config=>$config);
 		return 0;
-	} 
-
+	}
 
 	if (defined($username) && $username ne '') { # someone is trying to log in
 		print STDERR "DEBUG: verifying $username\n" if $debug;
