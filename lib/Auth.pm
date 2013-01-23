@@ -155,7 +155,7 @@ sub Require {
 
 sub _loadConf {
 	my $self = shift;
-	if ( not defined $self->{config}->{'<nmis_base>'} || $self->{config}->{'<nmis_base>'} eq "" ) {
+	if ( not defined $self->{config}->{'<nmis_base>'} || $self->{config}->{'<nmis_base>'} eq "" ) {		
 		$C = loadConfTable();
 	}	
 	$debug |= ( $self->{config}->{auth_debug} eq 'true' );
@@ -750,7 +750,7 @@ sub _ms_ldap_verify {
 sub do_login {
 	my $self = shift;
 	my %args = @_;
-	my $config= $args{config};
+	my $config= $self->{config}{configfile_name};
 	my $msg = $args{msg};
 
 
@@ -821,10 +821,13 @@ sub do_login {
 sub do_force_login {
 	my $self = shift;
 	my %args = @_;
-	my $config = $args{config} ne '' ? "&conf=$args{config}" : "" ;
+	my $config = $self->{config}{configfile_name};
 	my($javascript);
 	my($err) = shift;
 
+	if( $config ne '' ){
+		$config = "&conf=$config";
+	}
 
 	# Javascript that sets window.location to login URL
 	# This is created if auth = y and page != login and !authuser
@@ -1023,12 +1026,12 @@ sub loginout {
   }
 	
 	if(lc $type eq 'logout') {
-		$self->do_logout(config=>$config); # bye
+		$self->do_logout(); # bye
 		return 0;
 	}
 
 	if ( lc $type eq 'login' ) {
-		$self->do_login(config=>$config);
+		$self->do_login();
 		return 0;
 	}
 
@@ -1051,7 +1054,7 @@ sub loginout {
 			logAuth2("user=$self->{user} logged in with config=$config","INFO");
 
 		} else { # bad login: force it again
-			$self->do_login(config=>$config,msg=>"Invalid username/password combination");
+			$self->do_login(msg=>"Invalid username/password combination");
 			return 0;
 		}
 	} 
@@ -1060,7 +1063,7 @@ sub loginout {
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
-			$self->do_force_login(config=>$config,msg=>"Invalid Session");
+			$self->do_force_login(msg=>"Invalid Session");
 			return 0;
 		}
 
@@ -1070,7 +1073,7 @@ sub loginout {
 
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
-		$self->do_force_login(config=>$config);
+		$self->do_force_login();
 		return 0;
 	}
 	

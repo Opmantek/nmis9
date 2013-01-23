@@ -1391,6 +1391,7 @@ sub loadConfTable {
 			$Table_cache{$conf}{debug} = setDebug($debug); # include debug setting in conf table
 			$Table_cache{$conf}{conf} = $conf;
 			$Table_cache{$conf}{configfile} = $configfile;
+			$Table_cache{$conf}{configfile_name} = substr($configfile, rindex($configfile, "/")+1);
 			$Table_cache{$conf}{auth_require} = ($Table_cache{$conf}{auth_require} eq 'false') ? 0 : 1; # default true in Auth
 			$Table_cache{$conf}{starttime} = time();
 
