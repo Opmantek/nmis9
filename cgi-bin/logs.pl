@@ -83,7 +83,6 @@ $Q = $q->Vars; # values in hash
 ## uncomment for debug
 #$Q->{debug} = 'true';
 ##
-$Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # -------------------------------------------------------
@@ -98,7 +97,7 @@ my $user;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new;  # Auth::new will reap init values from NMIS configuration
+$AU = Auth->new(conf => $C, forward_url=>$Q->{forward_url});  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
