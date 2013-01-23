@@ -108,6 +108,7 @@ use File::Basename;
 
 # I prefer the use of the library when debugging the resulting HTML script
 # either one will work
+use CGI;
 use CGI::Pretty qw(:standard form *table *Tr *td center b h1 h2);
 $CGI::Pretty::INDENT = "  ";
 $CGI::Pretty::LINEBREAK = "\n";
@@ -262,8 +263,12 @@ sub get_cookie_token
 	my($user_name) = @_;
 
 	my $token;
-	
-	$token = $user_name . remote_host();
+	my $remote_addr = remote_addr();
+	if( $self->{config}->{auth_debug} ne '' && $self->{config}->{auth_debug_remote_addr} ne '' ) {		
+		$remote_addr = $self->{config}->{auth_debug_remote_addr};
+	}
+	$token = $user_name . $remote_addr;
+	# print STDERR "USING REMOTE ADDR $remote_addr\n";
 	$token .= (defined $self->{config}->{'auth_web_key'}) ? $self->{config}->{'auth_web_key'} : $CHOCOLATE_CHIP;
 	$token = unpack('%32C*',$token); # generate checksum
 		
@@ -285,30 +290,30 @@ sub get_cookie
 {
 	my $self = shift;
 	my $cookie;
-	$cookie = cookie('nmis_auth');	
+	$cookie = cookie('nmis_auth');
+	# print STDERR "get_cookie: got cookie $cookie\n";
 	return $cookie;
 }
 
 # verify_id -- reads cookies and params, returns verified username
 sub verify_id {
 	my $self = shift;
-	my($user_name,$cookie,$checksum, $token);
-
 	# now taste cookie 
-	$cookie = $self->get_cookie();
+	my $cookie = $self->get_cookie();	
 
-	if(!$cookie) {
-		logAuth("verify_id: cookie not defined");
+	if(!defined($cookie) ) {
+		logAuth("verify_id: cookie not defined");		
 		return ''; # not defined
 	}
 	
-	if($cookie !~ /^([\w\-]+):(.+)$/) {
+	if($cookie !~ /^([\w\-]+):(.+)$/) {		
 		logAuth("verify_id: cookie bad format");
 		return ''; # bad format
 	}
 
-	($user_name, $checksum) = ($1,$2);
+	my ($user_name, $checksum) = ($1,$2);
 	my $token = $self->get_cookie_token($user_name);
+	# print STDERR "Username $user_name, checksum $checksum, token $token\n";
 
 	return $user_name if( $token eq $checksum ); # yummy
 	
@@ -1025,7 +1030,7 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	
-	# print STDERR "loginout: Got cookies ".join(",", cookie() );
+	# print STDERR "loginout: Got cookies ".join(",", cookie() )."\n";
 
 	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
 	
@@ -1067,7 +1072,7 @@ sub loginout {
 		}
 	} 
 	else { # check cookie
-		print STDERR "DEBUG: valid session? check cookie\n" if $debug;
+		print STDERR "DEBUG: valid session? check cookie\n" if $debug;		
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
