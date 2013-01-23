@@ -108,10 +108,12 @@ use File::Basename;
 
 # I prefer the use of the library when debugging the resulting HTML script
 # either one will work
-use CGI;
 use CGI::Pretty qw(:standard form *table *Tr *td center b h1 h2);
 $CGI::Pretty::INDENT = "  ";
 $CGI::Pretty::LINEBREAK = "\n";
+
+# for handling errors in javascript
+use JSON;
 
 # You should change this to be unique for your site
 #
@@ -854,6 +856,24 @@ sub do_force_login {
 	my $forward_url = self_url();
 
 	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name&forward_url=$forward_url";
+
+	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
+	# and redirect for us
+	if( http("X-Requested-With") eq "XMLHttpRequest" )
+	{
+		# forward url will have a function in it, we want to go back to regular nmis
+		my $url_no_forward = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";	
+		my $ret = { name => "JSONRequestError", message => "Authentication Error", redirect_url => $url_no_forward };
+		my $json_data = to_json( $ret ); #, { pretty => 1 } );
+
+    print <<EOHTML;
+Status: 405 Method Not Allowed
+Content-type: application/json
+
+EOHTML
+    print $json_data;
+    return;
+	}
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
