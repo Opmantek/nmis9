@@ -60,6 +60,10 @@ function commonv8Init(widget_refresh,config,registered,modules) {
                 alert('Error.\nParsing JSON Request failed.');
             } else if (e == 'timeout') {
                 alert('Request Time out.');
+            } else if (x.status == 405 ) {
+            	// this is essentially a made-up status code that tells us to re-autheticate
+            	data = jQuery.parseJSON( x.responseText );
+            	document.location = data.redirect_url;
             } else {
                 alert('Unkown error: ' + x.status + ' ' + x.statusText + '\n\n' + x.responseText);
             }
