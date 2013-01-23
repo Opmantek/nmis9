@@ -166,6 +166,7 @@
   'authentication' => {
     'auth_require' => 'true',
     'auth_debug' => '',
+    'auth_debug_remote_addr' => '',
     'auth_method_1' => 'apache',
     'auth_method_2' => '',
     'auth_method_3' => '',
