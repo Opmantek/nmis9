@@ -270,13 +270,33 @@ sub get_cookie_token
 	return $token;
 }
 
+sub get_cookie_domain
+{
+	my $self = shift;
+	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com") {
+		return $self->{config}->{'auth_sso_domain'};
+	}
+	else {		
+		return;
+	}
+}
+
+sub get_cookie
+{
+	my $self = shift;
+	my $cookie;
+	$cookie = cookie('nmis_auth');	
+	return $cookie;
+}
+
 # verify_id -- reads cookies and params, returns verified username
 sub verify_id {
 	my $self = shift;
 	my($user_name,$cookie,$checksum, $token);
 
 	# now taste cookie 
-	$cookie = cookie('nmis_auth');
+	$cookie = $self->get_cookie();
+
 	if(!$cookie) {
 		logAuth("verify_id: cookie not defined");
 		return ''; # not defined
@@ -300,28 +320,24 @@ sub verify_id {
 # generate_cookie -- returns a cookie with current username, expiry
 sub generate_cookie {
 	my $self = shift;
-	my $authuser = shift;
-	my($cookie);
-	my($exp) = "+1min"; # note this stops wk/mon/yrly autoupdate from working
-	my($token);
-
-
+	my %args = @_;
+	my $authuser = $args{user_name};	
 	return "" if ( ! $authuser );
 
-	$exp = $self->{config}->{auth_expire} if ( $self->{config}->{auth_expire} ne "" );
-	$exp = "+60min" if ($exp eq ""); # some checking for format
+	my $expires = $args{expires};
+	if( !defined($expires) ){
+		$expires = ( $self->{config}->{auth_expire} ne "" ) ? $self->{config}->{auth_expire} : "+60min"		
+	}
 	
-	$token = $self->get_cookie_token($authuser);
-	$token = $authuser . ':' . $token; # checksum
-
-	#$cookie = cookie({name=>'nmis_auth', value=>$token, path=>$self->{config}->{'<cgi_url_base>'}, expires=>$exp} ) ;
-	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com") {
-		$cookie = cookie({name=>'nmis_auth', domain=>$self->{config}->{'auth_sso_domain'}, value=>$token, expires=>$exp} ) ;
-	}
-	else {		
-		$cookie = cookie({name=>'nmis_auth', value=>$token, expires=>$exp} ) ;	
+	my $value = $args{value};
+	if( !exists($args{value}) ) {
+		$value = $self->get_cookie_token($authuser);
+		$value = $authuser . ':' . $value; # checksum		
 	}
 
+	my $domain = $self->get_cookie_domain();	
+	my $cookie = cookie( {-name=>'nmis_auth', -domain=>$domain, -value=>$value, -expires=>$expires} ) ;	
+	
 	return $cookie;
 }
 #----------------------------------
@@ -756,7 +772,6 @@ sub do_login {
 
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
-	# print STDERR " Q is : ".Dumper($Q);
 	my $url = self_url();
 	if( $config ne '' ) {
 		if( index($url, '?') == -1 ) {
@@ -821,19 +836,19 @@ sub do_login {
 sub do_force_login {
 	my $self = shift;
 	my %args = @_;
-	my $config = $self->{config}{configfile_name};
+	my $configfile_name = $self->{config}{configfile_name};
 	my($javascript);
 	my($err) = shift;
 
-	if( $config ne '' ){
-		$config = "&conf=$config";
+	if( $configfile_name ne '' ){
+		$configfile_name = "&conf=$configfile_name";
 	}
 
 	# Javascript that sets window.location to login URL
 	# This is created if auth = y and page != login and !authuser
 	my $forward_url = self_url();
 
-	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config&forward_url=$forward_url";
+	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name&forward_url=$forward_url";
 
 	$javascript = "function redir() { ";
 #	$javascript .= "alert('$err'); " if($err);
@@ -856,16 +871,14 @@ sub do_force_login {
 
 # do_logout -- set auth cookie to blank, expire now, and redirect to top
 #
-sub do_logout {
+sub do_logout {	
 	my $self = shift;
 	my %args = @_;
-	my $config= $args{config};
-	my($cookie,$javascript);
-
+	my $configfile_name = $self->{config}{configfile_name};
 
 	# Javascript that sets window.location to login URL
-	$javascript = "function redir() { window.location = '" . url(-full=>1) . "?auth_type=login&conf=$config'; }";
-	$cookie = cookie({ -name=>'nmis_auth', -value=>'', -expires=>"now"} ) ;
+	my $javascript = "function redir() { window.location = '" . url(-full=>1) . "?auth_type=login&conf=$configfile_name'; }";
+	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user}");
 
@@ -874,8 +887,7 @@ sub do_logout {
 		-title =>"Logout complete",
 		-expires => "5s",  
 		-script => $javascript, 
-		-onload => "redir()",
-		-cookie => $cookie,
+		-onload => "redir()",		
 		-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
 		}),"\n";
 
@@ -1013,7 +1025,8 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	
-		
+	# print STDERR "loginout: Got cookies ".join(",", cookie() );
+
 	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
 	
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -1025,11 +1038,6 @@ sub loginout {
 		}		
   }
 	
-	if(lc $type eq 'logout') {
-		$self->do_logout(); # bye
-		return 0;
-	}
-
 	if ( lc $type eq 'login' ) {
 		$self->do_login();
 		return 0;
@@ -1071,6 +1079,12 @@ sub loginout {
 		print STDERR "DEBUG: cookie OK\n" if $debug;
 	}
 
+	# logout has to be down here because we need the username loaded to generate the correct cookie 
+	if(lc $type eq 'logout') {
+		$self->do_logout(); # bye
+		return 0;
+	}
+
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
 		$self->do_force_login();
@@ -1079,7 +1093,7 @@ sub loginout {
 	
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {		
-    push @cookies, $self->generate_cookie($self->{user});
+    push @cookies, $self->generate_cookie(user_name => $self->{user});
 	}
 	$self->{cookie} = @cookies;
 	$headeropts->{-cookie} = [@cookies];
