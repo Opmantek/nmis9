@@ -264,15 +264,20 @@ sub get_cookie_token
 	my($user_name) = @_;
 
 	my $token;
-	my $remote_addr = remote_addr();
-	if( $self->{config}->{auth_debug} ne '' && $self->{config}->{auth_debug_remote_addr} ne '' ) {		
-		$remote_addr = $self->{config}->{auth_debug_remote_addr};
+	my $remote_addr = remote_addr();	
+	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {		
+		$remote_addr = $self->{config}{auth_debug_remote_addr};
 	}
-	$token = $user_name . $remote_addr;
-	# print STDERR "USING REMOTE ADDR $remote_addr\n";
-	$token .= (defined $self->{config}->{'auth_web_key'}) ? $self->{config}->{'auth_web_key'} : $CHOCOLATE_CHIP;
+
+	
+	# print STDERR "DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}\n" if $debug;
+	my $web_key = (defined $self->{config}->{'auth_web_key'}) ? $self->{config}->{'auth_web_key'} : $CHOCOLATE_CHIP;
+	print STDERR "DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key\n" if $debug;
+	$token = $user_name . $remote_addr;	
+	$token .= $web_key;
 	$token = unpack('%32C*',$token); # generate checksum
-		
+
+	print STDERR "DEBUG: get_cookie_token: generated token=$token\n" if $debug;		
 	return $token;
 }
 
@@ -287,12 +292,19 @@ sub get_cookie_domain
 	}
 }
 
+sub get_cookie_name
+{
+	my $self = shift;
+	my $name = "nmis_auth".$self->get_cookie_domain;
+	return $name;
+}
+
 sub get_cookie
 {
 	my $self = shift;
 	my $cookie;
-	$cookie = cookie('nmis_auth');
-	# print STDERR "get_cookie: got cookie $cookie\n";
+	$cookie = cookie( $self->get_cookie_name() );
+	print STDERR "get_cookie: got cookie $cookie\n" if $debug;
 	return $cookie;
 }
 
@@ -301,14 +313,16 @@ sub verify_id {
 	my $self = shift;
 	# now taste cookie 
 	my $cookie = $self->get_cookie();	
-
+	# print STDERR "DEBUG: verify_id: got cookie $cookie\n" if $debug;
 	if(!defined($cookie) ) {
 		logAuth("verify_id: cookie not defined");		
+		print STDERR "DEBUG: verify_id: cookie not defined\n" if $debug;		
 		return ''; # not defined
 	}
 	
 	if($cookie !~ /^([\w\-]+):(.+)$/) {		
 		logAuth("verify_id: cookie bad format");
+		print STDERR "DEBUG: verify_id: cookie bad format\n" if $debug;		
 		return ''; # bad format
 	}
 
@@ -316,6 +330,7 @@ sub verify_id {
 	my $token = $self->get_cookie_token($user_name);
 	# print STDERR "Username $user_name, checksum $checksum, token $token\n";
 
+	print STDERR "DEBUG: verify_id: $token vs. $checksum \n" if $debug;		
 	return $user_name if( $token eq $checksum ); # yummy
 	
 	# bleah, nasty taste
@@ -342,7 +357,7 @@ sub generate_cookie {
 	}
 
 	my $domain = $self->get_cookie_domain();	
-	my $cookie = cookie( {-name=>'nmis_auth', -domain=>$domain, -value=>$value, -expires=>$expires} ) ;	
+	my $cookie = cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;	
 	
 	return $cookie;
 }
@@ -802,8 +817,9 @@ EOHTML
     print $json_data;
     return;
 	}
-	
-	print header(-target=>"_top", -type=>"text/html", -expires=>'now') . "\n";
+	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
+	print STDERR "DEBUG: do_login: sending cookie to remove existing cookies=$cookie\n" if $debug;
+	print header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 	print start_html(
 			-title=>$self->{config}->{auth_login_title},
 			-base=>'false',
@@ -1069,8 +1085,6 @@ sub loginout {
 	my $config = $self->{config};
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
-	
-	# print STDERR "loginout: Got cookies ".join(",", cookie() )."\n";
 
 	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
 	
@@ -1104,7 +1118,8 @@ sub loginout {
 				return 0;
 			}
 
-			logAuth2("user=$self->{user} logged in with config=$config","INFO");
+			logAuth("user=$self->{user} logged in with config=$config");
+			print STDERR "DEBUG: loginout user=$self->{user} logged in with config=$config\n" if $debug;
 
 		} else { # bad login: force it again
 			$self->do_login(msg=>"Invalid username/password combination");
@@ -1116,6 +1131,7 @@ sub loginout {
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
+			print STDERR "DEBUG: invalid session \n" if $debug;		
 			$self->do_login(msg=>"Invalid Session");
 			return 0;
 		}
@@ -1132,13 +1148,15 @@ sub loginout {
 
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
-		$self->do_force_login();
+		print STDERR "DEBUG: loginout forcing login, shouldn't have gotten this far\n" if $debug;
+		$self->do_login();
 		return 0;
 	}
 	
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {		
     push @cookies, $self->generate_cookie(user_name => $self->{user});
+  	print STDERR "DEBUG: loginout made cookie $cookies[0]\n" if $debug;
 	}
 	$self->{cookie} = @cookies;
 	$headeropts->{-cookie} = [@cookies];
