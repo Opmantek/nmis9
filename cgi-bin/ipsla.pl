@@ -71,7 +71,7 @@ my $logoutButton;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {}; #{type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C, forward_url=>$Q->{forward_url});  # Auth::new will reap init values from NMIS config
+$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann

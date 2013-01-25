@@ -97,7 +97,7 @@ my $user;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C, forward_url=>$Q->{forward_url});  # Auth::new will reap init values from NMIS configuration
+$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {

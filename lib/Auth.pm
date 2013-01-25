@@ -138,8 +138,7 @@ sub new {
 		priv => undef,
 		privlevel => 0, # default all
 		cookie => undef,
-		groups => undef,
-		forward_url => $arg{forward_url}
+		groups => undef,		
 	};
 	bless $self, $class;
 	$self->_auth_init;
@@ -787,6 +786,22 @@ sub do_login {
 			$url .= "&conf=$config";
 		}
 	}
+
+	if( http("X-Requested-With") eq "XMLHttpRequest" )
+	{
+		# forward url will have a function in it, we want to go back to regular nmis
+		# my $url_no_forward = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";			
+		my $ret = { name => "JSONRequestError", message => "Authentication Error" };
+		my $json_data = to_json( $ret ); #, { pretty => 1 } );
+
+    print <<EOHTML;
+Status: 405 Method Not Allowed
+Content-type: application/json
+
+EOHTML
+    print $json_data;
+    return;
+	}
 	
 	print header(-target=>"_top", -type=>"text/html", -expires=>'now') . "\n";
 	print start_html(
@@ -813,13 +828,23 @@ sub do_login {
 		p("Please log in with your appropriate username and password in order to gain access to this system")));
 	
 	print start_Tr,start_td;
-	print start_form({method=>"POST", action=>$self->{forward_url}, target=>"_top"}),
-		table({align=>"center", width=>"50%", class=>"noborder"},
+	print start_form({method=>"POST", action=>self_url(), target=>"_top"});
+		print table({align=>"center", width=>"50%", class=>"noborder"},
 		  Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'}) )) .
 		  Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) )) .
 		  Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ))
-		),
-		hidden(-name=>'conf', -default=>$config,-override=>'1'),
+		);
+		print hidden(-name=>'conf', -default=>$config,-override=>'1');
+
+		# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
+		my @qs_params = param();	
+		foreach my $key (@qs_params) {
+			# print STDERR "adding $key ".param($key)."\n";
+			if( $key ne "conf" && $key ne "auth_type" ) {
+				print hidden(-name=>$key, -default=>param($key),-override=>'1');	
+			}			
+		}
+		
 		end_form;
 	
 	print end_td,end_Tr;
@@ -851,18 +876,13 @@ sub do_force_login {
 		$configfile_name = "&conf=$configfile_name";
 	}
 
-	# Javascript that sets window.location to login URL
-	# This is created if auth = y and page != login and !authuser
-	my $forward_url = self_url();
-
-	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name&forward_url=$forward_url";
+	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";	
 
 	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
 	# and redirect for us
 	if( http("X-Requested-With") eq "XMLHttpRequest" )
-	{
-		# forward url will have a function in it, we want to go back to regular nmis
-		my $url_no_forward = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";	
+	{		
+		my $url_no_forward = $url;
 		my $ret = { name => "JSONRequestError", message => "Authentication Error", redirect_url => $url_no_forward };
 		my $json_data = to_json( $ret ); #, { pretty => 1 } );
 
@@ -902,7 +922,7 @@ sub do_logout {
 	my $configfile_name = $self->{config}{configfile_name};
 
 	# Javascript that sets window.location to login URL
-	my $javascript = "function redir() { window.location = '" . url(-full=>1) . "?auth_type=login&conf=$configfile_name'; }";
+	my $javascript = "function redir() { window.location = '" . url(-full=>1) . "'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user}");
@@ -921,7 +941,7 @@ sub do_logout {
 	print &do_login_banner;
 	print end_td, end_Tr;
 	print Tr(td({class=>"white"}, p(h1("Logged out of system") .
-	p("Please " . a({href=>url(-full=>1) . "?auth_type=login"},"go back to the login page") ." to continue."))));
+	p("Please " . a({href=>url(-full=>1) . ""},"go back to the login page") ." to continue."))));
 
 	print start_Tr, start_td,
 		end_td, end_Tr;
@@ -1096,7 +1116,7 @@ sub loginout {
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
-			$self->do_force_login(msg=>"Invalid Session");
+			$self->do_login(msg=>"Invalid Session");
 			return 0;
 		}
 

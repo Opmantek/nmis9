@@ -61,9 +61,8 @@ function commonv8Init(widget_refresh,config,registered,modules) {
             } else if (e == 'timeout') {
                 alert('Request Time out.');
             } else if (x.status == 405 ) {
-            	// this is essentially a made-up status code that tells us to re-autheticate
-            	data = jQuery.parseJSON( x.responseText );
-            	document.location = data.redirect_url;
+            	// this is essentially a made-up status code that tells us to re-autheticate            	
+            	document.location = document.location.href;
             } else {
                 alert('Unkown error: ' + x.status + ' ' + x.statusText + '\n\n' + x.responseText);
             }
