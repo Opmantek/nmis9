@@ -3185,6 +3185,9 @@ sub runServices {
 
 		# save result for availability history - one file per service per node
 		$Val{service}{value} = $ret*100;
+		if ( $cpu < 0 ) {
+			$cpu = $cpu * -1;
+		}
 		if ($gotMemCpu) {	
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
