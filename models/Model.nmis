@@ -116,11 +116,14 @@
         '32' => {
           'CiscoIOSXE' => 'IOS-XE Software'
         },
+        '34' => {
+          'CiscoIOSXR' => 'IOS XR Software'
+        },
         '40' => {
           'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G'
         },
         '45' => {
-          'CatalystIOS' => 'IOS Software, c7600|Cisco IOS Software, s720|Cisco IOS Software, Catalyst 4500'
+          'CatalystIOS' => 'IOS Software, c7600|Cisco IOS Software, s720|IOS (tm) s72033_rp|Cisco IOS Software c7600s|Cisco IOS Software, Catalyst 4500'
         },
         '50' => {
           'CiscoNXOS' => 'Cisco NX-OS'
@@ -242,6 +245,20 @@
         }
       }
     },
+    'Ascend Communications Inc.' => {
+      'order' => {
+        '10' => {
+          'LucentStinger' => 'Lucent Stinger'
+        }
+      }
+    },
+    'Alcatel Data Network' => {
+      'order' => {
+        '10' => {
+          'AlcatelASAM' => 'ASAM'
+        }
+      }
+    },
     'Palo Alto Networks' => {
       'order' => {
         '10' => {
@@ -256,6 +273,9 @@
         },
         '20' => {
           'ZyXEL-GS' => 'GS2200-24'
+        },
+        '30' => {
+          'ZyXEL-IES' => 'IES'
         }
       }
     },

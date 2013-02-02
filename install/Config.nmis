@@ -32,6 +32,7 @@
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
     'nmis_host' => 'localhost',
+    'nmis_host_protocol' => 'http',
     'domain_name' => '',
     'cache_summary_tables' => 'true',
     'cache_var_tables' => 'true',

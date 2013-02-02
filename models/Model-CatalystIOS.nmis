@@ -206,7 +206,7 @@
             'oid' => 'dot1dStpTopChanges'
           },
 	        'RouteNumber' => {
-	          'oid' => 'inetCidrRouteNumber'
+	          'oid' => 'ipCidrRouteNumber'
 	        }
         },
         'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,topo,routenumber'

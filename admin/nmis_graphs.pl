@@ -4,9 +4,11 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
  
 use strict;
+use warnings;
 use func;
 use NMIS;
 use Data::Dumper;
+use rrdfunc;
 
 my %arg = getArguements(@ARGV);
 
@@ -19,6 +21,17 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 my $LNT = loadLocalNodeTable();
 
+my $Q;
+
+#http://nmis8/cgi-nmis8/node.pl?conf=Config.nmis&node=localhost&group=&start=1358863926&end=1359036726&intf=2&item=&act=network_export&graphtype=bits
+
+$Q->{graphtype} = "bits";
+$Q->{start} = "-2 days";
+$Q->{end} = "now";
+$Q->{item} = "";
+
+
+
 foreach my $node (sort keys %{$LNT}) {
 	
 	# Is the node active and are we doing stats on it.
@@ -26,23 +39,33 @@ foreach my $node (sort keys %{$LNT}) {
 		print "Processing $node\n";
 		my $S = Sys::->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-		
-		my $graphObj = getNodeGraphObjects($S);
 
-		print "  Available Graphs for $node:\n";
+		my $NI = $S->ndinfo;
+		my $IF = $S->ifinfo;
 
-		foreach my $graph (keys %$graphObj) {
-			print "    $graphObj->{$graph}{name}\n";
+
+		for my $ifIndex (keys %{$IF}) {
+			if ( $IF->{$ifIndex}{collect} eq "true") {
+				print "$IF->{$ifIndex}{ifIndex}\t$IF->{$ifIndex}{ifDescr}\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}\n";
+				typeExport($S,$IF->{$ifIndex}{ifIndex});
+			}
 		}
+	}
+}
 		
-		print Dumper $graphObj;
-		
+		#my $graphObj = getNodeGraphObjects($S);
+    #
+		#print "  Available Graphs for $node:\n";
+    #
+		#foreach my $graph (keys %$graphObj) {
+		#	print "    $graphObj->{$graph}{name}\n";
+		#}
+		#
+		#print Dumper $graphObj;
+		#
 		
 		#
 		
-	}
-}
-
 
 
 sub getNodeGraphObjects {
@@ -151,3 +174,47 @@ sub getNodeGraphObjects {
 	
 	return($graphObj);
 }
+
+sub typeExport {
+	my $S = shift;
+	my $ifIndex = shift;
+
+	my $f = 1;
+	my @line;
+	my $row;
+	my $content;
+
+	# verify that user is authorized to view the node within the user's group list
+	#
+	
+	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$ifIndex,item=>$Q->{item});
+	my $filename = "$S->{name}"."-"."$Q->{graphtype}";
+	if ( $S->{name} eq "" ) { $filename = "$Q->{group}-$Q->{graphtype}" }
+
+	foreach my $m (sort keys %{$statval}) {
+		if ($f) {
+			$f = 0;
+			foreach my $h (@$head) {
+				push(@line,$h);
+				#print STDERR "@line\n";
+			}
+			#print STDERR "@line\n";
+			$row = join("\t",@line);
+			print "$row\n";
+			@line = ();
+		}
+		$content = 0;
+		foreach my $h (@$head) {
+			if ( defined $statval->{$m}{$h}) {
+				$content = 1;
+			}
+			push(@line,$statval->{$m}{$h});
+		}
+		if ( $content ) {
+			$row = join("\t",@line);
+			print "$row\n";
+		}
+		@line = ();
+	}
+}
+

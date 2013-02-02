@@ -262,6 +262,10 @@ th.info {
 	  font-size: 0.2em;
 }
 
+.inline {
+    display: inline;
+}
+
 /* these will overide the jd_menu defaults. */
 ul.jd_menu,
 ul.jd_menu ul,
