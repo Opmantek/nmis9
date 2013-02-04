@@ -54,6 +54,7 @@ use ping;				# local
 use Socket;
 use notify;
 use Net::SNMP qw(oid_lex_sort);
+use Net::Syslog;
 use Mib;				# local
 use Sys;				# local
 use Proc::ProcessTable; # from CPAN
@@ -3936,6 +3937,16 @@ sub runEscalate {
 					logEvent(node => $ET->{$event_hash}{node}, event => "NetSend $message to $trgt UP Notify", level => "Normal", element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 				} #foreach
 			} # end netsend
+			elsif ( $type eq "syslog" ) {
+				my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+				foreach my $trgt ( @x ) {
+					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
+					$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
+					$serial_ns++;
+					dbg("syslog $message to $trgt");
+					#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
+				} #foreach
+			} # end syslog
 			else {
 				dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
 			}
@@ -4191,7 +4202,8 @@ LABEL_ESC:
 											} else {
 												$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
 											}
-
+											
+											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
 											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\n$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n\n";
 											if ($C->{mail_combine} eq "true" ) {
 												$msgTable{$type}{$trgt}{$serial}{count}++;
@@ -4221,6 +4233,27 @@ LABEL_ESC:
 									$serial_ns++;
 									dbg("NetSend $message to $trgt");
 									logEvent(node => $ET->{$event_hash}{node}, event => "NetSend $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
+								} #foreach
+							} # end netsend
+							elsif ( $type eq "syslog" ) {
+								# check if UpNotify is true, and save with this event
+								# and send all the up event notifies when the event is cleared.
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+									my $ct = "$type:undef";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+
+								my $message = "Escalation $ET->{$event_hash}{escalate}, $ET->{$event_hash}{node}, $ET->{$event_hash}{level}, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+								foreach my $trgt ( @x ) {
+									$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
+									$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
+									$serial_ns++;
+									dbg("syslog $message to $trgt");
+									#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 								} #foreach
 							} # end netsend
 							else {
@@ -4261,21 +4294,20 @@ sub sendMSG {
 	my $msgTable = $args{data};
 	my $C = loadConfTable(); # get ref
 
-	my $device;
 	my $target;
 	my $serial;
 
 	dbg("Starting");
 
-	foreach $device (keys %$msgTable) {
-		if ($device eq "email") {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+	foreach my $method (keys %$msgTable) {
+		if ($method eq "email") {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{mail_server} eq '';
 					sendEmail(
 						to => $target, 
-						subject => $$msgTable{$device}{$target}{$serial}{subject},
-						body => $$msgTable{$device}{$target}{$serial}{message},
+						subject => $$msgTable{$method}{$target}{$serial}{subject},
+						body => $$msgTable{$method}{$target}{$serial}{message},
 						from => $C->{mail_from}, 
 						server => $C->{mail_server}, 
 						domain => $C->{mail_domain},
@@ -4283,7 +4315,7 @@ sub sendMSG {
 						port => $C->{mail_server_port},
 						user => $C->{mail_user},						
 						password => $C->{mail_password},						
-						priority => $$msgTable{$device}{$target}{$serial}{priority},
+						priority => $$msgTable{$method}{$target}{$serial}{priority},
 						debug => $C->{debug}
 					);
 					dbg("Escalation Email Notification sent to $target");
@@ -4291,14 +4323,14 @@ sub sendMSG {
 			}
 		} # end email
 		### Carbon copy notifications - no action required - FYI only.
-		elsif ( $device eq "ccopy" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+		elsif ( $method eq "ccopy" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{mail_server} eq '';
 					sendEmail(
 						to => $target, 
-						subject => $$msgTable{$device}{$target}{$serial}{subject}, 
-						body => $$msgTable{$device}{$target}{$serial}{message},
+						subject => $$msgTable{$method}{$target}{$serial}{subject}, 
+						body => $$msgTable{$method}{$target}{$serial}{message},
 						from => $C->{mail_from}, 
 						server => $C->{mail_server}, 
 						domain => $C->{mail_domain},
@@ -4306,7 +4338,7 @@ sub sendMSG {
 						port => $C->{mail_server_port},
 						user => $C->{mail_user},						
 						password => $C->{mail_password},						
-						priority => $$msgTable{$device}{$target}{$serial}{priority},
+						priority => $$msgTable{$method}{$target}{$serial}{priority},
 						debug => $C->{debug}
 					);
 					dbg("Escalation CC Email Notification sent to $target");
@@ -4314,38 +4346,63 @@ sub sendMSG {
 			}
 		} # end ccopy
 		# now the netsends
-		elsif ( $device eq "netsend" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+		elsif ( $method eq "netsend" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					# read any stdout messages and throw them away
 					if ($^O =~ /win32/i) {
 						# win32 platform
-						my $dump=`net send $target $$msgTable{$device}{$target}{$serial}{message}`;
+						my $dump=`net send $target $$msgTable{$method}{$target}{$serial}{message}`;
 					}
 					else {
 						# Linux box
-						my $dump=`echo $$msgTable{$device}{$target}{$serial}{message}|smbclient -M $target`;
+						my $dump=`echo $$msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
 					}
-					dbg("netsend $$msgTable{$device}{$target}{$serial}{message} to $target");
+					dbg("netsend $$msgTable{$method}{$target}{$serial}{message} to $target");
+				} # end netsend
+			}
+		}
+		# now the syslog
+		elsif ( $method eq "syslog" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					# read any stdout messages and throw them away
+					#if ( eval "require Net::Syslog") {
+					#	require Net::Syslog;
+					#}
+					#else {
+					#	print "Perl Module Net::Syslog not found\n" if $debug;
+					#}
+					my $s=new Net::Syslog(Facility=>$C->{syslog_facility},Priority=>'informational');
+					if ( $C->{syslog_server} =~ /,/ ) {
+						my @servers = split(",",$C->{syslog_server});
+						foreach my $server (@servers) {
+							$s->send($$msgTable{$method}{$target}{$serial}{message}, SyslogHost => $server, SyslogPort => $C->{syslog_port}, Priority=>$$msgTable{$method}{$target}{$serial}{priority});
+						}
+					}
+					else {
+						$s->send($$msgTable{$method}{$target}{$serial}{message},SyslogHost => $C->{syslog_server}, SyslogPort => $C->{syslog_port}, Priority=>$$msgTable{$method}{$target}{$serial}{priority});
+					}
+					dbg("syslog $$msgTable{$method}{$target}{$serial}{message} to $target");
 				} # end netsend
 			}
 		}
 		# now the pagers
 		elsif ( $type eq "pager" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{snpp_server} eq '';
 					sendSNPP(
 						server => $C->{snpp_server},
 						pagerno => $target,
-						message => $$msgTable{$device}{$target}{$serial}{message}
+						message => $$msgTable{$method}{$target}{$serial}{message}
 					);
 					dbg(" SendSNPP to $target");
 				}
 			} # end pager
 		}
 		else {
-			dbg("ERROR unknown device $device");
+			dbg("ERROR unknown device $method");
 		}
 	}
 	dbg("Finished");

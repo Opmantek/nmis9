@@ -188,9 +188,13 @@ sub CheckButton {
 
 	return 1 unless $self->{_require};
 
-	my $AC = loadAccessTable(); # get pointer of Access table
+	my $AC = loadAccessTable(); # get pointer of Access table 
 
-	return $AC->{$identifier}{"level$self->{privlevel}"};
+	my $perm = $AC->{$identifier}{"level$self->{privlevel}"};
+	
+	logAuth("CheckButton: $self->{user}, $identifier, $perm");		
+
+	return $perm;
 }
 
 
@@ -220,8 +224,14 @@ sub CheckAccess {
 		do_force_login("Authentication is required. Please login");
 		exit 0;
 	}
-
-	return 1 if $self->CheckAccessCmd($cmd);
+	
+	if ( $self->CheckAccessCmd($cmd) ) {
+		logAuth("CheckAccessCmd: $self->{user}, $cmd, 1") if $option ne "check";		
+		return 1;
+	}
+	else {
+		logAuth("CheckAccessCmd: $self->{user}, $cmd, 0") if $option ne "check";		
+	}
 	return 0 if $option eq "check"; # return the result of $self->CheckAccessCmd
 
 	# Authorization failed--put access denied page and stop
@@ -677,7 +687,8 @@ sub _ms_ldap_verify {
 	my $status2;
 	my $entry;
 	my $dn;
-
+	
+	$self->{config}->{auth_ms_ldap_debug} =  getbool($self->{config}->{auth_ms_ldap_debug});
 
 	if($sec) {
 		# load the LDAPS module
@@ -1221,12 +1232,20 @@ sub InGroup {
 	my $group = shift;
 	return 1 unless $self->{_require};
 	# If user can see all groups, they immediately pass
-	return 1 if $self->{groups} eq "all";
+	if ( $self->{groups} eq "all" ) {
+		logAuth("InGroup: $self->{user}, all $group, 1");		
+		return 1;
+	}
 	return 0 unless defined $group or $group;
 	foreach my $g (@{$self->{groups}}) {
 		print STDERR "  DEBUG AUTH: @{$self->{groups}} g=$g group=$group" if $debug;
-		return 1 if ( lc($g) eq lc($group) );
+		if ( lc($g) eq lc($group) ) {
+			logAuth("InGroup: $self->{user}, $group, 1") if $debug;
+			return 1;
+		}
+
 	}
+	logAuth("InGroup: $self->{user}, $group, 0") if $debug;
 	return 0;
 }
 
@@ -1241,8 +1260,12 @@ sub CheckAccessCmd {
 	return 1 unless $self->{_require};
 
 	my $AC = loadAccessTable();
+	
+	my $perm = $AC->{$command}{"level$self->{privlevel}"};
+	
+	logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $debug;		
 
-	return $AC->{$command}{"level$self->{privlevel}"};
+	return $perm;
 }
 
 #----------------------------------
