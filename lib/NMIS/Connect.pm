@@ -100,7 +100,7 @@ sub getFileFromRemote {
 	my $file = $args{file};
 
 	my $data = curlDataFromRemote(server => $args{server}, func => $args{func}, format => $args{format});
-	if ( $data and $data !~ /SERVER ERROR|500 Internal Server Error/ ) {
+	if ( $data and $data !~ /SERVER ERROR/ ) {
 		open(OUT, ">",$file) or logMsg("Could not create $file: $!");
 		flock(OUT, LOCK_EX);
 		print OUT $data or logMsg("Could not write: $!"); 
@@ -108,7 +108,7 @@ sub getFileFromRemote {
 		setFileProt($file);
 		return 1;
 	}
-	elsif ( $data =~ /SERVER ERROR|500 Internal Server Error/ ) {
+	elsif ( $data =~ /SERVER ERROR/ ) {
 		logMsg("ERROR, $args{server} responded with ERROR");
 		return 0;		
 	}
