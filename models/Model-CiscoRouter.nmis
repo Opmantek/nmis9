@@ -223,8 +223,9 @@
             'title' => 'Description'
           },
           'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime',
+            'calculate' => '$r * 1000'
           },
           'InstalledModems' => {
             'replace' => {
