@@ -169,7 +169,11 @@ my $GT = loadGroupTable();
 my $logFileName;						# this gets set to the full qualified filename in conf/Logs.nmis config fiel
 
 # defaults
-my $logName = defined $Q->{logname} ? $Q->{logname} : 'Event_Log';
+my $logName = 'Event_Log';
+if ($C->{server_master} eq 'true' and $Q->{logname} eq "" ) {
+	$logName = 'Slave_Event_Log';
+}
+
 my $logSort = defined $Q->{sort} ? $Q->{sort} : 'descending';
 my $logLines =  defined $Q->{lines} ? $Q->{lines} : '50' ;
 my $logLevel = defined $Q->{level} ? $Q->{level} : 'ALL';

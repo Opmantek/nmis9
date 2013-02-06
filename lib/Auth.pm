@@ -858,7 +858,7 @@ EOHTML
 
 	print do_login_banner();
 
-	print start_form({method=>"POST", action=>self_url(), target=>"_top"});
+	print start_form({method=>"POST", action=>"?", target=>"_top"});
 
 	print start_table({class=>""});
 	print Tr(th({class=>'header',colspan=>'2'},"Authentication required"));
@@ -877,13 +877,13 @@ EOHTML
 
 	print end_table;
 
-	print hidden(-name=>'conf', -default=>$config,-override=>'1');
+	print hidden(-name=>'conf', -default=>$config, -override=>'1');
 
 	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
 	my @qs_params = param();	
 	foreach my $key (@qs_params) {
 		# print STDERR "adding $key ".param($key)."\n";
-		if( $key ne "conf" && $key ne "auth_type" ) {
+		if( $key !~ /conf|auth_type|auth_username|auth_password/ ) {
 			print hidden(-name=>$key, -default=>param($key),-override=>'1');	
 		}			
 	}
@@ -991,7 +991,7 @@ sub do_logout {
     <script src="$C->{'jquery'}" type="text/javascript"></script>    
     <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
-function redir() { window.location = 'http://nmisdev64.dev.opmantek.com/cgi-nmis8/nmiscgi.pl'; }
+$javascript
 //]]></script>
   </head>
   <body onload="redir()" expires="10s">
