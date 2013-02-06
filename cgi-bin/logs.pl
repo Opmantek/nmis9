@@ -173,6 +173,9 @@ my $logName = 'Event_Log';
 if ($C->{server_master} eq 'true' and $Q->{logname} eq "" ) {
 	$logName = 'Slave_Event_Log';
 }
+elsif ($Q->{logname} ne "" ) {
+	$logName = $Q->{logname};
+}
 
 my $logSort = defined $Q->{sort} ? $Q->{sort} : 'descending';
 my $logLines =  defined $Q->{lines} ? $Q->{lines} : '50' ;

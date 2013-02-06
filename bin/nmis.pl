@@ -3939,7 +3939,7 @@ sub runEscalate {
 			elsif ( $type eq "syslog" ) {
 				my $event = $ET->{$event_hash}{event};
 				$event =~ s/Down/Up/;
-				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$event,$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$event,Normal,$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 				#my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
 				foreach my $trgt ( @x ) {
 					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
@@ -3954,6 +3954,7 @@ sub runEscalate {
 				my $event = $ET->{$event_hash};
 				# make it an up event.
 				$event->{event} =~ s/Down/Up/;
+				$event->{level} =~ "Normal";
 				$event->{nmis_server} = $C->{nmis_host};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json

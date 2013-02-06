@@ -918,5 +918,171 @@
   '171' => {
     'index' => '171',
     'ifType' => 'pos'
-  }
+  },
+  '231' => {
+    'index' => '231',
+    'ifType' => 'macSecControlledIF'
+  },
+  '232' => {
+    'index' => '232',
+    'ifType' => 'macSecUncontrolledIF'
+  },
+  '233' => {
+    'index' => '233',
+    'ifType' => 'aviciOpticalEther'
+  },
+  '234' => {
+    'index' => '234',
+    'ifType' => 'atmbond'
+  },
+  '235' => {
+    'index' => '235',
+    'ifType' => 'voiceFGDOS'
+  },
+  '236' => {
+    'index' => '236',
+    'ifType' => 'mocaVersion1'
+  },
+  '237' => {
+    'index' => '237',
+    'ifType' => 'ieee80216WMAN'
+  },
+  '238' => {
+    'index' => '238',
+    'ifType' => 'adsl2plus'
+  },
+  '239' => {
+    'index' => '239',
+    'ifType' => 'dvbRcsMacLayer'
+  },
+  '240' => {
+    'index' => '240',
+    'ifType' => 'dvbTdm'
+  },
+  '241' => {
+    'index' => '241',
+    'ifType' => 'dvbRcsTdma'
+  },
+  '242' => {
+    'index' => '242',
+    'ifType' => 'x86Laps'
+  },
+  '243' => {
+    'index' => '243',
+    'ifType' => 'wwanPP'
+  },
+  '244' => {
+    'index' => '244',
+    'ifType' => 'wwanPP2'
+  },
+  '246' => {
+    'index' => '246',
+    'ifType' => 'ifPwType'
+  },
+  '247' => {
+    'index' => '247',
+    'ifType' => 'ilan'
+  },
+  '248' => {
+    'index' => '248',
+    'ifType' => 'pip'
+  },
+  '249' => {
+    'index' => '249',
+    'ifType' => 'aluELP'
+  },  
+  '250' => {
+    'index' => '250',
+    'ifType' => 'gpon'
+  },
+  '251' => {
+    'index' => '251',
+    'ifType' => 'vdsl2'
+  },
+  '252' => {
+    'index' => '252',
+    'ifType' => 'capwapDot11Profile'
+  },
+  '253' => {
+    'index' => '253',
+    'ifType' => 'capwapDot11Bss'
+  },
+  '254' => {
+    'index' => '254',
+    'ifType' => 'capwapWtpVirtualRadio'
+  },
+  '255' => {
+    'index' => '255',
+    'ifType' => 'bits'
+  },
+  '256' => {
+    'index' => '256',
+    'ifType' => 'docsCableUpstreamRfPort'
+  },
+  '257' => {
+    'index' => '257',
+    'ifType' => 'cableDownstreamRfPort'
+  },
+  '258' => {
+    'index' => '258',
+    'ifType' => 'vmwareVirtualNic'
+  },
+  '259' => {
+    'index' => '259',
+    'ifType' => 'ieee802154'
+  },
+  '260' => {
+    'index' => '260',
+    'ifType' => 'otnOdu'
+  },
+  '261' => {
+    'index' => '261',
+    'ifType' => 'otnOtu'
+  },
+  '262' => {
+    'index' => '262',
+    'ifType' => 'ifVfiType'
+  },
+  '263' => {
+    'index' => '263',
+    'ifType' => 'g9981'
+  },
+  '264' => {
+    'index' => '264',
+    'ifType' => 'g9982'
+  },
+  '265' => {
+    'index' => '265',
+    'ifType' => 'g9983'
+  },
+  '266' => {
+    'index' => '266',
+    'ifType' => 'aluEpon'
+  },
+  '267' => {
+    'index' => '267',
+    'ifType' => 'aluEponOnu'
+  },
+  '268' => {
+    'index' => '268',
+    'ifType' => 'aluEponPhysicalUni'
+  },
+  '269' => {
+    'index' => '269',
+    'ifType' => 'aluEponLogicalLink'
+  },
+  '270' => {
+    'index' => '270',
+    'ifType' => 'aluGponOnu'
+  },
+  '271' => {
+    'index' => '271',
+    'ifType' => 'aluGponPhysicalUni'
+  },
+  '272' => {
+    'index' => '265',
+    'ifType' => 'vmwareNicTeam'
+  },
+
+
 );
