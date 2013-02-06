@@ -1,5 +1,6 @@
 archive/*
 conf/*
+models/*
 logs/*
 var/*
 test/*
