@@ -462,6 +462,7 @@ sub outputLine {
 	my $claimed_hostname;
 	my @logSplit;
 	
+	my $logServer;
 	my $logEvent;
 	my $logEventLinkStart;
 	my $logEventLinkEnd;
@@ -642,11 +643,20 @@ sub outputLine {
 	# ------------------------------------------------------------------------------
 	## event log
 	### 1342256707,localhost,Node Reset,Warning,,Old_sysUpTime=3:09:53 New_sysUpTime=0:04:01
-	
-	elsif ( lc $logName eq "event_log" ) { 
-		$line =~ s/, /,/g;
+	## slave event log
+	### Feb  6 15:45:22 localhost nmis.pl[31797]: NMIS_Event::nmisdev64.dev.opmantek.com::1360129513,meatball,Proactive Interface Input Utilisation,Major,Dialer1,Value=84.88, Threshold=80
+	elsif ( lc $logName eq "event_log" or lc $logName eq "slave_event_log" ) {
+		if ( lc $logName eq "slave_event_log" and $line =~ /NMIS_Event::([\w\.\-]+)::(.*)/) {	
+			$logServer = $1;
+			$line = $2;
+		}
+		else {
+			$logServer = "";
+		}
+
+		$line =~ s/, /,/g;			
 		($logTime,$logNode,$logEvent,$logLevel,$logElement,$logDetails) = split( /,/, $line, 6 );
-		
+
 		#Check the date format and if it doesn't have a - then it is UNIX format
 		if ( $logTime !~ /-/ ) { 
 			$logTime = returnDateStamp($logTime);
@@ -665,6 +675,10 @@ sub outputLine {
 		# use the node name hash we setup to find the node record.
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
 		$logLevelText = eventLevelSet($logLevel);
+		
+		if ( $logServer ) {
+			$logServer = " :: $logServer";
+		}
 		
 		if ( exists $NN->{$logNode} and defined $NN->{$logNode} ) {
 			$logNode = $NN->{$logNode};
@@ -688,16 +702,18 @@ sub outputLine {
 												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$logNode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 			
-			$buttons =
-				"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
-				"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
-				"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
-	
 			if ( $C->{node_button_in_logs} eq "true" ) {
-				$line = "$logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails";
+				$line = "$logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";
 			}
-			if ( $C->{buttons_in_logs} eq "true" ) {
-				$line = "$buttons $logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails";
+			elsif ( $C->{buttons_in_logs} eq "true" ) {
+				$buttons =
+					"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
+					"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
+					"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
+				$line = "$buttons $logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";		
+			}
+			else {
+				$line = "$logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";
 			}
 			$logLevelText = $logLevel;
 		}

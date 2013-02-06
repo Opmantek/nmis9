@@ -48,7 +48,8 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 my $CT = loadContactsTable();
 
 my $username = "nmis";
-my $password = "nm1888";
+my $password = "monkey42";
+#my $password = "nm1888";
 
 # NMIS Authentication module
 use Auth;
@@ -60,20 +61,15 @@ my $user;
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
 
-if ($AU->Require) {
-	#2011-11-14 Integrating changes from Till Dierkesmann
-	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
-		$AU->{username}=$ENV{'REMOTE_USER'};
-		$logoutButton = qq|disabled="disabled"|;
-	}
-	exit 0 unless $AU->loginout(type=>"login",username=>$username,
-					password=>$password,headeropts=>$headeropts) ;
-	$privlevel = $AU->{privlevel};
-	$user = $AU->{user};
-} else {
-	$user = 'Nobody';
-	$user = $ENV{'REMOTE_USER'} if $ENV{'REMOTE_USER'};
-	$logoutButton = qq|disabled="disabled"|;
+if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
+	print "ERROR: This test will not validate APACHE based authentication\n";
 }
 
-print "AUTH Test: user=$user, level=$privlevel cookie=$AU->{cookie}\n";
+my $testauth = $AU->loginout(type=>"",username=>$username,password=>$password,headeropts=>$headeropts);
+
+if ( $testauth ) {
+	print "AUTH SUCCESS: user=$AU->{user}, level=$AU->{privlevel} cookie=$AU->{cookie}\n";
+}
+else {
+	print "AUTH FAILURE\n";
+}

@@ -54,7 +54,6 @@ use ping;				# local
 use Socket;
 use notify;
 use Net::SNMP qw(oid_lex_sort);
-use Net::Syslog;
 use Mib;				# local
 use Sys;				# local
 use Proc::ProcessTable; # from CPAN
@@ -3938,15 +3937,26 @@ sub runEscalate {
 				} #foreach
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
-				my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+				my $event = $ET->{$event_hash}{event};
+				$event =~ s/Down/Up/;
+				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$event,$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				#my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
 				foreach my $trgt ( @x ) {
 					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
 					$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
 					$serial_ns++;
-					dbg("syslog $message to $trgt");
+					dbg("syslog $message");
 					#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 				} #foreach
 			} # end syslog
+			elsif ( $type eq "json" ) {
+				# copy the event
+				my $event = $ET->{$event_hash};
+				# make it an up event.
+				$event->{event} =~ s/Down/Up/;
+				$event->{nmis_server} = $C->{nmis_host};
+				logJsonEvent(event => $event, dir => $C->{'json_logs'});
+			} # end json
 			else {
 				dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
 			}
@@ -4239,7 +4249,7 @@ LABEL_ESC:
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
 								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
-									my $ct = "$type:undef";
+									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
 										push @l, $ct;
@@ -4247,15 +4257,32 @@ LABEL_ESC:
 									}
 								}
 
-								my $message = "Escalation $ET->{$event_hash}{escalate}, $ET->{$event_hash}{node}, $ET->{$event_hash}{level}, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+								#1360021809,nmisdev,Service Down,Warning,port80,
+								#1360022106,nmisdev,Service Up,Normal,port80, Time=00:04:57
+								#1360022121,meatball,Proactive CPU,Warning,,Value=44.91 Threshold=40
+								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 								foreach my $trgt ( @x ) {
 									$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
 									$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
 									$serial_ns++;
-									dbg("syslog $message to $trgt");
+									dbg("syslog $message");
 									#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 								} #foreach
-							} # end netsend
+							} # end syslog
+							elsif ( $type eq "json" ) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+									my $ct = "$type:server";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+								# copy the event
+								my $event = $ET->{$event_hash};
+								$event->{nmis_server} = $C->{nmis_host};
+								logJsonEvent(event => $event, dir => $C->{'json_logs'});
+							} # end json
 							else {
 								dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
 							}
@@ -4366,25 +4393,13 @@ sub sendMSG {
 		elsif ( $method eq "syslog" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
-					# read any stdout messages and throw them away
-					#if ( eval "require Net::Syslog") {
-					#	require Net::Syslog;
-					#}
-					#else {
-					#	print "Perl Module Net::Syslog not found\n" if $debug;
-					#}
-					my $s=new Net::Syslog(Facility=>$C->{syslog_facility},Priority=>'informational');
-					if ( $C->{syslog_server} =~ /,/ ) {
-						my @servers = split(",",$C->{syslog_server});
-						foreach my $server (@servers) {
-							$s->send($$msgTable{$method}{$target}{$serial}{message}, SyslogHost => $server, SyslogPort => $C->{syslog_port}, Priority=>$$msgTable{$method}{$target}{$serial}{priority});
-						}
-					}
-					else {
-						$s->send($$msgTable{$method}{$target}{$serial}{message},SyslogHost => $C->{syslog_server}, SyslogPort => $C->{syslog_port}, Priority=>$$msgTable{$method}{$target}{$serial}{priority});
-					}
-					dbg("syslog $$msgTable{$method}{$target}{$serial}{message} to $target");
-				} # end netsend
+					sendSyslog(
+						server_string => $C->{syslog_server},
+						facility => $C->{syslog_facility},
+						message => $$msgTable{$method}{$target}{$serial}{message},
+						priority => $$msgTable{$method}{$target}{$serial}{priority}
+					);
+				} # end syslog
 			}
 		}
 		# now the pagers
@@ -4732,6 +4747,7 @@ EO_TEXT
 	dbg("Config Checking - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
 		createDir("$C->{'<nmis_logs>'}");
+		createDir("$C->{'json_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?

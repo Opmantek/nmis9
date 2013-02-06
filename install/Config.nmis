@@ -141,9 +141,7 @@
     'mail_password' => ''
   },
   'syslog' => {
-    'syslog_server' => 'localhost',
-    'syslog_protocol' => 'udp',
-    'syslog_port' => 514,
+    'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
   },
   'sql' => {

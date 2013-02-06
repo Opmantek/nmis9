@@ -142,6 +142,7 @@ sub new {
 	};
 	bless $self, $class;
 	$self->_auth_init;
+	$debug = getbool($self->{config}->{auth_debug});
 	return $self;
 }
 
@@ -160,7 +161,6 @@ sub _loadConf {
 	if ( not defined $self->{config}->{'<nmis_base>'} || $self->{config}->{'<nmis_base>'} eq "" ) {		
 		$C = loadConfTable();
 	}	
-	$debug |= ( $self->{config}->{auth_debug} eq 'true' );
 }
 
 #----------------------------------
@@ -801,7 +801,6 @@ sub do_login {
 	my $config= $self->{config}{configfile_name};
 	my $msg = $args{msg};
 
-
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
 	my $url = self_url();
@@ -831,56 +830,68 @@ EOHTML
 	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
 	print STDERR "DEBUG: do_login: sending cookie to remove existing cookies=$cookie\n" if $debug;
 	print header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
-	print start_html(
-			-title=>$self->{config}->{auth_login_title},
-			-base=>'false',
-			-xbase=>&url(-base=>1)."$self->{config}->{'<url_base>'}",
-			-target=>'_blank',
-			-meta=>{'keywords'=>'network management NMIS'},
-			-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
-    );
 
-	print start_table({class=>"notwide"});
+	print qq
+|<!DOCTYPE html>
+<html>
+  <head>
+    <title>$self->{config}->{auth_login_title}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
+    <meta http-equiv="Expires" content="-1" />
+    <meta http-equiv="Robots" content="none" />
+    <meta http-equiv="Googlebot" content="noarchive" />
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+  </head>
+  <body>
+|;
+	
+	print qq|
+  <div id="login_frame">
+    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
+|;
 
 	print do_login_banner();
 
-	print start_Tr, start_td({style=>"border: 0; margin: 0; padding: 0"}),
-		start_table({width=>"640px", align=>"center", class=>"noborder"}),
-		start_Tr,
-		start_td,
-		start_table();
-	print Tr(td({class=>'header'},"Authentication required"));
-
-	print Tr(td({class=>'info Plain'},
-		p("Please log in with your appropriate username and password in order to gain access to this system")));
-	
-	print start_Tr,start_td;
 	print start_form({method=>"POST", action=>self_url(), target=>"_top"});
-		print table({align=>"center", width=>"50%", class=>"noborder"},
-		  Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'}) )) .
-		  Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) )) .
-		  Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ))
-		);
-		print hidden(-name=>'conf', -default=>$config,-override=>'1');
 
-		# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
-		my @qs_params = param();	
-		foreach my $key (@qs_params) {
-			# print STDERR "adding $key ".param($key)."\n";
-			if( $key ne "conf" && $key ne "auth_type" ) {
-				print hidden(-name=>$key, -default=>param($key),-override=>'1');	
-			}			
-		}
-		
-		end_form;
+	print start_table({class=>""});
+	print Tr(th({class=>'header',colspan=>'2'},"Authentication required"));
+
+	print Tr(td({class=>'info Plain',colspan=>'2'},"Please log in with your appropriate username and password in order to gain access to this system"));
 	
-	print end_td,end_Tr;
-
-	print Tr(td(p({style=>"color: red"}, "&nbsp;$msg&nbsp;")));
-
-	print end_table,end_td,end_Tr,end_table,end_td,end_Tr;
+	print Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'})));
+	print Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
+	print Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
+		
+	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
+		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
+	}
+	
+	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;")));
 
 	print end_table;
+
+	print hidden(-name=>'conf', -default=>$config,-override=>'1');
+
+	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
+	my @qs_params = param();	
+	foreach my $key (@qs_params) {
+		# print STDERR "adding $key ".param($key)."\n";
+		if( $key ne "conf" && $key ne "auth_type" ) {
+			print hidden(-name=>$key, -default=>param($key),-override=>'1');	
+		}			
+	}
+
+	print end_form;
+
+	print "    </div>\n";
+	print "  </div>\n";
 
 	print end_html;
 }
@@ -955,25 +966,54 @@ sub do_logout {
 	logAuth("INFO logout of user=$self->{user}");
 
 	print header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
-	print start_html({ 
-		-title =>"Logout complete",
-		-expires => "5s",  
-		-script => $javascript, 
-		-onload => "redir()",		
-		-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
-		}),"\n";
+	#print start_html({ 
+	#	-title =>"Logout complete",
+	#	-expires => "5s",  
+	#	-script => $javascript, 
+	#	-onload => "redir()",		
+	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
+	#	}),"\n";
 
-	print start_table({width=>"100%"}),
-		start_Tr, start_td;
-	print &do_login_banner;
-	print end_td, end_Tr;
-	print Tr(td({class=>"white"}, p(h1("Logged out of system") .
+	print qq
+|<!DOCTYPE html>
+<html>
+  <head>
+    <title>Logout complete</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store" />
+    <meta http-equiv="Expires" content="-1" />
+    <meta http-equiv="Robots" content="none" />
+    <meta http-equiv="Googlebot" content="noarchive" />
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
+    <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
+    <script type="text/javascript">//<![CDATA[
+function redir() { window.location = 'http://nmisdev64.dev.opmantek.com/cgi-nmis8/nmiscgi.pl'; }
+//]]></script>
+  </head>
+  <body onload="redir()" expires="10s">
+|;
+
+	print qq|
+  <div id="login_frame">
+    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
+|;
+
+	print do_login_banner();
+
+	print start_table();
+	print Tr(td({class=>"info Plain"}, p(h2("Logged out of system") .
 	p("Please " . a({href=>url(-full=>1) . ""},"go back to the login page") ." to continue."))));
 
-	print start_Tr, start_td,
-		end_td, end_Tr;
+	print end_table;
 
-	print end_table, end_html;
+	print "    </div>\n";
+	print "  </div>\n";
+
+	print end_html;
 }
 
 #####################################################################
@@ -984,12 +1024,11 @@ sub do_logout {
 sub do_login_banner {
 	my $self = shift;
 	my @banner = ();
+	
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;
 
-	push @banner, Tr(
-		th({class=>'title',align=>'center'},font({size=>'+2'},
-				b("NMIS Network Management Information System") ))
-		);
-
+	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg'},$logo, "NMIS Network Management Information System");
+		
 	return @banner;
 }
 
@@ -1093,7 +1132,8 @@ sub loginout {
 	my $username = $args{username};
 	my $password = $args{password};
 	# my $config = $args{conf};
-	my $config = $self->{config};
+	#my $config = $self->{config};
+	my $config = $self->{config}{configfile_name};
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
@@ -1143,7 +1183,7 @@ sub loginout {
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
 			print STDERR "DEBUG: invalid session \n" if $debug;		
-			$self->do_login(msg=>"Invalid Session");
+			$self->do_login(msg=>"Session Expired or Invalid Session");
 			return 0;
 		}
 
@@ -1233,7 +1273,7 @@ sub InGroup {
 	return 1 unless $self->{_require};
 	# If user can see all groups, they immediately pass
 	if ( $self->{groups} eq "all" ) {
-		logAuth("InGroup: $self->{user}, all $group, 1");		
+		logAuth("InGroup: $self->{user}, all $group, 1") if $debug;
 		return 1;
 	}
 	return 0 unless defined $group or $group;

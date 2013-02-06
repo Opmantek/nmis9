@@ -75,7 +75,6 @@ $VERSION = 1.00;
 		convertUpTime
 		convUpTime
 		eventNumberLevel
-		eventToSyslog
 		colorTime
 		colorStatus
 		getBGColor
@@ -469,23 +468,6 @@ sub eventNumberLevel {
 	else { $level = "Error"; }
 
 	return $level;
-}
-
-sub eventToSyslog {
-	my $level = shift;
-	my $priority;   
-	
-	#emergency, alert, critical, error, warning, notice, informational, debug
-
-	if ( $level eq "Normal" ) { $priority = "notice"; }
-	elsif ( $level eq "Warning" ) { $priority = "warning"; }
-	elsif ( $level eq "Minor" ) { $priority = "error"; }
-	elsif ( $level eq "Major" ) { $priority = "critical"; }
-	elsif ( $level eq "Critical" ) { $priority = "alert"; }
-	elsif ( $level eq "Fatal" ) { $priority = "emergency"; }
-	else { $priority eq "informational" }
-
-	return $priority;
 }
 
 sub colorTime {

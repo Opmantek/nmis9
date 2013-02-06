@@ -1,0 +1,14 @@
+%hash = (
+  'Default' => {
+    'Name' => 'NMIS8',
+    'Config' => 'Config'
+  },
+  'CompanyA' => {
+    'Name' => 'CompanyA',
+    'Config' => 'CompanyA'
+  },
+  'BusinessUnit1' => {
+    'Name' => 'BusinessUnit1',
+    'Config' => 'BU1'
+  }
+);
