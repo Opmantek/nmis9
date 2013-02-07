@@ -3937,9 +3937,7 @@ sub runEscalate {
 				} #foreach
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
-				my $event = $ET->{$event_hash}{event};
-				$event =~ s/Down/Up/;
-				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$event,Normal,$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 				#my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
 				foreach my $trgt ( @x ) {
 					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
@@ -3950,11 +3948,7 @@ sub runEscalate {
 				} #foreach
 			} # end syslog
 			elsif ( $type eq "json" ) {
-				# copy the event
-				my $event = $ET->{$event_hash};
 				# make it an up event.
-				$event->{event} =~ s/Down/Up/;
-				$event->{level} =~ "Normal";
 				$event->{nmis_server} = $C->{nmis_host};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
@@ -4166,7 +4160,7 @@ LABEL_ESC:
 
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -4249,7 +4243,7 @@ LABEL_ESC:
 							elsif ( $type eq "syslog" ) {
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4257,7 +4251,6 @@ LABEL_ESC:
 										$ET->{$event_hash}{notify} = join(',',@l);
 									}
 								}
-
 								#1360021809,nmisdev,Service Down,Warning,port80,
 								#1360022106,nmisdev,Service Up,Normal,port80, Time=00:04:57
 								#1360022121,meatball,Proactive CPU,Warning,,Value=44.91 Threshold=40
@@ -4271,7 +4264,7 @@ LABEL_ESC:
 								} #foreach
 							} # end syslog
 							elsif ( $type eq "json" ) {
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4925,12 +4918,12 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 				## For IP address based permissions
 				#Order deny,allow
 				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .sins.com.au
+				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
 				## For Username based authentication
-				AuthType Basic
-				AuthName "NMIS8"
-				AuthUserFile $C->{'auth_htpasswd_file'}
-				Require valid-user
+				#AuthType Basic
+				#AuthName "NMIS8"
+				#AuthUserFile $C->{'auth_htpasswd_file'}
+				#Require valid-user
 </Location>
 
 # This is now optional if using internal NMIS Authentication
@@ -4938,12 +4931,12 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 				## For IP address based permissions
 				#Order deny,allow
 				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .sins.com.au
+				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
 				## For Username based authentication
-				AuthType Basic
-				AuthName "NMIS8"
-				AuthUserFile $C->{'auth_htpasswd_file'}
-				Require valid-user
+				#AuthType Basic
+				#AuthName "NMIS8"
+				#AuthUserFile $C->{'auth_htpasswd_file'}
+				#Require valid-user
 </Location>
 
 #*** URL required in browser ***

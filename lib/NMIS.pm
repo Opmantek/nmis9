@@ -931,6 +931,10 @@ sub checkEvent {
 			if ( $ETL->{$event_hash}{current} eq 'true' ) {
 				dbg("event $event_hash marked for UP notify and delete");
 				$ETL->{$event_hash}{current} = 'false';
+				### 2013-02-07 keiths, fixed stateful event properties not clearing.
+				$ETL->{$event_hash}{event} = $event;
+				$ETL->{$event_hash}{details} = $details;
+				$ETL->{$event_hash}{level} = $level;
 			}
 			writeEventStateLock(table=>$ETL,handle=>$handle);
 		}

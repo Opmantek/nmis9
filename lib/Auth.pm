@@ -134,7 +134,7 @@ sub new {
 		_require => 1,
 		dir => $arg{dir},
 		user => undef,
-		config => $C,
+		config => undef,
 		priv => undef,
 		privlevel => 0, # default all
 		cookie => undef,
@@ -142,7 +142,7 @@ sub new {
 	};
 	bless $self, $class;
 	$self->_auth_init;
-	$debug = getbool($self->{config}->{auth_debug});
+	$debug = getbool($C->{auth_debug});
 	return $self;
 }
 
@@ -158,7 +158,7 @@ sub Require {
 
 sub _loadConf {
 	my $self = shift;
-	if ( not defined $self->{config}->{'<nmis_base>'} || $self->{config}->{'<nmis_base>'} eq "" ) {		
+	if ( not defined $C->{'<nmis_base>'} || $C->{'<nmis_base>'} eq "" ) {		
 		$C = loadConfTable();
 	}	
 }
@@ -167,7 +167,7 @@ sub _loadConf {
 
 sub _auth_init {
 	my $self = shift;
-	$self->{_require} = $self->{config}->{auth_require} if defined $self->{config}->{auth_require};
+	$self->{_require} = $C->{auth_require} if defined $C->{auth_require};
 }
 
 #----------------------------------
@@ -217,7 +217,7 @@ sub CheckAccess {
 	my @cookies = ();
 
 	# check if authentication is required
-	return 1 if not $self->{config}->{auth_require};
+	return 1 if not $C->{auth_require};
 	return 1 unless $self->{_require};
 
 	if ( ! $self->{user} ) { 
@@ -281,7 +281,7 @@ sub get_cookie_token
 
 	
 	# print STDERR "DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}\n" if $debug;
-	my $web_key = (defined $self->{config}->{'auth_web_key'}) ? $self->{config}->{'auth_web_key'} : $CHOCOLATE_CHIP;
+	my $web_key = (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
 	print STDERR "DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key\n" if $debug;
 	$token = $user_name . $remote_addr;	
 	$token .= $web_key;
@@ -294,8 +294,8 @@ sub get_cookie_token
 sub get_cookie_domain
 {
 	my $self = shift;
-	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com") {
-		return $self->{config}->{'auth_sso_domain'};
+	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com") {
+		return $C->{'auth_sso_domain'};
 	}
 	else {		
 		return;
@@ -330,7 +330,8 @@ sub verify_id {
 		return ''; # not defined
 	}
 	
-	if($cookie !~ /^([\w\-]+):(.+)$/) {		
+	### 2013-02-07 keiths: handling for spaces in user names required the cookie cutter to handle spaces.
+	if($cookie !~ /^([\w \-]+):(.+)$/) {		
 		logAuth("verify_id: cookie bad format");
 		print STDERR "DEBUG: verify_id: cookie bad format\n" if $debug;		
 		return ''; # bad format
@@ -357,7 +358,7 @@ sub generate_cookie {
 
 	my $expires = $args{expires};
 	if( !defined($expires) ){
-		$expires = ( $self->{config}->{auth_expire} ne "" ) ? $self->{config}->{auth_expire} : "+60min"		
+		$expires = ( $C->{auth_expire} ne "" ) ? $C->{auth_expire} : "+60min"		
 	}
 	
 	my $value = $args{value};
@@ -388,22 +389,22 @@ sub user_verify {
 	}
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
-	if ( ! defined($self->{config}->{auth_method_1}) ) { 
-		$self->{config}->{auth_method_1} = "apache"; 
+	if ( ! defined($C->{auth_method_1}) ) { 
+		$C->{auth_method_1} = "apache"; 
 	}
-	elsif ($self->{config}->{auth_method_1} eq "") { 
-		$self->{config}->{auth_method_1} = "apache";     
+	elsif ($C->{auth_method_1} eq "") { 
+		$C->{auth_method_1} = "apache";     
 	}
 
-	#print STDERR "DEBUG: auth_method_1=$self->{config}->{auth_method_1},$self->{config}->{auth_method_2},$self->{config}->{auth_method_3}\n" if $debug;
-	for my $auth ( $self->{config}->{auth_method_1},$self->{config}->{auth_method_2},$self->{config}->{auth_method_3} ) {
+	#print STDERR "DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}\n" if $debug;
+	for my $auth ( $C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3} ) {
 		next if $auth eq '';
 
 		if( $auth eq "apache" ) {               
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }  
 			else { $exit=0; }             
 		} elsif ( $auth eq "htpasswd" ) {
-			$exit = $self->_file_verify($self->{config}->{auth_htpasswd_file},$u,$p,$self->{config}->{auth_htpasswd_encrypt});
+			$exit = $self->_file_verify($C->{auth_htpasswd_file},$u,$p,$C->{auth_htpasswd_encrypt});
 
 		} elsif ( $auth eq "radius" ) {
 			$exit = $self->_radius_verify($u,$p);
@@ -425,14 +426,14 @@ sub user_verify {
 		
 		} elsif ( $auth eq "novell-ldap" ) {
 			$exit = _novell_ldap_verify($u,$p,0);
-	#	} elsif ( defined( $self->{config}->{'web-htpasswd-file'} ) ) {
-	#		$rv = _file_verify($self->{config}->{'web-htpasswd-file'},$u,$p,1);
+	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
+	#		$rv = _file_verify($C->{'web-htpasswd-file'},$u,$p,1);
 	#		return $rv if($rv);
-	#	} elsif ( defined( $self->{config}->{'web-md5-password-file'} ) ) {
-	#		$rv = _file_verify($self->{config}->{'web-md5-password-file'},$u,$p,2);
+	#	} elsif ( defined( $C->{'web-md5-password-file'} ) ) {
+	#		$rv = _file_verify($C->{'web-md5-password-file'},$u,$p,2);
 	#		return $rv if($rv);
-	#	} elsif ( defined( $self->{config}->{'web-unix-password-file'} ) ) {
-	#		$rv = file_verify($self->{config}->{'web-unix-password-file'},$u,$p,3);
+	#	} elsif ( defined( $C->{'web-unix-password-file'} ) ) {
+	#		$rv = file_verify($C->{'web-unix-password-file'},$u,$p,3);
 	#		return $rv if($rv);
 		}
 
@@ -495,14 +496,14 @@ sub _file_verify {
 					$cp = crypt($p,$salt); 
 					return 1 if($fp eq $cp); 
 				} # add new ones here...
-				if( $self->{config}->{'auth_debug'} ) {
+				if( $C->{'auth_debug'} ) {
 					$debugmessage .= "Mismatch password [$u][$p]:[$fp]!=[$cp]\n";
 				}
 				return 0;
-			} elsif( $self->{config}->{'auth_debug'} ) {
+			} elsif( $C->{'auth_debug'} ) {
 				$debugmessage .= "Mismatch user [$1][$u]\n";
 			}
-		} elsif( $self->{config}->{'auth_debug'} ) {
+		} elsif( $C->{'auth_debug'} ) {
 			$debugmessage .= "Bad format line $_";
 		}
 	}
@@ -542,19 +543,19 @@ sub _ldap_verify {
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap = new Net::LDAPS($self->{config}->{'auth_ldaps_server'});
+		$ldap = new Net::LDAPS($C->{'auth_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($self->{config}->{'auth_ldap_server'});
+		$ldap = new Net::LDAP($C->{'auth_ldap_server'});
 	}
 	if(!$ldap) {
 		logAuth("ERROR, no LDAP object created, maybe ldap server address missing in configuration of NMIS");
 		return 0; 
 	}
 	@attrlist = ( 'uid','cn' );
-	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
-		if( $self->{config}->{'auth_ldap_attr'} );
+	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
+		if( $C->{'auth_ldap_attr'} );
 	
-	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
+	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
 		foreach $attr ( @attrlist ) {
 			$dn = "$attr=$u,".$context;
 			$msg = $ldap->bind($dn, password=>$p) ;
@@ -599,17 +600,17 @@ sub _novell_ldap_verify {
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap = new Net::LDAPS($self->{config}->{'auth_ldaps_server'});
+		$ldap = new Net::LDAPS($C->{'auth_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($self->{config}->{'auth_ldap_server'});
+		$ldap = new Net::LDAP($C->{'auth_ldap_server'});
 	}
 	if(!$ldap) {
 		logAuth2("no LDAP object created, maybe ldap server address missing in configuration of NMIS","ERROR");
 		return 0; 
 	}
 	@attrlist = ( 'uid','cn' );
-	@attrlist = split( " ", $self->{config}->{'auth_ldap_attr'} )
-		if( $self->{config}->{'auth_ldap_attr'} );
+	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
+		if( $C->{'auth_ldap_attr'} );
 	
 	#if($debug) {
 	#	print STDERR "DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
@@ -626,7 +627,7 @@ sub _novell_ldap_verify {
 		return 0;
 	}
 
-	foreach $context ( split ":", $self->{config}->{'auth_ldap_context'}  ) {
+	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
 
 		#print STDERR "DEBUG: _novell_ldap_verify: context=$context\n" if $debug;
 
@@ -688,7 +689,7 @@ sub _ms_ldap_verify {
 	my $entry;
 	my $dn;
 	
-	$self->{config}->{auth_ms_ldap_debug} =  getbool($self->{config}->{auth_ms_ldap_debug});
+	$C->{auth_ms_ldap_debug} =  getbool($C->{auth_ms_ldap_debug});
 
 	if($sec) {
 		# load the LDAPS module
@@ -708,9 +709,9 @@ sub _ms_ldap_verify {
 
 	# Connect to LDAP by know (readonly) account
 	if($sec) {
-		$ldap = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
+		$ldap = new Net::LDAPS($C->{'auth_ms_ldaps_server'});
 	} else {
-		$ldap = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
+		$ldap = new Net::LDAP($C->{'auth_ms_ldap_server'});
 	}
 	if(!$ldap) {
 		logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing in configuration of NMIS");
@@ -718,49 +719,49 @@ sub _ms_ldap_verify {
 	}
 
 	# bind LDAP for request DN of user
-	$status = $ldap->bind("$self->{config}->{'auth_ms_ldap_dn_acc'}",password=>"$self->{config}->{'auth_ms_ldap_dn_psw'}");
+	$status = $ldap->bind("$C->{'auth_ms_ldap_dn_acc'}",password=>"$C->{'auth_ms_ldap_dn_psw'}");
 	if ($status->code() ne 0) {
-		logAuth("ERROR LDAP validation of $self->{config}->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
+		logAuth("ERROR LDAP validation of $C->{'auth_ms_ldap_dn_acc'}, error msg ".$status->error()." ");
 		return 0;
 	}
 
-	logAuth("DEBUG LDAP Base user=$self->{config}->{'auth_ms_ldap_dn_acc'} authorized") if $self->{config}->{auth_ms_ldap_debug};
+	logAuth("DEBUG LDAP Base user=$C->{'auth_ms_ldap_dn_acc'} authorized") if $C->{auth_ms_ldap_debug};
 
-	for my $attr ( split ',',$self->{config}->{'auth_ms_ldap_attr'}) {
+	for my $attr ( split ',',$C->{'auth_ms_ldap_attr'}) {
 
-		logAuth("DEBUG LDAP search, base=$self->{config}->{'auth_ms_ldap_base'},".
-						"filter=${attr}=$u, attr=distinguishedName") if $self->{config}->{auth_ms_ldap_debug};
+		logAuth("DEBUG LDAP search, base=$C->{'auth_ms_ldap_base'},".
+						"filter=${attr}=$u, attr=distinguishedName") if $C->{auth_ms_ldap_debug};
 
-		my $results = $ldap->search(scope=>'sub',base=>"$self->{config}->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
+		my $results = $ldap->search(scope=>'sub',base=>"$C->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
 
 		##
-		writeTable(dir=>'var',name=>"nmis-ldap-debug",data=>$results) if $self->{config}->{auth_ms_ldap_debug};
+		writeTable(dir=>'var',name=>"nmis-ldap-debug",data=>$results) if $C->{auth_ms_ldap_debug};
 		##
 
 		if (($entry = $results->entry(0))) {
 			$dn = $entry->get_value('distinguishedName');
 		} else {
-			logAuth("DEBUG LDAP search failed") if $self->{config}->{auth_ms_ldap_debug};
+			logAuth("DEBUG LDAP search failed") if $C->{auth_ms_ldap_debug};
 		}
 	}
 
 	if ($dn eq '') {
-		logAuth("DEBUG user $u not found in Active Directory") if $self->{config}->{auth_ms_ldap_debug};
+		logAuth("DEBUG user $u not found in Active Directory") if $C->{auth_ms_ldap_debug};
 		$ldap->unbind();
 		return 0;
 	}
 
 	my $d = $dn;
 	$d =~ s/\\//g;
-	logAuth("DEBUG LDAP found distinguishedName=$d") if $self->{config}->{auth_ms_ldap_debug};
+	logAuth("DEBUG LDAP found distinguishedName=$d") if $C->{auth_ms_ldap_debug};
 
 	# check user
 
 	# Connect to LDAP and verify username and password
 	if($sec) {
-		$ldap2 = new Net::LDAPS($self->{config}->{'auth_ms_ldaps_server'});
+		$ldap2 = new Net::LDAPS($C->{'auth_ms_ldaps_server'});
 	} else {
-		$ldap2 = new Net::LDAP($self->{config}->{'auth_ms_ldap_server'});
+		$ldap2 = new Net::LDAP($C->{'auth_ms_ldap_server'});
 	}
 	if(!$ldap2) {
 		logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing");
@@ -768,7 +769,7 @@ sub _ms_ldap_verify {
 	}
 
 	$status2 = $ldap2->bind("$dn",password=>"$p");
-	logAuth("DEBUG LDAP bind dn $d password $p status ".$status->code()) if $self->{config}->{auth_ms_ldap_debug};
+	logAuth("DEBUG LDAP bind dn $d password $p status ".$status->code()) if $C->{auth_ms_ldap_debug};
 	if ($status2->code eq 0) {
 		# permitted
 		$ldap->unbind();
@@ -798,7 +799,7 @@ sub _ms_ldap_verify {
 sub do_login {
 	my $self = shift;
 	my %args = @_;
-	my $config= $self->{config}{configfile_name};
+	my $config = $args{conf};
 	my $msg = $args{msg};
 
 	# this is sent if auth = y and page = top (or blank),
@@ -815,7 +816,7 @@ sub do_login {
 	if( http("X-Requested-With") eq "XMLHttpRequest" )
 	{
 		# forward url will have a function in it, we want to go back to regular nmis
-		# my $url_no_forward = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";			
+		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";			
 		my $ret = { name => "JSONRequestError", message => "Authentication Error" };
 		my $json_data = to_json( $ret ); #, { pretty => 1 } );
 
@@ -835,7 +836,7 @@ EOHTML
 |<!DOCTYPE html>
 <html>
   <head>
-    <title>$self->{config}->{auth_login_title}</title>
+    <title>$C->{auth_login_title}</title>
     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store" />
@@ -869,8 +870,8 @@ EOHTML
 	print Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
 	print Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
 		
-	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
-		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
+	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com" ) {
+		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
 	}
 	
 	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;")));
@@ -906,15 +907,15 @@ EOHTML
 sub do_force_login {
 	my $self = shift;
 	my %args = @_;
-	my $configfile_name = $self->{config}{configfile_name};
+	my $config = $args{conf};
 	my($javascript);
 	my($err) = shift;
 
-	if( $configfile_name ne '' ){
-		$configfile_name = "&conf=$configfile_name";
+	if( $config ne '' ){
+		$config = "&conf=$config";
 	}
 
-	my $url = url(-base=>1) . $self->{config}->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";	
+	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";	
 
 	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
 	# and redirect for us
@@ -937,7 +938,7 @@ EOHTML
 #	$javascript .= "alert('$err'); " if($err);
 	$javascript .= " window.location = '" . $url . "'; }";
 
-	$javascript = "function redir() {} " if($self->{config}->{'web-auth-debug'});
+	$javascript = "function redir() {} " if($C->{'web-auth-debug'});
 
 	print header({ target=>'_top', expires=>"now" })."\n";
 	print start_html({ title =>"Login Required",
@@ -957,7 +958,7 @@ EOHTML
 sub do_logout {	
 	my $self = shift;
 	my %args = @_;
-	my $configfile_name = $self->{config}{configfile_name};
+	my $config = $args{conf};
 
 	# Javascript that sets window.location to login URL
 	my $javascript = "function redir() { window.location = '" . url(-full=>1) . "'; }";
@@ -971,7 +972,7 @@ sub do_logout {
 	#	-expires => "5s",  
 	#	-script => $javascript, 
 	#	-onload => "redir()",		
-	#	-style=>{'src'=>"$self->{config}->{'<menu_url_base>'}/css/dash8.css"}
+	#	-style=>{'src'=>"$C->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
 	print qq
@@ -1066,16 +1067,16 @@ sub _radius_verify {
 		return 0; 
 	} # no Authen::Simple::RADIUS installed
 
-	my ($host,$port) = split(/:/,$self->{config}->{auth_radius_server});
+	my ($host,$port) = split(/:/,$C->{auth_radius_server});
 	if ($host eq "") {
 		logAuth("ERROR, no radius server address specified in configuration of NMIS");
-	} elsif ($self->{config}->{auth_radius_secret} eq "") {
+	} elsif ($C->{auth_radius_secret} eq "") {
 		logAuth("ERROR, no radius secret specified in configuration of NMIS");
 	} else {
 		$port = 1645 if $port eq "";
 		my $radius = Authen::Simple::RADIUS->new(
 			host   => $host,
-			secret => $self->{config}->{auth_radius_secret},
+			secret => $C->{auth_radius_secret},
 			port => $port
 		); 
 		if ( $radius->authenticate( $user, $pswd ) ) {
@@ -1099,16 +1100,16 @@ sub _tacacs_verify {
 		return 0; 
 	} # no Authen::TacacsPlus installed
 
-	my ($host,$port) = split(/:/,$self->{config}->{auth_tacacs_server});
+	my ($host,$port) = split(/:/,$C->{auth_tacacs_server});
 	if ($host eq "") {
 		logAuth("ERROR, no tacacs server address specified in configuration of NMIS");
-	} elsif ($self->{config}->{auth_tacacs_secret} eq "") {
+	} elsif ($C->{auth_tacacs_secret} eq "") {
 		logAuth("ERROR, no tacacs secret specified in configuration of NMIS");
 	} else {
 		$port = 49 if $port eq "";
 		my $tacacs = new Authen::TacacsPlus(
 			Host => $host,
-			Key => $self->{config}->{auth_tacacs_secret},
+			Key => $C->{auth_tacacs_secret},
 		);
 		if ( $tacacs->authen($user,$pswd)) {
 			$tacacs->close();
@@ -1131,9 +1132,9 @@ sub loginout {
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
-	# my $config = $args{conf};
+	my $config = $args{conf};
 	#my $config = $self->{config};
-	my $config = $self->{config}{configfile_name};
+	#my $config = $self->{config}{configfile_name};
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
@@ -1141,7 +1142,7 @@ sub loginout {
 	
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
-	if($ENV{'REMOTE_USER'} and ($self->{config}->{auth_method_1} eq "" or $self->{config}->{auth_method_1} eq "apache") ) {             
+	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {             
 		$username=$ENV{'REMOTE_USER'};
 		if( $type eq 'login' ) {
 			$type = ""; #apache takes care of showing the login screen	
@@ -1161,6 +1162,12 @@ sub loginout {
 
 			# login accepted, set privs
 			$self->SetUser($username);
+
+			# handle default privileges or not.
+			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq "" or $C->{auth_default_privilege} eq "false" ) ) { 
+				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator");
+				return 0;	
+			}
 
 			# check the name of the NMIS config file specified on url
 			# only bypass for administrator
@@ -1323,27 +1330,47 @@ sub _GetPrivs {
 	my $GT = loadGroupTable();
 	my $UT = loadUsersTable();
 	my $PMT = loadPrivMapTable();
-	
-	if ( ! exists $UT->{$user} ) {
-		$self->{privlevel} = 5;
-		logAuth("User \"$user\" not found in table Users");
-		return 0;
+
+	if ( exists $UT->{$user}{privilege} and $UT->{$user}{privilege} ne ""  ) {
+		$self->{priv} = $UT->{$user}{privilege};
 	}
-	
-	if ( ! exists $PMT->{$UT->{$user}{privilege}} ) {
+	else {
+		if ( $C->{auth_default_privilege} ne "" and $C->{auth_default_privilege} ne "false" ) { 
+			$self->{priv} = $C->{auth_default_privilege};
+			$self->{privlevel} = 5;
+			logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $C->{auth_default_privilege}");
+		}
+		else {
+			$self->{priv} = "";			
+			$self->{privlevel} = 5;
+			logAuth("INFO User \"$user\" not found in Users table, no default privilege configured");	
+			return 0;
+		}
+	}
+		
+	if ( ! exists $PMT->{$self->{priv}} and $PMT->{$self->{priv}}{level} eq "" ) {
+		logAuth("Privilege $self->{priv} not found for user \"$user\" ");
+		$self->{priv} = "";
 		$self->{privlevel} = 5;
-		logAuth("Privilege $UT->{$user}{privilege} not found for user \"$user\" ");
 		return 0;
 	}
 
-	$self->{privlevel} = ($PMT->{$UT->{$user}{privilege}}{level} ne '') ? $PMT->{$UT->{$user}{privilege}}{level} : '5';
+	$self->{privlevel} = 5;
+	if ( $PMT->{$self->{priv}}{level} ne "" ) {
+		$self->{privlevel} = $PMT->{$self->{priv}}{level};
+	}
+	logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $debug;
 
-	dbg("USER groups \n".Dumper($self->{config}->{group_list}) );
+	dbg("USER groups \n".Dumper($C->{group_list}) );
 
 	my @groups = split /,/, $UT->{$user}{groups};
+	if ( not @groups and $C->{auth_default_groups} ne "" ) {
+		@groups = split /,/, $C->{auth_default_groups};
+		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.nmis->auth_default_groups");	
+	}
 
 	if ( grep { $_ eq 'all' } @groups) {
-		@{$self->{groups}} = sort split(',',$self->{config}->{group_list});
+		@{$self->{groups}} = sort split(',',$C->{group_list});
 		# put the virtual network group on the list
 		push @{$self->{groups}}, "network"; 
 	} elsif ( $UT->{$user}{groups} eq "none" or $UT->{$user}{groups} eq "" ) {
