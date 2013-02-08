@@ -24,6 +24,7 @@
     '<menu_base>' => '<nmis_base>/menu',
     'database_root' => '<nmis_data>/database',
     'log_root' => '<nmis_logs>',
+    'json_logs' => '<nmis_logs>/json',
     'mib_root' => '<nmis_base>/mibs',
     'report_root' => '<nmis_data>/htdocs/reports',
     'script_root' => '<nmis_conf>/scripts',

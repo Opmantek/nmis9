@@ -221,6 +221,9 @@ sub sendSyslog {
 	my $message = $arg{message};
 	my $facility = $arg{facility};
 	my $priority = $arg{priority};
+	
+	$priority = 'info' if $priority eq "";
+
 
 	# read any stdout messages and throw them away
 	#if ( eval "require Net::Syslog") {
@@ -230,7 +233,7 @@ sub sendSyslog {
 	#	print "Perl Module Net::Syslog not found\n" if $debug;
 	#}
 	
-	my $s=Net::Syslog->new(Facility => $facility, Priority => 'info');
+	my $s=Net::Syslog->new(Facility => $facility, Priority => $priority);
 	my @servers = split(",",$server_string);
 	foreach my $server (@servers) {
 		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ ) {
