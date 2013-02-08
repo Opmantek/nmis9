@@ -74,14 +74,13 @@ print "Done.  Processed $file_count NMIS Model files.\n";
 
 print Dumper($models);
 
-my $summary;
+my %summary;
 foreach my $model (keys %$models) {
 	foreach my $section (@{$models->{$curModel}{sections}}) {
-		$summary{$model}{$section} = "YES"
-	}
-	
-	if ( not grep {$section eq $_} @path ) {
-		push(@topSections,$section);
+		$summary{$model}{$section} = "YES";
+		if ( not grep {$section eq $_} @path ) {
+			push(@topSections,$section);
+		}
 	}
 }
 
