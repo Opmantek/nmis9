@@ -71,8 +71,8 @@ my $privlevel = 5;
 my $logoutButton;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {}; #{type=>'text/html',expires=>'now'};
-$AU = Auth->new;  # Auth::new will reap init values from NMIS config
+use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -307,7 +307,8 @@ sub startIPSLApage {
 	# Javascripts
 	my $jscript = getJscript();
 
-	print header({-type=>"text/html",-expires=>'now'});
+	print $q->header($headeropts);
+	#print header({-type=>"text/html",-expires=>'now'});
 	if ( not $widget ) {
 		#Don't print the start_html, but we do need to get the javascript in there.
 		print start_html(-title=>$header,
@@ -1184,7 +1185,8 @@ sub displayRTTgraph {
 
 	# buffer stdout to avoid Apache timing out on the header tag while waiting for the PNG image stream from RRDs
 	select((select(STDOUT), $| = 1)[0]);
-	print header({-type=>'image/png',-expires=>'now'});
+	print $q->header({-type=>'image/png',-expires=>'now'});
+	#print $q->header($headeropts);
 
 	my ($graphret,$xs,$ys) = RRDs::graph('-', @options);
 	select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout

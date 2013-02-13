@@ -397,8 +397,10 @@ sub user_verify {
 	}
 
 	#print STDERR "DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}\n" if $debug;
+	my $authCount = 0;
 	for my $auth ( $C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3} ) {
 		next if $auth eq '';
+		++$authCount;
 
 		if( $auth eq "apache" ) {               
 			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }  
@@ -439,7 +441,7 @@ sub user_verify {
 
 		if ($exit) {
 			#Redundant logging
-			#logAuth("INFO login request of user=$u method=$auth accepted");
+			logAuth("INFO login request of user=$u method=$auth accepted") if $authCount > 1;
 			last; # done
 		} else {
 			logAuth("INFO login request of user=$u method=$auth failed");
@@ -1299,7 +1301,6 @@ sub InGroup {
 #----------------------------------
 
 #	Check Access identifier agains priv of user
-#
 sub CheckAccessCmd {
 	my $self = shift;
 	my $command = lc shift; # key of table is lower case

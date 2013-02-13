@@ -2939,7 +2939,7 @@ sub runServer {
 	}
 
 	### 2012-12-20 keiths, adding Server Disk Usage to Health Calculations.
-	if ( @{$S->{reach}{diskList}} ) {
+	if ( defined $S->{reach}{diskList} and @{$S->{reach}{diskList}} ) {
 		$S->{reach}{disk} = mean(@{$S->{reach}{diskList}});
 	}
 

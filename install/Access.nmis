@@ -1,4 +1,27 @@
 %hash = (
+  'module_opflow_rw' => {
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'group' => 'access',
+    'name' => 'Module_opFlow_rw',
+    'descr' => 'Admin Access to opFlow'
+  },
+  'module_opflow_view' => {
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '1',
+    'level5' => '0',
+    'group' => 'access',
+    'name' => 'Module_opFlow_view',
+    'descr' => 'View Access to opFlow'
+  },
+
   'table_locations_rw' => {
     'level4' => '0',
     'level2' => '1',

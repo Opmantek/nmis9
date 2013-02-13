@@ -38,6 +38,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 
+
 print <<EO_TEXT;
 This script will update your running NMIS Config based on the NMIS install 
 "template".  This will assist with code updates and patches.
