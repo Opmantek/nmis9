@@ -763,7 +763,10 @@ sub runRTTcollect {
 	my $host = "$community"."@"."$node".":::::2";
 
 	# system uptime
-	($sysuptime) = snmpget($host,"sysUpTime");
+	#($sysuptime) = snmpget($host,"sysUpTime");
+	### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
+	($sysuptime) = snmpget($host,"snmpEngineTime.0");
+
 	if (!$sysuptime) {
 		my $message = "node $probe->{pnode} does not respond";
 		logIpsla("opSLAD: RTTcollect, $message");
@@ -775,7 +778,8 @@ sub runRTTcollect {
 		$IPSLA->updateMessage(probe => $nno, message => "NULL" );
 	}
 
-	$sysuptime = convertUpTime($sysuptime);
+	$sysuptime = convertUpTime($sysuptime) if ($sysuptime !~ /^\d+$/) ;
+
 	$nmistime = time();
 
 	# check if database exists
@@ -787,14 +791,16 @@ sub runRTTcollect {
 		$last = RRDs::last($database);
 	}
 	
-	# 2013-01-08 keiths, using the last collected time instead of the timestamp.
-	$lastupdate = $probe->{lastupdate}; 
+	### 2013-01-08 keiths, using the last collected time instead of the timestamp.
+	#$lastupdate = $probe->{lastupdate}; 
+	$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
 
-	if ( not $lastupdate ) {
-		logIpsla("opSLAD: RTTcollect, using default lastupdate time.");
-		$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
-	}
-	logIpsla("opSLAD: RTTcollect, nmis $nmistime, sysup $sysuptime, rrdlast $last, lastupdate $lastupdate") if $debug;
+	#if ( not $lastupdate ) {
+	#	logIpsla("opSLAD: RTTcollect, using default lastupdate time.");
+	#	$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
+	#}
+	logIpsla("opSLAD: RTTcollect, nmis $nmistime, sysup $sysuptime, rrdlast $last, lastupdate $lastupdate");
+	# if $debug;
 
 	my ($numrtts,$operstate) = snmpget($host,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
 	logIpsla("opSLAD: RTTcollect, $nno, numrtts $numrtts, operstate $operstate") if $debug;
@@ -811,7 +817,10 @@ sub runRTTcollect {
 		($numrtts,$operstate) = snmpget($host,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
 		if (!$numrtts and !$operstate) { 
 			# Is SNMP working at all?  Check with system uptime.
-			($sysuptime) = snmpget($host,"sysUpTime");
+			#($sysuptime) = snmpget($host,"sysUpTime");
+			### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
+			($sysuptime) = snmpget($host,"snmpEngineTime.0");			
+			
 			if ($sysuptime) {
 				my $message = "error on reconfiguration of probe, entry=$entry";
 				logIpsla("opSLAD: RTTcollect, $nno, $message");
@@ -830,25 +839,26 @@ sub runRTTcollect {
 		}
 	}
 
-	my $maxprobeupdate = 0;
+	#my $maxprobeupdate = 0;
 	if ($probe->{optype} =~ /echo|tcpConnect|dns|dhcp/i) {
 		# get history values from probe node
 		if (!snmpmaptable($host,
 			sub () {
 				my ($index, $time, $rtt, $sense, $addr) = @_;
-				my $stime = convertUpTime($time) ;
+				my $stime = convertUpTime($time);
 				my ($a0,$a1,$a2,$a3) = unpack ("CCCC", $addr);
 				my ($k0,$k1,$k2) = split /\./,$index,3;
 				my $target = "$a0.$a1.$a2.$a3";
 
-				logIpsla("opSLAD: RTTcollect, entry $entry, index $index, time $time ($stime), lastupdate $lastupdate, rtt $rtt, sense $sense, addr $target") if $debug;
-				if ( $stime > $maxprobeupdate ) {
-					$maxprobeupdate = $stime;
-				}
+				logIpsla("opSLAD: RTTcollect, entry $entry, index $index, time $time ($stime), lastupdate $lastupdate, rtt $rtt, sense $sense, addr $target");
+				#if $debug;
+				#if ( $stime > $maxprobeupdate ) {
+				#	$maxprobeupdate = $stime;
+				#}
 				
 				if ($stime > $lastupdate) { 
 					$values{$k1}{$k2}{index} = $index;
-					$values{$k1}{$k2}{delta} = $sysuptime - $stime;
+					#$values{$k1}{$k2}{delta} = $sysuptime - $stime;
 					$values{$k1}{$k2}{stime} = $stime;
 					$values{$k1}{$k2}{rtt} = $rtt;
 					$values{$k1}{$k2}{addr} = $target;
@@ -863,8 +873,7 @@ sub runRTTcollect {
 				}
 				else {
 					if ($lastupdate - $stime >= 86400) { 
-						logIpsla("opSLAD: RTTcollect, $nno, ERROR lastupdate is more than 1 day (86400 seconds) greater than the probe collect time.");
-						
+						logIpsla("opSLAD: RTTcollect, $nno, ERROR lastupdate is more than 1 day (86400 seconds) greater than the probe collect time, lastupdate=$lastupdate, stime=$stime.");
 					}
 				}
 			},
@@ -880,16 +889,16 @@ sub runRTTcollect {
 			return undef;
 		}
 		
-		if ( $maxprobeupdate ) {
-			$IPSLA->updateProbe(probe => $nno, lastupdate => $maxprobeupdate);
-		}
+		#if ( $maxprobeupdate ) {
+		#	$IPSLA->updateProbe(probe => $nno, lastupdate => $maxprobeupdate);
+		#}
 		
 		# store values in rrd
 		foreach my $k1 (sort {$a <=> $b} keys %values) { # bucket number
 			next if not exists $values{$k1}{'1'}{stime};
 			# calculate time
-			#my $stime = $nmistime - $sysuptime + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
-			my $stime = $nmistime - $values{$k1}{'1'}{delta} + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
+			my $stime = $nmistime - $sysuptime + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
+			#my $stime = $nmistime - $values{$k1}{'1'}{delta} + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
 			my $val = "$stime:$values{$k1}{'1'}{sense}";
 			my $tmp = "sense"; # dummy
 			my $error = 0;

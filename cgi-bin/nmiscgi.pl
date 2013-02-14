@@ -244,6 +244,9 @@ foreach my $i ( 0 .. $#header) {
 	my $jsData = to_json( \%{ $NS{$header[$i]} } );
 	print script("$header[$i] = ".$jsData);
 }
+
+$C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
+$C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";
         
 $C->{'opmaps_widget_width'} = 750 if $C->{'opmaps_widget_width'} eq "";
 $C->{'opmaps_widget_height'} = 450 if $C->{'opmaps_widget_height'} eq ""; 

@@ -1218,7 +1218,7 @@ sub loginout {
     push @cookies, $self->generate_cookie(user_name => $self->{user});
   	print STDERR "DEBUG: loginout made cookie $cookies[0]\n" if $debug;
 	}
-	$self->{cookie} = @cookies;
+	$self->{cookie} = \@cookies;
 	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
 }
