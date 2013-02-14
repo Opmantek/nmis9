@@ -143,6 +143,7 @@
   'syslog' => {
     'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
+    'syslog_use_escalation' => 'true',
   },
   'sql' => {
     'nmisdb' => 'nmisdb',
