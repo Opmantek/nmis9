@@ -3959,6 +3959,7 @@ sub runEscalate {
 			} # end syslog
 			elsif ( $type eq "json" ) {
 				# make it an up event.
+				my $event = $ET->{$event_hash};
 				$event->{nmis_server} = $C->{nmis_host};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
