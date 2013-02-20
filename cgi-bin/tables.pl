@@ -138,12 +138,18 @@ sub loadCfgTable {
 	my @nodes = ();
 	my @privs = ();
 	my @models = ();
+	my @status = ();
+	my @businessServices = ();
 
 	my $LNT = loadLocalNodeTable(); # load from file or db
 	my $GT = loadGroupTable();
+	my $StatusTable = loadStatusTable();
+	my $BusinessServicesTable = loadBusinessServicesTable();
 	
 	foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 	foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
+	foreach (sort {$a <=> $b} keys %{$StatusTable}) { push @status, $_; }
+		foreach (sort {$a <=> $b} keys %{$BusinessServicesTable}) { push @businessServices, $_; }
 
 	if ($table eq "Nodes") {
 		if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
@@ -187,6 +193,9 @@ sub loadCfgTable {
 			{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{privpassword}"] }},
 			{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{privkey}"] }},
 			{ privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
+			{ status => { header => 'Select Status',display => 'header,pop',value => [ @status ] }},
+			{ businessService => { header => 'Select Business Service',display => 'header,pop',value => [ @businessServices ] }},
+
 			],
 
 		Events => [
@@ -346,6 +355,18 @@ sub loadCfgTable {
 			{ logName => { header => 'Name',display => 'header,text', value => [""] }},
 			{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
 			{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
+			],
+		Status => [
+			{ status => { header => 'Status',display => 'key,header,text', value => [""] }},
+			{ Order => { header => 'Order',display => 'header,text', value => ["default"] }},			
+			{ statusPriority => { header => 'Status Priority',display => 'header,text', value => [""] }}
+			],
+		BusinessServices => [
+			{ businessService => { header => 'Business Service',display => 'key,header,text', value => [""] }},
+			{ order => { header => 'Order',display => 'header,text', value => ["default"] }},			
+			{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
+			{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+			{ businessPriority => { header => 'Business Priority',display => 'header,text', value => [""] }}
 			]
 	);
 
