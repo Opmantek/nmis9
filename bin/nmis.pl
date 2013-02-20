@@ -2869,7 +2869,7 @@ sub runServer {
 	}
 	
 	### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
-	if ( @{$S->{reach}{cpuList}} ) {
+	if ( ref($S->{reach}{cpuList}) and @{$S->{reach}{cpuList}} ) {
 		$S->{reach}{cpu} = mean(@{$S->{reach}{cpuList}});
 	}
 
