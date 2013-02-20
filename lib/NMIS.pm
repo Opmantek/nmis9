@@ -82,6 +82,8 @@ $VERSION = "8.3.15G";
 		loadLinksTable
 		loadRMENodes
 		loadServersTable
+		loadStatusTable
+		loadBusinessServicesTable
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
@@ -320,7 +322,12 @@ sub loadLinksTable {
 sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
-
+sub loadStatusTable {
+	return loadFileOrDBTable('Status');
+}
+sub loadBusinessServicesTable {
+	return loadFileOrDBTable('BusinessServices');
+}
 # check node name case insentive, return good one
 sub checkNodeName {
 	my $name = shift;
