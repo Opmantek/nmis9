@@ -88,7 +88,8 @@ else {
 # Process Control
 
 # get the pid - this should be 'portable'
-$ppid = qx|ps -C $FindBin::Script -o pid=|;
+# logMsg( "running ps -C $FindBin::Script -o pid=");
+$ppid = qx|/bin/pidof $FindBin::Script|;
 chomp $ppid;
 if ( -f $runfile ) {
 	open(F, "<$runfile");
@@ -174,7 +175,8 @@ fork && exit;
 
 # Announce our presence via a PID file
 # get our pid - this should be 'portable'
-$ppid = qx|ps -C $FindBin::Script -o pid=|;
+# logMsg( "running ps -C $FindBin::Script -o pid=");
+$ppid = qx|/bin/pidof $FindBin::Script|;
 open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
 print PID $ppid;
 close PID;
