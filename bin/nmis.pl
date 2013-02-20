@@ -3841,6 +3841,9 @@ sub runEscalate {
 	# load the interface file to later check interface collect status.
 	my $II = loadInterfaceInfo();
 
+	my $StatusTable = loadStatusTable();
+	my $BusinessServicesTable = loadBusinessServicesTable();
+
 	# Load the event table into the hash
 	# have to maintain a lock over all of this
 	# we are out of threading code now, so no great problem with holding the lock.
@@ -3960,7 +3963,12 @@ sub runEscalate {
 			elsif ( $type eq "json" ) {
 				# make it an up event.
 				my $event = $ET->{$event_hash};
-				$event->{nmis_server} = $C->{nmis_host};
+				my $node = $NT->{$event->{node}};
+				$event->{nmis_server} = $C->{nmis_host};				
+				$event->{status} = $StatusTable->{$node->{status}}{status};
+				$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
 			else {
@@ -4292,8 +4300,14 @@ LABEL_ESC:
 									}
 								}
 								# copy the event
+								my $event = $ET->{$event_hash};								
 								my $event = $ET->{$event_hash};
+								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
+								$event->{status} = $StatusTable->{$node->{status}}{status};
+								$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {

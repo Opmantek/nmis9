@@ -1297,7 +1297,50 @@
     'level1' => '1',
     'level5' => '0',
     'descr' => 'View access to table Services'
-  }
+  },
+  'table_status_rw' => {
+     'level4' => '0',
+     'level0' => '1',
+     'name' => 'Table_status_rw',
+     'level1' => '1',
+     'descr' => 'Write access to table Status',
+     'group' => 'access',
+     'level2' => '1',
+     'level3' => '0',
+     'level5' => '0'
+  },
+  'table_status_view' => {
+    'level4' => '1',
+    'level0' => '1',
+    'name' => 'Table_status_view',
+    'level1' => '1',
+    'descr' => 'View access to table Status',
+    'group' => 'access',
+    'level2' => '1',
+    'level3' => '0',
+    'level5' => '0'
+  },
+  'table_businessservices_rw' => {
+     'level4' => '0',
+     'level0' => '1',
+     'name' => 'Table_businessservices_rw',
+     'level1' => '1',
+     'descr' => 'Write access to table Business Services',
+     'group' => 'access',
+     'level2' => '1',
+     'level3' => '0',
+     'level5' => '0'
+  },
+ 'table_businessservices_view' => {
+    'level4' => '1',
+    'level0' => '1',
+    'name' => 'Table_businessservices_view',
+    'level1' => '1',
+    'descr' => 'View access to table Business Services',
+    'group' => 'access',
+    'level2' => '1',
+    'level3' => '0',
+    'level5' => '0'
+ }
 );
 
-   
