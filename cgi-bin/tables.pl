@@ -43,9 +43,6 @@ use Socket;
 
 use DBfunc;
 
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
 $CGI::Pretty::INDENT = "  ";

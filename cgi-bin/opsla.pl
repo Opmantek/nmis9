@@ -71,27 +71,25 @@ my $privlevel = 5;
 my $logoutButton;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {}; #{type=>'text/html',expires=>'now'};
-$AU = Auth->new;  # Auth::new will reap init values from NMIS config
+use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
-	if($AU->{auth_method_1} eq "" or $AU->{auth_method_1} eq "apache") {
-		 $Q->{auth_username}=$ENV{'REMOTE_USER'};
-		 $AU->{username}=$ENV{'REMOTE_USER'};
-		 $user = $ENV{'REMOTE_USER'} if $ENV{'REMOTE_USER'};
-		 $logoutButton = qq|disabled="disabled"|;
+	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
+		$Q->{auth_username}=$ENV{'REMOTE_USER'};
+		$AU->{username}=$ENV{'REMOTE_USER'};
+		$logoutButton = qq|disabled="disabled"|;
 	}
-
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 	$privlevel = $AU->{privlevel};
+	$user = $AU->{user};
 } else {
 	$user = 'Nobody';
 	$user = $ENV{'REMOTE_USER'} if $ENV{'REMOTE_USER'};
 	$logoutButton = qq|disabled="disabled"|;
 }
-
 
 #A global var for handling running in a widget or not.
 my $widget = 0;
@@ -307,7 +305,8 @@ sub startIPSLApage {
 	# Javascripts
 	my $jscript = getJscript();
 
-	print header({-type=>"text/html",-expires=>'now'});
+	print $q->header($headeropts);
+	#print header({-type=>"text/html",-expires=>'now'});
 	if ( not $widget ) {
 		#Don't print the start_html, but we do need to get the javascript in there.
 		print start_html(-title=>$header,
@@ -601,7 +600,7 @@ sub displayIPSLAmenu {
 				}
 				$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 				$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
-				return td({class=>$class,colspan=>"2", width=>"50%"},"$message");
+				return td({class=>$class,colspan=>"2", nowrap=>"nowrap", width=>"50%"},"$message");
 			}
 		);
 	}
@@ -1184,7 +1183,8 @@ sub displayRTTgraph {
 
 	# buffer stdout to avoid Apache timing out on the header tag while waiting for the PNG image stream from RRDs
 	select((select(STDOUT), $| = 1)[0]);
-	print header({-type=>'image/png',-expires=>'now'});
+	print $q->header({-type=>'image/png',-expires=>'now'});
+	#print $q->header($headeropts);
 
 	my ($graphret,$xs,$ys) = RRDs::graph('-', @options);
 	select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout

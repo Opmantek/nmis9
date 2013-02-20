@@ -65,6 +65,7 @@ my $models;
 my $vendors;
 my $modLevel;
 my @topSections;
+my @oidList;
 
 print "Summarise the Models\n";
 
@@ -72,17 +73,43 @@ print "Summarise the Models\n";
 
 print "Done.  Processed $file_count NMIS Model files.\n";
 
-print Dumper($models);
+#print Dumper($models);
+
+@oidList = sort @oidList;
+my $out = join(",",@oidList);
+print "OIDS:$out\n";
 
 my %summary;
 foreach my $model (keys %$models) {
-	foreach my $section (@{$models->{$curModel}{sections}}) {
+	foreach my $section (@{$models->{$model}{sections}}) {
 		$summary{$model}{$section} = "YES";
-		if ( not grep {$section eq $_} @path ) {
+		if ( not grep {$section eq $_} @topSections ) {
+			print "ADDING $section to TopSections\n";
 			push(@topSections,$section);
 		}
 	}
 }
+
+@topSections = sort @topSections;
+my $out = join(",",@topSections);
+print "Model,$out\n";
+
+foreach my $model (sort keys %summary) {
+	my @line;
+	push(@line,$model);
+	foreach my $section (@topSections) {
+		if ( $summary{$model}{$section} eq "YES" ) {
+			push(@line,$summary{$model}{$section});
+		}
+		else {
+			push(@line,"NO");
+		}
+	}
+	my $out = join(",",@line);
+	print "$out\n";
+}
+
+#print Dumper(\%summary);
 
 sub indent {
 	for (1..$indent) {
@@ -145,7 +172,7 @@ sub processModelFile {
 	$indent = 2;
 	++$file_count;
 	
-	if ( $file !~ /^Graph|^Common/ ) {
+	if ( $file !~ /^Graph|^Common|^Model.nmis$/ ) {
 		$curModel = $file;
 		$curModel =~ s/Model\-|\.nmis//g;
 	
@@ -175,7 +202,7 @@ sub processData {
 					#print indent."Found RRD Variable $section \@ $curpath\n" if $debug;
 					#checkRrdLength($section);
 				}
-					
+									
 				push(@path,$section);
 				if ( $modLevel <= 1 and $section !~ /-common-|class/ ) {
 					push(@{$models->{$curModel}{sections}},$section);
@@ -195,6 +222,14 @@ sub processData {
 				pop(@path);
 			}
 			else {
+				if ( $section eq "oid" ) {
+					print "    $curpath/$section: $data->{$section}\n";
+					
+					if ( not grep {$data->{$section} eq $_} @oidList ) {
+						print "ADDING $data->{$section} to oidList\n" if $debug;
+						push(@oidList,$data->{$section});
+					}
+				}
 				print &indent . "$curpath -> $section = $data->{$section}\n" if $debug;
 			}
 		}

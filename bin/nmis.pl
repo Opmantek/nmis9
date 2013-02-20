@@ -3938,17 +3938,28 @@ sub runEscalate {
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
 				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-				#my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
-				foreach my $trgt ( @x ) {
-					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
-					$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
-					$serial_ns++;
-					dbg("syslog $message");
-					#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
-				} #foreach
+				my $priority = eventToSyslog($ET->{$event_hash}{level});
+				if ( $C->{syslog_use_escalation} eq "true" ) {
+					foreach my $trgt ( @x ) {
+						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+						$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
+						$serial_ns++;
+						dbg("syslog $message");
+					} #foreach
+				}
+				# send syslogs right now.
+				else {
+					sendSyslog(
+						server_string => $C->{syslog_server},
+						facility => $C->{syslog_facility},
+						message => $message,
+						priority => $priority
+					);
+				}
 			} # end syslog
 			elsif ( $type eq "json" ) {
 				# make it an up event.
+				my $event = $ET->{$event_hash};
 				$event->{nmis_server} = $C->{nmis_host};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
@@ -4251,17 +4262,25 @@ LABEL_ESC:
 										$ET->{$event_hash}{notify} = join(',',@l);
 									}
 								}
-								#1360021809,nmisdev,Service Down,Warning,port80,
-								#1360022106,nmisdev,Service Up,Normal,port80, Time=00:04:57
-								#1360022121,meatball,Proactive CPU,Warning,,Value=44.91 Threshold=40
 								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-								foreach my $trgt ( @x ) {
-									$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
-									$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
-									$serial_ns++;
-									dbg("syslog $message");
-									#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
-								} #foreach
+								my $priority = eventToSyslog($ET->{$event_hash}{level});
+								if ( $C->{syslog_use_escalation} eq "true" ) {
+									foreach my $trgt ( @x ) {
+										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+										$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+										$serial_ns++;
+										dbg("syslog $message");
+									} #foreach
+								}
+								# send syslogs right now.
+								else {
+									sendSyslog(
+										server_string => $C->{syslog_server},
+										facility => $C->{syslog_facility},
+										message => $message,
+										priority => $priority
+									);
+								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
 								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {

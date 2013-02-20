@@ -42,8 +42,8 @@ use Time::Local;
 use CGI::Pretty qw(:standard);
 
 use Data::Dumper;
-$Data::Dumper::Ident=1;
-$Data::Dumper::SortKeys=1;
+$Data::Dumper::Indent=1;
+$Data::Dumper::Sortkeys=1;
 
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
