@@ -43,9 +43,6 @@ use Socket;
 
 use DBfunc;
 
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
 $CGI::Pretty::INDENT = "  ";
@@ -345,11 +342,11 @@ sub loadCfgTable {
 			],
 
 		Logs => [
-			{ log => { header => 'Name',display => 'key,header,text', value => [""] }},
-			{ description => { header => 'Description',display => 'header,text', value => [""] }},
-			{ file => { header => 'File',display => 'header,text', value => [""] }}
+			{ logOrder => { header => 'Order',display => 'key,header,text', value => [""] }},
+			{ logName => { header => 'Name',display => 'header,text', value => [""] }},
+			{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
+			{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
 			]
-
 	);
 
 	if (!($Cfg{$table})) {

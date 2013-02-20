@@ -1,5 +1,5 @@
 #
-## $Id: Model-net-snmp.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+## $Id: Model-QNAP.nmis,v 8.1 2013/01/03 07:42:50 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -35,17 +35,17 @@
       'database' => {
         'common-model' => 'database'
       },
-      'summary' => {
-        'common-model' => 'summary'
-      },
       'threshold' => {
         'common-model' => 'threshold'
       },
-      'stats' => {
-        'common-model' => 'stats'
+      'summary' => {
+        'common-model' => 'summary'
       },
       'heading' => {
         'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
       },
       'event' => {
         'common-model' => 'event'
@@ -53,10 +53,9 @@
     }
   },
   'system' => {
-    'nodeModel' => 'net-snmp',
-    'nodeVendor' => 'net-snmp',
-    'nodeType' => 'server',
     'nodegraph' => 'health,response,hrsmpcpu',
+    'nodeType' => 'server',
+    'nodeModel' => 'QNAP',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -67,20 +66,23 @@
             'oid' => 'sysLocation',
             'title' => 'Location'
           },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
           'sysDescr' => {
             'oid' => 'sysDescr',
             'title' => 'Description'
           },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
           },
           'sysUpTime' => {
             'oid' => 'sysUpTime',
             'title' => 'Uptime'
           },
-          'ifNumber' => {
-            'oid' => 'ifNumber',
-            'title' => 'Interfaces'
+          'sysName' => {
+            'oid' => 'sysName'
           },
           'sysContact' => {
             'replace' => {
@@ -88,23 +90,21 @@
             },
             'oid' => 'sysContact',
             'title' => 'Contact'
-          },
-          'sysName' => {
-            'oid' => 'sysName'
           }
         }
       }
-    }
+    },
+    'nodeVendor' => 'VMware Inc.'
   },
   'device' => {
     'sys' => {
-      'cpu' => {
-        'snmp' => {
-          'hrCpuLoad' => {
-            'oid' => 'laLoad.2'
-          }
-        }
-      },
+      #'cpu' => {
+      #  'snmp' => {
+      #    'hrCpuLoad' => {
+      #      'oid' => 'hrProcessorLoad.768'
+      #    }
+      #  }
+      #},
       'device' => {
         'indexed' => 'true',
         'snmp' => {
@@ -119,68 +119,14 @@
     }
   },
   'interface' => {
-    'sys' => {
-      'standard' => {
-        'snmp' => {
-          'ifOperStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '1' => 'up',
-              '4' => 'unknown',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifOperStatus',
-            'title' => 'Oper Status'
-          },
-          'ifDescr' => {
-            'oid' => 'ifDescr',
-            'title' => 'Name'
-          },
-          'ifSpeed' => {
-            'oid' => 'ifSpeed',
-            'title' => 'Bandwidth'
-          },
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '1' => 'up',
-              '4' => 'unknown',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus',
-            'title' => 'Admin Status'
-          },
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description'
-          },
-          'ifType' => {
-            'oid' => 'ifType',
-            'title' => 'Type'
-          },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange',
-            'title' => 'Last Change'
-          }
-        },
-        'indexed' => 'true'
-      }
-    },
     'rrd' => {
       'interface' => {
-        'indexed' => 'true',
         'snmp' => {
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
-              '1' => 'up',
               '4' => 'unknown',
+              '1' => 'up',
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
@@ -196,49 +142,104 @@
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
           },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
-              '1' => 'up',
               '4' => 'unknown',
+              '1' => 'up',
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
               '5' => 'dormant'
             },
             'oid' => 'ifAdminStatus'
-          },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:U'
           }
         },
+        'indexed' => 'true',
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
       }
     },
-    'noevent' => {
-      'ifDescr' => 'null',
-      'Description' => '^!',
-      'ifType' => 'other'
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          }
+        }
+      }
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
       'ifDescr' => 'sublayer|null',
-      'Description' => '^#',
       'noDescription' => 'false',
+      'Description' => '^#',
       'ifType' => 'other|softwareloopback|isdn'
-    }
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	}
   },
   'storage' => {
     'sys' => {
       'storage' => {
+        'indexed' => 'true',
         'snmp' => {
-          'hrStorageUnits' => {
-            'oid' => 'hrStorageAllocationUnits'
-          },
           'hrStorageSize' => {
             'oid' => 'hrStorageSize'
+          },
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
           },
           'hrStorageUsed' => {
             'oid' => 'hrStorageUsed'
@@ -249,12 +250,11 @@
           'hrStorageType' => {
             'oid' => 'hrStorageType'
           }
-        },
-        'indexed' => 'true'
+        }
       }
     },
     'nocollect' => {
       'Description' => '/mnt/cdrom|boot'
     }
-  },
+  }
 );

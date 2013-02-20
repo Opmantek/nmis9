@@ -73678,5 +73678,9 @@
   '15394' => {
     'OID' => '15394',
     'Enterprise' => 'P.T Sigma Cipta Caraka'
-  }
+  },
+  '24681' => {
+    'OID' => '24681',
+    'Enterprise' => 'storage'
+  },
 );

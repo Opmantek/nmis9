@@ -41,8 +41,10 @@ use Exporter;
 use Net::SMTP;
 # use Net::SMTP::SSL;
 use Net::SNPP;
+use Net::Syslog;
 use NMIS;
 use func;
+use JSON;
 
 $VERSION = 1.00;
 
@@ -51,6 +53,9 @@ $VERSION = 1.00;
 @EXPORT = qw(
 		sendEmail
 		sendSNPP
+		sendSyslog
+		eventToSyslog
+		logJsonEvent
 	);
 
 @EXPORT_OK = qw(	);
@@ -208,5 +213,83 @@ sub sendSNPP {
 		print STDERR "sendSNPP, ERROR required info is not defined: host=$arg{server} pagerno=$arg{pagerno} message=$arg{message}\n";
 	}
 }
+
+sub sendSyslog {
+	my %arg = @_;
+	my $debug = $arg{debug};
+	my $server_string = $arg{server_string};
+	my $message = $arg{message};
+	my $facility = $arg{facility};
+	my $priority = $arg{priority};
+	
+	$priority = 'info' if $priority eq "";
+
+
+	# read any stdout messages and throw them away
+	#if ( eval "require Net::Syslog") {
+	#	require Net::Syslog;
+	#}
+	#else {
+	#	print "Perl Module Net::Syslog not found\n" if $debug;
+	#}
+	
+	my $s=Net::Syslog->new(Facility => $facility, Priority => $priority);
+	my @servers = split(",",$server_string);
+	foreach my $server (@servers) {
+		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ ) {
+			#server = localhost:udp:514
+			my $server = $1;
+			my $protocol = $2;
+			my $port = $3;
+			if ( $message ne "" ) {
+				$s->send($message, SyslogHost => $server, SyslogPort => $port, Priority => $priority);
+				dbg("syslog $message to $server:$port");
+			}
+		}
+		else {
+			logMsg("ERROR: syslog server not configured correctly, configured as $server, should be in the format 'localhost:udp:514'");
+		}
+	}
+}
+
+sub eventToSyslog {
+	my $level = shift;
+	my $priority;   	
+	#emergency, alert, critical, error, warning, notice, informational, debug
+
+	if ( $level eq "Normal" ) { $priority = "notice"; }
+	elsif ( $level eq "Warning" ) { $priority = "warning"; }
+	elsif ( $level eq "Minor" ) { $priority = "error"; }
+	elsif ( $level eq "Major" ) { $priority = "critical"; }
+	elsif ( $level eq "Critical" ) { $priority = "alert"; }
+	elsif ( $level eq "Fatal" ) { $priority = "emergency"; }
+	else { $priority = "info" }
+
+	return $priority;
+}
+
+
+sub logJsonEvent {
+	my %arg = @_;
+	my $event = $arg{event};
+	my $dir = $arg{dir};
+	my $fcount = 1;
+	
+	# add the time now to the event data.
+	$event->{time} = time;
+	
+	my $file ="$dir/$event->{startdate}-$fcount.json";
+	while ( -f $file ) {
+		++$fcount;
+		$file ="$dir/$event->{startdate}-$fcount.json";
+	}
+	
+	my $json_event = to_json( $event ); #, { pretty => 1 } );
+	open(JSON,">$file") or logMsg("ERROR, can not write to $file");
+	print JSON $json_event;
+	close JSON;
+	setFileProt($file);
+}
+
 
 1;

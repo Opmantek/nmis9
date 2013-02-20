@@ -65,6 +65,22 @@ body {
     width: 240px;
     z-index: auto;
 }
+
+#login_frame {
+    position:absolute;
+    top:10%;
+    left:0;
+    width:100%;
+    text-align:center;
+}
+
+#login_dialog {
+    width: 440px;
+    position: relative;
+    margin: 0 auto;
+    text-align:center;
+}
+
 .nav {
     height: 22px;
     padding: 8px;
@@ -260,6 +276,19 @@ th.info {
 
 .tiny {
 	  font-size: 0.2em;
+}
+
+.lrg {
+	  font-size: 1.5em;
+		font-weight: bolder;
+}
+
+.inline {
+    display: inline;
+}
+
+.ctr {
+    text-align: center;
 }
 
 /* these will overide the jd_menu defaults. */

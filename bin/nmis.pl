@@ -3185,6 +3185,9 @@ sub runServices {
 
 		# save result for availability history - one file per service per node
 		$Val{service}{value} = $ret*100;
+		if ( $cpu < 0 ) {
+			$cpu = $cpu * -1;
+		}
 		if ($gotMemCpu) {	
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
@@ -3933,6 +3936,33 @@ sub runEscalate {
 					logEvent(node => $ET->{$event_hash}{node}, event => "NetSend $message to $trgt UP Notify", level => "Normal", element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 				} #foreach
 			} # end netsend
+			elsif ( $type eq "syslog" ) {
+				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $priority = eventToSyslog($ET->{$event_hash}{level});
+				if ( $C->{syslog_use_escalation} eq "true" ) {
+					foreach my $trgt ( @x ) {
+						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+						$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
+						$serial_ns++;
+						dbg("syslog $message");
+					} #foreach
+				}
+				# send syslogs right now.
+				else {
+					sendSyslog(
+						server_string => $C->{syslog_server},
+						facility => $C->{syslog_facility},
+						message => $message,
+						priority => $priority
+					);
+				}
+			} # end syslog
+			elsif ( $type eq "json" ) {
+				# make it an up event.
+				my $event = $ET->{$event_hash};
+				$event->{nmis_server} = $C->{nmis_host};
+				logJsonEvent(event => $event, dir => $C->{'json_logs'});
+			} # end json
 			else {
 				dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
 			}
@@ -4141,7 +4171,7 @@ LABEL_ESC:
 
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down/i) {
+									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -4188,8 +4218,9 @@ LABEL_ESC:
 											} else {
 												$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
 											}
-
-											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\nhttp://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n\n";
+											
+											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
+											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\n$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n\n";
 											if ($C->{mail_combine} eq "true" ) {
 												$msgTable{$type}{$trgt}{$serial}{count}++;
 												$msgTable{$type}{$trgt}{$serial}{subject} = "NMIS Escalation Message, contains $msgTable{$type}{$trgt}{$serial}{count} message(s), $msgtime";
@@ -4220,6 +4251,51 @@ LABEL_ESC:
 									logEvent(node => $ET->{$event_hash}{node}, event => "NetSend $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 								} #foreach
 							} # end netsend
+							elsif ( $type eq "syslog" ) {
+								# check if UpNotify is true, and save with this event
+								# and send all the up event notifies when the event is cleared.
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+									my $ct = "$type:server";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+								my $priority = eventToSyslog($ET->{$event_hash}{level});
+								if ( $C->{syslog_use_escalation} eq "true" ) {
+									foreach my $trgt ( @x ) {
+										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+										$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+										$serial_ns++;
+										dbg("syslog $message");
+									} #foreach
+								}
+								# send syslogs right now.
+								else {
+									sendSyslog(
+										server_string => $C->{syslog_server},
+										facility => $C->{syslog_facility},
+										message => $message,
+										priority => $priority
+									);
+								}
+							} # end syslog
+							elsif ( $type eq "json" ) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+									my $ct = "$type:server";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+								# copy the event
+								my $event = $ET->{$event_hash};
+								$event->{nmis_server} = $C->{nmis_host};
+								logJsonEvent(event => $event, dir => $C->{'json_logs'});
+							} # end json
 							else {
 								dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
 							}
@@ -4258,21 +4334,20 @@ sub sendMSG {
 	my $msgTable = $args{data};
 	my $C = loadConfTable(); # get ref
 
-	my $device;
 	my $target;
 	my $serial;
 
 	dbg("Starting");
 
-	foreach $device (keys %$msgTable) {
-		if ($device eq "email") {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+	foreach my $method (keys %$msgTable) {
+		if ($method eq "email") {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{mail_server} eq '';
 					sendEmail(
 						to => $target, 
-						subject => $$msgTable{$device}{$target}{$serial}{subject},
-						body => $$msgTable{$device}{$target}{$serial}{message},
+						subject => $$msgTable{$method}{$target}{$serial}{subject},
+						body => $$msgTable{$method}{$target}{$serial}{message},
 						from => $C->{mail_from}, 
 						server => $C->{mail_server}, 
 						domain => $C->{mail_domain},
@@ -4280,7 +4355,7 @@ sub sendMSG {
 						port => $C->{mail_server_port},
 						user => $C->{mail_user},						
 						password => $C->{mail_password},						
-						priority => $$msgTable{$device}{$target}{$serial}{priority},
+						priority => $$msgTable{$method}{$target}{$serial}{priority},
 						debug => $C->{debug}
 					);
 					dbg("Escalation Email Notification sent to $target");
@@ -4288,14 +4363,14 @@ sub sendMSG {
 			}
 		} # end email
 		### Carbon copy notifications - no action required - FYI only.
-		elsif ( $device eq "ccopy" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+		elsif ( $method eq "ccopy" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{mail_server} eq '';
 					sendEmail(
 						to => $target, 
-						subject => $$msgTable{$device}{$target}{$serial}{subject}, 
-						body => $$msgTable{$device}{$target}{$serial}{message},
+						subject => $$msgTable{$method}{$target}{$serial}{subject}, 
+						body => $$msgTable{$method}{$target}{$serial}{message},
 						from => $C->{mail_from}, 
 						server => $C->{mail_server}, 
 						domain => $C->{mail_domain},
@@ -4303,7 +4378,7 @@ sub sendMSG {
 						port => $C->{mail_server_port},
 						user => $C->{mail_user},						
 						password => $C->{mail_password},						
-						priority => $$msgTable{$device}{$target}{$serial}{priority},
+						priority => $$msgTable{$method}{$target}{$serial}{priority},
 						debug => $C->{debug}
 					);
 					dbg("Escalation CC Email Notification sent to $target");
@@ -4311,38 +4386,51 @@ sub sendMSG {
 			}
 		} # end ccopy
 		# now the netsends
-		elsif ( $device eq "netsend" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+		elsif ( $method eq "netsend" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					# read any stdout messages and throw them away
 					if ($^O =~ /win32/i) {
 						# win32 platform
-						my $dump=`net send $target $$msgTable{$device}{$target}{$serial}{message}`;
+						my $dump=`net send $target $$msgTable{$method}{$target}{$serial}{message}`;
 					}
 					else {
 						# Linux box
-						my $dump=`echo $$msgTable{$device}{$target}{$serial}{message}|smbclient -M $target`;
+						my $dump=`echo $$msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
 					}
-					dbg("netsend $$msgTable{$device}{$target}{$serial}{message} to $target");
+					dbg("netsend $$msgTable{$method}{$target}{$serial}{message} to $target");
 				} # end netsend
+			}
+		}
+		# now the syslog
+		elsif ( $method eq "syslog" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					sendSyslog(
+						server_string => $C->{syslog_server},
+						facility => $C->{syslog_facility},
+						message => $$msgTable{$method}{$target}{$serial}{message},
+						priority => $$msgTable{$method}{$target}{$serial}{priority}
+					);
+				} # end syslog
 			}
 		}
 		# now the pagers
 		elsif ( $type eq "pager" ) {
-			foreach $target (keys %{$msgTable->{$device}}) {
-				foreach $serial (keys %{$msgTable->{$device}{$target}}) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{snpp_server} eq '';
 					sendSNPP(
 						server => $C->{snpp_server},
 						pagerno => $target,
-						message => $$msgTable{$device}{$target}{$serial}{message}
+						message => $$msgTable{$method}{$target}{$serial}{message}
 					);
 					dbg(" SendSNPP to $target");
 				}
 			} # end pager
 		}
 		else {
-			dbg("ERROR unknown device $device");
+			dbg("ERROR unknown device $method");
 		}
 	}
 	dbg("Finished");
@@ -4672,6 +4760,7 @@ EO_TEXT
 	dbg("Config Checking - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
 		createDir("$C->{'<nmis_logs>'}");
+		createDir("$C->{'json_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?
@@ -4848,12 +4937,12 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 				## For IP address based permissions
 				#Order deny,allow
 				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .sins.com.au
+				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
 				## For Username based authentication
-				AuthType Basic
-				AuthName "NMIS8"
-				AuthUserFile $C->{'auth_htpasswd_file'}
-				Require valid-user
+				#AuthType Basic
+				#AuthName "NMIS8"
+				#AuthUserFile $C->{'auth_htpasswd_file'}
+				#Require valid-user
 </Location>
 
 # This is now optional if using internal NMIS Authentication
@@ -4861,12 +4950,12 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 				## For IP address based permissions
 				#Order deny,allow
 				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .sins.com.au
+				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
 				## For Username based authentication
-				AuthType Basic
-				AuthName "NMIS8"
-				AuthUserFile $C->{'auth_htpasswd_file'}
-				Require valid-user
+				#AuthType Basic
+				#AuthName "NMIS8"
+				#AuthUserFile $C->{'auth_htpasswd_file'}
+				#Require valid-user
 </Location>
 
 #*** URL required in browser ***

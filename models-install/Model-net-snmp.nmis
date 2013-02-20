@@ -1,0 +1,260 @@
+#
+## $Id: Model-net-snmp.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'net-snmp',
+    'nodeVendor' => 'net-snmp',
+    'nodeType' => 'server',
+    'nodegraph' => 'health,response,hrsmpcpu,hrmem,hrvmem',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      }
+    }
+  },
+  'device' => {
+    'sys' => {
+      'cpu' => {
+        'snmp' => {
+          'hrCpuLoad' => {
+            'oid' => 'laLoad.2'
+          }
+        }
+      },
+      'device' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      }
+    }
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      }
+    },
+    'noevent' => {
+      'ifDescr' => 'null',
+      'Description' => '^!',
+      'ifType' => 'other'
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer|null',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'other|softwareloopback|isdn'
+    }
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
+    }
+  },
+);

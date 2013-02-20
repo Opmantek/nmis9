@@ -1,15 +1,19 @@
 %hash = (
-  'operator' => {
-    'level' => '3',
-    'privilege' => 'operator'
-  },
   'administrator' => {
     'level' => '0',
     'privilege' => 'administrator'
   },
+  'manager' => {
+    'level' => '1',
+    'privilege' => 'manager'
+  },
   'engineer' => {
     'level' => '2',
     'privilege' => 'engineer'
+  },
+  'operator' => {
+    'level' => '3',
+    'privilege' => 'operator'
   },
   'guest' => {
     'level' => '4',
@@ -19,8 +23,4 @@
     'level' => '5',
     'privilege' => 'anonymous'
   },
-  'manager' => {
-    'level' => '1',
-    'privilege' => 'manager'
-  }
 );

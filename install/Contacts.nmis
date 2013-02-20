@@ -1,1 +1,12 @@
-%hash = ();
+%hash = (
+  'contact1' => {
+    'Contact' => 'Contact1',
+    'Phone' => '',
+    'DutyTime' => '06:24:MonTueWedThuFri',
+    'TimeZone' => '0',
+    'Pager' => '',
+    'Mobile' => '5555551234',
+    'Location' => 'default',
+    'Email' => 'nobody@localhost'
+  }
+);

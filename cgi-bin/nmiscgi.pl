@@ -140,15 +140,13 @@ my $portalCode = loadPortalCode(conf=>$Q->{conf});
  
 my $logoCode;
 if ( $C->{company_logo} ) {
-	$logoCode = qq|
-      <span class="center">
+	$logoCode = qq|<span class="center">
 			  <img src="$C->{'company_logo'}"/>
 			</span>|;
 } 
  
-my $logout = qq|
-				<form id="nmislogout" method="POST" class="inline" action="$C->{nmis}?conf=$Q->{conf}">
-					<input class=\"inline\" type=\"submit\" id=\"logout\" name=\"auth_type\" value=\"Logout\" $logoutButton />
+my $logout = qq|<form id="nmislogout" method="POST" class="inline" action="$C->{nmis}?conf=$Q->{conf}">
+					<input class="inline" type="submit" id="logout" name="auth_type" value="Logout" $logoutButton />
 				</form>
 |;
  
@@ -171,8 +169,7 @@ print qq|
 			$portalCode
 			$logoCode
 			<div class="right">
-				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>
-				$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
+				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
 			</div>
 		</div>
 		<div id="menu_vh_site">
@@ -247,6 +244,9 @@ foreach my $i ( 0 .. $#header) {
 	my $jsData = to_json( \%{ $NS{$header[$i]} } );
 	print script("$header[$i] = ".$jsData);
 }
+
+$C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
+$C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";
         
 $C->{'opmaps_widget_width'} = 750 if $C->{'opmaps_widget_width'} eq "";
 $C->{'opmaps_widget_height'} = 450 if $C->{'opmaps_widget_height'} eq ""; 

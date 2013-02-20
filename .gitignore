@@ -1,8 +1,8 @@
 archive/*
 conf/*
+models/*
 logs/*
 var/*
-test/*
 database/*
 *.swp
 .DS_Store

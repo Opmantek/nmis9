@@ -1,0 +1,341 @@
+#
+## $Id: Model.nmis,v 8.13 2012/12/03 07:47:26 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'db' => {
+      'hbeat' => '900',
+      'poll' => '300',
+      'size' => {
+        'default' => {
+          'step_year' => '288',
+          'rows_year' => '1890',
+          'rows_month' => '2268',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_week' => '1536',
+          'rows_day' => '2304'
+        }
+      }
+    },
+    'type' => {
+      'nmis' => '/metrics/nmis-system.rrd',
+      'nodehealth' => '/health/$nodeType/$node-health.rrd',
+      'metrics' => '/metrics/$item.rrd',
+      'health' => '/health/$nodeType/$node-reach.rrd'
+    }
+  },
+  'models' => {
+    'Microsoft' => {
+      'order' => {
+        '30' => {
+          'Windows2000' => 'Windows 2000 Version 5.0'
+        },
+        '10' => {
+          'Windows2003' => 'Windows Version 5.2'
+        },
+        '20' => {
+          'Windows2008' => 'Windows Version 6.1'
+        }
+      }
+    },
+    '3COM Enterprise' => {
+      'order' => {
+        '10' => {
+          'SSII-3Com' => 'SuperStackII Switch|3Com SuperStack'
+        }
+      }
+    },
+    'Sun Microsystems' => {
+      'order' => {
+        '10' => {
+          'SunSolaris' => 'sol|Sun SNMP|SunOS'
+        }
+      }
+    },
+    'Foundry Networks' => {
+      'order' => {
+        '10' => {
+          'FoundrySwitch' => 'IronWare|ServerIron'
+        }
+      }
+    },
+    'KCP, Inc.' => {
+      'order' => {
+        '10' => {
+          'AKCP-sensor' => 'sensorProbe2'
+        }
+      }
+    },
+    'Cisco Systems' => {
+      'order' => {
+        '10' => {
+          'Catalyst6000' => 'WS-C6'
+        },
+        '15' => {
+          'Catalyst5000Sup3' => 'WS-C*5.5*|WS-C5.*6.1|WS-C*6.3*'
+        },
+        '20' => {
+          'Catalyst5000' => 'WS-C5|WS-C2980|WS-C2948|WS-C2926|FastHub'
+        },
+        '25' => {
+          'Catalyst4000' => 'WS-C4'
+        },
+        '30' => {
+          'CiscoRouter' => 'C1900-UNIVERSAL|C2900-UNIVERSAL'
+        },
+        '32' => {
+          'CiscoIOSXE' => 'IOS-XE Software'
+        },
+        '34' => {
+          'CiscoIOSXR' => 'IOS XR Software'
+        },
+        '40' => {
+          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G'
+        },
+        '45' => {
+          'CatalystIOS' => 'IOS Software, c7600|Cisco IOS Software, s720|IOS (tm) s72033_rp|Cisco IOS Software c7600s|Cisco IOS Software, Catalyst 4500'
+        },
+        '50' => {
+          'CiscoNXOS' => 'Cisco NX-OS'
+        },
+        '55' => {
+          'CiscoAP' => 'C1240 Software|C1240 Software'
+        },
+        '60' => {
+          'CiscoATM' => 'LS1010'
+        },
+        '65' => {
+          'CiscoASR' => 'Cisco ASR'
+        },
+        '70' => {
+          'CiscoPIX' => 'PIX|FWSM'
+        },
+        '75' => {
+          'CiscoASA' => 'Cisco Adaptive Security Appliance'
+        },
+        '100' => {
+          'CiscoRouter' => 'IOS'
+        },
+        '300' => {
+          'CiscoCSS' => 'Content'
+        },
+        '999' => {
+          'CiscoDefault' => '.'
+        }
+      }
+    },
+    'Default' => {
+      'order' => {
+        '10' => {
+          'Default' => 'Default'
+        }
+      }
+    },
+    'Riverstone Networks' => {
+      'order' => {
+        '10' => {
+          'Riverstone' => 'Riverstone Networks'
+        }
+      }
+    },
+    'Synoptics' => {
+      'order' => {
+        '10' => {
+          'BayStack' => 'BayStack|325-24T|5510-48T'
+        }
+      }
+    },
+    'Cerent Corporation' => {
+      'order' => {
+        '10' => {
+          'ONS15454' => 'ONS 15454'
+        }
+      }
+    },
+    'PingOnly' => {
+      'order' => {
+        '10' => {
+          'PingOnly' => 'PingOnly'
+        }
+      }
+    },
+    'UC Davis ECE Dept' => {
+      'order' => {
+        '10' => {
+          'FreeBSD' => 'FreeBSD *'
+        }
+      }
+    },
+    'Merlin Gerin' => {
+      'order' => {
+        '10' => {
+          'MGE-ups' => 'GALAXY'
+        }
+      }
+    },
+    'RedBack Networks' => {
+      'order' => {
+        '10' => {
+          'Redback' => 'Redback Networks'
+        }
+      }
+    },
+    'NBT Technology, Inc,' => {
+      'order' => {
+        '10' => {
+          'Riverbed' => 'rbt'
+        }
+      }
+    },
+    'Frogfoot Networks' => {
+      'order' => {
+        '10' => {
+          'FrogFoot' => 'Linux'
+        }
+      }
+    },
+    'net-snmp' => {
+      'order' => {
+        '10' => {
+          'net-snmp' => 'Linux|SunOS'
+        }
+      }
+    },
+    'Prime Computer' => {
+      'order' => {
+        '10' => {
+          'net-snmp' => 'Cisco Secure Access Control System'
+        }
+      }
+    },
+    'VMware Inc.' => {
+      'order' => {
+        '10' => {
+          'ESXi' => 'VMware ESX'
+        }
+      }
+    },
+    'Ascend Communications Inc.' => {
+      'order' => {
+        '10' => {
+          'LucentStinger' => 'Lucent Stinger'
+        }
+      }
+    },
+    'Alcatel Data Network' => {
+      'order' => {
+        '10' => {
+          'AlcatelASAM' => 'ASAM'
+        }
+      }
+    },
+    'Palo Alto Networks' => {
+      'order' => {
+        '10' => {
+          'PaloAltoNetworks' => 'Palo Alto Networks'
+        }
+      }
+    },    
+    'ZyXEL Communications Corp.' => {
+      'order' => {
+        '10' => {
+          'ZyXEL-MGS' => 'MGS-3712F'
+        },
+        '20' => {
+          'ZyXEL-GS' => 'GS2200-24'
+        },
+        '30' => {
+          'ZyXEL-IES' => 'IES'
+        }
+      }
+    },
+    'Rapid City Communication' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Passport-8606'
+        }
+      }
+    },
+    'Nortel Networks' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Accelar-1[12]00|Passport-8610'
+        }
+      }
+    },
+    'Hewlett Packard' => {
+      'order' => {
+        '10' => {
+          'CGESM' => 'CGESM'
+        }
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'Default',
+    'nodeType' => 'generic',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'oid' => 'sysLocation'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact'
+          }
+        }
+      }
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'nmis' => 'NMIS collect runtime',
+      'metrics' => 'Metrics'
+    }
+  }
+);
