@@ -792,6 +792,12 @@ sub getNodeInfo {
 				$V->{system}{nodeVendor_title} = 'Vendor';
 				$V->{system}{group_value} = $NI->{system}{group};
 				$V->{system}{group_title} = 'Group';
+				$V->{system}{location_value} = $NI->{system}{location};
+				$V->{system}{location_title} = 'Location';
+				$V->{system}{businessService_value} = $NI->{system}{businessService};
+				$V->{system}{businessService_title} = 'Business Service';
+				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+				$V->{system}{serviceStatus_title} = 'Service Status';
 	
 				# update node info table with this new model
 				if ($S->loadNodeInfo()) { 
@@ -2869,7 +2875,7 @@ sub runServer {
 	}
 	
 	### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
-	if ( @{$S->{reach}{cpuList}} ) {
+	if ( ref($S->{reach}{cpuList}) and @{$S->{reach}{cpuList}} ) {
 		$S->{reach}{cpu} = mean(@{$S->{reach}{cpuList}});
 	}
 
@@ -3841,7 +3847,8 @@ sub runEscalate {
 	# load the interface file to later check interface collect status.
 	my $II = loadInterfaceInfo();
 
-	my $StatusTable = loadStatusTable();
+	my $LocationsTable = loadLocationsTable();
+	my $ServiceStatusTable = loadServiceStatusTable();
 	my $BusinessServicesTable = loadBusinessServicesTable();
 
 	# Load the event table into the hash
@@ -3965,8 +3972,10 @@ sub runEscalate {
 				my $event = $ET->{$event_hash};
 				my $node = $NT->{$event->{node}};
 				$event->{nmis_server} = $C->{nmis_host};				
-				$event->{status} = $StatusTable->{$node->{status}}{status};
-				$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+				$event->{location} = $LocationsTable->{$node->{location}}{Location};
+				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
@@ -4304,8 +4313,10 @@ LABEL_ESC:
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
-								$event->{status} = $StatusTable->{$node->{status}}{status};
-								$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+								$event->{location} = $LocationsTable->{$node->{location}}{Location};
+								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
