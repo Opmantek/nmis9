@@ -1,21 +1,21 @@
 %hash = (
-  'development' => {
+  'Development' => {
     'serviceStatus' => 'Development',
     'statusPriority' => '5'
   },
-  'planning' => {
+  'Planning' => {
     'serviceStatus' => 'Planning',
     'statusPriority' => '0'
   },
-  'pre-production' => {
+  'Pre-Production' => {
     'serviceStatus' => 'Pre-Production',
     'statusPriority' => '9'
   },
-  'production' => {
+  'Production' => {
     'serviceStatus' => 'Production',
     'statusPriority' => '10'
   },
-  'testing' => {
+  'Testing' => {
     'serviceStatus' => 'Testing',
     'statusPriority' => '5'
   }
