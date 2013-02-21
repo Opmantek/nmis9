@@ -285,7 +285,7 @@ sub copyModelCfgInfo {
 	$self->{info}{system}{netType} = $self->{cfg}{node}{netType};
 	$self->{info}{system}{threshold} = $self->{cfg}{node}{threshold};
 	$self->{info}{system}{location} = $self->{cfg}{node}{location};
-	$self->{info}{system}{status} = $self->{cfg}{node}{status};
+	$self->{info}{system}{serviceStatus} = $self->{cfg}{node}{serviceStatus};
 	$self->{info}{system}{businessService} = $self->{cfg}{node}{businessService};
 }
 

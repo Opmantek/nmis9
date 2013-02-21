@@ -928,7 +928,7 @@ EO_HTML
 		,'group'
 		,'location'
 		,'businessService'
-		,'status'
+		,'serviceStatus'
 		,'nodeType'
 		,'nodeModel'
 		,'sysUpTime'

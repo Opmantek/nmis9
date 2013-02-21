@@ -138,19 +138,19 @@ sub loadCfgTable {
 	my @nodes = ();
 	my @privs = ();
 	my @models = ();
-	my @status = ();
+	my @serviceStatus = ();
 	my @businessServices = ();
 	my @locations = ();
 
 	my $LNT = loadLocalNodeTable(); # load from file or db
 	my $GT = loadGroupTable();
-	my $StatusTable = loadStatusTable();
+	my $ServiceStatusTable = loadServiceStatusTable();
 	my $BusinessServicesTable = loadBusinessServicesTable();
 	my $LocationsTable = loadLocationsTable();
 	
 	foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 	foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
-	foreach (sort keys %{$StatusTable}) { push @status, $_; }
+	foreach (sort keys %{$ServiceStatusTable}) { push @serviceStatus, $_; }
 	foreach (sort keys %{$BusinessServicesTable}) { push @businessServices, $_; }
 	foreach (sort keys %{$LocationsTable}) { push @locations, $_; }
 
@@ -171,11 +171,11 @@ sub loadCfgTable {
 		Nodes => [ # using an array for fixed order of fields
 			{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
 			{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
-			{ group => { header => 'Group',display => 'header,pop',value => [ @groups] }},
-			{ location => { header => 'Location',display => 'header,pop',value => [ @locations] }},
+			{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
+			{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
 			{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
-			{ status => { header => 'Status',display => 'header,pop',value => [ @status ] }},
-			{ model => { header => 'Model',display => 'header,pop',value => [@models] }},
+			{ status => { header => 'Status',display => 'header,popup',value => [ @serviceStatus ] }},
+			{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 			{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 			{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
 			{ collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
@@ -648,7 +648,7 @@ sub doeditTable {
 
 	# combine key from values, values separated by underscrore
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
-	$key = lc($key) if $table ne 'Nodes'; # let key of table Nodes equal to name
+	$key = lc($key) if $table !~ /Nodes|BusinessServices|ServiceStatus|Locations/; # let key of table Nodes equal to name
 
 	# test on existing key
 	if ($Q->{act} =~ /doadd/) {

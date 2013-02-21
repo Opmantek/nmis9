@@ -82,7 +82,7 @@ $VERSION = "8.3.15G";
 		loadLinksTable
 		loadRMENodes
 		loadServersTable
-		loadStatusTable
+		loadServiceStatusTable
 		loadBusinessServicesTable
 		loadInterfaceInfo
 		loadInterfaceInfoShort
@@ -322,8 +322,8 @@ sub loadLinksTable {
 sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
-sub loadStatusTable {
-	return loadFileOrDBTable('Status');
+sub loadServiceStatusTable {
+	return loadFileOrDBTable('ServiceStatus');
 }
 sub loadBusinessServicesTable {
 	return loadFileOrDBTable('BusinessServices');

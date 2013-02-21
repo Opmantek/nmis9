@@ -794,10 +794,10 @@ sub getNodeInfo {
 				$V->{system}{group_title} = 'Group';
 				$V->{system}{location_value} = $NI->{system}{location};
 				$V->{system}{location_title} = 'Location';
-				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
-				$V->{system}{serviceStatus_title} = 'Status';
 				$V->{system}{businessService_value} = $NI->{system}{businessService};
 				$V->{system}{businessService_title} = 'Business Service';
+				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+				$V->{system}{serviceStatus_title} = 'Service Status';
 	
 				# update node info table with this new model
 				if ($S->loadNodeInfo()) { 
@@ -3848,7 +3848,7 @@ sub runEscalate {
 	my $II = loadInterfaceInfo();
 
 	my $LocationsTable = loadLocationsTable();
-	my $StatusTable = loadStatusTable();
+	my $ServiceStatusTable = loadServiceStatusTable();
 	my $BusinessServicesTable = loadBusinessServicesTable();
 
 	# Load the event table into the hash
@@ -3974,8 +3974,8 @@ sub runEscalate {
 				$event->{nmis_server} = $C->{nmis_host};				
 				$event->{location} = $LocationsTable->{$node->{location}}{Location};
 				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
-				$event->{status} = $StatusTable->{$node->{status}}{status};
-				$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
@@ -4315,8 +4315,8 @@ LABEL_ESC:
 								$event->{nmis_server} = $C->{nmis_host};
 								$event->{location} = $LocationsTable->{$node->{location}}{Location};
 								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
-								$event->{status} = $StatusTable->{$node->{status}}{status};
-								$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
+								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
