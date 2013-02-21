@@ -160,6 +160,7 @@ sub loadCfgTable {
 	my $PM = loadTable(dir=>'conf',name=>'PrivMap');
 	# I assume a natural order: administrator = 0 (highest priv) and guest = 6 (lowest priv)
 	foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;} 
+
 	my %Cfg;
 
 	if ( $table eq "Nodes" ) {
@@ -177,7 +178,7 @@ sub loadCfgTable {
 				{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
 				{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
 				{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
-				{ serviceStatus => { header => 'Status',display => 'header,popup',value => [ @serviceStatus ] }},
+				{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ @serviceStatus ] }},
 				{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 				{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 				{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
@@ -319,6 +320,7 @@ sub loadCfgTable {
 				{ Order => { header => 'Order',display => 'key,header,text', value => ["default"] }},
 				{ Name => { header => 'Name',display => 'header,text', value => [""] }},
 				{ Link => { header => 'Link',display => 'header,text', value => [""] }}
+
 			]
 		);
 	}
