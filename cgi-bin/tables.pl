@@ -174,7 +174,7 @@ sub loadCfgTable {
 			{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
 			{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
 			{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
-			{ status => { header => 'Status',display => 'header,popup',value => [ @serviceStatus ] }},
+			{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ @serviceStatus ] }},
 			{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 			{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 			{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
