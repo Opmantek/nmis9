@@ -792,6 +792,12 @@ sub getNodeInfo {
 				$V->{system}{nodeVendor_title} = 'Vendor';
 				$V->{system}{group_value} = $NI->{system}{group};
 				$V->{system}{group_title} = 'Group';
+				$V->{system}{location_value} = $NI->{system}{location};
+				$V->{system}{location_title} = 'Location';
+				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+				$V->{system}{serviceStatus_title} = 'Status';
+				$V->{system}{businessService_value} = $NI->{system}{businessService};
+				$V->{system}{businessService_title} = 'Business Service';
 	
 				# update node info table with this new model
 				if ($S->loadNodeInfo()) { 
@@ -3841,6 +3847,7 @@ sub runEscalate {
 	# load the interface file to later check interface collect status.
 	my $II = loadInterfaceInfo();
 
+	my $LocationsTable = loadLocationsTable();
 	my $StatusTable = loadStatusTable();
 	my $BusinessServicesTable = loadBusinessServicesTable();
 
@@ -3965,6 +3972,8 @@ sub runEscalate {
 				my $event = $ET->{$event_hash};
 				my $node = $NT->{$event->{node}};
 				$event->{nmis_server} = $C->{nmis_host};				
+				$event->{location} = $LocationsTable->{$node->{location}}{Location};
+				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 				$event->{status} = $StatusTable->{$node->{status}}{status};
 				$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
 				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
@@ -4304,6 +4313,8 @@ LABEL_ESC:
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
+								$event->{location} = $LocationsTable->{$node->{location}}{Location};
+								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 								$event->{status} = $StatusTable->{$node->{status}}{status};
 								$event->{statusPriority} = $StatusTable->{$node->{status}}{statusPriority};
 								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};

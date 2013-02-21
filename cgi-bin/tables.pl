@@ -140,16 +140,19 @@ sub loadCfgTable {
 	my @models = ();
 	my @status = ();
 	my @businessServices = ();
+	my @locations = ();
 
 	my $LNT = loadLocalNodeTable(); # load from file or db
 	my $GT = loadGroupTable();
 	my $StatusTable = loadStatusTable();
 	my $BusinessServicesTable = loadBusinessServicesTable();
+	my $LocationsTable = loadLocationsTable();
 	
 	foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 	foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
-	foreach (sort {$a <=> $b} keys %{$StatusTable}) { push @status, $_; }
-		foreach (sort {$a <=> $b} keys %{$BusinessServicesTable}) { push @businessServices, $_; }
+	foreach (sort keys %{$StatusTable}) { push @status, $_; }
+	foreach (sort keys %{$BusinessServicesTable}) { push @businessServices, $_; }
+	foreach (sort keys %{$LocationsTable}) { push @locations, $_; }
 
 	if ($table eq "Nodes") {
 		if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
@@ -169,7 +172,10 @@ sub loadCfgTable {
 			{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
 			{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
 			{ group => { header => 'Group',display => 'header,pop',value => [ @groups] }},
-			{ model => { header => 'Select Model',display => 'header,pop',value => [@models] }},
+			{ location => { header => 'Location',display => 'header,pop',value => [ @locations] }},
+			{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
+			{ status => { header => 'Status',display => 'header,pop',value => [ @status ] }},
+			{ model => { header => 'Model',display => 'header,pop',value => [@models] }},
 			{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 			{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
 			{ collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
@@ -184,18 +190,15 @@ sub loadCfgTable {
 			{ services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
 			{ timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
 			{ version => { header => 'SNMP Version',display => 'header,popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
-			{ community => { header => 'SNMP Community',display => 'text',value => ["$C->{communityRO}"] }},
+			{ community => { header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
 			{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
-			{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{username}"] }},
-			{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{authpassword}"] }},
-			{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{authkey}"] }},
+			{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
+			{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
+			{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
 			{ authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
-			{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{privpassword}"] }},
-			{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{privkey}"] }},
+			{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
+			{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
 			{ privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
-			{ status => { header => 'Select Status',display => 'header,pop',value => [ @status ] }},
-			{ businessService => { header => 'Select Business Service',display => 'header,pop',value => [ @businessServices ] }},
-
 			],
 
 		Events => [
@@ -247,6 +250,7 @@ sub loadCfgTable {
 
 		Locations => [
 			{ Location => { header => 'Location',display => 'key,header,text', value => [""] }},
+			{ Geocode => { header => 'Geocode',display => 'header,text', value => [""] }},
 			{ Address1 => { header => 'Address1',display => 'header,text', value => [""] }},
 			{ Address2 => { header => 'Address2',display => 'header,text', value => [""] }},
 			{ City => { header => 'City',display => 'header,text', value => [""] }},
@@ -356,17 +360,17 @@ sub loadCfgTable {
 			{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
 			{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
 			],
-		Status => [
-			{ status => { header => 'Status',display => 'key,header,text', value => [""] }},
-			{ Order => { header => 'Order',display => 'header,text', value => ["default"] }},			
-			{ statusPriority => { header => 'Status Priority',display => 'header,text', value => [""] }}
+			
+		ServiceStatus => [
+			{ serviceStatus => { header => 'Service Status',display => 'key,header,text', value => [""] }},
+			{ statusPriority => { header => 'Service Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }}
 			],
+			
 		BusinessServices => [
 			{ businessService => { header => 'Business Service',display => 'key,header,text', value => [""] }},
-			{ order => { header => 'Order',display => 'header,text', value => ["default"] }},			
+			{ businessPriority => { header => 'Business Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }},
 			{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
 			{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
-			{ businessPriority => { header => 'Business Priority',display => 'header,text', value => [""] }}
 			]
 	);
 
