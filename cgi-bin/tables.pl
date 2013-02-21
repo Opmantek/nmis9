@@ -144,15 +144,9 @@ sub loadCfgTable {
 
 	my $LNT = loadLocalNodeTable(); # load from file or db
 	my $GT = loadGroupTable();
-	my $ServiceStatusTable = loadServiceStatusTable();
-	my $BusinessServicesTable = loadBusinessServicesTable();
-	my $LocationsTable = loadLocationsTable();
 	
 	foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 	foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
-	foreach (sort keys %{$ServiceStatusTable}) { push @serviceStatus, $_; }
-	foreach (sort keys %{$BusinessServicesTable}) { push @businessServices, $_; }
-	foreach (sort keys %{$LocationsTable}) { push @locations, $_; }
 
 	if ($table eq "Nodes") {
 		if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
@@ -166,213 +160,268 @@ sub loadCfgTable {
 	my $PM = loadTable(dir=>'conf',name=>'PrivMap');
 	# I assume a natural order: administrator = 0 (highest priv) and guest = 6 (lowest priv)
 	foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;} 
+	my %Cfg;
 
-	my %Cfg = ( 
-		Nodes => [ # using an array for fixed order of fields
-			{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
-			{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
-			{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
-			{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
-			{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
-			{ status => { header => 'Status',display => 'header,popup',value => [ @serviceStatus ] }},
-			{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
-			{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
-			{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
-			{ collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
-			{ cbqos => { header => 'CBQoS',display => 'header,popup',value => ["none", "input", "output", "both"] }},
-			{ calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
-			{ threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
-			{ rancid => { header => 'Rancid', display => 'popup',value => ["false", "true"] }},
-			{ webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
-			{ netType => { header => 'Net Type', display => 'popup',value => ["wan", "lan"] }},
-			{ roleType => { header => 'Role Type', display => 'popup',value => ["core", "distribution", "access"] }},
-			{ depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
-			{ services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
-			{ timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
-			{ version => { header => 'SNMP Version',display => 'header,popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
-			{ community => { header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
-			{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
-			{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
-			{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
-			{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
-			{ authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
-			{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
-			{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
-			{ privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
-			],
+	if ( $table eq "Nodes" ) {
+		my $ServiceStatusTable = loadServiceStatusTable();
+		my $BusinessServicesTable = loadBusinessServicesTable();
+		my $LocationsTable = loadLocationsTable();
+		foreach (sort keys %{$ServiceStatusTable}) { push @serviceStatus, $_; }
+		foreach (sort keys %{$BusinessServicesTable}) { push @businessServices, $_; }
+		foreach (sort keys %{$LocationsTable}) { push @locations, $_; }
 
-		Events => [
-			{ Event => { header => 'Event',display => 'text', value => ["Generic Down", "Generic Up", "Interface Down", "Interface Up",
-						"Node Down", "Node Reset", "Node Up", "Node Failover", "Proactive", "Proactive Closed",
-						"RPS Fail", "TRAP", "SNMP Down", "SNMP Up","Service Down", "Service Up",] }},
-			{ Role => { header => 'Role',display => 'text', value => ["core", "distribution", "access"] }},
-			{ Type => { header => 'Type',display => 'text', value => ["router", "switch", "server", "generic"] }},
-			{ Level => { header => 'Level',display => 'text', value => ["Normal", "Warning", "Major", "Critical", "Fatal"] }},
-			{ Log => { header => 'Log',display => 'text', value => ["true", "false"] }},
-			{ Mail => { header => 'Mail',display => 'text', value => ["true", "false" ] }},
-			{ Notify => { header => 'Notify',display => 'text', value => ["true", "false" ] }},
-			{ Pager => { header => 'Pager',display => 'text', value => ["true", "false" ] }}
-			],
-
-		Escalations => [
-			{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},
-			{ Role => { header => 'Role',display => 'key,header,popup', value => ["default", "core", "distribution", "access"] }},
-			{ Type => { header => 'Type',display => 'key,header,popup', value => ["default", "router", "switch", "server", "firewall","generic"] }},
-			{ Event => { header => 'Event',display => 'key,header,popup', value => ["default", "Generic Down", "Generic Up", "Interface Down", "Interface Up",
-						"Node Down", "Node Reset", "Node Failover", "Node Up",
-						"RPS Fail", "TRAP", "SNMP Down", "SNMP Up",
-						"Service Down", "Service Up",
-						"Proactive Response Time",
-						"Proactive Reachability",
-						"Proactive CPU",
-						"Proactive Memory",
-						"Proactive Interface Availability",
-						"Proactive Interface Input Utilisation",
-						"Proactive Interface Output Utilisation",
-						"Proactive Availability Threshold Interface",
-						"Proactive Interface Input NonUnicast",
-						"Proactive Interface Output NonUnicast"] }},
-			{ 'Event_Node' => { header => 'Event Node',display => 'key,header,text', value => [""] }},
-			{ 'Event_Element' => { header => 'Event Element',display => 'key,header,text', value => [""] }},
-			{ Level0 => { header => 'Level 0',display => 'header,text', value => ["netsend:WKS1:WKS2,email:Contact1"] }},
-			{ Level1 => { header => 'Level 1',display => 'header,text', value => ["pager:sysContact,email:Contact2"] }},
-			{ Level2 => { header => 'Level 2',display => 'header,text', value => [""] }},
-			{ Level3 => { header => 'Level 3',display => 'header,text', value => ["email:Contact3:Contact4"] }},
-			{ Level4 => { header => 'Level 4',display => 'text', value => [""] }},
-			{ Level5 => { header => 'Level 5',display => 'text', value => [""] }},
-			{ Level6 => { header => 'Level 6',display => 'text', value => [""] }},
-			{ Level7 => { header => 'Level 7',display => 'text', value => [""] }},
-			{ Level8 => { header => 'Level 8',display => 'text', value => [""] }},
-			{ Level9 => { header => 'Level 9',display => 'text', value => [""] }},
-			{ Level10 => { header => 'Level 10',display => 'text', value => [""] }},
-			{ UpNotify => { header => 'UpNotify',display => 'header,popup', value => ["false", "true" ] }}
-			],
-
-		Locations => [
-			{ Location => { header => 'Location',display => 'key,header,text', value => [""] }},
-			{ Geocode => { header => 'Geocode',display => 'header,text', value => [""] }},
-			{ Address1 => { header => 'Address1',display => 'header,text', value => [""] }},
-			{ Address2 => { header => 'Address2',display => 'header,text', value => [""] }},
-			{ City => { header => 'City',display => 'header,text', value => [""] }},
-			{ Country => { header => 'Country',display => 'header,text', value => [""] }},
-			{ Floor => { header => 'Floor',display => 'header,text', value => [""] }},
-			{ Latitude => { header => 'Latitude',display => 'text', value => ["36 51 S"] }},
-			{ Longitude => { header => 'Longitude',display => 'text', value => ["174 46 E"] }},
-			{ Postcode => { header => 'Postcode',display => 'header,text', value => [""] }},
-			{ Room => { header => 'Room Number',display => 'text', value => [""] }},
-			{ State => { header => 'State',display => 'header,text', value => [""] }},
-			{ Suburb => { header => 'Suburb',display => 'text', value => [""] }}
-			],
-
-		Contacts => [
-			{ Contact => { header => 'Contact',display => 'key,header,text', value => ["Contact1"] }},
-			{ DutyTime => { header => 'DutyTime',display => 'header,text', value => ["00:24:MonTueWedThuFriSatSun"] }},
-			{ Email => { header => 'Email',display => 'header,text', value => ["contact1\@$C->{domain_name}"] }},
-			{ Location => { header => 'Location',display => 'header,text', value => ["default"] }},
-			{ Mobile => { header => 'Mobile',display => 'header,text', value => [""] }},
-			{ Pager => { header => 'Pager',display => 'header,text', value => [""] }},
-			{ Phone => { header => 'Phone',display => 'header,text', value => [""] }},
-			{ TimeZone  => { header => 'TimeZone',display => 'text', value => ["0"] }}
-			],
-
-		Services => [
-			{ 'Name' => { header => 'Name',display => 'key,header,text', value => [ '' ] }},
-			{ 'Service_Name' => { header => 'Service Name',display => 'header,text', value => [ '' ] }},
-			{ 'Service_Type' => { header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi' ] }},
-			{ 'Port' => { header => 'Port',display => 'header,text', value => [ '' ] }},
-			{ 'Poll_Interval' => { header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1h", "1d" ] }}
-			],
-
-		Users => [
-			{ user => { header => 'User',display => 'key,header,text', value => ["specify"] }},
-			{ config => { header => 'Config file',display => 'header,text', value => ["Config"] }},
-			{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},
-			{ admission => { header => 'Admission',display => 'header,popup', value => ["true","false","bypass"] }},
-			{ groups => { header => 'Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }}
-			],
-
-		Portal => [
-			{ Order => { header => 'Order',display => 'key,header,text', value => ["default"] }},
-			{ Name => { header => 'Name',display => 'header,text', value => [""] }},
-			{ Link => { header => 'Link',display => 'header,text', value => [""] }}
-			],
-
-		PrivMap => [
-			{ privilege => { header => 'Privilege',display => 'key,header,text', value => ["default"] }},
-			{ level => { header => 'Level',display => 'header,text', value => [ "" ] }}
-			],
-
-		ifTypes => [
-			{ index => { header => 'Index',display => 'key,header,text', value => [""] }},
-			{ ifType => { header => 'ifType',display => 'header,text', value => [ "" ] }}
-			],
-
-		Toolset => [
-			{ button => { header => 'Name',display => 'key,header,text', value => [""] }},
-			{ bgroup => { header => 'Type',display => 'header,popup', value => ["tool"] }},
-			{ display => { header => 'Display',display => 'header,text', value => [""] }},
-			{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
-			{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
-			{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
-			{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
-			{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
-			{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }},
-			{ urlbase => { header => 'UrlBase',display => 'text', value => [""] }},
-			{ urlscript => { header => 'UrlScript',display => 'text', value => [""] }},
-			{ useconfig => { header => 'UseConfig',display => 'text', value => [""] }},
-			{ needconfig => { header => 'NeedConfig',display => 'popup', value => ["no","yes"] }},
-			{ urlquery => { header => 'UrlQuery',display => 'text', value => [""] }},
-			{ usetarget => { header => 'UseTarget',display => 'text', value => [""] }}
-			],
-
-		Access => [
-			{ name => { header => 'Name',display => 'key,header,text', value => [""] }},
-			{ group => { header => 'Group',display => 'header,popup', value => ["access","button","tool"] }},
-			{ descr => { header => 'Description',display => 'header,text', value => [""] }},
-			{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
-			{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
-			{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
-			{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
-			{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
-			{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }}
-			],
-
-		Links => [
-			{ subnet => { header => 'Subnet',display => 'key,header,text', value => [""] }},
-			{ mask => { header => 'Mask',display => 'header,text', value => [""] }},
-			{ node1 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
-			{ interface1 => { header => 'Interface',display => 'header,text', value => [""] }},
-			{ ifIndex1 => { header => 'Index',display => 'text', value => [""] }},
-			{ node2 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
-			{ interface2 => { header => 'Interface',display => 'header,text', value => [""] }},
-			{ ifIndex2 => { header => 'Index',display => 'text', value => [""] }},
-			{ ifType => { header => 'Type',display => 'text', value => [""] }},
-			{ ifSpeed => { header => 'Speed',display => 'text', value => [""] }},
-			{ link => { header => 'Link',display => 'header,text', value => [""] }},
-			{ depend => { header => 'Depend',display => 'text', value => [""] }},
-			{ role => { header => 'Role Type',display => 'popup', value => ["core", "distribution", "access"] }},
-			{ net => { header => 'Net Type',display => 'popup', value => ["wan","lan"] }}
-			],
-
-		Logs => [
-			{ logOrder => { header => 'Order',display => 'key,header,text', value => [""] }},
-			{ logName => { header => 'Name',display => 'header,text', value => [""] }},
-			{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
-			{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
-			],
-			
-		ServiceStatus => [
-			{ serviceStatus => { header => 'Service Status',display => 'key,header,text', value => [""] }},
-			{ statusPriority => { header => 'Service Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }}
-			],
-			
-		BusinessServices => [
-			{ businessService => { header => 'Business Service',display => 'key,header,text', value => [""] }},
-			{ businessPriority => { header => 'Business Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }},
-			{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
-			{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+		%Cfg = ( 
+			Nodes => [ # using an array for fixed order of fields
+				{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
+				{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
+				{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
+				{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
+				{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
+				{ serviceStatus => { header => 'Status',display => 'header,popup',value => [ @serviceStatus ] }},
+				{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
+				{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
+				{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
+				{ collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
+				{ cbqos => { header => 'CBQoS',display => 'header,popup',value => ["none", "input", "output", "both"] }},
+				{ calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
+				{ threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
+				{ rancid => { header => 'Rancid', display => 'popup',value => ["false", "true"] }},
+				{ webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
+				{ netType => { header => 'Net Type', display => 'popup',value => ["wan", "lan"] }},
+				{ roleType => { header => 'Role Type', display => 'popup',value => ["core", "distribution", "access"] }},
+				{ depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
+				{ services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
+				{ timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
+				{ version => { header => 'SNMP Version',display => 'header,popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
+				{ community => { header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
+				{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
+				{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
+				{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
+				{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
+				{ authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
+				{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
+				{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
+				{ privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
 			]
-	);
+		);
+	}
+	elsif ( $table eq "Events" ) {
+		%Cfg = ( 
+			Events => [
+				{ Event => { header => 'Event',display => 'text', value => ["Generic Down", "Generic Up", "Interface Down", "Interface Up",
+							"Node Down", "Node Reset", "Node Up", "Node Failover", "Proactive", "Proactive Closed",
+							"RPS Fail", "TRAP", "SNMP Down", "SNMP Up","Service Down", "Service Up",] }},
+				{ Role => { header => 'Role',display => 'text', value => ["core", "distribution", "access"] }},
+				{ Type => { header => 'Type',display => 'text', value => ["router", "switch", "server", "generic"] }},
+				{ Level => { header => 'Level',display => 'text', value => ["Normal", "Warning", "Major", "Critical", "Fatal"] }},
+				{ Log => { header => 'Log',display => 'text', value => ["true", "false"] }},
+				{ Mail => { header => 'Mail',display => 'text', value => ["true", "false" ] }},
+				{ Notify => { header => 'Notify',display => 'text', value => ["true", "false" ] }},
+				{ Pager => { header => 'Pager',display => 'text', value => ["true", "false" ] }}
+			]
+		);
+	}
+	elsif ( $table eq "Escalations" ) {
+		%Cfg = ( 
+			Escalations => [
+				{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},
+				{ Role => { header => 'Role',display => 'key,header,popup', value => ["default", "core", "distribution", "access"] }},
+				{ Type => { header => 'Type',display => 'key,header,popup', value => ["default", "router", "switch", "server", "firewall","generic"] }},
+				{ Event => { header => 'Event',display => 'key,header,popup', value => ["default", "Generic Down", "Generic Up", "Interface Down", "Interface Up",
+							"Node Down", "Node Reset", "Node Failover", "Node Up",
+							"RPS Fail", "TRAP", "SNMP Down", "SNMP Up",
+							"Service Down", "Service Up",
+							"Proactive Response Time",
+							"Proactive Reachability",
+							"Proactive CPU",
+							"Proactive Memory",
+							"Proactive Interface Availability",
+							"Proactive Interface Input Utilisation",
+							"Proactive Interface Output Utilisation",
+							"Proactive Availability Threshold Interface",
+							"Proactive Interface Input NonUnicast",
+							"Proactive Interface Output NonUnicast"] }},
+				{ 'Event_Node' => { header => 'Event Node',display => 'key,header,text', value => [""] }},
+				{ 'Event_Element' => { header => 'Event Element',display => 'key,header,text', value => [""] }},
+				{ Level0 => { header => 'Level 0',display => 'header,text', value => ["netsend:WKS1:WKS2,email:Contact1"] }},
+				{ Level1 => { header => 'Level 1',display => 'header,text', value => ["pager:sysContact,email:Contact2"] }},
+				{ Level2 => { header => 'Level 2',display => 'header,text', value => [""] }},
+				{ Level3 => { header => 'Level 3',display => 'header,text', value => ["email:Contact3:Contact4"] }},
+				{ Level4 => { header => 'Level 4',display => 'text', value => [""] }},
+				{ Level5 => { header => 'Level 5',display => 'text', value => [""] }},
+				{ Level6 => { header => 'Level 6',display => 'text', value => [""] }},
+				{ Level7 => { header => 'Level 7',display => 'text', value => [""] }},
+				{ Level8 => { header => 'Level 8',display => 'text', value => [""] }},
+				{ Level9 => { header => 'Level 9',display => 'text', value => [""] }},
+				{ Level10 => { header => 'Level 10',display => 'text', value => [""] }},
+				{ UpNotify => { header => 'UpNotify',display => 'header,popup', value => ["false", "true" ] }}
+			]
+		);
+	}
+	elsif ( $table eq "Locations" ) {
+		%Cfg = ( 
+			Locations => [
+				{ Location => { header => 'Location',display => 'key,header,text', value => [""] }},
+				{ Geocode => { header => 'Geocode',display => 'header,text', value => [""] }},
+				{ Address1 => { header => 'Address1',display => 'header,text', value => [""] }},
+				{ Address2 => { header => 'Address2',display => 'header,text', value => [""] }},
+				{ City => { header => 'City',display => 'header,text', value => [""] }},
+				{ Country => { header => 'Country',display => 'header,text', value => [""] }},
+				{ Floor => { header => 'Floor',display => 'header,text', value => [""] }},
+				{ Latitude => { header => 'Latitude',display => 'text', value => ["36 51 S"] }},
+				{ Longitude => { header => 'Longitude',display => 'text', value => ["174 46 E"] }},
+				{ Postcode => { header => 'Postcode',display => 'header,text', value => [""] }},
+				{ Room => { header => 'Room Number',display => 'text', value => [""] }},
+				{ State => { header => 'State',display => 'header,text', value => [""] }},
+				{ Suburb => { header => 'Suburb',display => 'text', value => [""] }}
+			]
+		);
+	}
+	elsif ( $table eq "Contacts" ) {
+		%Cfg = ( 
+			Contacts => [
+				{ Contact => { header => 'Contact',display => 'key,header,text', value => ["Contact1"] }},
+				{ DutyTime => { header => 'DutyTime',display => 'header,text', value => ["00:24:MonTueWedThuFriSatSun"] }},
+				{ Email => { header => 'Email',display => 'header,text', value => ["contact1\@$C->{domain_name}"] }},
+				{ Location => { header => 'Location',display => 'header,text', value => ["default"] }},
+				{ Mobile => { header => 'Mobile',display => 'header,text', value => [""] }},
+				{ Pager => { header => 'Pager',display => 'header,text', value => [""] }},
+				{ Phone => { header => 'Phone',display => 'header,text', value => [""] }},
+				{ TimeZone  => { header => 'TimeZone',display => 'text', value => ["0"] }}
+			]
+		);
+	}
+	elsif ( $table eq "Services" ) {
+		%Cfg = ( 
+			Services => [
+				{ 'Name' => { header => 'Name',display => 'key,header,text', value => [ '' ] }},
+				{ 'Service_Name' => { header => 'Service Name',display => 'header,text', value => [ '' ] }},
+				{ 'Service_Type' => { header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi' ] }},
+				{ 'Port' => { header => 'Port',display => 'header,text', value => [ '' ] }},
+				{ 'Poll_Interval' => { header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1h", "1d" ] }}
+			]
+		);
+	}
+	elsif ( $table eq "Users" ) {
+		%Cfg = ( 
+			Users => [
+				{ user => { header => 'User',display => 'key,header,text', value => ["specify"] }},
+				{ config => { header => 'Config file',display => 'header,text', value => ["Config"] }},
+				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},
+				{ admission => { header => 'Admission',display => 'header,popup', value => ["true","false","bypass"] }},
+				{ groups => { header => 'Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }}
+			]
+		);
+	}
+	elsif ( $table eq "Portal" ) {
+		%Cfg = ( 
+			Portal => [
+				{ Order => { header => 'Order',display => 'key,header,text', value => ["default"] }},
+				{ Name => { header => 'Name',display => 'header,text', value => [""] }},
+				{ Link => { header => 'Link',display => 'header,text', value => [""] }}
+			]
+		);
+	}
+	elsif ( $table eq "PrivMap" ) {
+		%Cfg = ( 
+			PrivMap => [
+				{ privilege => { header => 'Privilege',display => 'key,header,text', value => ["default"] }},
+				{ level => { header => 'Level',display => 'header,text', value => [ "" ] }}
+			]
+		);
+	}
+	elsif ( $table eq "ifTypes" ) {
+		%Cfg = ( 
+			ifTypes => [
+				{ index => { header => 'Index',display => 'key,header,text', value => [""] }},
+				{ ifType => { header => 'ifType',display => 'header,text', value => [ "" ] }}
+			]
+		);
+	}
+	elsif ( $table eq "Toolset" ) {
+		%Cfg = ( 
+			Toolset => [
+				{ button => { header => 'Name',display => 'key,header,text', value => [""] }},
+				{ bgroup => { header => 'Type',display => 'header,popup', value => ["tool"] }},
+				{ display => { header => 'Display',display => 'header,text', value => [""] }},
+				{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
+				{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
+				{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
+				{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
+				{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
+				{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }},
+				{ urlbase => { header => 'UrlBase',display => 'text', value => [""] }},
+				{ urlscript => { header => 'UrlScript',display => 'text', value => [""] }},
+				{ useconfig => { header => 'UseConfig',display => 'text', value => [""] }},
+				{ needconfig => { header => 'NeedConfig',display => 'popup', value => ["no","yes"] }},
+				{ urlquery => { header => 'UrlQuery',display => 'text', value => [""] }},
+				{ usetarget => { header => 'UseTarget',display => 'text', value => [""] }}
+			]
+		);
+	}
+	elsif ( $table eq "Access" ) {
+		%Cfg = ( 
+			Access => [
+				{ name => { header => 'Name',display => 'key,header,text', value => [""] }},
+				{ group => { header => 'Group',display => 'header,popup', value => ["access","button","tool"] }},
+				{ descr => { header => 'Description',display => 'header,text', value => [""] }},
+				{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
+				{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
+				{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
+				{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
+				{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
+				{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }}
+			]
+		);
+	}
+	elsif ( $table eq "Links" ) {
+		%Cfg = ( 
+			Links => [
+				{ subnet => { header => 'Subnet',display => 'key,header,text', value => [""] }},
+				{ mask => { header => 'Mask',display => 'header,text', value => [""] }},
+				{ node1 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ interface1 => { header => 'Interface',display => 'header,text', value => [""] }},
+				{ ifIndex1 => { header => 'Index',display => 'text', value => [""] }},
+				{ node2 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ interface2 => { header => 'Interface',display => 'header,text', value => [""] }},
+				{ ifIndex2 => { header => 'Index',display => 'text', value => [""] }},
+				{ ifType => { header => 'Type',display => 'text', value => [""] }},
+				{ ifSpeed => { header => 'Speed',display => 'text', value => [""] }},
+				{ link => { header => 'Link',display => 'header,text', value => [""] }},
+				{ depend => { header => 'Depend',display => 'text', value => [""] }},
+				{ role => { header => 'Role Type',display => 'popup', value => ["core", "distribution", "access"] }},
+				{ net => { header => 'Net Type',display => 'popup', value => ["wan","lan"] }}
+			]
+		);
+	}
+	elsif ( $table eq "Logs" ) {
+		%Cfg = ( 
+			Logs => [
+				{ logOrder => { header => 'Order',display => 'key,header,text', value => [""] }},
+				{ logName => { header => 'Name',display => 'header,text', value => [""] }},
+				{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
+				{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
+			]
+		);
+	}
+	elsif ( $table eq "ServiceStatus" ) {
+		%Cfg = ( 
+			ServiceStatus => [
+				{ serviceStatus => { header => 'Service Status',display => 'key,header,text', value => [""] }},
+				{ statusPriority => { header => 'Service Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }}
+			]
+		);
+	}
+	elsif ( $table eq "BusinessServices" ) {
+		%Cfg = ( 
+			BusinessServices => [
+				{ businessService => { header => 'Business Service',display => 'key,header,text', value => [""] }},
+				{ businessPriority => { header => 'Business Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }},
+				{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
+				{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+			]
+		);
+	}
 
 	if (!($Cfg{$table})) {
 		print Tr(td({class=>'error'},"Configuration of table $table does not exists"));
