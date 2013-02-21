@@ -298,8 +298,7 @@ sub menu_bar_site {
 														qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=PrivMap">PrivMap</a>|,
 														qq|<a id='cfg_services' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Services">Services</a>|,
 														qq|<a id='cfg_servicestatus' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ServiceStatus">Service Status</a>|,
-														qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,
-														qq|<a id='cfg_status' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Status">Status'</a>|,
+														qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,														
 														qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
 													]
 												),

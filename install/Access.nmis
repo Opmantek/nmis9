@@ -1298,41 +1298,23 @@
     'level5' => '0',
     'descr' => 'View access to table Services'
   },
-<<<<<<< HEAD
-  'table_status_rw' => {
-     'level4' => '0',
-     'level0' => '1',
-     'name' => 'Table_status_rw',
-     'level1' => '1',
-     'descr' => 'Write access to table Status',
-=======
   'table_servicestatus_rw' => {
      'level4' => '0',
      'level0' => '1',
      'name' => 'Table_servicestatus_rw',
      'level1' => '1',
      'descr' => 'Write access to table ServiceStatus',
->>>>>>> dev
      'group' => 'access',
      'level2' => '1',
      'level3' => '0',
      'level5' => '0'
   },
-<<<<<<< HEAD
-  'table_status_view' => {
-    'level4' => '1',
-    'level0' => '1',
-    'name' => 'Table_status_view',
-    'level1' => '1',
-    'descr' => 'View access to table Status',
-=======
   'table_servicestatus_view' => {
     'level4' => '1',
     'level0' => '1',
     'name' => 'Table_servicestatus_view',
     'level1' => '1',
     'descr' => 'View access to table ServiceStatus',
->>>>>>> dev
     'group' => 'access',
     'level2' => '1',
     'level3' => '0',
