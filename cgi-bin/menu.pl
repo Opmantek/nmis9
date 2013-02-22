@@ -42,6 +42,8 @@ use func;
 use Sys;
 use NMIS::Modules;
 
+use JSON;
+
 # Prefer to use CGI::Pretty for html processing
 # use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *ul *li);
 #use CGI qw(:standard *table *Tr *td *form *Select *div *ul *li);
@@ -71,6 +73,7 @@ $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::confi
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
+	$user = $AU->{user};
 }
 
 # dispatch the request
@@ -78,6 +81,7 @@ if ($Q->{act} eq 'menu_bar_site') {			menu_bar_site(); # vertical parent menu
 } elsif ($Q->{act} eq 'menu_bar_portal') {	menu_bar_portal(); # hr portal select
 } elsif ($Q->{act} eq 'menu_panel_node') {	menu_panel_node();
 } elsif ($Q->{act} eq 'menu_about_view') {	menu_about_view();
+} elsif ( exists ($Q->{POSTDATA}) ) {	save_window_state();
 } else { notfound(); }
 
 sub notfound {
@@ -335,7 +339,6 @@ sub menu_bar_site {
 													qq|<a id='hlp_about' href="menu.pl?conf=$Q->{conf}&amp;act=menu_about_view">About</a>|
 												]
 										);
-
 		return \@menu_site;
 	}
 }
@@ -469,6 +472,20 @@ EO_TEXT
 
 }
 
+sub save_window_state {
+	my $data = $Q->{POSTDATA};	
+	my $windowData = from_json($data);	
+	my $userWindowData = { $user => $windowData->{windowData} };
+	
+	writeTable(dir=>'conf',name=>"WindowState",data=>$userWindowData);
+
+	print header({-type=>"text/html",-expires=>'now'});
+	print table(Tr(td({class=>'info'},<<EO_TEXT)));
+<br/>
+Success
+EO_TEXT
+	return;
+}
 # *****************************************************************************
 # NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
