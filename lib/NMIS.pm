@@ -84,6 +84,7 @@ $VERSION = "8.3.16G";
 		loadServersTable
 		loadServiceStatusTable
 		loadBusinessServicesTable
+		loadWindowStateTable
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
@@ -327,6 +328,9 @@ sub loadServiceStatusTable {
 }
 sub loadBusinessServicesTable {
 	return loadFileOrDBTable('BusinessServices');
+}
+sub loadWindowStateTable {
+	return loadFileOrDBTable('WindowState');
 }
 # check node name case insentive, return good one
 sub checkNodeName {

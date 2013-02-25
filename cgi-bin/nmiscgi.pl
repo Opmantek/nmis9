@@ -170,6 +170,8 @@ print qq|
 			$logoCode
 			<div class="right">
 				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
+				<a id="window_save" href="">Save Windows</a>
+				<a id="window_clear" href="">Clear Saved Windows</a>
 			</div>
 		</div>
 		<div id="menu_vh_site">
@@ -253,6 +255,15 @@ $C->{'opmaps_widget_height'} = 450 if $C->{'opmaps_widget_height'} eq "";
 $C->{'opflow_widget_width'} = 750 if $C->{'opflow_widget_width'} eq "";
 $C->{'opflow_widget_height'} = 460 if $C->{'opflow_widget_height'} eq "";
 
+my $windowData = loadWindowStateTable();
+my $savedWindowState = "false";
+my $userWindowData = "false";
+if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user} ne '' )
+{	
+	$savedWindowState = "true";
+	$userWindowData = to_json($windowData->{$user});
+}
+
 ### 2012-02-22 keiths, added widget_refresh timer, and passing through to jQuery
 print <<EOF;
 <script>
@@ -267,6 +278,8 @@ var opFlowWidgetHeight = $C->{'opflow_widget_height'};
 \$(document).ready(function() {
 	commonv8Init("$widget_refresh","$Q->{conf}",$registered,"$installedModules ");
 });
+var savedWindowState = $savedWindowState;
+var userWindowData = $userWindowData;
 </script>
 EOF
 
