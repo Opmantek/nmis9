@@ -374,7 +374,7 @@ sub	runThreads {
 		dbg("Starting nmisMaster");
 		nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
 
-		if ( $C->{'nmis_summary_poll_cycle'} ne "false" ) {
+		if ( $C->{'nmis_summary_poll_cycle'} eq "true" or $C->{'nmis_summary_poll_cycle'} ne "false" ) {
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
 		}
@@ -385,8 +385,14 @@ sub	runThreads {
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S); 
 
-		dbg("Starting runThreshold");
-		runThreshold($node_select);
+		### 2013-02-22 keiths, disable thresholding on the poll cycle only.
+		if ( $C->{threshold_poll_cycle} eq "true" or $C->{threshold_poll_cycle} ne "false" ) {
+			dbg("Starting runThreshold");
+			runThreshold($node_select);
+		}
+		else {
+			dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
+		}
 
 		dbg("Starting runEscalate");
 		runEscalate();
@@ -4861,7 +4867,8 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 */2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
-*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+# if threshold_poll_cycle is set to false, then enable cron based thresholding
+#*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day 
 30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
@@ -5069,15 +5076,21 @@ sub getOperColor {
 sub runThreshold {
 	my $node = shift;
 
-	my $node_select;
-	if ($node ne "") {
-		if (!($node_select = checkNodeName($node))) {
-			print "\t Invalid node=$node No node of that name\n";
-			exit 0;
+	if ( $C->{global_threshold} eq "true" or $C->{global_threshold} ne "false" ) {
+		my $node_select;
+		if ($node ne "") {
+			if (!($node_select = checkNodeName($node))) {
+				print "\t Invalid node=$node No node of that name\n";
+				exit 0;
+			}
 		}
+	
+		doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
+	}
+	else {
+		dbg("Skipping runThreshold with configuration 'global_threshold' = $C->{'global_threshold'}");
 	}
 
-	doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
 }
 
 #=================================================================
