@@ -42,6 +42,8 @@ use func;
 use Sys;
 use NMIS::Modules;
 
+use JSON;
+
 # Prefer to use CGI::Pretty for html processing
 # use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *ul *li);
 #use CGI qw(:standard *table *Tr *td *form *Select *div *ul *li);
@@ -71,6 +73,7 @@ $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::confi
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
+	$user = $AU->{user};
 }
 
 # dispatch the request
@@ -78,6 +81,7 @@ if ($Q->{act} eq 'menu_bar_site') {			menu_bar_site(); # vertical parent menu
 } elsif ($Q->{act} eq 'menu_bar_portal') {	menu_bar_portal(); # hr portal select
 } elsif ($Q->{act} eq 'menu_panel_node') {	menu_panel_node();
 } elsif ($Q->{act} eq 'menu_about_view') {	menu_about_view();
+} elsif ( exists ($Q->{POSTDATA}) ) {	save_window_state();
 } else { notfound(); }
 
 sub notfound {
@@ -284,18 +288,20 @@ sub menu_bar_site {
 												( qq|System Configuration|,
 													[	
 														qq|<a id='cfg_access' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Access">Access</a>|,
+														qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
 														qq|<a id='cfg_contacts' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contacts</a>|,
 														qq|<a id='cfg_escalations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Escalations</a>|,
 														qq|<a id='cfg_iftypes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ifTypes">ifTypes</a>|,
 														qq|<a id='cfg_locations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Locations">Locations</a>|,
 														qq|<a id='cfg_logs' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Logs">Logs</a>|,
+														qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">Models</a>|,
 														qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|,
 														qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|,
 														qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">Nodes (devices)</a>|,
-														qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">Models</a>|,
-														qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Portal">Portal</a>|,
+														qq|<a id='cfg_portal' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Portal">Portal</a>|,
 														qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=PrivMap">PrivMap</a>|,
 														qq|<a id='cfg_services' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Services">Services</a>|,
+														qq|<a id='cfg_servicestatus' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ServiceStatus">Service Status</a>|,
 														qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,
 													]
 												),
@@ -332,7 +338,6 @@ sub menu_bar_site {
 													qq|<a id='hlp_about' href="menu.pl?conf=$Q->{conf}&amp;act=menu_about_view">About</a>|
 												]
 										);
-
 		return \@menu_site;
 	}
 }
@@ -466,6 +471,20 @@ EO_TEXT
 
 }
 
+sub save_window_state {
+	my $data = $Q->{POSTDATA};	
+	my $windowData = from_json($data);	
+	my $userWindowData = { $user => $windowData->{windowData} };
+	
+	writeTable(dir=>'conf',name=>"WindowState",data=>$userWindowData);
+
+	print header({-type=>"text/html",-expires=>'now'});
+	print table(Tr(td({class=>'info'},<<EO_TEXT)));
+<br/>
+Success
+EO_TEXT
+	return;
+}
 # *****************************************************************************
 # NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;

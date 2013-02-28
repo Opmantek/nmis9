@@ -1,0 +1,26 @@
+%hash = (
+  'Core Network' => {
+    'businessPriority' => '10',
+    'businessService' => 'Core Network',
+    'businessUnit' => 'Shared',
+    'serviceType' => 'Revenue Generating'
+  },
+  'eCommerce' => {
+    'businessPriority' => '10',
+    'businessService' => 'eCommerce',
+    'businessUnit' => 'Sales',
+    'serviceType' => 'Revenue Generating'
+  },
+  'eMail' => {
+    'businessPriority' => '6',
+    'businessService' => 'eMail',
+    'businessUnit' => 'Shared',
+    'serviceType' => 'Business Critical'
+  },
+  'Web Page' => {
+    'businessPriority' => '7',
+    'businessService' => 'Web Page',
+    'businessUnit' => 'Marketing',
+    'serviceType' => 'Business Critical'
+  }
+);

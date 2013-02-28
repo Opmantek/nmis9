@@ -372,6 +372,10 @@ sub fastping {
 		$restart = 0; # first run done
 		&debug("sleeping ...");
 		# Generate random # from 1-10 + $C->{fastping_sleep}
+		
+		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
+		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
+		
 		sleep int(rand(10)) + $sleep;
 
 	} # while 1

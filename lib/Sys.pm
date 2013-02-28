@@ -279,11 +279,17 @@ sub copyModelCfgInfo {
 	$self->{info}{system}{group} = $self->{cfg}{node}{group};
 	$self->{info}{system}{timezone} = $self->{cfg}{node}{timezone};
 	$self->{info}{system}{webserver} = $self->{cfg}{node}{webserver};
-	$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} if $type eq 'all';
-	$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType} if $type eq 'all';
 	$self->{info}{system}{roleType} = $self->{cfg}{node}{roleType};
 	$self->{info}{system}{netType} = $self->{cfg}{node}{netType};
 	$self->{info}{system}{threshold} = $self->{cfg}{node}{threshold};
+	$self->{info}{system}{location} = $self->{cfg}{node}{location};
+	$self->{info}{system}{serviceStatus} = $self->{cfg}{node}{serviceStatus};
+	$self->{info}{system}{businessService} = $self->{cfg}{node}{businessService};
+	
+	if ( $type eq 'all' ) {
+		$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} if $self->{info}{system}{nodeModel} eq "";
+		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType} if $self->{info}{system}{nodeType} eq "";
+	}
 }
 
 #===================================================================

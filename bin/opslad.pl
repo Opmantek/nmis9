@@ -741,6 +741,7 @@ sub runRTTcollect {
 	my %values = ();
 	my @options;
 	my $lastupdate;
+	my $probeTimeOffset;
 	my $last;
 	my $timeout_cnt = 0; # in case of responder probe
 
@@ -792,7 +793,8 @@ sub runRTTcollect {
 	}
 	
 	### 2013-01-08 keiths, using the last collected time instead of the timestamp.
-	#$lastupdate = $probe->{lastupdate}; 
+	# $probe->{lastupdate} could store the difference between the probe collect and NMIS uptime.
+	$probeTimeOffset = $probe->{lastupdate}; 
 	$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
 
 	#if ( not $lastupdate ) {
@@ -839,7 +841,7 @@ sub runRTTcollect {
 		}
 	}
 
-	#my $maxprobeupdate = 0;
+	my $maxprobeupdate = 0;
 	if ($probe->{optype} =~ /echo|tcpConnect|dns|dhcp/i) {
 		# get history values from probe node
 		if (!snmpmaptable($host,
@@ -852,9 +854,9 @@ sub runRTTcollect {
 
 				logIpsla("opSLAD: RTTcollect, entry $entry, index $index, time $time ($stime), lastupdate $lastupdate, rtt $rtt, sense $sense, addr $target");
 				#if $debug;
-				#if ( $stime > $maxprobeupdate ) {
-				#	$maxprobeupdate = $stime;
-				#}
+				if ( $stime > $maxprobeupdate ) {
+					$maxprobeupdate = $stime;
+				}
 				
 				if ($stime > $lastupdate) { 
 					$values{$k1}{$k2}{index} = $index;
@@ -889,9 +891,12 @@ sub runRTTcollect {
 			return undef;
 		}
 		
-		#if ( $maxprobeupdate ) {
-		#	$IPSLA->updateProbe(probe => $nno, lastupdate => $maxprobeupdate);
-		#}
+		if ( $maxprobeupdate ) {
+			# store the delta from the max probe update to the current time.
+			my $newProbeTimeOffset = time() - $maxprobeupdate;
+			logIpsla("opSLAD: lastupdate=$lastupdate, maxprobeupdate=$maxprobeupdate newProbeTimeOffset=$newProbeTimeOffset.") if $debug;
+			$IPSLA->updateProbe(probe => $nno, lastupdate => $newProbeTimeOffset);
+		}
 		
 		# store values in rrd
 		foreach my $k1 (sort {$a <=> $b} keys %values) { # bucket number

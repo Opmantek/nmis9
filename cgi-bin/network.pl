@@ -921,8 +921,27 @@ EO_HTML
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 	
 	# display all info with a prefered (partial) order
-	my @order = ('status','sysName','host_addr','nodeType','nodeModel','sysUpTime','IfNumber','sysLocation',
-	'sysContact','sysDescr','lastUpdate','nodeVendor','sysObjectName','group','roleType','netType');
+	my @order = (
+		'status'
+		,'sysName'
+		,'host_addr'
+		,'group'
+		,'location'
+		,'businessService'
+		,'serviceStatus'
+		,'nodeType'
+		,'nodeModel'
+		,'sysUpTime'
+		,'IfNumber'
+		,'sysLocation'
+		,'sysContact'
+		,'sysDescr'
+		,'lastUpdate'
+		,'nodeVendor'
+		,'sysObjectName'
+		,'roleType'
+		,'netType'
+	);
 	my @keys = grep { $_ =~ /value$/ } sort keys %{$V->{system}};
 	map { $_ =~ s/_value$// } @keys;
 	my @items;

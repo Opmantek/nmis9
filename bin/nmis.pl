@@ -374,7 +374,7 @@ sub	runThreads {
 		dbg("Starting nmisMaster");
 		nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
 
-		if ( $C->{'nmis_summary_poll_cycle'} ne "false" ) {
+		if ( $C->{'nmis_summary_poll_cycle'} eq "true" or $C->{'nmis_summary_poll_cycle'} ne "false" ) {
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
 		}
@@ -385,8 +385,14 @@ sub	runThreads {
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S); 
 
-		dbg("Starting runThreshold");
-		runThreshold($node_select);
+		### 2013-02-22 keiths, disable thresholding on the poll cycle only.
+		if ( $C->{threshold_poll_cycle} eq "true" or $C->{threshold_poll_cycle} ne "false" ) {
+			dbg("Starting runThreshold");
+			runThreshold($node_select);
+		}
+		else {
+			dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
+		}
 
 		dbg("Starting runEscalate");
 		runEscalate();
@@ -515,8 +521,11 @@ sub doCollect {
 	dbg("Starting, node $name");
 
 	my $S = Sys::->new; # create system object
-	if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
-		dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	### 2013-02-25 keiths, fixing down node refreshing......
+	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
+	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	if (! $S->init(name=>$name) ) {
+		dbg("no info available of node $name, refresh it");
 		doUpdate(name=>$name);
 		dbg("Finished");
 		return; # next run to collect
@@ -792,6 +801,12 @@ sub getNodeInfo {
 				$V->{system}{nodeVendor_title} = 'Vendor';
 				$V->{system}{group_value} = $NI->{system}{group};
 				$V->{system}{group_title} = 'Group';
+				$V->{system}{location_value} = $NI->{system}{location};
+				$V->{system}{location_title} = 'Location';
+				$V->{system}{businessService_value} = $NI->{system}{businessService};
+				$V->{system}{businessService_title} = 'Business Service';
+				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+				$V->{system}{serviceStatus_title} = 'Service Status';
 	
 				# update node info table with this new model
 				if ($S->loadNodeInfo()) { 
@@ -2869,7 +2884,7 @@ sub runServer {
 	}
 	
 	### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
-	if ( @{$S->{reach}{cpuList}} ) {
+	if ( ref($S->{reach}{cpuList}) and @{$S->{reach}{cpuList}} ) {
 		$S->{reach}{cpu} = mean(@{$S->{reach}{cpuList}});
 	}
 
@@ -3841,6 +3856,10 @@ sub runEscalate {
 	# load the interface file to later check interface collect status.
 	my $II = loadInterfaceInfo();
 
+	my $LocationsTable = loadLocationsTable();
+	my $ServiceStatusTable = loadServiceStatusTable();
+	my $BusinessServicesTable = loadBusinessServicesTable();
+
 	# Load the event table into the hash
 	# have to maintain a lock over all of this
 	# we are out of threading code now, so no great problem with holding the lock.
@@ -3937,19 +3956,38 @@ sub runEscalate {
 				} #foreach
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
-				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-				#my $message = "UP Event Notification, $ET->{$event_hash}{node}, Normal, $ET->{$event_hash}{event}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
-				foreach my $trgt ( @x ) {
-					$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
-					$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
-					$serial_ns++;
-					dbg("syslog $message");
-					#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
-				} #foreach
+				my $timenow = time();
+				my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $priority = eventToSyslog($ET->{$event_hash}{level});
+				if ( $C->{syslog_use_escalation} eq "true" ) {
+					foreach my $trgt ( @x ) {
+						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+						$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
+						$serial_ns++;
+						dbg("syslog $message");
+					} #foreach
+				}
+				# send syslogs right now.
+				else {
+					sendSyslog(
+						server_string => $C->{syslog_server},
+						facility => $C->{syslog_facility},
+						message => $message,
+						priority => $priority
+					);
+				}
 			} # end syslog
 			elsif ( $type eq "json" ) {
 				# make it an up event.
-				$event->{nmis_server} = $C->{nmis_host};
+				my $event = $ET->{$event_hash};
+				my $node = $NT->{$event->{node}};
+				$event->{nmis_server} = $C->{nmis_host};				
+				$event->{location} = $LocationsTable->{$node->{location}}{Location};
+				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
 			else {
@@ -3977,6 +4015,17 @@ LABEL_ESC:
 		if ( $ET->{$event_hash}{current} eq 'true' and $NT->{$nd}{active} eq 'false') {
 			logEvent(node => $nd, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
+
+			my $timenow = time();
+			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+			my $priority = eventToSyslog($ET->{$event_hash}{level});
+			logMsg("SYSLOG: $message");
+			sendSyslog(
+				server_string => $C->{syslog_server},
+				facility => $C->{syslog_facility},
+				message => $message,
+				priority => $priority
+			);
 			
 			delete $ET->{$event_hash};
 			if ($C->{db_events_sql} eq 'true') {
@@ -4251,17 +4300,26 @@ LABEL_ESC:
 										$ET->{$event_hash}{notify} = join(',',@l);
 									}
 								}
-								#1360021809,nmisdev,Service Down,Warning,port80,
-								#1360022106,nmisdev,Service Up,Normal,port80, Time=00:04:57
-								#1360022121,meatball,Proactive CPU,Warning,,Value=44.91 Threshold=40
-								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-								foreach my $trgt ( @x ) {
-									$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
-									$msgTable{$type}{$trgt}{$serial}{priority} = &eventToSyslog($ET->{$event_hash}{level}) ;
-									$serial_ns++;
-									dbg("syslog $message");
-									#logEvent(node => $ET->{$event_hash}{node}, event => "syslog $message to $trgt $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
-								} #foreach
+								my $timenow = time();
+								my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+								my $priority = eventToSyslog($ET->{$event_hash}{level});
+								if ( $C->{syslog_use_escalation} eq "true" ) {
+									foreach my $trgt ( @x ) {
+										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
+										$msgTable{$type}{$trgt}{$serial}{priority} = $priority;
+										$serial_ns++;
+										dbg("syslog $message");
+									} #foreach
+								}
+								# send syslogs right now.
+								else {
+									sendSyslog(
+										server_string => $C->{syslog_server},
+										facility => $C->{syslog_facility},
+										message => $message,
+										priority => $priority
+									);
+								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
 								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
@@ -4273,8 +4331,16 @@ LABEL_ESC:
 									}
 								}
 								# copy the event
+								my $event = $ET->{$event_hash};								
 								my $event = $ET->{$event_hash};
+								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
+								$event->{location} = $LocationsTable->{$node->{location}}{Location};
+								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {
@@ -4817,7 +4883,8 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 */2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
-*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+# if threshold_poll_cycle is set to false, then enable cron based thresholding
+#*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day 
 30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
@@ -5025,15 +5092,21 @@ sub getOperColor {
 sub runThreshold {
 	my $node = shift;
 
-	my $node_select;
-	if ($node ne "") {
-		if (!($node_select = checkNodeName($node))) {
-			print "\t Invalid node=$node No node of that name\n";
-			exit 0;
+	if ( $C->{global_threshold} eq "true" or $C->{global_threshold} ne "false" ) {
+		my $node_select;
+		if ($node ne "") {
+			if (!($node_select = checkNodeName($node))) {
+				print "\t Invalid node=$node No node of that name\n";
+				exit 0;
+			}
 		}
+	
+		doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
+	}
+	else {
+		dbg("Skipping runThreshold with configuration 'global_threshold' = $C->{'global_threshold'}");
 	}
 
-	doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
 }
 
 #=================================================================
