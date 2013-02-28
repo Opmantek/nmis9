@@ -55,3 +55,16 @@ print $output;
 
 my $output = `chmod -R g+w $C->{'<nmis_base>'}`;
 print $output;
+
+my $output = `find $C->{'<nmis_base>'} -name "*pl" -exec chmod 770 {} \\\;`;
+print $output;
+
+my $output = `chmod -R g+w $C->{'<nmis_bin>'}`;
+print $output;
+
+my $output = `chmod -R g+w $C->{'<nmis_cgi>'}`;
+print $output;
+
+my $output = `chmod -R g+w $C->{'<nmis_base>/admin'}`;
+print $output;
+
