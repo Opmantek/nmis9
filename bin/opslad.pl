@@ -627,7 +627,7 @@ sub runRTTstart {
 
 		# start probe
 		@params = ();
-		push @params,"rttMonCtrlAdminOwner.$entry",'string','nmis' ; # 
+		push @params,"rttMonCtrlAdminOwner.$entry",'string',$C->{server_name} ; # 
 		push @params,"rttMonScheduleAdminRttStartTime.$entry",'timeticks',1 ; # now
 		push @params,"rttMonScheduleAdminRttLife.$entry",'integer',2147483647 ; # forever
 		push @params,"rttMonCtrlAdminStatus.$entry",'integer',1 ;
