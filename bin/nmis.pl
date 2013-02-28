@@ -521,8 +521,11 @@ sub doCollect {
 	dbg("Starting, node $name");
 
 	my $S = Sys::->new; # create system object
-	if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
-		dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	### 2013-02-25 keiths, fixing down node refreshing......
+	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
+	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	if (! $S->init(name=>$name) ) {
+		dbg("no info available of node $name, refresh it");
 		doUpdate(name=>$name);
 		dbg("Finished");
 		return; # next run to collect
@@ -3953,7 +3956,8 @@ sub runEscalate {
 				} #foreach
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
-				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $timenow = time();
+				my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 				my $priority = eventToSyslog($ET->{$event_hash}{level});
 				if ( $C->{syslog_use_escalation} eq "true" ) {
 					foreach my $trgt ( @x ) {
@@ -4011,6 +4015,17 @@ LABEL_ESC:
 		if ( $ET->{$event_hash}{current} eq 'true' and $NT->{$nd}{active} eq 'false') {
 			logEvent(node => $nd, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
+
+			my $timenow = time();
+			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+			my $priority = eventToSyslog($ET->{$event_hash}{level});
+			logMsg("SYSLOG: $message");
+			sendSyslog(
+				server_string => $C->{syslog_server},
+				facility => $C->{syslog_facility},
+				message => $message,
+				priority => $priority
+			);
 			
 			delete $ET->{$event_hash};
 			if ($C->{db_events_sql} eq 'true') {
@@ -4285,7 +4300,8 @@ LABEL_ESC:
 										$ET->{$event_hash}{notify} = join(',',@l);
 									}
 								}
-								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+								my $timenow = time();
+								my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 								my $priority = eventToSyslog($ET->{$event_hash}{level});
 								if ( $C->{syslog_use_escalation} eq "true" ) {
 									foreach my $trgt ( @x ) {
