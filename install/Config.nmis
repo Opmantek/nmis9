@@ -30,6 +30,11 @@
     'script_root' => '<nmis_conf>/scripts',
     'web_root' => '<nmis_data>/htdocs'
   },
+  'globals' => {
+    'global_collect' => 'true',
+    'global_threshold' => 'true',
+    'threshold_poll_cycle' => 'true',
+  },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
     'nmis_host' => 'localhost',
@@ -58,6 +63,12 @@
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',
+    'default_communityRO' => 'public',
+    'default_username' => '',
+    'default_authpassword' => '',
+    'default_authkey' => '',
+    'default_privpassword' => '',
+    'default_privkey' => '',
     'fastping_timeout' => '300',
     'fastping_packet' => '56',
     'fastping_retries' => '3',
@@ -77,7 +88,6 @@
     'ping_packet' => '56',
     'ping_retries' => '3',
     'ping_count' => '3',
-    'global_collect' => 'true',
     'wrap_node_names' => 'false',
     'nmis_summary_poll_cycle' => 'false',
     'snpp_server' => '<server_name>',

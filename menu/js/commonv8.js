@@ -104,8 +104,7 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 	// if a new install, or no options saved, or no JSON aray passed, then display the default front page with nav bar and jdMenu scripts
 	
 
-	// get and display top menubar
-	
+	// get and display top menubar	
 	$.ajax({
 		url			:	'menu.pl?conf=' + config + '&act=menu_bar_site',
 		async		: false,
@@ -118,55 +117,9 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 		}
 	});
 
-	// launch the select node dialog
-	selectNodeOpen();
-	
-	createDialog({
-		id		: 'ntw_health',
-		url		: 'network.pl?conf=' + config + '&act=network_summary_health&refresh=' + widget_refresh,
-		title	: 'Network Status and Health',
-		width : 850,
-		height: 300,
-		position : [ 230, 70 ]
-		});	
-
-	createDialog({
-		id		: 'ntw_metrics',
-		url		: 'network.pl?conf=' + config + '&act=network_summary_metrics&refresh=' + widget_refresh,
-		title	: 'Metrics',
-		width	:	210,
-		position : [ 10 , 70 ]
-		});
-
-	createDialog({
-		id		: 'log_file_view',
-		url		: 'logs.pl?conf=' + config + '&act=log_file_view&lines=50&refresh=' + widget_refresh,
-		title	: 'Log of Network Events',
-		width : 950,
-		height: 380,
-		position : [ 230, 380 ]
-		});
-
-	if ( modules.search("opMaps") > -1 && displayopMapsWidget ) {
-		createDialog({
-			id       : 'ntw_map',
-			url      : '/cgi-omk/opMaps.pl?widget=true',
-			title    : 'Network Map',
-			width    : opMapsWidgetWidth,
-			height   : opMapsWidgetHeight,
-			position : [ 520, 250 ]
-			});
-	}
-
+	// javascript for flow widget needs to loaded even if window isn't
+	// so later loads from menu will have it
 	if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {
-		
-		// var script   = document.createElement("div");
-		// script.type  = "text/html";
-		// script.src   = '/cgi-omk/opFlow.pl?widget=getJavascript';
-		// // script.text  = "alert('voila!');"               // use this for inline script
-		// // document.body.appendChild(script);
-		// $("#NMISV8").append(script);
-
 		$.ajax({
 			url			:	'/cgi-omk/opFlow.pl?summarise=60&widget=getJavascript',
 			async		: false,
@@ -177,15 +130,60 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 				$("#NMISV8").append(data);
 			}
 		});
+	}
+
+	// launch the select node dialog
+	selectNodeOpen();
+	if( savedWindowState === true ) {
+		loadWindowState();
+	}
+	else {
+		createDialog({
+			id		: 'ntw_health',
+			url		: 'network.pl?conf=' + config + '&act=network_summary_health&refresh=' + widget_refresh,
+			title	: 'Network Status and Health',
+			width : 850,
+			height: 300,
+			position : [ 230, 70 ]
+			});	
 
 		createDialog({
-			id		: 'ntw_flow',
-			url		: '/cgi-omk/opFlow.pl?widget=true',
-			title	: 'Application Flows',
-			width	:	opFlowWidgetWidth,
-			height:	opFlowWidgetHeight,
-			position : [ 560, 420 ]
+			id		: 'ntw_metrics',
+			url		: 'network.pl?conf=' + config + '&act=network_summary_metrics&refresh=' + widget_refresh,
+			title	: 'Metrics',
+			width	:	210,
+			position : [ 10 , 70 ]
 			});
+
+		createDialog({
+			id		: 'log_file_view',
+			url		: 'logs.pl?conf=' + config + '&act=log_file_view&lines=50&refresh=' + widget_refresh,
+			title	: 'Log of Network Events',
+			width : 950,
+			height: 380,
+			position : [ 230, 380 ]
+			});
+
+		if ( modules.search("opMaps") > -1 && displayopMapsWidget ) {
+			createDialog({
+				id       : 'ntw_map',
+				url      : '/cgi-omk/opMaps.pl?widget=true',
+				title    : 'Network Map',
+				width    : opMapsWidgetWidth,
+				height   : opMapsWidgetHeight,
+				position : [ 520, 250 ]
+				});
+		}
+		if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {			
+			createDialog({
+				id		: 'ntw_flow',
+				url		: '/cgi-omk/opFlow.pl?widget=true',
+				title	: 'Application Flows',
+				width	:	opFlowWidgetWidth,
+				height:	opFlowWidgetHeight,
+				position : [ 560, 420 ]
+				});
+		}
 	}
 	
 	if ( ! registered ) {
@@ -196,7 +194,10 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 			width	   : 420,
 			position : [ 1000, 70 ]
 			});
-	}
+}
+	
+
+	
 
 };		// end init	
 	
@@ -1133,4 +1134,73 @@ function toTitleCase(toTransform) {
   return toTransform.replace(/\b([a-z])/g, function (_, initial) {
       return initial.toUpperCase();
   });
+}
+
+$(function($) {
+	$("#window_save").live( "click", function() {
+		saveWindowState();
+		return false;
+	});
+});
+$(function($) {
+	$("#window_clear").live( "click", function() {
+		clearWindowState();
+		return false;
+	});
+});
+
+function loadWindowState() {	
+	if( userWindowData ) {
+		for( i = 0; i < userWindowData.length; i++ )
+		{
+			newWindowData = userWindowData[i];
+			createDialog({
+			id		: newWindowData.id,
+			url		: newWindowData.url,
+			title	: newWindowData.title,
+			width : newWindowData.width,
+			height: newWindowData.height,
+			position : newWindowData.position
+			});	
+		}
+	}
+}
+
+function saveWindowState() {
+	windowObjects = $("div#NMISV8").data();
+	windowData = [];
+	
+	jQuery.each(windowObjects, function(name, value) {
+		objData = value;
+		if ( objData.status === true ) {
+			dialogHandle = objData.widgetHandle;
+			thisWindow = { height: dialogHandle.dialog( "option", "height" ),
+										 width: dialogHandle.dialog( "option", "width" ),
+										 position: dialogHandle.dialog( "option", "position" ),
+										 title: objData.options.title, 
+										 url: objData.options.url, 
+										 id: objData.options.id };
+	    windowData.push( thisWindow );
+		}
+  });
+
+	windowDataString = JSON.stringify({ windowData: windowData });	
+	$.ajax({
+    type: "POST",
+		url:	'menu.pl',
+    data: windowDataString,
+    contentType: "application/json; charset=utf-8",
+    dataType: "html",
+  }); 
+}
+
+function clearWindowState() {
+	windowDataString = JSON.stringify({ windowData: "" });
+	$.ajax({
+    type: "POST",
+		url:	'menu.pl',
+    data: windowDataString,
+    contentType: "application/json; charset=utf-8",
+    dataType: "html",
+  }); 
 }

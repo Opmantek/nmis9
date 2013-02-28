@@ -1297,7 +1297,50 @@
     'level1' => '1',
     'level5' => '0',
     'descr' => 'View access to table Services'
-  }
+  },
+  'table_servicestatus_rw' => {
+     'level4' => '0',
+     'level0' => '1',
+     'name' => 'Table_servicestatus_rw',
+     'level1' => '1',
+     'descr' => 'Write access to table ServiceStatus',
+     'group' => 'access',
+     'level2' => '1',
+     'level3' => '0',
+     'level5' => '0'
+  },
+  'table_servicestatus_view' => {
+    'level4' => '1',
+    'level0' => '1',
+    'name' => 'Table_servicestatus_view',
+    'level1' => '1',
+    'descr' => 'View access to table ServiceStatus',
+    'group' => 'access',
+    'level2' => '1',
+    'level3' => '0',
+    'level5' => '0'
+  },
+  'table_businessservices_rw' => {
+     'level4' => '0',
+     'level0' => '1',
+     'name' => 'Table_businessservices_rw',
+     'level1' => '1',
+     'descr' => 'Write access to table Business Services',
+     'group' => 'access',
+     'level2' => '1',
+     'level3' => '0',
+     'level5' => '0'
+  },
+ 'table_businessservices_view' => {
+    'level4' => '1',
+    'level0' => '1',
+    'name' => 'Table_businessservices_view',
+    'level1' => '1',
+    'descr' => 'View access to table Business Services',
+    'group' => 'access',
+    'level2' => '1',
+    'level3' => '0',
+    'level5' => '0'
+ }
 );
 
-   

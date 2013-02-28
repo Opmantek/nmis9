@@ -1,0 +1,22 @@
+%hash = (
+  'development' => {
+    'status' => 'Development',
+    'statusPriority' => '5'
+  },
+  'planning' => {
+    'status' => 'Planning',
+    'statusPriority' => '0'
+  },
+  'pre-production' => {
+    'status' => 'Pre-Production',
+    'statusPriority' => '9'
+  },
+  'production' => {
+    'status' => 'Production',
+    'statusPriority' => '10'
+  },
+  'testing' => {
+    'status' => 'Testing',
+    'statusPriority' => '5'
+  }
+);

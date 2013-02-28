@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.15G";
+$VERSION = "8.3.16G";
 
 @ISA = qw(Exporter);
 
@@ -82,6 +82,9 @@ $VERSION = "8.3.15G";
 		loadLinksTable
 		loadRMENodes
 		loadServersTable
+		loadServiceStatusTable
+		loadBusinessServicesTable
+		loadWindowStateTable
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
@@ -110,6 +113,7 @@ $VERSION = "8.3.15G";
 		getSummaryStats
 		getGroupSummary
 		getNodeSummary
+		getLevelLogEvent
 		overallNodeStatus
 		colorHighGood
 		colorPort
@@ -320,7 +324,15 @@ sub loadLinksTable {
 sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
-
+sub loadServiceStatusTable {
+	return loadFileOrDBTable('ServiceStatus');
+}
+sub loadBusinessServicesTable {
+	return loadFileOrDBTable('BusinessServices');
+}
+sub loadWindowStateTable {
+	return loadFileOrDBTable('WindowState');
+}
 # check node name case insentive, return good one
 sub checkNodeName {
 	my $name = shift;
@@ -914,6 +926,8 @@ sub checkEvent {
 		$details = "$details Time=$outage";
 		$ET->{$event_hash}{current} = 'false'; # next processing by escalation routine
 
+		($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>'Normal');
+
 		my $OT = loadOutageTable();
 		
 		my ($otg,$key) = outageCheck(node=>$node,time=>time());
@@ -938,8 +952,6 @@ sub checkEvent {
 			}
 			writeEventStateLock(table=>$ETL,handle=>$handle);
 		}
-
-		($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>'Normal');
 
 		if ($log eq 'true') {
 			logEvent(node=>$S->{name},event=>$event,level=>$level,element=>$element,details=>$details);
@@ -1042,14 +1054,14 @@ sub getLevelLogEvent {
 		else { $pol_event = $event; }
 
 		# get the level and log from Model of this node
-		if (($mdl_level = $M->{event}{event}{lc $pol_event}{lc $role}{level})) {
+		if ($mdl_level = $M->{event}{event}{lc $pol_event}{lc $role}{level}) {
 			$log = $M->{event}{event}{lc $pol_event}{lc $role}{logging};
-		} elsif (($mdl_level = $M->{event}{event}{default}{lc $role}{level})) {
+		} elsif ($mdl_level = $M->{event}{event}{default}{lc $role}{level}) {
 			$log = $M->{event}{event}{default}{lc $role}{logging};
 		} else {
 			$mdl_level = 'Major';
 			# not found, use default
-			dbg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
+			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
 		}
 	}
 
