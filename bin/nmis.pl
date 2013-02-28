@@ -374,7 +374,7 @@ sub	runThreads {
 		dbg("Starting nmisMaster");
 		nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
 
-		if ( $C->{'nmis_summary_poll_cycle'} ne "false" ) {
+		if ( $C->{'nmis_summary_poll_cycle'} eq "true" or $C->{'nmis_summary_poll_cycle'} ne "false" ) {
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
 		}
@@ -385,8 +385,14 @@ sub	runThreads {
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S); 
 
-		dbg("Starting runThreshold");
-		runThreshold($node_select);
+		### 2013-02-22 keiths, disable thresholding on the poll cycle only.
+		if ( $C->{threshold_poll_cycle} eq "true" or $C->{threshold_poll_cycle} ne "false" ) {
+			dbg("Starting runThreshold");
+			runThreshold($node_select);
+		}
+		else {
+			dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
+		}
 
 		dbg("Starting runEscalate");
 		runEscalate();
@@ -515,8 +521,11 @@ sub doCollect {
 	dbg("Starting, node $name");
 
 	my $S = Sys::->new; # create system object
-	if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
-		dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	### 2013-02-25 keiths, fixing down node refreshing......
+	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
+	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
+	if (! $S->init(name=>$name) ) {
+		dbg("no info available of node $name, refresh it");
 		doUpdate(name=>$name);
 		dbg("Finished");
 		return; # next run to collect
@@ -3947,7 +3956,8 @@ sub runEscalate {
 				} #foreach
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
-				my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $timenow = time();
+				my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 				my $priority = eventToSyslog($ET->{$event_hash}{level});
 				if ( $C->{syslog_use_escalation} eq "true" ) {
 					foreach my $trgt ( @x ) {
@@ -4005,6 +4015,17 @@ LABEL_ESC:
 		if ( $ET->{$event_hash}{current} eq 'true' and $NT->{$nd}{active} eq 'false') {
 			logEvent(node => $nd, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
+
+			my $timenow = time();
+			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+			my $priority = eventToSyslog($ET->{$event_hash}{level});
+			logMsg("SYSLOG: $message");
+			sendSyslog(
+				server_string => $C->{syslog_server},
+				facility => $C->{syslog_facility},
+				message => $message,
+				priority => $priority
+			);
 			
 			delete $ET->{$event_hash};
 			if ($C->{db_events_sql} eq 'true') {
@@ -4279,7 +4300,8 @@ LABEL_ESC:
 										$ET->{$event_hash}{notify} = join(',',@l);
 									}
 								}
-								my $message = "NMIS_Event::$C->{nmis_host}::$ET->{$event_hash}{startdate},$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+								my $timenow = time();
+								my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 								my $priority = eventToSyslog($ET->{$event_hash}{level});
 								if ( $C->{syslog_use_escalation} eq "true" ) {
 									foreach my $trgt ( @x ) {
@@ -4861,7 +4883,8 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 */2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
-*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+# if threshold_poll_cycle is set to false, then enable cron based thresholding
+#*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day 
 30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
@@ -5069,15 +5092,21 @@ sub getOperColor {
 sub runThreshold {
 	my $node = shift;
 
-	my $node_select;
-	if ($node ne "") {
-		if (!($node_select = checkNodeName($node))) {
-			print "\t Invalid node=$node No node of that name\n";
-			exit 0;
+	if ( $C->{global_threshold} eq "true" or $C->{global_threshold} ne "false" ) {
+		my $node_select;
+		if ($node ne "") {
+			if (!($node_select = checkNodeName($node))) {
+				print "\t Invalid node=$node No node of that name\n";
+				exit 0;
+			}
 		}
+	
+		doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
+	}
+	else {
+		dbg("Skipping runThreshold with configuration 'global_threshold' = $C->{'global_threshold'}");
 	}
 
-	doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
 }
 
 #=================================================================

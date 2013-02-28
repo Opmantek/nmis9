@@ -222,7 +222,7 @@ sub sendSyslog {
 	my $facility = $arg{facility};
 	my $priority = $arg{priority};
 	
-	$priority = 'info' if $priority eq "";
+	$priority = 'notice' if $priority eq "";
 
 
 	# read any stdout messages and throw them away

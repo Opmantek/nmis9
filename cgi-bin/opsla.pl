@@ -153,8 +153,8 @@ $q->delete_all();
 my $msg; # common message
 
 my ($graphret, $xs, $ys, $ERROR);
-my $width = 600; # of rtt chart
-my $height = 250; # of rtt chart
+my $width = $C->{graph_width};
+my $height = $C->{graph_height};
 
 my %operation = (
 	'echo'=>{'responder'=>'router,server',

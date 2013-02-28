@@ -1,5 +1,5 @@
 %hash = (
-  'core network' => {
+  'Core Network' => {
     'businessPriority' => '10',
     'businessService' => 'Core Network',
     'businessUnit' => 'Shared',
@@ -9,7 +9,7 @@
 >>>>>>> dev
     'serviceType' => 'Revenue Generating'
   },
-  'ecommerce' => {
+  'eCommerce' => {
     'businessPriority' => '10',
     'businessService' => 'eCommerce',
     'businessUnit' => 'Sales',
@@ -19,9 +19,9 @@
 >>>>>>> dev
     'serviceType' => 'Revenue Generating'
   },
-  'email' => {
+  'eMail' => {
     'businessPriority' => '6',
-    'businessService' => 'email',
+    'businessService' => 'eMail',
     'businessUnit' => 'Shared',
 <<<<<<< HEAD
     'order' => '3',
@@ -29,7 +29,7 @@
 >>>>>>> dev
     'serviceType' => 'Business Critical'
   },
-  'web page' => {
+  'Web Page' => {
     'businessPriority' => '7',
     'businessService' => 'Web Page',
     'businessUnit' => 'Marketing',
