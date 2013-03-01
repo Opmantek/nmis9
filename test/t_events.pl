@@ -63,13 +63,13 @@ my $NI = $S->{info};
 my $event = "Node Up";
 my $level = "Minor";
 print $t->elapTime(). " Try an Event: $event\n";
-my ($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log\n";
+my ($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log, syslog=$syslog\n";
 
 my $event = "Node Down";
 my $level = "Minor";
 print $t->elapTime(). " Try an Event: $event\n";
-my ($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log\n";
+my ($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log, syslog=$syslog \n";
 
 print $t->elapTime(). " End\n";

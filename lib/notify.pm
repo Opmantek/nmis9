@@ -218,20 +218,12 @@ sub sendSyslog {
 	my %arg = @_;
 	my $debug = $arg{debug};
 	my $server_string = $arg{server_string};
-	my $message = $arg{message};
 	my $facility = $arg{facility};
-	my $priority = $arg{priority};
-	
+
+	my $message = "NMIS_Event::$arg{nmis_host}::$arg{time},$arg{node},$arg{event},$arg{level},$arg{element},$arg{details}";
+
+	my $priority = eventToSyslog($arg{level});
 	$priority = 'notice' if $priority eq "";
-
-
-	# read any stdout messages and throw them away
-	#if ( eval "require Net::Syslog") {
-	#	require Net::Syslog;
-	#}
-	#else {
-	#	print "Perl Module Net::Syslog not found\n" if $debug;
-	#}
 	
 	my $s=Net::Syslog->new(Facility => $facility, Priority => $priority);
 	my @servers = split(",",$server_string);
