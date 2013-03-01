@@ -25,6 +25,7 @@
     'database_root' => '<nmis_data>/database',
     'log_root' => '<nmis_logs>',
     'json_logs' => '<nmis_logs>/json',
+    'config_logs' => '<nmis_logs>/config',
     'mib_root' => '<nmis_base>/mibs',
     'report_root' => '<nmis_data>/htdocs/reports',
     'script_root' => '<nmis_conf>/scripts',
@@ -94,7 +95,8 @@
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
-    'snmp_stop_polling_on_error' => 'true'
+    'snmp_stop_polling_on_error' => 'true',
+    'node_configuration_events' => 'Node Configuration Change, Node Reset'
   },
   'url' => {
     '<url_base>' => '/nmis8',
