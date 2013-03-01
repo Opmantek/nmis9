@@ -3090,7 +3090,8 @@ sub runServices {
 		# now the services !
 		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server') {
 			# only do the SNMP checking if you are supposed to!
-			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true") ) {
+			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
+			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true" and $NI->{system}{nodedown} ne "true") ) {
 				if ($ST->{$service}{Service_Name} eq '') {
 					dbg("ERROR, service_name is empty");
 					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");

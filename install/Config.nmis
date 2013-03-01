@@ -31,7 +31,6 @@
     'web_root' => '<nmis_data>/htdocs'
   },
   'globals' => {
-    'global_collect' => 'true',
     'global_threshold' => 'true',
     'threshold_poll_cycle' => 'true',
   },
@@ -60,6 +59,7 @@
     'node_button_in_logs' => 'true',
     'http_req_timeout' => '60',
     'server_name' => 'localhost',
+    'global_collect' => 'true',
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',
@@ -154,6 +154,7 @@
     'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
+    'syslog_events' => 'true'
   },
   'sql' => {
     'nmisdb' => 'nmisdb',
