@@ -76,7 +76,7 @@
             'oid' => 'dot1dStpTopChanges'
           },
           'RouteNumber' => {
-            'oid' => 'inetCidrRouteNumber'
+            'oid' => 'ipCidrRouteNumber'
           }
   			},
   			'threshold' => 'cpu,mem-proc',

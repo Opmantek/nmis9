@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.16G";
+$VERSION = "8.3.17G";
 
 @ISA = qw(Exporter);
 
@@ -1035,8 +1035,9 @@ sub notify {
 					$ETL->{$event_hash}{level} = $level;
 					writeEventStateLock(table=>$ETL,handle=>$handle);
 				}
-			$log = 'true';
-			$details .= " Updated";
+				my $tmplevel;
+				($tmplevel,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+				$details .= " Updated";
 			}
 		} else {
 			dbg("Event node=$node event=$event element=$element already in Event table");
@@ -1118,7 +1119,14 @@ sub getLevelLogEvent {
 			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
 		}
 	}
-
+	else {
+		### 2012-03-02 keiths, adding policy based logging for Proactive.
+		# We don't get the level but we can get the logging policy.
+		$pol_event = "Proactive";
+		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
+			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
+		} 		
+	}
 	### 2012-03-11 keiths, this was the code causing Node Up to be Oozosl instead of Normal.
 	#$level |= $mdl_level;
 	if ($mdl_level) {
