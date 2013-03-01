@@ -1000,6 +1000,65 @@ sub checkPower {
 } # end checkPower
 
 #=========================================================================================
+sub checkNodeConfiguration {
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $V =  $S->view;
+	my $M = $S->mdl;
+	dbg("Starting");
+
+	dbg("Start checkNodeConfiguration ");
+
+	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
+	# create previous values if they don't exist
+	for my $attr (@updatePrevValues) {
+		if ($NI->{system}{$attr} ne '' && !defined($NI->{system}{"${attr}_prev"}) ) {
+			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+		}
+	}
+
+	my $configLastChanged = $NI->{system}{configLastChanged};
+	my $configLastSaved = $NI->{system}{configLastSaved};
+	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged};
+	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev};
+
+	dbg("checkNodeConfiguration configLastChanged=$configLastChanged, configLastSaved=$configLastSaved, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
+	# check if config is saved:
+	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 );
+	$V->{system}{configLastSaved_value} = convUpTime( $configLastSaved/100 );
+	$V->{system}{bootConfigLastChanged_value} = convUpTime( $bootConfigLastChanged/100 );
+	$V->{system}{configurationState_title} = 'Configuration State';
+	if( $configLastChanged > $bootConfigLastChanged ) {
+		$V->{system}{"configurationState_value"} = "Config Not Saved";
+		$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
+		dbg("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
+	} else {
+		$V->{system}{"configurationState_value"} = "Config Saved";
+		$V->{system}{"configurationState_color"} = "#00BB00";	#normal	
+	}
+
+	if( $configLastChanged > $configLastChanged_prev ) {
+		$V->{system}{configChangeCount_value}++;
+		$V->{system}{configChangeCount_title} = "Configuration change count";
+
+		notify(sys=>$S,event=>"Node Configuration Change",element=>"",details=>"Changed at ".$V->{system}{configLastChanged_value} );
+		logMsg("checkNodeConfiguration configuration change detected on $NI->{system}{name}, creating event");
+	}
+	
+	#update previous values to be out current values
+	for my $attr (@updatePrevValues) {
+		if ($NI->{system}{$attr} ne '') {
+			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+		}
+	}
+
+	dbg("Finished");
+	return;
+
+} # end checkNodeConfiguration
+
+#=========================================================================================
 
 
 # Create the Interface configuration from SNMP Stuff!!!!!
@@ -1796,6 +1855,8 @@ sub updateNodeInfo {
 		# view on page
 		$V->{system}{status_value} = 'reachable';
 		$V->{system}{status_color} = '#0F0';
+		
+		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{nodeConfiguration};
 
 	} else {
 		$exit = snmpNodeDown(sys=>$S);
@@ -1855,7 +1916,7 @@ sub getNodeData {
 		else {
 			### 2012-03-29 keiths, SNMP is OK, some other error happened.
 			dbg("ERROR ($NI->{system}{name}) on getNodeData, $rrdData->{error}");
-		}
+		}		
 	}
 	### 2012-03-28 keiths, handling SNMP Down during poll cycles.
 	else {
@@ -3241,11 +3302,15 @@ sub runCheckValues {
 				}
 				#								}
 				for my $attr (keys %{$M->{system}{sys}{$sect}{snmp}} ) {
+
 					if (exists $M->{system}{sys}{$sect}{snmp}{$attr}{check}) {
 					# select the method we will run
 						my $check = $M->{system}{sys}{$sect}{snmp}{$attr}{check};
 						if ($check eq 'checkPower') {
 							checkPower(sys=>$S,attr=>$attr);
+						# }
+						# elsif ($check eq 'checkNodeConfiguration') {
+						# 	checkNodeConfiguration(sys=>$S,attr=>$attr);
 						} else {
 							logMsg("ERROR ($S->{name}) unknown method=$check in Model=$NI->{system}{nodeModel}");
 						}
@@ -4331,7 +4396,6 @@ LABEL_ESC:
 									}
 								}
 								# copy the event
-								my $event = $ET->{$event_hash};								
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
@@ -4808,6 +4872,7 @@ EO_TEXT
 	if ($C->{'<nmis_logs>'} ne '') {
 		createDir("$C->{'<nmis_logs>'}");
 		createDir("$C->{'json_logs'}");
+		createDir("$C->{'config_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?

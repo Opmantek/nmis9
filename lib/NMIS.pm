@@ -995,10 +995,16 @@ sub notify {
 		# get level(if not defined) and log status from Model
 		($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
 
-		if ($event ne 'Node Reset') {
+		if ($event ne 'Node Reset' && $event ne 'Node Configuration Change') {
 			# Push the event onto the event table.
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
+		
+		if ($C->{node_configuration_events} =~ /$event/ ) {
+			# Push the event onto the event table.
+			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
+		}
+
 	} else {
 		# event exists, maybe a level change of proactive threshold
 		if ($event =~ /Proactive/ ) {
@@ -1026,6 +1032,17 @@ sub notify {
 
 	dbg("Finished");
 } # end notify
+
+sub logConfigEvent {
+	my %args = @_;
+	my $dir = $args{dir};
+	delete $args{dir};
+
+	dbg("logConfigEvent logging Json event for event $args{event}");
+	my $event_hash = \%args;
+	$event_hash->{startdate} = time;
+	logJsonEvent(event => $event_hash, dir => $dir);
+}
 
 sub getLevelLogEvent {
 	my %args = @_;
