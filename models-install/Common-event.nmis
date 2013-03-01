@@ -35,126 +35,153 @@
       'rps fail' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         }
       },
       'service down' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         }
       },
       'interface down' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Major'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Minor'
         }
       },
       'interface up' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         }
       },
       'snmp down' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Critical'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Major'
         }
       },
       'node down' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Critical'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Major'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Major'
         }
       },
       'generic down' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Critical'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Major'
         }
       },
       'default' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Normal'
         }
       },
       'node reset' => {
         'core' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Minor'
         },
         'access' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         },
         'distribution' => {
           'logging' => 'true',
+          'syslog' => 'true',
           'level' => 'Warning'
         }
       }
