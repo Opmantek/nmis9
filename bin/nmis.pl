@@ -3089,81 +3089,84 @@ sub runServices {
 		}
 		# now the services !
 		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server') {
-			if ($ST->{$service}{Service_Name} eq '') {
-				dbg("ERROR, service_name is empty");
-				logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
-				next;
-			}
-			if ( ! $servicePoll ) {
-				dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-				my $timeout = 3;
-				my $snmpcmd;
-				my @ret;
-				my $var;
-				my $i;
-				my $key;
-				my $write=0;
-
-				$servicePoll = 1;	# set flag so snmpwalk happens only once.
-
-				my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-				my $hrIndextable;
-				foreach my $var ( @snmpvars ) {
-					if ( $hrIndextable = $SNMP->getindex($var)) {
-						foreach my $inst (keys %{$hrIndextable}) {
-							my $value = $hrIndextable->{$inst};
-							my $textoid = oid2name(name2oid($var).".".$inst);
-							if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-							( $textoid, $inst ) = split /\./, $textoid, 2;
-							$snmpTable{$textoid}{$inst} = $value;
-							dbg("Indextable=$inst textoid=$textoid value=$value",2);
+			# only do the SNMP checking if you are supposed to!
+			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true") ) {
+				if ($ST->{$service}{Service_Name} eq '') {
+					dbg("ERROR, service_name is empty");
+					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
+					next;
+				}
+				if ( ! $servicePoll ) {
+					dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+					my $timeout = 3;
+					my $snmpcmd;
+					my @ret;
+					my $var;
+					my $i;
+					my $key;
+					my $write=0;
+	
+					$servicePoll = 1;	# set flag so snmpwalk happens only once.
+	
+					my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+					my $hrIndextable;
+					foreach my $var ( @snmpvars ) {
+						if ( $hrIndextable = $SNMP->getindex($var)) {
+							foreach my $inst (keys %{$hrIndextable}) {
+								my $value = $hrIndextable->{$inst};
+								my $textoid = oid2name(name2oid($var).".".$inst);
+								if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+								( $textoid, $inst ) = split /\./, $textoid, 2;
+								$snmpTable{$textoid}{$inst} = $value;
+								dbg("Indextable=$inst textoid=$textoid value=$value",2);
+							}
 						}
 					}
-				}
-
-				foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
-					# key services by name_pid
-					$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-					$services{$key}{hrSWRunName} = $key;
-					$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-					$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-					$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-					$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-
-					dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}");
-				}
-
-			} #servicePoll
-			
-			# lets check the service status
-			# NB - may have multiple services with same name on box.
-			# so keep looking if up, last if one down
-			# look for an exact match here on service name as read from snmp poll
-
-			foreach ( sort keys %services ) {
-				my ($svc) = split ':', $services{$_}{hrSWRunName};
-				if ( $svc eq $ST->{$service}{Service_Name} ) {
-					if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
-						$ret = 1;
-						$cpu = $services{$_}{hrSWRunPerfCPU};
-						$memory = $services{$_}{hrSWRunPerfMem};
-						$gotMemCpu = 1;
-						dbg("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+	
+					foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+						# key services by name_pid
+						$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+						$services{$key}{hrSWRunName} = $key;
+						$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+						$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+						$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+						$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+	
+						dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}");
 					}
-					else {
-						$ret = 0;
-						$cpu = $services{$_}{hrSWRunPerfCPU};
-						$memory = $services{$_}{hrSWRunPerfMem};
-						$gotMemCpu = 1;
-						dbg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
-						last;
-					}
-				}					
-			}
-			
-			### 2012-12-20 keiths, keep the services for display later.
-			$NI->{services} = \%services;
-		}	
+	
+				} #servicePoll
+				
+				# lets check the service status
+				# NB - may have multiple services with same name on box.
+				# so keep looking if up, last if one down
+				# look for an exact match here on service name as read from snmp poll
+	
+				foreach ( sort keys %services ) {
+					my ($svc) = split ':', $services{$_}{hrSWRunName};
+					if ( $svc eq $ST->{$service}{Service_Name} ) {
+						if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
+							$ret = 1;
+							$cpu = $services{$_}{hrSWRunPerfCPU};
+							$memory = $services{$_}{hrSWRunPerfMem};
+							$gotMemCpu = 1;
+							dbg("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+						}
+						else {
+							$ret = 0;
+							$cpu = $services{$_}{hrSWRunPerfCPU};
+							$memory = $services{$_}{hrSWRunPerfMem};
+							$gotMemCpu = 1;
+							dbg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
+							last;
+						}
+					}					
+				}
+				
+				### 2012-12-20 keiths, keep the services for display later.
+				$NI->{services} = \%services;
+			}	
+		}
 		# now the scripts !
 		elsif ( $ST->{$service}{Service_Type} eq "script" ) {
 
@@ -3967,15 +3970,6 @@ sub runEscalate {
 						dbg("syslog $message");
 					} #foreach
 				}
-				# send syslogs right now.
-				else {
-					sendSyslog(
-						server_string => $C->{syslog_server},
-						facility => $C->{syslog_facility},
-						message => $message,
-						priority => $priority
-					);
-				}
 			} # end syslog
 			elsif ( $type eq "json" ) {
 				# make it an up event.
@@ -4019,7 +4013,6 @@ LABEL_ESC:
 			my $timenow = time();
 			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 			my $priority = eventToSyslog($ET->{$event_hash}{level});
-			logMsg("SYSLOG: $message");
 			sendSyslog(
 				server_string => $C->{syslog_server},
 				facility => $C->{syslog_facility},
@@ -4310,15 +4303,6 @@ LABEL_ESC:
 										$serial_ns++;
 										dbg("syslog $message");
 									} #foreach
-								}
-								# send syslogs right now.
-								else {
-									sendSyslog(
-										server_string => $C->{syslog_server},
-										facility => $C->{syslog_facility},
-										message => $message,
-										priority => $priority
-									);
 								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
