@@ -373,20 +373,27 @@ sub runOneRTT {
 		
 		if ($probe->{status} eq "running" and $collect) {
 			# optimize collect
+			my $ptype = "";
+			my $nexttime = 0;
 			if ($RTTcache{$nno}{nexttime} <= $runtime) {
 				if ($probe->{optype} =~ /stats/i ) {
+					$ptype = "stats";
 					push @{$RTTcache{stats}{node}{$probe->{pnode}}},$nno;
-					$RTTcache{$nno}{nexttime} = $runtime + 3600; # hourly
+					$nexttime = 3600;
+					$RTTcache{$nno}{nexttime} = $runtime + $nexttime; # hourly
 				} else {
 					# collect based on history buckets
 					if (runRTTcollect($nno)) {
+						$ptype = $probe->{optype};
 						if ($probe->{optype} =~ /echo|tcpConnect|dhcp|dns/i) {
-							$RTTcache{$nno}{nexttime} = $runtime + 
-								($probe->{frequence} > $bucket_interval) ? $probe->{frequence} : $bucket_interval;
+							$ptype = "buckets";
+							$nexttime = ($probe->{frequence} > $bucket_interval) ? $probe->{frequence} : $bucket_interval;
+							$RTTcache{$nno}{nexttime} = $runtime + $nexttime;
+								
 						}
 					}
 				}
-				logIpsla("opSLAD: RTT, next collect after ".($RTTcache{$nno}{nexttime}-$runtime)." seconds") if $debug;
+				logIpsla("opSLAD: RTT, type=$ptype next collect after $nexttime seconds") if $debug;
 			}
 		}
 	}
@@ -627,7 +634,7 @@ sub runRTTstart {
 
 		# start probe
 		@params = ();
-		push @params,"rttMonCtrlAdminOwner.$entry",'string','nmis' ; # 
+		push @params,"rttMonCtrlAdminOwner.$entry",'string',$C->{server_name} ; # 
 		push @params,"rttMonScheduleAdminRttStartTime.$entry",'timeticks',1 ; # now
 		push @params,"rttMonScheduleAdminRttLife.$entry",'integer',2147483647 ; # forever
 		push @params,"rttMonCtrlAdminStatus.$entry",'integer',1 ;
@@ -797,6 +804,13 @@ sub runRTTcollect {
 	$probeTimeOffset = $probe->{lastupdate}; 
 	$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
 
+	#Make the lastupdate the difference between the time and the probeTimeOffset.
+	my $newlastupdate = $probe->{lastupdate};
+	$lastupdate = $probe->{lastupdate};
+
+	logIpsla("opSLAD: TIME $nno; lastupdate=$lastupdate, newlastupdate=$newlastupdate probeTimeOffset=$probeTimeOffset last=$last nmistime=$nmistime sysuptime=$sysuptime") if $debug;
+	
+
 	#if ( not $lastupdate ) {
 	#	logIpsla("opSLAD: RTTcollect, using default lastupdate time.");
 	#	$lastupdate = ($last - $nmistime) + $sysuptime + 3; # +3 for time mismatch
@@ -894,8 +908,9 @@ sub runRTTcollect {
 		if ( $maxprobeupdate ) {
 			# store the delta from the max probe update to the current time.
 			my $newProbeTimeOffset = time() - $maxprobeupdate;
-			logIpsla("opSLAD: lastupdate=$lastupdate, maxprobeupdate=$maxprobeupdate newProbeTimeOffset=$newProbeTimeOffset.") if $debug;
-			$IPSLA->updateProbe(probe => $nno, lastupdate => $newProbeTimeOffset);
+			logIpsla("opSLAD: TIME $nno; lastupdate=$lastupdate, maxprobeupdate=$maxprobeupdate newProbeTimeOffset=$newProbeTimeOffset.") if $debug;
+			#$IPSLA->updateProbe(probe => $nno, lastupdate => $newProbeTimeOffset);
+			$IPSLA->updateProbe(probe => $nno, lastupdate => $maxprobeupdate);
 		}
 		
 		# store values in rrd
