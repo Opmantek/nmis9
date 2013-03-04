@@ -184,6 +184,37 @@
           'syslog' => 'true',
           'level' => 'Warning'
         }
+      },
+      'node configuration change' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Normal'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        }
+      },
+      'proactive' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        }
       }
     }
   }

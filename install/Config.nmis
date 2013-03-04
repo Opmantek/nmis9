@@ -156,7 +156,7 @@
     'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
-    'syslog_events' => 'true'
+    'syslog_events' => 'false'
   },
   'sql' => {
     'nmisdb' => 'nmisdb',

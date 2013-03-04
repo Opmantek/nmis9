@@ -333,6 +333,12 @@ sub menu_bar_site {
 												]
 										);
 
+		push @menu_site,( qq|Windows|,
+												[	qq|<a id='saveWindow_open' onclick="saveWindowState();return false;">Save Windows and Positions</a>|,
+													qq|<a id='clearWindow_open' onclick="clearWindowState();return false;">Clear Windows and Positions</a>|
+												]
+										);
+
 		push @menu_site,( qq|Help|,
 												[	qq|<a id='hlp_help' target='_blank' href="http://www.opmantek.com">NMIS</a>|,
 													qq|<a id='hlp_apache' target='_blank' href="http://www.apache.org" id='apache'>Apache</a>|,
