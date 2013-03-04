@@ -44,7 +44,9 @@ $debug = 1;
 
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
-my $modelFile = "/usr/local/nmis8/models-install/Model-CiscoIOSXE.nmis";
+my $modelName = "Model-ZyXEL-MGS.nmis";
+
+my $modelFile = "/usr/local/nmis8/models/$modelName";
 my $newModelFile = "$modelFile.new";
 
 my $model = readFiletoHash(file=>$modelFile);
