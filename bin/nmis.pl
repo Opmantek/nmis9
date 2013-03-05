@@ -1661,6 +1661,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1693,6 +1694,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1726,6 +1728,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1885,6 +1888,23 @@ END_updateNodeInfo:
 	return $exit;
 } # end updateNodeInfo
 
+sub processAlerts {
+	my %args = @_;
+	my $S = $args{S};
+	my $alerts = $S->{alerts};
+	for( my $i = 0; $i < @{$alerts}; $i++)
+	{
+		my $alert = shift @{$alerts};
+		dbg("Processing alert ".Dumper($alert));
+		if( $alert->{test_result} ) {
+			notify(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		} else {
+			checkEvent(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		}
+
+	}
+}
+
 #=========================================================================================
 
 # get node values by snmp and store in RRD and some values in reach table
@@ -1899,6 +1919,7 @@ sub getNodeData {
 	dbg("Starting Node get data, node $S->{name}");
 
 	if (($rrdData = $S->getData(class=>'system', model => $model))) {
+		processAlerts( S => $S );
 		if ( $rrdData->{error} eq "" ) {
 			foreach my $sect (keys %{$rrdData}) {
 				my $D = $rrdData->{$sect};
@@ -2006,6 +2027,7 @@ sub getIntfData {
 
 			my $rrdData;
 			if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
+				processAlerts( S => $S );
 				if ( $rrdData->{error} eq "" ) {
 					foreach my $sect (keys %{$rrdData}) {
 	
@@ -2254,6 +2276,7 @@ sub getCBQoS {
 								my $port = "$PIndex.$OIndex";
 								my $rrdData;
 								if (($rrdData = $S->getData(class=>"cbqos-$direction", index=>$intf, port=>$port,model=>$model))) {
+									processAlerts( S => $S );
 									if ( $rrdData->{error} eq "" ) {
 										my $D = $rrdData->{"cbqos-$direction"}{$intf};
 	
@@ -2557,6 +2580,7 @@ sub getCalls {
 			foreach my $index (keys %{$CALLS}) {
 				my $port = $CALLS->{$index}{intfoid};
 				if ($rrdData = $S->getData(class=>'calls',index=>$CALLS->{$index}{parentintfIndex},port=>$port,model=>$model)) {
+					processAlerts( S => $S );
 					if ( $rrdData->{error} eq "" ) {
 						my $parentIndex = $CALLS->{$index}{parentintfIndex};
 						my $D = $rrdData->{calls}{$parentIndex};
