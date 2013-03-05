@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.16G";
+$VERSION = "8.3.17G";
 
 @ISA = qw(Exporter);
 
@@ -870,7 +870,8 @@ sub checkEvent {
 	my $details = $args{details};
 	my $level = $args{level};
 	my $log;
-
+	my $syslog;
+	
 	my $C = loadConfTable();
 
 	my $event_hash = eventHash($node,$event,$element);
@@ -926,7 +927,7 @@ sub checkEvent {
 		$details = "$details Time=$outage";
 		$ET->{$event_hash}{current} = 'false'; # next processing by escalation routine
 
-		($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>'Normal');
+		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>'Normal');
 
 		my $OT = loadOutageTable();
 		
@@ -956,6 +957,21 @@ sub checkEvent {
 		if ($log eq 'true') {
 			logEvent(node=>$S->{name},event=>$event,level=>$level,element=>$element,details=>$details);
 		}
+
+		# Syslog must be explicitly enabled in the config and will escalation is not being used.
+		if ($C->{syslog_events} eq 'true' and $syslog eq 'true' and $C->{syslog_use_escalation} ne 'true') {			
+			sendSyslog(
+				server_string => $C->{syslog_server},
+				facility => $C->{syslog_facility},
+				nmis_host => $C->{nmis_host},
+				time => time(),
+				node => $S->{name},
+				event => $event,
+				level => $level,
+				element => $element,
+				details => $details
+			);
+		}
 	}
 }
 
@@ -972,6 +988,7 @@ sub notify {
 	my $level = $args{level};
 	my $node = $S->{name};
 	my $log;
+	my $syslog;
 
 	my $C = loadConfTable();
 
@@ -993,12 +1010,18 @@ sub notify {
 
 	if ( not exists $ET->{$event_hash}{current} ) {
 		# get level(if not defined) and log status from Model
-		($level,$log) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
 
-		if ($event ne 'Node Reset') {
+		if ($event ne 'Node Reset' && $event ne 'Node Configuration Change') {
 			# Push the event onto the event table.
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
+		
+		if ($C->{node_configuration_events} =~ /$event/ ) {
+			# Push the event onto the event table.
+			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
+		}
+
 	} else {
 		# event exists, maybe a level change of proactive threshold
 		if ($event =~ /Proactive/ ) {
@@ -1012,8 +1035,9 @@ sub notify {
 					$ETL->{$event_hash}{level} = $level;
 					writeEventStateLock(table=>$ETL,handle=>$handle);
 				}
-			$log = 'true';
-			$details .= " Updated";
+				my $tmplevel;
+				($tmplevel,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+				$details .= " Updated";
 			}
 		} else {
 			dbg("Event node=$node event=$event element=$element already in Event table");
@@ -1024,8 +1048,34 @@ sub notify {
 		logEvent(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 	}
 
+	# Syslog must be explicitly enabled in the config and will escalation is not being used.
+	if ($C->{syslog_events} eq 'true' and $syslog eq 'true' and $C->{syslog_use_escalation} ne 'true') {			
+		sendSyslog(
+			server_string => $C->{syslog_server},
+			facility => $C->{syslog_facility},
+			nmis_host => $C->{nmis_host},
+			time => time(),
+			node => $node,
+			event => $event,
+			level => $level,
+			element => $element,
+			details => $details
+		);
+	}
+
 	dbg("Finished");
 } # end notify
+
+sub logConfigEvent {
+	my %args = @_;
+	my $dir = $args{dir};
+	delete $args{dir};
+
+	dbg("logConfigEvent logging Json event for event $args{event}");
+	my $event_hash = \%args;
+	$event_hash->{startdate} = time;
+	logJsonEvent(event => $event_hash, dir => $dir);
+}
 
 sub getLevelLogEvent {
 	my %args = @_;
@@ -1037,6 +1087,7 @@ sub getLevelLogEvent {
 
 	my $mdl_level;
 	my $log = 'true';
+	my $syslog = 'true';
 	my $pol_event;
 
 	my $role = $NI->{system}{roleType} || 'access' ;
@@ -1056,21 +1107,32 @@ sub getLevelLogEvent {
 		# get the level and log from Model of this node
 		if ($mdl_level = $M->{event}{event}{lc $pol_event}{lc $role}{level}) {
 			$log = $M->{event}{event}{lc $pol_event}{lc $role}{logging};
-		} elsif ($mdl_level = $M->{event}{event}{default}{lc $role}{level}) {
+			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
+		} 
+		elsif ($mdl_level = $M->{event}{event}{default}{lc $role}{level}) {
 			$log = $M->{event}{event}{default}{lc $role}{logging};
-		} else {
+			$syslog = $M->{event}{event}{default}{lc $role}{syslog} if ($M->{event}{event}{default}{lc $role}{syslog} ne "");
+		} 
+		else {
 			$mdl_level = 'Major';
 			# not found, use default
 			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
 		}
 	}
-
+	else {
+		### 2012-03-02 keiths, adding policy based logging for Proactive.
+		# We don't get the level but we can get the logging policy.
+		$pol_event = "Proactive";
+		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
+			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
+		} 		
+	}
 	### 2012-03-11 keiths, this was the code causing Node Up to be Oozosl instead of Normal.
 	#$level |= $mdl_level;
 	if ($mdl_level) {
 		$level = $mdl_level;
 	}
-	return $level,$log;
+	return ($level,$log,$syslog);
 }
 
 # Throw an Event to the event log

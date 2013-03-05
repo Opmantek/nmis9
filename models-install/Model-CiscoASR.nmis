@@ -75,9 +75,12 @@
 				'MemoryFreePROC' => {
 					'oid' => 'ciscoMemoryPoolFree.1'
 				},
+				'RouteNumber' => {
+					'oid' => 'ipCidrRouteNumber'
+				}
 			},
 			'threshold' => 'cpu,mem-proc',
-			'graphtype' => 'cpu,mem-proc'
+			'graphtype' => 'cpu,mem-proc,routenumber'
 		}
 	},
 	'sys' => {

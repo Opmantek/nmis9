@@ -72,7 +72,7 @@ processDir("$C->{'<nmis_base>'}/install");
 #Because Perl is a little fussy about paths, change to the lib then check.
 chdir("$C->{'<nmis_base>'}/lib");
 processDir("$C->{'<nmis_base>'}/lib");
-
+processDir("$C->{'<nmis_base>'}/models-install");
 processDir("$C->{'<nmis_base>'}/models");
 
 #

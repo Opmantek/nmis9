@@ -64,8 +64,13 @@
   'system' => {
     'nodeModel' => 'CiscoRouter',
     'nodeType' => 'router',
+    'nbarpd_check' => 'true',
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,ip,routenumber,frag,buffer,mem-router,mem-proc,mem-io,modem,calls',
     'rrd' => {
       'nodehealth' => {
+        'threshold' => 'cpu,mem-proc',
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,routenumber',
         'snmp' => {
           'MemoryUsedPROC' => {
             'oid' => 'ciscoMemoryPoolUsed.1'
@@ -100,10 +105,11 @@
 	          'oid' => 'ipCidrRouteNumber'
 	        }
         },
-        'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,routenumber'
       },
       'modem' => {
+        'threshold' => 'modem_dead',
+        'graphtype' => 'modem',
+        'control' => '$InstalledModems > 0',
         'snmp' => {
           'ModemsInUse' => {
             'oid' => 'cmSystemModemsInUse'
@@ -125,11 +131,9 @@
             'oid' => 'cmSystemInstalledModem'
           }
         },
-        'threshold' => 'modem_dead',
-        'graphtype' => 'modem',
-        'control' => '$InstalledModems > 0'
       },
       'mib2ip' => {
+        'graphtype' => 'ip,frag',
         'snmp' => {
           'ipInAddrErrors' => {
             'oid' => 'ipInAddrErrors',
@@ -195,7 +199,6 @@
             'option' => 'counter,0:U'
           }
         },
-        'graphtype' => 'ip,frag'
       }
     },
     'sys' => {
@@ -225,7 +228,7 @@
           'sysUpTime' => {
             'oid' => 'snmpEngineTime',
             'title' => 'Uptime',
-            'calculate' => '$r * 1000'
+            'calculate' => '$r * 100'
           },
           'InstalledModems' => {
             'replace' => {
@@ -244,6 +247,7 @@
         }
       },
       'temp' => {
+        'control' => '$sysObjectName =~ /7206/',
         'snmp' => {
           'tempio' => {
             'oid' => 'ciscoEnvMonTemperatureStatusValue.2',
@@ -254,9 +258,9 @@
             'title' => 'Temp NPE Outlet'
           }
         },
-        'control' => '$sysObjectName =~ /7206/'
       },
       'power' => {
+        'control' => '$sysObjectName =~ /7206|6509|7304/',
         'snmp' => {
           'SupplyState1' => {
             'replace' => {
@@ -305,7 +309,6 @@
             'title' => 'Power Supply 2'
           }
         },
-        'control' => '$sysObjectName =~ /7206|6509|7304/'
       },
       'extra' => {
         'snmp' => {
@@ -325,6 +328,25 @@
           }
         }
       },
+      'nodeConfiguration' => {
+        'snmp' => {
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
+            'snmpObject' => 'ccmHistoryRunningLastChanged',
+            'title' => 'Configuration Last Changed'
+          },
+          'configLastSaved' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
+            'snmpObject' => 'ccmHistoryRunningLastSaved',
+            'title' => 'Configuration Last Viewed'
+          },
+          'bootConfigLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
+            'snmpObject' => 'ccmHistoryStartupLastChanged',
+            'title' => 'Boot Configuration Last Changed'
+          },
+        }
+      },
       'modem' => {
         'snmp' => {
           'InstalledModems' => {
@@ -334,14 +356,14 @@
         },
         'control' => '$InstalledModems > 0'
       }
-    },
-    'nbarpd_check' => 'true',
-    'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,ip,frag,buffer,mem-router,mem-proc,mem-io,modem,calls'
+    }
   },
   'interface' => {
     'rrd' => {
       'interface' => {
+        'indexed' => 'true',
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil',
         'snmp' => {
           'ifOperStatus' => {
             'replace' => {
@@ -390,12 +412,13 @@
             'oid' => 'ifHCInOctets',
             'option' => 'counter,0:$ifSpeed'
           }
-        },
-        'indexed' => 'true',
-        'threshold' => 'util_in,util_out',
-        'graphtype' => 'bits,abits,maxbits,util,autil'
+        }
       },
       'pkts' => {
+        'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts,errpkts',
+        'control' => '$sysObjectName !~ /748|499/',
         'snmp' => {
           'ifHCOutUcastPkts' => {
             'oid' => 'ifHCOutUcastPkts',
@@ -454,13 +477,10 @@
             'option' => 'counter,0:U'
           }
         },
-        'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts,errpkts',
-        'control' => '$sysObjectName !~ /748|499/'
       },
 			'pkts_hc' => {
 				'indexed' => 'true',
+				'graphtype' => 'pkts_hc',
 				'snmp' => {
 					'ifInOctets' => {
 						'oid' => 'ifInOctets',
@@ -543,7 +563,6 @@
 						'option' => 'counter,0:U'
 					}
 				},
-				'graphtype' => 'pkts_hc'
 			}
     },
     'sys' => {
@@ -616,12 +635,11 @@
       'Description' => '(CNOC|Collection)',
     },
     'nocollect' => {
-      'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub',
+      'ifOperStatus' => 'other|notPresent',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
       'noDescription' => 'false',
       'Description' => '^#',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|tunnel'
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|tunnel|adsl|^atm'
     }
   }
 );
-

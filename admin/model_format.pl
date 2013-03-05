@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
+## $Id: model_audit.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -30,46 +30,26 @@
 #
 # *****************************************************************************
 
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-
-# 
+ 
 use strict;
 use func;
-use NMIS;
-use NMIS::Timing;
-use NMIS::Connect;
 
-my %nvp;
+my %arg = getArguements(@ARGV);
 
-my $t = NMIS::Timing->new();
+# Set debugging level.
+my $debug = setDebug($arg{debug});
+$debug = 1;
 
-print $t->elapTime(). " Begin\n";
+my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
-print $t->elapTime(). " loadConfTable\n";
-my $C = loadConfTable(conf=>$nvp{conf},debug=>"true");
+my $modelName = "Model-ZyXEL-MGS.nmis";
 
-my $node = "meatball";
+my $modelFile = "/usr/local/nmis8/models/$modelName";
+my $newModelFile = "$modelFile.new";
 
-print $t->markTime(). " Create System $node\n";
-my $S = Sys::->new; # create system object
-$S->init(name=>$node,snmp=>'false');
-print "  done in ".$t->deltaTime() ."\n";	
+my $model = readFiletoHash(file=>$modelFile);
+writeHashtoFile(file=>$newModelFile,data=>$model);
 
-print $t->elapTime(). " Load Some Data\n";
-my $NI = $S->{info};
 
-my $event = "Node Up";
-my $level = "Minor";
-print $t->elapTime(). " Try an Event: $event\n";
-my ($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log, syslog=$syslog\n";
-
-my $event = "Node Down";
-my $level = "Minor";
-print $t->elapTime(). " Try an Event: $event\n";
-my ($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-print $t->elapTime(). " RESULT: event=$event, level=$level, log=$log, syslog=$syslog \n";
-
-print $t->elapTime(). " End\n";

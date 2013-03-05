@@ -170,12 +170,9 @@ print qq|
 			$logoCode
 			<div class="right">
 				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
-				<a class="inline" id="window_save" href="">Save Windows</a>
-				<a class="inline" id="window_clear" href="">Clear Windows</a>
 			</div>
 		</div>
-		<div id="menu_vh_site">
-		</div>
+		<div id="menu_vh_site"></div>
 	</div>
 </div>
 <div id="NMISV8">

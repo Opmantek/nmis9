@@ -1000,6 +1000,65 @@ sub checkPower {
 } # end checkPower
 
 #=========================================================================================
+sub checkNodeConfiguration {
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $V =  $S->view;
+	my $M = $S->mdl;
+	dbg("Starting");
+
+	dbg("Start checkNodeConfiguration ");
+
+	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
+	# create previous values if they don't exist
+	for my $attr (@updatePrevValues) {
+		if ($NI->{system}{$attr} ne '' && !defined($NI->{system}{"${attr}_prev"}) ) {
+			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+		}
+	}
+
+	my $configLastChanged = $NI->{system}{configLastChanged};
+	my $configLastSaved = $NI->{system}{configLastSaved};
+	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged};
+	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev};
+
+	dbg("checkNodeConfiguration configLastChanged=$configLastChanged, configLastSaved=$configLastSaved, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
+	# check if config is saved:
+	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 );
+	$V->{system}{configLastSaved_value} = convUpTime( $configLastSaved/100 );
+	$V->{system}{bootConfigLastChanged_value} = convUpTime( $bootConfigLastChanged/100 );
+	$V->{system}{configurationState_title} = 'Configuration State';
+	if( $configLastChanged > $bootConfigLastChanged ) {
+		$V->{system}{"configurationState_value"} = "Config Not Saved";
+		$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
+		dbg("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
+	} else {
+		$V->{system}{"configurationState_value"} = "Config Saved";
+		$V->{system}{"configurationState_color"} = "#00BB00";	#normal	
+	}
+
+	if( $configLastChanged > $configLastChanged_prev ) {
+		$V->{system}{configChangeCount_value}++;
+		$V->{system}{configChangeCount_title} = "Configuration change count";
+
+		notify(sys=>$S,event=>"Node Configuration Change",element=>"",details=>"Changed at ".$V->{system}{configLastChanged_value} );
+		logMsg("checkNodeConfiguration configuration change detected on $NI->{system}{name}, creating event");
+	}
+	
+	#update previous values to be out current values
+	for my $attr (@updatePrevValues) {
+		if ($NI->{system}{$attr} ne '') {
+			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+		}
+	}
+
+	dbg("Finished");
+	return;
+
+} # end checkNodeConfiguration
+
+#=========================================================================================
 
 
 # Create the Interface configuration from SNMP Stuff!!!!!
@@ -1602,6 +1661,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1634,6 +1694,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1667,6 +1728,7 @@ sub getEnvData {
 				for my $index (sort keys %{$S->{info}{$section}}) {
 					my $rrdData;
 					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
+						processAlerts( S => $S );
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
@@ -1796,6 +1858,8 @@ sub updateNodeInfo {
 		# view on page
 		$V->{system}{status_value} = 'reachable';
 		$V->{system}{status_color} = '#0F0';
+		
+		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{nodeConfiguration};
 
 	} else {
 		$exit = snmpNodeDown(sys=>$S);
@@ -1824,6 +1888,23 @@ END_updateNodeInfo:
 	return $exit;
 } # end updateNodeInfo
 
+sub processAlerts {
+	my %args = @_;
+	my $S = $args{S};
+	my $alerts = $S->{alerts};
+	for( my $i = 0; $i < @{$alerts}; $i++)
+	{
+		my $alert = shift @{$alerts};
+		dbg("Processing alert ".Dumper($alert));
+		if( $alert->{test_result} ) {
+			notify(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		} else {
+			checkEvent(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		}
+
+	}
+}
+
 #=========================================================================================
 
 # get node values by snmp and store in RRD and some values in reach table
@@ -1838,6 +1919,7 @@ sub getNodeData {
 	dbg("Starting Node get data, node $S->{name}");
 
 	if (($rrdData = $S->getData(class=>'system', model => $model))) {
+		processAlerts( S => $S );
 		if ( $rrdData->{error} eq "" ) {
 			foreach my $sect (keys %{$rrdData}) {
 				my $D = $rrdData->{$sect};
@@ -1855,7 +1937,7 @@ sub getNodeData {
 		else {
 			### 2012-03-29 keiths, SNMP is OK, some other error happened.
 			dbg("ERROR ($NI->{system}{name}) on getNodeData, $rrdData->{error}");
-		}
+		}		
 	}
 	### 2012-03-28 keiths, handling SNMP Down during poll cycles.
 	else {
@@ -1945,6 +2027,7 @@ sub getIntfData {
 
 			my $rrdData;
 			if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
+				processAlerts( S => $S );
 				if ( $rrdData->{error} eq "" ) {
 					foreach my $sect (keys %{$rrdData}) {
 	
@@ -2193,6 +2276,7 @@ sub getCBQoS {
 								my $port = "$PIndex.$OIndex";
 								my $rrdData;
 								if (($rrdData = $S->getData(class=>"cbqos-$direction", index=>$intf, port=>$port,model=>$model))) {
+									processAlerts( S => $S );
 									if ( $rrdData->{error} eq "" ) {
 										my $D = $rrdData->{"cbqos-$direction"}{$intf};
 	
@@ -2496,6 +2580,7 @@ sub getCalls {
 			foreach my $index (keys %{$CALLS}) {
 				my $port = $CALLS->{$index}{intfoid};
 				if ($rrdData = $S->getData(class=>'calls',index=>$CALLS->{$index}{parentintfIndex},port=>$port,model=>$model)) {
+					processAlerts( S => $S );
 					if ( $rrdData->{error} eq "" ) {
 						my $parentIndex = $CALLS->{$index}{parentintfIndex};
 						my $D = $rrdData->{calls}{$parentIndex};
@@ -3089,81 +3174,85 @@ sub runServices {
 		}
 		# now the services !
 		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server') {
-			if ($ST->{$service}{Service_Name} eq '') {
-				dbg("ERROR, service_name is empty");
-				logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
-				next;
-			}
-			if ( ! $servicePoll ) {
-				dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-				my $timeout = 3;
-				my $snmpcmd;
-				my @ret;
-				my $var;
-				my $i;
-				my $key;
-				my $write=0;
-
-				$servicePoll = 1;	# set flag so snmpwalk happens only once.
-
-				my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-				my $hrIndextable;
-				foreach my $var ( @snmpvars ) {
-					if ( $hrIndextable = $SNMP->getindex($var)) {
-						foreach my $inst (keys %{$hrIndextable}) {
-							my $value = $hrIndextable->{$inst};
-							my $textoid = oid2name(name2oid($var).".".$inst);
-							if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-							( $textoid, $inst ) = split /\./, $textoid, 2;
-							$snmpTable{$textoid}{$inst} = $value;
-							dbg("Indextable=$inst textoid=$textoid value=$value",2);
+			# only do the SNMP checking if you are supposed to!
+			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
+			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true" and $NI->{system}{nodedown} ne "true") ) {
+				if ($ST->{$service}{Service_Name} eq '') {
+					dbg("ERROR, service_name is empty");
+					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
+					next;
+				}
+				if ( ! $servicePoll ) {
+					dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+					my $timeout = 3;
+					my $snmpcmd;
+					my @ret;
+					my $var;
+					my $i;
+					my $key;
+					my $write=0;
+	
+					$servicePoll = 1;	# set flag so snmpwalk happens only once.
+	
+					my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+					my $hrIndextable;
+					foreach my $var ( @snmpvars ) {
+						if ( $hrIndextable = $SNMP->getindex($var)) {
+							foreach my $inst (keys %{$hrIndextable}) {
+								my $value = $hrIndextable->{$inst};
+								my $textoid = oid2name(name2oid($var).".".$inst);
+								if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+								( $textoid, $inst ) = split /\./, $textoid, 2;
+								$snmpTable{$textoid}{$inst} = $value;
+								dbg("Indextable=$inst textoid=$textoid value=$value",2);
+							}
 						}
 					}
-				}
-
-				foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
-					# key services by name_pid
-					$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-					$services{$key}{hrSWRunName} = $key;
-					$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-					$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-					$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-					$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-
-					dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}");
-				}
-
-			} #servicePoll
-			
-			# lets check the service status
-			# NB - may have multiple services with same name on box.
-			# so keep looking if up, last if one down
-			# look for an exact match here on service name as read from snmp poll
-
-			foreach ( sort keys %services ) {
-				my ($svc) = split ':', $services{$_}{hrSWRunName};
-				if ( $svc eq $ST->{$service}{Service_Name} ) {
-					if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
-						$ret = 1;
-						$cpu = $services{$_}{hrSWRunPerfCPU};
-						$memory = $services{$_}{hrSWRunPerfMem};
-						$gotMemCpu = 1;
-						dbg("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+	
+					foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+						# key services by name_pid
+						$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+						$services{$key}{hrSWRunName} = $key;
+						$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+						$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+						$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+						$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+	
+						dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}");
 					}
-					else {
-						$ret = 0;
-						$cpu = $services{$_}{hrSWRunPerfCPU};
-						$memory = $services{$_}{hrSWRunPerfMem};
-						$gotMemCpu = 1;
-						dbg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
-						last;
-					}
-				}					
-			}
-			
-			### 2012-12-20 keiths, keep the services for display later.
-			$NI->{services} = \%services;
-		}	
+	
+				} #servicePoll
+				
+				# lets check the service status
+				# NB - may have multiple services with same name on box.
+				# so keep looking if up, last if one down
+				# look for an exact match here on service name as read from snmp poll
+	
+				foreach ( sort keys %services ) {
+					my ($svc) = split ':', $services{$_}{hrSWRunName};
+					if ( $svc eq $ST->{$service}{Service_Name} ) {
+						if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
+							$ret = 1;
+							$cpu = $services{$_}{hrSWRunPerfCPU};
+							$memory = $services{$_}{hrSWRunPerfMem};
+							$gotMemCpu = 1;
+							dbg("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+						}
+						else {
+							$ret = 0;
+							$cpu = $services{$_}{hrSWRunPerfCPU};
+							$memory = $services{$_}{hrSWRunPerfMem};
+							$gotMemCpu = 1;
+							dbg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
+							last;
+						}
+					}					
+				}
+				
+				### 2012-12-20 keiths, keep the services for display later.
+				$NI->{services} = \%services;
+			}	
+		}
 		# now the scripts !
 		elsif ( $ST->{$service}{Service_Type} eq "script" ) {
 
@@ -3241,11 +3330,15 @@ sub runCheckValues {
 				}
 				#								}
 				for my $attr (keys %{$M->{system}{sys}{$sect}{snmp}} ) {
+
 					if (exists $M->{system}{sys}{$sect}{snmp}{$attr}{check}) {
 					# select the method we will run
 						my $check = $M->{system}{sys}{$sect}{snmp}{$attr}{check};
 						if ($check eq 'checkPower') {
 							checkPower(sys=>$S,attr=>$attr);
+						# }
+						# elsif ($check eq 'checkNodeConfiguration') {
+						# 	checkNodeConfiguration(sys=>$S,attr=>$attr);
 						} else {
 							logMsg("ERROR ($S->{name}) unknown method=$check in Model=$NI->{system}{nodeModel}");
 						}
@@ -3967,15 +4060,6 @@ sub runEscalate {
 						dbg("syslog $message");
 					} #foreach
 				}
-				# send syslogs right now.
-				else {
-					sendSyslog(
-						server_string => $C->{syslog_server},
-						facility => $C->{syslog_facility},
-						message => $message,
-						priority => $priority
-					);
-				}
 			} # end syslog
 			elsif ( $type eq "json" ) {
 				# make it an up event.
@@ -4019,7 +4103,6 @@ LABEL_ESC:
 			my $timenow = time();
 			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 			my $priority = eventToSyslog($ET->{$event_hash}{level});
-			logMsg("SYSLOG: $message");
 			sendSyslog(
 				server_string => $C->{syslog_server},
 				facility => $C->{syslog_facility},
@@ -4311,15 +4394,6 @@ LABEL_ESC:
 										dbg("syslog $message");
 									} #foreach
 								}
-								# send syslogs right now.
-								else {
-									sendSyslog(
-										server_string => $C->{syslog_server},
-										facility => $C->{syslog_facility},
-										message => $message,
-										priority => $priority
-									);
-								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
 								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
@@ -4331,7 +4405,6 @@ LABEL_ESC:
 									}
 								}
 								# copy the event
-								my $event = $ET->{$event_hash};								
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{nmis_host};
@@ -4808,6 +4881,7 @@ EO_TEXT
 	if ($C->{'<nmis_logs>'} ne '') {
 		createDir("$C->{'<nmis_logs>'}");
 		createDir("$C->{'json_logs'}");
+		createDir("$C->{'config_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?
