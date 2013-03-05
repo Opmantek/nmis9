@@ -69,6 +69,7 @@ sub new {
 		rrd => {},			# RRD table for loading
 		reach => {},		# tmp reach table
 		error => "",
+		alerts => [],
 		logging => 1,
 		debug => 0
 	};
@@ -453,7 +454,7 @@ sub getValues {
 	my $tbl = $args{table};
 
 	my $SNMP = $self->{snmp};
-	my (@res,@ds,@oid,@rpc,@sect,@cth,@opt,@calc,@form);
+	my (@res,@ds,@oid,@rpc,@sect,@cth,@opt,@calc,@form,@alert);
 	my $log_regex = '';
 	my $exit = 1;
 
@@ -510,6 +511,7 @@ sub getValues {
 				push @opt,$class->{$sect}{snmp}{$ds}{option};
 				push @calc,$class->{$sect}{snmp}{$ds}{calculate};
 				push @form,$class->{$sect}{snmp}{$ds}{format};
+				push @alert,$class->{$sect}{snmp}{$ds}{alert};
 			}
 		}
 	}
@@ -528,6 +530,8 @@ sub getValues {
 				my $opt = shift @opt;
 				my $calc = shift @calc;
 				my $form = shift @form;
+				my $alert = shift @alert;
+
 				if (ref $rpc eq 'HASH') { # replace table exist
 					# replace result
 					if ($rpc->{$r} ne "") { 
@@ -544,6 +548,16 @@ sub getValues {
 					if (!($r = sprintf("${form}",$r)) ) {
 						logMsg("ERROR ($self->{name}) format=$form in Model, $!");
 					}
+				}
+
+				if( defined($alert) && defined($alert->{test}) && $alert->{test} ne '' ) {
+					my $test = $alert->{test};
+					my $test_result = eval { eval $test; };
+					$alert->{test_result} = $test_result;
+					$alert->{name} = $self->{name};
+					$alert->{value} = $r;
+					$alert->{ds} = $ds;
+					push( @{$self->{alerts}}, $alert );
 				}
 
 				if ($index ne "") { # insert index in result table
