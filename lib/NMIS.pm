@@ -85,6 +85,7 @@ $VERSION = "8.3.17G";
 		loadServiceStatusTable
 		loadBusinessServicesTable
 		loadWindowStateTable
+		loadFileOrDBTable
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable

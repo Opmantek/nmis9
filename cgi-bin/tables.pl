@@ -141,6 +141,7 @@ sub loadCfgTable {
 	my @serviceStatus = ();
 	my @businessServices = ();
 	my @locations = ();
+	my @cmdbModels = ();
 
 	my $LNT = loadLocalNodeTable(); # load from file or db
 	my $GT = loadGroupTable();
@@ -167,9 +168,13 @@ sub loadCfgTable {
 		my $ServiceStatusTable = loadServiceStatusTable();
 		my $BusinessServicesTable = loadBusinessServicesTable();
 		my $LocationsTable = loadLocationsTable();
+		my @cmdbTypes = split(',',$C->{cmdbType_values});
+		my $cmdbModelsTable = loadFileOrDBTable('cmdbModels');
+
 		foreach (sort keys %{$ServiceStatusTable}) { push @serviceStatus, $_; }
 		foreach (sort keys %{$BusinessServicesTable}) { push @businessServices, $_; }
 		foreach (sort keys %{$LocationsTable}) { push @locations, $_; }
+		foreach (sort keys %{$cmdbModelsTable}) { push @cmdbModels, $_; }
 
 		%Cfg = ( 
 			Nodes => [ # using an array for fixed order of fields
@@ -179,6 +184,10 @@ sub loadCfgTable {
 				{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
 				{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
 				{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ @serviceStatus ] }},
+				{ cmdbDescription => { header => 'CMDB Description',display => 'text', value => [""] }},
+				{ cmdbPriority => { header => 'CMDB Priority',display => 'popup', value => [1,2,3,4] }},
+				{ cmdbType => { header => 'CMDB Type',display => 'popup', value => [ @cmdbTypes ] }},
+				{ cmdbModel => { header => 'CMDB Type',display => 'popup', value => [ @cmdbModels ] }},
 				{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 				{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 				{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
@@ -422,6 +431,14 @@ sub loadCfgTable {
 				{ businessPriority => { header => 'Business Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }},
 				{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
 				{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+			]
+		);
+	}
+	elsif ( $table eq "cmdbModels" ) {
+		%Cfg = ( 
+			cmdbModels => [
+				{ cmdbModel => { header => 'CMDB Model',display => 'key,header,text', value => [""] }},
+				{ modelDescription => { header => 'Model Description',display => 'header,text', value => [""] }},
 			]
 		);
 	}
