@@ -2480,6 +2480,7 @@ sub createHrButtons {
 	my %args = @_;
 	my $user = $args{user};
 	my $node = $args{node};
+	my $S = $args{system};
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
 	
@@ -2530,6 +2531,20 @@ sub createHrButtons {
 					push @out, td({class=>'header'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	
+
+		### 2013-03-06 keiths, adding systemHealth support
+		if ( defined $S->{mdl}{systemHealth}{sys} ) {
+			my @systemHealth;
+			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
+			
+			foreach my $sysHealth (@systemHealth) {	
+				if ($NI->{sysHealth} ne '' or $NI->{sysHealth} ne '') {
+					push @out, td({class=>'header'},
+						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+				}
+			}
+		}
+
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
 			push @out, td({class=>'header'},

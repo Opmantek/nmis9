@@ -179,6 +179,7 @@ sub loadCfgTable {
 				{ location => { header => 'Location',display => 'header,popup',value => [ @locations] }},
 				{ businessService => { header => 'Business Service',display => 'header,pop',value => [ @businessServices ] }},
 				{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ @serviceStatus ] }},
+				{ cmdbPriority => { header => 'CMDB Priority',display => 'header,popup', value => [1,2,3,4] }}
 				{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 				{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 				{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
