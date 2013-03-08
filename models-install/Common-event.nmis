@@ -215,6 +215,20 @@
           'logging' => 'true',
           'syslog' => 'true'
         }
+      },
+      'alert' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true'
+        }
       }
     }
   }

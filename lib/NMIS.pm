@@ -874,6 +874,11 @@ sub checkEvent {
 	my $syslog;
 	
 	my $C = loadConfTable();
+	
+	# just in case this is blank.
+	if ( $C->{'non_stateful_events'} eq '' ) {
+	 $C->{'non_stateful_events'} = 'Node Configuration Change, Node Reset';
+	}
 
 	my $event_hash = eventHash($node,$event,$element);
 
@@ -889,6 +894,7 @@ sub checkEvent {
 			$ET = loadEventStateNoLock();
 		}
 	}
+	
 
 	my $outage;
 
@@ -919,6 +925,10 @@ sub checkEvent {
 			# for thresholds where low = good
 				return unless $args{value} < $args{reset} * 0.9;
 			}
+			$event = "$event Closed";
+		}
+		elsif ( $event =~ /^Alert/ ) {
+			# A custom alert is being cleared.
 			$event = "$event Closed";
 		}
 		elsif ( $event =~ /down/i ) {
@@ -1013,7 +1023,8 @@ sub notify {
 		# get level(if not defined) and log status from Model
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
 
-		if ($event ne 'Node Reset' && $event ne 'Node Configuration Change') {
+		if ($C->{non_stateful_events} !~ /$event/ ) {
+			#$event ne non_stateful_events 'Node Reset' && $event ne 'Node Configuration Change'
 			# Push the event onto the event table.
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
@@ -1095,7 +1106,7 @@ sub getLevelLogEvent {
 	my $type = $NI->{system}{nodeType} || 'router' ;
 
 	# Get the event policy and the rest is easy.
-	if ( $event !~ /Proactive/i ) {
+	if ( $event !~ /^Proactive|^Alert/i ) {
 		# proactive does already level defined
 		if ( $event =~ /down/i and $event !~ /SNMP|Node|Interface|Service/i ) { 
 			$pol_event = "Generic Down";
@@ -1118,6 +1129,15 @@ sub getLevelLogEvent {
 			$mdl_level = 'Major';
 			# not found, use default
 			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
+		}
+	}
+	elsif ( $event =~ /^Alert/i ) {
+		# Level set by custom!
+		### 2013-03-08 keiths, adding policy based logging for Alerts.
+		# We don't get the level but we can get the logging policy.
+		$pol_event = "Alert";
+		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
+			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
 		}
 	}
 	else {

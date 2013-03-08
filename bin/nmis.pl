@@ -1948,11 +1948,12 @@ sub processAlerts {
 	for( my $i = 0; $i < @{$alerts}; $i++)
 	{
 		my $alert = shift @{$alerts};
-		dbg("Processing alert ".Dumper($alert));
+		dbg("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		dbg("Processing alert ".Dumper($alert),2);
 		if( $alert->{test_result} ) {
-			notify(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
 		} else {
-			checkEvent(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
 		}
 
 	}
