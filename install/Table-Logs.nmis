@@ -1,0 +1,9 @@
+%hash = (
+			Logs => [
+				{ logOrder => { header => 'Order',display => 'key,header,text', value => [""] }},
+				{ logName => { header => 'Name',display => 'header,text', value => [""] }},
+				{ logDescr => { header => 'Description',display => 'header,text', value => [""] }},
+				{ logFileName => { header => 'File',display => 'header,text', value => [""] }}
+			]
+);
+

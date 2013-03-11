@@ -1,0 +1,37 @@
+%hash = (
+			Escalations => [
+				{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},
+				{ Role => { header => 'Role',display => 'key,header,popup', value => ["default", "core", "distribution", "access"] }},
+				{ Type => { header => 'Type',display => 'key,header,popup', value => ["default", "router", "switch", "server", "firewall","generic"] }},
+				{ Event => { header => 'Event',display => 'key,header,popup', value => ["default", "Generic Down", "Generic Up", "Interface Down", "Interface Up",
+							"Node Down", "Node Reset", "Node Failover", "Node Up",
+							"RPS Fail", "TRAP", "SNMP Down", "SNMP Up",
+							"Service Down", "Service Up",
+							"Proactive Response Time",
+							"Proactive Reachability",
+							"Proactive CPU",
+							"Proactive Memory",
+							"Proactive Interface Availability",
+							"Proactive Interface Input Utilisation",
+							"Proactive Interface Output Utilisation",
+							"Proactive Availability Threshold Interface",
+							"Proactive Interface Input NonUnicast",
+							"Proactive Interface Output NonUnicast",
+							"Node Configuration Change"] }},
+				{ 'Event_Node' => { header => 'Event Node',display => 'key,header,text', value => [""] }},
+				{ 'Event_Element' => { header => 'Event Element',display => 'key,header,text', value => [""] }},
+				{ Level0 => { header => 'Level 0',display => 'header,text', value => ["netsend:WKS1:WKS2,email:Contact1"] }},
+				{ Level1 => { header => 'Level 1',display => 'header,text', value => ["pager:sysContact,email:Contact2"] }},
+				{ Level2 => { header => 'Level 2',display => 'header,text', value => [""] }},
+				{ Level3 => { header => 'Level 3',display => 'header,text', value => ["email:Contact3:Contact4"] }},
+				{ Level4 => { header => 'Level 4',display => 'text', value => [""] }},
+				{ Level5 => { header => 'Level 5',display => 'text', value => [""] }},
+				{ Level6 => { header => 'Level 6',display => 'text', value => [""] }},
+				{ Level7 => { header => 'Level 7',display => 'text', value => [""] }},
+				{ Level8 => { header => 'Level 8',display => 'text', value => [""] }},
+				{ Level9 => { header => 'Level 9',display => 'text', value => [""] }},
+				{ Level10 => { header => 'Level 10',display => 'text', value => [""] }},
+				{ UpNotify => { header => 'UpNotify',display => 'header,popup', value => ["false", "true" ] }}
+			]
+);
+

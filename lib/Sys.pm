@@ -745,6 +745,7 @@ sub parseString {
 			$nodeModel = $self->{info}{system}{nodeModel};
 			$nodeType = $self->{info}{system}{nodeType};
 			$nodeVendor = $self->{info}{system}{nodeVendor};
+			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
 			if ($indx ne '') {
 				$ifDescr = convertIfName($self->{info}{interface}{$indx}{ifDescr});

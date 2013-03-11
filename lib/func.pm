@@ -1366,7 +1366,7 @@ sub loadConfTable {
 		}
 
 		# read fresh config file
-		if (($CC = readFiletoHash(file=>$configfile))) {
+		if ($CC = readFiletoHash(file=>$configfile)) {
 			# create new table
 			delete $Table_cache{$conf};
 			# convert to single level

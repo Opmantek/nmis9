@@ -1,0 +1,27 @@
+use NMIS;
+use Auth;
+
+my $C = loadConfTable();
+
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+
+my @groups = ();
+my $GT = loadGroupTable();
+foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
+
+my @privs = ();
+my $PM = loadTable(dir=>'conf',name=>'PrivMap');
+# I assume a natural order: administrator = 0 (highest priv) and guest = 6 (lowest priv)
+foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;} 
+
+return (
+			Users => [
+				{ user => { header => 'User',display => 'key,header,text', value => ["specify"] }},
+				{ config => { header => 'Config file',display => 'header,text', value => ["Config"] }},
+				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},
+				{ admission => { header => 'Admission',display => 'header,popup', value => ["true","false","bypass"] }},
+				{ groups => { header => 'Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }}
+			]
+);
+

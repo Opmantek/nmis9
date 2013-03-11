@@ -102,7 +102,9 @@
       'upsbattemp' => 'UPS Battery Temperature',
       'hrwinusers' => 'Number of Users',
       'mem-cluster' => 'Cluster Memory Utilisation',
-      'routenumber' => 'Number of Routes'
+      'routenumber' => 'Number of Routes',
+      'tcp-conn' => 'TCP Connections',
+      'tcp-segs' => 'TCP Segments'
     }
   }
 );

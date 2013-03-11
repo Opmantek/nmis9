@@ -4004,8 +4004,8 @@ sub runEscalate {
 	my $II = loadInterfaceInfo();
 
 	my $LocationsTable = loadLocationsTable();
-	my $ServiceStatusTable = loadServiceStatusTable();
-	my $BusinessServicesTable = loadBusinessServicesTable();
+	my $ServiceStatusTable = loadGenericTable('ServiceStatus');
+	my $BusinessServicesTable = loadGenericTable('BusinessServices');
 
 	# Load the event table into the hash
 	# have to maintain a lock over all of this

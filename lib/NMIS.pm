@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.17G";
+$VERSION = "8.3.18G";
 
 @ISA = qw(Exporter);
 
@@ -71,6 +71,7 @@ $VERSION = "8.3.17G";
 		loadNodeSummary
 		loadNodeInfoTable
 		loadGroupTable
+		loadGenericTable
 		loadContactsTable
 		loadLocationsTable
 		loadEscalationsTable
@@ -82,10 +83,8 @@ $VERSION = "8.3.17G";
 		loadLinksTable
 		loadRMENodes
 		loadServersTable
-		loadServiceStatusTable
-		loadBusinessServicesTable
 		loadWindowStateTable
-		loadFileOrDBTable
+		
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
@@ -290,6 +289,10 @@ sub loadFileOrDBTable {
 	}
 }
 
+sub loadGenericTable{
+	return loadFileOrDBTable( shift ); 
+}	
+
 sub loadContactsTable {
 	return loadFileOrDBTable('Contacts');
 }
@@ -325,15 +328,11 @@ sub loadLinksTable {
 sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
-sub loadServiceStatusTable {
-	return loadFileOrDBTable('ServiceStatus');
-}
-sub loadBusinessServicesTable {
-	return loadFileOrDBTable('BusinessServices');
-}
+
 sub loadWindowStateTable {
 	return loadFileOrDBTable('WindowState');
 }
+
 # check node name case insentive, return good one
 sub checkNodeName {
 	my $name = shift;

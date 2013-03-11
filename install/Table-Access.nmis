@@ -1,0 +1,14 @@
+%hash = (
+			Access => [
+				{ name => { header => 'Name',display => 'key,header,text', value => [""] }},
+				{ group => { header => 'Group',display => 'header,popup', value => ["access","button","tool"] }},
+				{ descr => { header => 'Description',display => 'header,text', value => [""] }},
+				{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
+				{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
+				{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
+				{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
+				{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
+				{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }}
+			]
+);
+

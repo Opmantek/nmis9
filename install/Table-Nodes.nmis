@@ -1,0 +1,70 @@
+
+use NMIS;
+use Auth;
+
+my $C = loadConfTable();
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my @groups = ();
+my $GT = loadGroupTable();
+foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
+
+my @nodes = ();
+my $LNT = loadLocalNodeTable(); # load from file or db
+foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
+
+my @models = ();
+if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
+	@models = ('automatic',sort {uc($a) cmp uc($b)} (grep(s/^Model-(.*)\.nmis$/$1/,readdir MDL)));
+} else {
+	print Tr(td({class=>'error'},"Error on loading models names from directory $C->{'<nmis_models>'}"));
+}
+closedir(MDL);
+
+
+my @cmdbTypes = split(',',$C->{cmdbType_values});
+
+print STDERR "DEBUG: IS THE EVAL EVAL'ing user=$AU->{user} priv=$AU->{privlevel}\n";
+
+return (
+	Nodes => [ # using an array for fixed order of fields
+		{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
+		{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
+		{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
+		{ location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
+		{ businessService => { header => 'Business Service',display => 'header,pop',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
+		{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
+		{ cmdbDescription => { header => 'CMDB Description',display => 'text', value => [""] }},
+		{ cmdbPriority => { header => 'CMDB Priority',display => 'popup', value => [1,2,3,4] }},
+		{ cmdbType => { header => 'CMDB Type',display => 'popup', value => [ @cmdbTypes ] }},
+		{ cmdbModel => { header => 'CMDB Type',display => 'popup', value => [ sort keys %{loadGenericTable('cmdbModels')} ] }},
+		{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
+		{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
+		{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
+		{ collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
+		{ cbqos => { header => 'CBQoS',display => 'header,popup',value => ["none", "input", "output", "both"] }},
+		{ calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
+		{ threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
+		{ rancid => { header => 'Rancid', display => 'popup',value => ["false", "true"] }},
+		{ webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
+		{ netType => { header => 'Net Type', display => 'popup',value => ["wan", "lan"] }},
+		{ roleType => { header => 'Role Type', display => 'popup',value => ["core", "distribution", "access"] }},
+		{ depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
+		{ services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
+		{ timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
+		{ version => { header => 'SNMP Version',display => 'header,popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
+		{ community => { header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
+		{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
+		{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
+		{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
+		{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
+		{ authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
+		{ privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
+		{ privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
+		{ privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
+	]
+);
