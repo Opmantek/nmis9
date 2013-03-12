@@ -124,7 +124,8 @@ if ($type =~ /collect|update/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); } # included in type=collect
-elsif ( $type eq "config" ) { checkConfig(); }
+elsif ( $type eq "config" ) { checkConfig(change => "true"); }
+elsif ( $type eq "audit" ) { checkConfig(audit => "true", change => "false"); }
 elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
@@ -4873,6 +4874,22 @@ sub runDaemons {
 #=========================================================================================
 
 sub checkConfig {
+	my %args = @_;
+	my $change = $args{change};
+	my $audit = $args{audit};
+
+	local *checkFunc;
+	my $checkType;
+
+	# depending on our job, create dir or just check them.
+	if ($change eq "true") {
+		*checkFunc = \&createDir;
+		$checkType = "Checking"
+	} 
+	else {
+		*checkFunc = \&checkDir;
+		$checkType = "Auditing"
+	}
 
 	# check if nmis_base already oke
 	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl")) {
@@ -4925,44 +4942,44 @@ EO_TEXT
 	}
 	
 	# Do the var directories exist if not make them?
-	dbg("Config Checking - Checking var directories, $C->{'<nmis_var>'}");
+	dbg("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
 	if ($C->{'<nmis_var>'} ne '') {
-		createDir("$C->{'<nmis_var>'}");
+		checkFunc("$C->{'<nmis_var>'}");
 	}
 
 	# Do the log directories exist if not make them?
-	dbg("Config Checking - Checking log directories, $C->{'<nmis_logs>'}");
+	dbg("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
-		createDir("$C->{'<nmis_logs>'}");
-		createDir("$C->{'json_logs'}");
-		createDir("$C->{'config_logs'}");
+		checkFunc("$C->{'<nmis_logs>'}");
+		checkFunc("$C->{'json_logs'}");
+		checkFunc("$C->{'config_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?
-	dbg("Config Checking - Checking conf directories, $C->{'<nmis_conf>'}");
+	dbg("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
 	if ($C->{'<nmis_conf>'} ne '') {
-		createDir("$C->{'<nmis_conf>'}");
+		checkFunc("$C->{'<nmis_conf>'}");
 	}
 		
 	# Do the database directories exist if not make them?
-	dbg("Config Checking - Checking database directories");
+	dbg("Config $checkType - Checking database directories");
 	if ($C->{database_root} ne '') {
-		createDir("$C->{database_root}");
-		createDir("$C->{database_root}/health");
-		createDir("$C->{database_root}/metrics");
-		createDir("$C->{database_root}/misc");
-		createDir("$C->{database_root}/ipsla");
-		createDir("$C->{database_root}/health/generic");
-		createDir("$C->{database_root}/health/router");
-		createDir("$C->{database_root}/health/switch");
-		createDir("$C->{database_root}/health/server");
-		createDir("$C->{database_root}/health/firewall");
-		createDir("$C->{database_root}/interface");
-		createDir("$C->{database_root}/interface/generic");
-		createDir("$C->{database_root}/interface/router");
-		createDir("$C->{database_root}/interface/switch");
-		createDir("$C->{database_root}/interface/server"); 
-		createDir("$C->{database_root}/interface/firewall"); 
+		checkFunc("$C->{database_root}");
+		checkFunc("$C->{database_root}/health");
+		checkFunc("$C->{database_root}/metrics");
+		checkFunc("$C->{database_root}/misc");
+		checkFunc("$C->{database_root}/ipsla");
+		checkFunc("$C->{database_root}/health/generic");
+		checkFunc("$C->{database_root}/health/router");
+		checkFunc("$C->{database_root}/health/switch");
+		checkFunc("$C->{database_root}/health/server");
+		checkFunc("$C->{database_root}/health/firewall");
+		checkFunc("$C->{database_root}/interface");
+		checkFunc("$C->{database_root}/interface/generic");
+		checkFunc("$C->{database_root}/interface/router");
+		checkFunc("$C->{database_root}/interface/switch");
+		checkFunc("$C->{database_root}/interface/server"); 
+		checkFunc("$C->{database_root}/interface/firewall"); 
 	} else {
 		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
 	}
@@ -4973,14 +4990,44 @@ EO_TEXT
 		close LOG;
 		setFileProt("$C->{'<nmis_logs>'}/nmis.log");
 	}
+	else {
+		checkFile("$C->{'<nmis_logs>'}/nmis.log");
+	}
+	
 	if ( not existFile(dir=>'var',name=>'nmis-event')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-event');
 		writeTable(dir=>'var',name=>'nmis-event',data=>$hsh);
 	}
+	else {
+		checkFile("$C->{'<nmis_var>'}/nmis-event.nmis");
+	}
+
 	if ( not existFile(dir=>'var',name=>'nmis-system')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-system');
 		$hsh->{startup} = time();
 		writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
+	}
+	else {
+		checkFile("$C->{'<nmis_var>'}/nmis-system.nmis");
+	}
+	
+	if ( $audit eq "true" ) {
+    checkDirectoryFiles($C->{'<nmis_bin>'});
+    checkDirectoryFiles($C->{'<nmis_cgi>'});
+    checkDirectoryFiles($C->{'<nmis_conf>'});
+    checkDirectoryFiles($C->{'<nmis_data>'});
+    checkDirectoryFiles($C->{'<nmis_logs>'});
+    checkDirectoryFiles($C->{'<nmis_menu>'});
+    checkDirectoryFiles($C->{'<nmis_models>'});
+    checkDirectoryFiles($C->{'<nmis_var>'});
+    checkDirectoryFiles($C->{'config_logs'});
+    checkDirectoryFiles($C->{'database_root'});
+    checkDirectoryFiles($C->{'json_logs'});
+    checkDirectoryFiles($C->{'log_root'});
+    checkDirectoryFiles($C->{'mib_root'});
+    checkDirectoryFiles($C->{'report_root'});
+    checkDirectoryFiles($C->{'script_root'});
+    checkDirectoryFiles($C->{'web_root'});
 	}
 
 	#== convert config .csv to .nmis (hash) file format ==
@@ -5158,6 +5205,7 @@ command line options are:
 													 master    Run NMIS Master Functions
 													 escalate  Run the escalation routine only ( debug use only)
 													 config    Validate the chosen configuration file
+													 audit     Audit the configuration without changes
 													 apache    Produce Apache configuration for NMIS
 													 crontab   Produce Crontab configuration for NMIS
 													 links     Generate the links.csv file.

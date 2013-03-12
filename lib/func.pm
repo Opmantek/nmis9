@@ -34,7 +34,7 @@ package func;
 require 5;
 
 use strict;
-use Fcntl qw(:DEFAULT :flock);
+use Fcntl qw(:DEFAULT :flock :mode);
 use File::Path;
 use File::stat;
 use Time::ParseDate;
@@ -114,6 +114,9 @@ $VERSION = 1.00;
 		writeConfData
 		getKernelName
 		createDir
+		checkDir
+		checkFile
+		checkDirectoryFiles
 
 	);
 
@@ -713,10 +716,17 @@ sub setFileProt {
 			}
 		}
 		if ($permission eq '') {
-			if ( $C->{'os_fileperm'} ne "" ) {
+			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
+				$permission = $C->{'os_execperm'} ;
+			} 
+			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
+				$permission = $C->{'os_execperm'} ;
+			} 
+			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
 				$permission = $C->{'os_fileperm'} ;
-			} else {
-				$permission = "0775"; # default
+			} 
+			else {
+				$permission = "0660"; # default
 			}
 		}
 		dbg("set file owner/permission of $filename to $username, $permission",3);
@@ -1457,6 +1467,229 @@ sub createDir {
 	}
 	setFileProt($dir);
 }
+
+sub checkDir {
+	my $dir = shift;
+	my $result = 1;
+	my @messages;
+
+	my $C = loadConfTable();
+	
+	# Does the directory exist
+	if ( not -d $dir ) {
+		$result = 0;
+		push(@messages,"ERROR: directory $dir does not exist");
+	}
+	else {
+    #2 mode     file mode  (type and permissions)
+    #4 uid      numeric user ID of file's owner
+  	#5 gid      numeric group ID of file's owner
+		my $dstat = stat($dir);
+		my $gid = $dstat->gid;
+		my $uid = $dstat->uid;
+		my $mode = $dstat->mode;
+		
+		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
+		my $username = getpwuid($uid);
+		
+		#print "DEBUG: dir=$dir username=$username groupname=$groupname uid=$uid gid=$gid mode=$mode\n";
+
+		# Are the user and group permissions correct.
+		my $user_rwx = ($mode & S_IRWXU) >> 6;
+    my $group_rwx = ($mode & S_IRWXG) >> 3;
+
+		if ( $user_rwx ) {
+			push(@messages,"INFO: $dir has user read-write-execute permissions");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $dir does not have user read-write-execute permissions");			
+		}
+
+		if ( $group_rwx ) {
+			push(@messages,"INFO: $dir has group read-write-execute permissions");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $dir does not have group read-write-execute permissions");			
+		}
+		
+		if ( $C->{'nmis_user'} eq $username ) {
+			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");			
+		}
+
+		if ( $C->{'os_username'} eq $username ) {
+			push(@messages,"INFO: $dir has correct owner from config os_username=$username");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");			
+		}
+
+		if ( $C->{'nmis_group'} eq $groupname ) {
+			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");			
+		}		
+	}
+		
+	if (not $result) {
+		my $message = join("\n",@messages);
+		print "Problem with $dir:\n$message\n";
+	}
+
+	my $message = join(";;",@messages);
+	return($result,$message);
+}
+
+sub checkFile {
+	my $file = shift;
+	my $result = 1;
+	my @messages;
+
+	my $C = loadConfTable();
+	
+	# Does the directory exist
+	if ( not -f $file ) {
+		$result = 0;
+		push(@messages,"ERROR: file $file does not exist");
+	}
+	else {
+    #2 mode     file mode  (type and permissions)
+    #4 uid      numeric user ID of file's owner
+  	#5 gid      numeric group ID of file's owner
+		my $fstat = stat($file);
+		my $gid = $fstat->gid;
+		my $uid = $fstat->uid;
+		my $mode = $fstat->mode;
+		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
+		my $username = getpwuid($uid);
+		
+		if ( $fstat->size > $C->{'file_size_warning'} ) {
+			$result = 0;
+			my $size = $fstat->size;
+			push(@messages,"WARN: $file is $size bytes, larger than $C->{'file_size_warning'} bytes");			
+		}
+
+		#S_IRWXU S_IRUSR S_IWUSR S_IXUSR
+    #S_IRWXG S_IRGRP S_IWGRP S_IXGRP
+    #S_IRWXO S_IROTH S_IWOTH S_IXOTH
+		
+		# Are the user and group permissions correct.    
+    # are the files executable or non-executable
+    if ( $file =~ /$C->{'nmis_executable'}/ ) {
+			my $user_rwx = ($mode & S_IRWXU) >> 6;
+	    my $group_rwx = ($mode & S_IRWXG) >> 3;
+	    my $other_rwx = ($mode & S_IRWXO);
+	    
+			if ( $user_rwx ) {
+				push(@messages,"INFO: $file has user read-write-execute permissions");			
+			}
+			else {
+				$result = 0;
+				push(@messages,"ERROR: $file does not have user read-write-execute permissions");			
+			}
+	
+			if ( $group_rwx ) {
+				push(@messages,"INFO: $file has group read-write-execute permissions");			
+			}
+			else {
+				$result = 0;
+				push(@messages,"ERROR: $file does not have group read-write-execute permissions");			
+			}
+
+			if ( $other_rwx ) {
+				$result = 0;
+				push(@messages,"WARN: $file has other read-write-execute permissions");			
+			}
+		}
+		else {
+			my $user_r  = ($mode & S_IRUSR) >> 6;
+	    my $group_r = ($mode & S_IRGRP) >> 3;
+	    my $other_r = ($mode & S_IROTH);
+			my $user_w  = ($mode & S_IWUSR) >> 6;
+	    my $group_w = ($mode & S_IWGRP) >> 3;
+	    my $other_w = ($mode & S_IWOTH);
+
+			if ( $user_r and $user_w ) {
+				push(@messages,"INFO: $file has user read-write permissions");			
+			}
+			else {
+				$result = 0;
+				push(@messages,"ERROR: $file does not have user read-write permissions");			
+			}
+	
+			if ( $group_r and $group_w ) {
+				push(@messages,"INFO: $file has group read-write permissions");			
+			}
+			else {
+				$result = 0;
+				push(@messages,"ERROR: $file does not have group read-write permissions");			
+			}			
+
+			if ( $other_r ) {
+				$result = 0;
+				push(@messages,"WARN: $file has other read permissions");			
+			}
+			if ( $other_w ) {
+				$result = 0;
+				push(@messages,"WARN: $file has other write permissions");			
+			}
+		}
+
+		if ( $C->{'nmis_user'} eq $username ) {
+			push(@messages,"INFO: $file has correct owner from config nmis_user=$username");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");			
+		}
+
+		if ( $C->{'os_username'} eq $username ) {
+			push(@messages,"INFO: $file has correct owner from config os_username=$username");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");			
+		}
+
+		if ( $C->{'nmis_group'} eq $groupname ) {
+			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname");			
+		}
+		else {
+			$result = 0;
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");			
+		}		
+	}
+		
+	if (not $result) {
+		my $message = join("\n",@messages);
+		print "Problem with $file:\n$message\n";
+	}
+
+	my $message = join(";;",@messages);
+	return($result,$message);
+}
+
+sub checkDirectoryFiles {
+	my $dir = shift;
+	opendir (DIR, "$dir");
+	my @dirlist = readdir DIR;
+	closedir DIR;
+	
+	foreach my $file (@dirlist) {
+		if ( -f "$dir/$file" and $file !~ /^\./ ) {
+			checkFile("$dir/$file");
+		}
+	}
+}
+
 
 # 100 = red, 0 = green
 # red: rgb(255,0,0)
