@@ -124,7 +124,8 @@ if ($type =~ /collect|update/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); } # included in type=collect
-elsif ( $type eq "config" ) { checkConfig(); }
+elsif ( $type eq "config" ) { checkConfig(change => "true"); }
+elsif ( $type eq "audit" ) { checkConfig(audit => "true", change => "false"); }
 elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
@@ -565,7 +566,7 @@ sub doCollect {
 						getNodeData(sys=>$S);
 						
 						# get intf data and store in rrd
-						getIntfData(sys=>$S);
+						getIntfData(sys=>$S) if defined $S->{info}{interface};
 		
 						getEnvData(sys=>$S);
 	
@@ -1076,308 +1077,361 @@ sub getIntfInfo {
 
 	my $C = loadConfTable();
 
-	dbg("Starting");
-	dbg("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
-
-	# load interface types (IANA). number => name
-	my $IFT = loadifTypesTable();
-
-	my $NCT = loadNodeConfTable();
-
-	# get interface Index table
-	my @ifIndexNum;
-	my $ifIndexTable;
-	if (($ifIndexTable = $SNMP->gettable('ifIndex'))) {
-		foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
-			push @ifIndexNum,$ifIndexTable->{$oid};
-		}
-	} else {
-		logMsg("ERROR ($S->{name}) on get interface index table");
-		# failed by snmp
-		snmpNodeDown(sys=>$S);
-		dbg("Finished");
-		return 0;
-	}
+	if ( defined $S->{mdl}{interface}{nocollect}{ifDescr} and $S->{mdl}{interface}{nocollect}{ifDescr} ne "" ) {
+		dbg("Starting");
+		dbg("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 	
-	if ($intf_one eq "") {
-		# remove unknown interfaces, found in previous runs, from table
-		for my $i (keys %{$IF}) {
-			if (not grep { $i eq $_ } @ifIndexNum ) { 
-				delete $IF->{$i};
-				delete $NI->{graphtype}{$i};
-				delete $NI->{database}{interface}{$i};
-				delete $NI->{database}{pkts}{$i} if $NI->{database}{pkts}{$i} ne '';
-				dbg("Interface ifIndex=$i removed from table");
-				logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table"); # test info
+		# load interface types (IANA). number => name
+		my $IFT = loadifTypesTable();
+	
+		my $NCT = loadNodeConfTable();
+	
+		# get interface Index table
+		my @ifIndexNum;
+		my $ifIndexTable;
+		if (($ifIndexTable = $SNMP->gettable('ifIndex'))) {
+			foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
+				push @ifIndexNum,$ifIndexTable->{$oid};
 			}
-		}
-		delete $V->{interface}; # rebuild interface view table
-	}
-	
-	# Loop to get interface information, will be stored in {ifinfo} table => $IF
-	foreach my $index (@ifIndexNum) {
-		next if ($intf_one ne '' and $intf_one ne $index); # only one interface
-		if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
-			checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
-			$IF = $S->ifinfo; # renew pointer
-			logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
-			dbg("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
 		} else {
+			logMsg("ERROR ($S->{name}) on get interface index table");
 			# failed by snmp
 			snmpNodeDown(sys=>$S);
 			dbg("Finished");
 			return 0;
 		}
-	}
-
-	# port information optional
-	if ($M->{port} ne "") {
-		foreach my $index (@ifIndexNum) { 
-			next if ($intf_one ne '' and $intf_one ne $index);
-			# get the VLAN info: table is indexed by port.portnumber
-			if ( $IF->{$index}{ifDescr} =~ /\d{1,2}\/(\d{1,2})$/i ) { # FastEthernet0/1
-				my $port = '1.' . $1;
-				if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\/\d{1,2}\/(\d{1,2})$/i ) { # FastEthernet1/0/0
-					$port = $1. '.' . $2;
+		
+		if ($intf_one eq "") {
+			# remove unknown interfaces, found in previous runs, from table
+			for my $i (keys %{$IF}) {
+				if (not grep { $i eq $_ } @ifIndexNum ) { 
+					delete $IF->{$i};
+					delete $NI->{graphtype}{$i};
+					delete $NI->{database}{interface}{$i};
+					delete $NI->{database}{pkts}{$i} if $NI->{database}{pkts}{$i} ne '';
+					dbg("Interface ifIndex=$i removed from table");
+					logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table"); # test info
 				}
-				if ($S->loadInfo(class=>'port',index=>$index,port=>$port,table=>'interface',model=>$model)) {
-					#
-					last if $IF->{$index}{vlanPortVlan} eq "";	# model does not support CISCO-STACK-MIB
-					$V->{interface}{"${index}_portAdminSpeed_value"} = convertIfSpeed($IF->{$index}{portAdminSpeed});
-					dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
-					dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}");
-				}
+			}
+			delete $V->{interface}; # rebuild interface view table
+		}
+		
+		# Loop to get interface information, will be stored in {ifinfo} table => $IF
+		foreach my $index (@ifIndexNum) {
+			next if ($intf_one ne '' and $intf_one ne $index); # only one interface
+			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
+				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
+				$IF = $S->ifinfo; # renew pointer
+				logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
+				dbg("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
 			} else {
-				my $port;
-				if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\D(\d{1,2})$/ ) { # 0-0 Catalyst
-					$port = $1. '.' . $2;
-				}
-				if ($S->loadInfo(class=>'port',index=>$index,port=>$port,table=>'interface',model=>$model)) {
-					#
-					last if $IF->{$index}{vlanPortVlan} eq "";	# model does not support CISCO-STACK-MIB
-					$V->{interface}{"${index}_portAdminSpeed_value"} = convertIfSpeed($IF->{$index}{portAdminSpeed});
-					dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
-					dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}");
+				# failed by snmp
+				snmpNodeDown(sys=>$S);
+				dbg("Finished");
+				return 0;
+			}
+		}
+	
+		# port information optional
+		if ($M->{port} ne "") {
+			foreach my $index (@ifIndexNum) { 
+				next if ($intf_one ne '' and $intf_one ne $index);
+				# get the VLAN info: table is indexed by port.portnumber
+				if ( $IF->{$index}{ifDescr} =~ /\d{1,2}\/(\d{1,2})$/i ) { # FastEthernet0/1
+					my $port = '1.' . $1;
+					if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\/\d{1,2}\/(\d{1,2})$/i ) { # FastEthernet1/0/0
+						$port = $1. '.' . $2;
+					}
+					if ($S->loadInfo(class=>'port',index=>$index,port=>$port,table=>'interface',model=>$model)) {
+						#
+						last if $IF->{$index}{vlanPortVlan} eq "";	# model does not support CISCO-STACK-MIB
+						$V->{interface}{"${index}_portAdminSpeed_value"} = convertIfSpeed($IF->{$index}{portAdminSpeed});
+						dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
+						dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}");
+					}
+				} else {
+					my $port;
+					if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\D(\d{1,2})$/ ) { # 0-0 Catalyst
+						$port = $1. '.' . $2;
+					}
+					if ($S->loadInfo(class=>'port',index=>$index,port=>$port,table=>'interface',model=>$model)) {
+						#
+						last if $IF->{$index}{vlanPortVlan} eq "";	# model does not support CISCO-STACK-MIB
+						$V->{interface}{"${index}_portAdminSpeed_value"} = convertIfSpeed($IF->{$index}{portAdminSpeed});
+						dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
+						dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}");
+					}
 				}
 			}
 		}
-	}
-
-
-	my $ifAdEntTable;
-	my $ifMaskTable;
-	my %ifCnt;
-	dbg("Getting Device IP Address Table"); 
-	if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
-		if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
-			foreach my $addr (keys %{$ifAdEntTable}) {
-				my $index = $ifAdEntTable->{$addr};
-				next if ($intf_one ne '' and $intf_one ne $index);
-				$ifCnt{$index} += 1;
-				dbg("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");	
-				$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
-				$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
-				($IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
-					$IF->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}) = ipSubnet(address=>$addr, mask=>$ifMaskTable->{$addr});
-				$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
-				$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"} = "$addr / $ifMaskTable->{$addr}";
+	
+	
+		my $ifAdEntTable;
+		my $ifMaskTable;
+		my %ifCnt;
+		dbg("Getting Device IP Address Table"); 
+		if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
+			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
+				foreach my $addr (keys %{$ifAdEntTable}) {
+					my $index = $ifAdEntTable->{$addr};
+					next if ($intf_one ne '' and $intf_one ne $index);
+					$ifCnt{$index} += 1;
+					dbg("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");	
+					$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
+					$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
+					($IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
+						$IF->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}) = ipSubnet(address=>$addr, mask=>$ifMaskTable->{$addr});
+					$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
+					$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"} = "$addr / $ifMaskTable->{$addr}";
+				}
+			} else {
+				dbg("ERROR getting Device Ip Address table");
 			}
 		} else {
 			dbg("ERROR getting Device Ip Address table");
 		}
-	} else {
-		dbg("ERROR getting Device Ip Address table");
-	}
-
-	# pre compile regex
-	my $qr_no_collect_ifDescr_gen = qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
-	my $qr_no_collect_ifType_gen = qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
-	my $qr_no_collect_ifAlias_gen = qr/($S->{mdl}{interface}{nocollect}{Description})/i;
-	my $qr_no_collect_ifOperStatus_gen = qr/($S->{mdl}{interface}{nocollect}{ifOperStatus})/i;
 	
-	### 2012-03-14 keiths, collecting override based on interface description.
-	my $qr_collect_ifAlias_gen = 0;
-	$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/ if $S->{mdl}{interface}{collect}{Description};
-	
-	my $qr_no_event_ifAlias_gen = qr/($S->{mdl}{interface}{noevent}{Description})/i;
-	my $qr_no_event_ifDescr_gen = qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
-	my $qr_no_event_ifType_gen = qr/($S->{mdl}{interface}{noevent}{ifType})/i;
-	
-	my $intfTotal = 0;
-	my $intfCollect = 0; # reset counters
-
-	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-	foreach my $index (@ifIndexNum) {
-		next if ($intf_one ne '' and $intf_one ne $index);
+		# pre compile regex
+		my $qr_no_collect_ifDescr_gen = qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
+		my $qr_no_collect_ifType_gen = qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
+		my $qr_no_collect_ifAlias_gen = qr/($S->{mdl}{interface}{nocollect}{Description})/i;
+		my $qr_no_collect_ifOperStatus_gen = qr/($S->{mdl}{interface}{nocollect}{ifOperStatus})/i;
 		
-		my $ifDescr = $IF->{$index}{ifDescr};
-			$intfTotal++;
-		# count total number of real interfaces		
-		if ($IF->{$index}{ifType} !~ /$qr_no_collect_ifType_gen/ and $IF->{$index}{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
-			$IF->{$index}{real} = 'true';
-		}
-			
-		# ifDescr must always be filled
-		if ($IF->{$index}{ifDescr} eq "") { $IF->{$index}{ifDescr} = $index; }
-		# check for duplicated ifDescr
-		foreach my $i (keys %{$IF}) {
-			if ($index ne $i and $IF->{$index}{ifDescr} eq $IF->{$i}{ifDescr}) {
-				$IF->{$index}{ifDescr} = "$IF->{$index}{ifDescr}-${index}"; # add index to string
-				$V->{interface}{"${index}_ifDescr_value"} = $IF->{$index}{ifDescr}; # update
-				dbg("Interface Description changed to $IF->{$index}{ifDescr}");
-			}
-		}
-		### add in anything we find from nodeConf - allows manual updating of interface variables
-		### warning - will overwrite what we got from the device - be warned !!!
-		if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
-			$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
-			$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
-			dbg("Manual update of Description by nodeConf");
-		}
-		if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
-			$IF->{$index}{nc_ifSpeed} = $IF->{$index}{ifSpeed}; # save
-			$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
-			### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-			$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
-			dbg("Manual update of ifSpeed by nodeConf");
-		}
-
-		#
-		# preset collect,event on true
-		$IF->{$index}{collect} = "true";
-		$IF->{$index}{event} = "true";
-		#
-		#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
-		# If the interface is admin down no statistics
 		### 2012-03-14 keiths, collecting override based on interface description.
-		if ($qr_collect_ifAlias_gen and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) {
-			$IF->{$index}{collect} = "true";
-			$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
-		}
-		elsif ($IF->{$index}{ifAdminStatus} =~ /down|testing|null/ ) {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{event} = "false";
-			$IF->{$index}{nocollect} = "ifAdminStatus eq down|testing|null"; # reason
-			$IF->{$index}{noevent} = "ifAdminStatus eq down|testing|null"; # reason
-		} 
-		elsif ($IF->{$index}{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{nocollect} = "found $1 in ifDescr"; # reason
-		} 
-		elsif ($IF->{$index}{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{nocollect} = "found $1 in ifType"; # reason
-		} 
-		elsif ($IF->{$index}{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{nocollect} = "found $1 in Description"; # reason
-		} 
-		elsif ($IF->{$index}{Description} eq "" and $M->{interface}{nocollect}{noDescription} eq 'true') {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{nocollect} = "no Description (ifAlias)"; # reason
-		} 
-		elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
-			$IF->{$index}{collect} = "false";
-			$IF->{$index}{nocollect} = "found $1 in ifOperStatus"; # reason
-		}
-
-		# send events ?
-		if ($IF->{$index}{Description} =~ /$qr_no_event_ifAlias_gen/i ) {
-			$IF->{$index}{event} = "false";
-			$IF->{$index}{noevent} = "found $1 in ifAlias"; # reason
-		} 
-		elsif ($IF->{$index}{ifType} =~ /$qr_no_event_ifType_gen/i ) {
-			$IF->{$index}{event} = "false";
-			$IF->{$index}{noevent} = "found $1 in ifType"; # reason
-		} 
-		elsif ($IF->{$index}{ifDescr} =~ /$qr_no_event_ifDescr_gen/i ) {
-			$IF->{$index}{event} = "false";
-			$IF->{$index}{noevent} = "found $1 in ifDescr"; # reason
-		}
-
-		# convert interface name
-		$IF->{$index}{interface} = convertIfName($IF->{$index}{ifDescr});
-		$IF->{$index}{ifIndex} = $index;
+		my $qr_collect_ifAlias_gen = 0;
+		$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/ if $S->{mdl}{interface}{collect}{Description};
 		
-		### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-		# modify by node Config ?
-		if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-			$IF->{$index}{nc_collect} = $IF->{$index}{collect};
-			$IF->{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
-			dbg("Manual update of Collect by nodeConf");
-			if ($IF->{$index}{collect} eq 'false') {
-				$IF->{$index}{nocollect} = "Manual update by nodeConf";
+		my $qr_no_event_ifAlias_gen = qr/($S->{mdl}{interface}{noevent}{Description})/i;
+		my $qr_no_event_ifDescr_gen = qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
+		my $qr_no_event_ifType_gen = qr/($S->{mdl}{interface}{noevent}{ifType})/i;
+
+		my $noDescription = $M->{interface}{nocollect}{noDescription};
+				
+		### 2013-03-05 keiths, global collect policy override from Config!
+    if ( defined $C->{global_nocollect_noDescription} and $C->{global_nocollect_noDescription} ne "" ) {
+    	$noDescription = $C->{global_nocollect_noDescription};
+    	dbg("INFO Model overriden by Global Config for global_nocollect_noDescription");
+    }
+
+    if ( defined $C->{global_collect_Description} and $C->{global_collect_Description} ne "" ) {
+    	$qr_collect_ifAlias_gen = qr/($C->{global_collect_Description})/i;
+    	dbg("INFO Model overriden by Global Config for global_collect_Description");
+    }
+    	
+    if ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" ) {
+    	$qr_no_collect_ifDescr_gen = qr/($C->{global_nocollect_ifDescr})/i;
+    	dbg("INFO Model overriden by Global Config for global_nocollect_ifDescr");
+    }
+
+    if ( defined $C->{global_nocollect_Description} and $C->{global_nocollect_Description} ne "" ) {
+    	$qr_no_collect_ifAlias_gen = qr/($C->{global_nocollect_Description})/i;
+    	dbg("INFO Model overriden by Global Config for global_nocollect_Description");
+    }
+
+    if ( defined $C->{global_nocollect_ifType} and $C->{global_nocollect_ifType} ne "" ) {
+    	$qr_no_collect_ifType_gen = qr/($C->{global_nocollect_ifType})/i;
+    	dbg("INFO Model overriden by Global Config for global_nocollect_ifType");
+    }
+
+    if ( defined $C->{global_nocollect_ifOperStatus} and $C->{global_nocollect_ifOperStatus} ne "" ) {
+    	$qr_no_collect_ifOperStatus_gen = qr/($C->{global_nocollect_ifOperStatus})/i;
+    	dbg("INFO Model overriden by Global Config for global_nocollect_ifOperStatus");
+    }
+
+    if ( defined $C->{global_noevent_ifDescr} and $C->{global_noevent_ifDescr} ne "" ) {
+    	$qr_no_event_ifDescr_gen = qr/($C->{global_noevent_ifDescr})/i;
+    	dbg("INFO Model overriden by Global Config for global_noevent_ifDescr");
+    }
+
+    if ( defined $C->{global_noevent_Description} and $C->{global_noevent_Description} ne "" ) {
+    	$qr_no_event_ifAlias_gen = qr/($C->{global_noevent_Description})/i;
+    	dbg("INFO Model overriden by Global Config for global_noevent_Description");
+    }
+
+    if ( defined $C->{global_noevent_ifType} and $C->{global_noevent_ifType} ne "" ) {
+    	$qr_no_event_ifType_gen = qr/($C->{global_noevent_ifType})/i;
+    	dbg("INFO Model overriden by Global Config for global_noevent_ifType");
+    }
+		
+		my $intfTotal = 0;
+		my $intfCollect = 0; # reset counters
+	
+		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
+		foreach my $index (@ifIndexNum) {
+			next if ($intf_one ne '' and $intf_one ne $index);
+			
+			my $ifDescr = $IF->{$index}{ifDescr};
+				$intfTotal++;
+			# count total number of real interfaces		
+			if ($IF->{$index}{ifType} !~ /$qr_no_collect_ifType_gen/ and $IF->{$index}{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
+				$IF->{$index}{real} = 'true';
 			}
-		}
-		if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-			$IF->{$index}{nc_event} = $IF->{$index}{event};
-			$IF->{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
-			$IF->{$index}{noevent} = "Manual update by nodeConf" if $IF->{$index}{event} eq 'false'; # reason
-			dbg("Manual update of Event by nodeConf");
-		}
-		if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-			$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
-			$IF->{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
-			$IF->{$index}{nothreshold} = "Manual update by nodeConf" if $IF->{$index}{threshold} eq 'false'; # reason
-			dbg("Manual update of Threshold by nodeConf");
-		}
-
-		# interface now up or down, check and set or clear outstanding event.
-		if ( $IF->{$index}{collect} eq 'true'
-				and $IF->{$index}{ifAdminStatus} =~ /up|ok/ 
-				and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/ 
-		) {
-			if ($IF->{$index}{event} eq 'true') {
-				notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+				
+			# ifDescr must always be filled
+			if ($IF->{$index}{ifDescr} eq "") { $IF->{$index}{ifDescr} = $index; }
+			# check for duplicated ifDescr
+			foreach my $i (keys %{$IF}) {
+				if ($index ne $i and $IF->{$index}{ifDescr} eq $IF->{$i}{ifDescr}) {
+					$IF->{$index}{ifDescr} = "$IF->{$index}{ifDescr}-${index}"; # add index to string
+					$V->{interface}{"${index}_ifDescr_value"} = $IF->{$index}{ifDescr}; # update
+					dbg("Interface Description changed to $IF->{$index}{ifDescr}");
+				}
 			}
-		} else {
-			checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+			### add in anything we find from nodeConf - allows manual updating of interface variables
+			### warning - will overwrite what we got from the device - be warned !!!
+			if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
+				$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
+				$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
+				dbg("Manual update of Description by nodeConf");
+			}
+			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
+				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{ifSpeed}; # save
+				$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
+				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
+				dbg("Manual update of ifSpeed by nodeConf");
+			}
+	
+			#
+			# preset collect,event on true
+			$IF->{$index}{collect} = "true";
+			$IF->{$index}{event} = "true";
+			#
+			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
+			# If the interface is admin down no statistics
+			### 2012-03-14 keiths, collecting override based on interface description.
+			if ($qr_collect_ifAlias_gen and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) {
+				$IF->{$index}{collect} = "true";
+				$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
+			}
+			elsif ($IF->{$index}{ifAdminStatus} =~ /down|testing|null/ ) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{event} = "false";
+				$IF->{$index}{nocollect} = "ifAdminStatus eq down|testing|null"; # reason
+				$IF->{$index}{noevent} = "ifAdminStatus eq down|testing|null"; # reason
+			} 
+			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "found $1 in ifDescr"; # reason
+			} 
+			elsif ($IF->{$index}{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "found $1 in ifType"; # reason
+			} 
+			elsif ($IF->{$index}{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "found $1 in Description"; # reason
+			} 
+			elsif ($IF->{$index}{Description} eq "" and $noDescription eq 'true') {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "no Description (ifAlias)"; # reason
+			} 
+			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "found $1 in ifOperStatus"; # reason
+			}
+	
+			# send events ?
+			if ($IF->{$index}{Description} =~ /$qr_no_event_ifAlias_gen/i ) {
+				$IF->{$index}{event} = "false";
+				$IF->{$index}{noevent} = "found $1 in ifAlias"; # reason
+			} 
+			elsif ($IF->{$index}{ifType} =~ /$qr_no_event_ifType_gen/i ) {
+				$IF->{$index}{event} = "false";
+				$IF->{$index}{noevent} = "found $1 in ifType"; # reason
+			} 
+			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_event_ifDescr_gen/i ) {
+				$IF->{$index}{event} = "false";
+				$IF->{$index}{noevent} = "found $1 in ifDescr"; # reason
+			}
+	
+			# convert interface name
+			$IF->{$index}{interface} = convertIfName($IF->{$index}{ifDescr});
+			$IF->{$index}{ifIndex} = $index;
+			
+			### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
+			# modify by node Config ?
+			if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
+				$IF->{$index}{nc_collect} = $IF->{$index}{collect};
+				$IF->{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
+				dbg("Manual update of Collect by nodeConf");
+				if ($IF->{$index}{collect} eq 'false') {
+					$IF->{$index}{nocollect} = "Manual update by nodeConf";
+				}
+			}
+			if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
+				$IF->{$index}{nc_event} = $IF->{$index}{event};
+				$IF->{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
+				$IF->{$index}{noevent} = "Manual update by nodeConf" if $IF->{$index}{event} eq 'false'; # reason
+				dbg("Manual update of Event by nodeConf");
+			}
+			if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
+				$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
+				$IF->{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
+				$IF->{$index}{nothreshold} = "Manual update by nodeConf" if $IF->{$index}{threshold} eq 'false'; # reason
+				dbg("Manual update of Threshold by nodeConf");
+			}
+	
+			# interface now up or down, check and set or clear outstanding event.
+			if ( $IF->{$index}{collect} eq 'true'
+					and $IF->{$index}{ifAdminStatus} =~ /up|ok/ 
+					and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/ 
+			) {
+				if ($IF->{$index}{event} eq 'true') {
+					notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+				}
+			} else {
+				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+			}
+	
+			$IF->{$index}{threshold} = $IF->{$index}{collect};
+	
+			# number of interfaces collected with collect and event on
+			$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
+	
+			# save values only if all interfaces are updated
+			if ($intf_one eq '') {
+				$NI->{system}{intfTotal} = $intfTotal;
+				$NI->{system}{intfCollect} = $intfCollect;
+			}
+	
+			# prepare values for web page
+			$V->{interface}{"${index}_event_value"} = $IF->{$index}{event};
+			$V->{interface}{"${index}_event_title"} = 'Event on';
+	
+			$V->{interface}{"${index}_threshold_value"} = $NC->{node}{threshold} ne 'true' ? 'false': $IF->{$index}{threshold};
+			$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
+	
+			$V->{interface}{"${index}_collect_value"} = $IF->{$index}{collect};
+			$V->{interface}{"${index}_collect_title"} = 'Collect on';
+	
+			# collect status
+			delete $V->{interface}{"${index}_nocollect_title"};
+			if ($IF->{$index}{collect} eq "true") {
+				dbg("ifIndex $index, collect=true");
+			} else {
+				$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
+				$V->{interface}{"${index}_nocollect_title"} = 'Reason';
+				dbg("ifIndex $index, collect=false, $IF->{$index}{nocollect}");
+				# no collect => no event, no threshold
+				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
+				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
+			}
+	
+			# get color depending of state
+			$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
+			$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
+	
+			# index number of interface
+			$V->{interface}{"${index}_ifIndex_value"} = $index;
+			$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 		}
-
-		$IF->{$index}{threshold} = $IF->{$index}{collect};
-
-		# number of interfaces collected with collect and event on
-		$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
-
-		# save values only if all interfaces are updated
-		if ($intf_one eq '') {
-			$NI->{system}{intfTotal} = $intfTotal;
-			$NI->{system}{intfCollect} = $intfCollect;
-		}
-
-		# prepare values for web page
-		$V->{interface}{"${index}_event_value"} = $IF->{$index}{event};
-		$V->{interface}{"${index}_event_title"} = 'Event on';
-
-		$V->{interface}{"${index}_threshold_value"} = $NC->{node}{threshold} ne 'true' ? 'false': $IF->{$index}{threshold};
-		$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
-
-		$V->{interface}{"${index}_collect_value"} = $IF->{$index}{collect};
-		$V->{interface}{"${index}_collect_title"} = 'Collect on';
-
-		# collect status
-		delete $V->{interface}{"${index}_nocollect_title"};
-		if ($IF->{$index}{collect} eq "true") {
-			dbg("ifIndex $index, collect=true");
-		} else {
-			$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
-			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
-			dbg("ifIndex $index, collect=false, $IF->{$index}{nocollect}");
-			# no collect => no event, no threshold
-			$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
-			$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
-		}
-
-		# get color depending of state
-		$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
-		$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
-
-		# index number of interface
-		$V->{interface}{"${index}_ifIndex_value"} = $index;
-		$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
+	
+		dbg("Finished");
 	}
-
-	dbg("Finished");
+	else {
+		dbg("Skipping, interfaces not defined in Model");		
+	}
 	return 1;
 } # end getIntfInfo
 
@@ -1895,11 +1949,12 @@ sub processAlerts {
 	for( my $i = 0; $i < @{$alerts}; $i++)
 	{
 		my $alert = shift @{$alerts};
-		dbg("Processing alert ".Dumper($alert));
+		dbg("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+		dbg("Processing alert ".Dumper($alert),2);
 		if( $alert->{test_result} ) {
-			notify(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
 		} else {
-			checkEvent(sys=>$S, event=>"ALERT: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
 		}
 
 	}
@@ -3531,7 +3586,7 @@ sub runReach {
 			$memWeight = 100;
 		}
 
-		if ( $NI->{system}{collect} eq 'true' ) {
+		if ( $NI->{system}{collect} eq 'true' and defined $S->{mdl}{interface}{nocollect}{ifDescr} ) {
 			dbg("Getting Interface Utilisation Health");
 			$intcount = 0;
 			$intsummary = 0;
@@ -3950,8 +4005,8 @@ sub runEscalate {
 	my $II = loadInterfaceInfo();
 
 	my $LocationsTable = loadLocationsTable();
-	my $ServiceStatusTable = loadServiceStatusTable();
-	my $BusinessServicesTable = loadBusinessServicesTable();
+	my $ServiceStatusTable = loadGenericTable('ServiceStatus');
+	my $BusinessServicesTable = loadGenericTable('BusinessServices');
 
 	# Load the event table into the hash
 	# have to maintain a lock over all of this
@@ -4819,6 +4874,22 @@ sub runDaemons {
 #=========================================================================================
 
 sub checkConfig {
+	my %args = @_;
+	my $change = $args{change};
+	my $audit = $args{audit};
+
+	local *checkFunc;
+	my $checkType;
+
+	# depending on our job, create dir or just check them.
+	if ($change eq "true") {
+		*checkFunc = \&createDir;
+		$checkType = "Checking"
+	} 
+	else {
+		*checkFunc = \&checkDir;
+		$checkType = "Auditing"
+	}
 
 	# check if nmis_base already oke
 	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl")) {
@@ -4871,44 +4942,44 @@ EO_TEXT
 	}
 	
 	# Do the var directories exist if not make them?
-	dbg("Config Checking - Checking var directories, $C->{'<nmis_var>'}");
+	dbg("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
 	if ($C->{'<nmis_var>'} ne '') {
-		createDir("$C->{'<nmis_var>'}");
+		checkFunc("$C->{'<nmis_var>'}");
 	}
 
 	# Do the log directories exist if not make them?
-	dbg("Config Checking - Checking log directories, $C->{'<nmis_logs>'}");
+	dbg("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
-		createDir("$C->{'<nmis_logs>'}");
-		createDir("$C->{'json_logs'}");
-		createDir("$C->{'config_logs'}");
+		checkFunc("$C->{'<nmis_logs>'}");
+		checkFunc("$C->{'json_logs'}");
+		checkFunc("$C->{'config_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?
-	dbg("Config Checking - Checking conf directories, $C->{'<nmis_conf>'}");
+	dbg("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
 	if ($C->{'<nmis_conf>'} ne '') {
-		createDir("$C->{'<nmis_conf>'}");
+		checkFunc("$C->{'<nmis_conf>'}");
 	}
 		
 	# Do the database directories exist if not make them?
-	dbg("Config Checking - Checking database directories");
+	dbg("Config $checkType - Checking database directories");
 	if ($C->{database_root} ne '') {
-		createDir("$C->{database_root}");
-		createDir("$C->{database_root}/health");
-		createDir("$C->{database_root}/metrics");
-		createDir("$C->{database_root}/misc");
-		createDir("$C->{database_root}/ipsla");
-		createDir("$C->{database_root}/health/generic");
-		createDir("$C->{database_root}/health/router");
-		createDir("$C->{database_root}/health/switch");
-		createDir("$C->{database_root}/health/server");
-		createDir("$C->{database_root}/health/firewall");
-		createDir("$C->{database_root}/interface");
-		createDir("$C->{database_root}/interface/generic");
-		createDir("$C->{database_root}/interface/router");
-		createDir("$C->{database_root}/interface/switch");
-		createDir("$C->{database_root}/interface/server"); 
-		createDir("$C->{database_root}/interface/firewall"); 
+		checkFunc("$C->{database_root}");
+		checkFunc("$C->{database_root}/health");
+		checkFunc("$C->{database_root}/metrics");
+		checkFunc("$C->{database_root}/misc");
+		checkFunc("$C->{database_root}/ipsla");
+		checkFunc("$C->{database_root}/health/generic");
+		checkFunc("$C->{database_root}/health/router");
+		checkFunc("$C->{database_root}/health/switch");
+		checkFunc("$C->{database_root}/health/server");
+		checkFunc("$C->{database_root}/health/firewall");
+		checkFunc("$C->{database_root}/interface");
+		checkFunc("$C->{database_root}/interface/generic");
+		checkFunc("$C->{database_root}/interface/router");
+		checkFunc("$C->{database_root}/interface/switch");
+		checkFunc("$C->{database_root}/interface/server"); 
+		checkFunc("$C->{database_root}/interface/firewall"); 
 	} else {
 		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
 	}
@@ -4919,14 +4990,65 @@ EO_TEXT
 		close LOG;
 		setFileProt("$C->{'<nmis_logs>'}/nmis.log");
 	}
+	else {
+		checkFile("$C->{'<nmis_logs>'}/nmis.log");
+	}
+	
 	if ( not existFile(dir=>'var',name=>'nmis-event')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-event');
 		writeTable(dir=>'var',name=>'nmis-event',data=>$hsh);
 	}
+	else {
+		checkFile("$C->{'<nmis_var>'}/nmis-event.nmis");
+	}
+
 	if ( not existFile(dir=>'var',name=>'nmis-system')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-system');
 		$hsh->{startup} = time();
 		writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
+	}
+	else {
+		checkFile("$C->{'<nmis_var>'}/nmis-system.nmis");
+	}
+	
+	if ( $change eq "true" ) {
+    setFileProtDirectory($C->{'<nmis_admin>'});
+    setFileProtDirectory($C->{'<nmis_bin>'});
+    setFileProtDirectory($C->{'<nmis_cgi>'});
+    setFileProtDirectory($C->{'<nmis_conf>'});
+    setFileProtDirectory($C->{'<nmis_data>'});
+    setFileProtDirectory($C->{'<nmis_logs>'});
+    setFileProtDirectory($C->{'<nmis_menu>'});
+    setFileProtDirectory($C->{'<nmis_models>'});
+    setFileProtDirectory($C->{'<nmis_var>'});
+    setFileProtDirectory($C->{'config_logs'});
+    setFileProtDirectory($C->{'database_root'});
+    setFileProtDirectory($C->{'json_logs'});
+    setFileProtDirectory($C->{'log_root'});
+    setFileProtDirectory($C->{'mib_root'});
+    setFileProtDirectory($C->{'report_root'});
+    setFileProtDirectory($C->{'script_root'});
+    setFileProtDirectory($C->{'web_root'});
+	}
+
+	if ( $audit eq "true" ) {
+    checkDirectoryFiles($C->{'<nmis_admin>'});
+    checkDirectoryFiles($C->{'<nmis_bin>'});
+    checkDirectoryFiles($C->{'<nmis_cgi>'});
+    checkDirectoryFiles($C->{'<nmis_conf>'});
+    checkDirectoryFiles($C->{'<nmis_data>'});
+    checkDirectoryFiles($C->{'<nmis_logs>'});
+    checkDirectoryFiles($C->{'<nmis_menu>'});
+    checkDirectoryFiles($C->{'<nmis_models>'});
+    checkDirectoryFiles($C->{'<nmis_var>'});
+    checkDirectoryFiles($C->{'config_logs'});
+    checkDirectoryFiles($C->{'database_root'});
+    checkDirectoryFiles($C->{'json_logs'});
+    checkDirectoryFiles($C->{'log_root'});
+    checkDirectoryFiles($C->{'mib_root'});
+    checkDirectoryFiles($C->{'report_root'});
+    checkDirectoryFiles($C->{'script_root'});
+    checkDirectoryFiles($C->{'web_root'});
 	}
 
 	#== convert config .csv to .nmis (hash) file format ==
@@ -5104,6 +5226,7 @@ command line options are:
 													 master    Run NMIS Master Functions
 													 escalate  Run the escalation routine only ( debug use only)
 													 config    Validate the chosen configuration file
+													 audit     Audit the configuration without changes
 													 apache    Produce Apache configuration for NMIS
 													 crontab   Produce Crontab configuration for NMIS
 													 links     Generate the links.csv file.

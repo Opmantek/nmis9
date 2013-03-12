@@ -1,0 +1,7 @@
+%hash = (
+			ifTypes => [
+				{ index => { header => 'Index',display => 'key,header,text', value => [""] }},
+				{ ifType => { header => 'ifType',display => 'header,text', value => [ "" ] }}
+			]
+);
+

@@ -13,6 +13,7 @@
   },
   'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',
+    '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
     '<nmis_cgi>' => '<nmis_base>/cgi-bin',
     '<nmis_conf>' => '<nmis_base>/conf',
@@ -34,6 +35,15 @@
   'globals' => {
     'global_threshold' => 'true',
     'threshold_poll_cycle' => 'true',
+    'global_collect_Description' => '(CNOC|Collection)',
+    'global_nocollect_ifOperStatus' => '',
+    'global_nocollect_ifDescr' => '',
+    'global_nocollect_Description' => '',
+    'global_nocollect_noDescription' => 'true',
+    'global_nocollect_ifType' => '',
+    'global_noevent_ifDescr' => '',
+    'global_noevent_Description' => '',
+    'global_noevent_ifType' => ''
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
@@ -49,7 +59,8 @@
     'os_cmd_file_decompress' => 'gzip -d -c',
     'os_kernelname' => '',
     'os_username' => 'nmis',
-    'os_fileperm' => '0775',
+    'os_execperm' => '0770',
+    'os_fileperm' => '0660',
     'report_files_max' => '60',
     'page_bg_color_full' => 'true',
     'loc_from_sysLoc' => 'false',
@@ -64,6 +75,8 @@
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
     'nmis_group' => 'nmis',
+    'nmis_executable' => '\.pl$|\.sh$',
+    'file_size_warning' => '100000000',
     'default_communityRO' => 'public',
     'default_username' => '',
     'default_authpassword' => '',
@@ -96,7 +109,8 @@
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
     'snmp_stop_polling_on_error' => 'true',
-    'node_configuration_events' => 'Node Configuration Change, Node Reset'
+    'node_configuration_events' => 'Node Configuration Change, Node Reset',
+    'non_stateful_events' => 'Node Configuration Change, Node Reset'
   },
   'url' => {
     '<url_base>' => '/nmis8',

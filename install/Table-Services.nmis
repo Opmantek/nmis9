@@ -1,0 +1,10 @@
+%hash = (
+			Services => [
+				{ 'Name' => { header => 'Name',display => 'key,header,text', value => [ '' ] }},
+				{ 'Service_Name' => { header => 'Service Name',display => 'header,text', value => [ '' ] }},
+				{ 'Service_Type' => { header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi' ] }},
+				{ 'Port' => { header => 'Port',display => 'header,text', value => [ '' ] }},
+				{ 'Poll_Interval' => { header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1h", "1d" ] }}
+			]
+);
+

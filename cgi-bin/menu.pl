@@ -281,30 +281,25 @@ sub menu_bar_site {
 													)
 												]
 											);
-											
-											
+
+		my @tableMenu;		 
+
+		my $Tables = loadGenericTable('Tables');
+			
+		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|;
+		push @tableMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|;
+		push @tableMenu, qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|;
+		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|;
+		push @tableMenu, qq|------|;
+
+		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} }keys %{$Tables}) { 
+			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if $table ne "Nodes";
+		}
+																						
 		push @menu_site,(	qq|System|,
 											[
 												( qq|System Configuration|,
-													[	
-														qq|<a id='cfg_access' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Access">Access</a>|,
-														qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
-														qq|<a id='cfg_contacts' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contacts</a>|,
-														qq|<a id='cfg_escalations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Escalations</a>|,
-														qq|<a id='cfg_iftypes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ifTypes">ifTypes</a>|,
-														qq|<a id='cfg_locations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Locations">Locations</a>|,
-														qq|<a id='cfg_logs' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Logs">Logs</a>|,
-														qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">Models</a>|,
-														qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|,
-														qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|,
-														qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">Nodes (devices)</a>|,
-														qq|<a id='cfg_portal' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Portal">Portal</a>|,
-														qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=PrivMap">PrivMap</a>|,
-														qq|<a id='cfg_services' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Services">Services</a>|,
-														qq|<a id='cfg_servicestatus' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ServiceStatus">Service Status</a>|,
-														qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,														
-														qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
-													]
+													[	@tableMenu ]
 												),
 												( qq|Configuration Check|,
 													[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
@@ -326,6 +321,50 @@ sub menu_bar_site {
 												)
 											]
 										);
+
+		#push @menu_site,(	qq|OLD System|,
+		#									[
+		#										( qq|System Configuration|,
+		#											[	
+		#												qq|<a id='cfg_access' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Access">Access</a>|,
+		#												qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
+		#												qq|<a id='cfg_cmdbmodels' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=cmdbModels">CMDB Models</a>|,
+		#												qq|<a id='cfg_contacts' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contacts</a>|,
+		#												qq|<a id='cfg_escalations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Escalations</a>|,
+		#												qq|<a id='cfg_iftypes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ifTypes">ifTypes</a>|,
+		#												qq|<a id='cfg_locations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Locations">Locations</a>|,
+		#												qq|<a id='cfg_logs' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Logs">Logs</a>|,
+		#												qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|,
+		#												qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|,
+		#												qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|,
+		#												qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">Nodes (devices)</a>|,
+		#												qq|<a id='cfg_portal' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Portal">Portal</a>|,
+		#												qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=PrivMap">PrivMap</a>|,
+		#												qq|<a id='cfg_services' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Services">Services</a>|,
+		#												qq|<a id='cfg_servicestatus' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ServiceStatus">Service Status</a>|,
+		#												qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,
+		#											]
+		#										),
+		#										( qq|Configuration Check|,
+		#											[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
+		#												qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>|
+		#											]
+		#										),
+		#										( qq|Host Diagnostics|,
+		#											[
+		#												qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
+		#												qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|,
+		#												qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|,
+		#												qq|<a id='tls_date' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_date">date</a>|,
+		#												qq|<a id='tls_df' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_df">df</a>|,
+		#												qq|<a id='tls_ps' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ps">ps</a>|,
+		#												qq|<a id='tls_iostat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_iostat">iostat</a>|,
+		#												qq|<a id='tls_vmstat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_vmstat">vmstat</a>|,
+		#												qq|<a id='tls_who' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_who">who</a>|
+		#											]
+		#										)
+		#									]
+		#								);
 										
 		push @menu_site,( qq|Quick Select|,
 												[	qq|<a id='selectServer_open' onclick="selectServerDisplay();return false;">NMIS Server</a>|,

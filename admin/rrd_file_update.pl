@@ -184,22 +184,3 @@ sub processRRDFile {
 	}
 }
 
-sub backupFile {
-	my %arg = @_;
-	my $buff;
-	if ( -r $arg{file} ) {
-		open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
-		open(OUT,">$arg{backup}") or warn ("ERROR: problem with file $arg{backup}; $!");
-		binmode(IN);
-		binmode(OUT);
-		while (read(IN, $buff, 8 * 2**10)) {
-		    print OUT $buff;
-		}
-		close(IN);
-		close(OUT);
-		return 1;
-	} else {
-		print STDERR "ERROR, backupFile file $arg{file} not readable.\n";
-		return 0;
-	}
-}

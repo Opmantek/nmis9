@@ -53,11 +53,12 @@
     }
   },
  'system' => {
-    'nodegraph' => 'health,response,ip,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008',
     'rrd' => {
       'hrwin' => {
+        'graphtype' => 'hrwincpuint,hrwinpps,hrwinusers,hrwinmem',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers'
@@ -81,63 +82,132 @@
             'oid' => 'cpuInterruptsPerSec.1.48'
           }
         },
-        'graphtype' => 'hrwincpuint,hrwinpps,hrwinusers,hrwinmem',
       },
-      'mib2ip' => {
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {
-          'ipFragFails' => {
-            'oid' => 'ipFragFails'
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
           },
-          'ipInAddrErrors' => {
-            'oid' => 'ipInAddrErrors'
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
           },
-          'ipOutRequests' => {
-            'oid' => 'ipOutRequests'
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
           },
-          'ipFragCreates' => {
-            'oid' => 'ipFragCreates'
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
           },
-          'ipInDiscards' => {
-            'oid' => 'ipInDiscards'
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
           },
-          'ipOutNoRoutes' => {
-            'oid' => 'ipOutNoRoutes'
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
           },
-          'ipInHdrErrors' => {
-            'oid' => 'ipInHdrErrors'
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
           },
-          'ipInReceives' => {
-            'oid' => 'ipInReceives'
+          'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
           },
-          'ipFragOKs' => {
-            'oid' => 'ipFragOKs'
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
           },
-          'ipForwDatagrams' => {
-            'oid' => 'ipForwDatagrams'
-          },
-          'ipOutDiscards' => {
-            'oid' => 'ipOutDiscards'
-          },
-          'ipInDelivers' => {
-            'oid' => 'ipInDelivers'
-          },
-          'ipReasmFails' => {
-            'oid' => 'ipReasmFails'
-          },
-          'ipReasmOKs' => {
-            'oid' => 'ipReasmOKs'
-          },
-          'ipReasmReqds' => {
-            'oid' => 'ipReasmReqds'
-          },
-          'ipInUnknownProtos' => {
-            'oid' => 'ipInUnknownProtos'
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
           }
         },
-        'graphtype' => 'ip,frag'
+      },
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        }
       }
     },
     'sys' => {
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 250',
+              'event' => 'High TCP Connection Count',
+              'level' => 'Warning'
+            }
+          }
+        }
+      },
       'standard' => {
         'snmp' => {
           'sysLocation' => {
@@ -185,7 +255,7 @@
           'hrProcesses' => {
             'oid' => 'hrSystemProcesses.0',
             'title' => 'Processes'
-          }
+          },
         }
       }
     },

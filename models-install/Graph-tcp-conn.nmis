@@ -1,0 +1,85 @@
+#
+## $Id: Graph-ip.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+# Graph tcp-conns: tcpActiveOpens, tcpPassiveOpens, tcpAttemptFails, tcpEstabResets and tcpCurrEstab
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'TCP Connection Statistics',
+		'short' => 'TCP Connection Stats'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:tcpActiveOpens=$database:tcpActiveOpens:AVERAGE',
+			'DEF:tcpPassiveOpens=$database:tcpPassiveOpens:AVERAGE',
+			'DEF:tcpAttemptFails=$database:tcpAttemptFails:AVERAGE',
+			'DEF:tcpEstabResets=$database:tcpEstabResets:AVERAGE',
+			'DEF:tcpCurrEstab=$database:tcpCurrEstab:AVERAGE',
+
+			'LINE1:tcpActiveOpens#00ff00:Active Opens',
+			'LINE1:tcpPassiveOpens#0000ff:Passive Opens',
+			'LINE1:tcpAttemptFails#ff0000:Attempt Fails',
+			'LINE1:tcpEstabResets#ffff00:Established Resets',
+			'LINE1:tcpCurrEstab#000000:Current Established',
+
+			#'AREA:ipInReceives#cccccc:IP Packets Received',
+			#'STACK:ipInDelivers#000000:IP Packets Local',
+
+			'GPRINT:tcpActiveOpens:AVERAGE:Avg Active Opens %1.2lf',
+			'GPRINT:tcpPassiveOpens:AVERAGE:Avg Passive Opens %1.2lf',
+			'GPRINT:tcpAttemptFails:AVERAGE:Avg Attempt Fails %1.2lf',
+			'GPRINT:tcpEstabResets:AVERAGE:Avg Established Resets %1.2lf\\n',
+
+			'GPRINT:tcpActiveOpens:MAX:Max Active Opens %1.2lf',
+			'GPRINT:tcpPassiveOpens:MAX:Max Passive Opens %1.2lf',
+			'GPRINT:tcpAttemptFails:MAX:Max Attempt Fails %1.2lf',
+			'GPRINT:tcpEstabResets:MAX:Max Established Resets %1.2lf',
+
+			'GPRINT:tcpCurrEstab:AVERAGE:Avg Current Established %1.2lf',
+		],
+		'small' => [
+			'DEF:tcpActiveOpens=$database:tcpActiveOpens:AVERAGE',
+			'DEF:tcpPassiveOpens=$database:tcpPassiveOpens:AVERAGE',
+			'DEF:tcpAttemptFails=$database:tcpAttemptFails:AVERAGE',
+			'DEF:tcpEstabResets=$database:tcpEstabResets:AVERAGE',
+			'DEF:tcpCurrEstab=$database:tcpCurrEstab:AVERAGE',
+			'LINE1:tcpActiveOpens#00ff00:Active Opens',
+			'LINE1:tcpPassiveOpens#0000ff:Passive Opens',
+			'LINE1:tcpAttemptFails#ff0000:Attempt Fails',
+			'LINE1:tcpEstabResets#ffff00:Established Resets',
+			'LINE1:tcpCurrEstab#000000:Current Established',
+		]
+	}
+);

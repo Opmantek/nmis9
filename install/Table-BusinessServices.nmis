@@ -1,0 +1,9 @@
+%hash = (
+			BusinessServices => [
+				{ businessService => { header => 'Business Service',display => 'key,header,text', value => [""] }},
+				{ businessPriority => { header => 'Business Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }},
+				{ serviceType => { header => 'Service Type',display => 'header,text', value => [""] }},
+				{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+			]
+);
+

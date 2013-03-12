@@ -1,0 +1,6 @@
+%hash = (
+			Enterprise => [
+				{ OID => { header => 'OID',display => 'key,header,text', value => [""] }},
+				{ Enterprise => { header => 'Enterprise (Vendor)',display => 'header,text', value => [ "" ] }}
+			]
+);

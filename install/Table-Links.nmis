@@ -1,0 +1,19 @@
+%hash = (
+			Links => [
+				{ subnet => { header => 'Subnet',display => 'key,header,text', value => [""] }},
+				{ mask => { header => 'Mask',display => 'header,text', value => [""] }},
+				{ node1 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ interface1 => { header => 'Interface',display => 'header,text', value => [""] }},
+				{ ifIndex1 => { header => 'Index',display => 'text', value => [""] }},
+				{ node2 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ interface2 => { header => 'Interface',display => 'header,text', value => [""] }},
+				{ ifIndex2 => { header => 'Index',display => 'text', value => [""] }},
+				{ ifType => { header => 'Type',display => 'text', value => [""] }},
+				{ ifSpeed => { header => 'Speed',display => 'text', value => [""] }},
+				{ link => { header => 'Link',display => 'header,text', value => [""] }},
+				{ depend => { header => 'Depend',display => 'text', value => [""] }},
+				{ role => { header => 'Role Type',display => 'popup', value => ["core", "distribution", "access"] }},
+				{ net => { header => 'Net Type',display => 'popup', value => ["wan","lan"] }}
+			]
+);
+

@@ -1,0 +1,20 @@
+%hash = (
+			Toolset => [
+				{ button => { header => 'Name',display => 'key,header,text', value => [""] }},
+				{ bgroup => { header => 'Type',display => 'header,popup', value => ["tool"] }},
+				{ display => { header => 'Display',display => 'header,text', value => [""] }},
+				{ level0 => { header => $privs[0],display => 'header,popup', value => ["1","0"] }},
+				{ level1 => { header => $privs[1],display => 'header,popup', value => ["0","1"] }},
+				{ level2 => { header => $privs[2],display => 'header,popup', value => ["0","1"] }},
+				{ level3 => { header => $privs[3],display => 'header,popup', value => ["0","1"] }},
+				{ level4 => { header => $privs[4],display => 'header,popup', value => ["0","1"] }},
+				{ level5 => { header => $privs[5],display => 'header,popup', value => ["0","1"] }},
+				{ urlbase => { header => 'UrlBase',display => 'text', value => [""] }},
+				{ urlscript => { header => 'UrlScript',display => 'text', value => [""] }},
+				{ useconfig => { header => 'UseConfig',display => 'text', value => [""] }},
+				{ needconfig => { header => 'NeedConfig',display => 'popup', value => ["no","yes"] }},
+				{ urlquery => { header => 'UrlQuery',display => 'text', value => [""] }},
+				{ usetarget => { header => 'UseTarget',display => 'text', value => [""] }}
+			]
+);
+
