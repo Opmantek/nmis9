@@ -50,8 +50,30 @@ print "The directory to be processed is: $C->{'<nmis_base>'}\n";
 print "The user will be set to: $C->{nmis_user}\n";
 print "The group will be set to: $C->{nmis_group}\n";
 
-my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_base>'}`;
-print $output;
+if ( not $< == 0) { # NOT root
+	print "\nWARNING: You are NOT the ROOT user, so this will likely not work well, but we will do our best\n\n";
+}
+else {	
+	my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_base>'}`;
+	print $output;
+}
+#my $output = `chmod -R g+w $C->{'<nmis_base>'}`;
+#print $output;
 
-my $output = `chmod -R g+w $C->{'<nmis_base>'}`;
-print $output;
+setFileProtDirectory($C->{'<nmis_admin>'});
+setFileProtDirectory($C->{'<nmis_bin>'});
+setFileProtDirectory($C->{'<nmis_cgi>'});
+setFileProtDirectory($C->{'<nmis_conf>'});
+setFileProtDirectory($C->{'<nmis_data>'});
+setFileProtDirectory($C->{'<nmis_logs>'});
+setFileProtDirectory($C->{'<nmis_menu>'});
+setFileProtDirectory($C->{'<nmis_models>'});
+setFileProtDirectory($C->{'<nmis_var>'});
+setFileProtDirectory($C->{'config_logs'});
+setFileProtDirectory($C->{'database_root'});
+setFileProtDirectory($C->{'json_logs'});
+setFileProtDirectory($C->{'log_root'});
+setFileProtDirectory($C->{'mib_root'});
+setFileProtDirectory($C->{'report_root'});
+setFileProtDirectory($C->{'script_root'});
+setFileProtDirectory($C->{'web_root'});

@@ -13,6 +13,7 @@
   },
   'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',
+    '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
     '<nmis_cgi>' => '<nmis_base>/cgi-bin',
     '<nmis_conf>' => '<nmis_base>/conf',

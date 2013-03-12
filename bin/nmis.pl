@@ -5011,7 +5011,28 @@ EO_TEXT
 		checkFile("$C->{'<nmis_var>'}/nmis-system.nmis");
 	}
 	
+	if ( $change eq "true" ) {
+    setFileProtDirectory($C->{'<nmis_admin>'});
+    setFileProtDirectory($C->{'<nmis_bin>'});
+    setFileProtDirectory($C->{'<nmis_cgi>'});
+    setFileProtDirectory($C->{'<nmis_conf>'});
+    setFileProtDirectory($C->{'<nmis_data>'});
+    setFileProtDirectory($C->{'<nmis_logs>'});
+    setFileProtDirectory($C->{'<nmis_menu>'});
+    setFileProtDirectory($C->{'<nmis_models>'});
+    setFileProtDirectory($C->{'<nmis_var>'});
+    setFileProtDirectory($C->{'config_logs'});
+    setFileProtDirectory($C->{'database_root'});
+    setFileProtDirectory($C->{'json_logs'});
+    setFileProtDirectory($C->{'log_root'});
+    setFileProtDirectory($C->{'mib_root'});
+    setFileProtDirectory($C->{'report_root'});
+    setFileProtDirectory($C->{'script_root'});
+    setFileProtDirectory($C->{'web_root'});
+	}
+
 	if ( $audit eq "true" ) {
+    checkDirectoryFiles($C->{'<nmis_admin>'});
     checkDirectoryFiles($C->{'<nmis_bin>'});
     checkDirectoryFiles($C->{'<nmis_cgi>'});
     checkDirectoryFiles($C->{'<nmis_conf>'});

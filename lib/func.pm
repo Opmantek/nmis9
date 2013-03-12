@@ -96,6 +96,7 @@ $VERSION = 1.00;
 		loadTable
 		writeTable
 		setFileProt
+		setFileProtDirectory
 		existFile
 		mtimeFile
 		writeHashtoFile
@@ -705,7 +706,7 @@ sub setFileProt {
 		logMsg("ERROR, file=$filename does not exist");
 		return ;
 	}
-
+	
 	# set the permissions. Skip if not running as root
 	if ( $< == 0) { # root
 		if ($username eq '') {
@@ -730,12 +731,44 @@ sub setFileProt {
 			}
 		}
 		dbg("set file owner/permission of $filename to $username, $permission",3);
+		
 		if (!(($login,$pass,$uid,$gid) = getpwnam($username))) {
 			logMsg("ERROR, unknown username $username");
 		} else {
 			if (!chown($uid,$gid,$filename)) {
 				logMsg("ERROR, could not change ownership $filename to $username, $!");
 			}
+			if (!chmod(oct($permission), $filename)) {
+				logMsg("ERROR, could not change $filename permissions to $permission, $!");
+			}
+		}
+	}
+	# you don't need to be root to set the group!
+	else {
+		# Get the current UID and GID of the file.
+		my $fstat = stat($filename);
+		my $fuid = $fstat->uid;
+		my $myuid = $<;
+				
+		# unless your root you can't change files you don't own.
+		if ( $fuid == $myuid ) {
+			my $gid = getgrnam($C->{'nmis_group'});
+	
+			my $cnt = chown($myuid, $gid, $filename);
+			if (not $cnt) {
+				logMsg("ERROR, could not set the group of $filename $C->{'nmis_group'}.");
+			}
+			
+			if ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
+				$permission = $C->{'os_execperm'} ;
+			} 
+			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
+				$permission = $C->{'os_fileperm'} ;
+			} 
+			else {
+				$permission = "0660"; # default
+			}
+			
 			if (!chmod(oct($permission), $filename)) {
 				logMsg("ERROR, could not change $filename permissions to $permission, $!");
 			}
@@ -1499,7 +1532,7 @@ sub checkDir {
     my $group_rwx = ($mode & S_IRWXG) >> 3;
 
 		if ( $user_rwx ) {
-			push(@messages,"INFO: $dir has user read-write-execute permissions");			
+			push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1507,7 +1540,7 @@ sub checkDir {
 		}
 
 		if ( $group_rwx ) {
-			push(@messages,"INFO: $dir has group read-write-execute permissions");			
+			push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1515,7 +1548,7 @@ sub checkDir {
 		}
 		
 		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username");			
+			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1523,7 +1556,7 @@ sub checkDir {
 		}
 
 		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config os_username=$username");			
+			push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1531,7 +1564,7 @@ sub checkDir {
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname");			
+			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1589,7 +1622,7 @@ sub checkFile {
 	    my $other_rwx = ($mode & S_IRWXO);
 	    
 			if ( $user_rwx ) {
-				push(@messages,"INFO: $file has user read-write-execute permissions");			
+				push(@messages,"INFO: $file has user read-write-execute permissions") if $C->{debug};			
 			}
 			else {
 				$result = 0;
@@ -1597,7 +1630,7 @@ sub checkFile {
 			}
 	
 			if ( $group_rwx ) {
-				push(@messages,"INFO: $file has group read-write-execute permissions");			
+				push(@messages,"INFO: $file has group read-write-execute permissions") if $C->{debug};			
 			}
 			else {
 				$result = 0;
@@ -1618,7 +1651,7 @@ sub checkFile {
 	    my $other_w = ($mode & S_IWOTH);
 
 			if ( $user_r and $user_w ) {
-				push(@messages,"INFO: $file has user read-write permissions");			
+				push(@messages,"INFO: $file has user read-write permissions") if $C->{debug};
 			}
 			else {
 				$result = 0;
@@ -1626,7 +1659,7 @@ sub checkFile {
 			}
 	
 			if ( $group_r and $group_w ) {
-				push(@messages,"INFO: $file has group read-write permissions");			
+				push(@messages,"INFO: $file has group read-write permissions") if $C->{debug};			
 			}
 			else {
 				$result = 0;
@@ -1644,7 +1677,7 @@ sub checkFile {
 		}
 
 		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_user=$username");			
+			push(@messages,"INFO: $file has correct owner from config nmis_user=$username") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1652,7 +1685,7 @@ sub checkFile {
 		}
 
 		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config os_username=$username");			
+			push(@messages,"INFO: $file has correct owner from config os_username=$username") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1660,7 +1693,7 @@ sub checkFile {
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname");			
+			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname") if $C->{debug};			
 		}
 		else {
 			$result = 0;
@@ -1690,6 +1723,18 @@ sub checkDirectoryFiles {
 	}
 }
 
+sub setFileProtDirectory {
+	my $dir = shift;
+	opendir (DIR, "$dir");
+	my @dirlist = readdir DIR;
+	closedir DIR;
+	
+	foreach my $file (@dirlist) {
+		if ( -f "$dir/$file" and $file !~ /^\./ ) {
+			setFileProt("$dir/$file");
+		}
+	}
+}
 
 # 100 = red, 0 = green
 # red: rgb(255,0,0)
