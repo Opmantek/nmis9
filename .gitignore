@@ -2,6 +2,7 @@ archive/*
 conf/*
 models/*
 logs/*
+logs
 var/*
 database/*
 *.swp
