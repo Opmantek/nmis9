@@ -34,6 +34,15 @@
   'globals' => {
     'global_threshold' => 'true',
     'threshold_poll_cycle' => 'true',
+    'global_collect_Description' => '(CNOC|Collection)',
+    'global_nocollect_ifOperStatus' => '',
+    'global_nocollect_ifDescr' => '',
+    'global_nocollect_Description' => '',
+    'global_nocollect_noDescription' => 'true',
+    'global_nocollect_ifType' => '',
+    'global_noevent_ifDescr' => '',
+    'global_noevent_Description' => '',
+    'global_noevent_ifType' => ''
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
@@ -96,7 +105,8 @@
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
     'snmp_stop_polling_on_error' => 'true',
-    'node_configuration_events' => 'Node Configuration Change, Node Reset'
+    'node_configuration_events' => 'Node Configuration Change, Node Reset',
+    'non_stateful_events' => 'Node Configuration Change, Node Reset'
   },
   'url' => {
     '<url_base>' => '/nmis8',

@@ -138,6 +138,19 @@
       }
     },
     'sys' => {
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 250',
+              'event' => 'High TCP Connection Count',
+              'level' => 'Warning'
+            }
+          }
+        }
+      },
       'standard' => {
         'snmp' => {
           'sysLocation' => {

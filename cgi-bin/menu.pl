@@ -289,6 +289,7 @@ sub menu_bar_site {
 													[	
 														qq|<a id='cfg_access' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Access">Access</a>|,
 														qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
+														qq|<a id='cfg_cmdbmodels' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=cmdbModels">CMDB Models</a>|,
 														qq|<a id='cfg_contacts' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contacts</a>|,
 														qq|<a id='cfg_escalations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Escalations</a>|,
 														qq|<a id='cfg_iftypes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ifTypes">ifTypes</a>|,
