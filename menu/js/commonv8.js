@@ -142,7 +142,11 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 					document.body.appendChild(script);
 				}
 
-			}
+			},
+			error: function (xhr, ajaxOptions, thrownError) {
+				// this error is expected from older versions of opflow
+				console.log("opFlow requires updating to work with this version of NMIS");
+      }
 		});
 	}
 
