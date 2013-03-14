@@ -4993,6 +4993,15 @@ EO_TEXT
 	else {
 		checkFile("$C->{'<nmis_logs>'}/nmis.log");
 	}
+
+	if ( not existFile(dir=>'logs',name=>'auth.log')) { 
+		open(LOG,">>$C->{'<nmis_logs>'}/auth.log");
+		close LOG;
+		setFileProt("$C->{'<nmis_logs>'}/auth.log");
+	}
+	else {
+		checkFile("$C->{'<nmis_logs>'}/auth.log");
+	}
 	
 	if ( not existFile(dir=>'var',name=>'nmis-event')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-event');
@@ -5012,43 +5021,43 @@ EO_TEXT
 	}
 	
 	if ( $change eq "true" ) {
-    setFileProtDirectory($C->{'<nmis_admin>'});
-    setFileProtDirectory($C->{'<nmis_bin>'});
-    setFileProtDirectory($C->{'<nmis_cgi>'});
-    setFileProtDirectory($C->{'<nmis_conf>'});
-    setFileProtDirectory($C->{'<nmis_data>'});
-    setFileProtDirectory($C->{'<nmis_logs>'});
-    setFileProtDirectory($C->{'<nmis_menu>'});
-    setFileProtDirectory($C->{'<nmis_models>'});
-    setFileProtDirectory($C->{'<nmis_var>'});
-    setFileProtDirectory($C->{'config_logs'});
-    setFileProtDirectory($C->{'database_root'});
-    setFileProtDirectory($C->{'json_logs'});
-    setFileProtDirectory($C->{'log_root'});
-    setFileProtDirectory($C->{'mib_root'});
-    setFileProtDirectory($C->{'report_root'});
-    setFileProtDirectory($C->{'script_root'});
-    setFileProtDirectory($C->{'web_root'});
+		setFileProtDirectory($C->{'<nmis_admin>'});
+		setFileProtDirectory($C->{'<nmis_bin>'});
+		setFileProtDirectory($C->{'<nmis_cgi>'});
+		setFileProtDirectory($C->{'<nmis_conf>'});
+		setFileProtDirectory($C->{'<nmis_data>'});
+		setFileProtDirectory($C->{'<nmis_logs>'});
+		setFileProtDirectory($C->{'<nmis_menu>'});
+		setFileProtDirectory($C->{'<nmis_models>'});
+		setFileProtDirectory($C->{'<nmis_var>'});
+		setFileProtDirectory($C->{'config_logs'});
+		setFileProtDirectory($C->{'database_root'});
+		setFileProtDirectory($C->{'json_logs'});
+		setFileProtDirectory($C->{'log_root'});
+		setFileProtDirectory($C->{'mib_root'});
+		setFileProtDirectory($C->{'report_root'});
+		setFileProtDirectory($C->{'script_root'});
+		setFileProtDirectory($C->{'web_root'});
 	}
 
 	if ( $audit eq "true" ) {
-    checkDirectoryFiles($C->{'<nmis_admin>'});
-    checkDirectoryFiles($C->{'<nmis_bin>'});
-    checkDirectoryFiles($C->{'<nmis_cgi>'});
-    checkDirectoryFiles($C->{'<nmis_conf>'});
-    checkDirectoryFiles($C->{'<nmis_data>'});
-    checkDirectoryFiles($C->{'<nmis_logs>'});
-    checkDirectoryFiles($C->{'<nmis_menu>'});
-    checkDirectoryFiles($C->{'<nmis_models>'});
-    checkDirectoryFiles($C->{'<nmis_var>'});
-    checkDirectoryFiles($C->{'config_logs'});
-    checkDirectoryFiles($C->{'database_root'});
-    checkDirectoryFiles($C->{'json_logs'});
-    checkDirectoryFiles($C->{'log_root'});
-    checkDirectoryFiles($C->{'mib_root'});
-    checkDirectoryFiles($C->{'report_root'});
-    checkDirectoryFiles($C->{'script_root'});
-    checkDirectoryFiles($C->{'web_root'});
+		checkDirectoryFiles($C->{'<nmis_admin>'});
+		checkDirectoryFiles($C->{'<nmis_bin>'});
+		checkDirectoryFiles($C->{'<nmis_cgi>'});
+		checkDirectoryFiles($C->{'<nmis_conf>'});
+		checkDirectoryFiles($C->{'<nmis_data>'});
+		checkDirectoryFiles($C->{'<nmis_logs>'});
+		checkDirectoryFiles($C->{'<nmis_menu>'});
+		checkDirectoryFiles($C->{'<nmis_models>'});
+		checkDirectoryFiles($C->{'<nmis_var>'});
+		checkDirectoryFiles($C->{'config_logs'});
+		checkDirectoryFiles($C->{'database_root'});
+		checkDirectoryFiles($C->{'json_logs'});
+		checkDirectoryFiles($C->{'log_root'});
+		checkDirectoryFiles($C->{'mib_root'});
+		checkDirectoryFiles($C->{'report_root'});
+		checkDirectoryFiles($C->{'script_root'});
+		checkDirectoryFiles($C->{'web_root'});
 	}
 
 	#== convert config .csv to .nmis (hash) file format ==
