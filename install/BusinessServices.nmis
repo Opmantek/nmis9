@@ -3,40 +3,24 @@
     'businessPriority' => '10',
     'businessService' => 'Core Network',
     'businessUnit' => 'Shared',
-<<<<<<< HEAD
-    'order' => '4',
-=======
->>>>>>> dev
     'serviceType' => 'Revenue Generating'
   },
   'eCommerce' => {
     'businessPriority' => '10',
     'businessService' => 'eCommerce',
     'businessUnit' => 'Sales',
-<<<<<<< HEAD
-    'order' => '1',
-=======
->>>>>>> dev
     'serviceType' => 'Revenue Generating'
   },
   'eMail' => {
     'businessPriority' => '6',
     'businessService' => 'eMail',
     'businessUnit' => 'Shared',
-<<<<<<< HEAD
-    'order' => '3',
-=======
->>>>>>> dev
     'serviceType' => 'Business Critical'
   },
   'Web Page' => {
     'businessPriority' => '7',
     'businessService' => 'Web Page',
     'businessUnit' => 'Marketing',
-<<<<<<< HEAD
-    'order' => '2',
-=======
->>>>>>> dev
     'serviceType' => 'Business Critical'
   }
 );
