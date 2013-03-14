@@ -26,8 +26,6 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 closedir(MDL);
 
 
-my @cmdbTypes = split(',',$C->{cmdbType_values});
-
 print STDERR "DEBUG: IS THE EVAL EVAL'ing user=$AU->{user} priv=$AU->{privlevel}\n";
 
 return (
@@ -38,10 +36,6 @@ return (
 		{ location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
 		{ businessService => { header => 'Business Service',display => 'header,pop',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
 		{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
-		{ cmdbDescription => { header => 'CMDB Description',display => 'text', value => [""] }},
-		{ cmdbPriority => { header => 'CMDB Priority',display => 'popup', value => [1,2,3,4] }},
-		{ cmdbType => { header => 'CMDB Type',display => 'popup', value => [ @cmdbTypes ] }},
-		{ cmdbModel => { header => 'CMDB Type',display => 'popup', value => [ sort keys %{loadGenericTable('cmdbModels')} ] }},
 		{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 		{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 		{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},

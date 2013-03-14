@@ -43,45 +43,53 @@
 	'option' => {
 		'standard' => [
 			'DEF:tcpInSegs=$database:tcpInSegs:AVERAGE',
-			'DEF:tcpOutSegs=$database:tcpOutSegs:AVERAGE',
-			'DEF:tcpRetransSegs=$database:tcpRetransSegs:AVERAGE',
 			'DEF:tcpInErrs=$database:tcpInErrs:AVERAGE',
+			
+			'DEF:tcpOutSegs=$database:tcpOutSegs:AVERAGE',
 			'DEF:tcpOutRsts=$database:tcpOutRsts:AVERAGE',
+			'DEF:tcpRetransSegs=$database:tcpRetransSegs:AVERAGE',
+			
+			'CDEF:tcpInSegsSplit=tcpInSegs,-1,*',
+			'CDEF:tcpInErrsSplit=tcpInErrs,-1,*',
 
-			'LINE1:tcpInSegs#00ff00:Input Segments',
-			'LINE1:tcpOutSegs#0000ff:Output Segments',
-			'LINE1:tcpRetransSegs#ff0000:Retransmitted',
-			'LINE1:tcpInErrs#ffff00:Input Errors',
-			'LINE1:tcpOutRsts#000000:Output Resets',
+			'AREA:tcpInSegsSplit#0000ff:Input Segments',
+			'STACK:tcpInErrsSplit#ffff00:Input Errors',
 
-			#'AREA:ipInReceives#cccccc:IP Packets Received',
-			#'STACK:ipInDelivers#000000:IP Packets Local',
+			'AREA:tcpOutSegs#00ff00:Output Segments',
+			'STACK:tcpOutRsts#000000:Output Resets',			
+			'STACK:tcpRetransSegs#ff0000:Retransmitted\\n',
 
-			'GPRINT:tcpInSegs:AVERAGE:Avg In Segments %1.2lf',
-			'GPRINT:tcpOutSegs:AVERAGE:Avg Out Segments %1.2lf',
-			'GPRINT:tcpRetransSegs:AVERAGE:Avg Retrans %1.2lf',
-			'GPRINT:tcpInErrs:AVERAGE:Avg In Errors %1.2lf',
-			'GPRINT:tcpInErrs:AVERAGE:Avg Out Resets %1.2lf\\n',
+			'GPRINT:tcpInSegs:AVERAGE:Avg In Segs %1.2lf',
+			'GPRINT:tcpInErrs:AVERAGE:Avg In Errs %1.2lf',
 
-			'GPRINT:tcpInSegs:MAX:Max In Segments %1.2lf',
-			'GPRINT:tcpOutSegs:MAX:Max Out Segments %1.2lf',
+			'GPRINT:tcpOutSegs:AVERAGE:Avg Out Segs %1.2lf',
+			'GPRINT:tcpOutRsts:AVERAGE:Avg Out Resets %1.2lf',
+			'GPRINT:tcpRetransSegs:AVERAGE:Avg Retrans %1.2lf\\n',
+
+			'GPRINT:tcpInSegs:MAX:Max In Segs %1.2lf',
+			'GPRINT:tcpInErrs:MAX:Max In Errs %1.2lf',
+			'GPRINT:tcpOutSegs:MAX:Max Out Segs %1.2lf',
+			'GPRINT:tcpOutRsts:MAX:Max Out Resets %1.2lf',
 			'GPRINT:tcpRetransSegs:MAX:Max Retrans %1.2lf',
-			'GPRINT:tcpInErrs:MAX:Max In Errors %1.2lf',
-			'GPRINT:tcpInErrs:MAX:Max Out Resets %1.2lf',
 
 		],
 		'small' => [
 			'DEF:tcpInSegs=$database:tcpInSegs:AVERAGE',
-			'DEF:tcpOutSegs=$database:tcpOutSegs:AVERAGE',
-			'DEF:tcpRetransSegs=$database:tcpRetransSegs:AVERAGE',
 			'DEF:tcpInErrs=$database:tcpInErrs:AVERAGE',
+			
+			'DEF:tcpOutSegs=$database:tcpOutSegs:AVERAGE',
 			'DEF:tcpOutRsts=$database:tcpOutRsts:AVERAGE',
+			'DEF:tcpRetransSegs=$database:tcpRetransSegs:AVERAGE',
+			
+			'CDEF:tcpInSegsSplit=tcpInSegs,-1,*',
+			'CDEF:tcpInErrsSplit=tcpInErrs,-1,*',
 
-			'LINE1:tcpInSegs#00ff00:Input Segments',
-			'LINE1:tcpOutSegs#0000ff:Output Segments',
-			'LINE1:tcpRetransSegs#ff0000:Retransmitted',
-			'LINE1:tcpInErrs#ffff00:Input Errors',
-			'LINE1:tcpOutRsts#000000:Output Resets',
+			'AREA:tcpInSegsSplit#0000ff:Input Segments',
+			'STACK:tcpInErrsSplit#ffff00:Input Errors',
+
+			'AREA:tcpOutSegs#00ff00:Output Segments',
+			'STACK:tcpOutRsts#000000:Output Resets',			
+			'STACK:tcpRetransSegs#ff0000:Retransmitted',
 		]
 	}
 );

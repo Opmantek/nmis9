@@ -39,6 +39,9 @@
 	},
 	'option' => {
 		'standard' => [
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
 			'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
 			'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
 			'LINE1:avgBusy1#00ff00:Avg Busy 1min',
