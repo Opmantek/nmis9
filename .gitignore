@@ -6,6 +6,7 @@ logs
 var/*
 database/*
 *.swp
+diff.txt
 test/*.rrd
 test/*.csv
 test/*.log

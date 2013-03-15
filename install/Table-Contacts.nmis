@@ -1,3 +1,6 @@
+use NMIS;
+my $C = loadConfTable();
+
 %hash = (
 			Contacts => [
 				{ Contact => { header => 'Contact',display => 'key,header,text', value => ["Contact1"] }},

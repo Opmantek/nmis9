@@ -62,10 +62,9 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
-ERROR: $0 will tune RRD database files with required changes.
+ERROR: $0 will total up the size of all RRD database files in use.
 usage: $0 run=(true|false) change=(true|false)
 eg: $0 run=true (will run in test mode)
-or: $0 run=true change=true (will run in change mode)
 
 EO_TEXT
 	exit 1;
@@ -86,8 +85,6 @@ my $LNT = loadLocalNodeTable();
 print "  done in ".$t->deltaTime() ."\n";
 
 my $sum = initSummary();
-
-my $qrdst = qr/ds\[(ipForwDatagrams|ipFragCreates|ipFragFails|ipFragOKs|ipInAddrErrors|ipInDelivers|ipInDiscards|ipInHdrErrors|ipInReceives|ipInUnknownProtos|ipOutDiscards|ipOutNoRoutes|ipOutRequests|ipReasmFails|ipReasmOKs|ipReasmReqds)\]\.type/;
 
 # Work through each node looking for interfaces, etc to tune.
 foreach my $node (sort keys %{$LNT}) {
@@ -159,21 +156,19 @@ Total RRD Size is $sum->{total}{size} bytes.
 
 |;
 
-print qq|A Summary of Counts\n|;
+print qq|A Summary of Node RRD Size\n|;
 foreach my $node (sort keys %{$sum->{node}}) {
-	print "Size of $node: $sum->{node}{$node}{size} bytes\n";
+	print "Size of $node (bytes): $sum->{node}{$node}{size}\n";
 }
 
-print qq|A Summary of Node RRD Size\n|;
+print qq|A Summary of Counts\n|;
 foreach my $count (sort keys %{$sum->{count}}) {
 	print "Count of $count: $sum->{count}{$count}\n";
-
-	
 }
 
-print qq|A Summary of Types and Bytes:\n|;
+print qq|A Summary of Types and Bytes\n|;
 foreach my $type (sort keys %{$sum->{type}}) {
-	print "Size of $type $sum->{type}{$type}{size} bytes\n";
+	print "Size of $type (bytes): $sum->{type}{$type}{size}\n";
 }
 
 
@@ -181,7 +176,6 @@ sub initSummary {
 	my $sum;
 
 	$sum->{count}{node} = 0;
-	$sum->{count}{'tune-mib2ip'} = 0;
 
 	return $sum;
 }

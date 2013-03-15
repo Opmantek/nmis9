@@ -24,11 +24,6 @@
     'DisplayName' => 'Escalation Policy',
     'Table' => 'Escalations'
   },
-  'Events' => {
-    'Description' => 'Events Policy for determining what to log and not log.',
-    'DisplayName' => 'Event Policy',
-    'Table' => 'Events'
-  },
   'Links' => {
     'Description' => 'Links between nodes',
     'DisplayName' => 'Links (network)',

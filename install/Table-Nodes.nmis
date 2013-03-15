@@ -25,10 +25,7 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 }
 closedir(MDL);
 
-
-print STDERR "DEBUG: IS THE EVAL EVAL'ing user=$AU->{user} priv=$AU->{privlevel}\n";
-
-return (
+%hash = (
 	Nodes => [ # using an array for fixed order of fields
 		{ name => { header => 'Name',display => 'key,header,text',value => [""] }},
 		{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
