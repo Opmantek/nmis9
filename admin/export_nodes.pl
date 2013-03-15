@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: import_nodes.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
+## $Id: export_nodes.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -49,6 +49,45 @@ EO_TEXT
 	exit 1;
 }
 
+# Step 1: define you prefered seperator
+my $sep = ",";
+
+# Step 2: Define the elements you want from the NMIS Nodes.nmis file.
+my @nodesHeaders = qw(name host group businessService serviceStatus services netType roleType);
+
+# Step 3: Defined the elements you want from the var/name-nodes.nmis file for each node, these are the node details.
+my @nodeFields = qw(sysName nodeModel nodeVendor serialNum sysDescr);
+
+# Step 4: Define any CSV header aliases you want
+my %headAlias = (
+	name              		=> 'Node',
+	host              		=> 'Host',
+	group             		=> 'Group',
+	businessService   		=> 'Business Service',
+	serviceStatus     		=> 'Service Status',
+	services          		=> 'Services',
+	netType               => 'Network',
+	roleType              => 'Role',
+	
+	nodeModel             => 'Model',
+	nodeVendor            => 'Vendor',
+	serialNum      		    => 'SerialNumber',
+	sysDescr      		    => 'Description'
+);
+
+# Step 5: pick the Master Node table, or the local node table.
+
+# Step 5A: For loading all nodes on a Master
+# this will need to use these files for the details var/nmis-SlaveName-nodesum.nmis
+#my $NODES = loadNodeTable();
+
+# Step 5B: For loading only the local nodes on a Master or a Slave
+my $NODES = loadLocalNodeTable();
+
+# Step 6: Run the program!
+
+# Step 7: Check the results
+
 if ( not -f $ARGV[0] ) {
 	exportNodes($ARGV[0]);
 }
@@ -61,49 +100,50 @@ sub exportNodes {
 	my $file = shift;
 
 	my $C = loadConfTable();
-	
-	# For loading all nodes on a Master
-	my $NODES = loadNodeTable();
-	
-	# For loading only the local nodes on a Master or a Slave
-	my $NODES = loadLocalNodeTable();
-	
-	my $sep = ",";
-	
-	my @headers = qw(node host group business_service status services type vendor serialnumber);
-	
+		
 	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
 	
 	# print a CSV header
-	my $header = join($sep,@headers);
+	my @headers = (@nodesHeaders,@nodeFields);
+	my @aliases;
+	foreach my $header (@headers) {
+		my $alias = $header;
+		$alias = $headAlias{$header} if $headAlias{$header};
+		push(@aliases,$alias);
+	}
+	my $header = join($sep,@aliases);
 	print CSV "$header\n";
 	
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true" ) {
-	
-	    my $S = Sys::->new; # get system object 
-	    $S->init(name=>$node,snmp=>'false');
-	    my $NI = $S->ndinfo;
-	    
-	    $NODES->{$node}{business_service} = "NMIS" if $NODES->{$node}{business_service} eq "";
-	    $NODES->{$node}{status} = "Test" if $NODES->{$node}{status} eq "";
-	
-	    $NODES->{$node}{'services'} =~ s/$sep/;/g;
-	
-	    print CSV 
-	     "$NODES->{$node}{name}".
-	     "$sep$NODES->{$node}{host}".
-	     "$sep$NODES->{$node}{group}".
-	     "$sep$NODES->{$node}{business_service}".
-	     "$sep$NODES->{$node}{status}".
-	     "$sep$NODES->{$node}{services}".
-	     "$sep$NI->{system}{nodeType}".
-	     "$sep$NI->{system}{nodeVendor}".
-	     "$sep$NI->{system}{serialNum}".
-	     "\n";
-	
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
+		    
+	    $NODES->{$node}{businessService} = "NMIS" if $NODES->{$node}{businessService} eq "";
+	    $NODES->{$node}{serviceStatus} = "Test" if $NODES->{$node}{serviceStatus} eq "";
+		    
+	    my @columns;
+	    foreach my $header (@nodesHeaders) {
+	    	$NODES->{$node}{$header} = changeCellSep($NODES->{$node}{$header});
+	    	push(@columns,$NODES->{$node}{$header});
+			}
+	    foreach my $header (@nodeFields) {
+	    	$NI->{system}{$header} = changeCellSep($NI->{system}{$header});
+	    	push(@columns,$NI->{system}{$header});
+			}
+			my $row = join($sep,@columns);
+	    print CSV "$row\n";
 	  }
 	}
 	
 	close CSV;
+}
+
+sub changeCellSep {
+	my $string = shift;
+	$string =~ s/$sep/;/g;
+	$string =~ s/\r\n/\\n/g;
+	$string =~ s/\n/\\n/g;
+	return $string;
 }
