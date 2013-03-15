@@ -5021,6 +5021,8 @@ EO_TEXT
 	}
 	
 	if ( $change eq "true" ) {
+		setFileProtDirectory("$FindBin::Bin/../lib");
+		setFileProtDirectory("$FindBin::Bin/../lib/NMIS");
 		setFileProtDirectory($C->{'<nmis_admin>'});
 		setFileProtDirectory($C->{'<nmis_bin>'});
 		setFileProtDirectory($C->{'<nmis_cgi>'});
@@ -5041,6 +5043,8 @@ EO_TEXT
 	}
 
 	if ( $audit eq "true" ) {
+		checkDirectoryFiles("$FindBin::Bin/../lib");
+		checkDirectoryFiles("$FindBin::Bin/../lib/NMIS");
 		checkDirectoryFiles($C->{'<nmis_admin>'});
 		checkDirectoryFiles($C->{'<nmis_bin>'});
 		checkDirectoryFiles($C->{'<nmis_cgi>'});
