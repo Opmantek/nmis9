@@ -822,7 +822,7 @@ sub parseString {
 				$str = undef;
 			} 
 		}
-		dbg("parseString:: result is str=$str");
+		dbg("parseString:: result is str=$str",3);
 		return $str;
 	}
 }

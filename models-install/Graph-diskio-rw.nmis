@@ -39,16 +39,14 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
-			'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
-			'LINE2:diskIONReadX#0000ff:Num Reads\\n',
-			'LINE2:diskIONWrittenX#00ff00:Num Writes\\n',			
-			'GPRINT:diskIONReadX:MIN:Min Num Reads %1.2lf',
-			'GPRINT:diskIONReadX:AVERAGE:Average Num Reads %1.2lf',
-			'GPRINT:diskIONReadX:MAX:Max Num Reads %1.2lf',
-			'GPRINT:diskIONWrittenX:MIN:Min Num Writes %1.2lf',
-			'GPRINT:diskIONWrittenX:AVERAGE:Average Num Writes %1.2lf',
-			'GPRINT:diskIONWrittenX:MAX:Max Num Writes %1.2lf',
+			'DEF:diskIOReads=$database:diskIOReads:AVERAGE',
+			'DEF:diskIOWrites=$database:diskIOWrites:AVERAGE',
+			'LINE2:diskIOReads#0000ff:Blocks Read/s\t',
+			'GPRINT:diskIOReads:AVERAGE:Avg %8.2lf',
+			'GPRINT:diskIOReads:MAX:Max %8.2lf\\n',
+			'LINE2:diskIOWrites#00ff00:Blocks Written/s\t',
+			'GPRINT:diskIOWrites:AVERAGE:Avg %8.2lf',
+			'GPRINT:diskIOWrites:MAX:Max %8.2lf\\n',
 		]
 	}
 );

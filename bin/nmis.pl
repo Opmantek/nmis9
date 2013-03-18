@@ -1910,7 +1910,6 @@ sub getSystemHealthData {
 								my $D = $rrdData->{$sect}{$index};
 			
 								# RRD Database update and remember filename
-								dbg("getSystemHealthData, update RRD, sys=>$S,data=>$D,type=>$sect,index=>$index");
 								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
 									$NI->{database}{$sect}{$index} = $db;
 								}
