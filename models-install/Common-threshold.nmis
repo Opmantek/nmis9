@@ -86,6 +86,51 @@
           }
         }
       },
+      'cpu_cpm' => {
+        'item' => 'cpmCPUTotal5min',
+        'event' => 'Proactive CPU',
+        'select' => {
+          '10' => {
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'minor' => '40',
+              'warning' => '30',
+              'major' => '50'
+            },
+            'control' => '$roleType =~ /core/'
+          },
+          '20' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$roleType =~ /distribution/'
+          },
+          '30' => {
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'minor' => '60',
+              'warning' => '50',
+              'major' => '70'
+            },
+            'control' => '$roleType =~ /access/'
+          },
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            }
+          }
+        }
+      },
       'cpu' => {
         'item' => 'avgBusy5min',
         'event' => 'Proactive CPU',

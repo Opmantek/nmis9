@@ -351,6 +351,13 @@ sub typeGraph {
 										-values=>['',sort keys %{$NI->{database}{hrdisk}}],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
+						} elsif ($GTT->{$graphtype} eq "cpu_cpm") {
+							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+										-values=>['',sort keys %{$NI->{database}{cpu_cpm}}],
+										-default=>"$index",
+										-labels=>{ map{($_ => $NI->{entityMib}{$NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex}}{entPhysicalName})} sort keys %{$NI->{database}{cpu_cpm}} },
+										#-labels=>{ map{($_ => $NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex})} sort keys %{$NI->{database}{cpu_cpm}} },
+										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "env_temp") {
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{database}{env_temp}}],

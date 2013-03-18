@@ -485,6 +485,7 @@ sub doUpdate {
 							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
 						}
 
+						getSystemHealthInfo(sys=>$S) if defined $S->{mdl}{systemHealth};
 						getEnvInfo(sys=>$S);
 						getCBQoS(sys=>$S); # do walk
 						getCalls(sys=>$S); # do walk
@@ -567,6 +568,8 @@ sub doCollect {
 						
 						# get intf data and store in rrd
 						getIntfData(sys=>$S) if defined $S->{info}{interface};
+
+						getSystemHealthData(sys=>$S);
 		
 						getEnvData(sys=>$S);
 	
@@ -1807,6 +1810,127 @@ sub getEnvData {
 				}
 			}
 		} 
+	}
+	dbg("Finished");
+	return 1;
+}	
+#=========================================================================================
+
+sub getSystemHealthInfo {
+	my %args = @_;
+	my $S = $args{sys}; # object
+
+	my $NI = $S->ndinfo; # node info table
+	my $V =  $S->view;
+	my $SNMP = $S->snmp;
+	my $M = $S->mdl;	# node model table
+	my $C = loadConfTable();
+
+	dbg("Starting");
+	dbg("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+
+	if ($M->{system} eq '') {
+		dbg("No class 'systemHealth' declared in Model");
+	}
+	else {		
+		my @healthSections = split(",",$C->{model_health_sections});
+		for my $section (@healthSections) {
+			delete $NI->{$section};
+			# get Index table
+			my $index_var = '';
+			if( exists($M->{systemHealth}{sys}{$section}) ) {
+				$index_var = $M->{systemHealth}{sys}{$section}{indexed};
+			}
+			if ($index_var ne '') {
+				dbg("systemHealth: index_var=$index_var");
+				my %healthIndexNum;
+				my $healthIndexTable;
+				if ($healthIndexTable = $SNMP->gettable($index_var)) {
+					# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
+					foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable})) {
+						my $index = $oid;
+						if ( $oid =~ /\.(\d+)$/ ) {
+							$index = $1;
+						}
+						$healthIndexNum{$index}=$index;
+						# check for online of sensor, value 1 is online
+						dbg("systemHealth section=$section index=$index is found");
+					}
+				} else {
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
+					# failed by snmp
+					snmpNodeDown(sys=>$S);
+				}
+				# Loop to get information, will be stored in {info}{$section} table
+				foreach my $index (sort keys %healthIndexNum) {					
+					if ($S->loadInfo(class=>'systemHealth',section=>$section,index=>$index,table=>$section,model=>$model)) {
+						dbg("systemHealth section=$section index=$index read and stored");
+					} else {
+						# failed by snmp
+						snmpNodeDown(sys=>$S);
+					}
+				}
+			}
+			else {
+				dbg("No indexvar found in $section");
+			}
+		}
+	}
+	dbg("Finished");
+	return 1;
+}
+#=========================================================================================
+ 
+sub getSystemHealthData {
+	my %args = @_;
+	my $S = $args{sys}; # object
+
+	my $NI = $S->ndinfo; # node info table
+	my $SNMP = $S->snmp;
+	my $V =  $S->view;
+	my $M = $S->mdl;	# node model table
+
+	my $C = loadConfTable();
+
+	dbg("Starting");
+	dbg("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+
+	if ($M->{systemHealth} eq '') {
+		dbg("No class 'systemHealth' declared in Model");
+	}
+	else {   
+		my @healthSections = split(",",$C->{model_health_sections});
+		for my $section (@healthSections) {
+			if( exists($S->{info}{$section}) ) {
+				for my $index (sort keys %{$S->{info}{$section}}) {
+					my $rrdData;
+					if (($rrdData = $S->getData(class=>'systemHealth',section=>$section,index=>$index,model=>$model))) {
+						if ( $rrdData->{error} eq "" ) {
+							foreach my $sect (keys %{$rrdData}) {
+								my $D = $rrdData->{$sect}{$index};
+			
+								# RRD Database update and remember filename
+								dbg("getSystemHealthData, update RRD, sys=>$S,data=>$D,type=>$sect,index=>$index");
+								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
+									$NI->{database}{$sect}{$index} = $db;
+								}
+							}
+						}
+						else {
+							dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
+						}
+					}
+					else {
+						logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, SNMP problem");
+						# failed by snmp
+						snmpNodeDown(sys=>$S);
+						dbg("ERROR, getting data");
+						return 0;
+					}
+				}
+			}
+			
+		}
 	}
 	dbg("Finished");
 	return 1;
@@ -3379,7 +3503,7 @@ sub runCheckValues {
 			my $control = $M->{system}{sys}{$sect}{control}; 	# check if skipped by control
 			if ($control ne "") {
 				dbg("control=$control found for section=$sect",2);
-				if ($S->parseString(string=>"($control) ? 1:0") ne "1") {
+				if ($S->parseString(string=>"($control) ? 1:0", sect => $sect) ne "1") {
 					dbg("threshold of section $sect skipped by control=$control");
 					next;
 				}
@@ -5452,7 +5576,7 @@ sub doThreshold {
 								my $control = $M->{$s}{$ts}{$type}{control}; 	# check if skipped by control
 								if ($control ne "") {
 									dbg("control=$control found for type=$type",2);
-									if ($S->parseString(string=>"($control) ? 1:0") ne "1") {
+									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts) ne "1") {
 										dbg("threshold of type $type skipped by control=$control");
 										next;
 									}
