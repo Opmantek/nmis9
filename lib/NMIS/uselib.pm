@@ -32,36 +32,21 @@
 package NMIS::uselib;
 
 my $VERSION = "1.00";
-use RRDs;
-use RRDp;
 
 require 5;
 
 require Exporter;
 
-@EXPORT_OK = qw($rrdtool_lib rrdtool_lib_s);
+@EXPORT_OK = qw($rrdtool_lib);
 
 my $default_rrd = "/usr/local/rrdtool/lib/perl";
 
 # Modify this line to suit your RRD Setup, if not in the above location.
 my $alternate_rrd = "/usr/rrdtool/lib/perl";
-if( -d $default_rrd )
-{
-	$rrdtool_lib = $default_rrd;
-}
-elsif( -d $alternate_rrd )
-{
-	$rrdtool_lib = $alternate_rrd;	
-}
-else
-{
-	$rrdtool_lib = `locate RRDp.pm`;
-}
 
-my $rrdtool_lib_s = `locate RRDs.pm`;
+$rrdtool_lib = $default_rrd if -d $default_rrd;
 
-# print STDERR "rrdtool_lib is $rrdtool_lib";
-# print STDERR "rrdtool_lib_s is $rrdtool_lib_s";
+$rrdtool_lib = $alternate_rrd if -d $alternate_rrd;
 
 if ( $rrdtool_lib eq "" ) {
 	print STDERR "NMIS::uselib was unable to locate RRDTool at $default_rrd or $alternate_rrd\n";	
