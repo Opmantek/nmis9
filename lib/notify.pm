@@ -221,6 +221,9 @@ sub sendSyslog {
 	my $facility = $arg{facility};
 
 	my $message = "NMIS_Event::$arg{nmis_host}::$arg{time},$arg{node},$arg{event},$arg{level},$arg{element},$arg{details}";
+	if ( $arg{nmis_host} eq "" and $arg{node} eq "" and $arg{message} ne "" ) {
+		$message = $arg{message};
+	}
 
 	my $priority = eventToSyslog($arg{level});
 	$priority = 'notice' if $priority eq "";

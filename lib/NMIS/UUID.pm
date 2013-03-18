@@ -44,11 +44,11 @@ $VERSION = "1";
 
 use Exporter;
 @ISA = qw(Exporter);
-@EXPORT = qw(auditUUID createUUID);
+@EXPORT = qw(auditNodeUUID createNodeUUID getUUID);
 
 
 # check which nodes do not have UUID's.
-sub auditUUID {
+sub auditNodeUUID {
 	#load nodes
 	#foreach node
 	# Does it have a UUID?
@@ -79,7 +79,7 @@ sub auditUUID {
 	return $success;
 }
 
-sub createUUID {
+sub createNodeUUID {
 	#load nodes
 	#foreach node
 	# Does it have a UUID?
@@ -118,6 +118,19 @@ sub createUUID {
 	writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes.nmis", data => $LNT);
 	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID.nmis", data => $UUID_INDEX);
 	return $success;
+}
+
+sub getUUID {
+	my $ug = new Data::UUID;
+  my $uuid;
+	my $C = loadConfTable();
+  if ( $C->{'uuid_namespace_type'} ne "" and $C->{'uuid_namespace_name'} ne "" and $C->{'uuid_namespace_name'} ne "www.domain.com" ) {
+    $uuid = $ug->create_from_name_str($C->{'uuid_namespace_type'}, $C->{'uuid_namespace_name'});
+	}
+	else {
+    $uuid = $ug->create_str();
+	}
+	return $uuid;
 }
 
 1;

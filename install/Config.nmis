@@ -39,11 +39,14 @@
     'global_nocollect_ifOperStatus' => '',
     'global_nocollect_ifDescr' => '',
     'global_nocollect_Description' => '',
-    'global_nocollect_noDescription' => 'true',
+    'global_nocollect_noDescription' => '',
     'global_nocollect_ifType' => '',
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
-    'global_noevent_ifType' => ''
+    'global_noevent_ifType' => '',
+    'uuid_add_with_node' => 'true',
+    'uuid_namespace_type' => 'NameSpace_URL',
+    'uuid_namespace_name' => 'www.domain.com'
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',

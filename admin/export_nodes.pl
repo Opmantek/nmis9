@@ -105,7 +105,7 @@ my $NODES = loadLocalNodeTable();
 # Step 7: Check the results
 
 if ( not -f $arg{nodes} ) {
-	createUUID();
+	createNodeUUID();
 	exportNodes($arg{nodes});
 }
 else {
