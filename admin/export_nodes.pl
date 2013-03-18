@@ -37,23 +37,39 @@ use strict;
 use func;
 use NMIS;
 use Sys;
+use NMIS::UUID;
+use NMIS::Timing;
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 $0 will export nodes from NMIS.
 ERROR: need some files to work with
 usage: $0 <NODES_CSV_FILE>
-eg: $0 /data/nodes.csv
+eg: $0 nodes=/data/nodes.csv debug=true
 
 EO_TEXT
 	exit 1;
 }
 
+my $t = NMIS::Timing->new();
+
+print $t->elapTime(). " Begin\n";
+
+# Variables for command line munging
+my %arg = getArguements(@ARGV);
+
+# Set debugging level.
+my $debug = setDebug($arg{debug});
+$debug = 1;
+
+# load configuration table
+my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+
 # Step 1: define you prefered seperator
 my $sep = ",";
 
 # Step 2: Define the elements you want from the NMIS Nodes.nmis file.
-my @nodesHeaders = qw(name host group businessService serviceStatus services netType roleType);
+my @nodesHeaders = qw(name uuid host group businessService serviceStatus services netType roleType);
 
 # Step 3: Defined the elements you want from the var/name-nodes.nmis file for each node, these are the node details.
 my @nodeFields = qw(sysName nodeModel nodeVendor serialNum sysDescr);
@@ -88,13 +104,17 @@ my $NODES = loadLocalNodeTable();
 
 # Step 7: Check the results
 
-if ( not -f $ARGV[0] ) {
-	exportNodes($ARGV[0]);
+if ( not -f $arg{nodes} ) {
+	createNodeUUID();
+	exportNodes($arg{nodes});
 }
 else {
-	print "ERROR: $ARGV[0] already exists, exiting\n";
+	print "ERROR: $arg{nodes} already exists, exiting\n";
 	exit 1;
 }
+
+print $t->elapTime(). " Begin\n";
+
 
 sub exportNodes {
 	my $file = shift;

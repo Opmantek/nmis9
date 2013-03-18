@@ -374,14 +374,30 @@ sub editTable {
 					if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
 						$line .= td({class=>'header'},$T->{$key}{$item});
 						$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
-					} elsif ($ref->{$item}{display} =~ /text/) {
+					} 
+					elsif ($ref->{$item}{display} =~ /textbox/) {
 						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-						$line .= td(textfield(-name=>"$item",size=>'35',value=>$value));
-					} elsif ($ref->{$item}{display} =~ /pop/) {
-						$line .= td(popup_menu(-name=>"$item", -style=>'width:100%;',
+						$line .= td(textarea(-name=> $item, -value=>$value, -style=>"width: 260px; height: 60px;", -size=>'35'));
+					} 
+					elsif ($ref->{$item}{display} =~ /text/) {
+						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+						print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
+						$line .= td(textfield(-name=>$item, -value=>$value, -style=>"width: 260px;", -size=>'35'));
+					} 
+					elsif ($ref->{$item}{display} =~ /readonly/) {
+						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+						$line .= td($value);
+						$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
+					} 
+					elsif ($ref->{$item}{display} =~ /pop/) {
+						print STDERR "DEBUG editTable: popup -- item=$item\n";
+						$line .= td(popup_menu(
+								-name=>"$item", 
 								-values=>$ref->{$item}{value},
+								-style=>'width:100%;',
 								-default=>$T->{$key}{$item}));
-					} elsif ($ref->{$item}{display} =~ /scrol/) {
+					} 
+					elsif ($ref->{$item}{display} =~ /scrol/) {
 						my @items = split(/,/,$T->{$key}{$item});
 						$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
 								-style=>'width:100%;',

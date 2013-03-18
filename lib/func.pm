@@ -838,6 +838,9 @@ sub loadTable {
 	my $lock = $args{lock}; # if lock is true then no caching
 
 	my $C = loadConfTable();
+	
+	# return an empty structure if I can't do anything else.
+	my $empty = { };
 
 	if ($name ne '') {
 		my $fname = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention, default 'nmis'
@@ -878,7 +881,7 @@ sub loadTable {
 	} else {
 		logMsg("ERROR no name specified");
 	}
-	return;
+	return $empty;
 }
 
 sub writeTable {
