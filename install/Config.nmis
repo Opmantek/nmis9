@@ -111,7 +111,8 @@
     'snmp_stop_polling_on_error' => 'true',
     'tables_case_sensitive_keys' => 'Nodes|BusinessServices|ServiceStatus|Locations|Tables',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Reset'
+    'non_stateful_events' => 'Node Configuration Change, Node Reset',
+    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable'
   },
   'url' => {
     '<url_base>' => '/nmis8',

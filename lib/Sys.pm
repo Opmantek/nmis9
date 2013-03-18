@@ -217,6 +217,7 @@ sub snmp 	{ my $self = shift; return $self->{snmp} };				# my $SNMP = $S->snmp
 sub reach 	{ my $self = shift; return $self->{reach} };			# my $R = $S->reach
 sub ndcfg	{ my $self = shift; return $self->{cfg} };				# my $NC = $S->ndcfg
 sub envinfo	{ my $self = shift; return $self->{info}{environment} };# my $ENV = $S->envinfo
+sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $ENV = $S->syshealth
 
 #===================================================================
 
@@ -307,7 +308,7 @@ sub loadInfo {
 	my $dmodel = $args{model};
 	my (@val,@ans,@oid);
 	my $result;
-
+	
 	if (($result = $self->getValues(class=>$self->{mdl}{$class}{sys},section=>$section,index=>$index,port=>$port))) {
 		if ( $result->{error} eq "" ) {
 			### 2012-12-03 keiths, adding some model testing and debugging options.
@@ -457,6 +458,11 @@ sub getValues {
 	my (@res,@ds,@oid,@rpc,@sect,@cth,@opt,@calc,@form,@alert);
 	my $log_regex = '';
 	my $exit = 1;
+	
+	### 2013-03-06 keiths, check for valid graphtype before complaining about no OID's!
+	my $gotGraphType = 0;
+	my $noGraphs = 0;
+	my $sectionMatch = 1;
 
 	my $result;
 	# index or port for interfaces
@@ -480,13 +486,14 @@ sub getValues {
 		# check control string for (no) collecting
 		if ($class->{$sect}{control} ne "") {
 			dbg("control $class->{$sect}{control} found for section=$sect",2);
-			if ($self->parseString(string=>"($class->{$sect}{control}) ? 1:0",sys=>$self,index=>$index,type=>$sect) ne "1") {
+			if ($self->parseString(string=>"($class->{$sect}{control}) ? 1:0",sys=>$self,index=>$index,type=>$sect,sect=>$sect) ne "1") {
 				dbg("collect of section $sect with index=$index skipped by control $class->{$sect}{control}");
 				next;
 			}
 		}
 		if ($tbl) {						# add graphtype to info table
 			if ($class->{$sect}{graphtype} ne "") {
+				$gotGraphType = 1;
 				my $gt = ($index ne "") ? $tbl->{$index}{$sect} : $tbl->{$sect};
 				my @t = (split(',',$gt),split(',',$class->{$sect}{graphtype}));
 				my %seen;
@@ -494,8 +501,14 @@ sub getValues {
 				$tbl->{$index}{$sect} = join(',',keys %seen) if $index ne "";
 				$tbl->{$sect} = join(',',keys %seen) if $index eq "";
 			} else {
-				$self->{error} = "ERROR ($self->{info}{system}{name}) missing property 'graphtype' for section $sect";
-				logMsg($self->{error});
+				### 2013-03-06 keiths, check for valid graphtype before complaining about no OID's!
+				if ( $class->{$sect}{no_graphs} ne "true" ) {
+					$self->{error} = "ERROR ($self->{info}{system}{name}) missing property 'graphtype' for section $sect";
+					logMsg($self->{error});
+				}
+				elsif ( $class->{$sect}{no_graphs} eq "true" ) {
+					$noGraphs = 1;
+				}
 			}
 		}
 
@@ -516,7 +529,7 @@ sub getValues {
 		}
 	}
 	# get values by snmp
-	if (@oid) {
+	if (@oid ) { #and $gotGraphType) {
 		### 2012-08-24 keiths, removed extra () was if ((@res = $SNMP->getarray(@oid))) {
 		### related to Node Reset and SNMP not failing.
 		@res = $SNMP->getarray(@oid);
@@ -583,7 +596,13 @@ sub getValues {
 			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 			return undef;
 		}
-	} 
+	}
+	elsif ( $noGraphs ) {
+		dbg("no graphs intentionally defined for section=$section sect=@sect");		
+	}
+	#elsif ( $section ne $sect ) {
+	#	dbg("nothing to do for section=@sect");		
+	#}
 	else {
 		my @sect = keys %{$class};
 		dbg("no oid loaded for section=@sect");
@@ -731,19 +750,31 @@ sub parseString {
 	my $str = $args{string};
 	my $indx = $args{index};
 	my $itm = $args{item};
+	my $sect = $args{sect};
+	my $type = $args{type};
 
-	dbg("string to parse $str",3);
+
+	dbg("parseString:: string to parse $str",3);
 
 	{
 		no strict;
 		if ($self->{info}) {
+			
+			# find custom variable VAR=oid;$CVAR=~/something/
+			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {				
+				$CVAR = $self->{info}{$sect}{$indx}{$1};
+				# put the brackets back in so we have "(check) ? 1:0" again
+				$str = "(".$2;
+				dbg("parseString:: 1=$1, CVAR=$CVAR;str=$str, sect=$sect");
+			}
+
 			$name = $self->{info}{system}{name};
 			$node = $self->{node};
 			$host = $self->{info}{system}{host};
 			$group = $self->{info}{system}{group};
 			$roleType = $self->{info}{system}{roleType};
 			$nodeModel = $self->{info}{system}{nodeModel};
-			$nodeType = $self->{info}{system}{nodeType};
+			$nodeType = $self->{info}{system}{nodeType};			
 			$nodeVendor = $self->{info}{system}{nodeVendor};
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
@@ -754,6 +785,7 @@ sub parseString {
 				$ifMaxOctets = ($ifSpeed ne 'U') ? int($ifSpeed / 8) : 'U';
 				$maxBytes = ($ifSpeed ne 'U') ? int($ifSpeed / 4) : 'U';
 				$maxPackets = ($ifSpeed ne 'U') ? int($ifSpeed / 50) : 'U';
+				$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
 			} else {
 				$ifDescr = $ifType = '';
 				$ifSpeed = $ifMaxOctets = 'U';
@@ -761,7 +793,7 @@ sub parseString {
 			$InstalledModems = $self->{info}{system}{InstalledModems} || 0;
 			$item = '';
 			$item = $itm; 
-			$index = $indx;
+			$index = $indx;		
 		}
 
 		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n". 
@@ -771,6 +803,7 @@ sub parseString {
 			# format of $str is ($scalar =~ /regex/) ? "1" : "0" 
 			my $check = $str;
 			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($check =~ /ERROR/) {
 				dbg($check);
 				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str";
@@ -782,11 +815,13 @@ sub parseString {
 		} else {
 			my $s = $str; # copy
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			# $str =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($str =~ /ERROR/) {
 				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, $str");
 				$str = undef;
 			} 
 		}
+		dbg("parseString:: result is str=$str");
 		return $str;
 	}
 }

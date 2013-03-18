@@ -111,6 +111,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_service_view') {	viewService(); exit;
 } elsif ($Q->{act} eq 'network_service_list') {	viewServiceList(); exit;
 } elsif ($Q->{act} eq 'network_environment_view') {	viewEnvironment(); exit;
+} elsif ($Q->{act} eq 'network_system_health_view') {	viewSystemHealth($Q->{section}); exit;
 } elsif ($Q->{act} eq 'network_cssgroup_view') {	viewCSSGroup(); exit;
 } elsif ($Q->{act} eq 'network_csscontent_view') {	viewCSSContent(); exit;
 } elsif ($Q->{act} eq 'network_port_view') {	viewActivePort(); exit;
@@ -883,6 +884,9 @@ sub viewNode {
 	my $node = $Q->{node};
 	my $NT = loadNodeTable();
 	
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 	
@@ -960,7 +964,7 @@ EO_HTML
 
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'dash'});
 	
@@ -1102,7 +1106,7 @@ sub viewInterface {
 	map { $_ =~ s/^\d+_// } @keys;
 	map { $_ =~ s/_value$// } @keys; # get only item
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table;
 	
@@ -1176,6 +1180,9 @@ sub viewAllIntf {
 	my $dir;
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1215,7 +1222,7 @@ sub viewAllIntf {
 		if ($items{$_} and $titles{$_} ne '' ) { push @hd,$_; } # available item
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table;
 	
@@ -1282,6 +1289,9 @@ sub viewActivePort {
 	my $dir;
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1323,7 +1333,7 @@ sub viewActivePort {
 	# start of form
 	print start_form(-id=>"nmis",-href=>"$url");
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table;
 	
@@ -1400,6 +1410,9 @@ sub viewStorage {
 
 	my $node = $Q->{node};
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node), refresh => $Q->{refresh} if ($widget eq "false");
 
@@ -1410,7 +1423,7 @@ sub viewStorage {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'table'});
 	
@@ -1441,6 +1454,9 @@ sub viewService {
 
 	my $node = $Q->{node};
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1452,7 +1468,7 @@ sub viewService {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'table'});
 	
@@ -1493,6 +1509,9 @@ sub viewServiceList {
 
 	my $node = $Q->{node};
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1504,7 +1523,7 @@ sub viewServiceList {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'table'});
 	
@@ -1556,6 +1575,9 @@ sub viewEnvironment {
 
 	my $node = $Q->{node};
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1566,7 +1588,7 @@ sub viewEnvironment {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'table'});
 	
@@ -1610,9 +1632,114 @@ sub viewEnvironment {
 	pageEnd() if ($widget eq "false");
 }
 
+sub viewSystemHealth {
+	my $section = shift;
+
+	my $node = $Q->{node};
+
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
+
+	print header($headeropts);
+	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+
+	my $NI = loadNodeInfoTable($node);
+
+	if (!$AU->InGroup($NI->{system}{group})) {
+		print 'You are not authorized for this request';
+		return;
+	}
+	
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	
+	print start_table({class=>'table'});
+	
+	my $gotHeaders = 0;
+	my $headerDone = 0;
+	my $colspan = 0;
+	my @headers;
+	if ( $M->{systemHealth}{sys}{$section}{headers} ) {
+		@headers = split(",",$M->{systemHealth}{sys}{$section}{headers});
+		$gotHeaders = 1;
+	}
+	
+	foreach my $index (sort keys %{$NI->{$section}} ) {
+		if( exists( $M->{systemHealth}{rrd}{$section}{control} ) && 
+				$S->parseString(string=>"($M->{systemHealth}{rrd}{$section}{control}) ? 1:0",sys=>$S,index=>$index,sect=>$section) ne "1") {
+			next;
+		}
+
+		my $graphtype = $NI->{graphtype}{$index}{$section};
+		my $D = $NI->{$section}{$index};
+
+		# get the header from the node informaiton first.
+		if ( not $headerDone ) {
+			if ( not $gotHeaders ) {
+				foreach my $head (keys %{$NI->{$section}{$index}}) {
+					push(@headers,$head);
+				}
+			}
+			my @cells;
+			my $cell;
+			foreach my $head (@headers) {
+				if ( $M->{systemHealth}{sys}{$section}{snmp}{$head}{title} ) {
+					$cell = td({class=>'header'},$M->{systemHealth}{sys}{$section}{snmp}{$head}{title});
+				}
+				else {
+					$cell = td({class=>'header'},$head);					
+				}
+				push(@cells,$cell);
+				++$colspan;
+			}
+			push(@cells,td({class=>'header'},"History")) if $graphtype;
+			++$colspan;
+			
+			print Tr(td({class=>'error',colspan=>$colspan},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
+
+			my $row = join(" ",@cells);			
+			print Tr($row);
+			$headerDone = 1;
+		}
+		
+		# now make each cell!
+		my @cells;
+		my $cell;
+		foreach my $head (@headers) {
+			$cell = td({class=>'info Plain'},$D->{$head});
+			push(@cells,$cell);
+		}
+
+		if ( $graphtype ) {
+			split /,/, $M->{system}{nodegraph};
+			my @graphtypes = split /,/, $graphtype;
+	
+			push(@cells, start_td);
+			foreach my $GT (@graphtypes) {
+				push(@cells,htmlGraph(graphtype=>$GT,node=>$node,intf=>$index,width=>"300",height=>"50")) if $GT;
+			}
+			push(@cells, end_td);
+		}
+
+		# push(@cells,td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50"))) if $graphtype;
+		my $row = join(" ",@cells);			
+		print Tr($row);
+
+		#print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorHumDescr}),
+		#td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+	}
+	print end_table;
+	pageEnd() if ($widget eq "false");
+}
+
 #2011-11-11 Integrating changes from Kai-Uwe Poenisch
 sub viewCSSGroup {
 	my $node = $Q->{node};
+
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
@@ -1623,7 +1750,7 @@ sub viewCSSGroup {
 		return;
 	}
 
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
 	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
@@ -1645,6 +1772,9 @@ sub viewCSSGroup {
 sub viewCSSContent {
 	my $node = $Q->{node};
 
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1654,7 +1784,7 @@ sub viewCSSContent {
 		return;
 	}
 
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
 	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));

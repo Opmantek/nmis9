@@ -227,7 +227,7 @@
     'net-snmp' => {
       'order' => {
         '10' => {
-          'net-snmp' => 'Linux|SunOS'
+          'net-snmp' => 'Linux|SunOS|Darwin'
         }
       }
     },

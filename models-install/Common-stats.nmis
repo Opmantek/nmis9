@@ -68,6 +68,10 @@
         'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
         'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf'
       ],
+      'cpu-cpm' => [
+        'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
+      ],
       'nodehealth' => [
         'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
         'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
