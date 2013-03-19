@@ -113,8 +113,8 @@
       'ccpu' => '/health/$nodeType/$node-health.rrd',
       'cssgroup' => '/health/$nodeType/$node-group-$index.rrd',
       'csscontent' => '/health/$nodeType/$node-content-$index.rrd',
-      'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
       'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
+      'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
       'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
     }
   }

@@ -362,7 +362,7 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'loopback|QoS Packet Scheduler|WAN Miniport|LightWeight Filter|ISATAP',
+      'ifDescr' => 'loopback|QoS Packet Scheduler|WAN Miniport|LightWeight Filter|ISATAP|Teredo Tunneling',
       'noDescription' => 'false',
       'Description' => '^#',
       'ifType' => 'softwareloopback|ppp'

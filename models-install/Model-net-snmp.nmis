@@ -281,18 +281,6 @@
       },
     }
   },
-  'stats' => {
-    'type' => {
-      'diskIOTable' => [
-        'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
-        'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
-        'DEF:diskIOLA5=$database:diskIOLA5:AVERAGE',        
-        'PRINT:diskIONReadX:AVERAGE:diskIONReadX=%1.0lf',
-        'PRINT:diskIONWrittenX:AVERAGE:diskIONWrittenX=%1.0lf',
-        'PRINT:diskIOLA5:AVERAGE:diskIOLA5=%1.2lf'
-      ],
-    }
-  },
   'device' => {
     'sys' => {
       'cpu' => {
