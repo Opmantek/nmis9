@@ -115,6 +115,8 @@ $VERSION = "8.3.19G";
 		getNodeSummary
 		getLevelLogEvent
 		overallNodeStatus
+		getOperColor
+		getAdminColor
 		colorHighGood
 		colorPort
 		colorLowGood
@@ -1774,6 +1776,47 @@ NODE:
 	dbg("Finished");
 	return \%summaryHash;
 } # end getGroupSummary
+
+#=========================================================================================
+
+sub getAdminColor {
+	my %args = @_;
+	my $S = $args{sys};
+	my $index = $args{index};
+	my $IF = $S->ifinfo;
+	my $adminColor;
+	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true" ) {
+		$adminColor="#ffffff";
+	} else {
+		$adminColor="#00ff00";
+	}
+	return $adminColor;
+}
+
+#=========================================================================================
+
+sub getOperColor {
+	my %args = @_;
+	my $S = $args{sys};		# object
+	my $index = $args{index}; # index
+	my $NI = $S->ndinfo;	# node info
+	my $IF = $S->ifinfo;	# interface info
+	my $node = $S->{node};	# node name lc
+	my $operColor;
+
+	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true") {
+		$operColor="#ffffff"; # white
+	} else {
+		if ($IF->{$index}{ifOperStatus} eq 'down') {
+			# red for down
+			$operColor = "#ff0000";
+		} elsif ($IF->{$index}{ifOperStatus} eq 'dormant') {
+			# yellow for dormant
+			$operColor = "#ffff00";
+		} else { $operColor = "#00ff00"; } # green
+	}
+	return $operColor;
+}
 
 sub colorHighGood {
 	my $threshold = shift;

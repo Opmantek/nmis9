@@ -484,7 +484,6 @@ sub doUpdate {
 							print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
 							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
 						}
-
 						getSystemHealthInfo(sys=>$S) if defined $S->{mdl}{systemHealth};
 						getEnvInfo(sys=>$S);
 						getCBQoS(sys=>$S); # do walk
@@ -509,6 +508,10 @@ sub doUpdate {
 	runReach(sys=>$S);
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	
+	### 2013-03-19 keiths, NMIS Plugins!
+	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
+
 	dbg("Finished");
 	return;
 } # end runUpdate
@@ -1080,7 +1083,7 @@ sub getIntfInfo {
 
 	my $C = loadConfTable();
 
-	if ( defined $S->{mdl}{interface}{nocollect}{ifDescr} and $S->{mdl}{interface}{nocollect}{ifDescr} ne "" ) {
+	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
 		dbg("Starting");
 		dbg("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 	
@@ -3953,6 +3956,31 @@ sub getNodeAllInfo {
 
 #=========================================================================================
 
+sub runCustomPlugins {
+	my %args = @_;
+	my $S = $args{sys};
+	my $node = $args{node};
+		
+	dbg("Starting, node $node");
+	foreach my $custom ( keys %{$S->{mdl}{custom}} ) {
+		if ( defined $S->{mdl}{custom}{$custom}{script} and $S->{mdl}{custom}{$custom}{script} ne "" ) {
+			dbg("Found Custom Script $S->{mdl}{custom}{$custom}{script}");
+			#Only scripts in /usr/local/nmis8/admin can be run.
+			my $exec = "$C->{'<nmis_base>'}/$S->{mdl}{custom}{$custom}{script} node=$node debug=$C->{debug}";
+			my $out = `$exec 2>&1`; 
+			if ( $out and $C->{debug} ) {
+				dbg($out);
+			}
+			elsif ( $out ) {
+				logMsg($out);
+			}
+		}
+	}
+	dbg("Finished");
+}
+
+#=========================================================================================
+
 sub weightResponseTime {
 	my $rt = shift;
 	my $responseWeight = 0;
@@ -5377,47 +5405,6 @@ command line options are:
 	[maxthreads=<1..XX>]  default=2 - How many threads should nmis create;
 
 EO_TEXT
-}
-
-#=========================================================================================
-
-sub getAdminColor {
-	my %args = @_;
-	my $S = $args{sys};
-	my $index = $args{index};
-	my $IF = $S->ifinfo;
-	my $adminColor;
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true" ) {
-		$adminColor="#ffffff";
-	} else {
-		$adminColor="#00ff00";
-	}
-	return $adminColor;
-}
-
-#=========================================================================================
-
-sub getOperColor {
-	my %args = @_;
-	my $S = $args{sys};		# object
-	my $index = $args{index}; # index
-	my $NI = $S->ndinfo;	# node info
-	my $IF = $S->ifinfo;	# interface info
-	my $node = $S->{node};	# node name lc
-	my $operColor;
-
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true") {
-		$operColor="#ffffff"; # white
-	} else {
-		if ($IF->{$index}{ifOperStatus} eq 'down') {
-			# red for down
-			$operColor = "#ff0000";
-		} elsif ($IF->{$index}{ifOperStatus} eq 'dormant') {
-			# yellow for dormant
-			$operColor = "#ffff00";
-		} else { $operColor = "#00ff00"; } # green
-	}
-	return $operColor;
 }
 
 #=========================================================================================
