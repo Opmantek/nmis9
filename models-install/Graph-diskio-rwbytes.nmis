@@ -35,13 +35,18 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Disk IO Load'
+		'standard' => 'Disk IO Bytes'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:diskIOLA5=$database:diskIOLA5:AVERAGE',			
-			'LINE2:diskIOLA5#ff0000:Avg 5m load\\n',
-			'GPRINT:diskIOLA5:AVERAGE:Average 5m load %1.2lf%%'			
+			'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
+			'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
+			'LINE2:diskIONReadX#0000ff:bytes Read/s\t',
+			'GPRINT:diskIONReadX:AVERAGE:Avg %10.0lf',
+			'GPRINT:diskIONReadX:MAX:Max %10.0lf\\n',
+			'LINE2:diskIONWrittenX#00ff00:bytes Written/s\t',
+			'GPRINT:diskIONWrittenX:AVERAGE:Avg %10.0lf',
+			'GPRINT:diskIONWrittenX:MAX:Max %10.0lf\\n',
 		]
 	}
 );
