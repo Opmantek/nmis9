@@ -73,6 +73,7 @@
       'ip' => 'IP Utilisation',
       'hrdisk' => 'Disk stats',
       'hrcpu' => 'CPU Stats',
+      'laload' => 'Load Averages',
       'tempsensor' => 'Temperature',
       'env-temp' => 'Temperature',
       'buffer' => 'Buffer Utilisation',

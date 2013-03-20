@@ -299,7 +299,14 @@
           'CGESM' => 'CGESM'
         }
       }
-    }
+    },
+    'Netgear' => {
+      'order' => {
+        '10' => {
+          'Netgear' => 'GS108T'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
