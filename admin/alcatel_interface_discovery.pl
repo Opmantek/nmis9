@@ -87,21 +87,39 @@ sub processNode {
 		#
 		############################################################################################################
 		if ( $NI->{system}{sysDescr} =~ /ARAM|ISAM/ and $NI->{system}{nodeVendor} eq "ALCATEL" ) {
+			#asamActiveSoftware1	standby
+			#asamActiveSoftware2	active
+			#asamSoftwareVersion1	/OSWP/OSWPAA37.432
+			#asamSoftwareVersion2	OSWP/66.98.63.71/OSWPAA41.353/OSWPAA41.353
+			my $asamVersion41 = "OSWPAA37.432";
+			my $asamVersion42 = "OSWPAA41.353";
+			
+			my $asamSoftwareVersion = $S->{info}{system}{asamSoftwareVersion1};
+			if ( $S->{info}{system}{asamActiveSoftware2} eq "active" ) {
+				$asamSoftwareVersion = $S->{info}{system}{asamSoftwareVersion2};
+			}
+			my @verParts = split("/",$asamSoftwareVersion);
+			$asamSoftwareVersion = $verParts[$#verParts];
+			
 			my @ifIndexNum = ();
-			if( "Devices in release 4.1  (ARAM-D y ARAM-E)" ) {
-				if( "For ARAM-D with extensions " ) {
-					my $indexes = generate_interface_index_41( shelf => 2 );
+			#"Devices in release 4.1  (ARAM-D y ARAM-E)"
+			if( $asamSoftwareVersion eq $asamVersion41 ) {
+				# How to identify it is an ARAM-D?
+				#"For ARAM-D with extensions "
+				if( 0 ) {
+					my $indexes = build_41_interface_indexes( shelf => 2 );
 					@ifIndexNum = @{$indexes};
 				}
 				else {
-					my $indexes = generate_interface_index_41();
+					my $indexes = build_41_interface_indexes( shelf => 1 );
 					@ifIndexNum = @{$indexes};
 				}
 				
 			}
-			elsif( " release 4.2  ( ISAM FD y  ISAM-V) " )
+			#" release 4.2  ( ISAM FD y  ISAM-V) "
+			elsif( $asamSoftwareVersion eq $asamVersion42 )
 			{
-				my $indexes = generate_interface_index_42();
+				my $indexes = build_42_interface_indexes();
 				@ifIndexNum = @{$indexes};
 			}
 
@@ -239,7 +257,7 @@ sub processNode {
 				$S->{view}{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 			}
 			
-			print Dumper $S;
+			#print Dumper $S;
 
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis			
@@ -250,7 +268,7 @@ sub processNode {
 sub build_41_interface_indexes {
 	my %args = @_;
 	my $rack = 1;
-	my $shelf = 1;
+	my $shelf = $arg{shelf};
 
 	# For ARAM-D with extensions the shelf value changes to 2 for the first extension (shelf = 010) , 3 for the second (shelf = 11) … and so on, 
 	# such that the first port of the first card of the first extension would be:
