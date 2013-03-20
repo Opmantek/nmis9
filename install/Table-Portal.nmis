@@ -1,0 +1,9 @@
+%hash = (
+			Portal => [
+				{ Order => { header => 'Order',display => 'key,header,text', value => ["default"] }},
+				{ Name => { header => 'Name',display => 'header,text', value => [""] }},
+				{ Link => { header => 'Link',display => 'header,text', value => [""] }}
+
+			]
+);
+

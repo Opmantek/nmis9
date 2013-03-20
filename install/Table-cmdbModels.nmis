@@ -1,0 +1,6 @@
+%hash = ( 
+	cmdbModels => [
+		{ cmdbModel => { header => 'CMDB Model',display => 'key,header,text', value => [""] }},
+		{ modelDescription => { header => 'Model Description',display => 'header,text', value => [""] }},
+	]
+);

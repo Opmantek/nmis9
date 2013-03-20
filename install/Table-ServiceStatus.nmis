@@ -1,0 +1,7 @@
+%hash = (
+			ServiceStatus => [
+				{ serviceStatus => { header => 'Service Status',display => 'key,header,text', value => [""] }},
+				{ statusPriority => { header => 'Service Priority',display => 'header,popup', value => [10,9,8,7,6,5,4,3,2,1,0] }}
+			]
+);
+

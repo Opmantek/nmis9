@@ -1,0 +1,7 @@
+%hash = (
+			PrivMap => [
+				{ privilege => { header => 'Privilege',display => 'key,header,text', value => ["default"] }},
+				{ level => { header => 'Level',display => 'header,text', value => [ "" ] }}
+			]
+);
+

@@ -1,0 +1,97 @@
+%hash = (
+  'Access' => {
+    'Description' => 'Access details for NMIS authorisation system',
+    'DisplayName' => 'Access Policy',
+    'Table' => 'Access'
+  },
+  'BusinessServices' => {
+    'Description' => 'A list of Business Services which nodes can be associated to.',
+    'DisplayName' => 'Business Services',
+    'Table' => 'BusinessServices'
+  },
+  'Contacts' => {
+    'Description' => 'Contacts used for escalations and notifications.',
+    'DisplayName' => 'Contacts',
+    'Table' => 'Contacts'
+  },
+  'Enterprise' => {
+    'Description' => 'Enterprise numbers for defining new vendors',
+    'DisplayName' => 'Enterprise Numbers',
+    'Table' => 'Enterprise'
+  },
+  'Escalations' => {
+    'Description' => 'Escalation Policy for apply business policies to notifications.',
+    'DisplayName' => 'Escalation Policy',
+    'Table' => 'Escalations'
+  },
+  'Events' => {
+    'Description' => 'Events Policy for determining what to log and not log.',
+    'DisplayName' => 'Event Policy',
+    'Table' => 'Events'
+  },
+  'Links' => {
+    'Description' => 'Links between nodes',
+    'DisplayName' => 'Links (network)',
+    'Table' => 'Links'
+  },
+  'Locations' => {
+    'Description' => 'Locations of nodes',
+    'DisplayName' => 'Locations',
+    'Table' => 'Locations'
+  },
+  'Logs' => {
+    'Description' => 'Logs available to be displayed',
+    'DisplayName' => 'Logs',
+    'Table' => 'Logs'
+  },
+  'Nodes' => {
+    'Description' => 'NMIS Nodes',
+    'DisplayName' => 'Nodes (devices)',
+    'Table' => 'Nodes'
+  },
+  'Portal' => {
+    'Description' => 'Portal for custom links in menu',
+    'DisplayName' => 'Portal',
+    'Table' => 'Portal'
+  },
+  'PrivMap' => {
+    'Description' => 'Privilege Map for assigning roles to users',
+    'DisplayName' => 'Privilege Map',
+    'Table' => 'PrivMap'
+  },
+  'ServiceStatus' => {
+    'Description' => 'The current lifecycle service status of the nodes',
+    'DisplayName' => 'Service Status',
+    'Table' => 'ServiceStatus'
+  },
+  'Services' => {
+    'Description' => 'Services to be monitored on nodes.',
+    'DisplayName' => 'Services',
+    'Table' => 'Services'
+  },
+  'Tables' => {
+    'Description' => 'The master list of all tables being used in NMIS',
+    'DisplayName' => 'Tables',
+    'Table' => 'Tables'
+  },
+  'Toolset' => {
+    'Description' => 'Toolset available for use in NMIS',
+    'DisplayName' => 'Toolset',
+    'Table' => 'Toolset'
+  },
+  'Users' => {
+    'Description' => 'NMIS User Table',
+    'DisplayName' => 'Users',
+    'Table' => 'Users'
+  },
+  'cmdbModels' => {
+    'Description' => 'A list of possible Models for the CMDB',
+    'DisplayName' => 'CMDB Models',
+    'Table' => 'cmdbModels'
+  },
+  'ifTypes' => {
+    'Description' => 'ifTypes for Interface Display',
+    'DisplayName' => 'ifTypes',
+    'Table' => 'ifTypes'
+  }
+);

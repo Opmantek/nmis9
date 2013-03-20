@@ -188,6 +188,15 @@ print qq|
 # build a hash of pre-selected filters, each filter to be a list of headings with a sublist of nodes
 # Nodenames go seperatly - simple array list
 
+# defaults
+my $logName = 'Event_Log';
+if ($C->{server_master} eq 'true' and $Q->{logname} eq "" ) {
+	$logName = 'Slave_Event_Log';
+}
+elsif ($Q->{logname} ne "" ) {
+	$logName = $Q->{logname};
+}
+
 # send the default list of all names
 my $NT = loadNodeTable(); # load node table
 my $NSum = loadNodeSummary();
@@ -271,6 +280,8 @@ var opMapsWidgetWidth = $C->{'opmaps_widget_width'};
 var opMapsWidgetHeight = $C->{'opmaps_widget_height'};
 var opFlowWidgetWidth = $C->{'opflow_widget_width'};
 var opFlowWidgetHeight = $C->{'opflow_widget_height'};
+
+var logName = '$logName';
 
 \$(document).ready(function() {
 	commonv8Init("$widget_refresh","$Q->{conf}",$registered,"$installedModules ");

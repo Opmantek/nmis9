@@ -168,8 +168,6 @@ sub processRRDFile {
 			print "SKIPPING: $rrd could not be backup'ed\n";
 		}
 	}
-
-	}
 	else {
 		print "$rrd will NOT be backedup.\n";
 	}

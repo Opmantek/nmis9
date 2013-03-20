@@ -1,0 +1,13 @@
+%hash = (
+			Contacts => [
+				{ Contact => { header => 'Contact',display => 'key,header,text', value => ["Contact1"] }},
+				{ DutyTime => { header => 'DutyTime',display => 'header,text', value => ["00:24:MonTueWedThuFriSatSun"] }},
+				{ Email => { header => 'Email',display => 'header,text', value => ["contact1\@$C->{domain_name}"] }},
+				{ Location => { header => 'Location',display => 'header,text', value => ["default"] }},
+				{ Mobile => { header => 'Mobile',display => 'header,text', value => [""] }},
+				{ Pager => { header => 'Pager',display => 'header,text', value => [""] }},
+				{ Phone => { header => 'Phone',display => 'header,text', value => [""] }},
+				{ TimeZone  => { header => 'TimeZone',display => 'text', value => ["0"] }}
+			]
+);
+

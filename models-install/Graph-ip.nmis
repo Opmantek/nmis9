@@ -41,25 +41,34 @@
 	'option' => {
 		'standard' => [
 			'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
-			'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
 			'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
-			'AREA:ipInReceives#cccccc:IP Packets Received',
-			'LINE1:ipForwDatagrams#0000ff:IP Packets Forwarded',
-			'STACK:ipInDelivers#000000:IP Packets Local',
+			'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
+
+			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
+			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
+
+			'AREA:ipInReceivesSplit#4daef6:IP Packets Received',
+			'LINE1:ipInDeliversSplit#000000:IP Packets Local',
+			'AREA:ipForwDatagrams#00ff00:IP Packets Forwarded\\n',
+
 			'GPRINT:ipInReceives:AVERAGE:Avg Received %1.2lf',
-			'GPRINT:ipInReceives:MAX:Max Received %1.2lf',
-			'GPRINT:ipForwDatagrams:AVERAGE:Avg Forwarded %1.2lf',
-			'GPRINT:ipForwDatagrams:MAX:Max Forwarded %1.2lf',
 			'GPRINT:ipInDelivers:AVERAGE:Avg Local %1.2lf',
+			'GPRINT:ipForwDatagrams:AVERAGE:Avg Forwarded %1.2lf\\n',
+			'GPRINT:ipInReceives:MAX:Max Received %1.2lf',
 			'GPRINT:ipInDelivers:MAX:Max Local %1.2lf',
+			'GPRINT:ipForwDatagrams:MAX:Max Forwarded %1.2lf\\n',
 		],
 		'small' => [
 			'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
-			'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
 			'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
-			'AREA:ipInReceives#cccccc:IP Packets Received',
-			'LINE1:ipForwDatagrams#0000ff:IP Packets Forwarded',
-			'STACK:ipInDelivers#000000:IP Packets Local',
+			'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
+
+			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
+			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
+
+			'AREA:ipInReceivesSplit#4daef6:IP Received',
+			'LINE1:ipInDeliversSplit#000000:IP Local',
+			'AREA:ipForwDatagrams#00ff00:IP Forwarded\\n',
 		]
 		#'standard' => [
 		#	'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
