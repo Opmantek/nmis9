@@ -4278,9 +4278,11 @@ sub runEscalate {
 				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
-				$event->{uuid} = $node->{uuid};
-				$event->{supportGroup} = $node->{supportGroup};
-				$event->{cmdbType} = $node->{cmdbType};
+				# Copy the fields from nodes to the event
+				my @nodeFields = split(",",$C->{'json_node_fields'});
+				foreach my $field (@nodeFields) {				
+					$event->{$field} = $node->{$field};
+				}
 				
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
@@ -4624,9 +4626,11 @@ LABEL_ESC:
 								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
-								$event->{uuid} = $node->{uuid};
-								$event->{supportGroup} = $node->{supportGroup};
-								$event->{cmdbType} = $node->{cmdbType};
+								# Copy the fields from nodes to the event
+								my @nodeFields = split(",",$C->{'json_node_fields'});
+								foreach my $field (@nodeFields) {				
+									$event->{$field} = $node->{$field};
+								}
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {

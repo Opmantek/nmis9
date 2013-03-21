@@ -115,7 +115,8 @@
     'tables_case_sensitive_keys' => 'Nodes|BusinessServices|ServiceStatus|Locations|Tables',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
-    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable'
+    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',
+    'json_node_fields' => 'uuid,supportGroup,cmdbType',
   },
   'url' => {
     '<url_base>' => '/nmis8',

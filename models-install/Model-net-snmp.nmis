@@ -56,7 +56,7 @@
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrvmem',
     'sys' => {
       'standard' => {        
         'snmp' => {
@@ -93,7 +93,17 @@
             'oid' => 'sysName'
           }
         }
-      }
+      },
+      'laLoad' => {
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+          }
+        }
+      },
     },
     'rrd' => {
       'tcp' => {
@@ -140,6 +150,19 @@
             'option' => 'counter,0:U'
           }
         },
+      },
+      'laload' => {
+        'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+            'option' => 'gauge,0:U'
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+            'option' => 'gauge,0:U'
+          }
+        }
       },
       'mib2ip' => {
         'graphtype' => 'ip,frag',

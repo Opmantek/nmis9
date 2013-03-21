@@ -104,6 +104,7 @@
       'tcp' => '/health/$nodeType/$node-tcp.rrd',
       'nmis' => '/metrics/nmis-system.rrd',
       'cbqos-out' => '/interface/$nodeType/$node/$node-$ifDescr-$item.rrd',
+      'laload' => '/health/$nodeType/$node-laload.rrd',
       'hr' => '/health/$nodeType/$node-hr.rrd',
       'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
       'akcp_temp' => '/misc/$nodeType/$node-akcp-temp-$index.rrd',
