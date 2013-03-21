@@ -290,7 +290,7 @@ sub copyModelCfgInfo {
 	
 	if ( $type eq 'all' ) {
 		$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} if $self->{info}{system}{nodeModel} eq "";
-		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType} if $self->{info}{system}{nodeType} eq "";
+		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType};
 		dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel}, $self->{mdl}{system}{nodeModel}, $self->{mdl}{system}{nodeType}");
 	}
 }
