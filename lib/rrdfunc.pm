@@ -178,6 +178,7 @@ sub addDStoRRD {
 	}
 	my $info = `$rrdtool`;
 	if ($info eq "") {
+		# $rrdtool = "/opt/local/bin/rrdtool"; # maybe this
 		$rrdtool = "/usr/local/rrdtool/bin/rrdtool"; # maybe this
 		$info = `$rrdtool`;
 		if ($info eq "") {

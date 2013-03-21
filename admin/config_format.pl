@@ -1,55 +1,56 @@
+#!/usr/bin/perl
 #
-## $Id: Global.pm,v 8.3 2012/09/21 04:56:33 keiths Exp $
+## $Id: model_audit.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (“NMIS”).
-#  
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
-package NMIS::Global;
-
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+ 
 use strict;
-use lib "../../lib";
-use Exporter;
+use func;
 
-use vars qw($C @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+my %arg = getArguements(@ARGV);
 
-@ISA = qw/ Exporter /;
+# Set debugging level.
+my $debug = setDebug($arg{debug});
+$debug = 1;
 
-@EXPORT = qw/ $C /;
+my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
-use NMIS::Config ();
-$C = NMIS::Config->new(  );
+my $conf = "Enterprise.nmis";
+my $dir = "install";
 
-# our $READONLY;
-# *READONLY = \42;
+my $source = "/usr/local/nmis8/$dir/$conf";
+my $new = "$source.new";
 
-1;
+my $CONFIG = readFiletoHash(file=>$source);
+writeHashtoFile(file=>$new,data=>$CONFIG);
 
 
-
-
-                                                                                                                                                                                                                                                        

@@ -104,6 +104,7 @@
       'tcp' => '/health/$nodeType/$node-tcp.rrd',
       'nmis' => '/metrics/nmis-system.rrd',
       'cbqos-out' => '/interface/$nodeType/$node/$node-$ifDescr-$item.rrd',
+      'laload' => '/health/$nodeType/$node-laload.rrd',
       'hr' => '/health/$nodeType/$node-hr.rrd',
       'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
       'akcp_temp' => '/misc/$nodeType/$node-akcp-temp-$index.rrd',
@@ -113,7 +114,9 @@
       'ccpu' => '/health/$nodeType/$node-health.rrd',
       'cssgroup' => '/health/$nodeType/$node-group-$index.rrd',
       'csscontent' => '/health/$nodeType/$node-content-$index.rrd',
-      'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd'
+      'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
+      'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
+      'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
     }
   }
 );

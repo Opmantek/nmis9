@@ -73,6 +73,7 @@
       'ip' => 'IP Utilisation',
       'hrdisk' => 'Disk stats',
       'hrcpu' => 'CPU Stats',
+      'laload' => 'Load Averages',
       'tempsensor' => 'Temperature',
       'env-temp' => 'Temperature',
       'buffer' => 'Buffer Utilisation',
@@ -104,7 +105,9 @@
       'mem-cluster' => 'Cluster Memory Utilisation',
       'routenumber' => 'Number of Routes',
       'tcp-conn' => 'TCP Connections',
-      'tcp-segs' => 'TCP Segments'
+      'tcp-segs' => 'TCP Segments',
+      'cpu-cpm' => 'Cisco Process MIB',
+      'diskIOTable' => 'Disk IO Table'
     }
   }
 );

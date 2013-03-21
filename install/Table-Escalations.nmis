@@ -1,3 +1,17 @@
+use NMIS;
+use Auth;
+
+my $C = loadConfTable();
+
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my @groups = ();
+my $GT = loadGroupTable();
+foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
+
 %hash = (
 			Escalations => [
 				{ Group => { header => 'Group',display => 'key,header,popup', value => ["default",@groups] }},

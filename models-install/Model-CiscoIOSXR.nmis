@@ -208,6 +208,57 @@
       },
   	},
   },
+    'systemHealth' => {
+    'sys' => {
+      'cpu_cpm' => {
+        'indexed' => 'cpmCPUTotalPhysicalIndex',        
+        'headers' => 'cpmCPUTotal1min,cpmCPUTotal5min',
+        'snmp' => {
+          'cpmCPUTotalPhysicalIndex' => {
+            'oid' => 'cpmCPUTotalPhysicalIndex',
+            'title' => 'Entity Physical Index'
+          },
+          'cpmCPUTotal1min' => {
+            'oid' => 'cpmCPUTotal1minRev',
+            'title' => 'CPU Total 1min'
+          },
+          'cpmCPUTotal5min' => {
+            'oid' => 'cpmCPUTotal5minRev',
+            'title' => 'CPU Total 5min'
+          },
+        },
+      },
+      'entityMib' => {
+        'indexed' => 'entPhysicalDescr',
+        'headers' => 'entPhysicalDescr,entPhysicalName',
+        'snmp' => {
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Physical Descr'
+          },
+          'entPhysicalName' => {
+            'oid' => 'entPhysicalName',
+            'title' => 'Physical Name'
+          },
+        },
+      },
+    },
+    'rrd' => {
+      'cpu_cpm' => {
+        'indexed' => 'true',
+        'graphtype' => 'cpu-cpm',
+        'threshold' => 'cpu_cpm',
+        'snmp' => {
+          'cpmCPUTotal1min' => {
+            'oid' => 'cpmCPUTotal1minRev',
+          },
+          'cpmCPUTotal5min' => {
+            'oid' => 'cpmCPUTotal5minRev',
+          },
+        },
+      },
+    }
+  },
   #'environment' => {
   #  'sys' => {
   #    'env_temp' => {
@@ -544,6 +595,10 @@
       'env_temp' => [
         'DEF:currentTemp=$database:currentTemp:AVERAGE',
         'PRINT:currentTemp:AVERAGE:currentTemp=%1.2lf',
+      ],
+      'cpu_cpm' => [
+        'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
       ],
       'pkts' => [
         'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',

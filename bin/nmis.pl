@@ -484,7 +484,7 @@ sub doUpdate {
 							print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
 							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
 						}
-
+						getSystemHealthInfo(sys=>$S) if defined $S->{mdl}{systemHealth};
 						getEnvInfo(sys=>$S);
 						getCBQoS(sys=>$S); # do walk
 						getCalls(sys=>$S); # do walk
@@ -508,6 +508,10 @@ sub doUpdate {
 	runReach(sys=>$S);
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	
+	### 2013-03-19 keiths, NMIS Plugins!
+	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
+
 	dbg("Finished");
 	return;
 } # end runUpdate
@@ -567,6 +571,8 @@ sub doCollect {
 						
 						# get intf data and store in rrd
 						getIntfData(sys=>$S) if defined $S->{info}{interface};
+
+						getSystemHealthData(sys=>$S);
 		
 						getEnvData(sys=>$S);
 	
@@ -1077,7 +1083,7 @@ sub getIntfInfo {
 
 	my $C = loadConfTable();
 
-	if ( defined $S->{mdl}{interface}{nocollect}{ifDescr} and $S->{mdl}{interface}{nocollect}{ifDescr} ne "" ) {
+	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
 		dbg("Starting");
 		dbg("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 	
@@ -1807,6 +1813,126 @@ sub getEnvData {
 				}
 			}
 		} 
+	}
+	dbg("Finished");
+	return 1;
+}	
+#=========================================================================================
+
+sub getSystemHealthInfo {
+	my %args = @_;
+	my $S = $args{sys}; # object
+
+	my $NI = $S->ndinfo; # node info table
+	my $V =  $S->view;
+	my $SNMP = $S->snmp;
+	my $M = $S->mdl;	# node model table
+	my $C = loadConfTable();
+
+	dbg("Starting");
+	dbg("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+
+	if ($M->{system} eq '') {
+		dbg("No class 'systemHealth' declared in Model");
+	}
+	else {		
+		my @healthSections = split(",",$C->{model_health_sections});
+		for my $section (@healthSections) {
+			delete $NI->{$section};
+			# get Index table
+			my $index_var = '';
+			if( exists($M->{systemHealth}{sys}{$section}) ) {
+				$index_var = $M->{systemHealth}{sys}{$section}{indexed};
+			}
+			if ($index_var ne '') {
+				dbg("systemHealth: index_var=$index_var");
+				my %healthIndexNum;
+				my $healthIndexTable;
+				if ($healthIndexTable = $SNMP->gettable($index_var)) {
+					# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
+					foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable})) {
+						my $index = $oid;
+						if ( $oid =~ /\.(\d+)$/ ) {
+							$index = $1;
+						}
+						$healthIndexNum{$index}=$index;
+						# check for online of sensor, value 1 is online
+						dbg("systemHealth section=$section index=$index is found");
+					}
+				} else {
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
+					# failed by snmp
+					snmpNodeDown(sys=>$S);
+				}
+				# Loop to get information, will be stored in {info}{$section} table
+				foreach my $index (sort keys %healthIndexNum) {					
+					if ($S->loadInfo(class=>'systemHealth',section=>$section,index=>$index,table=>$section,model=>$model)) {
+						dbg("systemHealth section=$section index=$index read and stored");
+					} else {
+						# failed by snmp
+						snmpNodeDown(sys=>$S);
+					}
+				}
+			}
+			else {
+				dbg("No indexvar found in $section");
+			}
+		}
+	}
+	dbg("Finished");
+	return 1;
+}
+#=========================================================================================
+ 
+sub getSystemHealthData {
+	my %args = @_;
+	my $S = $args{sys}; # object
+
+	my $NI = $S->ndinfo; # node info table
+	my $SNMP = $S->snmp;
+	my $V =  $S->view;
+	my $M = $S->mdl;	# node model table
+
+	my $C = loadConfTable();
+
+	dbg("Starting");
+	dbg("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+
+	if ($M->{systemHealth} eq '') {
+		dbg("No class 'systemHealth' declared in Model");
+	}
+	else {   
+		my @healthSections = split(",",$C->{model_health_sections});
+		for my $section (@healthSections) {
+			if( exists($S->{info}{$section}) ) {
+				for my $index (sort keys %{$S->{info}{$section}}) {
+					my $rrdData;
+					if (($rrdData = $S->getData(class=>'systemHealth',section=>$section,index=>$index,model=>$model))) {
+						if ( $rrdData->{error} eq "" ) {
+							foreach my $sect (keys %{$rrdData}) {
+								my $D = $rrdData->{$sect}{$index};
+			
+								# RRD Database update and remember filename
+								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
+									$NI->{database}{$sect}{$index} = $db;
+								}
+							}
+						}
+						else {
+							dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
+						}
+					}
+					else {
+						logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, SNMP problem");
+						# failed by snmp
+						snmpNodeDown(sys=>$S);
+						dbg("ERROR, getting data");
+						return 0;
+					}
+				}
+			}
+			
+		}
 	}
 	dbg("Finished");
 	return 1;
@@ -3379,7 +3505,7 @@ sub runCheckValues {
 			my $control = $M->{system}{sys}{$sect}{control}; 	# check if skipped by control
 			if ($control ne "") {
 				dbg("control=$control found for section=$sect",2);
-				if ($S->parseString(string=>"($control) ? 1:0") ne "1") {
+				if ($S->parseString(string=>"($control) ? 1:0", sect => $sect) ne "1") {
 					dbg("threshold of section $sect skipped by control=$control");
 					next;
 				}
@@ -3830,6 +3956,31 @@ sub getNodeAllInfo {
 
 #=========================================================================================
 
+sub runCustomPlugins {
+	my %args = @_;
+	my $S = $args{sys};
+	my $node = $args{node};
+		
+	dbg("Starting, node $node");
+	foreach my $custom ( keys %{$S->{mdl}{custom}} ) {
+		if ( defined $S->{mdl}{custom}{$custom}{script} and $S->{mdl}{custom}{$custom}{script} ne "" ) {
+			dbg("Found Custom Script $S->{mdl}{custom}{$custom}{script}");
+			#Only scripts in /usr/local/nmis8/admin can be run.
+			my $exec = "$C->{'<nmis_base>'}/$S->{mdl}{custom}{$custom}{script} node=$node debug=$C->{debug}";
+			my $out = `$exec 2>&1`; 
+			if ( $out and $C->{debug} ) {
+				dbg($out);
+			}
+			elsif ( $out ) {
+				logMsg($out);
+			}
+		}
+	}
+	dbg("Finished");
+}
+
+#=========================================================================================
+
 sub weightResponseTime {
 	my $rt = shift;
 	my $responseWeight = 0;
@@ -4127,6 +4278,12 @@ sub runEscalate {
 				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+				# Copy the fields from nodes to the event
+				my @nodeFields = split(",",$C->{'json_node_fields'});
+				foreach my $field (@nodeFields) {				
+					$event->{$field} = $node->{$field};
+				}
+				
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
 			else {
@@ -4469,6 +4626,11 @@ LABEL_ESC:
 								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+								# Copy the fields from nodes to the event
+								my @nodeFields = split(",",$C->{'json_node_fields'});
+								foreach my $field (@nodeFields) {				
+									$event->{$field} = $node->{$field};
+								}
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {
@@ -5021,6 +5183,8 @@ EO_TEXT
 	}
 	
 	if ( $change eq "true" ) {
+		setFileProtDirectory("$FindBin::Bin/../lib");
+		setFileProtDirectory("$FindBin::Bin/../lib/NMIS");
 		setFileProtDirectory($C->{'<nmis_admin>'});
 		setFileProtDirectory($C->{'<nmis_bin>'});
 		setFileProtDirectory($C->{'<nmis_cgi>'});
@@ -5041,6 +5205,8 @@ EO_TEXT
 	}
 
 	if ( $audit eq "true" ) {
+		checkDirectoryFiles("$FindBin::Bin/../lib");
+		checkDirectoryFiles("$FindBin::Bin/../lib/NMIS");
 		checkDirectoryFiles($C->{'<nmis_admin>'});
 		checkDirectoryFiles($C->{'<nmis_bin>'});
 		checkDirectoryFiles($C->{'<nmis_cgi>'});
@@ -5254,47 +5420,6 @@ EO_TEXT
 
 #=========================================================================================
 
-sub getAdminColor {
-	my %args = @_;
-	my $S = $args{sys};
-	my $index = $args{index};
-	my $IF = $S->ifinfo;
-	my $adminColor;
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true" ) {
-		$adminColor="#ffffff";
-	} else {
-		$adminColor="#00ff00";
-	}
-	return $adminColor;
-}
-
-#=========================================================================================
-
-sub getOperColor {
-	my %args = @_;
-	my $S = $args{sys};		# object
-	my $index = $args{index}; # index
-	my $NI = $S->ndinfo;	# node info
-	my $IF = $S->ifinfo;	# interface info
-	my $node = $S->{node};	# node name lc
-	my $operColor;
-
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true") {
-		$operColor="#ffffff"; # white
-	} else {
-		if ($IF->{$index}{ifOperStatus} eq 'down') {
-			# red for down
-			$operColor = "#ff0000";
-		} elsif ($IF->{$index}{ifOperStatus} eq 'dormant') {
-			# yellow for dormant
-			$operColor = "#ffff00";
-		} else { $operColor = "#00ff00"; } # green
-	}
-	return $operColor;
-}
-
-#=========================================================================================
-
 sub runThreshold {
 	my $node = shift;
 
@@ -5452,7 +5577,7 @@ sub doThreshold {
 								my $control = $M->{$s}{$ts}{$type}{control}; 	# check if skipped by control
 								if ($control ne "") {
 									dbg("control=$control found for type=$type",2);
-									if ($S->parseString(string=>"($control) ? 1:0") ne "1") {
+									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts) ne "1") {
 										dbg("threshold of type $type skipped by control=$control");
 										next;
 									}

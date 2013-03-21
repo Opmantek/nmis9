@@ -123,12 +123,30 @@ function commonv8Init(widget_refresh,config,registered,modules) {
 		$.ajax({
 			url			:	'/cgi-omk/opFlow.pl?summarise=60&widget=getJavascript',
 			async		: false,
-			dataType: "html",
+			dataType: "json",
 			type 		: 'GET',
 			cache		: false,
 			success	: function(data) {
-				$("#NMISV8").append(data);
-			}
+				for( i = 0; i < data.length; i++ ) {
+					scriptData = data[i];
+					var script   = document.createElement("script");
+					script.type  = "text/javascript";
+
+					if( scriptData.innerHTML !== undefined ) {
+						script.innerHTML = scriptData.innerHTML;
+					}
+					if( scriptData.src !== undefined) {
+						script.src   = scriptData.src;
+					}
+
+					document.body.appendChild(script);
+				}
+
+			},
+			error: function (xhr, ajaxOptions, thrownError) {
+				// this error is expected from older versions of opflow
+				console.log("opFlow requires updating to work with this version of NMIS");
+      }
 		});
 	}
 

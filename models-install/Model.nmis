@@ -227,7 +227,7 @@
     'net-snmp' => {
       'order' => {
         '10' => {
-          'net-snmp' => 'Linux|SunOS'
+          'net-snmp' => 'Linux|SunOS|Darwin'
         }
       }
     },
@@ -299,7 +299,14 @@
           'CGESM' => 'CGESM'
         }
       }
-    }
+    },
+    'Netgear' => {
+      'order' => {
+        '10' => {
+          'Netgear' => 'GS108T'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

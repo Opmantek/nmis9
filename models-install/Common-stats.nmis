@@ -68,6 +68,10 @@
         'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
         'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf'
       ],
+      'cpu-cpm' => [
+        'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
+      ],
       'nodehealth' => [
         'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
         'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
@@ -181,7 +185,19 @@
         'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
         'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
         'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
-      ]
+      ],
+      'diskIOTable' => [
+        'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
+        'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
+        'DEF:diskIOReads=$database:diskIOReads:AVERAGE',
+        'DEF:diskIOWrites=$database:diskIOWrites:AVERAGE',
+        'DEF:diskIOLA5=$database:diskIOLA5:AVERAGE',        
+        'PRINT:diskIONReadX:AVERAGE:diskIONReadX=%1.0lf',
+        'PRINT:diskIONWrittenX:AVERAGE:diskIONWrittenX=%1.0lf',
+        'PRINT:diskIOReads:AVERAGE:diskIOReads=%1.0lf',
+        'PRINT:diskIOWrites:AVERAGE:diskIOWrites=%1.0lf',
+        'PRINT:diskIOLA5:AVERAGE:diskIOLA5=%1.2lf'
+      ],
     }
   }
 );

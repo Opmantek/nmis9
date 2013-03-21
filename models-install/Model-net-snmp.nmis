@@ -56,9 +56,9 @@
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrvmem',
     'sys' => {
-      'standard' => {
+      'standard' => {        
         'snmp' => {
           'sysLocation' => {
             'replace' => {
@@ -93,7 +93,17 @@
             'oid' => 'sysName'
           }
         }
-      }
+      },
+      'laLoad' => {
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+          }
+        }
+      },
     },
     'rrd' => {
       'tcp' => {
@@ -140,6 +150,19 @@
             'option' => 'counter,0:U'
           }
         },
+      },
+      'laload' => {
+        'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+            'option' => 'gauge,0:U'
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+            'option' => 'gauge,0:U'
+          }
+        }
       },
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -206,6 +229,85 @@
           }
         }
       }
+    }
+  },
+  'systemHealth' => {
+    'sys' => {
+      'diskIOTable' => {        
+        'indexed' => 'diskIOIndex',        
+        'headers' => 'diskIODevice',
+        'snmp' => {
+          'diskIOIndex' => {
+            'oid' => 'diskIOIndex',
+            'title' => 'IO Device Index'
+          },
+          'diskIODevice' => {
+            'oid' => 'diskIODevice',
+            'title' => 'IO Device Name'
+          },
+          'diskIONReadX' => {
+            'oid' => 'diskIONReadX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes read from this device since boot'
+          },
+          'diskIONWrittenX' => {
+            'oid' => 'diskIONWrittenX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes written from this device since boot'
+          },
+          'diskIOReads' => {
+            'oid' => 'diskIOReads',
+            'option' => 'counter,0:U',
+            'title' => 'The number of read accesses from this device since boot'
+          },
+           'diskIOWrites' => {
+            'oid' => 'diskIOWrites',
+            'option' => 'counter,0:U',
+            'title' => 'The number of write accesses to this device since boot'
+          },
+          # 'diskIOLA1' => {
+          #   'oid' => 'diskIOLA1',
+          #   'title' => 'The 1 minute average load of disk (%)'
+          # },
+          # 'diskIOLA5' => {
+          #   'oid' => 'diskIOLA5',
+          #   'title' => 'The 5 minute average load of disk (%)'
+          # },          
+          # 'diskIOLA15' => {
+          #   'oid' => 'diskIOLA15',
+          #   'title' => 'The 15 minute average load of disk (%)'
+          # },
+        },
+      },      
+    },
+    'rrd' => {
+      'diskIOTable' => {
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk/',
+        'indexed' => 'true',
+        'graphtype' => 'diskio-rw,diskio-rwbytes',
+        'snmp' => {
+          'diskIONReadX' => {
+            'oid' => 'diskIONReadX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes read from this device since boot'
+          },
+          'diskIONWrittenX' => {
+            'oid' => 'diskIONWrittenX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes written from this device since boot'
+          },
+          'diskIOReads' => {
+            'oid' => 'diskIOReads',
+            'option' => 'counter,0:U',
+            'title' => 'The number of read accesses from this device since boot'
+          },
+           'diskIOWrites' => {
+            'oid' => 'diskIOWrites',
+            'option' => 'counter,0:U',
+            'title' => 'The number of write accesses to this device since boot'
+          },
+        },
+      },
     }
   },
   'device' => {

@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.18G";
+$VERSION = "8.3.19N";
 
 @ISA = qw(Exporter);
 
@@ -115,6 +115,8 @@ $VERSION = "8.3.18G";
 		getNodeSummary
 		getLevelLogEvent
 		overallNodeStatus
+		getOperColor
+		getAdminColor
 		colorHighGood
 		colorPort
 		colorLowGood
@@ -1775,6 +1777,47 @@ NODE:
 	return \%summaryHash;
 } # end getGroupSummary
 
+#=========================================================================================
+
+sub getAdminColor {
+	my %args = @_;
+	my $S = $args{sys};
+	my $index = $args{index};
+	my $IF = $S->ifinfo;
+	my $adminColor;
+	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true" ) {
+		$adminColor="#ffffff";
+	} else {
+		$adminColor="#00ff00";
+	}
+	return $adminColor;
+}
+
+#=========================================================================================
+
+sub getOperColor {
+	my %args = @_;
+	my $S = $args{sys};		# object
+	my $index = $args{index}; # index
+	my $NI = $S->ndinfo;	# node info
+	my $IF = $S->ifinfo;	# interface info
+	my $node = $S->{node};	# node name lc
+	my $operColor;
+
+	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true") {
+		$operColor="#ffffff"; # white
+	} else {
+		if ($IF->{$index}{ifOperStatus} eq 'down') {
+			# red for down
+			$operColor = "#ff0000";
+		} elsif ($IF->{$index}{ifOperStatus} eq 'dormant') {
+			# yellow for dormant
+			$operColor = "#ffff00";
+		} else { $operColor = "#00ff00"; } # green
+	}
+	return $operColor;
+}
+
 sub colorHighGood {
 	my $threshold = shift;
 	my $color = "";
@@ -2558,9 +2601,15 @@ sub createHrButtons {
 			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
 			
 			foreach my $sysHealth (@systemHealth) {	
+<<<<<<< HEAD
 				if ($NI->{sysHealth} ne '' or $NI->{sysHealth} ne '') {
 					push @out, td({class=>'header'},
 						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+=======
+				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
+					push @out, td({class=>'header'},
+						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
+>>>>>>> 98985dbbbf09210e351bf45779e25b0262589a8e
 				}
 			}
 		}

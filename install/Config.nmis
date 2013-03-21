@@ -39,11 +39,14 @@
     'global_nocollect_ifOperStatus' => '',
     'global_nocollect_ifDescr' => '',
     'global_nocollect_Description' => '',
-    'global_nocollect_noDescription' => 'true',
+    'global_nocollect_noDescription' => '',
     'global_nocollect_ifType' => '',
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
-    'global_noevent_ifType' => ''
+    'global_noevent_ifType' => '',
+    'uuid_add_with_node' => 'true',
+    'uuid_namespace_type' => 'NameSpace_URL',
+    'uuid_namespace_name' => 'www.domain.com'
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
@@ -111,7 +114,9 @@
     'snmp_stop_polling_on_error' => 'true',
     'tables_case_sensitive_keys' => 'Nodes|BusinessServices|ServiceStatus|Locations|Tables',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Reset'
+    'non_stateful_events' => 'Node Configuration Change, Node Reset',
+    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',
+    'json_node_fields' => 'uuid,supportGroup,cmdbType',
   },
   'url' => {
     '<url_base>' => '/nmis8',

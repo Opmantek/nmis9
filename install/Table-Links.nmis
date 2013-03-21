@@ -1,11 +1,29 @@
+use NMIS;
+use Auth;
+
+my $C = loadConfTable();
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my @groups = ();
+my $GT = loadGroupTable();
+foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
+
+my @nodes = ();
+my $LNT = loadLocalNodeTable(); # load from file or db
+foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
+
 %hash = (
 			Links => [
 				{ subnet => { header => 'Subnet',display => 'key,header,text', value => [""] }},
 				{ mask => { header => 'Mask',display => 'header,text', value => [""] }},
-				{ node1 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ node1 => { header => 'Node',display => 'header,popup', value => ["",@nodes] }},
 				{ interface1 => { header => 'Interface',display => 'header,text', value => [""] }},
 				{ ifIndex1 => { header => 'Index',display => 'text', value => [""] }},
-				{ node2 => { header => 'Node',display => 'header,popup', value => ["",sort keys %{$LNT}] }},
+				{ node2 => { header => 'Node',display => 'header,popup', value => ["",@nodes] }},
 				{ interface2 => { header => 'Interface',display => 'header,text', value => [""] }},
 				{ ifIndex2 => { header => 'Index',display => 'text', value => [""] }},
 				{ ifType => { header => 'Type',display => 'text', value => [""] }},

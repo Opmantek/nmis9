@@ -1,3 +1,18 @@
+use NMIS;
+use Auth;
+
+my $C = loadConfTable();
+
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my @privs = ();
+my $PM = loadTable(dir=>'conf',name=>'PrivMap');
+# I assume a natural order: administrator = 0 (highest priv) and guest = 6 (lowest priv)
+foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;}
+
 %hash = (
 			Toolset => [
 				{ button => { header => 'Name',display => 'key,header,text', value => [""] }},
