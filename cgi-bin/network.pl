@@ -960,7 +960,7 @@ EO_HTML
 	my $editnode;
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") ) {
 		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget";
-		$editnode = qq| <a href="$url">Edit Node</a>|;
+		$editnode = qq| <a href="$url" id="cfg_nodes">Edit Node</a>|;
 
 	}
 	
