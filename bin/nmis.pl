@@ -4256,7 +4256,7 @@ sub runEscalate {
 			} # end netsend
 			elsif ( $type eq "syslog" ) {
 				my $timenow = time();
-				my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+				my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 				my $priority = eventToSyslog($ET->{$event_hash}{level});
 				if ( $C->{syslog_use_escalation} eq "true" ) {
 					foreach my $trgt ( @x ) {
@@ -4271,7 +4271,7 @@ sub runEscalate {
 				# make it an up event.
 				my $event = $ET->{$event_hash};
 				my $node = $NT->{$event->{node}};
-				$event->{nmis_server} = $C->{nmis_host};				
+				$event->{nmis_server} = $C->{server_name};				
 				$event->{location} = $LocationsTable->{$node->{location}}{Location};
 				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
@@ -4313,7 +4313,7 @@ LABEL_ESC:
 			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
 
 			my $timenow = time();
-			my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+			my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 			my $priority = eventToSyslog($ET->{$event_hash}{level});
 			sendSyslog(
 				server_string => $C->{syslog_server},
@@ -4596,7 +4596,7 @@ LABEL_ESC:
 									}
 								}
 								my $timenow = time();
-								my $message = "NMIS_Event::$C->{nmis_host}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
+								my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
 								my $priority = eventToSyslog($ET->{$event_hash}{level});
 								if ( $C->{syslog_use_escalation} eq "true" ) {
 									foreach my $trgt ( @x ) {
@@ -4619,7 +4619,7 @@ LABEL_ESC:
 								# copy the event
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
-								$event->{nmis_server} = $C->{nmis_host};
+								$event->{nmis_server} = $C->{server_name};
 								$event->{location} = $LocationsTable->{$node->{location}}{Location};
 								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
