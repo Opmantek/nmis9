@@ -2601,15 +2601,9 @@ sub createHrButtons {
 			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
 			
 			foreach my $sysHealth (@systemHealth) {	
-<<<<<<< HEAD
-				if ($NI->{sysHealth} ne '' or $NI->{sysHealth} ne '') {
-					push @out, td({class=>'header'},
-						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-=======
 				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
 					push @out, td({class=>'header'},
 						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
->>>>>>> 98985dbbbf09210e351bf45779e25b0262589a8e
 				}
 			}
 		}
