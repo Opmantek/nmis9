@@ -959,9 +959,8 @@ EO_HTML
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") ) {
-		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget";
+		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=$NI->{system}{name}";
 		$editnode = qq| <a href="$url" id="cfg_nodes">Edit Node</a>|;
-
 	}
 	
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);

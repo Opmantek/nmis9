@@ -55,6 +55,7 @@ $VERSION = 2.0;
 @ISA = qw(Exporter);
 
 @EXPORT = qw(
+		getUpdateStats
 		getRRDasHash
 		getRRDStats
 		addDStoRRD
@@ -64,6 +65,22 @@ $VERSION = 2.0;
 
 @EXPORT_OK = qw(	
 	);
+
+my $datapoints = 0;
+my $databytes = 0;
+my $rrdcount = 0;
+my @nodes;
+
+sub getUpdateStats {
+	my %stats;
+	
+	$stats{rrdcount} = $rrdcount;
+	$stats{nodecount} = $#nodes + 1;
+	$stats{datapoints} = $datapoints;
+	$stats{databytes} = $databytes;
+	
+	return \%stats;
+}
 
 sub getRRDasHash {
 	my %args = @_;
@@ -353,6 +370,10 @@ sub updateRRD {
 	my $item = $args{item};
 
 	my $database = $args{database};
+	
+	if ( not grep {$S->{name} eq $_} @nodes ) {
+		push(@nodes,$S->{name}); 
+	}
 
 	dbg("Starting RRD Update Process, type=$type, index=$index,item=$item");
 
@@ -410,15 +431,27 @@ sub updateRRD {
 		$value .= ":$data->{$var}{value}";
 	}
 	push @options,("-t",$ds,$value);
+	
+	# counts the seperators, not the datapoints add 1 extra
+	my $points = () = $ds =~ /:/g;
+	++$points;
+	# for bytes consider a 64 bit word, 8 bytes for each thing.
+	#64-bits (8 bytes), 
+	my $bytes = $points * 8;
 
-	dbg("DS $ds");
-	dbg("value $value");
+	$datapoints += $points;
+	$databytes += $bytes;
+
+
+	dbg("DS $ds, $points");
+	dbg("value $value, $bytes bytes");
 	
 	logPolling("$type,$NI->{system}{name},$index,$item,$ds,$value");
 
 	if ( @options) {
 		# update RRD
 		RRDs::update($database,@options);
+		++$rrdcount;
 		#my $upd = RRDs::updatev($database,@options);	
 		#print STDERR Dumper($upd);
 		
