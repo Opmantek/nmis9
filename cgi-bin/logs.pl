@@ -722,10 +722,13 @@ sub outputLine {
 			else {
 				$line = "$logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";
 			}
+			if ( $logNodeLink eq "" and $logEventLink eq "" ) {
+				$line = "$logTime $logNode $logEvent $logLevel $logElement $logDetails$logServer";
+			}
 			$logLevelText = $logLevel;
 		}
 		else {
-			$line = "$logTime $logElement $logDetails";
+			$line = "$logTime $logNode $logEvent $logLevel $logElement $logDetails$logServer";
 			$logLevelText = 'Normal';
 		}
 	} # if event.log

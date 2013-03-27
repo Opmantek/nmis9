@@ -381,7 +381,7 @@ sub editTable {
 					} 
 					elsif ($ref->{$item}{display} =~ /text/) {
 						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-						print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
+						#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
 						$line .= td(textfield(-name=>$item, -value=>$value, -style=>"width: 260px;", -size=>'35'));
 					} 
 					elsif ($ref->{$item}{display} =~ /readonly/) {
@@ -390,7 +390,7 @@ sub editTable {
 						$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
 					} 
 					elsif ($ref->{$item}{display} =~ /pop/) {
-						print STDERR "DEBUG editTable: popup -- item=$item\n";
+						#print STDERR "DEBUG editTable: popup -- item=$item\n";
 						$line .= td(popup_menu(
 								-name=>"$item", 
 								-values=>$ref->{$item}{value},

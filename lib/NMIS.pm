@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.19N";
+$VERSION = "8.3.20G";
 
 @ISA = qw(Exporter);
 
@@ -975,7 +975,7 @@ sub checkEvent {
 			sendSyslog(
 				server_string => $C->{syslog_server},
 				facility => $C->{syslog_facility},
-				nmis_host => $C->{nmis_host},
+				nmis_host => $C->{server_name},
 				time => time(),
 				node => $S->{name},
 				event => $event,
@@ -1066,7 +1066,7 @@ sub notify {
 		sendSyslog(
 			server_string => $C->{syslog_server},
 			facility => $C->{syslog_facility},
-			nmis_host => $C->{nmis_host},
+			nmis_host => $C->{server_name},
 			time => time(),
 			node => $node,
 			event => $event,
@@ -1307,8 +1307,8 @@ sub getSummaryStats{
 	if ($C->{server_master} eq 'true' and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
 		# send request to remote server
 		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
-		return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
-				gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
+		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
+		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
 	}
 
 	my $db;

@@ -56,9 +56,18 @@ if ( not $< == 0) { # NOT root
 else {	
 	my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_base>'}`;
 	print $output;
+
+	my $output = `chmod -R g+rw $C->{'<nmis_base>'}`;
+	print $output;
+	
+	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} ) {
+		my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_data>'}`;
+		print $output;
+
+		my $output = `chmod -R g+rw $C->{'<nmis_data>'}`;
+		print $output;
+	}
 }
-#my $output = `chmod -R g+w $C->{'<nmis_base>'}`;
-#print $output;
 
 setFileProtDirectory($C->{'<nmis_admin>'});
 setFileProtDirectory($C->{'<nmis_bin>'});
