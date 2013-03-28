@@ -48,17 +48,19 @@ my %arg = getArguements(@ARGV);
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
-$debug = 1;
+
 
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+
+my $overwrite = setDebug($arg{overwrite});
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 $0 will import nodes to NMIS.
 ERROR: need some files to work with
 usage: $0 <NODES_1> <NODES_2>
-eg: $0 /usr/local/nmis8/admin/import_nodes_sample.csv /usr/local/nmis8/conf/Nodes.nmis.new
+eg: $0 csv=/usr/local/nmis8/admin/import_nodes_sample.csv nodes=/usr/local/nmis8/conf/Nodes.nmis.new
 
 
 The sample CSV looks like this:
@@ -73,22 +75,25 @@ EO_TEXT
 	exit 1;
 }
 
-if ( -r $ARGV[0] ) {
-		loadNodes();
+if ( -r $arg{csv} ) {
+		loadNodes($arg{csv},$arg{nodes});
 }
 else {
-	print "ERROR: $ARGV[0] is an invalid file\n";
+	print "ERROR: $arg{csv} is an invalid file\n";
 }
 
 exit 1;
 
 sub loadNodes {
+	my $csvfile = shift;
+	my $nmisnodes = shift;
+	
 	print $t->markTime(). " Loading the Local Node List\n";
 	my $LNT = loadLocalNodeTable();
 	print "  done in ".$t->deltaTime() ."\n";
 	
-	print $t->markTime(). " Loading the Import Nodes from $ARGV[0]\n";
-	my %newNodes = &loadCSV($ARGV[0],"name",",");
+	print $t->markTime(). " Loading the Import Nodes from $csvfile\n";
+	my %newNodes = &loadCSV($csvfile,"name",",");
 	print "  done in ".$t->deltaTime() ."\n";
 	
 	print "\n";
@@ -156,14 +161,20 @@ $sum->{add} nodes added
 $sum->{update} nodes updated
 |;
 
-	if ( $ARGV[1] ne "" ) {
-		if ( not -f $ARGV[1] ) {
-			writeHashtoFile(file => $ARGV[1], data => $LNT);
-			print "New nodes imported into $ARGV[1], check the file and copy over existing NMIS Nodes file\n";
-			print "cp $ARGV[1] /usr/local/nmis8/conf/Nodes.nmis\n";
+	if ( $nmisnodes ne "" ) {
+		if ( not -f $nmisnodes ) {
+			writeHashtoFile(file => $nmisnodes, data => $LNT);
+			print "New nodes imported into $nmisnodes, check the file and copy over existing NMIS Nodes file\n";
+			print "cp $nmisnodes /usr/local/nmis8/conf/Nodes.nmis\n";
+		}
+		elsif ( -r $nmisnodes and $overwrite ) {
+			backupFile(file => $nmisnodes, backup => "$nmisnodes.backup");
+			writeHashtoFile(file => $nmisnodes, data => $LNT);
+			print "New nodes imported into $nmisnodes, check the file and copy over existing NMIS Nodes file\n";
+			print "cp $nmisnodes /usr/local/nmis8/conf/Nodes.nmis\n";
 		}
 		else {
-			print "ERROR: file $ARGV[1] already exists\n";
+			print "ERROR: file $nmisnodes already exists\n";
 		}
 	}
 	else {
@@ -180,4 +191,30 @@ sub initSummary {
 	$sum->{total} = 0;
 
 	return $sum;
+}
+
+sub backupFile {
+	my %arg = @_;
+	my $buff;
+	if ( not -f $arg{backup} ) {			
+		if ( -r $arg{file} ) {
+			open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
+			open(OUT,">$arg{backup}") or warn ("ERROR: problem with file $arg{backup}; $!");
+			binmode(IN);
+			binmode(OUT);
+			while (read(IN, $buff, 8 * 2**10)) {
+			    print OUT $buff;
+			}
+			close(IN);
+			close(OUT);
+			return 1;
+		} else {
+			print STDERR "ERROR: backupFile file $arg{file} not readable.\n";
+			return 0;
+		}
+	}
+	else {
+		print STDERR "ERROR: backup target $arg{backup} already exists.\n";
+		return 0;
+	}
 }

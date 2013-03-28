@@ -353,10 +353,15 @@ sub rrdDraw {
 			$maxppr = "CDEF:maxPrePolicyBitrate=0";
 			$avgdbr = "CDEF:avgDropBitrate=0";
 			$maxdbr = "CDEF:maxDropBitrate=0";
+			my $gtype = "AREA";
+			my $gcount = 0;
 			foreach my $i (1..$#$CBQosNames) {
 				$database = $S->getDBName(graphtype=>$graphtype,index=>${intf},item=>$CBQosNames->[$i]);
 				my $alias = $CBQosNames->[$i];
 				$alias =~ s/\-\-/\//g;
+				my $tab = "\\t"; 
+				$tab = "\\t\\t" if ( length($alias) <= 12 );
+				$tab = "\\t\\t\\t" if ( length($alias) <= 6 );
 				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
 				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
 				push(@opt,"DEF:maxPPB$i=$database:PrePolicyByte:MAX");
@@ -366,7 +371,18 @@ sub rrdDraw {
 				push(@opt,"CDEF:maxPPR$i=maxPPB$i,8,*");
 				push(@opt,"CDEF:avgDBR$i=avgDB$i,8,*");
 				push(@opt,"CDEF:maxDBR$i=maxDB$i,8,*");
-				push(@opt,"LINE1:avgPPR$i#$color:$alias");
+				if ($width > 400) {
+					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %8.0lf bps");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max %8.0lf bps");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg Drops %8.0lf bps");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max Drops %8.0lf bps\\l");
+				}
+				else {
+					push(@opt,"$gtype:avgPPR$i#$color:$alias");
+				}
+				++$gcount;
+				$gtype = "STACK" if $gcount;
 				#push(@opt,"LINE1:avgPPR$i#$color:$CBQosNames->[$i]");
 				$avgppr = $avgppr.",avgPPR$i,+";
 				$maxppr = $maxppr.",maxPPR$i,+";
@@ -380,10 +396,10 @@ sub rrdDraw {
 
 			if ($width > 400) {
 				push(@opt,"COMMENT:\\l");
-				push(@opt,"GPRINT:avgPrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate %1.0lf bps");
-				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate %1.0lf bps\\l");
-				push(@opt,"GPRINT:avgDropBitrate:AVERAGE:Avg DropBitrate %1.0lf bps");
-				push(@opt,"GPRINT:maxDropBitrate:MAX:Max DropBitrate %1.0lf bps");
+				push(@opt,"GPRINT:avgPrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate\\t%12.0lf bps\\t");
+				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate\\t%12.0lf bps\\l");
+				push(@opt,"GPRINT:avgDropBitrate:AVERAGE:Avg DropBitrate\\t\\t%12.0lf bps\\t");
+				push(@opt,"GPRINT:maxDropBitrate:MAX:Max DropBitrate\\t\\t%12.0lf bps\\l");
 			}
 
 			# reset $database so any errors reference the correct class-map
@@ -416,18 +432,18 @@ sub rrdDraw {
 				"CDEF:PrePolicyBitrate=PrePolicyByte,8,*",
 				"CDEF:maxPrePolicyBitrate=maxPrePolicyByte,8,*",
 				"CDEF:DropBitrate=DropByte,8,*",
-				"LINE1:PrePolicyBitrate#$color:PrePolicyBitrate",
-				"LINE1:DropBitrate#ff0000:DropBitrate\\l"
+				"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
+				"STACK:DropBitrate#ff0000:DropBitrate\\l"
 			);
 			if ($width > 400) {
-				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate %1.0lf bps");
-				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate %1.0lf bps");
-				push(@opt,"GPRINT:PrePolicyByte:AVERAGE:Avg Bytes transfered %1.0lf");
-				push(@opt,"GPRINT:PrePolicyPkt:AVERAGE:Avg Packets transfered %1.0lf\\l");
-				push(@opt,"GPRINT:DropByte:AVERAGE:Avg Bytes dropped %1.0lf");
-				push(@opt,"GPRINT:maxDropByte:MAX:Max Bytes dropped %1.0lf");
-				push(@opt,"GPRINT:DropPkt:AVERAGE:Avg Packets dropped %1.0lf");
-				push(@opt,"GPRINT:NoBufDropPkt:AVERAGE:Avg Packets No buffer dropped %1.0lf");
+				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate\\t%10.0lf bps\\t");
+				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate\\t%10.0lf bps\\l");
+				push(@opt,"GPRINT:PrePolicyByte:AVERAGE:Avg Bytes transfered\\t%10.0lf\\t\\t");
+				push(@opt,"GPRINT:PrePolicyPkt:AVERAGE:Avg Packets transfered\\t%10.0lf\\l");
+				push(@opt,"GPRINT:DropByte:AVERAGE:Avg Bytes dropped\\t\\t%10.0lf\\t\\t");
+				push(@opt,"GPRINT:maxDropByte:MAX:Max Bytes dropped\\t\\t%10.0lf\\l");
+				push(@opt,"GPRINT:DropPkt:AVERAGE:Avg Packets dropped\\t\\t%10.0lf\\t\\t");
+				push(@opt,"GPRINT:NoBufDropPkt:AVERAGE:Avg Packets No buffer dropped\\t%10.0lf\\l");
 			}
 			push(@opt,"COMMENT:$$CBQosValues{\"$intf$item\"}{'CfgType'} $speed");
 		}
