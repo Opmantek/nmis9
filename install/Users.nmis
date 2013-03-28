@@ -43,5 +43,15 @@
     'user' => 'guest',
     'groups' => 'none',
     'privilege' => 'guest'
-  }
+  },
+  'ke`xthsa-tse@testing.com' => {
+    'user' => 'Ke`Xthsa-Tse@testing.com',
+    'groups' => 'NMIS8',
+    'privilege' => 'guest'
+  },
+  'ke\'xthsa-tse@testing.com' => {
+    'user' => 'Ke\'Xthsa-Tse@testing.com',
+    'groups' => 'NMIS8',
+    'privilege' => 'guest'
+  },=
 );

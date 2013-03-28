@@ -128,6 +128,8 @@ my $bucket_interval =  $C->{ipsla_bucket_interval} ? $C->{ipsla_bucket_interval}
 my $extra_buckets = $C->{ipsla_extra_buckets} ? $C->{ipsla_extra_buckets} : 5;
 
 
+### 2013-03-28 keiths, changed the $host to be $hoststr and use the host entry from NMIS Nodes.nmis
+
 my %RTTcache; # temp. cache
 
 my $IPSLA = NMIS::IPSLA->new(C => $C);
@@ -481,7 +483,8 @@ sub runRTTstart {
 	my $community = $IPSLA->getCommunity(node => $probe->{pnode});
 	my $node = $probe->{pnode} ;
 	my $port = $NT->{$probe->{pnode}}{snmpport} ;
-	my $host = "$community"."@"."$node".":::::2";
+	my $host = $NT->{$probe->{pnode}}{host};
+	my $hoststr = "$community"."@"."$host".":::::2";
 
 	my %protocol = ( 
 		'echo' => { 'type' => 1, 'prot' => 2 },			# ipIcmpEcho(2)
@@ -509,7 +512,7 @@ sub runRTTstart {
 	if (! runRTTresponder($nno)) { return undef; }
 
 	# does this node support this type of protocol
-	$state = snmpget($host,"rttMonApplSupportedRttTypesValid.$protocol{$probe->{optype}}{type}");
+	$state = snmpget($hoststr,"rttMonApplSupportedRttTypesValid.$protocol{$probe->{optype}}{type}");
 	if ($state == 2) {
 		my $message = "this type of probe is not available on node $probe->{pnode}";
 		logIpsla("opSLAD: RTTstart, $message") if $debug;
@@ -524,7 +527,7 @@ sub runRTTstart {
 	}
 
 	# request state of probe
-	$state = snmpget($host,"rttMonCtrlOperState.$probe->{entry}") if ($probe->{entry} ne "");
+	$state = snmpget($hoststr,"rttMonCtrlOperState.$probe->{entry}") if ($probe->{entry} ne "");
 	logIpsla("opSLAD: RTTstart, state of probe $nno, entry $probe->{entry}, is $state") if $debug;
 	if ($state != 6) {
 		# check if database already exists and if it was created with the same interval/frequence
@@ -629,9 +632,9 @@ sub runRTTstart {
 			}
 		}
 
-		if (! snmpset($host, @params)) {
+		if (! snmpset($hoststr, @params)) {
 			$IPSLA->updateProbe(probe => $nno, status => "error", message => "Error snmpset attributes for probe $probe->{optype}");
-			logIpsla("opSLAD: RTTstart, ERROR probe $nno: $host: error=$SNMP_Session::errmsg params=@params");
+			logIpsla("opSLAD: RTTstart, ERROR probe $nno: $hoststr: error=$SNMP_Session::errmsg params=@params");
  			return undef;
 		}
 
@@ -641,7 +644,7 @@ sub runRTTstart {
 		push @params,"rttMonScheduleAdminRttStartTime.$entry",'timeticks',1 ; # now
 		push @params,"rttMonScheduleAdminRttLife.$entry",'integer',2147483647 ; # forever
 		push @params,"rttMonCtrlAdminStatus.$entry",'integer',1 ;
-		if (! snmpset($host, @params)) {
+		if (! snmpset($hoststr, @params)) {
 			$IPSLA->updateProbe(probe => $nno, status => "error", message => "Error snmpset for start probe on node $probe->{pnode}");
 			return undef;
 		}
@@ -676,12 +679,13 @@ sub runRTTstop {
 	my $community = $IPSLA->getCommunity(node => $probe->{pnode});
 	my $node = $probe->{pnode} ;
 	my $port = $NT->{$probe->{pnode}}{snmpport} ;
-	my $host = "$community"."@"."$node".":::::2";
+	my $host = $NT->{$probe->{pnode}}{host} ;
+	my $hoststr = "$community"."@"."$host".":::::2";
 
 	push @params,"rttMonCtrlOperState.$entry",'integer',3 ;
 	push @params,"rttMonCtrlAdminStatus.$entry",'integer',2 ;
 	push @params,"rttMonCtrlAdminStatus.$entry",'integer',6 ;
-	snmpset($host, @params);
+	snmpset($hoststr, @params);
 
 	unlink $probe->{database} if $probe->{deldb} eq "true"; # delete RRD
 
@@ -699,19 +703,20 @@ sub runRTTresponder {
 	if ($probe->{optype} =~ /tcpConnect|udpEcho|jitter/i and $probe->{rnode} ne "other") {
 		my $community = $IPSLA->getCommunity(node => $probe->{rnode}); 
 		my $node = $probe->{rnode};
-		my $host = "$community"."@"."$node".":::::2";
+		my $host = $NT->{$probe->{pnode}}{host};
+		my $hoststr = "$community"."@"."$host".":::::2";
 		# try reachability of system
-		($state) = snmpget($host,"sysUpTime");
+		($state) = snmpget($hoststr,"sysUpTime");
 		if (!$state) {
 			my $message = "responder node $probe->{rnode} does not respond";
 			logIpsla("opSLAD: runRTTresponder, $message") if $debug;
 			$IPSLA->updateProbe(probe => $nno, message => $message);
 			return undef;
 		}
-		$state = snmpget($host,"rttMonApplResponder.0");
+		$state = snmpget($hoststr,"rttMonApplResponder.0");
 		logIpsla("opSLAD: runRTTresponder, state of responder $probe->{rnode} is $state") if $debug;
 		if ($state != 1) { 
-			if (!snmpset($host,"rttMonApplResponder.0","integer",1)) {
+			if (!snmpset($hoststr,"rttMonApplResponder.0","integer",1)) {
 				my $message = "error on activating responder on node $node" ;
 				logIpsla("opSLAD:, runRTTresponder, $message") if $debug;
 				$IPSLA->updateProbe(probe => $nno, message => $message, status => "error");
@@ -771,12 +776,13 @@ sub runRTTcollect {
 	my $node = $RTTcache{dns}{$probe->{pnode}};
 	$node = $probe->{pnode} if $node eq "";
 	my $port = $NT->{$probe->{pnode}}{snmpport} ;
-	my $host = "$community"."@"."$node".":::::2";
+	my $host = $NT->{$probe->{pnode}}{host};
+	my $hoststr = "$community"."@"."$host".":::::2";
 
 	# system uptime
-	#($sysuptime) = snmpget($host,"sysUpTime");
+	#($sysuptime) = snmpget($hoststr,"sysUpTime");
 	### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
-	($sysuptime) = snmpget($host,"snmpEngineTime.0");
+	($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");
 
 	if (!$sysuptime) {
 		my $message = "node $probe->{pnode} does not respond";
@@ -821,7 +827,7 @@ sub runRTTcollect {
 	logIpsla("opSLAD: RTTcollect, nmis $nmistime, sysup $sysuptime, rrdlast $last, lastupdate $lastupdate");
 	# if $debug;
 
-	my ($numrtts,$operstate) = snmpget($host,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
+	my ($numrtts,$operstate) = snmpget($hoststr,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
 	logIpsla("opSLAD: RTTcollect, $nno, numrtts $numrtts, operstate $operstate") if $debug;
 	if (!$numrtts and !$operstate) { 
 		logIpsla("opSLAD: RTTcollect, $nno, no answer, try to configure probe again");
@@ -833,12 +839,12 @@ sub runRTTcollect {
 		$probe = $IPSLA->getProbe(probe => $nno);
 		$entry = $probe->{entry}; 
 		
-		($numrtts,$operstate) = snmpget($host,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
+		($numrtts,$operstate) = snmpget($hoststr,"rttMonCtrlOperNumRtts.$entry","rttMonCtrlOperState.$entry");
 		if (!$numrtts and !$operstate) { 
 			# Is SNMP working at all?  Check with system uptime.
-			#($sysuptime) = snmpget($host,"sysUpTime");
+			#($sysuptime) = snmpget($hoststr,"sysUpTime");
 			### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
-			($sysuptime) = snmpget($host,"snmpEngineTime.0");			
+			($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");			
 			
 			if ($sysuptime) {
 				my $message = "error on reconfiguration of probe, entry=$entry";
@@ -861,7 +867,7 @@ sub runRTTcollect {
 	my $maxprobeupdate = 0;
 	if ($probe->{optype} =~ /echo|tcpConnect|dns|dhcp/i) {
 		# get history values from probe node
-		if (!snmpmaptable($host,
+		if (!snmpmaptable($hoststr,
 			sub () {
 				my ($index, $time, $rtt, $sense, $addr) = @_;
 				my $stime = convertUpTime($time);
@@ -942,7 +948,7 @@ sub runRTTcollect {
 
 	if ($probe->{optype} =~ /http/i) {
 		my ($rtt, $dns, $tcp, $trans, $sense, $descr);
-		if (($rtt, $dns, $tcp, $trans, $sense, $descr) = snmpget($host,
+		if (($rtt, $dns, $tcp, $trans, $sense, $descr) = snmpget($hoststr,
 				"rttMonLatestHTTPOperRTT.$entry",
 				"rttMonLatestHTTPOperDNSRTT.$entry",
 				"rttMonLatestHTTPOperTCPConnectRTT.$entry",
@@ -973,7 +979,7 @@ sub runRTTcollect {
 	} 
 	if ($probe->{optype} =~ /jitter/i) {
 		my ($posSD, $negSD, $posDS, $negDS, $lossSD, $lossDS, $OoS, $MIA, $late, $mos, $icpif, $sense);
-		if (($posSD, $negSD, $posDS, $negDS, $lossSD, $lossDS, $OoS, $MIA, $late, $mos, $icpif, $sense) = snmpget($host,
+		if (($posSD, $negSD, $posDS, $negDS, $lossSD, $lossDS, $OoS, $MIA, $late, $mos, $icpif, $sense) = snmpget($hoststr,
 				"rttMonLatestJitterOperMaxOfPositivesSD.$entry",
 				"rttMonLatestJitterOperMaxOfNegativesSD.$entry",
 				"rttMonLatestJitterOperMaxOfPositivesDS.$entry",
@@ -1142,20 +1148,21 @@ sub runRTTstats {
 		$node = $pnode if $node eq "";
 		my $community = $IPSLA->getCommunity(node => $pnode);
 		my $port = $NT->{$pnode}{snmpport} ;
-		my $host = "$community"."@"."$node".":::::2";
+		my $host = $NT->{$probe->{pnode}}{host};
+		my $hoststr = "$community"."@"."$host".":::::2";
 		foreach my $nno (@{$RTTcache{stats}{node}{$pnode}}) {
 			my $probe = $IPSLA->getProbe(probe => $nno);
 			if ( $probe->{optype} =~ /echo|dhcp|dns|tcpConnect/i and not $runStats{echo} ) {
 				$runStats{echo} = 1;
-				runRTTecho_stats($host,$pnode) ;
+				runRTTecho_stats($hoststr,$pnode) ;
 			}
 			elsif ( $probe->{optype} =~ /jitter/i and not $runStats{jitter} ) {
 				$runStats{jitter} = 1;
-				runRTTjitter_stats($host,$pnode) ;
+				runRTTjitter_stats($hoststr,$pnode) ;
 			}
 			elsif ( $probe->{optype} =~ /http/i and not $runStats{http} ) {
 				$runStats{http} = 1;
-				runRTThttp_stats($host,$pnode) ;
+				runRTThttp_stats($hoststr,$pnode) ;
 			}
 		}
 	}
@@ -1165,7 +1172,7 @@ sub runRTTstats {
 # Operation pathEcho does not work correctly because sometimes different paths are found.
 
 sub runRTTecho_stats {
-	my $host = shift;
+	my $hoststr = shift;
 	my $pnode = shift;
 
 	my %RTTdata;
@@ -1179,7 +1186,7 @@ sub runRTTecho_stats {
 	my $stime = time();
 
 	logIpsla("opSLAD: RTTecho_stats, get table rttMonStatsCollectTable") if $debug;
-	@oid_values = snmpgetbulk2($host,0,20,"rttMonStatsCollectTable");
+	@oid_values = snmpgetbulk2($hoststr,0,20,"rttMonStatsCollectTable");
 	if (@oid_values) {
 		# add them into the hash.
 		# push the multiple time value here as well, and iterate over it later
@@ -1197,7 +1204,7 @@ sub runRTTecho_stats {
 		}
 		@oid_values = ();
 		logIpsla("opSLAD: RTTecho_stats, get table rttMonStatsCaptureTable") if $debug;
-		@oid_values = snmpgetbulk2($host,0,20,"rttMonStatsCaptureTable");
+		@oid_values = snmpgetbulk2($hoststr,0,20,"rttMonStatsCaptureTable");
 		if (@oid_values) {
 			# add them into the hash.
 			# push the multiple time value here as well, and iterate over it later
@@ -1289,7 +1296,7 @@ sub runRTTecho_stats {
 }
 
 sub runRTTjitter_stats {
-	my $host = shift;
+	my $hoststr = shift;
 	my $pnode = shift;
 
 	my %RTTdata;
@@ -1302,7 +1309,7 @@ sub runRTTjitter_stats {
 	my $stime = time();
 
 	logIpsla("opSLAD: RTTjitter_stats, get table rttMonJitterStatsTable") if $debug;
-	@oid_values = snmpgetbulk2($host,0,20,"rttMonJitterStatsTable");
+	@oid_values = snmpgetbulk2($hoststr,0,20,"rttMonJitterStatsTable");
 	if (@oid_values) {
 		# add them into the hash.
 		# push the multiple time value here as well, and iterate over it later
@@ -1402,7 +1409,7 @@ sub runRTTjitter_stats {
 }
 
 sub runRTThttp_stats {
-	my $host = shift;
+	my $hoststr = shift;
 	my $pnode = shift;
 
 	logIpsla("opSLAD: RTThttp_stats, get table rttMonHTTPStatsTable") if $debug;
@@ -1416,7 +1423,7 @@ sub runRTThttp_stats {
 	my @oid_values;
 	my $stime = time();
 
-	@oid_values = snmpgetbulk2($host,0,20,"rttMonHTTPStatsTable");
+	@oid_values = snmpgetbulk2($hoststr,0,20,"rttMonHTTPStatsTable");
 	if (@oid_values) {
 		# add them into the hash.
 		# push the multiple time value here as well, and iterate over it later
@@ -1495,15 +1502,15 @@ sub runRTThttp_stats {
 # now the (single) table will be completely read in
 
 sub snmpgetbulk2 ($$$$) {
-  my($host, $nr, $mr, @vars) = @_;
+  my($hoststr, $nr, $mr, @vars) = @_;
   my(@enoid, $var, $response, $bindings, $binding);
   my($value, $upoid, $oid, @retvals);
   my($noid);
   my $session;
 
-  $session = &SNMP_util::snmpopen($host, 0, \@vars);
+  $session = &SNMP_util::snmpopen($hoststr, 0, \@vars);
   if (!defined($session)) {
-    carp "SNMPGETBULK Problem for $host\n"
+    carp "SNMPGETBULK Problem for $hoststr\n"
       unless ($SNMP_Session::suppress_warnings > 1);
     return undef;
   }
@@ -1533,7 +1540,7 @@ sub snmpgetbulk2 ($$$$) {
         $enoid[0] = &SNMP_util::encode_oid_with_errmsg($tempo);
       } else {
         $var = join(' ', @vars);
-        carp "SNMPGETBULK Problem for $var on $host\n"
+        carp "SNMPGETBULK Problem for $var on $hoststr\n"
           unless ($SNMP_Session::suppress_warnings > 1);
 	    return undef;
       }
