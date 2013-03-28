@@ -112,6 +112,12 @@ sub loadNodes {
 				print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n";
 				++$sum->{add};
 			}
+			
+			my $roleType = $newNodes{$node}{role} || "access";
+			$roleType = $newNodes{$node}{roleType} if $newNodes{$node}{roleType};
+
+			my $netType = $newNodes{$node}{net} || "lan";
+			$netType = $newNodes{$node}{netType} if $newNodes{$node}{netType};
 
 			$LNT->{$nodekey}{name} = $newNodes{$node}{name};
 			$LNT->{$nodekey}{host} = $newNodes{$node}{host} || $newNodes{$node}{name};
@@ -119,6 +125,10 @@ sub loadNodes {
 			$LNT->{$nodekey}{roleType} = $newNodes{$node}{role} || "access";
 			$LNT->{$nodekey}{community} = $newNodes{$node}{community} || "public";
 	
+			$LNT->{$nodekey}{businessService} = $newNodes{$node}{businessService} || "";
+			$LNT->{$nodekey}{serviceStatus} = $newNodes{$node}{serviceStatus} || "Production";
+			$LNT->{$nodekey}{location} = $newNodes{$node}{location} || "default";
+
 			$LNT->{$nodekey}{active} = $newNodes{$node}{active} || "true";
 			$LNT->{$nodekey}{collect} =  $newNodes{$node}{collect} || "true";
 			$LNT->{$nodekey}{netType} = $newNodes{$node}{net} || "lan";

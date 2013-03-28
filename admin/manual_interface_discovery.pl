@@ -68,6 +68,7 @@ processNode($node);
 
 print $t->elapTime(). " End\n" if $debug;
 
+# Not loading the VIEW?
 
 sub processNode {
 	my $LNT = loadLocalNodeTable();
@@ -77,9 +78,11 @@ sub processNode {
 		# Initiase the system object and load a node.
 		my $S = Sys::->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+		$S->readNodeView; # from doUpdate  
 		my $NI = $S->ndinfo;
 		my $NCT = loadNodeConfTable();
 		my $NC = $S->ndcfg;
+		my $V = $S->view;
 
 		if ( $NI->{system}{sysDescr} =~ /GS108T/ and $NI->{system}{nodeVendor} eq "Netgear" ) {			
 			my @ifIndexNum = qw(1 2 3 4 5 6 7 8);
@@ -116,7 +119,7 @@ sub processNode {
 				foreach my $i (keys %{$S->{info}{interface}}) {
 					if ($index ne $i and $S->{info}{interface}{$index}{ifDescr} eq $S->{info}{interface}{$i}{ifDescr}) {
 						$S->{info}{interface}{$index}{ifDescr} = "$S->{info}{interface}{$index}{ifDescr}-${index}"; # add index to string
-						$S->{view}{interface}{"${index}_ifDescr_value"} = $S->{info}{interface}{$index}{ifDescr}; # update
+						$V->{interface}{"${index}_ifDescr_value"} = $S->{info}{interface}{$index}{ifDescr}; # update
 						dbg("Interface Description changed to $S->{info}{interface}{$index}{ifDescr}");
 					}
 				}
@@ -124,14 +127,14 @@ sub processNode {
 				### warning - will overwrite what we got from the device - be warned !!!
 				if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
 					$S->{info}{interface}{$index}{nc_Description} = $S->{info}{interface}{$index}{Description}; # save
-					$S->{info}{interface}{$index}{Description} = $S->{view}{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
+					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
 					dbg("Manual update of Description by nodeConf");
 				}
 				if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
-					$S->{info}{interface}{$index}{ifSpeed} = $S->{view}{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
+					$S->{info}{interface}{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
 					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-					$S->{view}{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
+					$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
 					dbg("Manual update of ifSpeed by nodeConf");
 				}
 				
@@ -184,37 +187,48 @@ sub processNode {
 				$NI->{system}{intfCollect} = $intfCollect;
 		
 				# prepare values for web page
-				$S->{view}{interface}{"${index}_ifDescr_value"} = $S->{info}{interface}{$index}{ifDescr};
+				$V->{interface}{"${index}_ifDescr_value"} = $S->{info}{interface}{$index}{ifDescr};
 
-				$S->{view}{interface}{"${index}_event_value"} = $S->{info}{interface}{$index}{event};
-				$S->{view}{interface}{"${index}_event_title"} = 'Event on';
+				$V->{interface}{"${index}_event_value"} = $S->{info}{interface}{$index}{event};
+				$V->{interface}{"${index}_event_title"} = 'Event on';
 		
-				$S->{view}{interface}{"${index}_threshold_value"} = $NC->{node}{threshold} ne 'true' ? 'false': $S->{info}{interface}{$index}{threshold};
-				$S->{view}{interface}{"${index}_threshold_title"} = 'Threshold on';
+				$V->{interface}{"${index}_threshold_value"} = $NC->{node}{threshold} ne 'true' ? 'false': $S->{info}{interface}{$index}{threshold};
+				$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
 		
-				$S->{view}{interface}{"${index}_collect_value"} = $S->{info}{interface}{$index}{collect};
-				$S->{view}{interface}{"${index}_collect_title"} = 'Collect on';
+				$V->{interface}{"${index}_collect_value"} = $S->{info}{interface}{$index}{collect};
+				$V->{interface}{"${index}_collect_title"} = 'Collect on';
 		
 				# collect status
-				delete $S->{view}{interface}{"${index}_nocollect_title"};
+				delete $V->{interface}{"${index}_nocollect_title"};
 				if ($S->{info}{interface}{$index}{collect} eq "true") {
 					dbg("ifIndex $index, collect=true");
 				} else {
-					$S->{view}{interface}{"${index}_nocollect_value"} = $S->{info}{interface}{$index}{nocollect};
-					$S->{view}{interface}{"${index}_nocollect_title"} = 'Reason';
+					$V->{interface}{"${index}_nocollect_value"} = $S->{info}{interface}{$index}{nocollect};
+					$V->{interface}{"${index}_nocollect_title"} = 'Reason';
 					dbg("ifIndex $index, collect=false, $S->{info}{interface}{$index}{nocollect}");
 					# no collect => no event, no threshold
-					$S->{info}{interface}{$index}{threshold} = $S->{view}{interface}{"${index}_threshold_value"} = 'false';
-					$S->{info}{interface}{$index}{event} = $S->{view}{interface}{"${index}_event_value"} = 'false';
+					$S->{info}{interface}{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
+					$S->{info}{interface}{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
 				}
 		
 				# get color depending of state
-				$S->{view}{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
-				$S->{view}{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
+				$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
+				$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
+				$V->{interface}{"${index}_ifAdminStatus_value"} = $S->{info}{interface}{$index}{ifAdminStatus};
+				$V->{interface}{"${index}_ifOperStatus_value"} = $S->{info}{interface}{$index}{ifOperStatus};
+
+				# Add the titles as they are missing from the model.
+				$V->{interface}{"${index}_ifOperStatus_title"} = 'Oper Status';
+				$V->{interface}{"${index}_ifDescr_title"} = 'Name';
+				$V->{interface}{"${index}_ifSpeed_title"} = 'Bandwidth';
+				$V->{interface}{"${index}_ifType_title"} = 'Type';
+				$V->{interface}{"${index}_ifAdminStatus_title"} = 'Admin Status';
+				$V->{interface}{"${index}_ifLastChange_title"} = 'Last Change';
+				$V->{interface}{"${index}_Description_title"} = 'Description';
 		
 				# index number of interface
-				$S->{view}{interface}{"${index}_ifIndex_value"} = $index;
-				$S->{view}{interface}{"${index}_ifIndex_title"} = 'ifIndex';
+				$V->{interface}{"${index}_ifIndex_value"} = $index;
+				$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 			}
 			
 			print Dumper $S;

@@ -49,7 +49,7 @@
     'uuid_namespace_name' => 'www.domain.com'
   },
   'system' => {
-    'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice',
+    'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
     'domain_name' => '',
@@ -214,6 +214,7 @@
     'auth_htpasswd_file' => '<nmis_conf>/users.dat',
     'auth_htpasswd_encrypt' => 'crypt',
     'auth_radius_secret' => '',
+    'auth_user_name_regex' => '[\w \-\.\@\`\']+',
     'auth_web_key' => 'thisismysecretkey',
     'auth_sso_domain' => '.domain.com',
     'auth_radius_server' => '',

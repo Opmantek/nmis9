@@ -118,6 +118,7 @@ use JSON;
 # You should change this to be unique for your site
 #
 my $CHOCOLATE_CHIP = '8fhmgBC4YSVcZMnBsWtY32KQvTE9JBeuIp1y';
+my $auth_user_name_regex = qr/[\w \-\.\@\`\']+/;
 
 my $debug = 0;
 
@@ -143,6 +144,9 @@ sub new {
 	bless $self, $class;
 	$self->_auth_init;
 	$debug = getbool($C->{auth_debug});
+	
+	$auth_user_name_regex	= qr/$C->{auth_user_name_regex}/ if $C->{auth_user_name_regex} ne "";
+	
 	return $self;
 }
 
@@ -168,6 +172,7 @@ sub _loadConf {
 sub _auth_init {
 	my $self = shift;
 	$self->{_require} = $C->{auth_require} if defined $C->{auth_require};
+	$self->_loadConf;
 }
 
 #----------------------------------
@@ -280,14 +285,14 @@ sub get_cookie_token
 	}
 
 	
-	# print STDERR "DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}\n" if $debug;
+	# logAuth("DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}") if $debug;
 	my $web_key = (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
-	print STDERR "DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key\n" if $debug;
+	logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key") if $debug;
 	$token = $user_name . $remote_addr;	
 	$token .= $web_key;
 	$token = unpack('%32C*',$token); # generate checksum
 
-	print STDERR "DEBUG: get_cookie_token: generated token=$token\n" if $debug;		
+	logAuth("DEBUG: get_cookie_token: generated token=$token") if $debug;		
 	return $token;
 }
 
@@ -314,7 +319,7 @@ sub get_cookie
 	my $self = shift;
 	my $cookie;
 	$cookie = cookie( $self->get_cookie_name() );
-	print STDERR "get_cookie: got cookie $cookie\n" if $debug;
+	logAuth("get_cookie: got cookie $cookie") if $debug;
 	return $cookie;
 }
 
@@ -323,25 +328,25 @@ sub verify_id {
 	my $self = shift;
 	# now taste cookie 
 	my $cookie = $self->get_cookie();	
-	# print STDERR "DEBUG: verify_id: got cookie $cookie\n" if $debug;
+	# logAuth("DEBUG: verify_id: got cookie $cookie") if $debug;
 	if(!defined($cookie) ) {
 		logAuth("verify_id: cookie not defined");		
-		print STDERR "DEBUG: verify_id: cookie not defined\n" if $debug;		
+		logAuth("DEBUG: verify_id: cookie not defined") if $debug;		
 		return ''; # not defined
 	}
 	
 	### 2013-02-07 keiths: handling for spaces in user names required the cookie cutter to handle spaces.
-	if($cookie !~ /^([\w \-]+):(.+)$/) {		
+	if($cookie !~ /^($auth_user_name_regex):(.+)$/) {		
 		logAuth("verify_id: cookie bad format");
-		print STDERR "DEBUG: verify_id: cookie bad format\n" if $debug;		
+		logAuth("DEBUG: verify_id: cookie bad format") if $debug;		
 		return ''; # bad format
 	}
 
 	my ($user_name, $checksum) = ($1,$2);
 	my $token = $self->get_cookie_token($user_name);
-	# print STDERR "Username $user_name, checksum $checksum, token $token\n";
+	# logAuth("Username $user_name, checksum $checksum, token $token\n";
 
-	print STDERR "DEBUG: verify_id: $token vs. $checksum \n" if $debug;		
+	logAuth("DEBUG: verify_id: $token vs. $checksum") if $debug;		
 	return $user_name if( $token eq $checksum ); # yummy
 	
 	# bleah, nasty taste
@@ -396,7 +401,7 @@ sub user_verify {
 		$C->{auth_method_1} = "apache";     
 	}
 
-	#print STDERR "DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}\n" if $debug;
+	#logAuth("DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}") if $debug;
 	my $authCount = 0;
 	for my $auth ( $C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3} ) {
 		next if $auth eq '';
@@ -463,7 +468,7 @@ sub _file_verify {
 
 
 	my $debugmessage = "DEBUG: _file_verify($pwfile,$u,$p,$encmode)\n";
-	print STDERR "$debugmessage\n" if $debug;
+	logAuth("$debugmessage") if $debug;
 
 	$encmode = 0 if $encmode eq "plaintext";
 	$encmode = 1 if $encmode eq "crypt";
@@ -511,7 +516,7 @@ sub _file_verify {
 	}
 	close PW;
 	
-	print STDERR "$debugmessage\n" if $debug;
+	logAuth("$debugmessage") if $debug;
 
 	return 0; # not found
 }
@@ -615,9 +620,9 @@ sub _novell_ldap_verify {
 		if( $C->{'auth_ldap_attr'} );
 	
 	#if($debug) {
-	#	print STDERR "DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
-	#	print STDERR join(',',@attrlist);
-	#	print STDERR ")\n";
+	#	logAuth("DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
+	#	logAuth(join(',',@attrlist);
+	#	logAuth(")\n";
 	#}
 
 	# TODO: Implement non-anonymous bind
@@ -631,17 +636,17 @@ sub _novell_ldap_verify {
 
 	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
 
-		#print STDERR "DEBUG: _novell_ldap_verify: context=$context\n" if $debug;
+		#logAuth("DEBUG: _novell_ldap_verify: context=$context") if $debug;
 
 		$dn = undef;
 		# Search "attr=user" in each context
 		foreach $attr ( @attrlist ) {
 
-			#print STDERR "DEBUG: _novell_ldap_verify: search ($attr=$u)\n" if $debug;
+			#logAuth("DEBUG: _novell_ldap_verify: search ($attr=$u)") if $debug;
 
 			$msg = $ldap->search(base=>$context,filter=>"$attr=$u",scope=>"sub",attrs=>["dn"]);
 
-			#print STDERR "DEBUG: _novell_ldap_verify: search result: code=" . $msg->code . ", count=" . $msg->count . "\n" if $debug;
+			#logAuth("DEBUG: _novell_ldap_verify: search result: code=" . $msg->code . ", count=" . $msg->count . "") if $debug;
 
 			if ( $msg->is_error ) { #|| ($msg->count != 1)) { # not Found, try next context
 				next;
@@ -653,19 +658,19 @@ sub _novell_ldap_verify {
 
 		return 0 unless defined($dn);
 
-		#print STDERR "DEBUG: _novell_ldap_verify: found, trying to bind as $dn\n" if $debug;
+		#logAuth("DEBUG: _novell_ldap_verify: found, trying to bind as $dn") if $debug;
 
 		$msg = $ldap->bind($dn, password=>$p) ;
 		if(!$msg->is_error) {
 
-			#print STDERR "DEBUG: _novell_ldap_verify: bind success\n" if $debug;
+			#logAuth("DEBUG: _novell_ldap_verify: bind success") if $debug;
 
 			$ldap->unbind();
 			return 1;
 		}
 
 		else {
-			#print STDERR "DEBUG: _novell_ldap_verify: bind failed with ". $msg->error . "\n" if $debug;
+			#logAuth("DEBUG: _novell_ldap_verify: bind failed with ". $msg->error . "") if $debug;
 
 			# A bind failure in one context is fatal.
 			return 0;
@@ -831,7 +836,7 @@ EOHTML
     return;
 	}
 	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
-	print STDERR "DEBUG: do_login: sending cookie to remove existing cookies=$cookie\n" if $debug;
+	logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $debug;
 	print header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
 	print qq
@@ -885,7 +890,7 @@ EOHTML
 	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
 	my @qs_params = param();	
 	foreach my $key (@qs_params) {
-		# print STDERR "adding $key ".param($key)."\n";
+		# logAuth("adding $key ".param($key)."\n";
 		if( $key !~ /conf|auth_type|auth_username|auth_password/ ) {
 			print hidden(-name=>$key, -default=>param($key),-override=>'1');	
 		}			
@@ -1140,7 +1145,7 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
-	print STDERR "DEBUG: loginout type=$type username=$username\n" if $debug;
+	logAuth("DEBUG: loginout type=$type username=$username") if $debug;
 	
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
@@ -1157,10 +1162,10 @@ sub loginout {
 	}
 
 	if (defined($username) && $username ne '') { # someone is trying to log in
-		print STDERR "DEBUG: verifying $username\n" if $debug;
+		logAuth("DEBUG: verifying $username") if $debug;
 		if( $self->user_verify($username,$password)) {
-			#print STDERR "DEBUG: user verified $username\n" if $debug;
-			#print STDERR "self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config\n" if $debug;
+			#logAuth("DEBUG: user verified $username") if $debug;
+			#logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $debug;
 
 			# login accepted, set privs
 			$self->SetUser($username);
@@ -1179,7 +1184,7 @@ sub loginout {
 			}
 
 			logAuth("user=$self->{user} logged in with config=$config");
-			print STDERR "DEBUG: loginout user=$self->{user} logged in with config=$config\n" if $debug;
+			logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $debug;
 
 		} else { # bad login: force it again
 			$self->do_login(msg=>"Invalid username/password combination");
@@ -1187,17 +1192,17 @@ sub loginout {
 		}
 	} 
 	else { # check cookie
-		print STDERR "DEBUG: valid session? check cookie\n" if $debug;		
+		logAuth("DEBUG: valid session? check cookie") if $debug;		
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
-			print STDERR "DEBUG: invalid session \n" if $debug;		
+			logAuth("DEBUG: invalid session ") if $debug;		
 			$self->do_login(msg=>"Session Expired or Invalid Session");
 			return 0;
 		}
 
 		$self->SetUser( $username );
-		print STDERR "DEBUG: cookie OK\n" if $debug;
+		logAuth("DEBUG: cookie OK") if $debug;
 	}
 
 	# logout has to be down here because we need the username loaded to generate the correct cookie 
@@ -1208,7 +1213,7 @@ sub loginout {
 
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
-		print STDERR "DEBUG: loginout forcing login, shouldn't have gotten this far\n" if $debug;
+		logAuth("DEBUG: loginout forcing login, shouldn't have gotten this far") if $debug;
 		$self->do_login();
 		return 0;
 	}
@@ -1216,7 +1221,7 @@ sub loginout {
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {		
     push @cookies, $self->generate_cookie(user_name => $self->{user});
-  	print STDERR "DEBUG: loginout made cookie $cookies[0]\n" if $debug;
+  	logAuth("DEBUG: loginout made cookie $cookies[0]") if $debug;
 	}
 	$self->{cookie} = \@cookies;
 	$headeropts->{-cookie} = [@cookies];
@@ -1287,7 +1292,7 @@ sub InGroup {
 	}
 	return 0 unless defined $group or $group;
 	foreach my $g (@{$self->{groups}}) {
-		print STDERR "  DEBUG AUTH: @{$self->{groups}} g=$g group=$group" if $debug;
+		logAuth("  DEBUG AUTH: @{$self->{groups}} g=$g group=$group") if $debug;
 		if ( lc($g) eq lc($group) ) {
 			logAuth("InGroup: $self->{user}, $group, 1") if $debug;
 			return 1;
