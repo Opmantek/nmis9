@@ -786,7 +786,9 @@ sub parseString {
 				$ifMaxOctets = ($ifSpeed ne 'U') ? int($ifSpeed / 8) : 'U';
 				$maxBytes = ($ifSpeed ne 'U') ? int($ifSpeed / 4) : 'U';
 				$maxPackets = ($ifSpeed ne 'U') ? int($ifSpeed / 50) : 'U';
-				$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
+				if ( defined $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} and $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} ne "" ) {
+					$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
+				}
 			} else {
 				$ifDescr = $ifType = '';
 				$ifSpeed = $ifMaxOctets = 'U';

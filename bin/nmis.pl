@@ -2200,7 +2200,6 @@ sub getIntfData {
 			}
 		}
 	}
-
 	# Start a loop which go through the interface table
 
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {

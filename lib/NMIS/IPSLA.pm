@@ -43,7 +43,7 @@ use vars qw(@EXPORT_OK $VERSION);
 
 use Exporter;
 
-$VERSION = "2.4";
+$VERSION = "2.5";
 
 @EXPORT_OK = qw(	
 			$version
