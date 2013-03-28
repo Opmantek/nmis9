@@ -2181,22 +2181,23 @@ sub getIntfData {
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
 
 	# check first if admin status of interfaces changed
-	my $ifAdminTable;
-	my $ifOperTable;
-	if ( ($ifAdminTable = $S->{snmp}->getindex('ifAdminStatus')) ) {
-		$ifOperTable = $S->{snmp}->getindex('ifOperStatus');
-		for my $index (keys %{$ifAdminTable}) {
-			logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
-			if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
-				or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') ) {
-				### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
-				getIntfInfo(sys=>$S,index=>$index); # update this interface
+	if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} ne "false" ) {
+		my $ifAdminTable;
+		my $ifOperTable;
+		if ( ($ifAdminTable = $S->{snmp}->getindex('ifAdminStatus')) ) {
+			$ifOperTable = $S->{snmp}->getindex('ifOperStatus');
+			for my $index (keys %{$ifAdminTable}) {
+				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
+				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
+					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') ) {
+					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
+					getIntfInfo(sys=>$S,index=>$index); # update this interface
+				}
+				# total number of interfaces up
+				$RI->{intfUp}++ if $ifOperTable->{$index} == 1 and $IF->{$index}{real} eq 'true';
 			}
-			# total number of interfaces up
-			$RI->{intfUp}++ if $ifOperTable->{$index} == 1 and $IF->{$index}{real} eq 'true';
 		}
 	}
-
 	# Start a loop which go through the interface table
 
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
