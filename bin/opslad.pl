@@ -696,6 +696,7 @@ sub runRTTresponder {
 	my $nno = shift;
 
 	my $probe = $IPSLA->getProbe(probe => $nno);
+	my $NT = loadLocalNodeTable();
 
 	my $state;
 
@@ -703,7 +704,7 @@ sub runRTTresponder {
 	if ($probe->{optype} =~ /tcpConnect|udpEcho|jitter/i and $probe->{rnode} ne "other") {
 		my $community = $IPSLA->getCommunity(node => $probe->{rnode}); 
 		my $node = $probe->{rnode};
-		my $host = $NT->{$probe->{pnode}}{host};
+		my $host = $NT->{$probe->{rnode}}{host};
 		my $hoststr = "$community"."@"."$host".":::::2";
 		# try reachability of system
 		($state) = snmpget($hoststr,"sysUpTime");
@@ -1148,7 +1149,7 @@ sub runRTTstats {
 		$node = $pnode if $node eq "";
 		my $community = $IPSLA->getCommunity(node => $pnode);
 		my $port = $NT->{$pnode}{snmpport} ;
-		my $host = $NT->{$probe->{pnode}}{host};
+		my $host = $NT->{$pnode}{host};
 		my $hoststr = "$community"."@"."$host".":::::2";
 		foreach my $nno (@{$RTTcache{stats}{node}{$pnode}}) {
 			my $probe = $IPSLA->getProbe(probe => $nno);
