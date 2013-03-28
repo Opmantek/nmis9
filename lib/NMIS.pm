@@ -975,7 +975,7 @@ sub checkEvent {
 			sendSyslog(
 				server_string => $C->{syslog_server},
 				facility => $C->{syslog_facility},
-				nmis_host => $C->{nmis_host},
+				nmis_host => $C->{server_name},
 				time => time(),
 				node => $S->{name},
 				event => $event,
@@ -1066,7 +1066,7 @@ sub notify {
 		sendSyslog(
 			server_string => $C->{syslog_server},
 			facility => $C->{syslog_facility},
-			nmis_host => $C->{nmis_host},
+			nmis_host => $C->{server_name},
 			time => time(),
 			node => $node,
 			event => $event,
@@ -1307,8 +1307,8 @@ sub getSummaryStats{
 	if ($C->{server_master} eq 'true' and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
 		# send request to remote server
 		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
-		return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
-				gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
+		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
+		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
 	}
 
 	my $db;
@@ -2601,15 +2601,9 @@ sub createHrButtons {
 			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
 			
 			foreach my $sysHealth (@systemHealth) {	
-<<<<<<< HEAD
-				if ($NI->{sysHealth} ne '' or $NI->{sysHealth} ne '') {
-					push @out, td({class=>'header'},
-						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-=======
 				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
 					push @out, td({class=>'header'},
 						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
->>>>>>> 98985dbbbf09210e351bf45779e25b0262589a8e
 				}
 			}
 		}

@@ -426,6 +426,8 @@ sub	runThreads {
 
 	if ($debug or $mthreadDebug) {
 		my $endTime = time() - $C->{starttime};
+		my $stats = getUpdateStats();
+		print "\n".returnTime ." Number of Data Points: $stats->{datapoints}, Sum of Bytes: $stats->{databytes}, RRDs updated: $stats->{rrdcount}, Nodes with Updates: $stats->{nodecount}\n";
 		print "\n".returnTime ." End of $0 Processed $nodecount nodes ran for $endTime seconds.\n\n";
 	}
 
