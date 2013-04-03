@@ -95,12 +95,12 @@ sub processNode {
 				my $ifDescr = "Port $index Gigabit Ethernet";
 				$S->{info}{interface}{$index} = {
 		      'Description' => '',
-		      'ifAdminStatus' => 'up',
+		      'ifAdminStatus' => 'monkey',
 		      'ifDescr' => $ifDescr,
 		      'ifIndex' => $index,
 		      'ifLastChange' => '0:00:00',
 		      'ifLastChangeSec' => 0,
-		      'ifOperStatus' => 'up',
+		      'ifOperStatus' => 'monkey',
 		      'ifSpeed' => 1000000000,
 		      'ifType' => 'ethernetCsmacd',
 		      'interface' => "port-$index-gigabit-ethernet",

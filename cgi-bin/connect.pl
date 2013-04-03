@@ -1,34 +1,38 @@
 #!/usr/bin/perl
 #
-# THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND
-# LICENSED BY OPMANTEK.  
-# YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
-# 
-# This code is NOT Open Source
-# IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER
-# LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE
-# SOFTWARE  YOU ACKNOWLEDGE THAT (1) YOU HAVE READ AND REVIEWED THE LICENSE
-# AGREEMENT IN ITS ENTIRETY, (2) YOU AGREE TO BE BOUND BY THE AGREEMENT, (3)
-# THE INDIVIDUAL USING THE SOFTWARE HAS THE POWER, AUTHORITY AND LEGAL RIGHT
-# TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR
-# OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE,
-# THIS AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU
-# AND OPMANTEK LTD. 
-# Opmantek is a passionate, committed open source software company - we
-# really are.  This particular piece of code was taken from a commercial
-# module and thus we can't legally supply under GPL. It is supplied in good
-# faith as source code so you can get more out of NMIS.  According to the
-# license agreement you can not modify or distribute this code, but please
-# let us know if you want to and we will certainly help -  in most cases
-# just by emailing you a different agreement that better suits what you want
-# to do but covers Opmantek legally too. 
-# 
-# contact Opmantek by emailing code@opmantek.com
-# 
-# 
-# All licenses for all software obtained from Opmantek (GPL and commercial)
-# are viewable at http://opmantek.com/licensing
-# 
+## $Id: connect.pl,v 8.13 2012/08/16 07:26:00 keiths Exp $
+#
+#THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND LICENSED 
+#BY OPMANTEK.  
+#
+#YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
+#
+#This code is NOT Open Source
+#
+#IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER 
+#LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE 
+#SOFTWARE  YOU ACKNOWLEDGE THAT (1) YOU HAVE READ AND REVIEWED THE LICENSE 
+#AGREEMENT IN ITS ENTIRETY, (2) YOU AGREE TO BE BOUND BY THE AGREEMENT, (3) 
+#THE INDIVIDUAL USING THE SOFTWARE HAS THE POWER, AUTHORITY AND LEGAL RIGHT 
+#TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR 
+#OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE, THIS 
+#AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU AND 
+#OPMANTEK LTD. 
+#
+#Opmantek is a passionate, committed open source software company - we really 
+#are.  This particular piece of code was taken from a commercial module and 
+#thus we can't legally supply under GPL. It is supplied in good faith as 
+#source code so you can get more out of NMIS.  According to the license 
+#agreement you can not modify or distribute this code, but please let us know 
+#if you want to and we will certainly help -  in most cases just by emailing 
+#you a different agreement that better suits what you want to do but covers 
+#Opmantek legally too. 
+#
+#contact opmantek by emailing code@opmantek.com
+#
+#All licenses for all software obtained from Opmantek (GPL and commercial) 
+#are viewable at http://opmantek.com/licensing
+#  
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib 
 use FindBin;
@@ -155,7 +159,7 @@ sub doSend{
 	my %hash;
 	
 	$format = "html" if not $format;
-
+	
 	if ($data) {
 		# convert
 		logMsg("DATA $data") if $C->{debug};
@@ -185,6 +189,9 @@ sub doSend{
 	} elsif ($func eq "loadnodedetails") {
 		foreach my $nd (keys %{$NT}) { 
 			$NT->{$nd}{'community'} = "";
+			if ( $group ne "" and $NT->{$nd}{group} !~ /$group/  ) {
+				delete $NT->{$nd};
+			}
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
@@ -193,7 +200,7 @@ sub doSend{
 
 	} elsif ($func eq "sumnodetable") {
 		
-		my $NS = getNodeSummary(C => $C);
+		my $NS = getNodeSummary(C => $C, group => $group);
 
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
@@ -214,7 +221,7 @@ sub doSend{
 		my @tmpsplit;
 
 		foreach my $nd ( keys %{$NT})  {
-			if ( $group eq $NT->{$nd}{group} or $group eq "") {
+			if ( $NT->{$nd}{group} =~ /$group/ or $group eq "") {
 				$S->init(name=>$nd,snmp=>'false'); # load node info and Model if name exists
 				# 
 				$summaryHash{$nd}{reachable} = 0;
@@ -238,7 +245,18 @@ sub doSend{
 		# get the file
 		my $datafile = "$C->{'<nmis_var>'}/nmis-${func}h.nmis";
 		if ( -r $datafile ) {
-			my $summaryHash = readFiletoHash(file=>$datafile);
+			my $summaryHash;
+			if ( $group eq "" ) {
+				$summaryHash = readFiletoHash(file=>$datafile);
+			}
+			else {
+				my $SH = readFiletoHash(file=>$datafile);
+				foreach my $nd ( keys %{$SH})  {
+					if ( $NT->{$nd}{group} =~ /$group/ ) {
+						$summaryHash->{$nd} = $SH->{$nd};
+					}
+				}
+			}
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 			print Data::Dumper->Dump([$summaryHash], [qw(*hash)]);

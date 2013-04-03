@@ -2350,6 +2350,13 @@ sub getIntfData {
 					$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
 					$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
 					$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
+					
+					if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} ne "false" ) {
+						$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
+						$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
+						$V->{interface}{"${index}_ifAdminStatus_value"} = $S->{info}{interface}{$index}{ifAdminStatus};
+						$V->{interface}{"${index}_ifOperStatus_value"} = $S->{info}{interface}{$index}{ifOperStatus};
+					}
 	
 					### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 					### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
@@ -4029,16 +4036,16 @@ sub nmisMaster {
 			dbg("Master, processing Slave Server $srv");
 			
 			dbg("Get loadnodedetails from $srv");
-			getFileFromRemote(server => $srv, func => "loadnodedetails", format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
+			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
 
 			dbg("Get sumnodetable from $srv");
-			getFileFromRemote(server => $srv, func => "sumnodetable", format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum.nmis");
+			getFileFromRemote(server => $srv, func => "sumnodetable", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum.nmis");
 						
 			my @hours = qw(8 16);
 			foreach my $hour (@hours) {
 				my $function = "summary". $hour ."h";
 				dbg("get summary$hour from $srv");
-				getFileFromRemote(server => $srv, func => "summary$hour", format => "text", file => "$C->{'<nmis_var>'}/nmis-$srv-$function.nmis");
+				getFileFromRemote(server => $srv, func => "summary$hour", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-$srv-$function.nmis");
 			}
 		}
 	}

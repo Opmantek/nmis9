@@ -1388,6 +1388,7 @@ sub getSummaryStats{
 sub getNodeSummary {
 	my %args = @_;
 	my $C = $args{C};
+	my $group = $args{group};
 	
 	my $NT = loadLocalNodeTable();
 	my $ET = loadEventStateNoLock();
@@ -1396,6 +1397,8 @@ sub getNodeSummary {
 	
 	foreach my $nd (keys %{$NT}) {
 		next if $NT->{$nd}{active} ne 'true';
+		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
+
 		my $NI = loadNodeInfoTable($nd);
 
 		$nt{$nd}{name} = $NI->{system}{name};

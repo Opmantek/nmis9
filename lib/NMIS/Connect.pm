@@ -76,13 +76,14 @@ sub curlDataFromRemote {
 	my $server = $args{server};
 	my $func = $args{func};
 	my $format = $args{format};
+	my $group = $args{group};
 	my $data;
 	#sumnodetable
 	
 	my $ST = loadTable(dir=>'conf',name=>'Servers');
 	
 	if ( $ST->{$server}{name} eq $server and $ST->{$server}{community} ne "" ) {
-		my $curlcmd = "curl -k -d com=$ST->{$server}{community} -d func=$func  -d format=$format -d type=send --user $ST->{$server}{user}:$ST->{$server}{passwd}  $ST->{$server}{protocol}://$ST->{$server}{host}:$ST->{$server}{port}/$ST->{$server}{cgi_url_base}/connect.pl";
+		my $curlcmd = "curl -k -d com=$ST->{$server}{community} -d func=$func -d group=\"$group\" -d format=$format -d type=send --user $ST->{$server}{user}:$ST->{$server}{passwd}  $ST->{$server}{protocol}://$ST->{$server}{host}:$ST->{$server}{port}/$ST->{$server}{cgi_url_base}/connect.pl";
 		#open(IN, "$curlcmd  2>&1 |");
 		open(IN, "$curlcmd 2>/dev/null |");
 		#open(IN, "$curlcmd 2>/tmp/curl.err |");
@@ -101,7 +102,7 @@ sub getFileFromRemote {
 	my %args = @_;
 	my $file = $args{file};
 
-	my $data = curlDataFromRemote(server => $args{server}, func => $args{func}, format => $args{format});
+	my $data = curlDataFromRemote(server => $args{server}, group => $args{group}, func => $args{func}, format => $args{format});
 	if ( $data and $data !~ /SERVER ERROR/ ) {
 		open(OUT, ">",$file) or logMsg("Could not create $file: $!");
 		flock(OUT, LOCK_EX);
