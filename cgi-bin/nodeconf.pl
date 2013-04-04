@@ -194,7 +194,7 @@ sub displayNodeConf {
 	if ($NI->{system}{collect} eq 'true') {
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
 		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) {
-			my ($description,$speed,$collect,$event,$threshold,$size);
+			my ($description,$speed,$speedIn,$speedOut,$collect,$event,$threshold,$size);
 			
 			# keep the ifDescr to work on.
 			my $ifDescr = $IF->{$intf}{ifDescr};
@@ -203,8 +203,16 @@ sub displayNodeConf {
 			if ($NCT->{$node}{$ifDescr}{ifDescr} ne "" and $IF->{$intf}{ifDescr} ne $NCT->{$node}{$ifDescr}{ifDescr}) {
 				$collect = $event = $threshold = $description = $speed = "";
 			} else {
+				if ( $NCT->{$node}{$ifDescr}{ifSpeedIn} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
+					$NCT->{$node}{$ifDescr}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeed};
+				}
+				if ( $NCT->{$node}{$ifDescr}{ifSpeedOut} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
+					$NCT->{$node}{$ifDescr}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeed};
+				}
 				$description = $NCT->{$node}{$ifDescr}{Description};
 				$speed = $NCT->{$node}{$ifDescr}{ifSpeed};
+				$speedIn = $NCT->{$node}{$ifDescr}{ifSpeedIn};
+				$speedOut = $NCT->{$node}{$ifDescr}{ifSpeedOut};
 				$collect = $NCT->{$node}{$ifDescr}{collect} || 'not';
 				$event = $NCT->{$node}{$ifDescr}{event} || 'not';
 				$threshold = $NCT->{$node}{$ifDescr}{threshold} || 'not';
@@ -220,6 +228,18 @@ sub displayNodeConf {
 			print Tr,td({class=>'header'}),
 				td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
 				td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
+
+			my $NCT_ifSpeedIn = $IF->{$intf}{nc_ifSpeedIn} || $IF->{$intf}{ifSpeedIn};
+			$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
+			print Tr,td({class=>'header'}),
+				td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
+				td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
+
+			my $NCT_ifSpeedOut = $IF->{$intf}{nc_ifSpeedOut} || $IF->{$intf}{ifSpeedOut};
+			$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
+			print Tr,td({class=>'header'}),
+				td({class=>'header'},"Speed Out"),td({class=>'header3'},$NCT_ifSpeedOut),
+				td({class=>"Plain"},textfield(-name=>"speedOut_${intf}",-override=>1,-value=>$speedOut));
 
 			my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
 			print Tr,td({class=>'header'}),
@@ -291,6 +311,16 @@ sub updateNodeConf {
 			delete $NCT->{$node}{$ifDescr}{ifSpeed} if exists $NCT->{$node}{$ifDescr}{ifSpeed};
 		} else {
 			$NCT->{$node}{$ifDescr}{ifSpeed} = $Q->{"speed_${intf}"};
+		}
+		if  ($Q->{"speedIn_${intf}"} eq "") {
+			delete $NCT->{$node}{$ifDescr}{ifSpeedIn} if exists $NCT->{$node}{$ifDescr}{ifSpeedIn};
+		} else {
+			$NCT->{$node}{$ifDescr}{ifSpeedIn} = $Q->{"speedIn_${intf}"};
+		}
+		if  ($Q->{"speedOut_${intf}"} eq "") {
+			delete $NCT->{$node}{$ifDescr}{ifSpeedOut} if exists $NCT->{$node}{$ifDescr}{ifSpeedOut};
+		} else {
+			$NCT->{$node}{$ifDescr}{ifSpeedOut} = $Q->{"speedOut_${intf}"};
 		}
 		if  ($Q->{"collect_${intf}"} eq 'not' or $Q->{"collect_${intf}"} eq "") {
 			delete $NCT->{$node}{$ifDescr}{collect} if exists $NCT->{$node}{$ifDescr}{collect};

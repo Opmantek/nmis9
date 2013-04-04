@@ -221,10 +221,20 @@ sub rrdDraw {
 			$indx = $intf;
 			$ifDescr = $IF->{$intf}{ifDescr};
 			$ifSpeed = $IF->{$intf}{ifSpeed};
+			$ifSpeedIn = $IF->{$intf}{ifSpeed};
+			$ifSpeedOut = $IF->{$intf}{ifSpeed};			
+			$ifSpeedIn = $IF->{$intf}{ifSpeedIn} if $IF->{$intf}{ifSpeedIn};
+			$ifSpeedOut = $IF->{$intf}{ifSpeedOut} if $IF->{$intf}{ifSpeedOut};
 			if ($ifSpeed eq "auto" ) {
 				$ifSpeed = 10000000;
 			}
-			$speed = convertIfSpeed($ifSpeed);
+			
+			if ( $IF->{$intf}{ifSpeedIn} and $IF->{$intf}{ifSpeedOut} ) {
+				$speed = "IN\\: ". convertIfSpeed($ifSpeedIn) ." OUT\\: ". convertIfSpeed($ifSpeedOut);
+			}
+			else {
+				$speed = convertIfSpeed($ifSpeed);	
+			}
 		}
 		$node = $NI->{system}{name};
 		$datestamp_start = returnDateStamp($start);
@@ -357,11 +367,35 @@ sub rrdDraw {
 			my $gcount = 0;
 			foreach my $i (1..$#$CBQosNames) {
 				$database = $S->getDBName(graphtype=>$graphtype,index=>${intf},item=>$CBQosNames->[$i]);
+				my $parent = 0;
+				my $parent_name = "";
+				if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ ) {
+					$parent = 1;
+					$gtype = "LINE1";
+				}
+
+				if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ ) {
+					$parent_name = $1;
+				}
+
+				if ( not $parent and not $gcount) {
+					$gtype = "AREA";
+					++$gcount;
+				}
+				elsif ( not $parent and $gcount) {
+					$gtype = "STACK";
+					++$gcount;
+				}
 				my $alias = $CBQosNames->[$i];
+				$alias =~ s/$parent_name\-\-//g;
 				$alias =~ s/\-\-/\//g;
-				my $tab = "\\t"; 
-				$tab = "\\t\\t" if ( length($alias) <= 12 );
-				$tab = "\\t\\t\\t" if ( length($alias) <= 6 );
+				my $tab = "\\t";
+				if ( length($alias) <= 18 ) { 
+					$tab = "\\t\\t";
+				}
+				elsif ( length($alias) <= 5 ) {
+					$tab = "\\t\\t\\t";
+				}
 				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
 				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
 				push(@opt,"DEF:maxPPB$i=$database:PrePolicyByte:MAX");
@@ -375,14 +409,13 @@ sub rrdDraw {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
 					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %8.0lf bps");
 					push(@opt,"GPRINT:maxPPR$i:MAX:Max %8.0lf bps");
-					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg Drops %8.0lf bps");
-					push(@opt,"GPRINT:maxPPR$i:MAX:Max Drops %8.0lf bps\\l");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg Drops %6.0lf bps");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max Drops %6.0lf bps\\l");
 				}
 				else {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias");
 				}
-				++$gcount;
-				$gtype = "STACK" if $gcount;
+				
 				#push(@opt,"LINE1:avgPPR$i#$color:$CBQosNames->[$i]");
 				$avgppr = $avgppr.",avgPPR$i,+";
 				$maxppr = $maxppr.",maxPPR$i,+";

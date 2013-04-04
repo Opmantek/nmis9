@@ -1350,6 +1350,10 @@ sub getSummaryStats{
 			no strict;
 			$database = $db; # global
 			$speed = $IF->{$index}{ifSpeed} if $index ne "";
+			$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+			$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+			$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
+			$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
 
 			# read from Model and translate variable ($database etc.) rrd options
 			foreach my $str (@{$M->{stats}{type}{$type}}) {

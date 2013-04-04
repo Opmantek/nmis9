@@ -1301,8 +1301,24 @@ sub getIntfInfo {
 				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
 				dbg("Manual update of ifSpeed by nodeConf");
 			}
-	
-			#
+
+			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedIn} ne '') {
+				$IF->{$index}{nc_ifSpeedIn} = $IF->{$index}{ifSpeed}; # save
+				$IF->{$index}{ifSpeedIn} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedIn};
+				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+				$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($IF->{$index}{ifSpeedIn});
+				dbg("Manual update of ifSpeedIn by nodeConf");
+			}
+			
+			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedOut} ne '') {
+				$IF->{$index}{nc_ifSpeedOut} = $IF->{$index}{ifSpeed}; # save
+				$IF->{$index}{ifSpeedOut} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedOut};
+				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+				$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($IF->{$index}{ifSpeedOut});
+				dbg("Manual update of ifSpeedOut by nodeConf");
+			}
+			
+			
 			# preset collect,event on true
 			$IF->{$index}{collect} = "true";
 			$IF->{$index}{event} = "true";
@@ -5712,7 +5728,7 @@ sub getThresholdLevel {
 	$value = $stats->{$M->{threshold}{name}{$thrname}{item}} if $index eq "";
 	$value = $stats->{$index}{$M->{threshold}{name}{$thrname}{item}} if $index ne "";
 	dbg("threshold=$thrname, item=$M->{threshold}{name}{$thrname}{item}, value=$value");
-
+	
 	# check unknow value
 	if ($value =~ /NaN/i) {
 		dbg("INFO, illegal value $value, skipped");

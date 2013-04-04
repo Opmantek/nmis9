@@ -1,0 +1,14 @@
+%hash = (
+  'Opmantek' => {
+    'customer' => 'Opmantek',
+    'description' => undef,
+    'groups' => 'DataCenter,Sales,Opmantek-Boston,Opmantek-Brisbane,Opmantek-Christchurch,Opmantek-Dallas,Opmantek-Denver,Opmantek-Guadalajara,Opmantek-HongKong,Opmantek-London,Opmantek-Lyon,Opmantek-MexicoCity,Opmantek-Milan,Opmantek-Munich,Opmantek-Puebla,Opmantek-Saratoga,Opmantek-Singapore,Opmantek-Warsaw,Opmantek-Zurich',
+    'locations' => 'Opmantek_DC,Opmantek_HQ'
+  },
+  'PACK' => {
+    'customer' => 'PACK',
+    'description' => undef,
+    'groups' => 'DataCenter,Sales,WAN,xAN',
+    'locations' => 'Cloud,DataCenter,HeadOffice'
+  }
+);

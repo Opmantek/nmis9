@@ -203,7 +203,6 @@ sub getSummaryStatsbyGroup {
 	$groupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-8 hours", end => "now");
 	$oldGroupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-16 hours", end => "-8 hours");
 
-	logMsg("DEBUG group=$group customer=$customer business=$business");
 	$overallStatus = overallNodeStatus(group => $group, customer => $customer, business => $business);
 	$overallColor = eventColor($overallStatus);
 
@@ -1281,8 +1280,12 @@ sub viewInterface {
 				my $title = $V->{interface}{"${intf}_${k}_title"} || $S->getTitle(attr=>$k);
 				if ($title ne '') {
 					my $color = $V->{interface}{"${intf}_${k}_color"} || '#FFF';
+					my $value = $V->{interface}{"${intf}_${k}_value"};
+					if ( $k eq "ifSpeed" and $V->{interface}{"${intf}_ifSpeedIn_value"} ne "" and $V->{interface}{"${intf}_ifSpeedOut_value"} ne "" ) {
+						$value = qq|IN: $V->{interface}{"${intf}_ifSpeedIn_value"} OUT: $V->{interface}{"${intf}_ifSpeedOut_value"}|;
+					}
 					push @out,Tr(td({class=>'info Plain'},$title),
-					td({class=>'info Plain',style=>getBGColor($color)},$V->{interface}{"${intf}_${k}_value"}));
+					td({class=>'info Plain',style=>getBGColor($color)},$value));
 				}
 			}
 		return @out; },
@@ -1352,8 +1355,8 @@ sub viewAllIntf {
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
 	
 	# order of header
-	my @header = ('ifDescr','Description','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
-	'ifSpeed','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
+	my @header = ('ifDescr','Description','ipAdEntAddr1','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
+	'ifSpeed','ifSpeedIn','ifSpeedOut','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
 	
 	# create hash from loaded view table
 	my %view;
@@ -1363,7 +1366,7 @@ sub viewAllIntf {
 		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) {
 			my ($a,$b,$c) = ($1,$2,$3);		# $a=index, $b=item/header, $c=value|color
 			$view{$a}{$b}{$c} = $V->{interface}{$k};	# value
-			if ($c eq 'title') { $titles{$b} = $V->{interface}{$k}; }
+			if ($c eq 'title' and $b ne "ipAdEntAddr1") { $titles{$b} = $V->{interface}{$k}; }
 			$items{$b} = 1;
 			if ($titles{$b} eq '') { $titles{$b} = $S->getTitle(attr=>$b); } # get title from Model if available
 		}
@@ -1409,7 +1412,18 @@ sub viewAllIntf {
 					$view{$intf}{$k}{value} = ($view{$intf}{$k}{value} =~ /noSuch|unknow/i) ? '' : $view{$intf}{$k}{value};
 					if ($k eq 'ifDescr') {
 						$line = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&node=$node&intf=$intf"},$view{$intf}{$k}{value});
-					} else {
+					} 
+					elsif ($k eq 'Description' and $view{$intf}{ipAdEntAddr1}{value} ne "") {
+						$line = "$view{$intf}{Description}{value}<br/>$view{$intf}{ipAdEntAddr1}{value}";
+					}
+					elsif ($k eq 'ifSpeed' and $view{$intf}{ifSpeedIn}{value} ne "" and $view{$intf}{ifSpeedOut}{value} ne "") {
+						$line = "IN:$view{$intf}{ifSpeedIn}{value}<br/>OUT:$view{$intf}{ifSpeedOut}{value}";
+					}
+
+					elsif ($k eq 'ifSpeedIn' or $k eq 'ifSpeedOut' or $k eq 'ipAdEntAddr1') {
+						#just skip display!
+					}
+					else {
 						$line = $view{$intf}{$k}{value};
 					}
 					return $line;
@@ -1473,7 +1487,7 @@ sub viewActivePort {
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
 			if ($c eq 'title') { $titles{$b} = $V->{interface}{$k}; }
 			$items{$b} = 1;
-			if ($titles{$b} eq '') { $titles{$b} = $S->getTitle(attr=>$b,section=>'interface'); }
+			if ($titles{$b} eq '' ) { $titles{$b} = $S->getTitle(attr=>$b,section=>'interface'); }
 		}
 	}
 	# select available items in view table
