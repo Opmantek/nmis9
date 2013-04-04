@@ -1,90 +1,96 @@
 %hash = (
   'Access' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Access details for NMIS authorisation system',
     'DisplayName' => 'Access Policy',
     'Table' => 'Access'
   },
-  'BusinessServices' => {
-    'Description' => 'A list of Business Services which nodes can be associated to.',
-    'DisplayName' => 'Business Services',
-    'Table' => 'BusinessServices'
-  },
   'Contacts' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Contacts used for escalations and notifications.',
     'DisplayName' => 'Contacts',
     'Table' => 'Contacts'
   },
   'Enterprise' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Enterprise numbers for defining new vendors',
     'DisplayName' => 'Enterprise Numbers',
     'Table' => 'Enterprise'
   },
   'Escalations' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Escalation Policy for apply business policies to notifications.',
     'DisplayName' => 'Escalation Policy',
     'Table' => 'Escalations'
   },
   'Links' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Links between nodes',
     'DisplayName' => 'Links (network)',
     'Table' => 'Links'
   },
   'Locations' => {
+    'CaseSensitiveKey' => 'true',
     'Description' => 'Locations of nodes',
     'DisplayName' => 'Locations',
     'Table' => 'Locations'
   },
   'Logs' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Logs available to be displayed',
     'DisplayName' => 'Logs',
     'Table' => 'Logs'
   },
   'Nodes' => {
+    'CaseSensitiveKey' => 'true',
     'Description' => 'NMIS Nodes',
     'DisplayName' => 'Nodes (devices)',
     'Table' => 'Nodes'
   },
   'Portal' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Portal for custom links in menu',
     'DisplayName' => 'Portal',
     'Table' => 'Portal'
   },
   'PrivMap' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Privilege Map for assigning roles to users',
     'DisplayName' => 'Privilege Map',
     'Table' => 'PrivMap'
   },
   'ServiceStatus' => {
+    'CaseSensitiveKey' => 'true',
     'Description' => 'The current lifecycle service status of the nodes',
     'DisplayName' => 'Service Status',
     'Table' => 'ServiceStatus'
   },
   'Services' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Services to be monitored on nodes.',
     'DisplayName' => 'Services',
     'Table' => 'Services'
   },
   'Tables' => {
+    'CaseSensitiveKey' => 'true',
     'Description' => 'The master list of all tables being used in NMIS',
     'DisplayName' => 'Tables',
     'Table' => 'Tables'
   },
   'Toolset' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'Toolset available for use in NMIS',
     'DisplayName' => 'Toolset',
     'Table' => 'Toolset'
   },
   'Users' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'NMIS User Table',
     'DisplayName' => 'Users',
     'Table' => 'Users'
   },
-  'cmdbModels' => {
-    'Description' => 'A list of possible Models for the CMDB',
-    'DisplayName' => 'CMDB Models',
-    'Table' => 'cmdbModels'
-  },
   'ifTypes' => {
+    'CaseSensitiveKey' => 'false',
     'Description' => 'ifTypes for Interface Display',
     'DisplayName' => 'ifTypes',
     'Table' => 'ifTypes'

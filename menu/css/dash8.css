@@ -171,12 +171,23 @@ table {
 		border: 1px solid #404040;
 }
 
+th.toptitle {
+		text-align:left;
+		font-size: 1.0em;
+		border-bottom: none;
+		width: 100%;
+		font-weight: bold;
+		/* SKIN: This is the "Table Top Title". #404040 */
+		color: white;
+		background-color: #404040;
+}
+
 th.title {
 		text-align:left;
 		border-bottom: none;
 		width: 100%;
 		font-weight: bold;
-		/* SKIN: This is the "Table Title". #404040 */
+		/* SKIN: This is the "Table Title". #606060 */
 		color: white;
 		background-color: #606060;
 }

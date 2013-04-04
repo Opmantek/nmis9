@@ -72,6 +72,7 @@ $VERSION = "8.3.21G";
 		loadNodeInfoTable
 		loadGroupTable
 		loadGenericTable
+		tableExists
 		loadContactsTable
 		loadLocationsTable
 		loadEscalationsTable
@@ -277,6 +278,17 @@ sub loadGroupTable {
 	loadNodeTable();
 
 	return $GT_cache;
+}
+
+sub tableExists {
+	my $table = shift;
+	my $exists = 0;
+	
+	if (existFile(dir=>"conf",name=>$table)) {
+		$exists = 1;
+	}
+
+	return $exists;
 }
 
 sub loadFileOrDBTable {
@@ -1404,6 +1416,8 @@ sub getNodeSummary {
 		$nt{$nd}{name} = $NI->{system}{name};
 		$nt{$nd}{netType} = $NI->{system}{netType};
 		$nt{$nd}{group} = $NI->{system}{group};
+		$nt{$nd}{customer} = $NI->{system}{customer};
+		$nt{$nd}{businessService} = $NI->{system}{businessService};
 		$nt{$nd}{roleType} = $NI->{system}{roleType};
 		$nt{$nd}{active} = $NT->{$nd}{active};
 		$nt{$nd}{ping} = $NT->{$nd}{ping};
@@ -1453,8 +1467,9 @@ sub getNodeSummary {
 ### ehg 17 sep 02 counted actual nodes down for summary display
 sub getGroupSummary {
 	my %args = @_;
-
 	my $group = $args{group};
+	my $customer = $args{customer};
+	my $business = $args{business};
 	my $start_time = $args{start};
 	my $end_time = $args{end};
 
@@ -1555,7 +1570,12 @@ sub getGroupSummary {
 	if (existFile(dir=>'var',name=>$nodesum) ) {
 		my $NS = loadTable(dir=>'var',name=>$nodesum);
 		for my $node (keys %{$NS}) {
-			if ( $group eq "" or $group eq $NS->{$node}{group} ) {
+			#if ( $group eq "" or $group eq $NS->{$node}{group} ) {
+			if ( 	($group eq "" and $customer eq "" and $business eq "") 
+				 		or ($group ne "" and $NT->{$node}{group} eq $group)
+						or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+						or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
+			) {
 				for (keys %{$NS->{$node}}) {
 					$SUM->{$node}{$_} = $NS->{$node}{$_};
 				}
@@ -1588,7 +1608,11 @@ sub getGroupSummary {
 			if (existFile(dir=>'var',name=>$slavenodesum) ) {
 				my $NS = loadTable(dir=>'var',name=>$slavenodesum);
 				for my $node (keys %{$NS}) {
-					if ( $group eq "" or $group eq $NS->{$node}{group} ) {
+					if ( 	($group eq "" and $customer eq "" and $business eq "") 
+				 				or ($group ne "" and $NS->{$node}{group} eq $group)
+								or ($customer ne "" and $NS->{$node}{customer} eq $customer)					
+								or ($business ne "" and $NS->{$node}{businessService} =~ /$business/)
+					) {
 						for (keys %{$NS->{$node}}) {
 							$SUM->{$node}{$_} = $NS->{$node}{$_};
 						}
@@ -1598,9 +1622,6 @@ sub getGroupSummary {
 		}
 	}
 	
-	
-	
-	
 	# copy this hash for modification
 	my %summaryHash = %{$SUM} if defined $SUM;
 	
@@ -1608,7 +1629,11 @@ sub getGroupSummary {
 NODE:
 	foreach $node (sort keys %{$NT} ) {
 		# Only do the group - or everything if no group passed to us.
-		if ( $group eq $NT->{$node}{group} or $group eq "") {
+		if (	($group eq "" and $customer eq "" and $business eq "") 
+				 	or ($group ne "" and $NT->{$node}{group} eq $group)
+					or ($customer ne "" and $NT->{$node}{customer} eq $customer)		
+					or ($business ne "" and $NT->{$node}{businessService} =~ /$business/)
+		) {
 			if ( $NT->{$node}{active} eq 'true' ) {
 				++$nodecount{counttotal};
 				my $outage = '';
@@ -1784,11 +1809,23 @@ NODE:
 
 sub getAdminColor {
 	my %args = @_;
-	my $S = $args{sys};
-	my $index = $args{index};
-	my $IF = $S->ifinfo;
+	my ($S,$index,$IF);
+	if ( exists $args{sys} ) {
+		$S = $args{sys};
+		$index = $args{index};
+		$IF = $S->ifinfo;
+	}
 	my $adminColor;
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true" ) {
+	
+	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
+	my $collect = $IF->{$index}{collect};
+	
+	if ( $index eq "" ) {
+		$ifAdminStatus = $args{ifAdminStatus};
+		$collect = $args{collect};
+	}
+
+	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or $collect ne "true" ) {
 		$adminColor="#ffffff";
 	} else {
 		$adminColor="#00ff00";
@@ -1800,20 +1837,31 @@ sub getAdminColor {
 
 sub getOperColor {
 	my %args = @_;
-	my $S = $args{sys};		# object
-	my $index = $args{index}; # index
-	my $NI = $S->ndinfo;	# node info
-	my $IF = $S->ifinfo;	# interface info
-	my $node = $S->{node};	# node name lc
+	my ($S,$NI,$index,$IF);
+	if ( exists $args{sys} ) {
+		$S = $args{sys};
+		$index = $args{index};
+		$IF = $S->ifinfo;
+	}	
 	my $operColor;
+	
+	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
+	my $ifOperStatus = $IF->{$index}{ifOperStatus};
+	my $collect = $IF->{$index}{collect};
+	
+	if ( $index eq "" ) {
+		$ifAdminStatus = $args{ifAdminStatus};
+		$ifOperStatus = $args{ifOperStatus};
+		$collect = $args{collect};
+	}
 
-	if ( $IF->{$index}{ifAdminStatus} =~ /down|testing|null/ or $IF->{$index}{collect} ne "true") {
+	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or $collect ne "true") {
 		$operColor="#ffffff"; # white
 	} else {
-		if ($IF->{$index}{ifOperStatus} eq 'down') {
+		if ($ifOperStatus eq 'down') {
 			# red for down
 			$operColor = "#ff0000";
-		} elsif ($IF->{$index}{ifOperStatus} eq 'dormant') {
+		} elsif ($ifOperStatus eq 'dormant') {
 			# yellow for dormant
 			$operColor = "#ffff00";
 		} else { $operColor = "#00ff00"; } # green
@@ -1979,8 +2027,12 @@ sub cleanEvent {
 }
 
 sub overallNodeStatus {
-	my $netType = shift;
-	my $roleType = shift;
+	my %args = @_;
+	my $group = $args{group};
+	my $customer = $args{customer};
+	my $business = $args{business};
+	my $netType = $args{netType};
+	my $roleType = $args{roleType};
 	
 	my $node;
 	my $event_status;
@@ -1988,7 +2040,6 @@ sub overallNodeStatus {
 	my $status_number;
 	my $total_status;
 	my $multiplier;
-	my $group;
 	my $status;
 
 	my %statusHash;
@@ -2000,7 +2051,7 @@ sub overallNodeStatus {
 
 	#print STDERR &returnDateStamp." overallNodeStatus: netType=$netType roleType=$roleType\n";
 
-	if ( $netType eq "" and $roleType eq "" ) {
+	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
 		foreach $node (sort keys %{$NT} ) {
 			if ($NT->{$node}{active} eq 'true') {
 				my $nodedown = 0;
@@ -2060,10 +2111,15 @@ sub overallNodeStatus {
 			}
 		}
 	}
-	elsif ( $netType ne "" and $roleType eq "" ) {
-		$group = $netType; # <<<
+	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
 		foreach $node (sort keys %{$NT} ) {
-			if ( $NT->{$node}{group} eq $group and $NT->{$node}{active} eq 'true') {
+			if ( 
+				$NT->{$node}{active} eq 'true' 
+				and ( ($group ne "" and $NT->{$node}{group} eq $group)
+							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
+						)
+			) {
 				my $nodedown = 0;
 				my $outage = "";
 				if ( $NT->{$node}{server} eq $C->{server_name} ) {

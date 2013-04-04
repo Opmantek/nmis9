@@ -810,8 +810,10 @@ sub getNodeInfo {
 				$V->{system}{nodeVendor_title} = 'Vendor';
 				$V->{system}{group_value} = $NI->{system}{group};
 				$V->{system}{group_title} = 'Group';
+				$V->{system}{customer_value} = $NI->{system}{customer};
+				$V->{system}{customer_title} = 'Customer';
 				$V->{system}{location_value} = $NI->{system}{location};
-				$V->{system}{location_title} = 'Location';
+				$V->{system}{location_title} = 'Location';				
 				$V->{system}{businessService_value} = $NI->{system}{businessService};
 				$V->{system}{businessService_title} = 'Business Service';
 				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
@@ -2168,6 +2170,7 @@ sub getIntfData {
 	my $V =  $S->view;
 	my $IF = $S->ifinfo; # interface info
 	my $RI = $S->reach;
+	my $IFCACHE;
 
 	my $C = loadConfTable();
 	my $ET = loadEventStateNoLock();
@@ -2273,6 +2276,9 @@ sub getIntfData {
 	
 						if ($sect eq 'interface') {
 							$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
+							# Cache any data for use later.
+							$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
+							$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
 				
 							if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
 								dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
@@ -2302,7 +2308,7 @@ sub getIntfData {
 									logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"); 
 									getIntfInfo(sys=>$S,index=>$index); # update this interface
 								}
-	
+									
 								delete $D->{ifDescr}; # dont store in rrd
 								delete $D->{ifAdminStatus};
 	
@@ -2351,11 +2357,12 @@ sub getIntfData {
 					$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
 					$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
 					
-					if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} ne "false" ) {
-						$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
-						$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
-						$V->{interface}{"${index}_ifAdminStatus_value"} = $S->{info}{interface}{$index}{ifAdminStatus};
-						$V->{interface}{"${index}_ifOperStatus_value"} = $S->{info}{interface}{$index}{ifOperStatus};
+					if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} eq "false" ) {
+						dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
+						$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+						$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+						$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
+						$V->{interface}{"${index}_ifOperStatus_value"} = $IFCACHE->{$index}{ifOperStatus};
 					}
 	
 					### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
@@ -4281,7 +4288,8 @@ sub runEscalate {
 				# make it an up event.
 				my $event = $ET->{$event_hash};
 				my $node = $NT->{$event->{node}};
-				$event->{nmis_server} = $C->{server_name};				
+				$event->{nmis_server} = $C->{server_name};
+				$event->{customer} = $node->{customer};
 				$event->{location} = $LocationsTable->{$node->{location}}{Location};
 				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
@@ -4630,6 +4638,7 @@ LABEL_ESC:
 								my $event = $ET->{$event_hash};
 								my $node = $NT->{$event->{node}};
 								$event->{nmis_server} = $C->{server_name};
+								$event->{customer} = $node->{customer};
 								$event->{location} = $LocationsTable->{$node->{location}}{Location};
 								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
@@ -4832,7 +4841,7 @@ sub runMetrics {
 	#
 	foreach $group (sort keys %{$GT}) {
 		$groupSummary = getGroupSummary(group=>$group);
-		$status = overallNodeStatus($group);
+		$status = overallNodeStatus(group=>$group);
 		$status = statusNumber($status);
 		$data->{reachability}{value} = $groupSummary->{average}{reachable};
 		$data->{availability}{value} = $groupSummary->{average}{available};

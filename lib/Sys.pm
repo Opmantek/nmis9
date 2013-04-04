@@ -284,6 +284,7 @@ sub copyModelCfgInfo {
 	$self->{info}{system}{roleType} = $self->{cfg}{node}{roleType};
 	$self->{info}{system}{netType} = $self->{cfg}{node}{netType};
 	$self->{info}{system}{threshold} = $self->{cfg}{node}{threshold};
+	$self->{info}{system}{customer} = $self->{cfg}{node}{customer};
 	$self->{info}{system}{location} = $self->{cfg}{node}{location};
 	$self->{info}{system}{serviceStatus} = $self->{cfg}{node}{serviceStatus};
 	$self->{info}{system}{businessService} = $self->{cfg}{node}{businessService};
@@ -566,7 +567,8 @@ sub getValues {
 
 				if( defined($alert) && defined($alert->{test}) && $alert->{test} ne '' ) {
 					my $test = $alert->{test};
-					my $test_result = eval { eval $test; };
+					my $test_result = $self->parseString(string=>"$test",sys=>$self,index=>$index,type=>$sect,sect=>$sect);
+					#my $test_result = eval { eval $test; };
 					$alert->{test_result} = $test_result;
 					$alert->{name} = $self->{name};
 					$alert->{value} = $r;
@@ -767,6 +769,12 @@ sub parseString {
 				# put the brackets back in so we have "(check) ? 1:0" again
 				$str = "(".$2;
 				dbg("parseString:: 1=$1, CVAR=$CVAR;str=$str, sect=$sect");
+			}
+			if ( $sect ne "" && $str =~ /CVAR1=(\w+);CVAR2=(\w+);(.*)/ ) {				
+				$CVAR1 = $self->{info}{$sect}{$indx}{$1};
+				$CVAR2 = $self->{info}{$sect}{$indx}{$2};
+				$str = $3;
+				dbg("parseString:: 1=$1 2=$2, CVAR1=$CVAR1 CVAR2=$CVAR2;str=$str, sect=$sect");
 			}
 
 			$name = $self->{info}{system}{name};

@@ -112,7 +112,6 @@
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
     'snmp_stop_polling_on_error' => 'true',
-    'tables_case_sensitive_keys' => 'Nodes|Groups|Customers|BusinessServices|ServiceStatus|Locations|Tables',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',

@@ -103,6 +103,8 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_summary_large') {	$select = 'large';
 } elsif ($Q->{act} eq 'network_summary_allgroups') {	$select = 'allgroups';
 } elsif ($Q->{act} eq 'network_summary_group') {	$select = 'group';
+} elsif ($Q->{act} eq 'network_summary_customer') {	$select = 'customer';
+} elsif ($Q->{act} eq 'network_summary_business') {	$select = 'business';
 } elsif ($Q->{act} eq 'network_summary_metrics') {	$select = 'metrics';
 } elsif ($Q->{act} eq 'network_metrics_graph') {	viewMetrics(); exit;
 } elsif ($Q->{act} eq 'network_top10_view') {	viewTop10(); exit;
@@ -157,6 +159,8 @@ my $overallStatus;
 my $overallColor;
 my %icon;
 my $group = $Q->{group};
+my $customer = $Q->{customer};
+my $business = $Q->{business};
 my @groups = grep { $AU->InGroup($_) } sort keys %{$GT};
 
 # define global stats, and default stats period.
@@ -176,7 +180,11 @@ if ( $select eq 'metrics' ) { selectMetrics(); }
 elsif ( $select eq 'health' ) { selectNetworkHealth(); }
 elsif ( $select eq 'small' ) { selectSmall(); }
 elsif ( $select eq 'large' ) { selectLarge(); }
-elsif ( $select eq 'group' ) { selectLarge($group); }
+elsif ( $select eq 'group' ) { selectLarge(group => $group); }
+elsif ( $select eq 'customer' and $customer eq "" ) { selectNetworkHealth(type => "customer"); }
+elsif ( $select eq 'customer' and $customer ne "" ) { selectLarge(customer => $customer); }
+elsif ( $select eq 'business' and $business eq "" ) { selectNetworkHealth(type => "business"); }
+elsif ( $select eq 'business' and $business ne "" ) { selectLarge(business => $business); }
 #elsif ( $select eq 'group' ) { selectGroup($group); }
 elsif ( $select eq 'allgroups' ) { selectAllGroups();}
 
@@ -187,11 +195,16 @@ exit();
  # end main()
 
 sub getSummaryStatsbyGroup {
-	my $group = shift;
-	$groupSummary = getGroupSummary(group=>${group}, start=>"-8 hours",end=>"now");
-	$oldGroupSummary = getGroupSummary(group=>${group},start=>"-16 hours",end=>"-8 hours");
+	my %args = @_;
+	my $group = $args{group};
+	my $customer = $args{customer};
+	my $business = $args{business};
 
-	$overallStatus = overallNodeStatus($group);
+	$groupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-8 hours", end => "now");
+	$oldGroupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-16 hours", end => "-8 hours");
+
+	logMsg("DEBUG group=$group customer=$customer business=$business");
+	$overallStatus = overallNodeStatus(group => $group, customer => $customer, business => $business);
 	$overallColor = eventColor($overallStatus);
 
 	# valid hash keys are metric reachable available health response
@@ -229,7 +242,10 @@ sub getSummaryStatsbyGroup {
 
 
 	## ehg 17 sep 02 add node down counter with colour
-	my $percentDown = sprintf("%2.0u",$groupSummary->{average}{countdown}/$groupSummary->{average}{counttotal}) * 100;
+	my $percentDown = 0;
+	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$percentDown = sprintf("%2.0u",$groupSummary->{average}{countdown}/$groupSummary->{average}{counttotal}) * 100;
+	}
 	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
 	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = colorPercentLo(0); }
 	#else { $groupSummary->{average}{countdowncolor} = "$overallColor"; }
@@ -253,7 +269,7 @@ sub selectMetrics {
 	if ($AU->InGroup("network") or $AU->InGroup($group)) {
 		
 		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup($group);
+		getSummaryStatsbyGroup(group => $group);
 
 		my @h = qw/Metric Reachablility InterfaceAvail Health ResponseTime/;
 		my @k = qw/metric reachable available health response/;
@@ -328,8 +344,35 @@ sub selectMetrics {
 #============================
 
 sub selectNetworkHealth {
-
-	my @h=qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
+	my %args = @_;
+	my $type = $args{type};
+	my $customer = $args{customer};
+	my $business = $args{business};
+	
+	my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+	my $healthTitle = "All Groups Status";
+	my $healthType = "group";
+	
+	if ( $type eq "customer" and tableExists('Customers') ) { 
+		@h=qw(Customer Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		$healthTitle = "All Nodes Status";
+		$healthType = "customer";
+	}
+	elsif ( $type eq "business" and tableExists('BusinessServices') ) { 
+		@h=qw(Business Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		$healthTitle = "All Nodes Status";
+		$healthType = "business";
+	}
+	elsif ( $C->{network_health_view} eq "Customer" and tableExists('Customers') ) { 
+		@h=qw(Customer Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		$healthTitle = "All Nodes Status";
+		$healthType = "customer";
+	}
+	elsif ( $C->{network_health_view} eq "Business" and tableExists('BusinessServices') ) { 
+		@h=qw(Business Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		$healthTitle = "All Nodes Status";
+		$healthType = "business";
+	}
 
 	print
 	start_table( {class=>"noborder" }),
@@ -340,14 +383,17 @@ sub selectNetworkHealth {
 
 	if ($AU->InGroup("network") and $group eq ''){
 		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup($group);
+		getSummaryStatsbyGroup(group => $group);
 
-		my $percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+		my $percentDown = 0;
+		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+		}
 		print
 		start_Tr,
 		td(
 			{class=>'info Plain'},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},"All Groups Status"),
+			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
 		),
 		td({class=>"info $overallStatus"},"$overallStatus"),
 		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
@@ -361,7 +407,7 @@ sub selectNetworkHealth {
 			my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
 			if ( $value == 100 ) { $value = 100 }
 			my $bg = "background-color:" . colorPercentHi($groupSummary->{average}{$t});
-		$bg = "background-color:" . colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}) if $t eq 'response';
+			$bg = "background-color:" . colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}) if $t eq 'response';
 			print
 			start_td({class=>'info Plain',style=>"$bg"}),
 			img({src=>$C->{$icon{${t}}}}),
@@ -372,14 +418,29 @@ sub selectNetworkHealth {
 		print end_Tr;
 		
 	}
-
-	foreach $group (sort keys %{$GT} ) {
-		next unless $AU->InGroup($group);
-		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup($group);
-		printGroup($group);
-	}	# end foreach
-
+	
+	if ( $healthType eq "customer" ) {
+		my $CT = loadGenericTable('Customers');
+		foreach my $customer (sort keys %{$CT} ) {
+			getSummaryStatsbyGroup(customer => $customer);
+			printHealth(customer => $customer);
+		}	# end foreach
+	}
+	elsif ( $healthType eq "business" ) {
+		my $BS = loadGenericTable('BusinessServices');
+		foreach my $business (sort keys %{$BS} ) {
+			getSummaryStatsbyGroup(business => $business);
+			printHealth(business => $business);
+		}	# end foreach
+	}
+	else {
+		foreach $group (sort keys %{$GT} ) {
+			next unless $AU->InGroup($group);
+			# get all the stats and stuff the hashs
+			getSummaryStatsbyGroup(group => $group);
+			printGroup($group);
+		}	# end foreach
+	}
 	print end_table;
 
 } # end sub selectNetworkHealth
@@ -405,9 +466,12 @@ sub selectSmall {
 
 	if ($AU->InGroup("network") and $group eq ''){
 		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup($group);
+		getSummaryStatsbyGroup(group => $group);
 
-		my $percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+		my $percentDown = 0;
+		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+		}
 		print
 		start_Tr,
 		th(
@@ -459,7 +523,7 @@ sub selectAllGroups {
 	foreach $group (sort keys %{$GT} ) {
 		next unless $AU->InGroup($group);
 		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup($group);
+		getSummaryStatsbyGroup(group => $group);
 		printGroup($group);
 	}	# end foreach
 	print end_table;
@@ -486,7 +550,7 @@ sub selectGroup {
 		#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
 		Tr(th({class=>"header"},\@h));
 	# get all the stats and stuff the hashs
-	getSummaryStatsbyGroup($group);
+	getSummaryStatsbyGroup(group => $group);
 	printGroup($group);
 	print end_table;
 	
@@ -516,7 +580,10 @@ sub printGroup {
 	}
 	print end_td;
 	# calc node down cell color as a % of node total
-	my $percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+	my $percentDown = 0;
+	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+	}
 	print
 	td({class=>"info $overallStatus"},$overallStatus),
 	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
@@ -544,6 +611,63 @@ sub printGroup {
 	print end_Tr;
 }	# end sub printGroup
 
+sub printHealth {
+	my %args = @_;
+	my $customer = $args{customer};
+	my $business = $args{business};
+
+	my $icon;
+
+	print
+	start_Tr,
+	start_td({class=>'info left Plain'});
+
+	#if ($AU->InGroup($group)) {
+	# force a new window if clicked
+	if ( $customer ne "" ) {
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer", id=>"network_summary_$customer"},"$customer");
+	}
+	elsif ( $business ne "" ) {
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business", id=>"network_summary_$business"},"$business");
+	}
+	#}
+	#else {
+	#	print "$customer";
+	#}
+	
+	print end_td;
+	# calc node down cell color as a % of node total
+	my $percentDown = 0;
+	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+	}
+	print
+	td({class=>"info $overallStatus"},$overallStatus),
+	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
+	td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
+	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+
+	my @h = qw/metric reachable available health response/;
+	foreach my $t (@h) {
+
+		my $units = $t eq 'response' ? 'ms' : '%' ;
+		my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
+		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
+		if ( $value == 100 ) { $value = 100 }
+		my $bg = "background-color:".colorPercentHi($groupSummary->{average}{$t}).';';
+		$bg = "background-color:".colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}).';' if $t eq 'response';
+
+		$groupSummary->{average}{$t} = int($groupSummary->{average}{$t});
+		print
+		start_td({class=>'info Plain',style=>"$bg"}),
+		img({src=>$C->{$icon{${t}}}}),
+		$value,
+		"$units".
+		end_td;
+	}
+	print end_Tr;
+}	# end sub printCustomer
+
 
 
 
@@ -557,6 +681,10 @@ sub printGroup {
 #============================'
 
 sub selectLarge {
+	my %args = @_;
+	my $group = $args{group};
+	my $customer = $args{customer};
+	my $business = $args{business};
 
 	getSummaryStatsbyGroup();
 	my @headers = ('Node','Location','Type','Net','Role','Status','Health',
@@ -567,28 +695,54 @@ sub selectLarge {
 		$ST = loadServersTable();
 	}
 	
+	my $CT;
+	if ($C->{network_health_view} eq "Customer" or $customer ne "") {	
+		$CT = loadGenericTable('Customers');
+	}
+	
 	my $groupcount = 0;
 	#print start_table,start_Tr,start_td({class=>'table',colspan=>'2',width=>'100%'});
 	#print br if $select eq "large";
 	print start_table({class=>'dash', width=>'100%'});
-	foreach my $group (sort keys %{$GT} ) {
 	
+	print Tr(th({class=>'toptitle',colspan=>'15'},"Customer $customer Groups")) if $customer ne "";
+	print Tr(th({class=>'toptitle',colspan=>'15'},"Business Service $business Groups")) if $business ne "";
+
+	foreach my $group (sort keys %{$GT} ) {	
 		# test if caller wanted stats for a particular group
-		next if $group ne $Q->{group} and $select eq 'group';
-		next if (not $AU->InGroup($group)) and $select eq 'large';
+		if ( $select eq "customer" ) {
+			next if $CT->{$customer}{groups} !~ /$group/;
+		}
+		elsif ( $select eq "group" ) {
+			next if $group ne $Q->{group};
+		}
 		
 		++$groupcount;
-		
-		print Tr(th({class=>'title',colspan=>'15'},"$group Node List and Status"));
-		print Tr( eval {
-			my $line;
-			foreach my $h (@headers) {
-				$line .= td({class=>'header',align=>'center'},$h);
-			} return $line;
-		} );
+				
+		my $printGroupHeader = 1;
 		foreach my $node (sort {uc($a) cmp uc($b)} keys %{$NT}) {
-			next unless $NT->{$node}{group} eq "$group";
+			next if (not $AU->InGroup($group));
+			if ( $group ne "" and $customer eq "" and $business eq "" ) {
+				next unless $NT->{$node}{group} eq $group;
+			}
+			elsif ( $customer ne "" ) {
+				next unless $NT->{$node}{customer} eq $customer and $NT->{$node}{group} eq $group;
+			}
+			elsif ( $business ne "" ) {
+				next unless $NT->{$node}{businessService} =~ /$business/ and $NT->{$node}{group} eq $group;
+			}
 			next unless $NT->{$node}{active} eq 'true'; # optional skip
+			
+			if ( $printGroupHeader ) {
+				$printGroupHeader = 0;
+				print Tr(th({class=>'title',colspan=>'15'},"$group Node List and Status"));
+				print Tr( eval {
+					my $line;
+					foreach my $h (@headers) {
+						$line .= td({class=>'header',align=>'center'},$h);
+					} return $line;
+				} );
+			}
 			#
 			#my $NI = loadNodeInfoTable($node);
 			my $color;
@@ -930,6 +1084,7 @@ EO_HTML
 		,'sysName'
 		,'host_addr'
 		,'group'
+		,'customer'
 		,'location'
 		,'businessService'
 		,'serviceStatus'

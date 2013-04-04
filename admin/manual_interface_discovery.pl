@@ -95,12 +95,12 @@ sub processNode {
 				my $ifDescr = "Port $index Gigabit Ethernet";
 				$S->{info}{interface}{$index} = {
 		      'Description' => '',
-		      'ifAdminStatus' => 'monkey',
+		      'ifAdminStatus' => 'unknown',
 		      'ifDescr' => $ifDescr,
 		      'ifIndex' => $index,
 		      'ifLastChange' => '0:00:00',
 		      'ifLastChangeSec' => 0,
-		      'ifOperStatus' => 'monkey',
+		      'ifOperStatus' => 'unknown',
 		      'ifSpeed' => 1000000000,
 		      'ifType' => 'ethernetCsmacd',
 		      'interface' => "port-$index-gigabit-ethernet",
@@ -110,7 +110,7 @@ sub processNode {
 				};
 				
 				# preset collect,event to required setting, Node Configuration Will override.
-				$S->{info}{interface}{$index}{collect} = "true";
+				$S->{info}{interface}{$index}{collect} = "false";
 				$S->{info}{interface}{$index}{event} = "true";
 									
 				# ifDescr must always be filled

@@ -436,10 +436,11 @@ sub doeditTable {
 	my $T = loadReqTable(table=>$table,msg=>'false');
 
 	my $CT = loadCfgTable(table=>$table);
+	my $TAB = loadGenericTable('Tables');
 
 	# combine key from values, values separated by underscrore
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
-	$key = lc($key) if $table !~ /$C->{tables_case_sensitive_keys}/; # let key of table Nodes equal to name
+	$key = lc($key) if $TAB->{$table}{CaseSensitiveKey} eq "false"; # let key of table Nodes equal to name
 
 	# test on existing key
 	if ($Q->{act} =~ /doadd/) {

@@ -180,6 +180,8 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
 		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|;
 		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=25&amp;logname=Event_Log">Network Events</a>|;
+		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if tableExists('Customers');
+		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if tableExists('BusinessServices');
 		push @netstatus, qq|<a id='ntw_map' href="$modules->{opMaps}{link}?widget=true">Network Maps</a>| if $M->moduleInstalled(module => "opMaps");
 		
 		push @menu_site,(qq|Network Status|,[ @netstatus ]);		
