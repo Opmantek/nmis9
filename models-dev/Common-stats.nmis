@@ -1,0 +1,203 @@
+#
+## $Id: Common-stats.nmis,v 8.2 2011/08/28 15:11:41 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'stats' => {
+    'type' => {
+      'calls' => [
+        'DEF:DS0CallType=$database:DS0CallType:AVERAGE',
+        'DEF:L2Encapsulation=$database:L2Encapsulation:AVERAGE',
+        'DEF:CallCount=$database:CallCount:AVERAGE',
+        'DEF:AvailableCallCount=$database:AvailableCallCount:AVERAGE',
+        'DEF:totalIdle=$database:totalIdle:AVERAGE',
+        'DEF:totalUnknown=$database:totalUnknown:AVERAGE',
+        'DEF:totalAnalog=$database:totalAnalog:AVERAGE',
+        'DEF:totalDigital=$database:totalDigital:AVERAGE',
+        'DEF:totalV110=$database:totalV110:AVERAGE',
+        'DEF:totalV120=$database:totalV120:AVERAGE',
+        'DEF:totalVoice=$database:totalVoice:AVERAGE',
+        'CDEF:percIdle=100,totalIdle,1,AvailableCallCount,AvailableCallCount,IF,/,100,*,-',
+        'PRINT:DS0CallType:AVERAGE:DS0CallType=%1.2lf',
+        'PRINT:L2Encapsulation:AVERAGE:L2Encapsulation=%1.2lf',
+        'PRINT:CallCount:AVERAGE:CallCount=%1.0lf',
+        'PRINT:AvailableCallCount:AVERAGE:AvailableCallCount=%1.0lf',
+        'PRINT:totalIdle:AVERAGE:totalIdle=%1.0lf',
+        'PRINT:totalUnknown:AVERAGE:totalUnknown=%1.0lf',
+        'PRINT:totalAnalog:AVERAGE:totalAnalog=%1.0lf',
+        'PRINT:totalDigital:AVERAGE:totalDigital=%1.0lf',
+        'PRINT:totalV110:AVERAGE:totalV110=%1.0lf',
+        'PRINT:totalV120:AVERAGE:totalV120=%1.0lf',
+        'PRINT:totalVoice:AVERAGE:totalVoice=%1.0lf',
+        'PRINT:percIdle:AVERAGE:percIdle=%1.0lf'
+      ],
+      'hrdisk' => [
+        'DEF:hrDiskSize=$database:hrDiskSize:AVERAGE',
+        'DEF:hrDiskUsed=$database:hrDiskUsed:AVERAGE',
+        'PRINT:hrDiskSize:AVERAGE:hrDiskSize=%1.2lf',
+        'PRINT:hrDiskUsed:AVERAGE:hrDiskUsed=%1.2lf'
+      ],
+      'hrsmpcpu' => [
+        'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
+        'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf'
+      ],
+      'cpu-cpm' => [
+        'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
+      ],
+      'nodehealth' => [
+        'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
+        'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
+        'DEF:MemPUsed=$database:MemoryUsedPROC:AVERAGE',
+        'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
+        'DEF:MemIUsed=$database:MemoryUsedIO:AVERAGE',
+        'DEF:MemIFree=$database:MemoryFreeIO:AVERAGE',
+        'CDEF:totalPMem=MemPUsed,MemPFree,+',
+        'CDEF:totalIMem=MemIUsed,MemIFree,+',
+        'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
+        'CDEF:perPFreeMem=MemPFree,totalPMem,/,100,*',
+        'CDEF:perIUsedMem=MemIUsed,totalIMem,/,100,*',
+        'CDEF:perIFreeMem=MemIFree,totalIMem,/,100,*',
+        'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
+        'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+        'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
+        'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf',
+        'PRINT:perIUsedMem:AVERAGE:IOMemUsed=%1.2lf',
+        'PRINT:perIFreeMem:AVERAGE:IOMemFree=%1.2lf'
+      ],
+      'env_temp' => [
+        'DEF:currentTemp=$database:currentTemp:AVERAGE',
+        'PRINT:currentTemp:AVERAGE:currentTemp=%1.2lf',
+      ],
+      'pvc' => [
+        'DEF:input=$database:ReceivedOctets:AVERAGE',
+        'DEF:output=$database:SentOctets:AVERAGE',
+        'DEF:status=$database:State:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$inSpeed,/,100,*',
+        'CDEF:outputUtil=outputBits,$outSpeed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ],
+      'modem' => [
+        'DEF:TotalModems=$database:InstalledModem:AVERAGE',
+        'DEF:ModemsInUse=$database:ModemsInUse:AVERAGE',
+        'DEF:ModemsAvailable=$database:ModemsAvailable:AVERAGE',
+        'DEF:ModemsUnavailable=$database:ModemsUnavailable:AVERAGE',
+        'DEF:ModemsOffline=$database:ModemsOffline:AVERAGE',
+        'DEF:ModemsDead=$database:ModemsDead:AVERAGE',
+        'PRINT:TotalModems:AVERAGE:TotalModems=%1.2lf',
+        'PRINT:ModemsInUse:AVERAGE:ModemsInUse=%1.2lf',
+        'PRINT:ModemsAvailable:AVERAGE:ModemsAvailable=%1.2lf',
+        'PRINT:ModemsUnavailable:AVERAGE:ModemsUnavailable=%1.2lf',
+        'PRINT:ModemsOffline:AVERAGE:ModemsOffline=%1.2lf',
+        'PRINT:ModemsDead:AVERAGE:ModemsDead=%1.2lf'
+      ],
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf'
+      ],
+      'pkts' => [
+        'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+        'DEF:ifInNUcastPkts=$database:ifInNUcastPkts:AVERAGE',
+        'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+        'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+        'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+        'DEF:ifOutNUcastPkts=$database:ifOutNUcastPkts:AVERAGE',
+        'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+        'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+        'CDEF:ifInPkts=ifInUcastPkts,ifInNUcastPkts,ifInDiscards,ifInErrors,+,+,+',
+        'CDEF:ifOutPkts=ifOutUcastPkts,ifOutNUcastPkts,ifOutDiscards,ifOutErrors,+,+,+',
+        'CDEF:ifInDiscardsProc=ifInDiscards,ifInPkts,/,100,*',
+        'CDEF:ifOutDiscardsProc=ifOutDiscards,ifOutPkts,/,100,*',
+        'CDEF:ifInErrorsProc=ifInErrors,ifInPkts,/,100,*',
+        'CDEF:ifOutErrorsProc=ifOutErrors,ifOutPkts,/,100,*',
+        'PRINT:ifInUcastPkts:AVERAGE:ifInUcastPkts=%1.2lf',
+        'PRINT:ifInNUcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInDiscards:AVERAGE:ifInDiscards=%1.2lf',
+        'PRINT:ifInErrors:AVERAGE:ifInErrors=%1.2lf',
+        'PRINT:ifInDiscardsProc:AVERAGE:ifInDiscardsProc=%1.2lf',
+        'PRINT:ifInErrorsProc:AVERAGE:ifInErrorsProc=%1.5lf',
+        'PRINT:ifOutUcastPkts:AVERAGE:ifOutUcastPkts=%1.5lf',
+        'PRINT:ifOutNUcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutDiscards:AVERAGE:ifOutDiscards=%1.2lf',
+        'PRINT:ifOutErrors:AVERAGE:ifOutErrors=%1.2lf',
+        'PRINT:ifOutDiscardsProc:AVERAGE:ifOutDiscardsProc=%1.5lf',
+        'PRINT:ifOutErrorsProc:AVERAGE:ifOutErrorsProc=%1.5lf'
+      ],
+      'interface' => [
+        'DEF:input=$database:ifInOctets:AVERAGE',
+        'DEF:output=$database:ifOutOctets:AVERAGE',
+        'DEF:status=$database:ifOperStatus:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$inSpeed,/,100,*',
+        'CDEF:outputUtil=outputBits,$outSpeed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ],
+      'diskIOTable' => [
+        'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
+        'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
+        'DEF:diskIOReads=$database:diskIOReads:AVERAGE',
+        'DEF:diskIOWrites=$database:diskIOWrites:AVERAGE',
+        'DEF:diskIOLA5=$database:diskIOLA5:AVERAGE',        
+        'PRINT:diskIONReadX:AVERAGE:diskIONReadX=%1.0lf',
+        'PRINT:diskIONWrittenX:AVERAGE:diskIONWrittenX=%1.0lf',
+        'PRINT:diskIOReads:AVERAGE:diskIOReads=%1.0lf',
+        'PRINT:diskIOWrites:AVERAGE:diskIOWrites=%1.0lf',
+        'PRINT:diskIOLA5:AVERAGE:diskIOLA5=%1.2lf'
+      ],
+    }
+  }
+);

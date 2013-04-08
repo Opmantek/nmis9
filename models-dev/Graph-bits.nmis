@@ -1,0 +1,89 @@
+#
+## $Id: Graph-bits.nmis,v 8.3 2011/11/28 05:36:52 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node: $ifDescr - $length'
+	},
+	'vlabel' => {
+		'standard' =>  'Avg bps',
+		'split' => 'In(-) Out(+) Avg bps'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:input=$database:ifInOctets:AVERAGE',
+			'DEF:output=$database:ifOutOctets:AVERAGE',
+			'DEF:maxinput=$database:ifInOctets:MAX',
+			'DEF:maxoutput=$database:ifOutOctets:MAX',
+			'DEF:status=$database:ifOperStatus:AVERAGE',
+			#'CDEF:ifSpeedInSplit=$ifSpeedIn,$split,*',
+			'CDEF:inputSplitBits=input,8,*,$split,*',
+			'CDEF:inputBits=input,8,*',
+			'CDEF:outputBits=output,8,*',
+			'CDEF:inp2in=inputBits,UN,1,inputSplitBits,IF',
+			'CDEF:inp2out=outputBits,UN,1,outputBits,IF',
+			'CDEF:mavgin=PREV,UN,inp2in,PREV,IF,inp2in,-,$weight,*,inp2in,+',
+			'CDEF:mavgout=PREV,UN,inp2out,PREV,IF,inp2out,-,$weight,*,inp2out,+',
+			'$GLINE:inputSplitBits#0000ff:In',
+			'GPRINT:inputBits:AVERAGE:Avg %1.0lf bits/sec',
+			'GPRINT:inputBits:MAX:Max %1.0lf bits/sec\\n',
+			'$GLINE:outputBits#00ff00:Out',
+			'GPRINT:outputBits:AVERAGE:Avg %1.0lf bits/sec',
+			'GPRINT:outputBits:MAX:Max %1.0lf bits/sec\\n',
+			'LINE2:mavgin#0000AA:Input Moving average, weight $weight\\n',
+			'LINE2:mavgout#00AA00:Output Moving average, weight $weight\\n',
+			#'HRULE:ifSpeedInSplit#ff0000',
+			'HRULE:$ifSpeedOut#ff0000',
+			'GPRINT:status:AVERAGE:Avg Availability %1.0lf %%',
+			'COMMENT:Interface Speed $speed\\n'
+		],
+		'small' => [
+			'DEF:input=$database:ifInOctets:AVERAGE',
+			'DEF:output=$database:ifOutOctets:AVERAGE',
+			'DEF:maxinput=$database:ifInOctets:MAX',
+			'DEF:maxoutput=$database:ifOutOctets:MAX',
+			'DEF:status=$database:ifOperStatus:AVERAGE',
+			'CDEF:inputSplitBits=input,8,*,$split,*',
+			'CDEF:inputBits=input,8,*',
+			'CDEF:outputBits=output,8,*',
+			'CDEF:inp2in=inputBits,UN,1,inputBits,IF',
+			'CDEF:inp2out=outputBits,UN,1,outputBits,IF',
+			'CDEF:mavgin=PREV,UN,inp2in,PREV,IF,inp2in,-,$weight,*,inp2in,+',
+			'CDEF:mavgout=PREV,UN,inp2out,PREV,IF,inp2out,-,$weight,*,inp2out,+',
+			'$GLINE:inputSplitBits#0000ff:In bits/sec',
+			'$GLINE:outputBits#00ff00:Out bits/sec\\n',
+			'LINE2:mavgin#0000AA:Input Moving average, weight $weight',
+			'LINE2:mavgout#00AA00:Output Moving average, weight $weight\\n',
+		]
+	}
+);
+

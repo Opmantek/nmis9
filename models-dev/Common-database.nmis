@@ -1,0 +1,123 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'database' => {
+    'db' => {
+      'hbeat' => '900',
+      'poll' => '300',
+      'size' => {
+        'reachability' => {
+          'step_year' => '288',
+          'rows_month' => '2268',
+          'rows_year' => '1890',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_day' => '2304',
+          'rows_week' => '1536'
+        },
+        'interface' => {
+          'step_year' => '288',
+          'rows_month' => '2268',
+          'rows_year' => '1890',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_day' => '2304',
+          'rows_week' => '1536'
+        },
+        'default' => {
+          'step_year' => '288',
+          'rows_month' => '2268',
+          'rows_year' => '1890',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_day' => '2304',
+          'rows_week' => '1536'
+        },
+        'metrics' => {
+          'step_year' => '288',
+          'rows_month' => '2268',
+          'rows_year' => '1890',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_day' => '2304',
+          'rows_week' => '1536'
+        }
+      }
+    },
+    'type' => {
+      'statistics' => '/health/$nodeType/$node-statistics.rrd',
+      'upsload' => '/misc/$nodeType/$node-apc-ups-load.rrd',
+      'hrdisk' => '/health/$nodeType/$node-hrdisk$index.rrd',
+      'nodehealth' => '/health/$nodeType/$node-health.rrd',
+      'pvc' => '/interface/$nodeType/$node/$node-pvc-$item.rrd',
+      'modem' => '/health/$nodeType/$node-modem.rrd',
+      'upspwr' => '/misc/$nodeType/$node-apc-ups-pwr.rrd',
+      'pkts' => '/interface/$nodeType/$node/$node-$ifDescr-pkts.rrd',
+      'pkts_hc' => '/interface/$nodeType/$node/$node-$ifDescr-pkts_hc.rrd',
+      'interface' => '/interface/$nodeType/$node/$node-$ifDescr.rrd',
+      'upscur' => '/misc/$nodeType/$node-apc-ups-cur.rrd',
+      'metrics' => '/metrics/$item.rrd',
+      'hrvmem' => '/health/$nodeType/$node-hrvmem.rrd',
+      'calls' => '/interface/$nodeType/$node/$node-$ifDescr-calls.rrd',
+      'hrmem' => '/health/$nodeType/$node-hrmem.rrd',
+      'upsbat' => '/misc/$nodeType/$node-apc-ups-bat.rrd',
+      'cbqos-in' => '/interface/$nodeType/$node/$node-$ifDescr-in-$item.rrd',
+      'service' => '/health/$nodeType/$node-$item.rrd',
+      'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
+      'upsvolt' => '/misc/$nodeType/$node-apc-ups-volt.rrd',
+      'health' => '/health/$nodeType/$node-reach.rrd',
+      'hrwincpu' => '/health/$nodeType/$node-hrwincpu$index.rrd',
+      'mib2ip' => '/health/$nodeType/$node-mib2ip.rrd',
+      'tcp' => '/health/$nodeType/$node-tcp.rrd',
+      'nmis' => '/metrics/nmis-system.rrd',
+      'cbqos-out' => '/interface/$nodeType/$node/$node-$ifDescr-$item.rrd',
+      'laload' => '/health/$nodeType/$node-laload.rrd',
+      'systemStats' => '/health/$nodeType/$node-systemstats.rrd',
+      'hr' => '/health/$nodeType/$node-hr.rrd',
+      'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
+      'akcp_temp' => '/misc/$nodeType/$node-akcp-temp-$index.rrd',
+      'akcp_hum' => '/misc/$nodeType/$node-akcp-hum-$index.rrd',
+      'env_temp' => '/misc/$nodeType/$node-env-temp-$index.rrd',
+      'sessions' => '/misc/$nodeType/$node-sessions.rrd',
+      'ccpu' => '/health/$nodeType/$node-health.rrd',
+      'cssgroup' => '/health/$nodeType/$node-group-$index.rrd',
+      'csscontent' => '/health/$nodeType/$node-content-$index.rrd',
+      'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
+      'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
+      'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
+    }
+  }
+);
