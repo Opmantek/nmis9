@@ -586,6 +586,9 @@ sub doCollect {
 						
 						### server collection
 						runServer(sys=>$S);
+
+						# Custom Alerts
+						runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
 					}
 				}
 			}
@@ -2092,15 +2095,21 @@ sub processAlerts {
 	my %args = @_;
 	my $S = $args{S};
 	my $alerts = $S->{alerts};
-	for( my $i = 0; $i < @{$alerts}; $i++)
+	
+	#print Dumper $S->{alerts} if $C->{debug};
+
+	foreach my $alert (@{$alerts}) 
 	{
-		my $alert = shift @{$alerts};
-		dbg("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
-		dbg("Processing alert ".Dumper($alert),2);
+		dbg("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
+		dbg("Processing alert ".Dumper($alert),3);
+		my $tresult = "Normal";
+		$tresult = $alert->{level} if $alert->{test_result};
+		#$alert->{test}
+		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
 		if( $alert->{test_result} ) {
-			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
 		} else {
-			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>"Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}");
+			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
 		}
 
 	}
@@ -3432,7 +3441,7 @@ sub runServices {
 						$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
 						$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
 	
-						dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}");
+						dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
 					}
 	
 				} #servicePoll
@@ -3523,6 +3532,150 @@ sub runServices {
 END_runServices:
 	dbg("Finished");
 } # end runServices
+
+#=========================================================================================
+
+sub runAlerts {
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
+	my $CA = $S->alerts;
+
+	my $result;
+	my %Val;
+	my %ValMeM;
+	my $hrCpuLoad;
+
+	dbg("Running Customer Alerts for node $NI->{system}{name}");
+		
+	foreach my $sect (keys %{$CA}) {
+		dbg("Custom Alerts for $sect");
+		foreach my $index ( keys %{$NI->{$sect}} ) {
+			foreach my $alrt ( keys %{$CA->{$sect}} ) {
+				if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {					
+					my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",sys=>$S,index=>$index,type=>$sect,sect=>$sect);
+					dbg("control_result sect=$sect index=$index control_result=$control_result");
+					next if not $control_result;
+				}
+				if( defined($CA->{$sect}{$alrt}{type}) and $CA->{$sect}{$alrt}{type} eq 'test' ) {
+					my $test;
+					my $value;
+					my $alert;
+					my $test_result;
+					my $test_value;
+					{
+						no strict;
+						if ( $CA->{$sect}{$alrt}{test} =~ /CVAR1=(\w+);CVAR2=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$CVAR2 = $NI->{$sect}{$index}{$2};
+							$test = $3;
+							$test_result = eval { eval $test; };
+							dbg("test sect=$sect index=$index 1=$1 2=$2, CVAR1=$CVAR1 CVAR2=$CVAR2 test=$test result=$test_result") if $test_result;
+						}
+						elsif ( $CA->{$sect}{$alrt}{test} =~ /CVAR1=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$test = $2;
+							$test_result = eval { eval $test; };
+							dbg("test sect=$sect index=$index 1=$1, CVAR1=$CVAR1 test=$test result=$test_result") if $test_result;
+						}
+
+						if ( $CA->{$sect}{$alrt}{value} =~ /CVAR1=(\w+);CVAR2=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$CVAR2 = $NI->{$sect}{$index}{$2};
+							$value = $3;
+							$test_value = eval { eval $value; };
+							dbg("value sect=$sect index=$index 1=$1 2=$2, CVAR1=$CVAR1 CVAR2=$CVAR2 value=$value test_value=$test_value") if $test_result;
+						}
+						elsif ( $CA->{$sect}{$alrt}{value} =~ /CVAR1=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$value = $2;
+							$test_value =  eval { eval $value; };
+							dbg("value sect=$sect index=$index 1=$1, CVAR1=$CVAR1 value=$value test_value=$test_value") if $test_result;
+						}
+						#my $test_result = $self->parseString(string=>"$test",sys=>$self,index=>$index,type=>$sect,sect=>$sect);
+					}
+					
+					if ( $test_value =~ /\d+\.\d+/ ) {
+						$test_value = sprintf("%.2f",$test_value);
+					}
+	
+					$alert->{type} = $CA->{$sect}{$alrt}{type};
+					$alert->{test} = $CA->{$sect}{$alrt}{test};
+					$alert->{name} = $S->{name};
+					$alert->{unit} = $CA->{$sect}{$alrt}{unit};
+					$alert->{event} = $CA->{$sect}{$alrt}{event};
+					$alert->{level} = $CA->{$sect}{$alrt}{level};
+					$alert->{ds} = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
+					$alert->{test_result} = $test_result;
+					$alert->{value} = $test_value;
+					push( @{$S->{alerts}}, $alert );
+				}			
+				elsif( defined($CA->{$sect}{$alrt}{type}) and $CA->{$sect}{$alrt}{type} =~ /threshold/ ) {
+					my $test;
+					my $value;
+					my $alert;
+					my $test_result;
+					my $test_value;
+					my $level;
+					{
+						no strict;
+						if ( $CA->{$sect}{$alrt}{value} =~ /CVAR1=(\w+);CVAR2=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$CVAR2 = $NI->{$sect}{$index}{$2};
+							$value = $3;
+							$test_value = eval { eval $value; };
+							dbg("value2 sect=$sect index=$index 1=$1 2=$2, CVAR1=$CVAR1 CVAR2=$CVAR2 value=$value test_value=$test_value");
+						}
+						elsif ( $CA->{$sect}{$alrt}{value} =~ /CVAR1=(\w+);(.*)/ ) {
+							$CVAR1 = $NI->{$sect}{$index}{$1};
+							$value = $2;
+							$test_value = eval { eval $value; };
+							dbg("value1 sect=$sect index=$index 1=$1, CVAR1=$CVAR1 value=$value test_value=$test_value");
+						}
+						#my $test_result = $self->parseString(string=>"$test",sys=>$self,index=>$index,type=>$sect,sect=>$sect);
+					}
+
+					if ( $test_value =~ /\d+\.\d+/ ) {
+						$test_value = sprintf("%.2f",$test_value);
+					}
+					
+					if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
+						if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
+							$test_result = 0;
+							$level = "Normal";
+						}
+						else {
+							my @levels = qw(Warning Minor Major Critical Fatal);
+							foreach my $lvl (@levels) {
+								if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+									$test_result = 1;
+									$level = $lvl;
+									last;
+								}
+							}
+						}
+					}
+					dbg("alert result: test_result=$test_result level=$level",2);
+					$alert->{type} = $CA->{$sect}{$alrt}{type};
+					$alert->{test} = $CA->{$sect}{$alrt}{value};
+					$alert->{name} = $S->{name};
+					$alert->{unit} = $CA->{$sect}{$alrt}{unit};
+					$alert->{event} = $CA->{$sect}{$alrt}{event};
+					$alert->{level} = $level;
+					$alert->{ds} = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
+					$alert->{test_result} = $test_result;
+					$alert->{value} = $test_value;
+					push( @{$S->{alerts}}, $alert );
+				}
+			}
+		}
+	}
+	
+	processAlerts( S => $S );
+
+	dbg("Finished");
+} # end runAlerts
 
 #=========================================================================================
 

@@ -1049,7 +1049,7 @@ sub notify {
 
 	} else {
 		# event exists, maybe a level change of proactive threshold
-		if ($event =~ /Proactive/ ) {
+		if ($event =~ /Proactive|Alert\:/ ) {
 			if ($ET->{$event_hash}{level} ne $level) {
 				# change of level
 				$ET->{$event_hash}{level} = $level; # update cache
@@ -2037,6 +2037,10 @@ sub overallNodeStatus {
 	my $business = $args{business};
 	my $netType = $args{netType};
 	my $roleType = $args{roleType};
+
+	if (scalar(@_) == 1) {
+		$group = shift;
+	}
 	
 	my $node;
 	my $event_status;

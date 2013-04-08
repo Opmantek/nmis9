@@ -217,7 +217,8 @@ sub snmp 	{ my $self = shift; return $self->{snmp} };				# my $SNMP = $S->snmp
 sub reach 	{ my $self = shift; return $self->{reach} };			# my $R = $S->reach
 sub ndcfg	{ my $self = shift; return $self->{cfg} };				# my $NC = $S->ndcfg
 sub envinfo	{ my $self = shift; return $self->{info}{environment} };# my $ENV = $S->envinfo
-sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $ENV = $S->syshealth
+sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $SH = $S->syshealth
+sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->alerts
 
 #===================================================================
 
@@ -565,17 +566,6 @@ sub getValues {
 					}
 				}
 
-				if( defined($alert) && defined($alert->{test}) && $alert->{test} ne '' ) {
-					my $test = $alert->{test};
-					my $test_result = $self->parseString(string=>"$test",sys=>$self,index=>$index,type=>$sect,sect=>$sect);
-					#my $test_result = eval { eval $test; };
-					$alert->{test_result} = $test_result;
-					$alert->{name} = $self->{name};
-					$alert->{value} = $r;
-					$alert->{ds} = $ds;
-					push( @{$self->{alerts}}, $alert );
-				}
-
 				if ($index ne "") { # insert index in result table
 					$result->{$sect}{$index}{$ds}{value} = $r;
 					$result->{$sect}{$index}{$ds}{option} = $opt if $opt ne "";
@@ -590,6 +580,17 @@ sub getValues {
 						$self->{$cth->{table}}{$cth->{index}} = $r;
 						dbg("catched, table $cth->{table}, index $cth->{index}, result $r",3);
 					}
+				}
+
+				if( defined($alert) && defined($alert->{test}) && $alert->{test} ne '' ) {
+					my $test = $alert->{test};
+					my $test_result = eval { eval $test; };
+					$alert->{test_result} = $test_result;
+					$alert->{name} = $self->{name};
+					$alert->{value} = $r;
+					$alert->{ds} = $ds;
+					$alert->{type} = "test";
+					push( @{$self->{alerts}}, $alert );
 				}
 			}
 		} 
@@ -768,13 +769,7 @@ sub parseString {
 				$CVAR = $self->{info}{$sect}{$indx}{$1};
 				# put the brackets back in so we have "(check) ? 1:0" again
 				$str = "(".$2;
-				dbg("parseString:: 1=$1, CVAR=$CVAR;str=$str, sect=$sect");
-			}
-			if ( $sect ne "" && $str =~ /CVAR1=(\w+);CVAR2=(\w+);(.*)/ ) {				
-				$CVAR1 = $self->{info}{$sect}{$indx}{$1};
-				$CVAR2 = $self->{info}{$sect}{$indx}{$2};
-				$str = $3;
-				dbg("parseString:: 1=$1 2=$2, CVAR1=$CVAR1 CVAR2=$CVAR2;str=$str, sect=$sect");
+				dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
 			}
 
 			$name = $self->{info}{system}{name};
@@ -830,7 +825,7 @@ sub parseString {
 			if ($str =~ /ERROR/) {
 				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, $str");
 				$str = undef;
-			} 
+			}
 		}
 		dbg("parseString:: result is str=$str",3);
 		return $str;
