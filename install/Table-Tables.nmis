@@ -2,7 +2,8 @@
   Tables => [
     { Table => { header => 'Table Name', display => 'key,header,text', value => [""] }},
     { DisplayName => { header => 'Display Name', display => 'header,text', value => [""] }},
-    { Description => { header => 'Description', display => 'header,text', value => [""] }}
+    { CaseSensitiveKey => { header => 'Case Sensitive Key', display => 'header,popup', value => ["true","false"] }},
+    { Description => { header => 'Description', display => 'header,textbox', value => [""] }}
   ]
 );
 
