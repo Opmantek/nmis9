@@ -1,5 +1,5 @@
 #
-## $Id: Graph-routenumber.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+## $Id: Graph-topo.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -39,16 +39,16 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:routenumber=$database:RouteNumber:AVERAGE',
-			'LINE1:routenumber#0000ff:Number of Routes',
-			'GPRINT:routenumber:AVERAGE:Avg Number of Routes %1.2lf',
-			'GPRINT:routenumber:MAX:Max Number of Routes %1.2lf'
+			'DEF:top=$database:RouteNumber:AVERAGE',
+			'LINE1:top#0000ff:Number of Routes',
+			'GPRINT:top:AVERAGE:Avg Number of Routes %1.2lf',
+			'GPRINT:top:MAX:Max Number of Routes %1.2lf'
 		],
 		'small' => [
-			'DEF:routenumber=$database:RouteNumber:AVERAGE',
-			'LINE1:routenumber#0000ff:Number of Routes',
-			'GPRINT:routenumber:AVERAGE:Avg Number of Routes %1.2lf',
-			'GPRINT:routenumber:MAX:Max Number of Routes %1.2lf'
+			'DEF:top=$database:RouteNumber:AVERAGE',
+			'LINE1:top#0000ff:Number of Routes',
+			'GPRINT:top:AVERAGE:Avg Number of Routes %1.2lf',
+			'GPRINT:top:MAX:Max Number of Routes %1.2lf'
 		]
 	}
 );

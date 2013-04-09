@@ -159,7 +159,7 @@
   						'14' => 'dBm',
   					},
             'oid' => 'entSensorType',
-            'title' => 'Type'
+            'title' => 'Status'
           }
         },
         'indexed' => 'entSensorStatus'

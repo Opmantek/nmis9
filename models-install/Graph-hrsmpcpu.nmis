@@ -43,9 +43,9 @@
 			'LINE1:hrCpuLoad#0000ff:Cpu Load\\n',                        
 			'GPRINT:hrCpuLoad:MAX:Cpu Load %1.2lf'
 		],
-	'small' => [
+		'small' => [
 			'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
 			'LINE1:hrCpuLoad#0000ff:Cpu Load\\n',                        
-	]
+		]
 	}
 );

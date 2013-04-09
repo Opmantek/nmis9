@@ -52,7 +52,8 @@
 			'$GLINE:outputBits#00ff00:Out',
 			'GPRINT:outputBits:AVERAGE:Avg Out %1.0lf bits/sec',
 			'GPRINT:outputBits:MAX:Max Out %1.0lf bits/sec\\n',
-			'HRULE:$ifSpeed#ff0000',
+			'HRULE:$ifSpeedIn#ff0000',
+			'HRULE:$ifSpeedOut#ff0000',
 			'GPRINT:status:AVERAGE:Avg Availability %1.0lf %%',
 			'COMMENT:Interface Speed $speed\\n'
 		],

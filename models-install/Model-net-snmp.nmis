@@ -104,6 +104,20 @@
           }
         }
       },
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 100',
+              'event' => 'High TCP Connection Count',
+							'unit' => 'connections',
+              'level' => 'Warning'
+            }
+          }
+        }
+      },
     },
     'rrd' => {
       'tcp' => {
@@ -231,6 +245,57 @@
       }
     }
   },
+  'alerts' => {
+    'services' => {
+      'HighProcessMemoryUsage' => {
+        'type' => 'test',
+        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
+        'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1',
+        'unit' => 'bytes',
+        'element' => 'hrSWRunName',
+        'event' => 'High Process Memory Usage',
+        'level' => 'Warning'
+      }
+    },
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '70',
+          'Warning' => '75',
+          'Minor' => '80',
+          'Major' => '95',
+          'Critical' => '98',
+          'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '97',
+          'Warning' => '0',
+          'Minor' => '0',
+          'Major' => '0',
+          'Critical' => '98',
+          'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+      }
+    }
+  },
   'systemHealth' => {
     'sys' => {
       'diskIOTable' => {        
@@ -265,18 +330,6 @@
             'option' => 'counter,0:U',
             'title' => 'The number of write accesses to this device since boot'
           },
-          # 'diskIOLA1' => {
-          #   'oid' => 'diskIOLA1',
-          #   'title' => 'The 1 minute average load of disk (%)'
-          # },
-          # 'diskIOLA5' => {
-          #   'oid' => 'diskIOLA5',
-          #   'title' => 'The 5 minute average load of disk (%)'
-          # },          
-          # 'diskIOLA15' => {
-          #   'oid' => 'diskIOLA15',
-          #   'title' => 'The 15 minute average load of disk (%)'
-          # },
         },
       },      
     },

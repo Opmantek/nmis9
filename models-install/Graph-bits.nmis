@@ -35,8 +35,8 @@
 		'short' => '$node: $ifDescr - $length'
 	},
 	'vlabel' => {
-		'standard' => '% Avg bps',
-		'split' => 'In(-) Out(+) % Avg bps'
+		'standard' =>  'Avg bps',
+		'split' => 'In(-) Out(+) Avg bps'
 	},
 	'option' => {
 		'standard' => [
@@ -45,6 +45,7 @@
 			'DEF:maxinput=$database:ifInOctets:MAX',
 			'DEF:maxoutput=$database:ifOutOctets:MAX',
 			'DEF:status=$database:ifOperStatus:AVERAGE',
+			#'CDEF:ifSpeedInSplit=$ifSpeedIn,$split,*',
 			'CDEF:inputSplitBits=input,8,*,$split,*',
 			'CDEF:inputBits=input,8,*',
 			'CDEF:outputBits=output,8,*',
@@ -60,7 +61,8 @@
 			'GPRINT:outputBits:MAX:Max %1.0lf bits/sec\\n',
 			'LINE2:mavgin#0000AA:Input Moving average, weight $weight\\n',
 			'LINE2:mavgout#00AA00:Output Moving average, weight $weight\\n',
-			'HRULE:$ifSpeed#ff0000',
+			#'HRULE:ifSpeedInSplit#ff0000',
+			'HRULE:$ifSpeedOut#ff0000',
 			'GPRINT:status:AVERAGE:Avg Availability %1.0lf %%',
 			'COMMENT:Interface Speed $speed\\n'
 		],

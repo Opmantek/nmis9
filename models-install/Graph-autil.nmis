@@ -41,9 +41,9 @@
 		'standard' => [
 			'DEF:input=$database:ifInOctets:AVERAGE',
 			'DEF:output=$database:ifOutOctets:AVERAGE',
-			'CDEF:inputUtil=input,8,*,$ifSpeed,/,100,*',
-			'CDEF:inputSplitUtil=input,8,*,$ifSpeed,/,100,*,$split,*',
-			'CDEF:outputUtil=output,8,*,$ifSpeed,/,100,*',
+			'CDEF:inputUtil=input,8,*,$ifSpeedIn,/,100,*',
+			'CDEF:inputSplitUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
+			'CDEF:outputUtil=output,8,*,$ifSpeedOut,/,100,*',
 			'$GLINE:inputSplitUtil#0000ff:In',
 			'GPRINT:inputUtil:AVERAGE:Avg %1.2lf %% \\n',
 			'$GLINE:outputUtil#00ff00:Out',
@@ -53,9 +53,9 @@
 		'small' => [
 			'DEF:input=$database:ifInOctets:AVERAGE',
 			'DEF:output=$database:ifOutOctets:AVERAGE',
-			'CDEF:inputUtil=input,8,*,$ifSpeed,/,100,*',
-			'CDEF:inputSplitUtil=input,8,*,$ifSpeed,/,100,*,$split,*',
-			'CDEF:outputUtil=output,8,*,$ifSpeed,/,100,*',
+			'CDEF:inputUtil=input,8,*,$ifSpeedIn,/,100,*',
+			'CDEF:inputSplitUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
+			'CDEF:outputUtil=output,8,*,$ifSpeedOut,/,100,*',
 			'$GLINE:inputSplitUtil#0000ff:In % Util',
 			'$GLINE:outputUtil#00ff00:Out % Util',
 			'COMMENT:Interface Speed $speed'
