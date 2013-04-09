@@ -107,6 +107,9 @@
       'tcp-conn' => 'TCP Connections',
       'tcp-segs' => 'TCP Segments',
       'cpu-cpm' => 'Cisco Process MIB',
+      'ss-cpu' => 'System Stats - CPU Usage',
+      'ss-intcon' => 'System Stats - Interupts and Contexts Processed',
+      'ss-blocks' => 'System Stats - Block Input/Output',
       'diskIOTable' => 'Disk IO Table'
     }
   }

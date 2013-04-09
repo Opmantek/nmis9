@@ -52,8 +52,8 @@
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'rows_day' => '2304',
-          'rows_week' => '1536'
+          'rows_day' => '9216',
+          'rows_week' => '4608'
         },
         'default' => {
           'step_year' => '288',
@@ -62,8 +62,8 @@
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'rows_day' => '2304',
-          'rows_week' => '1536'
+          'rows_day' => '9216',
+          'rows_week' => '3072'
         },
         'metrics' => {
           'step_year' => '288',
@@ -96,28 +96,20 @@
       'upsbat' => '/misc/$nodeType/$node-apc-ups-bat.rrd',
       'cbqos-in' => '/interface/$nodeType/$node/$node-$ifDescr-in-$item.rrd',
       'service' => '/health/$nodeType/$node-$item.rrd',
-      'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
       'upsvolt' => '/misc/$nodeType/$node-apc-ups-volt.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd',
       'hrwincpu' => '/health/$nodeType/$node-hrwincpu$index.rrd',
       'mib2ip' => '/health/$nodeType/$node-mib2ip.rrd',
-      'tcp' => '/health/$nodeType/$node-tcp.rrd',
       'nmis' => '/metrics/nmis-system.rrd',
       'cbqos-out' => '/interface/$nodeType/$node/$node-$ifDescr-$item.rrd',
-      'laload' => '/health/$nodeType/$node-laload.rrd',
-      'systemStats' => '/health/$nodeType/$node-systemstats.rrd',
       'hr' => '/health/$nodeType/$node-hr.rrd',
       'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
       'akcp_temp' => '/misc/$nodeType/$node-akcp-temp-$index.rrd',
       'akcp_hum' => '/misc/$nodeType/$node-akcp-hum-$index.rrd',
-      'env_temp' => '/misc/$nodeType/$node-env-temp-$index.rrd',
-      'sessions' => '/misc/$nodeType/$node-sessions.rrd',
       'ccpu' => '/health/$nodeType/$node-health.rrd',
       'cssgroup' => '/health/$nodeType/$node-group-$index.rrd',
       'csscontent' => '/health/$nodeType/$node-content-$index.rrd',
-      'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
-      'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
-      'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
+      'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd'
     }
   }
 );

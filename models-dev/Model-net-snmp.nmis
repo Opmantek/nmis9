@@ -112,7 +112,7 @@
             'alert' => {
               'test' => '$r > 100',
               'event' => 'High TCP Connection Count',
-							'unit' => 'connections',
+            	'unit' => 'connections',
               'level' => 'Warning'
             }
           }
@@ -184,90 +184,89 @@
           'ssCpuRawUser' => {
             'oid' => 'ssCpuRawUser',
             'title' => 'ssCpuRawUser',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawUser.0 = Counter32: 114857779'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawUser.0 = Counter32: 114857779'
           },
           'ssCpuRawNice' => {
             'oid' => 'ssCpuRawNice',
             'title' => 'ssCpuRawNice',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawNice.0 = Counter32: 1294466'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawNice.0 = Counter32: 1294466'
           },
           'ssCpuRawSystem' => {
             'oid' => 'ssCpuRawSystem',
             'title' => 'ssCpuRawSystem',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawSystem.0 = Counter32: 15958442'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSystem.0 = Counter32: 15958442'
           },
           'ssCpuRawIdle' => {
             'oid' => 'ssCpuRawIdle',
             'title' => 'ssCpuRawIdle',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawIdle.0 = Counter32: 336740221'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawIdle.0 = Counter32: 336740221'
           },
           'ssCpuRawWait' => {
             'oid' => 'ssCpuRawWait',
             'title' => 'ssCpuRawWait',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawWait.0 = Counter32: 17718957'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawWait.0 = Counter32: 17718957'
           },
           'ssCpuRawKernel' => {
             'oid' => 'ssCpuRawKernel',
             'title' => 'ssCpuRawKernel',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawKernel.0 = Counter32: 0'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawKernel.0 = Counter32: 0'
           },
           'ssCpuRawInterrupt' => {
             'oid' => 'ssCpuRawInterrupt',
             'title' => 'ssCpuRawInterrupt',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawInterrupt.0 = Counter32: 93048'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawInterrupt.0 = Counter32: 93048'
           },
           'ssCpuRawSoftIRQ' => {
             'oid' => 'ssCpuRawSoftIRQ',
             'title' => 'ssCpuRawSoftIRQ',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssCpuRawSoftIRQ.0 = Counter32: 4101707'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSoftIRQ.0 = Counter32: 4101707'
           },
           'ssIORawSent' => {
             'oid' => 'ssIORawSent',
             'title' => 'ssIORawSent',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssIORawSent.0 = Counter32: 2246167484'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawSent.0 = Counter32: 2246167484'
           },
           'ssIORawReceived' => {
             'oid' => 'ssIORawReceived',
             'title' => 'ssIORawReceived',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssIORawReceived.0 = Counter32: 15277366'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawReceived.0 = Counter32: 15277366'
           },
           'ssRawInterrupts' => {
             'oid' => 'ssRawInterrupts',
             'title' => 'ssRawInterrupts',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssRawInterrupts.0 = Counter32: 1995002251'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawInterrupts.0 = Counter32: 1995002251'
           },
           'ssRawContexts' => {
             'oid' => 'ssRawContexts',
             'title' => 'ssRawContexts',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssRawContexts.0 = Counter32: 1623525406'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawContexts.0 = Counter32: 1623525406'
           },
           'ssRawSwapIn' => {
             'oid' => 'ssRawSwapIn',
             'title' => 'ssRawSwapIn',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssRawSwapIn.0 = Counter32: 1580'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapIn.0 = Counter32: 1580'
           },
           'ssRawSwapOut' => {
             'oid' => 'ssRawSwapOut',
             'title' => 'ssRawSwapOut',
-						'option' => 'counter,0:U',
-						'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
           },
         },
       },      
-
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
