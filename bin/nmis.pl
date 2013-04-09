@@ -1044,11 +1044,11 @@ sub checkNodeConfiguration {
 	$V->{system}{bootConfigLastChanged_value} = convUpTime( $bootConfigLastChanged/100 );
 	$V->{system}{configurationState_title} = 'Configuration State';
 	if( $configLastChanged > $bootConfigLastChanged ) {
-		$V->{system}{"configurationState_value"} = "Config Not Saved";
+		$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
 		$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
 		dbg("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
 	} else {
-		$V->{system}{"configurationState_value"} = "Config Saved";
+		$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
 		$V->{system}{"configurationState_color"} = "#00BB00";	#normal	
 	}
 
@@ -4203,9 +4203,16 @@ sub weightResponseTime {
 ### 2011-12-29 keiths, centralising the copy of the remote files from slaves, so others can just load them.
 sub nmisMaster {
 	my %args = @_;
+	
+	$C->{master_sleep} = 15 if $C->{master_sleep} eq "";
 
 	if ($C->{server_master} eq "true") {
 		dbg("Running NMIS Master Functions");
+		
+		if ( $C->{master_sleep} ) {
+			dbg("Master is sleeping $C->{master_sleep} seconds (waiting for summary updates on slaves)");
+			sleep $C->{master_sleep};	
+		}
 	
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -4242,7 +4249,7 @@ sub nmisSummary {
 	my $k = summaryCache(sys=>$S,file=>'nmis-summary16h', start=>'-16 hours', end=>'-8 hours' );
 	
 	my $NS = getNodeSummary(C => $C);
-	my $file = "nmis-nodesum.nmis";
+	my $file = "nmis-nodesum";
 	writeTable(dir=>'var',name=>$file,data=>$NS);
 	dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
 	
@@ -5666,15 +5673,15 @@ sub doSummaryBuild {
 							foreach (keys %{$sts->{$i}}) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
 							# 
 							foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}}) {
-								$stshlth{$M->{node}{nodeType}}{$nd}{$nm}{$i}{Description} = $NI->{label}{$tp}{$i}; # descr
+								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{Description} = $NI->{label}{$tp}{$i}; # descr
 								# check if threshold level available, thresholdname must be equal to type
 								if (exists $M->{threshold}{name}{$tp}) {
-									($stshlth{$M->{node}{nodeType}}{$nd}{$nm}{$i}{level},undef,undef) = 
+									($stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level},undef,undef) = 
 										getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
 								}
 								# save values
 								foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
-									$stshlth{$M->{node}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
+									$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
 									dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}");
 								}
 							}
@@ -5686,12 +5693,12 @@ sub doSummaryBuild {
 							foreach (keys %{$sts}) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
 							# check if threshold level available, thresholdname must be equal to type
 							if (exists $M->{threshold}{name}{$tp}) {
-								($stshlth{$M->{node}{nodeType}}{$nd}{"${tp}_level"},undef,undef) = 
+								($stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"},undef,undef) = 
 									getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
 							}
 							foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}}) {
 								foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
-									$stshlth{$M->{node}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
+									$stshlth{$NI->{system}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
 									dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
 								}
 							}

@@ -53,5 +53,5 @@
     'user' => 'Ke\'Xthsa-Tse@testing.com',
     'groups' => 'NMIS8',
     'privilege' => 'guest'
-  },=
+  },
 );

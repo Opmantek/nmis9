@@ -703,6 +703,28 @@
     'level5' => '0',
     'name' => 'Table_Access_view'
   },
+  'table_businessservices_rw' => {
+    'descr' => 'Write access to table Business Services',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_businessservices_rw'
+  },
+  'table_businessservices_view' => {
+    'descr' => 'View access to table Business Services',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '1',
+    'level5' => '0',
+    'name' => 'Table_businessservices_view'
+  },
   'table_config_rw' => {
     'descr' => 'Write access to table NMIS Config',
     'group' => 'access',
@@ -746,6 +768,28 @@
     'level4' => '1',
     'level5' => '0',
     'name' => 'Table_Contacts_view'
+  },
+  'table_customers_rw' => {
+    'descr' => 'Write access to table Customers',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_businessservices_rw'
+  },
+  'table_customers_view' => {
+    'descr' => 'View access to table Customers',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '1',
+    'level5' => '0',
+    'name' => 'Table_businessservices_view'
   },
   'table_enterprise_rw' => {
     'descr' => 'View access to table $table',
@@ -1032,6 +1076,28 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Services_view'
+  },
+  'table_servicestatus_rw' => {
+    'descr' => 'Write access to table Service Status',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_status_rw'
+  },
+  'table_servicestatus_view' => {
+    'descr' => 'View access to table Service Status',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '1',
+    'level5' => '0',
+    'name' => 'Table_servicestatus_view'
   },
   'table_tables_rw' => {
     'descr' => 'View access to table $table',

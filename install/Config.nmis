@@ -237,6 +237,7 @@
     'server_master' => 'false',
     'master_dash' => 'false',
     'master_report' => 'false',
+    'master_sleep' => '15',
     'slave_community' => 'secret',
     'auth_src_ip' => '127.0.0.1',
     'server_community' => 'secret',
