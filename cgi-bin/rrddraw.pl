@@ -363,13 +363,21 @@ sub rrdDraw {
 			$maxppr = "CDEF:maxPrePolicyBitrate=0";
 			$avgdbr = "CDEF:avgDropBitrate=0";
 			$maxdbr = "CDEF:maxDropBitrate=0";
+			
+			my $HQOS = 0;
+			foreach my $i (1..$#$CBQosNames) {
+				if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ ) {
+					$HQOS = 1;
+				}
+			}
+			
 			my $gtype = "AREA";
 			my $gcount = 0;
 			foreach my $i (1..$#$CBQosNames) {
 				$database = $S->getDBName(graphtype=>$graphtype,index=>${intf},item=>$CBQosNames->[$i]);
 				my $parent = 0;
 				my $parent_name = "";
-				if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ ) {
+				if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ and $HQOS ) {
 					$parent = 1;
 					$gtype = "LINE1";
 				}
@@ -390,11 +398,11 @@ sub rrdDraw {
 				$alias =~ s/$parent_name\-\-//g;
 				$alias =~ s/\-\-/\//g;
 				my $tab = "\\t";
-				if ( length($alias) <= 18 ) { 
-					$tab = "\\t\\t";
-				}
-				elsif ( length($alias) <= 5 ) {
+				if ( length($alias) <= 5 ) {
 					$tab = "\\t\\t\\t";
+				}
+				elsif ( length($alias) <= 12 ) { 
+					$tab = "\\t\\t";
 				}
 				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
 				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
@@ -407,10 +415,10 @@ sub rrdDraw {
 				push(@opt,"CDEF:maxDBR$i=maxDB$i,8,*");
 				if ($width > 400) {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
-					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %8.0lf bps");
-					push(@opt,"GPRINT:maxPPR$i:MAX:Max %8.0lf bps");
-					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg Drops %6.0lf bps");
-					push(@opt,"GPRINT:maxPPR$i:MAX:Max Drops %6.0lf bps\\l");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %9.0lf bps");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max %9.0lf bps");
+					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.0lf bps");
+					push(@opt,"GPRINT:maxDBR$i:MAX:Max Drops %6.0lf bps\\l");
 				}
 				else {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias");

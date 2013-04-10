@@ -372,8 +372,13 @@ sub	runThreads {
 		delete $NI->{database};
 		
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
-		dbg("Starting nmisMaster");
-		nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
+		if ( $C->{'nmis_master_poll_cycle'} eq "true" or $C->{'nmis_master_poll_cycle'} ne "false" ) {
+			dbg("Starting nmisMaster");
+			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
+		}
+		else {
+			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
+		}
 
 		if ( $C->{'nmis_summary_poll_cycle'} eq "true" or $C->{'nmis_summary_poll_cycle'} ne "false" ) {
 			dbg("Starting nmisSummary");

@@ -128,6 +128,7 @@ sub typeGraph {
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 	my $M = $S->mdl;
+	my $V = $S->view;
 
 	my %graph_button_table = (
 		# graphtype		==	display #
@@ -458,7 +459,12 @@ sub typeGraph {
 			$time = RRDs::last $db;
 			$lastUpdate = returnDateStamp($time);
 		}
+		
+		my $V = loadTable(dir=>'var',name=>lc("$node-view")); # read node view table
 		my $speed = &convertIfSpeed($IF->{$index}{ifSpeed});
+		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne "" and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" ) {
+				$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
+		}
 
 		# info Type, Speed, Last Update, Description
 		print Tr(td({colspan=>'1'},

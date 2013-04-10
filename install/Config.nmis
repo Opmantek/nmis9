@@ -234,6 +234,7 @@
     'auth_ms_ldap_debug' => 'false',
   },
   'master_slave' => {
+    'nmis_master_poll_cycle' => 'false',
     'server_master' => 'false',
     'master_dash' => 'false',
     'master_report' => 'false',

@@ -765,11 +765,13 @@ sub parseString {
 		if ($self->{info}) {
 			
 			# find custom variable VAR=oid;$CVAR=~/something/
-			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {				
-				$CVAR = $self->{info}{$sect}{$indx}{$1};
-				# put the brackets back in so we have "(check) ? 1:0" again
-				$str = "(".$2;
-				dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {
+				if ( defined $self->{info}{$sect}{$indx}{$1} and $self->{info}{$sect}{$indx}{$1} ne "" ) {
+					$CVAR = $self->{info}{$sect}{$indx}{$1};
+					# put the brackets back in so we have "(check) ? 1:0" again
+					$str = "(".$2;
+					dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+				}
 			}
 
 			$name = $self->{info}{system}{name};

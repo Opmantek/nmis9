@@ -225,9 +225,9 @@ sub displayNodeConf {
 				td({class=>"Plain"},textfield(-name=>"descr_${intf}",-override=>1,-value=>$description));
 
 			my $NCT_ifSpeed = $IF->{$intf}{nc_ifSpeed} || $IF->{$intf}{ifSpeed};
-			print Tr,td({class=>'header'}),
-				td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
-				td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
+			#print Tr,td({class=>'header'}),
+			#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
+			#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
 
 			my $NCT_ifSpeedIn = $IF->{$intf}{nc_ifSpeedIn} || $IF->{$intf}{ifSpeedIn};
 			$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;

@@ -40,13 +40,13 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:cpu=$database:cpu:AVERAGE',
 			'DEF:memory=$database:memory:AVERAGE',
+			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',			
-			'LINE2:cpu#0000ff:CPU $indx',
-			'LINE2:memMBytes#00aa00:Memory $indx\\n',
-			'GPRINT:cpu:AVERAGE:Avg $indx cpu %1.3lf centi-seconds',
-			'GPRINT:memMBytes:AVERAGE:Avg $indx memory %1.3lf MBytes'
+			'LINE2:memMBytes#00aa00:Memory $indx',
+			'LINE2:cpu#0000ff:CPU $indx\\n',
+			'GPRINT:memMBytes:AVERAGE:Avg $indx memory %1.3lf MBytes',
+			'GPRINT:cpu:AVERAGE:Avg $indx cpu %1.3lf centi-seconds\\n',
 		],
 		'small' => [
 			'DEF:cpu=$database:cpu:AVERAGE',
