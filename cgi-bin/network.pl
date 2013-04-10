@@ -1158,9 +1158,17 @@ EO_HTML
 					elsif ($url) {
 						$content = a({href=>$url},$value);
 					} 
-		
-					push @out,Tr(td({class=>'info Plain'},$title),
-					td({class=>'info Plain',style=>getBGColor($color)},$content));
+					
+					my $printData = 1;
+					$printData = 0 if $k eq "customer" and not tableExists('Customers');
+					$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
+					$printData = 0 if $k eq "serviceStatus" and not tableExists('serviceStatus');
+					$printData = 0 if $k eq "location" and not tableExists('Locations');
+					
+					if ( $printData ) {
+						push @out,Tr(td({class=>'info Plain'},$title),
+						td({class=>'info Plain',style=>getBGColor($color)},$content));
+					}
 				}
 			}
 			# display events
