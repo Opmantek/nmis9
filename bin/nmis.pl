@@ -5776,8 +5776,8 @@ sub doThreshold {
 							foreach my $type (keys %{$M->{$s}{$ts}}) { 			# name/type of subsection
 								my $control = $M->{$s}{$ts}{$type}{control}; 	# check if skipped by control
 								if ($control ne "") {
-									dbg("control=$control found for type=$type",2);
-									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts) ne "1") {
+									dbg("control found:$control for s=$s ts=$ts type=$type",1);
+									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts, index => ) ne "1") {
 										dbg("threshold of type $type skipped by control=$control");
 										next;
 									}

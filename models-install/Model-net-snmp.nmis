@@ -453,7 +453,7 @@
             'option' => 'counter,0:U',
             'title' => 'The number of read accesses from this device since boot'
           },
-           'diskIOWrites' => {
+          'diskIOWrites' => {
             'oid' => 'diskIOWrites',
             'option' => 'counter,0:U',
             'title' => 'The number of write accesses to this device since boot'
