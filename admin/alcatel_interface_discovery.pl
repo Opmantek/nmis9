@@ -44,7 +44,7 @@ if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 $0 will export nodes from NMIS.
 ERROR: need some files to work with
-usage: $0 <NODES_CSV_FILE>
+usage: $0 node=nodename
 eg: $0 node=nodename debug=true
 
 EO_TEXT

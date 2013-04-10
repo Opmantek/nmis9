@@ -846,7 +846,7 @@ sub loadGraphTypeTable {
 		if (ref $self->{info}{graphtype}{$i} eq 'HASH') { # index
 			foreach my $tp (keys %{$self->{info}{graphtype}{$i}}) {
 				foreach (split(/,/,$self->{info}{graphtype}{$i}{$tp})) {
-					next if $index ne "" and $index != $i;
+					#next if $index ne "" and $index != $i;
 					$result{$_} = $tp if $_ ne "";
 				}
 			}
