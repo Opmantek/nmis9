@@ -127,6 +127,7 @@ sub typeGraph {
 	$S->init(name=>$node); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
+	my $M = $S->mdl;
 
 	my %graph_button_table = (
 		# graphtype		==	display #
@@ -291,7 +292,26 @@ sub typeGraph {
 	}
 
 	print comment("typeGraph begin");
-
+	
+	my $systemHealth = 0;
+	my $systemHealthSection = "";
+	my $systemHealthHeader = "";
+	my @systemHealthLabels;
+	
+	foreach my $index (keys %{$NI->{graphtype}}) {
+		if ( ref($NI->{graphtype}{$index}) eq "HASH" ) {
+			foreach my $gtype (keys %{$NI->{graphtype}{$index}}) {
+				if ( $NI->{graphtype}{$index}{$gtype} =~ /$graphtype/ and exists $M->{systemHealth}{rrd}{$gtype} ) {
+					$systemHealth = 1;
+					$systemHealthSection = $gtype;
+					$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
+					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{database}{$systemHealthSection}};
+	
+				}
+			}
+		}
+	}
+	
 	print start_form( -method=>'get', -name=>"dograph", -action=>url(-absolute=>1));
 
 	print start_table();
@@ -336,7 +356,8 @@ sub typeGraph {
 										-default=>"$group",
 										-onChange=>'JavaScript:this.form.submit()'),
 										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
-						} elsif ($Q->{graphtype} eq "hrsmpcpu") {
+						} 
+						elsif ($Q->{graphtype} eq "hrsmpcpu") {
 							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{database}{hrsmpcpu}}],
 										-default=>"$index",
@@ -350,6 +371,7 @@ sub typeGraph {
 							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{database}{hrdisk}}],
 										-default=>"$index",
+										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort keys %{$NI->{database}{hrdisk}} },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "cpu_cpm") {
 							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
@@ -390,7 +412,15 @@ sub typeGraph {
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort keys %{$NI->{database}{csscontent}} },
 										-onChange=>'JavaScript:this.form.submit()');
-						} else {
+						} 
+						elsif ($systemHealth) {
+							return 	"$systemHealthHeader ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+										-values=>['',sort keys %{$NI->{database}{$systemHealthSection}}],
+										-default=>"$index",
+										-labels=>{ @systemHealthLabels },
+										-onChange=>'JavaScript:this.form.submit()');
+						} 
+						else {
 							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',grep $IF->{$_}{collect} eq 'true', sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } keys %{$IF}],
 										-default=>"$index",
