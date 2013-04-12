@@ -84,6 +84,7 @@ my $type		= lc $nvp{type};
 my $node		= lc $nvp{node};
 my $rmefile		= $nvp{rmefile};
 my $runGroup	= $nvp{group};
+my $sleep	= $nvp{sleep};
 
 ### 2012-12-03 keiths, adding some model testing and debugging options.
 my $model		= lc $nvp{model};
@@ -1121,8 +1122,9 @@ sub getIntfInfo {
 		
 		if ($intf_one eq "") {
 			# remove unknown interfaces, found in previous runs, from table
+			### possible vivification
 			for my $i (keys %{$IF}) {
-				if (not grep { $i eq $_ } @ifIndexNum ) { 
+				if ( (not grep { $i eq $_ } @ifIndexNum) ) { 
 					delete $IF->{$i};
 					delete $NI->{graphtype}{$i};
 					delete $NI->{database}{interface}{$i};
@@ -4214,14 +4216,16 @@ sub nmisMaster {
 	if ($C->{server_master} eq "true") {
 		dbg("Running NMIS Master Functions");
 		
-		if ( $C->{master_sleep} ) {
-			dbg("Master is sleeping $C->{master_sleep} seconds (waiting for summary updates on slaves)");
-			sleep $C->{master_sleep};	
+		if ( $C->{master_sleep} or $sleep ) {
+			my $sleepNow = $C->{master_sleep};
+			$sleepNow = $sleep if $sleep;
+			dbg("Master is sleeping $sleepNow seconds (waiting for summary updates on slaves)");
+			sleep $sleepNow;	
 		}
 	
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
-			dbg("Master, processing Slave Server $srv");
+			dbg("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 			
 			dbg("Get loadnodedetails from $srv");
 			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
@@ -5756,7 +5760,9 @@ sub doThreshold {
 			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
 				my $NI = $S->ndinfo; # pointer to node info table
 				my $M  = $S->mdl;	# pointer to Model table
-
+				my $IF = $S->ifinfo;
+				
+				
 				# skip if node down
 				if ( $NI->{system}{nodedown} eq 'true') {
 					dbg("Node down, skipping thresholding for $S->{name}");
@@ -5786,9 +5792,13 @@ sub doThreshold {
 									$thrname = $M->{$s}{$ts}{$type}{threshold};	# get string of threshold names
 									dbg("threshold=$thrname found in type=$type");
 									# thresholds found in this section
-									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked
+									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked										
 										foreach my $index (keys %{$NI->{database}{$type}}) { # there must be a rrd file
-											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+											my $details = undef;
+											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" ) {
+												$details = $IF->{$index}{Description};
+											}											
+											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
 										}
 									} else {
 										runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname); # single
@@ -5816,6 +5826,7 @@ sub runThrHld {
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $index = $args{index};
+	my $details = $args{details};
 	my $stats;
 	my $element;
 
@@ -5846,7 +5857,7 @@ sub runThrHld {
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,value=>$value,thrvalue=>$thrvalue,reset=>$reset);
+		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset);
 	}
 
 }
@@ -5958,12 +5969,15 @@ sub thresholdProcess {
 		dbg("event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 	###	logMsg("INFO ($S->{node}) event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 		if ( $args{value} !~ /NaN/i ) {
+			my $details = "Value=$args{value}, Threshold=$args{thrvalue}";
+			if ( defined $args{details} and $args{details} ne "" ) {
+				$details = "$args{details}: Value=$args{value}, Threshold=$args{thrvalue}";
+			}
 			if ( $args{level} =~ /Normal/i ) { 
-				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},
-						details=>"Value=$args{value}, Threshold=$args{thrvalue}",value=>$args{value},reset=>$args{reset});
+				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details,value=>$args{value},reset=>$args{reset});
 			}
 			else {
-				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>"Value=$args{value}, Threshold=$args{thrvalue}");
+				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details);
 			}
 		}
 	}

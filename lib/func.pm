@@ -1402,7 +1402,7 @@ sub loadConfTable {
 
 	# add extension if missing
 	$conf = $conf =~ /\./ ? $conf : "${conf}.nmis";
-
+	
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 
 		# check if config file is updated, if not, use file cache

@@ -145,6 +145,7 @@ $VERSION = "8.3.22G";
 		createHrButtons
 		loadPortalCode
 		loadServerCode
+		loadTenantCode
 		
 		startNmisPage
 		pageStart
@@ -2802,7 +2803,7 @@ sub loadServerCode {
 		foreach my $s ( sort {$ST->{$a}{name} cmp $ST->{$b}{name}} keys %{$ST} ) {
 			# If the link is part of NMIS, append the config
 			
-			$serverOption .= qq|<option value="$ST->{$s}{portal_protocol}://$ST->{$s}{portal_host}:$ST->{$s}{portal_port}$ST->{$s}{cgi_url_base}/nmiscgi.pl">$ST->{$s}{name}</option>\n|;
+			$serverOption .= qq|<option value="$ST->{$s}{portal_protocol}://$ST->{$s}{portal_host}:$ST->{$s}{portal_port}$ST->{$s}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$s}{config}">$ST->{$s}{name}</option>\n|;
 		}
 		
 		
@@ -2817,6 +2818,42 @@ sub loadServerCode {
 		
 	}
 	return $serverCode;
+}
+
+sub loadTenantCode {
+	my %args = @_;
+	my $conf = $args{conf};
+	my $C = $main::C;
+	
+	$conf = $C->{'conf'} if not $conf;
+	
+	my $tenantCode;
+	if  ( -f "$C->{'<nmis_conf>'}/Tenants.nmis" ) {
+		# portal menu of nodes or clients to link to.
+		my $MT = loadTable(dir=>'conf',name=>"Tenants");
+		
+		my $tenantOption;
+		
+		$tenantOption .= qq|<option value="$ENV{SCRIPT_NAME}" selected="NMIS Tenants">NMIS Tenants</option>\n|;
+		
+		foreach my $t ( sort {$MT->{$a}{Name} cmp $MT->{$b}{Name}} keys %{$MT} ) {
+			# If the link is part of NMIS, append the config
+			
+			$tenantOption .= qq|<option value="?conf=$MT->{$t}{Config}">$MT->{$t}{Name}</option>\n|;
+		}
+		
+		
+		$tenantCode = qq|
+				<div class="left"> 
+					<form id="serverSelect">
+						<select name="serverOption" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
+							$tenantOption
+						</select>
+					</form>
+				</div>|;
+		
+	}
+	return $tenantCode;
 }
 
 sub startNmisPage {
