@@ -115,6 +115,7 @@
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',
+    'network_health_view' => 'Group',
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
   },
   'url' => {

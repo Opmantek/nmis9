@@ -1,0 +1,99 @@
+#
+## $Id: Graph-errpkts.nmis,v 8.3 2011/11/28 05:36:52 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node: $ifDescr - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Percentage'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+			'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+			'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+			'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+			'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+			
+			'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+			'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+			'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+			'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+			'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+			
+			'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+			'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+
+			'CDEF:PInDiscards=ifInDiscards,ifInPkts,/,100,*',
+			'CDEF:POutDiscards=ifOutDiscards,ifOutPkts,/,100,*',
+			'CDEF:PInErrors=ifInErrors,ifInPkts,/,100,*',
+			'CDEF:POutErrors=ifOutErrors,ifOutPkts,/,100,*',
+			'LINE2:PInDiscards#00cc00:ifInDiscards\\t',
+			'GPRINT:PInDiscards:AVERAGE:Avg Percentage InDiscards %6.2lf%%\n',
+			'LINE2:POutDiscards#ffbb00:ifOutDiscards\\t',
+			'GPRINT:POutDiscards:AVERAGE:Avg Percentage OutDiscards %6.2lf%%\n',
+			'LINE2:PInErrors#aa00cc:ifInErrors\\t\\t',
+			'GPRINT:PInErrors:AVERAGE:Avg Percentage InErrors %6.2lf%%\n',
+			'LINE2:POutErrors#ff0000:ifOutErrors\\t\\t',
+	 		'GPRINT:POutErrors:AVERAGE:Avg Percentage OutErrors %6.2lf%%\n',
+			'GPRINT:ifInPkts:AVERAGE:Avg Total Input Packets %6.2lf%s',
+			'GPRINT:ifOutPkts:AVERAGE:Avg Total Output Packets %6.2lf%s\n'
+		],
+		'small' => [
+			'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+			'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+			'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+			'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+			'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+			
+			'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+			'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+			'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+			'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+			'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+			
+			'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+			'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+
+			'CDEF:PInDiscards=ifInDiscards,ifInPkts,/,100,*',
+			'CDEF:POutDiscards=ifOutDiscards,ifOutPkts,/,100,*',
+			'CDEF:PInErrors=ifInErrors,ifInPkts,/,100,*',
+			'CDEF:POutErrors=ifOutErrors,ifOutPkts,/,100,*',
+			'LINE2:PInDiscards#00cc00:ifInDiscards',
+			'LINE2:POutDiscards#ffbb00:ifOutDiscards',
+			'LINE2:PInErrors#aa00cc:ifInErrors',
+			'LINE2:POutErrors#ff0000:ifOutErrors'
+		]
+	}
+);
+

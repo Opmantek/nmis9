@@ -110,7 +110,8 @@
       'ss-cpu' => 'System Stats - CPU Usage',
       'ss-intcon' => 'System Stats - Interupts and Contexts Processed',
       'ss-blocks' => 'System Stats - Block Input/Output',
-      'diskIOTable' => 'Disk IO Table'
+      'diskio-rw' => 'Disk IO Blocks',
+      'diskio-rwbytes' => 'Disk Read Write Bytes'
     }
   }
 );

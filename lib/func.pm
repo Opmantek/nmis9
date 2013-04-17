@@ -1498,8 +1498,9 @@ sub getKernelName {
 
 sub createDir {
 	my $dir = shift;
+	my $C = loadConfTable();
 	if ( not -d $dir ) {
-		mkpath($dir,{mode=>0775});
+		mkpath($dir,{mode=>$C->{'os_username'}});
 	}
 	setFileProt($dir);
 }

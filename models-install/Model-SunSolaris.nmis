@@ -53,8 +53,9 @@
     }
   },
   'system' => {
-    'nodeModel' => 'SunSolaris',
     'nodeType' => 'server',
+    'nodeVendor' => 'Sun Microsystems'
+    'nodeModel' => 'SunSolaris',
     'nodegraph' => 'health,response',
     'sys' => {
       'standard' => {
@@ -94,7 +95,6 @@
         }
       }
     },
-    'nodeVendor' => 'Sun Microsystems'
   },
   'interface' => {
     'sys' => {

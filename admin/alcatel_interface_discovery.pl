@@ -107,6 +107,8 @@ sub processNode {
 			
 			my $rack_count = 1;
 			my $shelf_count = 1;
+			
+			my $version;
 
 			$rack_count = $LNT->{$node}{rack_count} if $LNT->{$node}{rack_count} ne "";
 			$shelf_count = $LNT->{$node}{shelf_count} if $LNT->{$node}{shelf_count} ne "";
@@ -123,6 +125,7 @@ sub processNode {
 			if( $asamSoftwareVersion eq $asamVersion41 ) {
 				# How to identify it is an ARAM-D?
 				#"For ARAM-D with extensions "
+				$version = 4.1;
 				if( 0 ) {
 					my $indexes = build_41_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
 					@ifIndexNum = @{$indexes};
@@ -136,6 +139,7 @@ sub processNode {
 			#" release 4.2  ( ISAM FD y  ISAM-V) "
 			elsif( $asamSoftwareVersion eq $asamVersion42 )
 			{
+				$version = 4.2;
 				my $indexes = build_42_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
 				@ifIndexNum = @{$indexes};
 			}
@@ -150,8 +154,10 @@ sub processNode {
 			foreach my $index (@ifIndexNum) {
 				$intfTotal++;				
 				my $ifDescr = "ATM $index";
+				my $Description = getDescription(version => $version, ifIndex => $index);
+				
 				$S->{info}{interface}{$index} = {
-		      'Description' => '',
+		      'Description' => $Description,
 		      'ifAdminStatus' => 'unknown',
 		      'ifDescr' => $ifDescr,
 		      'ifIndex' => $index,
@@ -187,6 +193,10 @@ sub processNode {
 					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
 					dbg("Manual update of Description by nodeConf");
 				}
+				else {
+					$V->{interface}{"${index}_Description_value"} = $S->{info}{interface}{$index}{Description};
+				}
+				
 				if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
 					$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
@@ -439,6 +449,8 @@ sub decode_interface_index_41 {
 	printf( "\t level=0x%x, %d\n", $level, $level);
 	printf( "\t circuit=0x%x, %d\n", $circuit, $circuit);
 	
+	#print "rack=X, shelf=Y, slot=Z, level=A, circuit=B"
+
 	if( $level == 0xb ) {
 		print "XDSL Line\n";
 	}
@@ -447,6 +459,40 @@ sub decode_interface_index_41 {
 	}
 
 }
+
+sub getDescription {
+	my %args = @_;
+	
+	my $oid_value 		= $args{ifIndex};	
+	
+	if ( $args{version} eq "4.1" ) {
+		my $rack_mask 		= 0x70000000;
+		my $shelf_mask 		= 0x07000000;
+		my $slot_mask 		= 0x00FF0000;
+		my $level_mask 		= 0x0000F000;
+		my $circuit_mask 	= 0x00000FFF;
+	
+		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $level 	= ($oid_value & $level_mask) 		>> 12;
+		my $circuit = ($oid_value & $circuit_mask);
+		
+		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Level=$level, Circuit=$circuit";
+	}
+	else {
+		my $slot_mask 		= 0xFC000000;
+		my $level_mask 		= 0x03C00000;	
+		my $circuit_mask 	= 0x001FE000;
+		
+	
+		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+		my $level 	= ($oid_value & $level_mask) 		>> 21;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+		return "Slot=$slot, Level=$level, Circuit=$circuit";		
+	}
+}
+
 ###############################################
 #
 # 4.2

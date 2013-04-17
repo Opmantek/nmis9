@@ -1862,7 +1862,7 @@ sub getSystemHealthInfo {
 	dbg("Starting");
 	dbg("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{system} eq '') {
+	if ($M->{systemHealth} eq '') {
 		dbg("No class 'systemHealth' declared in Model");
 	}
 	else {		
@@ -2185,10 +2185,16 @@ sub checkNodeHealth {
 	if ( exists $D->{bufferElHit} and $D->{bufferElHit}{value} < 0) { $D->{bufferElHit}{value} = sprintf("%u",$D->{bufferElHit}{value}); }
 	
 	### 2012-12-13 keiths, fixed this so it would assign!
-	$RI->{cpu} = ($D->{avgBusy5}{value} ne "") ? $D->{avgBusy5}{value} : $D->{avgBusy1}{value};
-	$RI->{memused} = $D->{MemoryUsedPROC}{value};
-	$RI->{memfree} = $D->{MemoryFreePROC}{value};
-	
+	### 2013-04-17 keiths, fixed an autovivification problem!
+	if ( exists $D->{avgBusy5} or exists $D->{avgBusy1} ) {
+		$RI->{cpu} = ($D->{avgBusy5}{value} ne "") ? $D->{avgBusy5}{value} : $D->{avgBusy1}{value};
+	}
+	if ( exists $D->{MemoryUsedPROC} ) {
+		$RI->{memused} = $D->{MemoryUsedPROC}{value};
+	}
+	if ( exists $D->{MemoryFreePROC} ) {
+		$RI->{memfree} = $D->{MemoryFreePROC}{value};
+	}
 	dbg("Finished");
 	return 1;
 } # end checkHealth
@@ -4707,7 +4713,7 @@ LABEL_ESC:
 
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -4790,7 +4796,7 @@ LABEL_ESC:
 							elsif ( $type eq "syslog" ) {
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4811,7 +4817,7 @@ LABEL_ESC:
 								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {

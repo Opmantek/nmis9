@@ -225,13 +225,41 @@
         'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
         'DEF:diskIOReads=$database:diskIOReads:AVERAGE',
         'DEF:diskIOWrites=$database:diskIOWrites:AVERAGE',
-        'DEF:diskIOLA5=$database:diskIOLA5:AVERAGE',        
         'PRINT:diskIONReadX:AVERAGE:diskIONReadX=%1.0lf',
         'PRINT:diskIONWrittenX:AVERAGE:diskIONWrittenX=%1.0lf',
         'PRINT:diskIOReads:AVERAGE:diskIOReads=%1.0lf',
         'PRINT:diskIOWrites:AVERAGE:diskIOWrites=%1.0lf',
-        'PRINT:diskIOLA5:AVERAGE:diskIOLA5=%1.2lf'
       ],
+      'systemStats' => [
+        'DEF:ssCpuRawUser=$database:ssCpuRawUser:AVERAGE',
+        'DEF:ssCpuRawNice=$database:ssCpuRawNice:AVERAGE',
+        'DEF:ssCpuRawSystem=$database:ssCpuRawSystem:AVERAGE',
+        'DEF:ssCpuRawIdle=$database:ssCpuRawIdle:AVERAGE',
+        'DEF:ssCpuRawWait=$database:ssCpuRawWait:AVERAGE',
+        'DEF:ssCpuRawKernel=$database:ssCpuRawKernel:AVERAGE',
+        'DEF:ssCpuRawInterrupt=$database:ssCpuRawInterrupt:AVERAGE',
+        'DEF:ssCpuRawSoftIRQ=$database:ssCpuRawSoftIRQ:AVERAGE',
+        
+        'CDEF:ssCpuTotal=ssCpuRawUser,ssCpuRawNice,+,ssCpuRawSystem,+,ssCpuRawIdle,+,ssCpuRawWait,+,ssCpuRawKernel,+,ssCpuRawInterrupt,+,ssCpuRawSoftIRQ,+',
+        'CDEF:ssCpuRawUserP=ssCpuRawUser,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawNiceP=ssCpuRawNice,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawSystemP=ssCpuRawSystem,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawIdleP=ssCpuRawIdle,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawWaitP=ssCpuRawWait,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawKernelP=ssCpuRawKernel,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawInterruptP=ssCpuRawInterrupt,ssCpuTotal,/,100,*',
+        'CDEF:ssCpuRawSoftIRQP=ssCpuRawSoftIRQ,ssCpuTotal,/,100,*',
+
+        'PRINT:ssCpuRawUserP:AVERAGE:ssCpuRawUser=%1.2lf',
+        'PRINT:ssCpuRawNiceP:AVERAGE:ssCpuRawNice=%1.2lf',
+        'PRINT:ssCpuRawSystemP:AVERAGE:ssCpuRawSystem=%1.2lf',
+        'PRINT:ssCpuRawIdleP:AVERAGE:ssCpuRawIdle=%1.2lf',
+        'PRINT:ssCpuRawWaitP:AVERAGE:ssCpuRawWait=%1.2lf',
+        'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
+        'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
+        'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf',
+      ],
+
     }
   }
 );
