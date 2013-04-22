@@ -4496,7 +4496,38 @@ sub runEscalate {
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
 			else {
-				dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+				if ( checkPerlLib("Notify::$type") ) {
+					my $timenow = time();
+					my $datenow = returnDateStamp();
+					my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+					foreach $contact (@x) {
+						if ( exists $CT->{$contact} ) {	
+							if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
+								# check if UpNotify is true, and save with this event
+								# and send all the up event notifies when the event is cleared.
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+									my $ct = "$type:$contact";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+								#$serial
+								$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+								$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+								$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+								$serial_ns++;
+							}
+						}
+						else {
+							dbg("Contact $contact not found in Contacts table");
+						}
+					}
+				}
+				else {
+					dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+				}
 			}
 		}
 	
@@ -4844,7 +4875,38 @@ LABEL_ESC:
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {
-								dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+								if ( checkPerlLib("Notify::$type") ) {
+									my $timenow = time();
+									my $datenow = returnDateStamp();
+									my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+									foreach $contact (@x) {
+										if ( exists $CT->{$contact} ) {	
+											if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
+												# check if UpNotify is true, and save with this event
+												# and send all the up event notifies when the event is cleared.
+												if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+													my $ct = "$type:$contact";
+													my @l = split(',',$ET->{$event_hash}{notify});
+													if (not grep { $_ eq $ct } @l ) {
+														push @l, $ct;
+														$ET->{$event_hash}{notify} = join(',',@l);
+													}
+												}
+												#$serial
+												$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+												$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+												$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+												$serial_ns++;
+											}
+										}
+										else {
+											dbg("Contact $contact not found in Contacts table");
+										}
+									}
+								}
+								else {
+									dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+								}
 							}
 						} # foreach field
 					} # endif $level
@@ -4932,7 +4994,6 @@ sub sendMSG {
 				}
 			}
 		} # end ccopy
-		# now the netsends
 		elsif ( $method eq "netsend" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
@@ -4949,6 +5010,7 @@ sub sendMSG {
 				} # end netsend
 			}
 		}
+		
 		# now the syslog
 		elsif ( $method eq "syslog" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
@@ -4963,7 +5025,7 @@ sub sendMSG {
 			}
 		}
 		# now the pagers
-		elsif ( $type eq "pager" ) {
+		elsif ( $method eq "pager" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{snpp_server} eq '';
@@ -4976,9 +5038,28 @@ sub sendMSG {
 				}
 			} # end pager
 		}
+		# now the extensible stuff.......
 		else {
-			dbg("ERROR unknown device $method");
-		}
+			my $class = "Notify::$method";
+			my $classMethod = $class."::sendNotification";
+			if ( checkPerlLib($class) ) {
+				eval "require $class";
+				my $function = \&{$classMethod};
+				foreach $target (keys %{$msgTable->{$method}}) {
+					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+						$function->(
+							message => $$msgTable{$method}{$target}{$serial}{message},
+							event => $$msgTable{$method}{$target}{$serial}{event},
+							contact => $$msgTable{$method}{$target}{$serial}{contact},
+						);
+						dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
+					}
+				}
+			}
+			else {
+				dbg("ERROR unknown device $method");
+			}
+		} # end sms
 	}
 	dbg("Finished");
 }

@@ -119,6 +119,7 @@ $VERSION = 1.00;
 		checkFile
 		checkDirectoryFiles
 
+		checkPerlLib
 	);
 
 
@@ -1789,6 +1790,28 @@ sub colorResponseTime {
 	return "#FF0000" if $val > $thresh;
 	return "#AAAAAA" if $val !~ /[0-9]+/;
 	return '#' . hexval( int((($val/255)*$ratio))) . hexval( int((($thresh-$val)/255)*$ratio )) .'00' ;
+}
+
+sub checkPerlLib {
+	my $lib = shift;
+	my $found = 0;
+	
+	my $path = $lib;
+	$path =~ s/\:\:/\//g;
+	
+	if ( $path !~ /\.pm/ ) {
+		$path .= ".pm";
+	}
+	
+	#check the USE path for the file.
+	foreach my $libdir (@INC) {
+		if ( -f "$libdir/$path" ) {
+			$found = 1;
+			last;
+		}	
+	}
+	
+	return $found;
 }
 
 
