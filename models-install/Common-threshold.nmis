@@ -461,6 +461,21 @@
           }
         }
       },
+      'ssCpuRawIdle' => {
+        'item' => 'ssCpuRawIdle',
+        'event' => 'Proactive CPU Idle',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '5',
+              'critical' => '20',
+              'major' => '40',
+              'minor' => '50',
+              'warning' => '70',
+            }
+          }
+        }
+      },
       'ssCpuRawUser' => {
         'item' => 'ssCpuRawUser',
         'event' => 'Proactive CPU User',

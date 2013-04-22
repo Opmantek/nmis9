@@ -3669,6 +3669,23 @@ sub runAlerts {
 							}
 						}
 					}
+					elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
+						if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
+							$test_result = 0;
+							$level = "Normal";
+						}
+						else {
+							my @levels = qw(Warning Minor Major Critical Fatal);
+							foreach my $lvl (@levels) {
+								if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+									$test_result = 1;
+									$level = $lvl;
+									last;
+								}
+							}
+						}
+					}
+					
 					dbg("alert result: test_result=$test_result level=$level",2);
 					$alert->{type} = $CA->{$sect}{$alrt}{type};
 					$alert->{test} = $CA->{$sect}{$alrt}{value};

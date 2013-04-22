@@ -190,7 +190,7 @@
       },
       'systemStats' => {        
         'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
-        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait',
+        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
         'snmp' => {
           'ssCpuRawUser' => {
             'oid' => 'ssCpuRawUser',
@@ -373,7 +373,7 @@
         'element' => 'hrStorageDescr',
         'unit' => '%',
         'event' => 'High Disk Usage',
-        'level' => 'Warning',
+        'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
       },
       'HighMemoryUsage' => {
@@ -391,7 +391,7 @@
         'element' => 'hrStorageDescr',
         'unit' => '%',
         'event' => 'High Memory Usage',
-        'level' => 'Warning',
+        'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
       }
     }
