@@ -1208,7 +1208,7 @@ function saveWindowState() {
 		url:	'menu.pl',
     data: windowDataString,
     contentType: "application/json; charset=utf-8",
-    dataType: "html",
+    dataType: "html"
   }); 
 }
 
@@ -1219,6 +1219,6 @@ function clearWindowState() {
 		url:	'menu.pl',
     data: windowDataString,
     contentType: "application/json; charset=utf-8",
-    dataType: "html",
+    dataType: "html"
   }); 
 }
