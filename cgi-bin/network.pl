@@ -1230,7 +1230,7 @@ EO_HTML
 			#### now print it
 			foreach ( @pr ) {
 				print Tr(td({class=>'header'},$_->[0])),
-				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>"300",height=>"50") ));
+				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>"400",height=>"50") ));
 			}
 		} # end for
 	} else {

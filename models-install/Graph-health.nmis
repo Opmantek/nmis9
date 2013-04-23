@@ -61,7 +61,7 @@
 			'LINE2:health#ff9900:Health',
 			'GPRINT:health:AVERAGE:Avg %6.2lf%%',
 			'LINE2:reach#0000ff:Reachability',
-			'GPRINT:reach:AVERAGE:Avg %6.2lf%%',
+			'GPRINT:reach:AVERAGE:Avg %6.2lf%%\\n',
 			'LINE2:avail#00ff00:Availability',
 			'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
 			'LINE2:loss#ff00ff:Ping_loss',

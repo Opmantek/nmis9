@@ -41,7 +41,8 @@
 		'standard' => [
 			'DEF:hrVMemSize=$database:hrVMemSize:AVERAGE',
 			'DEF:hrVMemUsed=$database:hrVMemUsed:AVERAGE',
-			'LINE1:hrVMemSize#000000:Average Virtual Memory Size',
+			'LINE1:hrVMemSize#000000:Virtual Memory Size',
+			'GPRINT:hrVMemSize:AVERAGE:%1.3lf %sb\\n',
 			'AREA:hrVMemUsed#00FFFF:Average Virtual Memory Used\\n',
 			'GPRINT:hrVMemUsed:MIN:Min Virtual Mem Used %1.3lf %sb',
 			'GPRINT:hrVMemUsed:AVERAGE:Avg Virtual Mem Used %1.3lf %Sb',
@@ -51,7 +52,8 @@
 			'DEF:hrVMemSize=$database:hrVMemSize:AVERAGE',
 			'DEF:hrVMemUsed=$database:hrVMemUsed:AVERAGE',
 			'LINE1:hrVMemSize#000000:Avg Virt. Memory Size',
-			'AREA:hrVMemUsed#00FFFF:Avg Virt. Memory Used\\n',
+			'GPRINT:hrVMemSize:AVERAGE:%1.3lf %sb\\n',
+			'AREA:hrVMemUsed#00FFFF:Avg Virt. Memory Used',
 			'GPRINT:hrVMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
 			'GPRINT:hrVMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]

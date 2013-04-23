@@ -102,17 +102,17 @@
 			'CDEF:ssCpuRawSoftIRQP=ssCpuRawSoftIRQ,ssCpuTotal,/,100,*',
 
 			'AREA:ssCpuRawUserP#ff0000:User',
+			'GPRINT:ssCpuRawUserP:AVERAGE:%5.2lf%%',
 			'STACK:ssCpuRawSystemP#ffa500:System',
+			'GPRINT:ssCpuRawSystemP:AVERAGE:%5.2lf%%',
 			'STACK:ssCpuRawWaitP#ffff00:Wait IO',
+			'GPRINT:ssCpuRawWaitP:AVERAGE:%5.2lf%%\\n',
 			'STACK:ssCpuRawKernelP#00ffff:Kernel',
 			'STACK:ssCpuRawNiceP#ff00ff:Nice',
 			'STACK:ssCpuRawInterruptP#0000ff:Interupt',
 			'STACK:ssCpuRawSoftIRQP#00a5ff:SoftIRQ',
-			'STACK:ssCpuRawIdleP#00ff00:Idle\\n',
-			'GPRINT:ssCpuRawUserP:AVERAGE:User %5.2lf%%',
-			'GPRINT:ssCpuRawSystemP:AVERAGE:Sys %5.2lf%%',
-			'GPRINT:ssCpuRawWaitP:AVERAGE:Wait %5.2lf%%',
-			'GPRINT:ssCpuRawIdleP:AVERAGE:Idle %5.2lf%%\\n',
+			'STACK:ssCpuRawIdleP#00ff00:Idle',
+			'GPRINT:ssCpuRawIdleP:AVERAGE:%5.2lf%%\\n',
 		]
 	}
 );

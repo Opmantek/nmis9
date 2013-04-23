@@ -200,8 +200,8 @@ sub rrdDraw {
 				"--interlace",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
-				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
-				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+				"--color", 'SHADEB#ffffff',    # was CFCFCF
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
@@ -379,8 +379,8 @@ sub rrdDraw {
 				"--interlace",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
-				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
-				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+				"--color", 'SHADEB#ffffff',    #
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
@@ -514,8 +514,8 @@ sub rrdDraw {
 				"--interlace",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
-				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
-				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+				"--color", 'SHADEB#ffffff',    #
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
