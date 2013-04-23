@@ -45,17 +45,19 @@
 			'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
 			'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
 			'LINE1:avgBusy1#00ff00:Avg Busy 1min',
-			'GPRINT:avgBusy1:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:avgBusy1:MAX:Max %1.2lf %%\\n',
+			'GPRINT:avgBusy1:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:avgBusy1:MAX:Max %1.2lf%%\\n',
 			'LINE1:avgBusy5#0000ff:Avg Busy 5min',
-			'GPRINT:avgBusy5:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:avgBusy5:MAX:Max %1.2lf %%\\n'
+			'GPRINT:avgBusy5:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:avgBusy5:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
 			'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
 			'LINE1:avgBusy1#00ff00:Avg Busy 1min',
-			'LINE1:avgBusy5#0000ff:Avg Busy 5min'
+			'GPRINT:avgBusy1:AVERAGE: %1.2lf%%',
+			'LINE1:avgBusy5#0000ff:Avg Busy 5min',
+			'GPRINT:avgBusy5:AVERAGE: %1.2lf%%'
 		]
 	}
 );

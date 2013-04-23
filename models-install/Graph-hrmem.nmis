@@ -45,13 +45,15 @@
 			'AREA:hrMemUsed#00FFFF:Average Memory Used\\n',
 			'GPRINT:hrMemUsed:MIN:Min Mem Used %1.3lf %sb',
 			'GPRINT:hrMemUsed:AVERAGE:Avg Mem Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Mem Used %1.3lf %Sb'
+			'GPRINT:hrMemUsed:MAX:Max Mem Used %1.3lf %Sb\\n'
 		],
 		'small' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
 			'LINE1:hrMemSize#000000:Avg Memory Size',
-			'AREA:hrMemUsed#00FFFF:Avg Memory Used'
+			'AREA:hrMemUsed#00FFFF:Avg Memory Used\\n',
+			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]
 	}
 );

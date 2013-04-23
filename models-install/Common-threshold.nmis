@@ -5,16 +5,6 @@
         'item' => 'outputUtil',
         'event' => 'Proactive Interface Output Utilisation',
         'select' => {
-          '4' => {
-            'value' => {
-              'critical' => '55',
-              'fatal' => '70',
-              'minor' => '30',
-              'warning' => '20',
-              'major' => '40'
-            },
-            'control' => '$ifSpeed == 1000000000'
-          },
           '1' => {
             'value' => {
               'critical' => '90',
@@ -24,6 +14,16 @@
               'major' => '80'
             },
             'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
+          },
+          '2' => {
+            'value' => {
+              'critical' => '75',
+              'fatal' => '90',
+              'minor' => '50',
+              'warning' => '40',
+              'major' => '60'
+            },
+            'control' => '$ifSpeed == 10000000'
           },
           '3' => {
             'value' => {
@@ -35,6 +35,16 @@
             },
             'control' => '$ifSpeed == 100000000'
           },
+          '4' => {
+            'value' => {
+              'critical' => '55',
+              'fatal' => '70',
+              'minor' => '30',
+              'warning' => '20',
+              'major' => '40'
+            },
+            'control' => '$ifSpeed == 1000000000'
+          },
           'default' => {
             'value' => {
               'critical' => '93',
@@ -44,16 +54,6 @@
               'major' => '90'
             }
           },
-          '2' => {
-            'value' => {
-              'critical' => '75',
-              'fatal' => '90',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            },
-            'control' => '$ifSpeed == 10000000'
-          }
         }
       },
       'pkt_errors_out' => {

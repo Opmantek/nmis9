@@ -181,6 +181,7 @@ sub rrdDraw {
 
 		$size = 'small' if $width <= 400 and $graph->{option}{small} ne "";
 
+
 		if (($ttl = $graph->{title}{$title}) eq "") {
 			logMsg("no title->$title found in Graph-$graphtype");
 		}
@@ -189,15 +190,33 @@ sub rrdDraw {
 		}
 
 		@opt = (
-		"--title", $ttl,
-		"--vertical-label", $lbl,
-		"--start", $start,
-		"--end", $end,
-		"--width", $width,
-		"--height", $height,
-		"--imgformat", "PNG",
-		"--interlace"
+				"--title", $ttl,
+				"--vertical-label", $lbl,
+				"--start", $start,
+				"--end", $end,
+				"--width", $width,
+				"--height", $height,
+				"--imgformat", "PNG",
+				"--interlace",
+				"--disable-rrdtool-tag",
+				"--color", 'BACK#ffffff',      # Background Color
+				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
+				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+				"--color", 'FONT#000000',      # Font Color
+				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+				"--color", 'FRAME#808080'      # Canvas Frame Color
 		);
+
+		if ($width > 400) {
+			push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+		}
+		else {
+			push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+		}
+
 		# add option rules
 		foreach my $str (@{$graph->{option}{$size}}) {
 			push @opt, $str;
@@ -348,6 +367,7 @@ sub rrdDraw {
 			} else { 
 				$title = "$NI->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end';
 			}
+
 			@opt = (
 				"--title", $title,
 				"--vertical-label",$vlabel,
@@ -356,8 +376,26 @@ sub rrdDraw {
 				"--width", "$width",
 				"--height", "$height",
 				"--imgformat", "PNG",
-				"--interlace"
+				"--interlace",
+				"--disable-rrdtool-tag",
+				"--color", 'BACK#ffffff',      # Background Color
+				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
+				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+				"--color", 'FONT#000000',      # Font Color
+				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+				"--color", 'FRAME#808080'      # Canvas Frame Color
 			);
+
+			if ($width > 400) {
+				push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+			}
+			else {
+				push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+			}
+						
 			# calculate the sum (avg and max) of all Classmaps for PrePolicy and Drop
 			$avgppr = "CDEF:avgPrePolicyBitrate=0";
 			$maxppr = "CDEF:maxPrePolicyBitrate=0";
@@ -373,10 +411,10 @@ sub rrdDraw {
 			
 			my $gtype = "AREA";
 			my $gcount = 0;
+			my $parent_name = "";
 			foreach my $i (1..$#$CBQosNames) {
 				$database = $S->getDBName(graphtype=>$graphtype,index=>${intf},item=>$CBQosNames->[$i]);
 				my $parent = 0;
-				my $parent_name = "";
 				if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ and $HQOS ) {
 					$parent = 1;
 					$gtype = "LINE1";
@@ -384,6 +422,7 @@ sub rrdDraw {
 
 				if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ ) {
 					$parent_name = $1;
+					print STDERR "DEBUG parent_name=$parent_name\n";
 				}
 
 				if ( not $parent and not $gcount) {
@@ -399,10 +438,19 @@ sub rrdDraw {
 				$alias =~ s/\-\-/\//g;
 				my $tab = "\\t";
 				if ( length($alias) <= 5 ) {
-					$tab = "\\t\\t\\t";
+					$tab = "\\t\\t\\t\\t\\t";
 				}
 				elsif ( length($alias) <= 12 ) { 
+					$tab = "\\t\\t\\t\\t";
+				}
+				elsif ( length($alias) <= 15 ) { 
+					$tab = "\\t\\t\\t";
+				}
+				elsif ( length($alias) <= 19 ) { 
 					$tab = "\\t\\t";
+				}
+				elsif ( length($alias) <= 21 ) { 
+					$tab = "\\t";
 				}
 				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
 				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
@@ -415,9 +463,9 @@ sub rrdDraw {
 				push(@opt,"CDEF:maxDBR$i=maxDB$i,8,*");
 				if ($width > 400) {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
-					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %9.0lf bps");
-					push(@opt,"GPRINT:maxPPR$i:MAX:Max %9.0lf bps");
-					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.0lf bps");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %9.0lf bps\\t");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max %9.0lf bps\\t");
+					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.0lf bps\\t");
 					push(@opt,"GPRINT:maxDBR$i:MAX:Max Drops %6.0lf bps\\l");
 				}
 				else {
@@ -454,6 +502,7 @@ sub rrdDraw {
 			my $color = $CBQosValues->{"$intf$item"}{'Color'};
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			$title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end';
+			
 			@opt = (
 				"--title", "$title",
 				"--vertical-label", 'Avg Bits per Second',
@@ -463,6 +512,16 @@ sub rrdDraw {
 				"--height", "$height",
 				"--imgformat", "PNG",
 				"--interlace",
+				"--disable-rrdtool-tag",
+				"--color", 'BACK#ffffff',      # Background Color
+				"--color", 'SHADEA#CFCFCF',    # Left and Top Border Color
+				"--color", 'SHADEB#CFCFCF',    #
+				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+				"--color", 'FONT#000000',      # Font Color
+				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+				"--color", 'FRAME#808080',      # Canvas Frame Color
 				"DEF:PrePolicyByte=$database:PrePolicyByte:AVERAGE", 
 				"DEF:maxPrePolicyByte=$database:PrePolicyByte:MAX", 
 				"DEF:DropByte=$database:DropByte:AVERAGE", 
@@ -476,6 +535,14 @@ sub rrdDraw {
 				"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
 				"STACK:DropBitrate#ff0000:DropBitrate\\l"
 			);
+			
+			if ($width > 400) {
+				push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+			}
+			else {
+				push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+			}
+			
 			if ($width > 400) {
 				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate\\t%10.0lf bps\\t");
 				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate\\t%10.0lf bps\\l");
@@ -521,7 +588,8 @@ sub rrdDraw {
 			"--width", "$width",
 			"--height", "$height",
 			"--imgformat", "PNG",
-			"--interlace"
+			"--interlace",
+			"--disable-rrdtool-tag"
 		);
 
 		my $CallCount = "CDEF:CallCount=0";

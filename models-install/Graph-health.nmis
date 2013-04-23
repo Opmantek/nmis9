@@ -45,13 +45,13 @@
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:loss=$database:loss:AVERAGE',
 			'LINE2:health#ff9900:Health',
-			'GPRINT:health:AVERAGE:Avg Health %1.2lf\n',
+			'GPRINT:health:AVERAGE:Avg %6.2lf%%',
 			'LINE2:reach#0000ff:Reachability',
-			'GPRINT:reach:AVERAGE:Avg Reachable %1.2lf\n',
+			'GPRINT:reach:AVERAGE:Avg %6.2lf%%',
 			'LINE2:avail#00ff00:Availability',
-			'GPRINT:avail:AVERAGE:Avg Available %1.2lf\n',
+			'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
 			'LINE2:loss#ff00ff:Ping_loss',
-			'GPRINT:loss:AVERAGE:Avg Ping loss %1.2lf\n'
+			'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:reach=$database:reachability:AVERAGE',
@@ -59,9 +59,13 @@
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:loss=$database:loss:AVERAGE',
 			'LINE2:health#ff9900:Health',
+			'GPRINT:health:AVERAGE:Avg %6.2lf%%',
 			'LINE2:reach#0000ff:Reachability',
+			'GPRINT:reach:AVERAGE:Avg %6.2lf%%',
 			'LINE2:avail#00ff00:Availability',
-			'LINE2:loss#ff00ff:Ping_loss\\l'
+			'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
+			'LINE2:loss#ff00ff:Ping_loss',
+			'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n'
 		]
 	}
 );

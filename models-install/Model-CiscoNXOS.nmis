@@ -73,7 +73,8 @@
   					'oid' => 'cpmCPUMemoryFree.1'
   				},
           'TopChanges' => {
-            'oid' => 'dot1dStpTopChanges'
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
           },
           'RouteNumber' => {
             'oid' => 'ipCidrRouteNumber'

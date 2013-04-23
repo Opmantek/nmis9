@@ -37,18 +37,18 @@
 	'option' => {
 		'standard' => [
 			'DEF:apChassisCPUAvg=$database:apChassisCPUAvg:AVERAGE',
-                   	'DEF:apChassisInstMem=$database:apChassisInstMem:AVERAGE',
-	           	'DEF:apChassisHeapFree=$database:apChassisHeapFree:AVERAGE',
-    	           	'CDEF:perFreeMem=apChassisHeapFree,apChassisInstMem,/,100,*',  
-        	   	'LINE1:apChassisCPUAvg#00ff00:CPU Avg',
-               		'LINE1:perFreeMem#0000ff:Free Mem',
-                   	'GPRINT:apChassisCPUAvg:AVERAGE:Avg CPU %1.2lf',
-	           	'GPRINT:apChassisCPUAvg:MAX:Max CPU %1.2lf',
-    	           	'GPRINT:apChassisCPUAvg:LAST:current CPU %1.2lf',
-    		   	'GPRINT:apChassisInstMem:MAX:Inst Mem %1.2lf %s',
-               		'GPRINT:apChassisHeapFree:AVERAGE:Avg Mem Free %1.2lf %s',
-                   	'GPRINT:apChassisHeapFree:MAX:Max Mem Free %1.2lf %s',
-	           	'GPRINT:apChassisHeapFree:LAST:current Mem Free %1.2lf %s'
+			'DEF:apChassisInstMem=$database:apChassisInstMem:AVERAGE',
+			'DEF:apChassisHeapFree=$database:apChassisHeapFree:AVERAGE',
+			'CDEF:perFreeMem=apChassisHeapFree,apChassisInstMem,/,100,*',  
+			'LINE1:apChassisCPUAvg#00ff00:CPU Avg',
+			'LINE1:perFreeMem#0000ff:Free Mem',
+			'GPRINT:apChassisCPUAvg:AVERAGE:Avg CPU %1.2lf',
+			'GPRINT:apChassisCPUAvg:MAX:Max CPU %1.2lf',
+			'GPRINT:apChassisCPUAvg:LAST:current CPU %1.2lf',
+			'GPRINT:apChassisInstMem:MAX:Inst Mem %1.2lf %s',
+			'GPRINT:apChassisHeapFree:AVERAGE:Avg Mem Free %1.2lf %s',
+			'GPRINT:apChassisHeapFree:MAX:Max Mem Free %1.2lf %s',
+			'GPRINT:apChassisHeapFree:LAST:current Mem Free %1.2lf %s'
 		]
 	}
 );

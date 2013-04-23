@@ -1315,6 +1315,10 @@ sub getIntfInfo {
 			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedIn} ne '') {
 				$IF->{$index}{nc_ifSpeedIn} = $IF->{$index}{ifSpeed}; # save
 				$IF->{$index}{ifSpeedIn} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedIn};
+
+				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{nc_ifSpeedIn};
+				$IF->{$index}{ifSpeed} = $IF->{$index}{ifSpeedIn};
+
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($IF->{$index}{ifSpeedIn});
 				dbg("Manual update of ifSpeedIn by nodeConf");
