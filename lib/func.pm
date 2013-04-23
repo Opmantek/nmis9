@@ -119,6 +119,7 @@ $VERSION = 1.00;
 		checkFile
 		checkDirectoryFiles
 
+		checkPerlLib
 	);
 
 
@@ -1402,7 +1403,7 @@ sub loadConfTable {
 
 	# add extension if missing
 	$conf = $conf =~ /\./ ? $conf : "${conf}.nmis";
-
+	
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 
 		# check if config file is updated, if not, use file cache
@@ -1498,8 +1499,9 @@ sub getKernelName {
 
 sub createDir {
 	my $dir = shift;
+	my $C = loadConfTable();
 	if ( not -d $dir ) {
-		mkpath($dir,{mode=>0775});
+		mkpath($dir,{mode=>$C->{'os_username'}});
 	}
 	setFileProt($dir);
 }
@@ -1788,6 +1790,28 @@ sub colorResponseTime {
 	return "#FF0000" if $val > $thresh;
 	return "#AAAAAA" if $val !~ /[0-9]+/;
 	return '#' . hexval( int((($val/255)*$ratio))) . hexval( int((($thresh-$val)/255)*$ratio )) .'00' ;
+}
+
+sub checkPerlLib {
+	my $lib = shift;
+	my $found = 0;
+	
+	my $path = $lib;
+	$path =~ s/\:\:/\//g;
+	
+	if ( $path !~ /\.pm/ ) {
+		$path .= ".pm";
+	}
+	
+	#check the USE path for the file.
+	foreach my $libdir (@INC) {
+		if ( -f "$libdir/$path" ) {
+			$found = 1;
+			last;
+		}	
+	}
+	
+	return $found;
 }
 
 

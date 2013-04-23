@@ -20,7 +20,6 @@ foreach (sorthash( $PM,['level'],'fwd')) { push @privs,$_ ;}
 return (
 			Users => [
 				{ user => { header => 'User',display => 'key,header,text', value => ["specify"] }},
-				{ config => { header => 'Config file',display => 'header,text', value => ["Config"] }},
 				{ privilege => { header => 'Privilege',display => 'header,popup', value => [ @privs ] }},
 				{ admission => { header => 'Admission',display => 'header,popup', value => ["true","false","bypass"] }},
 				{ groups => { header => 'Group',display => 'header,scrolling', value => ["none", "all", "network", (@groups) ] }}

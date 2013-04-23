@@ -94,12 +94,21 @@ sub processNode {
 			#asamActiveSoftware2	active
 			#asamSoftwareVersion1	/OSWP/OSWPAA37.432
 			#asamSoftwareVersion2	OSWP/66.98.63.71/OSWPAA41.353/OSWPAA41.353
+			
+			#asamActiveSoftware1	standby
+			#asamActiveSoftware2	active
+			#asamSoftwareVersion1	OSWP/66.98.63.71/L6GPAA42.413/L6GPAA42.413
+			#asamSoftwareVersion2	OSWP/66.98.63.71/OSWPAA42.413/OSWPAA42.413
+
 			my $asamVersion41 = "OSWPAA37.432";
 			my $asamVersion41 = "OSWPAA41.353";
 			my $asamVersion42 = "OSWPAA41.363";
+			my $asamVersion42 = "OSWPAA42.413";
 			
 			my $rack_count = 1;
 			my $shelf_count = 1;
+			
+			my $version;
 
 			$rack_count = $LNT->{$node}{rack_count} if $LNT->{$node}{rack_count} ne "";
 			$shelf_count = $LNT->{$node}{shelf_count} if $LNT->{$node}{shelf_count} ne "";
@@ -116,6 +125,7 @@ sub processNode {
 			if( $asamSoftwareVersion eq $asamVersion41 ) {
 				# How to identify it is an ARAM-D?
 				#"For ARAM-D with extensions "
+				$version = 4.1;
 				if( 0 ) {
 					my $indexes = build_41_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
 					@ifIndexNum = @{$indexes};
@@ -129,6 +139,7 @@ sub processNode {
 			#" release 4.2  ( ISAM FD y  ISAM-V) "
 			elsif( $asamSoftwareVersion eq $asamVersion42 )
 			{
+				$version = 4.2;
 				my $indexes = build_42_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
 				@ifIndexNum = @{$indexes};
 			}
@@ -143,8 +154,10 @@ sub processNode {
 			foreach my $index (@ifIndexNum) {
 				$intfTotal++;				
 				my $ifDescr = "ATM $index";
+				my $Description = getDescription(version => $version, ifIndex => $index);
+				
 				$S->{info}{interface}{$index} = {
-		      'Description' => '',
+		      'Description' => $Description,
 		      'ifAdminStatus' => 'unknown',
 		      'ifDescr' => $ifDescr,
 		      'ifIndex' => $index,
@@ -180,13 +193,17 @@ sub processNode {
 					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
 					dbg("Manual update of Description by nodeConf");
 				}
+				else {
+					$V->{interface}{"${index}_Description_value"} = $S->{info}{interface}{$index}{Description};
+				}
+				
 				if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
-					$S->{info}{interface}{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
-					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-					$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
+					$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
 					dbg("Manual update of ifSpeed by nodeConf");
 				}
+				
+				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
 				
 				# convert interface name
 				$S->{info}{interface}{$index}{interface} = convertIfName($S->{info}{interface}{$index}{ifDescr});
@@ -329,25 +346,43 @@ sub build_41_interface_indexes {
 
 sub build_42_interface_indexes {
 	my %args = @_;
-	my $level = 0;
 
+	my $rack_count = 1;
+	my $shelf_count = 1;
+
+	if( defined( $args{rack_count} ) ) {
+		$rack_count = $args{rack_count};
+	}
+
+	if( defined( $args{shelf_count} ) ) {
+		$shelf_count = $args{shelf_count};
+	}
+
+	my $level = 3;
+	
+	my @racks = (1..$rack_count);
+	my @shelves = (1..$shelf_count);
 	my @slots = (2..16);
 	my @circuits = (0..47);
 
 	my @interfaces = ();
 
-	foreach my $slot (@slots) {
-		foreach my $circuit (@circuits) {
-			my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
-			push( @interfaces, $index );
-		}		
-		#  generate extra indexes at level 16, these are the XDSL channel ones
-		if( $slot == 16 ) {
-			$level = 16;
-			foreach my $circuit (@circuits) {
-				my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
-				push( @interfaces, $index );
-			}			
+	foreach my $rack (@racks) {
+		foreach my $shelf (@shelves) {
+			foreach my $slot (@slots) {
+				foreach my $circuit (@circuits) {
+					my $index = generate_interface_index_42 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
+					push( @interfaces, $index );
+				}		
+				#  generate extra indexes at level 16, these are the XDSL channel ones
+				if( $slot == 16 ) {
+					$level = 16;
+					foreach my $circuit (@circuits) {
+						my $index = generate_interface_index_42 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
+						push( @interfaces, $index );
+					}			
+				}
+			}
 		}
 	}
 	return \@interfaces;
@@ -368,6 +403,8 @@ sub generate_interface_index_41 {
 
 sub generate_interface_index_42 {
 	my %args = @_;
+	my $rack = $args{rack};
+	my $shelf = $args{shelf};
 	my $slot = $args{slot};
 	my $level = $args{level};
 	my $circuit = $args{circuit};
@@ -412,6 +449,8 @@ sub decode_interface_index_41 {
 	printf( "\t level=0x%x, %d\n", $level, $level);
 	printf( "\t circuit=0x%x, %d\n", $circuit, $circuit);
 	
+	#print "rack=X, shelf=Y, slot=Z, level=A, circuit=B"
+
 	if( $level == 0xb ) {
 		print "XDSL Line\n";
 	}
@@ -420,6 +459,40 @@ sub decode_interface_index_41 {
 	}
 
 }
+
+sub getDescription {
+	my %args = @_;
+	
+	my $oid_value 		= $args{ifIndex};	
+	
+	if ( $args{version} eq "4.1" ) {
+		my $rack_mask 		= 0x70000000;
+		my $shelf_mask 		= 0x07000000;
+		my $slot_mask 		= 0x00FF0000;
+		my $level_mask 		= 0x0000F000;
+		my $circuit_mask 	= 0x00000FFF;
+	
+		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $level 	= ($oid_value & $level_mask) 		>> 12;
+		my $circuit = ($oid_value & $circuit_mask);
+		
+		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Level=$level, Circuit=$circuit";
+	}
+	else {
+		my $slot_mask 		= 0xFC000000;
+		my $level_mask 		= 0x03C00000;	
+		my $circuit_mask 	= 0x001FE000;
+		
+	
+		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+		my $level 	= ($oid_value & $level_mask) 		>> 21;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+		return "Slot=$slot, Level=$level, Circuit=$circuit";		
+	}
+}
+
 ###############################################
 #
 # 4.2

@@ -84,6 +84,7 @@ my $type		= lc $nvp{type};
 my $node		= lc $nvp{node};
 my $rmefile		= $nvp{rmefile};
 my $runGroup	= $nvp{group};
+my $sleep	= $nvp{sleep};
 
 ### 2012-12-03 keiths, adding some model testing and debugging options.
 my $model		= lc $nvp{model};
@@ -1121,8 +1122,9 @@ sub getIntfInfo {
 		
 		if ($intf_one eq "") {
 			# remove unknown interfaces, found in previous runs, from table
+			### possible vivification
 			for my $i (keys %{$IF}) {
-				if (not grep { $i eq $_ } @ifIndexNum ) { 
+				if ( (not grep { $i eq $_ } @ifIndexNum) ) { 
 					delete $IF->{$i};
 					delete $NI->{graphtype}{$i};
 					delete $NI->{database}{interface}{$i};
@@ -1860,7 +1862,7 @@ sub getSystemHealthInfo {
 	dbg("Starting");
 	dbg("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{system} eq '') {
+	if ($M->{systemHealth} eq '') {
 		dbg("No class 'systemHealth' declared in Model");
 	}
 	else {		
@@ -2183,10 +2185,16 @@ sub checkNodeHealth {
 	if ( exists $D->{bufferElHit} and $D->{bufferElHit}{value} < 0) { $D->{bufferElHit}{value} = sprintf("%u",$D->{bufferElHit}{value}); }
 	
 	### 2012-12-13 keiths, fixed this so it would assign!
-	$RI->{cpu} = ($D->{avgBusy5}{value} ne "") ? $D->{avgBusy5}{value} : $D->{avgBusy1}{value};
-	$RI->{memused} = $D->{MemoryUsedPROC}{value};
-	$RI->{memfree} = $D->{MemoryFreePROC}{value};
-	
+	### 2013-04-17 keiths, fixed an autovivification problem!
+	if ( exists $D->{avgBusy5} or exists $D->{avgBusy1} ) {
+		$RI->{cpu} = ($D->{avgBusy5}{value} ne "") ? $D->{avgBusy5}{value} : $D->{avgBusy1}{value};
+	}
+	if ( exists $D->{MemoryUsedPROC} ) {
+		$RI->{memused} = $D->{MemoryUsedPROC}{value};
+	}
+	if ( exists $D->{MemoryFreePROC} ) {
+		$RI->{memfree} = $D->{MemoryFreePROC}{value};
+	}
 	dbg("Finished");
 	return 1;
 } # end checkHealth
@@ -3661,6 +3669,23 @@ sub runAlerts {
 							}
 						}
 					}
+					elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
+						if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
+							$test_result = 0;
+							$level = "Normal";
+						}
+						else {
+							my @levels = qw(Warning Minor Major Critical Fatal);
+							foreach my $lvl (@levels) {
+								if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+									$test_result = 1;
+									$level = $lvl;
+									last;
+								}
+							}
+						}
+					}
+					
 					dbg("alert result: test_result=$test_result level=$level",2);
 					$alert->{type} = $CA->{$sect}{$alrt}{type};
 					$alert->{test} = $CA->{$sect}{$alrt}{value};
@@ -4214,14 +4239,16 @@ sub nmisMaster {
 	if ($C->{server_master} eq "true") {
 		dbg("Running NMIS Master Functions");
 		
-		if ( $C->{master_sleep} ) {
-			dbg("Master is sleeping $C->{master_sleep} seconds (waiting for summary updates on slaves)");
-			sleep $C->{master_sleep};	
+		if ( $C->{master_sleep} or $sleep ) {
+			my $sleepNow = $C->{master_sleep};
+			$sleepNow = $sleep if $sleep;
+			dbg("Master is sleeping $sleepNow seconds (waiting for summary updates on slaves)");
+			sleep $sleepNow;	
 		}
 	
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
-			dbg("Master, processing Slave Server $srv");
+			dbg("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 			
 			dbg("Get loadnodedetails from $srv");
 			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
@@ -4486,7 +4513,38 @@ sub runEscalate {
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
 			else {
-				dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+				if ( checkPerlLib("Notify::$type") ) {
+					my $timenow = time();
+					my $datenow = returnDateStamp();
+					my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+					foreach $contact (@x) {
+						if ( exists $CT->{$contact} ) {	
+							if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
+								# check if UpNotify is true, and save with this event
+								# and send all the up event notifies when the event is cleared.
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+									my $ct = "$type:$contact";
+									my @l = split(',',$ET->{$event_hash}{notify});
+									if (not grep { $_ eq $ct } @l ) {
+										push @l, $ct;
+										$ET->{$event_hash}{notify} = join(',',@l);
+									}
+								}
+								#$serial
+								$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+								$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+								$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+								$serial_ns++;
+							}
+						}
+						else {
+							dbg("Contact $contact not found in Contacts table");
+						}
+					}
+				}
+				else {
+					dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+				}
 			}
 		}
 	
@@ -4703,7 +4761,7 @@ LABEL_ESC:
 
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -4786,7 +4844,7 @@ LABEL_ESC:
 							elsif ( $type eq "syslog" ) {
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4807,7 +4865,7 @@ LABEL_ESC:
 								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4834,7 +4892,38 @@ LABEL_ESC:
 								logJsonEvent(event => $event, dir => $C->{'json_logs'});
 							} # end json
 							else {
-								dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+								if ( checkPerlLib("Notify::$type") ) {
+									my $timenow = time();
+									my $datenow = returnDateStamp();
+									my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+									foreach $contact (@x) {
+										if ( exists $CT->{$contact} ) {	
+											if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
+												# check if UpNotify is true, and save with this event
+												# and send all the up event notifies when the event is cleared.
+												if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+													my $ct = "$type:$contact";
+													my @l = split(',',$ET->{$event_hash}{notify});
+													if (not grep { $_ eq $ct } @l ) {
+														push @l, $ct;
+														$ET->{$event_hash}{notify} = join(',',@l);
+													}
+												}
+												#$serial
+												$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
+												$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
+												$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+												$serial_ns++;
+											}
+										}
+										else {
+											dbg("Contact $contact not found in Contacts table");
+										}
+									}
+								}
+								else {
+									dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+								}
 							}
 						} # foreach field
 					} # endif $level
@@ -4922,7 +5011,6 @@ sub sendMSG {
 				}
 			}
 		} # end ccopy
-		# now the netsends
 		elsif ( $method eq "netsend" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
@@ -4939,6 +5027,7 @@ sub sendMSG {
 				} # end netsend
 			}
 		}
+		
 		# now the syslog
 		elsif ( $method eq "syslog" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
@@ -4953,7 +5042,7 @@ sub sendMSG {
 			}
 		}
 		# now the pagers
-		elsif ( $type eq "pager" ) {
+		elsif ( $method eq "pager" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{snpp_server} eq '';
@@ -4966,9 +5055,28 @@ sub sendMSG {
 				}
 			} # end pager
 		}
+		# now the extensible stuff.......
 		else {
-			dbg("ERROR unknown device $method");
-		}
+			my $class = "Notify::$method";
+			my $classMethod = $class."::sendNotification";
+			if ( checkPerlLib($class) ) {
+				eval "require $class";
+				my $function = \&{$classMethod};
+				foreach $target (keys %{$msgTable->{$method}}) {
+					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+						$function->(
+							message => $$msgTable{$method}{$target}{$serial}{message},
+							event => $$msgTable{$method}{$target}{$serial}{event},
+							contact => $$msgTable{$method}{$target}{$serial}{contact},
+						);
+						dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
+					}
+				}
+			}
+			else {
+				dbg("ERROR unknown device $method");
+			}
+		} # end sms
 	}
 	dbg("Finished");
 }
@@ -5756,7 +5864,9 @@ sub doThreshold {
 			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
 				my $NI = $S->ndinfo; # pointer to node info table
 				my $M  = $S->mdl;	# pointer to Model table
-
+				my $IF = $S->ifinfo;
+				
+				
 				# skip if node down
 				if ( $NI->{system}{nodedown} eq 'true') {
 					dbg("Node down, skipping thresholding for $S->{name}");
@@ -5786,9 +5896,13 @@ sub doThreshold {
 									$thrname = $M->{$s}{$ts}{$type}{threshold};	# get string of threshold names
 									dbg("threshold=$thrname found in type=$type");
 									# thresholds found in this section
-									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked
+									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked										
 										foreach my $index (keys %{$NI->{database}{$type}}) { # there must be a rrd file
-											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+											my $details = undef;
+											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" ) {
+												$details = $IF->{$index}{Description};
+											}											
+											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
 										}
 									} else {
 										runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname); # single
@@ -5816,6 +5930,7 @@ sub runThrHld {
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $index = $args{index};
+	my $details = $args{details};
 	my $stats;
 	my $element;
 
@@ -5846,7 +5961,7 @@ sub runThrHld {
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,value=>$value,thrvalue=>$thrvalue,reset=>$reset);
+		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset);
 	}
 
 }
@@ -5958,12 +6073,15 @@ sub thresholdProcess {
 		dbg("event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 	###	logMsg("INFO ($S->{node}) event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 		if ( $args{value} !~ /NaN/i ) {
+			my $details = "Value=$args{value}, Threshold=$args{thrvalue}";
+			if ( defined $args{details} and $args{details} ne "" ) {
+				$details = "$args{details}: Value=$args{value}, Threshold=$args{thrvalue}";
+			}
 			if ( $args{level} =~ /Normal/i ) { 
-				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},
-						details=>"Value=$args{value}, Threshold=$args{thrvalue}",value=>$args{value},reset=>$args{reset});
+				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details,value=>$args{value},reset=>$args{reset});
 			}
 			else {
-				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>"Value=$args{value}, Threshold=$args{thrvalue}");
+				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details);
 			}
 		}
 	}

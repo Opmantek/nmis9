@@ -435,71 +435,73 @@
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
       },
-      'pkts' => {
-        'indexed' => 'true',
-        'snmp' => {
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifInUcastPkts' => {
-            'oid' => 'ifInUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInDiscards' => {
-            'oid' => 'ifInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifOutErrors' => {
-            'oid' => 'ifOutErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifInNUcastPkts' => {
-            'oid' => 'ifInNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifOutDiscards' => {
-            'oid' => 'ifOutDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifOutNUcastPkts' => {
-            'oid' => 'ifOutNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInErrors' => {
-            'oid' => 'ifInErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifOutUcastPkts' => {
-            'oid' => 'ifOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInOctets' => {
-            'oid' => 'ifInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          }
-        },
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts,errpkts'
-      },
+      #'pkts' => {
+      #  'indexed' => 'true',
+      #  'snmp' => {
+      #    'ifHCOutUcastPkts' => {
+      #      'oid' => 'ifHCOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutOctets' => {
+      #      'oid' => 'ifHCOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutOctets' => {
+      #      'oid' => 'ifOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInUcastPkts' => {
+      #      'oid' => 'ifInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInDiscards' => {
+      #      'oid' => 'ifInDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInUcastPkts' => {
+      #      'oid' => 'ifHCInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutErrors' => {
+      #      'oid' => 'ifOutErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInNUcastPkts' => {
+      #      'oid' => 'ifInNUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutDiscards' => {
+      #      'oid' => 'ifOutDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutNUcastPkts' => {
+      #      'oid' => 'ifOutNUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInErrors' => {
+      #      'oid' => 'ifInErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutUcastPkts' => {
+      #      'oid' => 'ifOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInOctets' => {
+      #      'oid' => 'ifInOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInOctets' => {
+      #      'oid' => 'ifHCInOctets',
+      #      'option' => 'counter,0:U'
+      #    }
+      #  },
+      #  'threshold' => 'pkt_errors_in,pkt_errors_out',
+      #  'graphtype' => 'pkts,errpkts'
+      #},
       'pkts_hc' => {
         'indexed' => 'true',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
         'snmp' => {
           'ifInOctets' => {
             'oid' => 'ifInOctets',
@@ -581,8 +583,7 @@
             'oid' => 'ifHCOutBroadcastPkts',
             'option' => 'counter,0:U'
           }
-        },
-        'graphtype' => 'pkts_hc'
+        }
       }
     },
     'noevent' => {

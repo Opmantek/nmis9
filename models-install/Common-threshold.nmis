@@ -460,7 +460,67 @@
             }
           }
         }
-      }
+      },
+      'ssCpuRawIdle' => {
+        'item' => 'ssCpuRawIdle',
+        'event' => 'Proactive CPU Idle',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '5',
+              'critical' => '20',
+              'major' => '40',
+              'minor' => '50',
+              'warning' => '70',
+            }
+          }
+        }
+      },
+      'ssCpuRawUser' => {
+        'item' => 'ssCpuRawUser',
+        'event' => 'Proactive CPU User',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '90',
+              'critical' => '80',
+              'major' => '70',
+              'minor' => '65',
+              'warning' => '60',
+            }
+          }
+        }
+      },
+      'ssCpuRawSystem' => {
+        'item' => 'ssCpuRawSystem',
+        'event' => 'Proactive CPU System',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '35',
+              'critical' => '30',
+              'major' => '28',
+              'minor' => '25',
+              'warning' => '20',
+            }
+          }
+        }
+      },
+      'ssCpuRawWait' => {
+        'item' => 'ssCpuRawWait',
+        'event' => 'Proactive CPU IO Wait',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '18',
+              'critical' => '15',
+              'major' => '12',
+              'minor' => '6',
+              'warning' => '3',
+            }
+          }
+        }
+      },
     }
   }
 );

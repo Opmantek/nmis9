@@ -83,7 +83,7 @@ sub curlDataFromRemote {
 	my $ST = loadTable(dir=>'conf',name=>'Servers');
 	
 	if ( $ST->{$server}{name} eq $server and $ST->{$server}{community} ne "" ) {
-		my $curlcmd = "curl -k -d com=$ST->{$server}{community} -d func=$func -d group=\"$group\" -d format=$format -d type=send --user $ST->{$server}{user}:$ST->{$server}{passwd}  $ST->{$server}{protocol}://$ST->{$server}{host}:$ST->{$server}{port}/$ST->{$server}{cgi_url_base}/connect.pl";
+		my $curlcmd = "curl -k -d com=$ST->{$server}{community} -d func=$func -d group=\"$group\" -d conf=$ST->{$server}{config} -d format=$format -d type=send --user $ST->{$server}{user}:$ST->{$server}{passwd}  $ST->{$server}{protocol}://$ST->{$server}{host}:$ST->{$server}{port}/$ST->{$server}{cgi_url_base}/connect.pl";
 		#open(IN, "$curlcmd  2>&1 |");
 		open(IN, "$curlcmd 2>/dev/null |");
 		#open(IN, "$curlcmd 2>/tmp/curl.err |");
@@ -112,7 +112,7 @@ sub getFileFromRemote {
 		return 1;
 	}
 	elsif ( $data =~ /SERVER ERROR/ ) {
-		logMsg("ERROR, $args{server} responded with ERROR");
+		logMsg("ERROR, $args{server} responded with ERROR: $data");
 		return 0;		
 	}
 	else {

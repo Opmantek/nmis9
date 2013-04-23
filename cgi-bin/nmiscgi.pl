@@ -62,7 +62,11 @@ $Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 # For for Tenants
-if ( $Q->{conf} eq "" and -f "$C->{'<nmis_conf>'}/Tenants.nmis" and -f "$C->{'<nmis_cgi>'}/tenants.pl" ) {	
+#if ( ($Q->{conf} eq "" or $Q->{conf} eq "Config" or $Q->{conf} eq "Config.nmis")
+if ( ($Q->{conf} eq "" )
+	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
+) {
+	logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
 	print $q->header($q->redirect(
 			-url=>"$C->{'<cgi_url_base>'}/tenants.pl",
 			-nph=>1,
@@ -134,6 +138,8 @@ my $installedModules = $M->installedModules();
 print $q->header($headeropts);
 startNmisPage(title => 'NMIS by Opmantek');
 
+my $tenantCode = loadTenantCode(conf=>$Q->{conf});
+
 my $serverCode = loadServerCode(conf=>$Q->{conf});
 
 my $portalCode = loadPortalCode(conf=>$Q->{conf});
@@ -157,6 +163,10 @@ if ($C->{auth_method_1} eq "apache") {
 # Get server time
 ## removing the display of the Portal Links for now.
 my $ptime = &get_localtime();
+my $confString = "";
+if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.nmis" ) {
+	$confString = "Conf: $Q->{conf},";
+}
 #-----------------------------------------------
 print qq|
 <div id="body_wrapper">
@@ -164,12 +174,13 @@ print qq|
 		<div class="nav">
 		  <a href="http://www.opmantek.com"><img height="30px" width="30px" class="logo" src="$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png"/></a>
 			<span class="title">NMIS $NMIS::VERSION</span>
+			$tenantCode
 			$serverCode
 			$moduleCode
 			$portalCode
 			$logoCode
 			<div class="right">
-				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;User: $user, Auth: Level$privlevel&nbsp;$logout
+				<a id="menu_help" href="$C->{'nmis_docs_online'}"><img src="$C->{'nmis_help'}"/></a>$ptime&nbsp;&nbsp;$confString User: $user, Auth: Level$privlevel&nbsp;$logout
 			</div>
 		</div>
 		<div id="menu_vh_site"></div>

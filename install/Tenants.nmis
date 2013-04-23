@@ -1,6 +1,6 @@
 %hash = (
   'Default' => {
-    'Name' => 'NMIS8',
+    'Name' => 'Default',
     'Config' => 'Config'
   },
   'CompanyA' => {
