@@ -467,11 +467,11 @@
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '5',
+              'fatal' => '10',
               'critical' => '20',
-              'major' => '40',
-              'minor' => '50',
-              'warning' => '70',
+              'major' => '30',
+              'minor' => '40',
+              'warning' => '50',
             }
           }
         }
@@ -510,13 +510,43 @@
         'item' => 'ssCpuRawWait',
         'event' => 'Proactive CPU IO Wait',
         'select' => {
-          'default' => {
+          '10' => {
             'value' => {
               'fatal' => '18',
               'critical' => '15',
               'major' => '12',
               'minor' => '6',
               'warning' => '3',
+            },
+            'control' => '$roleType =~ /core/'
+          },
+          '20' => {
+            'value' => {
+              'fatal' => '25',
+              'critical' => '20',
+              'major' => '15',
+              'minor' => '10',
+              'warning' => '5',
+            },
+            'control' => '$roleType =~ /distribution/'
+          },
+          '30' => {
+            'value' => {
+              'fatal' => '30',
+              'critical' => '24',
+              'major' => '18',
+              'minor' => '12',
+              'warning' => '6',
+            },
+            'control' => '$roleType =~ /access/'
+          },
+          'default' => {
+            'value' => {
+              'fatal' => '25',
+              'critical' => '20',
+              'major' => '15',
+              'minor' => '10',
+              'warning' => '5',
             }
           }
         }
