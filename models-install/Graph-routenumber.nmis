@@ -41,14 +41,14 @@
 		'standard' => [
 			'DEF:top=$database:RouteNumber:AVERAGE',
 			'LINE1:top#0000ff:Number of Routes',
-			'GPRINT:top:AVERAGE:Avg Number of Routes %1.2lf',
-			'GPRINT:top:MAX:Max Number of Routes %1.2lf'
+			'GPRINT:top:AVERAGE:Avg %1.0lf',
+			'GPRINT:top:MAX:Max %1.0lf\\n'
 		],
 		'small' => [
 			'DEF:top=$database:RouteNumber:AVERAGE',
 			'LINE1:top#0000ff:Number of Routes',
-			'GPRINT:top:AVERAGE:Avg Number of Routes %1.2lf',
-			'GPRINT:top:MAX:Max Number of Routes %1.2lf'
+			'GPRINT:top:AVERAGE:Avg %1.0lf',
+			'GPRINT:top:MAX:Max %1.0lf\\n'
 		]
 	}
 );

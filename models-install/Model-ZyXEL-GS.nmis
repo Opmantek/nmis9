@@ -60,7 +60,8 @@
   					'oid' => '1.3.6.1.4.1.890.1.5.8.55.11.7.0'
   				},
           'TopChanges' => {
-            'oid' => 'dot1dStpTopChanges'
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
           },
   			},
   			'threshold' => 'cpu',

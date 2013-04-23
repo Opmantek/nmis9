@@ -44,21 +44,21 @@
 
 			'LINE1:laLoad1#0000ff:Load Average 1 Min',                        
 			'GPRINT:laLoad1:MIN:Minimum %1.2lf',
-			'GPRINT:laLoad1:AVERAGE:Average %1.2lf',
-			'GPRINT:laLoad1:MAX:Maximum %1.2lf\\n',
+			'GPRINT:laLoad1:AVERAGE:Avg %1.2lf',
+			'GPRINT:laLoad1:MAX:Max %1.2lf\\n',
 
 			'LINE1:laLoad5#00ff00:Load Average 5 Min',                        
 			'GPRINT:laLoad5:MIN:Minimum %1.2lf',
-			'GPRINT:laLoad5:AVERAGE:Average %1.2lf',
-			'GPRINT:laLoad5:MAX:Maximum %1.2lf\\n',
+			'GPRINT:laLoad5:AVERAGE:Avg %1.2lf',
+			'GPRINT:laLoad5:MAX:Max %1.2lf\\n',
 		],
 		'small' => [
 			'DEF:laLoad1=$database:laLoad1:AVERAGE',
 			'DEF:laLoad5=$database:laLoad5:AVERAGE',
 			'LINE1:laLoad1#0000ff:Load Average 1 Min',                        
-			'GPRINT:laLoad1:AVERAGE:Average %1.2lf\\n',
+			'GPRINT:laLoad1:AVERAGE:Avg %1.2lf\\n',
 			'LINE1:laLoad5#00ff00:Load Average 5 Min',                        
-			'GPRINT:laLoad5:AVERAGE:Average %1.2lf\\n',
+			'GPRINT:laLoad5:AVERAGE:Avg %1.2lf\\n',
 		]
 	}
 );

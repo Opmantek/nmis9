@@ -48,15 +48,14 @@
 			'CDEF:totalMemM=MemUsedM,MemFreeM,+',
 			'CDEF:perUsedMemM=MemUsedM,totalMemM,/,100,*',
 			'LINE2:perUsedMemD#0000ff:% Proc Mem Used',
-			'LINE2:perUsedMemM#00ff00:% IO Mem Used\\n',
-			'GPRINT:perUsedMemD:AVERAGE:Proc Mem Used %1.0lf %%',
-			'GPRINT:perUsedMemM:AVERAGE:IO Mem Used %1.0lf %%\\n',
-			'GPRINT:MemUsedD:AVERAGE:Proc Mem Used %1.0lf bytes',
+			'GPRINT:perUsedMemD:AVERAGE:Avg %4.0lf%%',
 			'GPRINT:MemFreeD:AVERAGE:Proc Mem Free %1.0lf bytes',
 			'GPRINT:totalMemD:AVERAGE:Total Proc Mem %1.0lf bytes\\n',
-			'GPRINT:MemUsedM:AVERAGE:IO Mem Used %1.0lf bytes',
+
+			'LINE2:perUsedMemM#00ff00:% IO Mem Used',
+			'GPRINT:perUsedMemM:AVERAGE:Avg %4.0lf%%',
 			'GPRINT:MemFreeM:AVERAGE:IO Mem Free %1.0lf bytes',
-			'GPRINT:totalMemM:AVERAGE:Total IO Mem %1.0lf bytes'
+			'GPRINT:totalMemM:AVERAGE:Total IO Mem %1.0lf bytes\\n'
 		],
 		'small' => [
 			'DEF:MemUsedD=$database:MemoryUsedPROC:AVERAGE',
@@ -68,7 +67,9 @@
 			'CDEF:totalMemM=MemUsedM,MemFreeM,+',
 			'CDEF:perUsedMemM=MemUsedM,totalMemM,/,100,*',
 			'LINE2:perUsedMemD#0000ff:% Proc Mem Used',
-			'LINE2:perUsedMemM#00ff00:% IO Mem Used\\n'
+			'GPRINT:perUsedMemD:AVERAGE:Avg %1.0lf%%',
+			'LINE2:perUsedMemM#00ff00:% IO Mem Used',
+			'GPRINT:perUsedMemM:AVERAGE:Avg %1.0lf%%\\n',
 		]
 	}
 );

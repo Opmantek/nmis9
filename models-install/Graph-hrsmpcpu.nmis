@@ -40,12 +40,15 @@
 	'option' => {
 		'standard' => [
 			'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
-			'LINE1:hrCpuLoad#0000ff:Cpu Load\\n',                        
-			'GPRINT:hrCpuLoad:MAX:Cpu Load %1.2lf'
+			'LINE1:hrCpuLoad#0000ff:CPU Load',                        
+			'GPRINT:hrCpuLoad:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:hrCpuLoad:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
-			'LINE1:hrCpuLoad#0000ff:Cpu Load\\n',                        
+			'LINE1:hrCpuLoad#0000ff:CPU Load',                        
+			'GPRINT:hrCpuLoad:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:hrCpuLoad:MAX:Max %1.2lf%%\\n'
 		]
 	}
 );

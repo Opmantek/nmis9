@@ -1315,6 +1315,10 @@ sub getIntfInfo {
 			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedIn} ne '') {
 				$IF->{$index}{nc_ifSpeedIn} = $IF->{$index}{ifSpeed}; # save
 				$IF->{$index}{ifSpeedIn} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedIn};
+
+				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{nc_ifSpeedIn};
+				$IF->{$index}{ifSpeed} = $IF->{$index}{ifSpeedIn};
+
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($IF->{$index}{ifSpeedIn});
 				dbg("Manual update of ifSpeedIn by nodeConf");
@@ -4522,7 +4526,7 @@ sub runEscalate {
 							if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
 									my $ct = "$type:$contact";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4761,7 +4765,7 @@ LABEL_ESC:
 
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -4844,7 +4848,7 @@ LABEL_ESC:
 							elsif ( $type eq "syslog" ) {
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4865,7 +4869,7 @@ LABEL_ESC:
 								}
 							} # end syslog
 							elsif ( $type eq "json" ) {
-								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+								if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -4901,7 +4905,7 @@ LABEL_ESC:
 											if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
 												# check if UpNotify is true, and save with this event
 												# and send all the up event notifies when the event is cleared.
-												if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /down|proactive|alert/i) {
+												if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
 													my $ct = "$type:$contact";
 													my @l = split(',',$ET->{$event_hash}{notify});
 													if (not grep { $_ eq $ct } @l ) {

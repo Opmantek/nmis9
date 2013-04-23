@@ -1114,14 +1114,21 @@ EO_HTML
 	my $editnode;
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") ) {
 		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=$NI->{system}{name}";
-		$editnode = qq| <a href="$url" id="cfg_nodes">Edit Node</a>|;
+		$editnode = qq| <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
 	}
+
+	my $editconf;
+	if ( $AU->CheckAccessCmd("table_nodeconf_view") ) {
+		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node=$NI->{system}{name}";
+		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
+	}
+	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.nmis&act=
 	
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
 	print start_table({class=>'dash'});
 	
-	print Tr(th({class=>'title', colspan=>'2'},"Node Details - $NI->{system}{name} - $editnode"));
+	print Tr(th({class=>'title', colspan=>'2'},"Node Details - $NI->{system}{name} - $editnode - $editconf"));
 	print start_Tr;
 	# first column
 	print td({valign=>'top'},table({class=>'dash'},
@@ -1223,7 +1230,7 @@ EO_HTML
 			#### now print it
 			foreach ( @pr ) {
 				print Tr(td({class=>'header'},$_->[0])),
-				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>"300",height=>"50") ));
+				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>"400",height=>"50") ));
 			}
 		} # end for
 	} else {

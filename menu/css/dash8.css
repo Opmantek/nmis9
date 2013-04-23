@@ -302,6 +302,12 @@ th.info {
     text-align: center;
 }
 
+.image {
+		/* SKIN: This is the "Image Background". */
+	  background-color: #ffffff;
+}
+
+
 /* these will overide the jd_menu defaults. */
 ul.jd_menu,
 ul.jd_menu ul,
