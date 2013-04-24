@@ -1,0 +1,7 @@
+%hash = (
+			Tenants => [
+				{ 'Name' => { header => 'Tenant Name',display => 'key,header,text', value => [ '' ] }},
+				{ 'Config' => { header => 'Config Name',display => 'header,text', value => [ '' ] }},
+			]
+);
+
