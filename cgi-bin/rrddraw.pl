@@ -205,7 +205,7 @@ sub rrdDraw {
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
-				"--color", 'FONT#000000',      # Font Color
+				"--color", 'FONT#222222',      # Font Color
 				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
 				"--color", 'FRAME#808080'      # Canvas Frame Color
 		);
@@ -384,7 +384,7 @@ sub rrdDraw {
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
-				"--color", 'FONT#000000',      # Font Color
+				"--color", 'FONT#222222',      # Font Color
 				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
 				"--color", 'FRAME#808080'      # Canvas Frame Color
 			);
@@ -519,7 +519,7 @@ sub rrdDraw {
 				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
 				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
 				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
-				"--color", 'FONT#000000',      # Font Color
+				"--color", 'FONT#222222',      # Font Color
 				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
 				"--color", 'FRAME#808080',      # Canvas Frame Color
 				"DEF:PrePolicyByte=$database:PrePolicyByte:AVERAGE", 
