@@ -881,7 +881,7 @@ EOHTML
 		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
 	}
 	
-	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;")));
+	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
 
 	print end_table;
 
@@ -1197,7 +1197,8 @@ sub loginout {
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
 			logAuth("DEBUG: invalid session ") if $debug;		
-			$self->do_login(msg=>"Session Expired or Invalid Session");
+			#$self->do_login(msg=>"Session Expired or Invalid Session");
+			$self->do_login(msg=>"");
 			return 0;
 		}
 

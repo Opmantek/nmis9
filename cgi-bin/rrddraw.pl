@@ -361,7 +361,7 @@ sub rrdDraw {
 			my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			my $vlabel = "Avg Bits per Second";
-			if ( $width < 400 ) { 
+			if ( $width <= 400 ) { 
 				$title = "$NI->{name} $ifDescr $direction - $CBQosNames->[0]";
 				$vlabel = "Avg bps";
 			} else { 
@@ -576,7 +576,7 @@ sub rrdDraw {
 		my $title;
 
 		my $device = ($intf eq "") ? "total" : $IF->{$intf}{ifDescr};
-		if ( $width < 400 ) { $title = "$NI->{name} Calls ".'$length'; }
+		if ( $width <= 400 ) { $title = "$NI->{name} Calls ".'$length'; }
 		else { $title = "$NI->{name} - $device - ".'$length from $datestamp_start to $datestamp_end'; }
 
 		# display Calls summarized or only one port
