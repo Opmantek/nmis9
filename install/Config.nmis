@@ -308,6 +308,8 @@
     'graph_width' => '700',
     'graph_split' => 'true',
     'win_width' => '835',
+    'small_graph_height' => '50',
+    'small_graph_width' => '400',
     'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
     'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
   },

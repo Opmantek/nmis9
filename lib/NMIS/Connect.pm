@@ -42,7 +42,6 @@ use CGI qw(:standard escape);
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
-use Time::HiRes qw(sleep);
 use func;
 
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);

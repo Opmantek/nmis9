@@ -100,10 +100,8 @@ sub processNode {
 			#asamSoftwareVersion1	OSWP/66.98.63.71/L6GPAA42.413/L6GPAA42.413
 			#asamSoftwareVersion2	OSWP/66.98.63.71/OSWPAA42.413/OSWPAA42.413
 
-			my $asamVersion41 = "OSWPAA37.432";
-			my $asamVersion41 = "OSWPAA41.353";
-			my $asamVersion42 = "OSWPAA41.363";
-			my $asamVersion42 = "OSWPAA42.413";
+			my $asamVersion41 = qr/OSWPAA41.353|OSWPAA37.432/;
+			my $asamVersion42 = qr/OSWPAA42.413|L6GPAA42.413/;
 			
 			my $rack_count = 1;
 			my $shelf_count = 1;
@@ -122,7 +120,7 @@ sub processNode {
 			
 			my @ifIndexNum = ();
 			#"Devices in release 4.1  (ARAM-D y ARAM-E)"
-			if( $asamSoftwareVersion eq $asamVersion41 ) {
+			if( $asamSoftwareVersion =~ /$asamVersion41/ ) {
 				# How to identify it is an ARAM-D?
 				#"For ARAM-D with extensions "
 				$version = 4.1;
@@ -137,7 +135,7 @@ sub processNode {
 				
 			}
 			#" release 4.2  ( ISAM FD y  ISAM-V) "
-			elsif( $asamSoftwareVersion eq $asamVersion42 )
+			elsif( $asamSoftwareVersion =~ /$asamVersion42/ )
 			{
 				$version = 4.2;
 				my $indexes = build_42_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
@@ -153,7 +151,7 @@ sub processNode {
 
 			foreach my $index (@ifIndexNum) {
 				$intfTotal++;				
-				my $ifDescr = "ATM $index";
+				my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
 				my $Description = getDescription(version => $version, ifIndex => $index);
 				
 				$S->{info}{interface}{$index} = {
@@ -458,6 +456,40 @@ sub decode_interface_index_41 {
 		print "XDSL Channel\n";
 	}
 
+}
+
+sub getIfDescr {
+	my %args = @_;
+	
+	my $oid_value 		= $args{ifIndex};	
+	my $prefix 		= $args{prefix};	
+	
+	if ( $args{version} eq "4.1" ) {
+		my $rack_mask 		= 0x70000000;
+		my $shelf_mask 		= 0x07000000;
+		my $slot_mask 		= 0x00FF0000;
+		my $level_mask 		= 0x0000F000;
+		my $circuit_mask 	= 0x00000FFF;
+	
+		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $level 	= ($oid_value & $level_mask) 		>> 12;
+		my $circuit = ($oid_value & $circuit_mask);
+		
+		return "$prefix-$rack-$shelf-$slot-$level-$circuit";
+	}
+	else {
+		my $slot_mask 		= 0xFC000000;
+		my $level_mask 		= 0x03C00000;	
+		my $circuit_mask 	= 0x001FE000;
+		
+	
+		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+		my $level 	= ($oid_value & $level_mask) 		>> 21;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+		return "$prefix-$slot-$level-$circuit";		
+	}
 }
 
 sub getDescription {

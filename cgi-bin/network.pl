@@ -95,6 +95,12 @@ elsif ( $Q->{refresh} eq "" and $widget eq "false" ) {
 my $nodewrap = "nowrap";
 $nodewrap = "wrap" if $C->{'wrap_node_names'} eq "true";
 
+my $smallGraphHeight = 50;
+my $smallGraphWidth = 400;
+
+$smallGraphHeight = $C->{'small_graph_height'} if $C->{'small_graph_height'} ne "";
+$smallGraphWidth = $C->{'small_graph_width'} if $C->{'small_graph_width'} ne "";
+
 # select function
 my $select;
 
@@ -1230,7 +1236,7 @@ EO_HTML
 			#### now print it
 			foreach ( @pr ) {
 				print Tr(td({class=>'header'},$_->[0])),
-				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>"400",height=>"50") ));
+				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>$smallGraphWidth,height=>$smallGraphHeight) ));
 			}
 		} # end for
 	} else {
@@ -1312,23 +1318,23 @@ sub viewInterface {
 	
 	if ($V->{interface}{"${intf}_collect_value"} eq 'true') {
 		print	Tr(td({class=>'header'},"Utilization")),
-		Tr(td({class=>'image'},htmlGraph(graphtype=>"autil",node=>$node,intf=>$intf,width=>"300",height=>"50") )),
+		Tr(td({class=>'image'},htmlGraph(graphtype=>"autil",node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) )),
 		Tr(td({class=>'header'},"Bits per second")),
-		Tr(td({class=>'image'},htmlGraph(graphtype=>"abits",node=>$node,intf=>$intf,width=>"300",height=>"50") ))
+		Tr(td({class=>'image'},htmlGraph(graphtype=>"abits",node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	if (exists $NI->{database}{'pkts_hc'}{$intf}) {
 		print Tr(td({class=>'header'},"Packets per second")),
-		Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>"300",height=>"50") ))
+		Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
 	if (exists $NI->{database}{'cbqos-in'}{$intf}) {
 		print Tr(td({class=>'header'},"CBQoS in")),
-		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-in',node=>$node,intf=>$intf,width=>"300",height=>"50") ))
+		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-in',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
 	if (exists $NI->{database}{'cbqos-out'}{$intf} ) {
 		print Tr(td({class=>'header'},"CBQoS out")),
-		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-out',node=>$node,intf=>$intf,width=>"300",height=>"50") ))
+		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-out',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
 	
@@ -1575,7 +1581,7 @@ sub viewActivePort {
 				});
 			}
 			if ( ($S->getDBName(graphtype=>$graphtype,index=>$intf,check=>'true') or $graphtype =~ /cbqos/)) {
-				push @out,td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$intf,width=>"300",height=>"50"));
+				push @out,td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight));
 			} else {
 				push @out,'no data available';
 			}
@@ -1622,7 +1628,7 @@ sub viewStorage {
 		print Tr(td({class=>'header'},'Type'),td({class=>'info Plain',width=>'40%'},$D->{hrStorageType}),
 		td({class=>'header'},$D->{hrStorageDescr}));
 		print Tr(td({class=>'header'},'Units'),td({class=>'info Plain'},$D->{hrStorageUnits}),
-		td({class=>'image',rowspan=>'5'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+		td({class=>'image',rowspan=>'5'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Size'),td({class=>'info Plain'},$D->{hrStorageSize}));
 		print Tr(td({class=>'header'},'Total'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageSize})));
 		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageUsed})));
@@ -1670,9 +1676,9 @@ sub viewService {
 			$color = colorPercentHi(100) if $V->{system}{"${service}_value"} eq "running";
 			$color = colorPercentHi(0) if $color eq "red";
 			
-			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,width=>"400",height=>"50");
+			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,width=>$smallGraphWidth,height=>$smallGraphHeight);
 			if ( $V->{system}{"${service}_cpumem"} eq "true" ) {
-				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,width=>"400",height=>"50");
+				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,width=>$smallGraphWidth,height=>$smallGraphHeight);
 			}
 			print Tr(
 				td({class=>'info Plain'},$service),
@@ -1786,7 +1792,7 @@ sub viewEnvironment {
 		print Tr(td({class=>'header'},'Sensor'),td({class=>'info Plain',width=>'40%'},($index+1)),
 		td({class=>'header'},$D->{tempDescr}));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{tempDescr}),
-		td({class=>'image',rowspan=>'2'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+		td({class=>'image',rowspan=>'2'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Temp. Type'),td({class=>'info Plain'},$D->{tempType}));
 		print end_Tr;
 	}
@@ -1797,7 +1803,7 @@ sub viewEnvironment {
 		print Tr(td({class=>'header'},'Sensor'),td({class=>'info Plain',width=>'40%'},($index+1)),
 		td({class=>'header'},$D->{hhmsSensorTempDescr}));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorTempDescr}),
-		td({class=>'image',rowspan=>'2'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+		td({class=>'image',rowspan=>'2'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Temp. Type'),td({class=>'info Plain'},$D->{hhmsSensorTempType}));
 		print end_Tr;
 	}
@@ -1808,7 +1814,7 @@ sub viewEnvironment {
 		print Tr(td({class=>'header'},'Sensor'),td({class=>'info Plain',width=>'40%'},($index+1)),
 		td({class=>'header'},$D->{hhmsSensorHumDescr}));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorHumDescr}),
-		td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+		td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print end_Tr;
 	}
 	print end_table;
@@ -1901,17 +1907,17 @@ sub viewSystemHealth {
 	
 			push(@cells, start_td);
 			foreach my $GT (@graphtypes) {
-				push(@cells,htmlGraph(graphtype=>$GT,node=>$node,intf=>$index,width=>"300",height=>"50")) if $GT;
+				push(@cells,htmlGraph(graphtype=>$GT,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)) if $GT;
 			}
 			push(@cells, end_td);
 		}
 
-		# push(@cells,td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50"))) if $graphtype;
+		# push(@cells,td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight))) if $graphtype;
 		my $row = join(" ",@cells);			
 		print Tr($row);
 
 		#print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorHumDescr}),
-		#td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+		#td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 	}
 	print end_table;
 	pageEnd() if ($widget eq "false");
@@ -1943,7 +1949,7 @@ sub viewCSSGroup {
 		my $D = $NI->{cssgroup}{$index};
 		print start_Tr;
 		print Tr(td({class=>'header'},  $D->{CSSGroupDesc}),
-				td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+				td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print end_Tr;
 	}
 
@@ -1977,7 +1983,7 @@ sub viewCSSContent {
 		my $D = $NI->{csscontent}{$index};
 		print start_Tr;
 		print Tr(td({class=>'header'},  $D->{CSSContentDesc}),
-				td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>"300",height=>"50")));
+				td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print end_Tr;
 	}
 

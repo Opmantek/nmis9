@@ -41,7 +41,6 @@ use lib "$FindBin::Bin/../lib";
 #
 require 5.008_000;
 
-use Time::HiRes;
 use strict;
 use csv;				# local
 use rrdfunc; 			# createRRD, updateRRD etc.

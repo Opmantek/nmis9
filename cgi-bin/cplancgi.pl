@@ -43,15 +43,13 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use web;
+#use web;
 use func;
 use csv;
 use NMIS;
 
 # NMIS Authentication module
-use NMIS::Users;
-use NMIS::Auth;
-use NMIS::Toolbar;
+use Auth;
 
 use CGI ':standard';
 use GD::Graph::area;
