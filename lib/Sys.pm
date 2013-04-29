@@ -490,7 +490,7 @@ sub getValues {
 		if ($class->{$sect}{control} ne "") {
 			dbg("control $class->{$sect}{control} found for section=$sect",2);
 			if ($self->parseString(string=>"($class->{$sect}{control}) ? 1:0",sys=>$self,index=>$index,type=>$sect,sect=>$sect) ne "1") {
-				dbg("collect of section $sect with index=$index skipped by control $class->{$sect}{control}");
+				dbg("collect of section $sect with index=$index skipped by control $class->{$sect}{control}",2);
 				next;
 			}
 		}
@@ -765,11 +765,16 @@ sub parseString {
 		if ($self->{info}) {
 			
 			# find custom variable VAR=oid;$CVAR=~/something/
-			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {				
-				$CVAR = $self->{info}{$sect}{$indx}{$1};
-				# put the brackets back in so we have "(check) ? 1:0" again
-				$str = "(".$2;
-				dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {
+				if ( defined $self->{info}{$sect}{$indx}{$1} and $self->{info}{$sect}{$indx}{$1} ne "" ) {
+					$CVAR = $self->{info}{$sect}{$indx}{$1};
+					# put the brackets back in so we have "(check) ? 1:0" again
+					$str = "(".$2;
+					dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+				}
+				else {
+					return undef;
+				}
 			}
 
 			$name = $self->{info}{system}{name};
@@ -789,7 +794,7 @@ sub parseString {
 				$ifMaxOctets = ($ifSpeed ne 'U') ? int($ifSpeed / 8) : 'U';
 				$maxBytes = ($ifSpeed ne 'U') ? int($ifSpeed / 4) : 'U';
 				$maxPackets = ($ifSpeed ne 'U') ? int($ifSpeed / 50) : 'U';
-				if ( defined $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} and $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} ne "" ) {
+				if ( defined $self->{info}{entPhysicalDescr} and $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} ne "" ) {
 					$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
 				}
 			} else {

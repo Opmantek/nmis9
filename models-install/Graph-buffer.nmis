@@ -43,23 +43,26 @@
 			'DEF:bufferElFree=$database:bufferElFree:AVERAGE',
 			'DEF:bufferElHit=$database:bufferElHit:AVERAGE',
 			'DEF:bufferFail=$database:bufferFail:AVERAGE',
-			'LINE2:bufferElFree#0000ff:Buffers Free',
-			'LINE2:bufferElHit#00ff00:Buffers Hit',
-			'LINE2:bufferFail#ff0000:Buffers Failed\\n',
-			'GPRINT:bufferElFree:AVERAGE:Avg Buffers Free %1.2lf',
-			'GPRINT:bufferElFree:MAX:Max Buffers Free %1.0lf',
-			'GPRINT:bufferElHit:AVERAGE:Avg Buffers Hit %1.2lf',
-			'GPRINT:bufferElHit:MAX:Max Buffers Hit %1.0lf',
-			'GPRINT:bufferFail:AVERAGE:Avg Buffers Fail %1.2lf',
-			'GPRINT:bufferFail:MAX:Max Buffers Fail %1.0lf'
+			'LINE2:bufferElFree#0000ff:Buffers Free\\t',
+			'GPRINT:bufferElFree:AVERAGE:Avg %8.1lf\\t',
+			'GPRINT:bufferElFree:MAX:Max %6.1lf\\n',
+			'LINE2:bufferElHit#00ff00:Buffers Hit\\t',
+			'GPRINT:bufferElHit:AVERAGE:Avg %8.1lf\\t',
+			'GPRINT:bufferElHit:MAX:Max %6.1lf\\n',
+			'LINE2:bufferFail#ff0000:Buffers Failed\\t',
+			'GPRINT:bufferFail:AVERAGE:Avg %8.1lf\\t',
+			'GPRINT:bufferFail:MAX:Max %6.1lf\\n'
 		],
 		'small' => [
 			'DEF:bufferElFree=$database:bufferElFree:AVERAGE',
 			'DEF:bufferElHit=$database:bufferElHit:AVERAGE',
 			'DEF:bufferFail=$database:bufferFail:AVERAGE',
 			'LINE2:bufferElFree#0000ff:Buffers Free',
+			'GPRINT:bufferElFree:AVERAGE:%6.2lf',
 			'LINE2:bufferElHit#00ff00:Buffers Hit',
-			'LINE2:bufferFail#ff0000:Buffers Failed\\n'
+			'GPRINT:bufferElHit:AVERAGE:%6.2lf',
+			'LINE2:bufferFail#ff0000:Buffers Failed',
+			'GPRINT:bufferFail:AVERAGE:%6.2lf\\n',
 		]
 	}
 );

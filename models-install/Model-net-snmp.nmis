@@ -56,7 +56,7 @@
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrvmem',
     'sys' => {
       'standard' => {        
         'snmp' => {
@@ -113,6 +113,16 @@
               'test' => '$r > 100',
               'event' => 'High TCP Connection Count',
               'unit' => 'connections',
+              'level' => 'Warning'
+            }
+          },
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses',
+            'title' => 'System Processes',
+            'alert' => {
+              'test' => '$r > 125',
+              'event' => 'High Number of System Processes',
+              'unit' => 'processes',
               'level' => 'Warning'
             }
           }
@@ -180,6 +190,7 @@
       },
       'systemStats' => {        
         'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
+        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
         'snmp' => {
           'ssCpuRawUser' => {
             'oid' => 'ssCpuRawUser',
@@ -340,7 +351,7 @@
         'type' => 'test',
         'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
         'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1',
-        'unit' => 'bytes',
+        'unit' => 'KBytes',
         'element' => 'hrSWRunName',
         'event' => 'High Process Memory Usage',
         'level' => 'Warning'
@@ -362,7 +373,7 @@
         'element' => 'hrStorageDescr',
         'unit' => '%',
         'event' => 'High Disk Usage',
-        'level' => 'Warning',
+        'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
       },
       'HighMemoryUsage' => {
@@ -380,7 +391,7 @@
         'element' => 'hrStorageDescr',
         'unit' => '%',
         'event' => 'High Memory Usage',
-        'level' => 'Warning',
+        'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
       }
     }
@@ -424,7 +435,7 @@
     },
     'rrd' => {
       'diskIOTable' => {
-        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk/',
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\-/',
         'indexed' => 'true',
         'graphtype' => 'diskio-rw,diskio-rwbytes',
         'snmp' => {
@@ -443,7 +454,7 @@
             'option' => 'counter,0:U',
             'title' => 'The number of read accesses from this device since boot'
           },
-           'diskIOWrites' => {
+          'diskIOWrites' => {
             'oid' => 'diskIOWrites',
             'option' => 'counter,0:U',
             'title' => 'The number of write accesses to this device since boot'
@@ -571,6 +582,93 @@
         },
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+      'pkts_hc' => {
+        'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'snmp' => {
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          }
+        }
       }
     },
     'noevent' => {

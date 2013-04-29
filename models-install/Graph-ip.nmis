@@ -47,16 +47,17 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
-			'AREA:ipInReceivesSplit#4daef6:IP Packets Received',
-			'LINE1:ipInDeliversSplit#000000:IP Packets Local',
-			'AREA:ipForwDatagrams#00ff00:IP Packets Forwarded\\n',
+			'AREA:ipForwDatagrams#00ff00:IP Packets Forwarded',
+			'GPRINT:ipForwDatagrams:AVERAGE:Avg %1.0lf',
+			'GPRINT:ipForwDatagrams:MAX:Max %1.0lf\\n',
 
-			'GPRINT:ipInReceives:AVERAGE:Avg Received %1.2lf',
-			'GPRINT:ipInDelivers:AVERAGE:Avg Local %1.2lf',
-			'GPRINT:ipForwDatagrams:AVERAGE:Avg Forwarded %1.2lf\\n',
-			'GPRINT:ipInReceives:MAX:Max Received %1.2lf',
-			'GPRINT:ipInDelivers:MAX:Max Local %1.2lf',
-			'GPRINT:ipForwDatagrams:MAX:Max Forwarded %1.2lf\\n',
+			'AREA:ipInReceivesSplit#4daef6:IP Packets Received',
+			'GPRINT:ipInReceives:AVERAGE:Avg %1.0lf',
+			'GPRINT:ipInReceives:MAX:Max %1.0lf\\n',
+			
+			'LINE1:ipInDeliversSplit#000000:IP Packets Local',
+			'GPRINT:ipInDelivers:AVERAGE:Avg %1.0lf',
+			'GPRINT:ipInDelivers:MAX:Max %1.0lf\\n',
 		],
 		'small' => [
 			'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
@@ -66,37 +67,12 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
+			'AREA:ipForwDatagrams#00ff00:IP Forwarded',
+			'GPRINT:ipForwDatagrams:AVERAGE:Avg %1.0lf',
 			'AREA:ipInReceivesSplit#4daef6:IP Received',
+			'GPRINT:ipInReceives:AVERAGE:Avg %1.0lf',
 			'LINE1:ipInDeliversSplit#000000:IP Local',
-			'AREA:ipForwDatagrams#00ff00:IP Forwarded\\n',
+			'GPRINT:ipInDelivers:AVERAGE:Avg %1.0lf\\n',
 		]
-		#'standard' => [
-		#	'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
-		#	'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
-		#	'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
-		#	'DEF:ipOutNoRoutes=$database:ipOutNoRoutes:AVERAGE',
-		#	'AREA:ipInReceives#cccccc:IP Packets Received',
-		#	'LINE1:ipForwDatagrams#0000ff:IP Packets Forwarded',
-		#	'STACK:ipInDelivers#000000:IP Packets Local',
-		#	'LINE2:ipOutNoRoutes#ff0000:IP No Routes',
-		#	'GPRINT:ipInReceives:AVERAGE:Avg Received %1.2lf',
-		#	'GPRINT:ipInReceives:MAX:Max Received %1.2lf',
-		#	'GPRINT:ipForwDatagrams:AVERAGE:Avg Forwarded %1.2lf',
-		#	'GPRINT:ipForwDatagrams:MAX:Max Forwarded %1.2lf',
-		#	'GPRINT:ipInDelivers:AVERAGE:Avg Local %1.2lf',
-		#	'GPRINT:ipInDelivers:MAX:Max Local %1.2lf',
-		#	'GPRINT:ipOutNoRoutes:AVERAGE:Avg No Routes %1.2lf',
-		#	'GPRINT:ipOutNoRoutes:MAX:Max No Routes %1.2lf'
-		#],
-		#'small' => [
-		#	'DEF:ipInReceives=$database:ipInReceives:AVERAGE',
-		#	'DEF:ipForwDatagrams=$database:ipForwDatagrams:AVERAGE',
-		#	'DEF:ipInDelivers=$database:ipInDelivers:AVERAGE',
-		#	'DEF:ipOutNoRoutes=$database:ipOutNoRoutes:AVERAGE',
-		#	'AREA:ipInReceives#cccccc:IP Packets Received',
-		#	'LINE1:ipForwDatagrams#0000ff:IP Packets Forwarded',
-		#	'STACK:ipInDelivers#000000:IP Packets Local',
-		#	'LINE2:ipOutNoRoutes#ff0000:IP No Routes'
-		#]
 	}
 );

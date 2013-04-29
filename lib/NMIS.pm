@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.3.22G";
+$VERSION = "8.3.24G";
 
 @ISA = qw(Exporter);
 
@@ -145,6 +145,7 @@ $VERSION = "8.3.22G";
 		createHrButtons
 		loadPortalCode
 		loadServerCode
+		loadTenantCode
 		
 		startNmisPage
 		pageStart
@@ -2529,18 +2530,19 @@ sub dutyTime {
 	if ( $$table{$contact}{DutyTime} ) {
 	    # dutytime has some values, so assume TZ offset to localtime has as well
 		my @ltime = localtime( time() + ($$table{$contact}{TimeZone}*60*60));
-		if ($NMIS::debug) { printf "\tUsing corrected time %s for Contact:$contact, localtime:%s, offset:$$table{$contact}{TimeZone}\n", scalar localtime(time()+($$table{$contact}{TimeZone}*60*60)), scalar localtime();}
+		my $out = sprintf("Using corrected time %s for Contact:$contact, localtime:%s, offset:$$table{$contact}{TimeZone}", scalar localtime(time()+($$table{$contact}{TimeZone}*60*60)), scalar localtime());
+		dbg($out);
 
 		( $start_time, $finish_time, $days) = split /:/, $$table{$contact}{DutyTime}, 3;
 		$today = ("Sun","Mon","Tue","Wed","Thu","Fri","Sat")[$ltime[6]];
 		if ( $days =~ /$today/i ) {
 			if ( $ltime[2] >= $start_time && $ltime[2] < $finish_time ) {
-				if ($NMIS::debug) { print "\treturning success on dutytime test for $contact\n";}
+				dbg("returning success on dutytime test for $contact");
 				return 1;
 			}
 			elsif ( $finish_time < $start_time ) { 
 				if ( $ltime[2] >= $start_time || $ltime[2] < $finish_time ) {
-					if ($NMIS::debug) { print "\treturning success on dutytime test for $contact\n";}
+					dbg("returning success on dutytime test for $contact");
 					return 1;
 				}
 			}
@@ -2548,11 +2550,11 @@ sub dutyTime {
 	}
 	# dutytime blank or undefined so treat as 24x7 days a week..
 	else {
-		if ($NMIS::debug) { print "\tNo dutytime defined - returning success assuming $contact is 24x7\n";}
+		dbg("No dutytime defined - returning success assuming $contact is 24x7");
 		return 1;
 	}
-	if ($NMIS::debug) { print "\treturning fail on dutytime test for $contact\n";}
-	return;		# dutytime was valid, but no timezone match, return false.
+	dbg("returning fail on dutytime test for $contact");
+	return 0;		# dutytime was valid, but no timezone match, return false.
 }
 
 
@@ -2802,7 +2804,7 @@ sub loadServerCode {
 		foreach my $s ( sort {$ST->{$a}{name} cmp $ST->{$b}{name}} keys %{$ST} ) {
 			# If the link is part of NMIS, append the config
 			
-			$serverOption .= qq|<option value="$ST->{$s}{portal_protocol}://$ST->{$s}{portal_host}:$ST->{$s}{portal_port}$ST->{$s}{cgi_url_base}/nmiscgi.pl">$ST->{$s}{name}</option>\n|;
+			$serverOption .= qq|<option value="$ST->{$s}{portal_protocol}://$ST->{$s}{portal_host}:$ST->{$s}{portal_port}$ST->{$s}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$s}{config}">$ST->{$s}{name}</option>\n|;
 		}
 		
 		
@@ -2817,6 +2819,42 @@ sub loadServerCode {
 		
 	}
 	return $serverCode;
+}
+
+sub loadTenantCode {
+	my %args = @_;
+	my $conf = $args{conf};
+	my $C = $main::C;
+	
+	$conf = $C->{'conf'} if not $conf;
+	
+	my $tenantCode;
+	if  ( -f "$C->{'<nmis_conf>'}/Tenants.nmis" ) {
+		# portal menu of nodes or clients to link to.
+		my $MT = loadTable(dir=>'conf',name=>"Tenants");
+		
+		my $tenantOption;
+		
+		$tenantOption .= qq|<option value="$ENV{SCRIPT_NAME}" selected="NMIS Tenants">NMIS Tenants</option>\n|;
+		
+		foreach my $t ( sort {$MT->{$a}{Name} cmp $MT->{$b}{Name}} keys %{$MT} ) {
+			# If the link is part of NMIS, append the config
+			
+			$tenantOption .= qq|<option value="?conf=$MT->{$t}{Config}">$MT->{$t}{Name}</option>\n|;
+		}
+		
+		
+		$tenantCode = qq|
+				<div class="left"> 
+					<form id="serverSelect">
+						<select name="serverOption" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
+							$tenantOption
+						</select>
+					</form>
+				</div>|;
+		
+	}
+	return $tenantCode;
 }
 
 sub startNmisPage {

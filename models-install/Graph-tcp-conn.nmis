@@ -49,25 +49,24 @@
 			'DEF:tcpCurrEstab=$database:tcpCurrEstab:AVERAGE',
 
 			'LINE1:tcpActiveOpens#00ff00:Active Opens',
+			'GPRINT:tcpActiveOpens:AVERAGE:Avg %1.2lf',
+			'GPRINT:tcpActiveOpens:MAX:Max %1.2lf\\n',
+
 			'LINE1:tcpPassiveOpens#0000ff:Passive Opens',
+			'GPRINT:tcpPassiveOpens:AVERAGE:Avg %1.2lf',
+			'GPRINT:tcpPassiveOpens:MAX:Max %1.2lf\\n',
+
 			'LINE1:tcpAttemptFails#ff0000:Attempt Fails',
+			'GPRINT:tcpAttemptFails:AVERAGE:Avg %1.2lf',
+			'GPRINT:tcpAttemptFails:MAX:Max %1.2lf\\n',
+
 			'LINE1:tcpEstabResets#ffff00:Established Resets',
+			'GPRINT:tcpEstabResets:AVERAGE:Avg %1.2lf',
+			'GPRINT:tcpEstabResets:MAX:Max %1.2lf\\n',
+
 			'LINE1:tcpCurrEstab#000000:Current Established',
-
-			#'AREA:ipInReceives#cccccc:IP Packets Received',
-			#'STACK:ipInDelivers#000000:IP Packets Local',
-
-			'GPRINT:tcpActiveOpens:AVERAGE:Avg Active Opens %1.2lf',
-			'GPRINT:tcpPassiveOpens:AVERAGE:Avg Passive Opens %1.2lf',
-			'GPRINT:tcpAttemptFails:AVERAGE:Avg Attempt Fails %1.2lf',
-			'GPRINT:tcpEstabResets:AVERAGE:Avg Established Resets %1.2lf\\n',
-
-			'GPRINT:tcpActiveOpens:MAX:Max Active Opens %1.2lf',
-			'GPRINT:tcpPassiveOpens:MAX:Max Passive Opens %1.2lf',
-			'GPRINT:tcpAttemptFails:MAX:Max Attempt Fails %1.2lf',
-			'GPRINT:tcpEstabResets:MAX:Max Established Resets %1.2lf',
-
-			'GPRINT:tcpCurrEstab:AVERAGE:Avg Current Established %1.2lf',
+			'GPRINT:tcpCurrEstab:AVERAGE:Avg %1.2lf',
+			'GPRINT:tcpCurrEstab:MAX:Max %1.2lf\\n',
 		],
 		'small' => [
 			'DEF:tcpActiveOpens=$database:tcpActiveOpens:AVERAGE',
@@ -78,8 +77,9 @@
 			'LINE1:tcpActiveOpens#00ff00:Active Opens',
 			'LINE1:tcpPassiveOpens#0000ff:Passive Opens',
 			'LINE1:tcpAttemptFails#ff0000:Attempt Fails',
-			'LINE1:tcpEstabResets#ffff00:Established Resets',
+			'LINE1:tcpEstabResets#ffff00:Established Resets\\n',
 			'LINE1:tcpCurrEstab#000000:Current Established',
+			'GPRINT:tcpCurrEstab:AVERAGE:Avg %4.0lf\\n',
 		]
 	}
 );

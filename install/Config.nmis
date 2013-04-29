@@ -114,7 +114,9 @@
     'snmp_stop_polling_on_error' => 'true',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
+    'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',
+    'network_health_view' => 'Group',
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
   },
   'url' => {
@@ -234,6 +236,7 @@
     'auth_ms_ldap_debug' => 'false',
   },
   'master_slave' => {
+    'nmis_master_poll_cycle' => 'false',
     'server_master' => 'false',
     'master_dash' => 'false',
     'master_report' => 'false',
@@ -304,7 +307,9 @@
     'graph_factor' => '2',
     'graph_width' => '700',
     'graph_split' => 'true',
-    'win_width' => '835'
+    'win_width' => '835',
+    'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
+    'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
   },
   'tables NMIS4' => {
     'Users_Key' => 'user',

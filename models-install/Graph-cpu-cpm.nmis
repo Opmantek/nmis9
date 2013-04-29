@@ -40,16 +40,16 @@
 	'option' => {
 		'standard' => [
 			'--upper-limit','100',
-                        '--lower-limit','0',
-                        '--rigid',
+			'--lower-limit','0',
+			'--rigid',
 			'DEF:cpmCPUTotal1min=$database:cpmCPUTotal1min:AVERAGE',
 			'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
 			'LINE1:cpmCPUTotal1min#00ff00:CPU Total 1min',
-			'GPRINT:cpmCPUTotal1min:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:cpmCPUTotal1min:MAX:Max %1.2lf %%\\n',
+			'GPRINT:cpmCPUTotal1min:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:cpmCPUTotal1min:MAX:Max %1.2lf%%\\n',
 			'LINE1:cpmCPUTotal5min#0000ff:CPU Total 5min',
-			'GPRINT:cpmCPUTotal5min:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:cpmCPUTotal5min:MAX:Max %1.2lf %%\\n'
+			'GPRINT:cpmCPUTotal5min:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:cpmCPUTotal5min:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
 			'DEF:cpmCPUTotal1min=$database:cpmCPUTotal1min:AVERAGE',

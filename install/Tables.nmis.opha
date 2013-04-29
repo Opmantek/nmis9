@@ -71,11 +71,23 @@
     'DisplayName' => 'Privilege Map',
     'Table' => 'PrivMap'
   },
+  'SampleTable' => {
+    'CaseSensitiveKey' => 'false',
+    'Description' => 'A sample table for documentation.',
+    'DisplayName' => 'Sample Table',
+    'Table' => 'SampleTable'
+  },
   'ServiceStatus' => {
     'CaseSensitiveKey' => 'true',
     'Description' => 'The current lifecycle service status of the nodes',
     'DisplayName' => 'Service Status',
     'Table' => 'ServiceStatus'
+  },
+  'Servers' => {
+    'CaseSensitiveKey' => 'false',
+    'Description' => 'Servers to be used for Master/Slave opHA.',
+    'DisplayName' => 'Servers',
+    'Table' => 'Servers'
   },
   'Services' => {
     'CaseSensitiveKey' => 'false',
@@ -88,6 +100,12 @@
     'Description' => 'The master list of all tables being used in NMIS',
     'DisplayName' => 'Tables',
     'Table' => 'Tables'
+  },
+  'Tenants' => {
+    'CaseSensitiveKey' => 'true',
+    'Description' => 'A list of all the tenants on this NMIS servers',
+    'DisplayName' => 'Tenants',
+    'Table' => 'Tenants'
   },
   'Toolset' => {
     'CaseSensitiveKey' => 'false',

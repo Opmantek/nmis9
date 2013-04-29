@@ -41,17 +41,21 @@
 		'standard' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#000000:Average Memory Size',
-			'AREA:hrMemUsed#00FFFF:Average Memory Used\\n',
+			'LINE1:hrMemSize#000000:Memory Size',
+			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
+			'AREA:hrMemUsed#00FFFF:Average Memory Used',
 			'GPRINT:hrMemUsed:MIN:Min Mem Used %1.3lf %sb',
 			'GPRINT:hrMemUsed:AVERAGE:Avg Mem Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Mem Used %1.3lf %Sb'
+			'GPRINT:hrMemUsed:MAX:Max Mem Used %1.3lf %Sb\\n'
 		],
 		'small' => [
 			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
 			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#000000:Avg Memory Size',
-			'AREA:hrMemUsed#00FFFF:Avg Memory Used'
+			'LINE1:hrMemSize#000000:Memory Size',
+			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
+			'AREA:hrMemUsed#00FFFF:Avg Memory Used',
+			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]
 	}
 );

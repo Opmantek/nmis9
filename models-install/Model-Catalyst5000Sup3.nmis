@@ -194,7 +194,8 @@
             'oid' => 'ciscoMemoryPoolUsed.9'
           },
           'TopChanges' => {
-            'oid' => 'dot1dStpTopChanges'
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
           },
           'MemoryFreeIO' => {
             'oid' => 'ciscoMemoryPoolFree.2'

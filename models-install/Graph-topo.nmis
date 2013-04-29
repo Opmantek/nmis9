@@ -41,14 +41,14 @@
 		'standard' => [
 			'DEF:top=$database:TopChanges:AVERAGE',
 			'LINE1:top#0000ff:Number Changes',
-			'GPRINT:top:AVERAGE:Avg Topo Changes %1.2lf',
-			'GPRINT:top:MAX:Max Topo Changes %1.2lf'
+			'GPRINT:top:AVERAGE:Avg %1.0lf',
+			'GPRINT:top:MAX:Max %1.0lf\\n'
 		],
 		'small' => [
 			'DEF:top=$database:TopChanges:AVERAGE',
 			'LINE1:top#0000ff:Number Changes',
-			'GPRINT:top:AVERAGE:Avg Topo Changes %1.2lf',
-			'GPRINT:top:MAX:Max Topo Changes %1.2lf'
+			'GPRINT:top:AVERAGE:Avg %1.0lf',
+			'GPRINT:top:MAX:Max %1.0lf\\n'
 		]
 	}
 );

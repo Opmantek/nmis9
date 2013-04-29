@@ -770,7 +770,7 @@
     'name' => 'Table_Contacts_view'
   },
   'table_customers_rw' => {
-    'descr' => 'Write access to table Customers',
+    'descr' => 'View access to table $table',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
@@ -778,18 +778,18 @@
     'level3' => '0',
     'level4' => '0',
     'level5' => '0',
-    'name' => 'Table_businessservices_rw'
+    'name' => 'Table_Customers_rw'
   },
   'table_customers_view' => {
-    'descr' => 'View access to table Customers',
+    'descr' => 'Read/write access to table $table',
     'group' => 'access',
     'level0' => '1',
     'level1' => '1',
     'level2' => '1',
-    'level3' => '0',
-    'level4' => '1',
+    'level3' => '1',
+    'level4' => '0',
     'level5' => '0',
-    'name' => 'Table_businessservices_view'
+    'name' => 'Table_Customers_view'
   },
   'table_enterprise_rw' => {
     'descr' => 'View access to table $table',
@@ -1055,6 +1055,28 @@
     'level5' => '0',
     'name' => 'Table_PrivMap_view'
   },
+  'table_sampletable_rw' => {
+    'descr' => 'View access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_SampleTable_rw'
+  },
+  'table_sampletable_view' => {
+    'descr' => 'Read/write access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_SampleTable_view'
+  },
   'table_services_rw' => {
     'descr' => 'Write access to table Services',
     'group' => 'access',
@@ -1076,6 +1098,28 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Services_view'
+  },
+  'table_servers_rw' => {
+    'descr' => 'View access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Servers_rw'
+  },
+  'table_servers_view' => {
+    'descr' => 'Read/write access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Servers_view'
   },
   'table_servicestatus_rw' => {
     'descr' => 'Write access to table Service Status',
@@ -1120,6 +1164,28 @@
     'level4' => '0',
     'level5' => '0',
     'name' => 'Table_Tables_view'
+  },
+  'table_tenants_rw' => {
+    'descr' => 'View access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Tenants_rw'
+  },
+  'table_tenants_view' => {
+    'descr' => 'Read/write access to table $table',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Tenants_view'
   },
   'table_toolset_rw' => {
     'descr' => 'Write access to table Toolset',
