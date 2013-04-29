@@ -110,6 +110,9 @@
         '25' => {
           'Catalyst4000' => 'WS-C4'
         },
+        '28' => {
+          'CiscoDSL' => 'IOS \(tm\) \w+ Software \(\w+-DSL'
+        },
         '30' => {
           'CiscoRouter' => 'C1900-UNIVERSAL|C2900-UNIVERSAL'
         },

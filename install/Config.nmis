@@ -221,6 +221,7 @@
     'auth_radius_server' => '',
     'auth_expire' => '+30min',
     'auth_login_title' => 'NMIS8 login',
+    'auth_login_motd' => 'Authentication required: Please log in with your appropriate username and password in order to gain access to this system',
     'auth_banner_title' => 'NMIS8',
     'auth_buttons_visible' => 'true',
     'auth_ldaps_server' => '',

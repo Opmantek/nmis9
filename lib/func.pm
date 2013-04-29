@@ -348,6 +348,7 @@ sub convertSecsHours {
 	my $seconds2;
 
 	if ($seconds < 60) {
+		$seconds =~ s/(^[0-9]$)/0$1/g;
 		$timestamp = "00:00:$seconds";
 	}# Print Seconds
 	elsif ($seconds < 3600) {

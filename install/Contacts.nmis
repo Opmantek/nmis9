@@ -2,7 +2,8 @@
   'contact1' => {
     'Contact' => 'Contact1',
     'Phone' => '',
-    'DutyTime' => '06:24:MonTueWedThuFri',
+    'DutyTime' => '06:20:MonTueWedThuFri',
+    'Level' => '(Fatal|Critical|Major|Minor|Warning|Normal)',
     'TimeZone' => '0',
     'Pager' => '',
     'Mobile' => '5555551234',

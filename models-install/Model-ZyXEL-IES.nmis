@@ -182,46 +182,46 @@
       },
   	},
   },
-  'environment' => {
-    'sys' => {
-      'env_temp' => {
-        'snmp' => {
-          'tempDescr' => {
-  					'replace' => {
-  						'1' => 'mac',
-  						'2' => 'cpu',
-  						'3' => 'phy',
-  					},
-  					'snmpObject' => 'iesSysTempIndex',
-            'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.1',
-            'title' => 'Descr.'
-          },
-          'tempStatus' => {
-            'snmpObject' => 'iesSysTempDescr',
-            'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.6',
-            'title' => 'Status'
-          }
-        },
-        'indexed' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.1'
-      }
-    },
-    'rrd' => {
-      'env_temp' => {
-        'snmp' => {
-          'currentTemp' => {
-            'snmpObject' => 'iesSysTempCurValue',
-            'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.2',
-            #'calculate' => '${r}*0.1'
-          }
-        },
-        'indexed' => 'true',
-        'threshold' => 'env_temp',
-        'graphtype' => 'env-temp'
-      },
-    }
-  },
+  #'environment' => {
+  #  'sys' => {
+  #    'env_temp' => {
+  #      'snmp' => {
+  #        'tempDescr' => {
+  ##					'replace' => {
+  #						'1' => 'mac',
+  #						'2' => 'cpu',
+  #						'3' => 'phy',
+  #					},
+  #					'snmpObject' => 'iesSysTempIndex',
+  #          'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.1',
+  #          'title' => 'Descr.'
+  #        },
+  #        'tempStatus' => {
+  #          'snmpObject' => 'iesSysTempDescr',
+  #          'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.6',
+  #          'title' => 'Status'
+  #        }
+  #      },
+  #      'indexed' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.1'
+  #    }
+  #  },
+  #  'rrd' => {
+  #    'env_temp' => {
+  #      'snmp' => {
+  #        'currentTemp' => {
+  #          'snmpObject' => 'iesSysTempCurValue',
+  #          'oid' => '1.3.6.1.4.1.890.1.5.13.1.2.3.1.2',
+  #          #'calculate' => '${r}*0.1'
+  #        }
+  #      },
+  #      'indexed' => 'true',
+  #      'threshold' => 'env_temp',
+  #      'graphtype' => 'env-temp'
+  #    },
+  #  }
+  #},
   'interface' => {
-  	'sys' => {
+    'sys' => {
   		'standard' => {
   			'snmp' => {
   				'ifOperStatus' => {
@@ -496,7 +496,7 @@
   	},
   	'nocollect' => {
   		'ifOperStatus' => 'null',
-  		'ifDescr' => '^sub[0-9]$|Management port',
+  		'ifDescr' => '^sub[0-9]$|Management port|slot \d+ virtual interface',
   		'Description' => '^#',
   		'noDescription' => 'true',
   		'ifType' => 'adsl|shdsl|atm'

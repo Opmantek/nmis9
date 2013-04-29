@@ -224,6 +224,16 @@ td.info {
 		max-width: 10em;
 }
 
+td.infolft {
+		font-size: 0.9em;
+		border: 1px solid #999999;
+		padding: 0.5em;
+		text-align: left;
+		white-space: wrap;
+		min-width: 5em;
+		max-width: 10em;
+}
+
 th.info {
 		font-size: 0.9em;
 		border: 1px solid #999999;
@@ -291,7 +301,23 @@ th.info {
 
 .lrg {
 	  font-size: 1.5em;
-		font-weight: bolder;
+		font-weight: bold;
+}
+
+.med {
+	font-size: 0.9em;
+}
+
+.title2 {
+	padding: 0.3em;
+	font-size: 1.2em;
+	text-align:center;
+	border-bottom: none;
+	width: 100%;
+	font-weight: bold;
+	/* SKIN: This is the "Table Title". #606060 */
+	color: white;
+	background-color: #606060;
 }
 
 .inline {

@@ -4752,6 +4752,8 @@ LABEL_ESC:
 							$type = shift @x;			# first entry is email, ccopy, netsend or pager
 							if ( $type =~ /email|ccopy|pager/ ) {
 								foreach $contact (@x) {
+									my $contactLevelSend = 0;
+									my $contactDutyTime = 0;
 									# if sysContact, use device syscontact as key into the contacts table hash
 									if ( $contact eq "syscontact") {
 										if ($NI->{sysContact} ne '') {
@@ -4775,11 +4777,32 @@ LABEL_ESC:
 
 									if ( exists $CT->{$contact} ) {	
 										if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
+											$contactDutyTime = 1;
+											
+											# Duty Time is OK check level match
+											if ( $CT->{$contact}{Level} eq "" ) {
+												dbg("SEND Contact $contact no filtering by Level defined");
+												$contactLevelSend = 1;
+											}
+											elsif ( $ET->{$event_hash}{level} =~ /$CT->{$contact}{Level}/i ) {
+												dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $ET->{$event_hash}{level}");
+												$contactLevelSend = 1;
+											}
+											elsif ( $ET->{$event_hash}{level} !~ /$CT->{$contact}{Level}/i ) {
+												dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $ET->{$event_hash}{level}");
+												$contactLevelSend = 0;
+											}
+										}
+
+										if ( $contactDutyTime and $contactLevelSend ) {
 											if ($type eq "pager") {
 												$target = $target ? $target.",".$CT->{$contact}{Pager} : $CT->{$contact}{Pager};
 											} else {
 												$target = $target ? $target.",".$CT->{$contact}{Email} : $CT->{$contact}{Email};
 											}
+										}
+										else {
+											dbg("STOP Contact duty time: $contactDutyTime, contact level: $contactLevelSend");
 										}
 									}
 									else {
@@ -4814,6 +4837,9 @@ LABEL_ESC:
 											
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
 											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\n$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n\n";
+
+											#$ET->{$event_hash}{level}
+											
 											if ($C->{mail_combine} eq "true" ) {
 												$msgTable{$type}{$trgt}{$serial}{count}++;
 												$msgTable{$type}{$trgt}{$serial}{subject} = "NMIS Escalation Message, contains $msgTable{$type}{$trgt}{$serial}{count} message(s), $msgtime";

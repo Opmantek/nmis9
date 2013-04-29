@@ -869,13 +869,20 @@ EOHTML
 	print start_form({method=>"POST", action=>"?", target=>"_top"});
 
 	print start_table({class=>""});
-	print Tr(th({class=>'header',colspan=>'2'},"Authentication required"));
 
-	print Tr(td({class=>'info Plain',colspan=>'2'},"Please log in with your appropriate username and password in order to gain access to this system"));
+	if ( $C->{'company_logo'} ne "" ) {
+		print Tr(td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$C->{'company_logo'}"/>|));
+	}
+
+	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
+	$motd = $C->{auth_login_motd} if $C->{auth_login_motd} ne "";
+	
+	print Tr(td({class=>'infolft Plain',colspan=>'2'},$motd));
 	
 	print Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'})));
 	print Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
 	print Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
+		
 		
 	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com" ) {
 		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
@@ -1033,9 +1040,9 @@ sub do_login_banner {
 	my $self = shift;
 	my @banner = ();
 	
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;
-
-	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg'},$logo, "NMIS Network Management Information System");
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;	
+	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg pad'},$logo, "NMIS $NMIS::VERSION");
+	push @banner,div({class=>'title2'},"Network Management Information System");
 		
 	return @banner;
 }
