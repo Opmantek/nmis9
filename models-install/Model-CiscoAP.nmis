@@ -63,7 +63,7 @@
     'nodeType' => 'switch',
     'nbarpd_check' => 'true',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,ip,mem-router,mem-proc,mem-io'
+    'nodegraph' => 'health,response,cpu,ip,mem-router,mem-proc,mem-io',
     'rrd' => {
       'nodehealth' => {
         'snmp' => {

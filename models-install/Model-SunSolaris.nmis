@@ -54,7 +54,7 @@
   },
   'system' => {
     'nodeType' => 'server',
-    'nodeVendor' => 'Sun Microsystems'
+    'nodeVendor' => 'Sun Microsystems',
     'nodeModel' => 'SunSolaris',
     'nodegraph' => 'health,response',
     'sys' => {
