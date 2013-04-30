@@ -2,7 +2,7 @@
   'modules' => {
     '<opmantek_base>' => '/usr/local/opmantek',
     'display_opmaps_widget' => 'true',
-    'display_opflow_widget' => 'true',
+    'display_opflow_widget' => 'false',
     'opmaps_widget_width' => '750',
     'opmaps_widget_height' => '450',
     'opflow_widget_width' => '750',
