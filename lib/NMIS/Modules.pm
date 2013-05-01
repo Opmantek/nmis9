@@ -52,6 +52,10 @@ sub new {
 	if ( defined $arg{nmis_base} ) { $nmis_base = $arg{nmis_base} }
 	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8" }
 
+	my $oav2_base = undef;
+	if ( defined $arg{oav2_base} ) { $oav2_base = $arg{oav2_base} }
+	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/oav2" }
+
 	my $nmis_cgi_url_base = undef;
 	if ( defined $arg{nmis_cgi_url_base} ) { $nmis_cgi_url_base = $arg{nmis_cgi_url_base} }
 	elsif ( not defined $nmis_cgi_url_base ) { $nmis_cgi_url_base = "/cgi-nmis8" }
@@ -62,6 +66,7 @@ sub new {
 	   	installed => undef,
 	   	module_base => $module_base,
 	   	nmis_base => $nmis_base,
+	   	oav2_base => $oav2_base,
 	   	nmis_cgi_url_base => $nmis_cgi_url_base,
 	   	debug => $debug
 	};
@@ -136,13 +141,17 @@ sub getModuleCode {
 	
 	my $modules = $self->getModules();
 	
-	$modOption .= qq|<option value="http://www.opmantek.com" selected="NMIS Modules">NMIS Modules</option>\n|;
+	$modOption .= qq|<option value="https://opmantek.com" selected="NMIS Modules">NMIS Modules</option>\n|;
 	foreach my $mod (sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) {
 		my $link = $modules->{$mod}{link};
 		my $base = $self->{module_base};
 		if ( $modules->{$mod}{base} =~ /nmis/ ) {
 			$base = $self->{nmis_base};
 		}
+		elsif ( $modules->{$mod}{base} =~ /oav2/ ) {
+			$base = $self->{oav2_base};
+		}
+		
 		if ( not $mod =~ /Modules/ and not -f "$base/$modules->{$mod}{file}" ) {
 			$link = "$self->{nmis_cgi_url_base}/modules.pl?module=$mod";
 		}
