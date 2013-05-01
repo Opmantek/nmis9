@@ -4384,9 +4384,22 @@ sub runEscalate {
 	my $II = loadInterfaceInfo();
 
 	my $LocationsTable = loadLocationsTable();
-	my $ServiceStatusTable = loadGenericTable('ServiceStatus');
-	my $BusinessServicesTable = loadGenericTable('BusinessServices');
+	
+	### keiths, work around for extra tables.
+	my $ServiceStatusTable;
+	my $useServiceStatusTable = 0;
+	if ( tableExists('ServiceStatus') ) {
+		$ServiceStatusTable = loadGenericTable('ServiceStatus');
+		$useServiceStatusTable = 1;
+	}
 
+	my $BusinessServicesTable;
+	my $useBusinessServicesTable = 0;
+	if ( tableExists('BusinessServicesTable') ) {
+		$BusinessServicesTable = loadGenericTable('BusinessServicesTable');
+		$useBusinessServicesTable = 1;
+	}
+	
 	# Load the event table into the hash
 	# have to maintain a lock over all of this
 	# we are out of threading code now, so no great problem with holding the lock.
@@ -4503,10 +4516,17 @@ sub runEscalate {
 				$event->{customer} = $node->{customer};
 				$event->{location} = $LocationsTable->{$node->{location}}{Location};
 				$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
-				$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-				$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
-				$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
-				$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+
+				if ( $useServiceStatusTable ) {
+					$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+					$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+				}
+				
+				if ( $useBusinessServicesTable ) {
+					$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+					$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+				}
+
 				# Copy the fields from nodes to the event
 				my @nodeFields = split(",",$C->{'json_node_fields'});
 				foreach my $field (@nodeFields) {				
@@ -4909,10 +4929,17 @@ LABEL_ESC:
 								$event->{customer} = $node->{customer};
 								$event->{location} = $LocationsTable->{$node->{location}}{Location};
 								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
-								$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-								$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
-								$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
-								$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+
+								if ( $useServiceStatusTable ) {
+									$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+									$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+								}
+								
+								if ( $useBusinessServicesTable ) {
+									$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+									$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+								}
+
 								# Copy the fields from nodes to the event
 								my @nodeFields = split(",",$C->{'json_node_fields'});
 								foreach my $field (@nodeFields) {				

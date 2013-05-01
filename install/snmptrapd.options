@@ -1,3 +1,3 @@
-# OPTIONS="-Lsd -p /var/run/snmptrapd.pid"
+#OPTIONS="-Lsd -p /var/run/snmptrapd.pid"
 #OPTIONS="-Lo -Lf /var/log/snmptrapd.log -p /var/run/snmptrapd.pid 
-
+OPTIONS="-Lsd -p /var/run/snmptrapd.pid -m ALL -M /usr/local/nmis8/mibs/traps"
