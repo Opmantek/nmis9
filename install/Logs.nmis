@@ -19,42 +19,48 @@
   },
   '4' => {
     'logOrder' => '4',
+    'logFileName' => 'trap.log',
+    'logName' => 'SNMP_Traps',
+    'logDescr' => 'SNMP Traps'
+  },
+  '5' => {
+    'logOrder' => '5',
     'logFileName' => 'cisco.log',
     'logName' => 'Router_Syslog',
     'logDescr' => 'Router Syslog [local1]'
   },
-  '5' => {
-    'logOrder' => '5',
+  '6' => {
+    'logOrder' => '6',
     'logFileName' => 'switch.log',
     'logName' => 'Switch_Syslog',
     'logDescr' => 'Switch Syslog [local3]'
   },
-  '6' => {
-    'logOrder' => '6',
+  '7' => {
+    'logOrder' => '7',
     'logFileName' => 'ciscopix.log',
     'logName' => 'Cisco_PIX',
     'logDescr' => 'Cisco PIX-ASA Firewall Syslog [local2]'
   },
-  '7' => {
-    'logOrder' => '7',
+  '8' => {
+    'logOrder' => '8',
     'logFileName' => 'unclassified.log',
     'logName' => 'Generic_Syslog',
     'logDescr' => 'Generic Device Syslog [local7 default]'
   },
-  '8' => {
-    'logOrder' => '8',
+  '9' => {
+    'logOrder' => '9',
     'logFileName' => '/var/log/messages',
     'logName' => 'Messages',
     'logDescr' => 'Messages'
   },
-  '9' => {
-    'logOrder' => '9',
+  '10' => {
+    'logOrder' => '10',
     'logFileName' => '/var/log/httpd/access_log',
     'logName' => 'Apache_Access_Log',
     'logDescr' => 'Apache Access Log'
   },
-  '10' => {
-    'logOrder' => '10',
+  '11' => {
+    'logOrder' => '11',
     'logFileName' => '/var/log/httpd/error_log',
     'logName' => 'Apache_Error_Log',
     'logDescr' => 'Apache Error Log'

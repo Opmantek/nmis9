@@ -1,0 +1,12 @@
+use NMIS;
+my $C = loadConfTable();
+
+%hash = (
+	Groups => [
+		{ group => { header => 'Group Name',display => 'key,header,text', value => [""] }},
+		{ location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
+		{ businessUnit => { header => 'Business Unit',display => 'header,text', value => [""] }},
+		{ description => { header => 'Description', display => 'header,textbox', value => [""] }}
+	]
+);
+
