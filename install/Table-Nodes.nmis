@@ -31,8 +31,6 @@ closedir(MDL);
 		{ host => { header => 'Name/IP Address',display => 'header,text',value => [""] }},
 		{ group => { header => 'Group',display => 'header,popup',value => [ @groups] }},
 		{ location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
-		{ businessService => { header => 'Business Service',display => 'header,pop',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
-		{ serviceStatus => { header => 'Service Status',display => 'header,popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
 		{ model => { header => 'Model',display => 'header,popup',value => [@models] }},
 		{ active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 		{ ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},

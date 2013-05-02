@@ -5633,23 +5633,23 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 # Run the Reports Weekly Monthly Daily
 # daily
 0 0 * * * /usr/local/nmis8/bin/run-reports.pl day health
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day top10
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day outage
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day response
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day avail
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day port
+10 0 * * * /usr/local/nmis8/bin/run-reports.pl day top10
+30 0 * * * /usr/local/nmis8/bin/run-reports.pl day outage
+40 0 * * * /usr/local/nmis8/bin/run-reports.pl day response
+45 0 * * * /usr/local/nmis8/bin/run-reports.pl day avail
+50 0 * * * /usr/local/nmis8/bin/run-reports.pl day port
 # weekly
-0 0 * * 0 /usr/local/nmis8/bin/run-reports.pl week health
-0 0 * * 0 /usr/local/nmis8/bin/run-reports.pl week top10
-0 0 * * 0 /usr/local/nmis8/bin/run-reports.pl week outage
-0 0 * * 0 /usr/local/nmis8/bin/run-reports.pl week response
-0 0 * * 0 /usr/local/nmis8/bin/run-reports.pl week avail
+0 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week health
+10 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week top10
+30 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week outage
+40 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week response
+50 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week avail
 # monthly
-0 0 1 * * /usr/local/nmis8/bin/run-reports.pl month health
-0 0 1 * * /usr/local/nmis8/bin/run-reports.pl month top10
-0 0 1 * * /usr/local/nmis8/bin/run-reports.pl month outage
-0 0 1 * * /usr/local/nmis8/bin/run-reports.pl month response
-0 0 1 * * /usr/local/nmis8/bin/run-reports.pl month avail
+0 2 1 * * /usr/local/nmis8/bin/run-reports.pl month health
+10 2 1 * * /usr/local/nmis8/bin/run-reports.pl month top10
+30 2 1 * * /usr/local/nmis8/bin/run-reports.pl month outage
+40 2 1 * * /usr/local/nmis8/bin/run-reports.pl month response
+50 2 1 * * /usr/local/nmis8/bin/run-reports.pl month avail
 ###########################################
 EO_TEXT
 }
