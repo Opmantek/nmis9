@@ -791,7 +791,7 @@ function selectNodeOpen() {
 										title	:	'Quick Search',
 										url		:	'',
 										width	:	210,
-										position : [ 10, 360 ]
+										position : [ 10, 375 ]
 										});
 	
 	// define some additional content

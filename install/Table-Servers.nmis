@@ -1,10 +1,10 @@
 %hash = (
 			Servers => [
 				{ 'name' => { header => 'Server Name',display => 'key,header,text', value => [ '' ] }},
-				{ 'host' => { header => 'Server Host or IP',display => 'key,header,text', value => [ '' ] }},
+				{ 'host' => { header => 'Server Host or IP',display => 'header,text', value => [ '' ] }},
 				{ 'user' => { header => 'Server User',display => 'header,text', value => [ 'nmismst' ] }},
 				{ 'passwd' => { header => 'Server Password',display => 'text', value => [ 'C00kb00k' ] }},
-				{ 'community' => { header => 'Shared Community',display => 'text', value => [ '' ] }},
+				{ 'community' => { header => 'Shared Community',display => 'text', value => [ 'secret' ] }},
 				{ 'config' => { header => 'Config',display => 'header,text', value => [ 'Config' ] }},
 				{ 'group' => { header => 'Groups',display => 'header,text', value => [ '' ] }},
 				

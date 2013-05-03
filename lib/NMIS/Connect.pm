@@ -81,7 +81,7 @@ sub curlDataFromRemote {
 	
 	my $ST = loadTable(dir=>'conf',name=>'Servers');
 	
-	if ( $ST->{$server}{name} eq $server and $ST->{$server}{community} ne "" ) {
+	if ( lc($ST->{$server}{name}) eq lc($server) and $ST->{$server}{community} ne "" ) {
 		my $curlcmd = "curl -k -d com=$ST->{$server}{community} -d func=$func -d group=\"$group\" -d conf=$ST->{$server}{config} -d format=$format -d type=send --user $ST->{$server}{user}:$ST->{$server}{passwd}  $ST->{$server}{protocol}://$ST->{$server}{host}:$ST->{$server}{port}/$ST->{$server}{cgi_url_base}/connect.pl";
 		#open(IN, "$curlcmd  2>&1 |");
 		open(IN, "$curlcmd 2>/dev/null |");
