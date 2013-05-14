@@ -1,0 +1,137 @@
+#
+## $Id: Model-Generic.nmis,v 8.7 2012/11/26 05:02:35 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      # 'stats' => {
+      #   'common-model' => 'stats'
+      # },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response,systemvoltage,systemcurrent,systemcapacity',
+    'nodeType' => 'generic',
+    'nodeModel' => 'EES',
+    'nodeVendor' => 'Emerson Energy Systems',
+    'rrd' => {
+      'nodehealth' => {
+        'snmp' => {
+          'systemvoltage' => {
+            'snmpObject' => 'systemVoltage',
+            'oid' => '1.3.6.1.4.1.6302.2.1.2.2.0',
+            'calculate' => '($r != 2147483647) ? $r : 0'
+          },
+          'systemcurrent' => {
+            'snmpObject' => 'systemCurrent',
+            'oid' => '1.3.6.1.4.1.6302.2.1.2.3.0',
+            'calculate' => '($r != 2147483647) ? $r : 0'
+          },
+          'systemcapacity' => {
+            'snmpObject' => 'systemUsedCapacity',
+            'oid' => '1.3.6.1.4.1.6302.2.1.2.4.0',
+            'calculate' => '($r != 2147483647) ? 100 - $r : 0'
+          }
+        },
+        'graphtype' => 'systemvoltage,systemcurrent,systemcapacity'
+      }
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
+      }
+    },
+  },
+  'stats' => {
+    'type' => {
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf'
+      ],
+      'nodehealth' => [
+        'DEF:systemvoltage=$database:systemvoltage:AVERAGE',
+        'DEF:systemcurrent=$database:systemcurrent:AVERAGE',
+        'DEF:systemcapacity=$database:systemcapacity:AVERAGE',
+        'PRINT:systemvoltage:AVERAGE:systemvoltage=%1.0lf',
+        'PRINT:systemcurrent:AVERAGE:systemcurrent=%1.0lf',
+        'PRINT:systemcapacity:AVERAGE:systemcapacity=%1.0lf'
+      ]
+    }
+  }
+);

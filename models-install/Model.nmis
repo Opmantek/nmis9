@@ -310,6 +310,20 @@
         }
       }
     },
+    'Emerson Energy Systems' => {
+      'order' => {
+        '10' => {
+          'EES' => 'AP7C70AA'
+        }
+      }
+    },
+    'Microchip Technology Inc.' => {
+      'order' => {
+        '10' => {
+          'ServersCheck' => 'Temperature \& Sensor Gateway'
+        }
+      }
+    }
   },
   'system' => {
     'nodeModel' => 'Default',

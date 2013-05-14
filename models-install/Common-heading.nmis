@@ -111,7 +111,10 @@
       'ss-intcon' => 'System Stats - Interupts and Contexts Processed',
       'ss-blocks' => 'System Stats - Block Input/Output',
       'diskio-rw' => 'Disk IO Blocks',
-      'diskio-rwbytes' => 'Disk Read Write Bytes'
+      'diskio-rwbytes' => 'Disk Read Write Bytes',
+      'systemvoltage' => 'System Voltage',
+      'systemcurrent' => 'System Current',
+      'systemcapacity' => 'System capacity'
     }
   }
 );
