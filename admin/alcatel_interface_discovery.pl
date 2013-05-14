@@ -64,7 +64,13 @@ print $t->elapTime(). " Begin\n" if $debug;
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
-processNode($node);
+if ( $arg{ifIndex} ne "" ) {
+	decode_interface_index_41(oid_value => $arg{ifIndex});
+	decode_interface_index_42(oid_value => $arg{ifIndex});
+}
+else {
+	processNode($node);
+}
 
 print $t->elapTime(). " End\n" if $debug;
 
@@ -111,6 +117,9 @@ sub processNode {
 			$rack_count = $LNT->{$node}{rack_count} if $LNT->{$node}{rack_count} ne "";
 			$shelf_count = $LNT->{$node}{shelf_count} if $LNT->{$node}{shelf_count} ne "";
 			
+			$S->{info}{system}{rack_count} = $rack_count;
+			$S->{info}{system}{shelf_count} = $shelf_count;
+						
 			my $asamSoftwareVersion = $S->{info}{system}{asamSoftwareVersion1};
 			if ( $S->{info}{system}{asamActiveSoftware2} eq "active" ) {
 				$asamSoftwareVersion = $S->{info}{system}{asamSoftwareVersion2};
@@ -125,11 +134,11 @@ sub processNode {
 				#"For ARAM-D with extensions "
 				$version = 4.1;
 				if( 0 ) {
-					my $indexes = build_41_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
+					my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
 					@ifIndexNum = @{$indexes};
 				}
 				else {
-					my $indexes = build_41_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
+					my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
 					@ifIndexNum = @{$indexes};
 				}
 				
@@ -138,13 +147,15 @@ sub processNode {
 			elsif( $asamSoftwareVersion =~ /$asamVersion42/ )
 			{
 				$version = 4.2;
-				my $indexes = build_42_interface_indexes( shelf_count => $shelf_count, rack_count => $rack_count );
+				my $indexes = build_42_interface_indexes();
 				@ifIndexNum = @{$indexes};
 			}
 			else {
 				print STDERR "WHAT!  asamSoftwareVersion=$asamSoftwareVersion\n";
 			}
 
+			print "DEBUG version=$version asamSoftwareVersion=$asamSoftwareVersion\n" if $debug;
+		
 		
 			my $intfTotal = 0;
 			my $intfCollect = 0; # reset counters
@@ -177,7 +188,7 @@ sub processNode {
 				# ifDescr must always be filled
 				if ($S->{info}{interface}{$index}{ifDescr} eq "") { $S->{info}{interface}{$index}{ifDescr} = $index; }
 				# check for duplicated ifDescr
-				foreach my $i (keys %{$S->{info}{interface}}) {
+				foreach my $i (sort {$a <=> $b} keys %{$S->{info}{interface}}) {
 					if ($index ne $i and $S->{info}{interface}{$index}{ifDescr} eq $S->{info}{interface}{$i}{ifDescr}) {
 						$S->{info}{interface}{$index}{ifDescr} = "$S->{info}{interface}{$index}{ifDescr}-${index}"; # add index to string
 						$V->{interface}{"${index}_ifDescr_value"} = $S->{info}{interface}{$index}{ifDescr}; # update
@@ -305,32 +316,162 @@ sub processNode {
 	}
 }
 
+sub getRackShelfMatrix {
+	my $eqptHolder = shift;
+	my %config;
+	
+	#ARAM-E , NFXS-A for 7302 FD  and/or NFXS-B  for 7330 FD
+	
+	my $shelfMatch = qr/ARAM\-D|ARAM\-E|NFXS\-A|NFXS\-B/;
+	my $rackMatch = qr/ALTR\-A/;
+	
+	#eqptHolderPlannedType
+	my $gotOneRack = 0;
+	my $rack = 0;
+	my $shelf = 0;
+	foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
+		print "$eqpt = eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}\n" if $debug;
+		if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
+			++$rack;
+			$shelf = 0;
+		}
+		elsif ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$shelfMatch/ ) {
+			++$shelf;
+			$config{$rack}{$shelf} = 1;
+			if ( $gotOneRack ) {
+				$gotOneRack = 0;
+			}
+		}
+	}
+	
+	print Dumper(\%config) if $debug;
+		
+	return(\%config);
+}
+
+sub getIfDescr {
+	my %args = @_;
+	
+	my $oid_value 		= $args{ifIndex};	
+	my $prefix 		= $args{prefix};	
+	
+	if ( $args{version} eq "4.1" ) {
+		my $rack_mask 		= 0x70000000;
+		my $shelf_mask 		= 0x07000000;
+		my $slot_mask 		= 0x00FF0000;
+		my $level_mask 		= 0x0000F000;
+		my $circuit_mask 	= 0x00000FFF;
+	
+		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $level 	= ($oid_value & $level_mask) 		>> 12;
+		my $circuit = ($oid_value & $circuit_mask);
+
+		# Apparently this needs to be adjusted when going to decimal?
+		$slot = $slot - 2;
+		++$circuit;	
+		
+		return "$prefix-$rack-$shelf-$slot-$circuit";
+	}
+	else {
+		my $slot_mask 		= 0xFC000000;
+		my $level_mask 		= 0x03C00000;	
+		my $circuit_mask 	= 0x001FE000;
+		
+	
+		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+		my $level 	= ($oid_value & $level_mask) 		>> 21;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+		
+		# Apparently this needs to be adjusted when going to decimal?
+		if ( $slot > 1 ) {
+			--$slot;
+		}
+		++$circuit;	
+		
+		$prefix = "XDSL" if $level == 16;
+
+		return "$prefix-1-1-$slot-$circuit";		
+	}
+}
+
+sub getDescription {
+	my %args = @_;
+	
+	my $oid_value 		= $args{ifIndex};	
+	
+	if ( $args{version} eq "4.1" ) {
+		my $rack_mask 		= 0x70000000;
+		my $shelf_mask 		= 0x07000000;
+		my $slot_mask 		= 0x00FF0000;
+		my $level_mask 		= 0x0000F000;
+		my $circuit_mask 	= 0x00000FFF;
+	
+		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $level 	= ($oid_value & $level_mask) 		>> 12;
+		my $circuit = ($oid_value & $circuit_mask);
+		
+		# Apparently this needs to be adjusted when going to decimal?
+		$slot = $slot - 2;
+		++$circuit;	
+
+		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Circuit=$circuit";
+	}
+	else {
+		my $slot_mask 		= 0xFC000000;
+		my $level_mask 		= 0x03C00000;	
+		my $circuit_mask 	= 0x001FE000;
+		
+		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+		my $level 	= ($oid_value & $level_mask) 		>> 21;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+
+		if ( $slot > 1 ) {
+			--$slot;
+		}
+		++$circuit;	
+
+		return "Slot=$slot, Level=$level, Circuit=$circuit";		
+	}
+}
+
 sub build_41_interface_indexes {
 	my %args = @_;
+	my $NI = $args{NI};
+
 	my $rack_count = 1;
 	my $shelf_count = 1;
 
+	my $systemConfig;
+	
+	#Look at the eqptHolderPlannedType data to see what is planned for this device.
+	if ( exists $NI->{eqptHolder} ) {
+		$systemConfig = getRackShelfMatrix($NI->{eqptHolder});
+		$rack_count = 0;
+		$shelf_count = 0;
+	}
+
 	# For ARAM-D with extensions the shelf value changes to 2 for the first extension (shelf = 010) , 3 for the second (shelf = 11) … and so on, 
 	# such that the first port of the first card of the first extension would be:
-	if( defined( $args{rack_count} ) ) {
-		$rack_count = $args{rack_count};
-	}
-
-	if( defined( $args{shelf_count} ) ) {
-		$shelf_count = $args{shelf_count};
-	}
-
 	my $level = 3;
 
-	my @racks = (1..$rack_count);
-	my @shelves = (1..$shelf_count);
-	my @slots = (3..19);
+	# This represents slots 1 to 4, a maximum of 4 slots per Shelf.
+	my @slots = (3..6);
 	my @circuits = (0..47);
 	
 	my @interfaces = ();
-
-	foreach my $rack (@racks) {
-		foreach my $shelf (@shelves) {
+	
+	my $gotSysConfig = 0;
+	foreach my $rack (sort {$a <=> $b} keys %{$systemConfig} ) {
+		$gotSysConfig = 1;
+		++$rack_count;
+		print "  rack=$rack\n" if $debug;
+		foreach my $shelf (sort {$a <=> $b} keys %{$systemConfig->{$rack}} ) {
+			++$shelf_count;
+			print "    shelf=$shelf\n" if $debug;
 			foreach my $slot (@slots) {
 				foreach my $circuit (@circuits) {
 					my $index = generate_interface_index_41 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
@@ -339,48 +480,43 @@ sub build_41_interface_indexes {
 			}
 		}
 	}
-	return \@interfaces;
+
+	if ( not $gotSysConfig ) {
+		my $rack = 1;
+		my $shelf = 1;
+		foreach my $slot (@slots) {
+			foreach my $circuit (@circuits) {
+				my $index = generate_interface_index_41 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
+				push( @interfaces, $index );
+			}		
+		}
+	}
+	
+	return (\@interfaces,$rack_count,$shelf_count);
 }
 
 sub build_42_interface_indexes {
 	my %args = @_;
 
-	my $rack_count = 1;
-	my $shelf_count = 1;
-
-	if( defined( $args{rack_count} ) ) {
-		$rack_count = $args{rack_count};
-	}
-
-	if( defined( $args{shelf_count} ) ) {
-		$shelf_count = $args{shelf_count};
-	}
-
 	my $level = 3;
 	
-	my @racks = (1..$rack_count);
-	my @shelves = (1..$shelf_count);
 	my @slots = (2..16);
 	my @circuits = (0..47);
 
 	my @interfaces = ();
 
-	foreach my $rack (@racks) {
-		foreach my $shelf (@shelves) {
-			foreach my $slot (@slots) {
-				foreach my $circuit (@circuits) {
-					my $index = generate_interface_index_42 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
-					push( @interfaces, $index );
-				}		
-				#  generate extra indexes at level 16, these are the XDSL channel ones
-				if( $slot == 16 ) {
-					$level = 16;
-					foreach my $circuit (@circuits) {
-						my $index = generate_interface_index_42 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
-						push( @interfaces, $index );
-					}			
-				}
-			}
+	foreach my $slot (@slots) {
+		foreach my $circuit (@circuits) {
+			my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
+			push( @interfaces, $index );
+		}		
+		#  generate extra indexes at level 16, these are the XDSL channel ones
+		if( $slot == 16 ) {
+			$level = 16;
+			foreach my $circuit (@circuits) {
+				my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
+				push( @interfaces, $index );
+			}			
 		}
 	}
 	return \@interfaces;
@@ -401,8 +537,6 @@ sub generate_interface_index_41 {
 
 sub generate_interface_index_42 {
 	my %args = @_;
-	my $rack = $args{rack};
-	my $shelf = $args{shelf};
 	my $slot = $args{slot};
 	my $level = $args{level};
 	my $circuit = $args{circuit};
@@ -458,73 +592,6 @@ sub decode_interface_index_41 {
 
 }
 
-sub getIfDescr {
-	my %args = @_;
-	
-	my $oid_value 		= $args{ifIndex};	
-	my $prefix 		= $args{prefix};	
-	
-	if ( $args{version} eq "4.1" ) {
-		my $rack_mask 		= 0x70000000;
-		my $shelf_mask 		= 0x07000000;
-		my $slot_mask 		= 0x00FF0000;
-		my $level_mask 		= 0x0000F000;
-		my $circuit_mask 	= 0x00000FFF;
-	
-		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
-		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
-		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
-		my $level 	= ($oid_value & $level_mask) 		>> 12;
-		my $circuit = ($oid_value & $circuit_mask);
-		
-		return "$prefix-$rack-$shelf-$slot-$level-$circuit";
-	}
-	else {
-		my $slot_mask 		= 0xFC000000;
-		my $level_mask 		= 0x03C00000;	
-		my $circuit_mask 	= 0x001FE000;
-		
-	
-		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
-		my $level 	= ($oid_value & $level_mask) 		>> 21;
-		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
-		return "$prefix-$slot-$level-$circuit";		
-	}
-}
-
-sub getDescription {
-	my %args = @_;
-	
-	my $oid_value 		= $args{ifIndex};	
-	
-	if ( $args{version} eq "4.1" ) {
-		my $rack_mask 		= 0x70000000;
-		my $shelf_mask 		= 0x07000000;
-		my $slot_mask 		= 0x00FF0000;
-		my $level_mask 		= 0x0000F000;
-		my $circuit_mask 	= 0x00000FFF;
-	
-		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
-		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
-		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
-		my $level 	= ($oid_value & $level_mask) 		>> 12;
-		my $circuit = ($oid_value & $circuit_mask);
-		
-		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Level=$level, Circuit=$circuit";
-	}
-	else {
-		my $slot_mask 		= 0xFC000000;
-		my $level_mask 		= 0x03C00000;	
-		my $circuit_mask 	= 0x001FE000;
-		
-	
-		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
-		my $level 	= ($oid_value & $level_mask) 		>> 21;
-		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
-		return "Slot=$slot, Level=$level, Circuit=$circuit";		
-	}
-}
-
 ###############################################
 #
 # 4.2
@@ -555,3 +622,4 @@ sub decode_interface_index_42 {
 		print "XDSL/SHDSL line, voiceFXS, IsdnU, XDSL channel, bonding/IMA interface, ATM/EFM interface, LAG interface\n";
 	}
 }
+

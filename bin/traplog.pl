@@ -48,8 +48,19 @@ open(IN,"<&STDIN") || die "Cannot open the file STDIN";
 my @buffer;
 while (<IN>) {
 	chomp;
-	$_ =~ s/\s+/=/g;
-	push(@buffer,$_);
+	my @spaceParts = split(/\s+/,$_);
+	my $pdu;
+	if ( $#spaceParts > 1 ) {
+		#$_ =~ s/(\s+)/=/g;
+		my $p1 = shift(@spaceParts);
+		my $p2 = shift(@spaceParts);
+		$pdu = "$p1=$p2 @spaceParts";
+	}
+	else {
+		$_ =~ s/\s+/=/g;
+		$pdu = $_;
+	}
+	push(@buffer,$pdu);
 }
 
 my $out = join("\t",@buffer);

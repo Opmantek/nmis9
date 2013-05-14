@@ -1868,8 +1868,11 @@ sub getSystemHealthInfo {
 	if ($M->{systemHealth} eq '') {
 		dbg("No class 'systemHealth' declared in Model");
 	}
-	else {		
+	else {
 		my @healthSections = split(",",$C->{model_health_sections});
+		if ( exists $M->{systemHealth}{sections} and $M->{systemHealth}{sections} ne "" ) {
+			@healthSections = split(",",$M->{systemHealth}{sections});
+		}
 		for my $section (@healthSections) {
 			delete $NI->{$section};
 			# get Index table
@@ -1936,6 +1939,9 @@ sub getSystemHealthData {
 	}
 	else {   
 		my @healthSections = split(",",$C->{model_health_sections});
+		if ( exists $M->{systemHealth}{sections} and $M->{systemHealth}{sections} ne "" ) {
+			@healthSections = split(",",$M->{systemHealth}{sections});
+		}
 		for my $section (@healthSections) {
 			if( exists($S->{info}{$section}) ) {
 				for my $index (sort keys %{$S->{info}{$section}}) {

@@ -366,7 +366,7 @@ sub displayEventItems {
 		foreach my $node_depend ( split /,/ , lc($NT->{$ET->{$event_hash}{node}}{depend}) ) {
 			next if $node_depend eq "N/A" ;		# default setting
 			next if $node_depend eq $ET->{$event_hash}{node};	# remove the catch22 of self dependancy.
-			if ( &eventExist($node_depend, "Node Down", "Ping failed" ) eq "true" ) {
+			if ( &eventExist($node_depend, "Node Down", "" ) eq "true" ) {
 				printRow(1,"status","dependant $node_depend is reported as down");
 				return;
 			}

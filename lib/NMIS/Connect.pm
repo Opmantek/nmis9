@@ -102,7 +102,7 @@ sub getFileFromRemote {
 	my $file = $args{file};
 
 	my $data = curlDataFromRemote(server => $args{server}, group => $args{group}, func => $args{func}, format => $args{format});
-	if ( $data and $data !~ /SERVER ERROR/ ) {
+	if ( $data and $data !~ /SERVER ERROR|504 Gateway Time-out/ ) {
 		open(OUT, ">",$file) or logMsg("Could not create $file: $!");
 		flock(OUT, LOCK_EX);
 		print OUT $data or logMsg("Could not write: $!"); 

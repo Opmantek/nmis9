@@ -648,8 +648,14 @@ function get(Id,optTrue,optFalse,evnt) {
 					getstr+="&"+sel.name+"="+values;
 				}
 			}
-			else {
-				getstr+="&"+sel.name+"="+sel.options[sel.selectedIndex].value;
+			// nmisdev 2May2013 if nothing selected, selectedIndex = -1
+			else { 
+				if  (sel.selectedIndex==true) {
+					getstr+="&"+sel.name+"="+sel.options[sel.selectedIndex].value;
+				}
+				else {
+					getstr+="&"+sel.name+"="+sel.value;
+				}	
 			}
 			dialogID = e.id;
 		}

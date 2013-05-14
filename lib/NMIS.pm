@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.2G";
+$VERSION = "8.4.3G";
 
 @ISA = qw(Exporter);
 
@@ -894,6 +894,14 @@ sub checkEvent {
 	 $C->{'non_stateful_events'} = 'Node Configuration Change, Node Reset';
 	}
 
+	if ( $C->{'threshold_falling_reset_dampening'} eq '' ) {
+	 $C->{'threshold_falling_reset_dampening'} = 1.1;
+	}
+
+	if ( $C->{'threshold_rising_reset_dampening'} eq '' ) {
+	 $C->{'threshold_rising_reset_dampening'} = 0.9;
+	}
+
 	my $event_hash = eventHash($node,$event,$element);
 
 	# load the event State for reading only.
@@ -932,12 +940,12 @@ sub checkEvent {
 		}
 		elsif ( $event =~ /Proactive/ ) {
 			# but only if we have cleared the threshold by 10%
-			# for thresholds where high = good
+			# for thresholds where high = good (default 1.1)
 			if ( $args{value} >= $args{reset} ) {
-				return unless $args{value} > $args{reset} * 1.1;
+				return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
 			} else {
-			# for thresholds where low = good
-				return unless $args{value} < $args{reset} * 0.9;
+			# for thresholds where low = good (default 0.9)
+				return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
 			}
 			$event = "$event Closed";
 		}
