@@ -1,0 +1,579 @@
+#
+## $Id: Model-Default.nmis,v 8.1.1.1 2011/04/18 13:24:02 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'calls' => {
+        'common-model' => 'calls'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'OmniSwitch',
+    'nodeType' => 'switch',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      },
+      'chassis' => {
+        'snmp' => {
+          'chassisVer' => {
+            'oid' => 'chassisVersion',
+            'title' => 'Serial Number'
+          },
+          'processorRam' => {
+            'oid' => 'processorRam',
+            'title' => 'Processor Mem'
+          },
+          'serialNum' => {
+            'oid' => 'chassisId',
+            'title' => 'Chassis Version'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'nodehealth' => {
+          'snmp' => {
+          'memLatest' => {
+            'oid' => 'healthModuleMemoryLatest.1'
+          },
+          'mem1Min' => {
+            'oid' => 'healthModuleMemory1MinAvg.1'
+          },
+	  'cpuLatest' => {
+	    'oid' => 'healthModuleCpuLatest.1',
+	    'option' => 'gauge,0:100'	
+	  },
+          'cpu1Min' => {
+            'oid' => 'healthModuleCpu1MinAvg.1',
+            'option' => 'gauge,0:100'
+          },
+          'cpu1Hr' => {
+            'oid' => 'healthModuleCpu1HrAvg.1',
+            'option' => 'gauge,0:100'
+          },
+	 'cpu1HrMax' => {
+	    'oid' => 'healthModuleCpu1HrMax.1',
+            'option' => 'gauge,0:100'
+	  },	
+          'mem1Hr' => {
+            'oid' => 'healthModuleMemory1HrAvg.1',
+            'option' => 'gauge,0:100'
+          },
+          'mem1HrMax' => {
+            'oid' => 'healthModuleMemory1HrMax.1'
+          }
+        },
+        'threshold' => 'cpu-alu,mem-alu',
+        'graphtype' => 'cpu-alu,mem-alu'
+      },
+      'nodeEnvironment' => {
+          'snmp' => {
+            'tempA1' => {
+              'oid' => 'healthDeviceTemperatureChasLatest.0',
+              'option' => 'gauge,0:100'
+          }
+        },
+        'threshold' => 'tempe-alu',
+        'graphtype' => 'tempe-alu'
+  },
+  'mib2ip' => {
+      'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    },
+    'power' => {
+      'pwr' => {
+        'snmp' => {
+          'SupplyState1' => {
+            'replace' => {
+              '6' => 'notFunctioning',
+              '1' => 'normal',
+              '4' => 'shutdown',
+              '3' => 'critical',
+              '2' => 'warning',
+              '5' => 'notPresent'
+            },
+            'oid' => 'ciscoEnvMonSupplyState.1'
+          },
+          'SupplyDescr1' => {
+            'replace' => {
+              '4' => 'externalPowerSupply',
+              '3' => 'dc',
+              '2' => 'ac',
+              '5' => 'internalRedundant'
+            },
+            'oid' => 'ciscoEnvMonSupplySource.1'
+          },
+          'SupplyDescr2' => {
+            'replace' => {
+              '4' => 'externalPowerSupply',
+              '3' => 'dc',
+              '2' => 'ac',
+              '5' => 'internalRedundant'
+            },
+            'oid' => 'ciscoEnvMonSupplySource.2'
+          },
+          'SupplyState2' => {
+            'replace' => {
+              '6' => 'notFunctioning',
+              '1' => 'normal',
+              '4' => 'shutdown',
+              '3' => 'critical',
+              '2' => 'warning',
+              '5' => 'notPresent'
+            },
+            'oid' => 'ciscoEnvMonSupplyState.2'
+          }
+        },
+        'control' => '$sysObjectName =~ /7206|6509/'
+      }
+    },
+    'nodegraph' => 'health,response,cpu,buffer,mem-router,mem-proc,mem-io'
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+      'pkts' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInNUcastPkts' => {
+            'oid' => 'ifInNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutNUcastPkts' => {
+            'oid' => 'ifOutNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'pkts,errpkts',
+        'control' => '$sysObjectName =~ /17\\d+|36\\d+|516/'
+      }
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|Voice Over IP Peer',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|voiceoverip'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	}
+  },
+  'stats' => {
+    'type' => {
+      'nodehealth' => [
+        'DEF:cpuLatest=$database:cpuLatest:AVERAGE',
+        'DEF:cpu1Min=$database:cpu1Min:AVERAGE',
+        'DEF:cpu1Hr=$database:cpu1Hr:AVERAGE',
+        'DEF:cpu1HrMax=$database:cpu1HrMax:AVERAGE',
+        'DEF:memLatest=$database:memLatest:AVERAGE',
+        'DEF:mem1Min=$database:mem1Min:AVERAGE',
+        'DEF:mem1Hr=$database:mem1Hr:AVERAGE',
+        'DEF:mem1HrMax=$database:mem1HrMax:AVERAGE',
+        'PRINT:cpuLatest:AVERAGE:cpuLatest=%1.2lf',
+        'PRINT:cpu1Min:AVERAGE:cpu1Min=%1.2lf',
+        'PRINT:cpu1Hr:AVERAGE:cpu1Hr=%1.2lf',
+        'PRINT:cpu1HrMax:AVERAGE:cpu1HrMax=%1.2lf',
+        'PRINT:memLatest:AVERAGE:memLatest=%1.2lf',
+        'PRINT:mem1Min:AVERAGE:mem1Min=%1.2lf',
+        'PRINT:mem1Hr:AVERAGE:mem1Hr=%1.2lf',
+        'PRINT:mem1HrMax:AVERAGE:mem1HrMax=%1.2lf',
+      ],  
+      'nodeEnvironment' => [
+        'DEF:tempA1=$database:tempA1:AVERAGE',
+        'PRINT:tempA1:AVERAGE:tempA1=%1.2lf',
+      ],
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf'
+      ],
+      'pkts' => [
+        'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+        'DEF:ifInNUcastPkts=$database:ifInNUcastPkts:AVERAGE',
+        'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+        'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+        'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+        'DEF:ifOutNUcastPkts=$database:ifOutNUcastPkts:AVERAGE',
+        'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+        'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+        'CDEF:ifInPkts=ifInUcastPkts,ifInNUcastPkts,ifInDiscards,ifInErrors,+,+,+',
+        'CDEF:ifOutPkts=ifOutUcastPkts,ifOutNUcastPkts,ifOutDiscards,ifOutErrors,+,+,+',
+        'CDEF:ifInDiscardsProc=ifInDiscards,ifInPkts,/,100,*',
+        'CDEF:ifOutDiscardsProc=ifOutDiscards,ifOutPkts,/,100,*',
+        'CDEF:ifInErrorsProc=ifInErrors,ifInPkts,/,100,*',
+        'CDEF:ifOutErrorsProc=ifOutErrors,ifOutPkts,/,100,*',
+        'PRINT:ifInUcastPkts:AVERAGE:ifInUcastPkts=%1.2lf',
+        'PRINT:ifInNUcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInDiscards:AVERAGE:ifInDiscards=%1.2lf',
+        'PRINT:ifInErrors:AVERAGE:ifInErrors=%1.2lf',
+        'PRINT:ifInDiscardsProc:AVERAGE:ifInDiscardsProc=%1.2lf',
+        'PRINT:ifInErrorsProc:AVERAGE:ifInErrorsProc=%1.5lf',
+        'PRINT:ifOutUcastPkts:AVERAGE:ifOutUcastPkts=%1.5lf',
+        'PRINT:ifOutNUcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutDiscards:AVERAGE:ifOutDiscards=%1.2lf',
+        'PRINT:ifOutErrors:AVERAGE:ifOutErrors=%1.2lf',
+        'PRINT:ifOutDiscardsProc:AVERAGE:ifOutDiscardsProc=%1.5lf',
+        'PRINT:ifOutErrorsProc:AVERAGE:ifOutErrorsProc=%1.5lf'
+      ],
+      'interface' => [
+        'DEF:input=$database:ifInOctets:AVERAGE',
+        'DEF:output=$database:ifOutOctets:AVERAGE',
+        'DEF:status=$database:ifOperStatus:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$speed,/,100,*',
+        'CDEF:outputUtil=outputBits,$speed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ]
+    }
+  },
+  'summary' => {
+    'statstype' => {
+      'nodehealth' => {
+        'sumname' => {
+          'mem-alu' => {
+            'stsname' => [
+              'mem1Hr'
+            ]
+          },
+          'cpu-alu' => {
+            'stsname' => [
+              'cpu1Hr'
+            ]
+          },
+          'tempe-alu' => {
+            'stsname' => [
+              'tempA1'
+            ]
+          },
+          'buffer' => {
+            'stsname' => [
+              'bufferElFree'
+           ]
+          }
+        }
+      },
+      'health' => {
+        'sumname' => {
+          'reachable' => {
+            'stsname' => [
+              'reachable'
+            ]
+          },
+          'response' => {
+            'stsname' => [
+              'response'
+            ]
+          },
+          'available' => {
+            'stsname' => [
+              'available'
+            ]
+          }
+        }
+     }
+    }
+ }
+
+  );
