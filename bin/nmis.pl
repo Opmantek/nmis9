@@ -5130,6 +5130,8 @@ sub sendMSG {
 							message => $$msgTable{$method}{$target}{$serial}{message},
 							event => $$msgTable{$method}{$target}{$serial}{event},
 							contact => $$msgTable{$method}{$target}{$serial}{contact},
+							subject => $$msgTable{$method}{$target}{$serial}{subject}, 
+							priority => $$msgTable{$method}{$target}{$serial}{priority}
 						);
 						dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
 					}
