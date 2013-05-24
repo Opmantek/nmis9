@@ -262,6 +262,13 @@
         }
       }
     },
+    'Alcatel' => {
+      'order' => {
+        '10' => {
+          'OmniSwitch' => 'Alcatel-Lucent OS6400'
+        }
+      }
+    },
     'Palo Alto Networks' => {
       'order' => {
         '10' => {
