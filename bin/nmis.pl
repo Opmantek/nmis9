@@ -5125,7 +5125,7 @@ sub sendMSG {
 			my $classMethod = $class."::sendNotification";
 			if ( checkPerlLib($class) ) {
 				eval "require $class";
-				print $@ if $@; 
+				logMsg($@) if $@;
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
