@@ -27,12 +27,12 @@
 #  
 # *****************************************************************************
 
-package Notify::critical_email;
+package Notify::critical;
 
 require 5;
 
 use strict;
-
+use notify;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Data::Dumper;
@@ -43,32 +43,48 @@ $VERSION = 1.00;
 @ISA = qw(Exporter);
 
 @EXPORT = qw(
-		mylog
+		critical
 	);
 
 @EXPORT_OK = qw(	);
-
-my $dir = "/tmp/mylog";
 
 sub sendNotification {
 	my %arg = @_;
 	my $contact = $arg{contact};
 	my $event = $arg{event};
 	my $message = $arg{message};
-	my $subject = $arg{subject};
+	my $subject = "Critical Interface Notification";
 	my $priority = $arg{priority};
 
-	if ( not -d $dir ) {
-		mkpath($dir);
-	}
-	
+	my $C = $arg{C};
+
 	# add the time now to the event data.
 	$event->{time} = time;
-
 	$event->{email} = $contact->{Email};
 	$event->{mobile} = $contact->{Mobile};
 	
-	# Sample Contact
+	print STDERR "Notify::critical checking event....\n" if $C->{debug};
+	if( $event->{event} =~ /Interface Down|Interface Up/ && $event->{details} =~ /CRITICAL/ ) {
+		print STDERR "Notify::critical Sending critical email to $contact->{Email}\n" if $C->{debug};
+		sendEmail(
+			to => $contact->{Email}, 
+			subject => $subject, 
+			body => $message,
+			from => $C->{mail_from},
+			server => $C->{mail_server},
+			domain => $C->{mail_domain},
+			use_sasl => $C->{mail_use_sasl},
+			port => $C->{mail_server_port},
+			user => $C->{mail_user},
+			password => $C->{mail_password},
+			priority => $priority,
+			debug => $C->{debug}
+		);
+	}	
+}
+
+
+# Sample Contact
 	#$contact = {
 	#  'Contact' => 'keiths',
 	#  'DutyTime' => '06:24:MonTueWedThuFri',
@@ -107,23 +123,5 @@ sub sendNotification {
 	#  'time' => 1366603126,
 	#  'uuid' => '59A29034-8D41-11E2-A990-F38D7588D2EB'
 	#};
-
-	if( $event->{event} =~ /Down|Up/ && $event->{details} =~ /CRITICAL/ ) {
-		sendEmail(
-			to => $contact->{Email}, 
-			subject => $subject, 
-			body => $message,
-			from => $C->{mail_from},
-			server => $C->{mail_server},
-			domain => $C->{mail_domain},
-			use_sasl => $C->{mail_use_sasl},
-			port => $C->{mail_server_port},
-			user => $C->{mail_user},
-			password => $C->{mail_password},
-			priority => $priority,
-			debug => $C->{debug}
-		);
-	}	
-}
 
 1;

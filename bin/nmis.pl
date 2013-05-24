@@ -4379,7 +4379,8 @@ sub runEscalate {
 	my %seen;
 	
 	dbg("Starting");
-
+dbg("Checking notify $type\n");
+print "STARTING ESCALATE MESG\n";
 	# load Contacts table
 	my $CT = loadContactsTable();
 
@@ -4541,7 +4542,7 @@ sub runEscalate {
 				
 				logJsonEvent(event => $event, dir => $C->{'json_logs'});
 			} # end json
-			else {
+			else {				
 				if ( checkPerlLib("Notify::$type") ) {
 					my $timenow = time();
 					my $datenow = returnDateStamp();
@@ -5024,7 +5025,7 @@ sub sendMSG {
 
 	my $target;
 	my $serial;
-
+	print "STARTING SEND MESG\n";
 	dbg("Starting");
 
 	foreach my $method (keys %$msgTable) {
@@ -5119,19 +5120,21 @@ sub sendMSG {
 		}
 		# now the extensible stuff.......
 		else {
+
 			my $class = "Notify::$method";
 			my $classMethod = $class."::sendNotification";
 			if ( checkPerlLib($class) ) {
 				eval "require $class";
+				print $@ if $@; 
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 						$function->(
 							message => $$msgTable{$method}{$target}{$serial}{message},
 							event => $$msgTable{$method}{$target}{$serial}{event},
-							contact => $$msgTable{$method}{$target}{$serial}{contact},
-							subject => $$msgTable{$method}{$target}{$serial}{subject}, 
-							priority => $$msgTable{$method}{$target}{$serial}{priority}
+							contact => $$msgTable{$method}{$target}{$serial}{contact},							
+							priority => $$msgTable{$method}{$target}{$serial}{priority},
+							C => $C
 						);
 						dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
 					}
