@@ -4387,8 +4387,6 @@ sub runEscalate {
 	my %seen;
 	
 	dbg("Starting");
-dbg("Checking notify $type\n");
-print "STARTING ESCALATE MESG\n";
 	# load Contacts table
 	my $CT = loadContactsTable();
 
@@ -5033,7 +5031,6 @@ sub sendMSG {
 
 	my $target;
 	my $serial;
-	print "STARTING SEND MESG\n";
 	dbg("Starting");
 
 	foreach my $method (keys %$msgTable) {
