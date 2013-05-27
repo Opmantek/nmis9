@@ -118,6 +118,7 @@
       'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
       'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
       'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
+      'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
     }
   }
 );

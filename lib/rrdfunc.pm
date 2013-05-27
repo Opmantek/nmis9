@@ -216,7 +216,9 @@ sub addDStoRRD {
 	my $DSprep;
 
 	# Get XML Output
-	my $xml = `$rrdtool dump $rrd`;
+	### Adding Mark Nagel's fix for quoting strings.
+	my $qrrd = quotemeta($rrd);
+	my $xml = `$rrdtool dump $qrrd`;
 
 	#prepare inserts
 	foreach my $ds (@ds) {

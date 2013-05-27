@@ -39,6 +39,7 @@ use NMIS;
 use Sys;
 use NMIS::Timing;
 use Data::Dumper;
+use Net::SNMP; 
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
@@ -89,12 +90,11 @@ sub processNode {
 		my $NC = $S->ndcfg;
 		my $V = $S->view;
 
+		# Get the SNMP Session going.
+		my $port = $LNT->{$node}{port};
+		$port = 161 if not $port;
+		my $session = mysnmpsession($LNT->{$node}{host},$LNT->{$node}{community},$port);
 
-		############################################################################################################
-		#
-		## THe following code contains psuedo-code inside it.  Just the first and second if statements
-		#
-		############################################################################################################
 		if ( $NI->{system}{sysDescr} =~ /ASAM|ARAM|ISAM/ and $NI->{system}{nodeVendor} eq "Alcatel Data Network" ) {
 			#asamActiveSoftware1	standby
 			#asamActiveSoftware2	active
@@ -147,7 +147,7 @@ sub processNode {
 			elsif( $asamSoftwareVersion =~ /$asamVersion42/ )
 			{
 				$version = 4.2;
-				my $indexes = build_42_interface_indexes();
+				my $indexes = build_42_interface_indexes(NI => $NI);
 				@ifIndexNum = @{$indexes};
 			}
 			else {
@@ -156,7 +156,6 @@ sub processNode {
 
 			print "DEBUG version=$version asamSoftwareVersion=$asamSoftwareVersion\n" if $debug;
 		
-		
 			my $intfTotal = 0;
 			my $intfCollect = 0; # reset counters
 
@@ -164,6 +163,22 @@ sub processNode {
 				$intfTotal++;				
 				my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
 				my $Description = getDescription(version => $version, ifIndex => $index);
+
+				my $offset = 12288;
+				if ( $version eq "4.2" )  {
+					$offset = 6291456;
+				}
+				
+				#asamIfExtCustomerId
+				my $prefix = "1.3.6.1.4.1.637.61.1.6.5.1.1";
+				my $offsetIndex = $index - $offset;
+				my $oid = "$prefix.$offsetIndex";
+				my $customerid = mysnmpget($session,$oid) if defined $session;
+
+				dbg("SNMP $node $ifDescr $Description, customerid=$customerid->{$oid}");
+				if ( $customerid->{$oid} ne "" and $customerid->{$oid} ne /SNMP ERROR/ ) {
+					$Description = $customerid->{$oid};
+				}
 				
 				$S->{info}{interface}{$index} = {
 		      'Description' => $Description,
@@ -317,31 +332,47 @@ sub processNode {
 }
 
 sub getRackShelfMatrix {
+	my $version = shift;
 	my $eqptHolder = shift;
 	my %config;
 	
 	#ARAM-E , NFXS-A for 7302 FD  and/or NFXS-B  for 7330 FD
-	
 	my $shelfMatch = qr/ARAM\-D|ARAM\-E|NFXS\-A|NFXS\-B/;
-	my $rackMatch = qr/ALTR\-A/;
+	my $rackMatch = qr/ALTR\-A|ALTR\-E/;
 	
-	#eqptHolderPlannedType
-	my $gotOneRack = 0;
-	my $rack = 0;
-	my $shelf = 0;
-	foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
-		print "$eqpt = eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}\n" if $debug;
-		if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
-			++$rack;
-			$shelf = 0;
-		}
-		elsif ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$shelfMatch/ ) {
-			++$shelf;
-			$config{$rack}{$shelf} = 1;
-			if ( $gotOneRack ) {
-				$gotOneRack = 0;
+	if ( $version eq "4.1" ) {	
+		#eqptHolderPlannedType
+		my $gotOneRack = 0;
+		my $rack = 0;
+		my $shelf = 0;
+		foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
+			print "$eqpt = eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}\n" if $debug;
+			if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
+				++$rack;
+				$shelf = 0;
+			}
+			elsif ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$shelfMatch/ ) {
+				++$shelf;
+				$config{$rack}{$shelf} = 1;
+				if ( $gotOneRack ) {
+					$gotOneRack = 0;
+				}
 			}
 		}
+	}
+	elsif ( $version eq "4.2" ) {	
+		#eqptHolderPlannedType
+		my $slot = 0;
+		my @indexes;
+		foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
+			print "$eqpt = eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}\n" if $debug;
+			if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
+				++$slot;
+				push(@indexes,$eqpt);
+			}
+		}
+		$config{slot}{slots} = $slot;
+		$config{slot}{indexes} = \@indexes;
 	}
 	
 	print Dumper(\%config) if $debug;
@@ -375,11 +406,10 @@ sub getIfDescr {
 		return "$prefix-$rack-$shelf-$slot-$circuit";
 	}
 	else {
-		my $slot_mask 		= 0xFC000000;
-		my $level_mask 		= 0x03C00000;	
+		my $slot_mask 		= 0x7E000000;
+		my $level_mask 		= 0x01E00000;	
 		my $circuit_mask 	= 0x001FE000;
-		
-	
+			
 		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
 		my $level 	= ($oid_value & $level_mask) 		>> 21;
 		my $circuit = ($oid_value & $circuit_mask) 	>> 13;
@@ -421,8 +451,8 @@ sub getDescription {
 		return "Rack=$rack, Shelf=$shelf, Slot=$slot, Circuit=$circuit";
 	}
 	else {
-		my $slot_mask 		= 0xFC000000;
-		my $level_mask 		= 0x03C00000;	
+		my $slot_mask 		= 0x7E000000;
+		my $level_mask 		= 0x01E00000;	
 		my $circuit_mask 	= 0x001FE000;
 		
 		my $slot 		= ($oid_value & $slot_mask) 		>> 25;
@@ -449,7 +479,7 @@ sub build_41_interface_indexes {
 	
 	#Look at the eqptHolderPlannedType data to see what is planned for this device.
 	if ( exists $NI->{eqptHolder} ) {
-		$systemConfig = getRackShelfMatrix($NI->{eqptHolder});
+		$systemConfig = getRackShelfMatrix("4.1",$NI->{eqptHolder});
 		$rack_count = 0;
 		$shelf_count = 0;
 	}
@@ -497,10 +527,21 @@ sub build_41_interface_indexes {
 
 sub build_42_interface_indexes {
 	my %args = @_;
+	my $NI = $args{NI};
+	my $systemConfig;
 
 	my $level = 3;
 	
-	my @slots = (2..16);
+	#Look at the eqptHolderPlannedType data to see what is planned for this device.
+	if ( exists $NI->{eqptHolder} ) {
+		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptHolder});
+	}
+	
+	my $slot_count = $systemConfig->{slot}{slots};
+	# correct the slot_count
+	my $slot_limit = ( $slot_count * 2 ) + 1;
+	
+	my @slots = (2..$slot_limit);
 	my @circuits = (0..47);
 
 	my @interfaces = ();
@@ -605,11 +646,10 @@ sub decode_interface_index_42 {
 		$oid_value = $args{oid_value};
 	}
 	
-	my $slot_mask 		= 0xFC000000;
-	my $level_mask 		= 0x03C00000;	
+	my $slot_mask 		= 0x7E000000;
+	my $level_mask 		= 0x01E00000;	
 	my $circuit_mask 	= 0x001FE000;
 	
-
 	my $slot 		= ($oid_value & $slot_mask) 		>> 25;
 	my $level 	= ($oid_value & $level_mask) 		>> 21;
 	my $circuit = ($oid_value & $circuit_mask) 	>> 13;
@@ -623,3 +663,52 @@ sub decode_interface_index_42 {
 	}
 }
 
+sub mysnmpsession {
+	my $node = shift;
+	my $community = shift;
+	my $port = shift;
+
+	my ($session, $error) = Net::SNMP->session(                   
+		-hostname => $node,                  
+		-community => $community,                
+		-timeout  => $C->{snmp_timeout},                  
+		-port => $port
+	);  
+
+	if (!defined($session)) {       
+		logMsg("ERROR ($node) SNMP Session Error: $error");
+		$session = undef;
+	}
+	
+	# lets test the session!
+	my $oid = "1.3.6.1.2.1.1.2.0";	
+	my $result = mysnmpget($session,$oid);
+	if ( $result->{$oid} =~ /^SNMP ERROR/ ) {	
+		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
+		$session = undef;
+	}
+	
+	return $session; 
+}
+
+sub mysnmpget {
+	my $session = shift;
+	my $oid = shift;
+	
+	my %pdesc;
+		
+	my $response = $session->get_request($oid); 
+	if ( defined $response ) {
+		%pdesc = %{$response};  
+		my $err = $session->error; 
+		
+		if ($err){
+			$pdesc{$oid} = "SNMP ERROR"; 
+		} 
+	}
+	else {
+		$pdesc{$oid} = "SNMP ERROR: empty value $oid"; 
+	}
+	
+	return \%pdesc;
+}

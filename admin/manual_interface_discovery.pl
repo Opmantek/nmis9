@@ -39,6 +39,7 @@ use NMIS;
 use Sys;
 use NMIS::Timing;
 use Data::Dumper;
+use Net::SNMP; 
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
@@ -84,6 +85,11 @@ sub processNode {
 		my $NC = $S->ndcfg;
 		my $V = $S->view;
 
+		# Get the SNMP Session going.
+		my $port = $LNT->{$node}{port};
+		$port = 161 if not $port;
+		my $session = mysnmpsession($LNT->{$node}{host},$LNT->{$node}{community},$port);
+
 		if ( $NI->{system}{sysDescr} =~ /GS108T/ and $NI->{system}{nodeVendor} eq "Netgear" ) {			
 			my @ifIndexNum = qw(1 2 3 4 5 6 7 8);
 
@@ -93,6 +99,17 @@ sub processNode {
 			foreach my $index (@ifIndexNum) {
 				$intfTotal++;				
 				my $ifDescr = "Port $index Gigabit Ethernet";
+				
+				my $prefix = "1.3.6.1.2.1.10.7.10.1.2";
+				my $oid = "$prefix.$index";
+				my $dot3PauseOperMode = mysnmpget($session,$oid) if defined $session;
+				
+				dbg("SNMP $node $ifDescr, dot3PauseOperMode=$dot3PauseOperMode->{$oid}");
+				
+				if ( $dot3PauseOperMode->{$oid} =~ /^SNMP ERROR/ ) {
+					logMsg("ERROR ($node) SNMP Error with $oid");
+				}
+				
 				$S->{info}{interface}{$index} = {
 		      'Description' => '',
 		      'ifAdminStatus' => 'unknown',
@@ -105,8 +122,8 @@ sub processNode {
 		      'ifType' => 'ethernetCsmacd',
 		      'interface' => "port-$index-gigabit-ethernet",
 		      'real' => 'true',
-		      'threshold' => 'true'
-				
+		      'threshold' => 'true',
+		      'dot3PauseOperMode' => $dot3PauseOperMode->{$oid},
 				};
 				
 				# preset collect,event to required setting, Node Configuration Will override.
@@ -231,7 +248,7 @@ sub processNode {
 				$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 			}
 			
-			print Dumper $S;
+			# print Dumper $S;
 
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis			
@@ -239,9 +256,52 @@ sub processNode {
 	}
 }
 
+sub mysnmpsession {
+	my $node = shift;
+	my $community = shift;
+	my $port = shift;
 
+	my ($session, $error) = Net::SNMP->session(                   
+		-hostname => $node,                  
+		-community => $community,                
+		-timeout  => $C->{snmp_timeout},                  
+		-port => $port
+	);  
 
+	if (!defined($session)) {       
+		logMsg("ERROR ($node) SNMP Session Error: $error");
+		$session = undef;
+	}
+	
+	# lets test the session!
+	my $oid = "1.3.6.1.2.1.1.2.0";	
+	my $result = mysnmpget($session,$oid);
+	if ( $result->{$oid} =~ /^SNMP ERROR/ ) {	
+		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
+		$session = undef;
+	}
+	
+	return $session; 
+}
 
-
-
-
+sub mysnmpget {
+	my $session = shift;
+	my $oid = shift;
+	
+	my %pdesc;
+		
+	my $response = $session->get_request($oid); 
+	if ( defined $response ) {
+		%pdesc = %{$response};  
+		my $err = $session->error; 
+		
+		if ($err){
+			$pdesc{$oid} = "SNMP ERROR"; 
+		} 
+	}
+	else {
+		$pdesc{$oid} = "SNMP ERROR: empty value $oid"; 
+	}
+	
+	return \%pdesc;
+}

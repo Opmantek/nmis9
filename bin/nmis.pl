@@ -220,7 +220,7 @@ sub	runThreads {
 	### collects should not run past 5mins - if they do we have a problem
 	###
 
-	if ( $type eq 'collect' and !$debug and !$mthreadDebug ) {
+	if ( $type eq 'collect' and !$debug and !$model and !$mthreadDebug ) {
 		
 		$PIDFILE = getPidFileName();
 				
@@ -437,7 +437,7 @@ sub	runThreads {
 	}
 
 END_runThreads:
-	if ( $type eq 'collect' and !$debug and !$mthreadDebug) {
+	if ( $type eq 'collect' and !$debug and !$model and !$mthreadDebug) {
 		unlink($PIDFILE);
 		dbg("pidfile $PIDFILE deleted");
 	}
@@ -1114,7 +1114,9 @@ sub getIntfInfo {
 		} else {
 			logMsg("ERROR ($S->{name}) on get interface index table");
 			# failed by snmp
-			snmpNodeDown(sys=>$S);
+			if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+				snmpNodeDown(sys=>$S);
+			}
 			dbg("Finished");
 			return 0;
 		}
@@ -1641,7 +1643,9 @@ sub getEnvInfo {
 					} else {
 						logMsg("ERROR ($S->{name}) on get environment $section index table");
 						# failed by snmp
-						snmpNodeDown(sys=>$S);
+						if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+							snmpNodeDown(sys=>$S);
+						}
 					}
 					# Loop to get information, will be stored in {info}{$section} table
 					foreach my $index (sort keys %envIndexNum) {
@@ -1710,7 +1714,9 @@ sub getEnvInfo {
 					} else {
 						logMsg("ERROR ($S->{name}) on get environment $section index table");
 						# failed by snmp
-						snmpNodeDown(sys=>$S);
+						if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+							snmpNodeDown(sys=>$S);
+						}
 					}
 					# Loop to get information, will be stored in {info}{$section} table
 					foreach my $index (sort keys %envIndexNum) {
@@ -1898,7 +1904,9 @@ sub getSystemHealthInfo {
 				} else {
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
 					# failed by snmp
-					snmpNodeDown(sys=>$S);
+					if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+						snmpNodeDown(sys=>$S);
+					}
 				}
 				# Loop to get information, will be stored in {info}{$section} table
 				foreach my $index (sort keys %healthIndexNum) {					
@@ -5123,6 +5131,7 @@ sub sendMSG {
 			my $classMethod = $class."::sendNotification";
 			if ( checkPerlLib($class) ) {
 				eval "require $class";
+				logMsg($@) if $@;
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {

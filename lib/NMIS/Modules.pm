@@ -54,7 +54,7 @@ sub new {
 
 	my $oav2_base = undef;
 	if ( defined $arg{oav2_base} ) { $oav2_base = $arg{oav2_base} }
-	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/oav2" }
+	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/open-audit" }
 
 	my $nmis_cgi_url_base = undef;
 	if ( defined $arg{nmis_cgi_url_base} ) { $nmis_cgi_url_base = $arg{nmis_cgi_url_base} }
@@ -148,7 +148,7 @@ sub getModuleCode {
 		if ( $modules->{$mod}{base} =~ /nmis/ ) {
 			$base = $self->{nmis_base};
 		}
-		elsif ( $modules->{$mod}{base} =~ /oav2/ ) {
+		elsif ( $modules->{$mod}{base} =~ /oav2|open-audit/ ) {
 			$base = $self->{oav2_base};
 		}
 		

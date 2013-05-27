@@ -2,7 +2,7 @@
     'Open-AudIT' => {
       'order' => '1',
       'name' => 'Open-AudIT',
-      'base' => 'oav2',
+      'base' => 'open-audit',
       'file' => 'install_ubuntu.txt',
       'link' => '/open-audit/index.php',
       'description' => 'Open-AudIT intelligently scans an organizations network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).',

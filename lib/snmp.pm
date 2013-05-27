@@ -415,9 +415,11 @@ sub checkResult {
 
 		# dont repeat timeout error msg
 		if ($self->{log_regex} eq "" or $self->{session}->error !~ /$self->{log_regex}/i ) {
-			logMsg("ERROR $msg") if ($self->{session}->error !~ /is empty/) and $self->{logging};
+			logMsg("SNMP ERROR $msg") if ($self->{session}->error !~ /is empty/) and $self->{logging};
+			#logMsg("SNMP ERROR $msg");
 		}
-		dbg($msg,3) ;
+		dbg($msg,3);
+
 		return 0;
 	}
 	$self->{log_regex} = "";

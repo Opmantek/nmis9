@@ -34,24 +34,49 @@
 nmis_base=/usr/local/nmis8
 nmis=$nmis_base/bin/nmis.pl
 nmis_log=$nmis_base/logs/nmis.log
+event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
+editor=/bin/vi
 
 taillines=50
+
+helptext() {
+	echo NMIS Shell Options
+	echo "    $0 log"
+	echo "    $0 event"
+	echo "    $0 apache"
+	echo "    $0 summary"
+	echo "    $0 master"
+	echo "    $0 threshold"
+	echo "    $0 Nodes"
+	echo "    $0 Config"
+	echo "    $0 mib \"<search string>\""
+	echo "    $0 grepcode \"<search string>\""
+	echo "    $0 grepnmis \"<search string>\""
+	echo "    $0 Config"
+	echo "    $0 <node_name>|all collect"
+	echo "    $0 <node_name>|all update"
+	echo "    $0 <node_name>|all model"
+	echo "    $0 <node_name>|all node"
+	echo "    $0 <node_name>|all verbose"
+	exit 1
+}
 
 if [ "$1" == "" ] 
 then
 	echo No arguements given:
-	echo You can.......
-	echo "    $0 log   "
-	echo "    $0 apache   "
-	echo "    $0 collect <node_name>|all"
-  echo "    $0 update <node_name>|all"
-  exit 1
+	helptext
 fi
 
 if [ "$1" == "log" ]
 then
 	tail -$taillines $nmis_log
+	exit 0
+fi
+
+if [ "$1" == "event" ]
+then
+	tail -$taillines $event_log
 	exit 0
 fi
 
@@ -64,6 +89,18 @@ fi
 if [ "$1" == "summary" ]
 then
 	$nmis type=summary debug=true
+	exit 0
+fi
+
+if [ "$1" == "Nodes" ]
+then
+	$editor $nmis_base/conf/Nodes.nmis
+	exit 0
+fi
+
+if [ "$1" == "Config" ]
+then
+	$editor $nmis_base/conf/Config.nmis
 	exit 0
 fi
 
@@ -81,14 +118,32 @@ fi
 
 if [ "$1" == "grep" ]
 then
-	find $nmis_base -name "*.p?" -exec grep -H $2 {} \;
+	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
+	exit 0
+fi
+
+if [ "$1" == "grepcode" ]
+then
+	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
+	exit 0
+fi
+
+if [ "$1" == "grepfile" ]
+then
+	find $nmis_base -name "*.nmis" -exec grep -H "$2" {} \;
+	exit 0
+fi
+
+if [ "$1" == "mib" ]
+then
+	grep "$2" $nmis_base/mibs/nmis_mibs.oid
 	exit 0
 fi
 
 if [ "$2" == "" ] 
 then
-	echo No second arguement given, need to know node name or something!
-	exit 0
+	echo NMIS Shell option not understood.
+	helptext
 else
 	node="node=$1"
 	if [ "$1" == "all" ] 
@@ -99,31 +154,40 @@ fi
 
 if [ "$2" == "collect" ]
 then
-	$nmis type=collect $node debug=true
+	$nmis type=collect "$node" debug=true
 	exit 0
 fi
 
 if [ "$2" == "update" ]
 then
-	$nmis type=update $node debug=true
+	$nmis type=update "$node" debug=true
 	exit 0
 fi
 
 if [ "$2" == "threshold" ]
 then
-	$nmis type=threshold $node debug=true
+	$nmis type=threshold "$node" debug=true
 	exit 0
 fi
 
 if [ "$2" == "model" ]
 then
-	$nmis type=collect $node model=true
+	$nmis type=update "$node" model=true
+	$nmis type=collect "$node" model=true
+	exit 0
+fi
+
+if [ "$2" == "verbose" ]
+then
+	$nmis type=update "$node" model=true debug=true
+	$nmis type=collect "$node" model=true debug=true
 	exit 0
 fi
 
 if [ "$2" == "node" ]
 then
 	node=${1,,}
-	cat $nmis_base/var/$node-node.nmis
+	cat "$nmis_base/var/$node-node.nmis"
 	exit 0
 fi
+
