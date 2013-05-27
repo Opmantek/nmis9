@@ -431,6 +431,10 @@ sub user_verify {
 		} elsif ( $auth eq "ms-ldap" ) {
 			$exit = $self->_ms_ldap_verify($u,$p,0);
 		
+		} elsif ( $auth eq "ms-ldaps" ) {
+		### 2013-05-27 keiths, Change from Mateusz Kwiatkowski
+			$exit = $self->_ms_ldap_verify($u,$p,1);
+		
 		} elsif ( $auth eq "novell-ldap" ) {
 			$exit = _novell_ldap_verify($u,$p,0);
 	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
