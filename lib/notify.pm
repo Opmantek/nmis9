@@ -44,7 +44,7 @@ use Net::SNPP;
 use Net::Syslog;
 use NMIS;
 use func;
-use JSON;
+use JSON::XS;
 
 $VERSION = 1.00;
 
@@ -279,7 +279,7 @@ sub logJsonEvent {
 		$file ="$dir/$event->{startdate}-$fcount.json";
 	}
 	
-	my $json_event = to_json( $event ); #, { pretty => 1 } );
+	my $json_event = encode_json( $event ); #, { pretty => 1 } );
 	open(JSON,">$file") or logMsg("ERROR, can not write to $file");
 	print JSON $json_event;
 	close JSON;
