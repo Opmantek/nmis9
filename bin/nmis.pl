@@ -220,7 +220,7 @@ sub	runThreads {
 	### collects should not run past 5mins - if they do we have a problem
 	###
 
-	if ( $type eq 'collect' and !$debug and !$mthreadDebug ) {
+	if ( $type eq 'collect' and !$model and !$debug and !$mthreadDebug ) {
 		
 		$PIDFILE = getPidFileName();
 				
