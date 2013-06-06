@@ -749,7 +749,13 @@ sub outputLine {
 		$logLevelText = 'Unknown';
 		
 	} # elsif nmis.log 
-	
+	#5-Jun-2013 07:06:41,nmiscgi.pl#97Auth::loginout#1208Auth::verify_id#333<br>verify_id: cookie not defined
+	#5-Jun-2013 07:07:53,nmiscgi.pl#97Auth::loginout#1197<br>user=nmis logged in with config=
+	#5-Jun-2013 07:07:56,logs.pl#223Auth::CheckAccess#234<br>CheckAccessCmd: nmis, Event_Log, 1
+	elsif ( lc $logName eq 'auth_log') {
+		$line =~ s/\Q<br>\E/, /g;
+		$logLevelText = 'Unknown';
+	} # elsif nmis.log 	
 	# ------------------------------------------------------------------------------
 	# no match on log type
 	else {
@@ -757,7 +763,7 @@ sub outputLine {
 	}
 	# --------------------------------------------------------------
 	# Remove the comma's from the line
-	$line =~ s/,/ /g;	
+	$line =~ s/,/ /g if lc $logName ne 'auth_log';	
 
 	# print STDERR "DEBUG LOGS: auth=$auth lnode=$lnode group=$NT->{$lnode}{group}";
 		
@@ -829,7 +835,7 @@ sub logMenuBar {
 		Tr(
 			th({class=>'header'},'Log Name',
 				popup_menu(-name=>'logname', -override=>'1',
-					-values=> [ map  $LL->{$_}{logName}, sort keys %{$LL} ] ,
+					-values=> [ map  $LL->{$_}{logName}, sort { $LL->{$a}{logOrder} <=> $LL->{$b}{logOrder} } keys %{$LL} ] ,
 					-default=>$logName)),
 			th({class=>'header'},'Search String',
 				textfield(-name=>'search',size=>'15')),

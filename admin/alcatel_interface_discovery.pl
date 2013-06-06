@@ -175,8 +175,8 @@ sub processNode {
 				my $oid = "$prefix.$offsetIndex";
 				my $customerid = mysnmpget($session,$oid) if defined $session;
 
-				dbg("SNMP $node $ifDescr $Description, customerid=$customerid->{$oid}");
-				if ( $customerid->{$oid} ne "" and $customerid->{$oid} ne /SNMP ERROR/ ) {
+				dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$customerid->{$oid}");
+				if ( $customerid->{$oid} ne "" and $customerid->{$oid} !~ /SNMP ERROR/ ) {
 					$Description = $customerid->{$oid};
 				}
 				
@@ -365,10 +365,10 @@ sub getRackShelfMatrix {
 		my $slot = 0;
 		my @indexes;
 		foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
-			print "$eqpt = eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}\n" if $debug;
-			if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
+			print "$eqpt = eqptPortMapping=$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot}\n" if $debug;
+			if ( $eqptHolder->{$eqpt}{eqptPortMappingLSMSlot} != 65535 ) {
 				++$slot;
-				push(@indexes,$eqpt);
+				push(@indexes,$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot});
 			}
 		}
 		$config{slot}{slots} = $slot;
@@ -534,12 +534,17 @@ sub build_42_interface_indexes {
 	
 	#Look at the eqptHolderPlannedType data to see what is planned for this device.
 	if ( exists $NI->{eqptHolder} ) {
-		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptHolder});
+		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptPortMapping});
 	}
 	
 	my $slot_count = $systemConfig->{slot}{slots};
 	# correct the slot_count
-	my $slot_limit = ( $slot_count * 2 ) + 1;
+	#my $slot_limit = ( $slot_count * 2 ) + 2;
+	my $slot_limit = $slot_count + 1;
+	
+	dbg("DEBUG slot_count=$slot_count slot_limit=$slot_limit indexes=@{$systemConfig->{slot}{indexes}}");
+	
+	#Slot count x 2 + 3? Or + 2
 	
 	my @slots = (2..$slot_limit);
 	my @circuits = (0..47);
@@ -551,14 +556,6 @@ sub build_42_interface_indexes {
 			my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
 			push( @interfaces, $index );
 		}		
-		#  generate extra indexes at level 16, these are the XDSL channel ones
-		if( $slot == 16 ) {
-			$level = 16;
-			foreach my $circuit (@circuits) {
-				my $index = generate_interface_index_42 ( slot => $slot, level => $level, circuit => $circuit);
-				push( @interfaces, $index );
-			}			
-		}
 	}
 	return \@interfaces;
 }

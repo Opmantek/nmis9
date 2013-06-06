@@ -21,6 +21,17 @@
     'level5' => '0',
     'name' => 'Apache_Error_Log'
   },
+  'auth_log' => {
+    'descr' => 'Access to Logfile',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Auth_Log'
+  },
   'cfg_access' => {
     'descr' => 'Enable button Config Access',
     'group' => 'button',

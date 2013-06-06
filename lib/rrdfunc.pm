@@ -583,6 +583,8 @@ sub createRRD {
 	my $index = $args{index};
 	my $database = $args{database};
 
+	my $C = loadConfTable();
+	
 	my $exit = 1;
 
 	dbg("Starting");
@@ -607,8 +609,14 @@ sub createRRD {
 		if ( not -d "$dir" 
 			and not -r "$dir" 
 		) { 
-			dbg("creating database directory $dir");
-			mkdir $dir, 0775 or warn "Cannot mkdir $dir: $!\n";
+			my $permission = "0770"; # default
+			if ( $C->{'os_execperm'} ne "" ) {
+				$permission = $C->{'os_execperm'} ;
+			} 
+
+			dbg("creating database directory $dir,$permission");
+			
+			mkdir($dir, $permission) or warn "Cannot mkdir $dir: $!\n";
 		}
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);

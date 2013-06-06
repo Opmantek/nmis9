@@ -64,5 +64,11 @@
     'logFileName' => '/var/log/httpd/error_log',
     'logName' => 'Apache_Error_Log',
     'logDescr' => 'Apache Error Log'
+  },
+  '12' => {
+    'logOrder' => '12',
+    'logFileName' => 'auth.log',
+    'logName' => 'Auth_Log',
+    'logDescr' => 'Auth Log'
   }
 );

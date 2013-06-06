@@ -1734,6 +1734,17 @@ sub checkDirectoryFiles {
 
 sub setFileProtDirectory {
 	my $dir = shift;
+	my $recurse = shift;
+	
+	if ( $recurse eq "" ) {
+		$recurse = 0;
+	}
+	else {
+		$recurse = getbool($recurse);
+	}
+	
+	dbg("setFileProtDirectory $dir, recurse=$recurse",1);
+
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;
@@ -1741,6 +1752,10 @@ sub setFileProtDirectory {
 	foreach my $file (@dirlist) {
 		if ( -f "$dir/$file" and $file !~ /^\./ ) {
 			setFileProt("$dir/$file");
+		}
+		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ ) {
+			setFileProt("$dir/$file");
+			setFileProtDirectory("$dir/$file",$recurse);
 		}
 	}
 }
