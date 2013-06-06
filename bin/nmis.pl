@@ -220,7 +220,7 @@ sub	runThreads {
 	### collects should not run past 5mins - if they do we have a problem
 	###
 
-	if ( $type eq 'collect' and !$debug and !$mthreadDebug ) {
+	if ( $type eq 'collect' and !$model and !$debug and !$mthreadDebug ) {
 		
 		$PIDFILE = getPidFileName();
 				
@@ -4379,8 +4379,6 @@ sub runEscalate {
 	my %seen;
 	
 	dbg("Starting");
-dbg("Checking notify $type\n");
-print "STARTING ESCALATE MESG\n";
 	# load Contacts table
 	my $CT = loadContactsTable();
 
@@ -5025,7 +5023,6 @@ sub sendMSG {
 
 	my $target;
 	my $serial;
-	print "STARTING SEND MESG\n";
 	dbg("Starting");
 
 	foreach my $method (keys %$msgTable) {

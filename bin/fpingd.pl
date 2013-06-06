@@ -73,8 +73,11 @@ my $runfile     = "$C->{'<nmis_var>'}/nmis-fpingd.pid";
 
 #----------------------------------------
 # figure out if we have fping installed or not
-my $fpingbin = `which fping`;
+#my $fpingbin = `which fping`;
+my ( undef, $fpingbin , undef ) = split /\s+/, qx|whereis -b fping|;
+#print "1fpingbin=$fpingbin\n";
 chomp $fpingbin;
+#print "2fpingbin=$fpingbin\n";
 if ( -x $fpingbin and qx|$fpingbin -v| ) {
 	&debug("fping binary executable found: $fpingbin");
 }
@@ -89,7 +92,9 @@ else {
 
 # get the pid - this should be 'portable'
 # logMsg( "running ps -C $FindBin::Script -o pid=");
+#$ppid = qx|ps -C $FindBin::Script -o pid=|;
 $ppid = qx|/bin/pidof $FindBin::Script|;
+#logMsg("found ppid=$ppid\n");
 chomp $ppid;
 if ( -f $runfile ) {
 	open(F, "<$runfile");
@@ -176,7 +181,9 @@ fork && exit;
 # Announce our presence via a PID file
 # get our pid - this should be 'portable'
 # logMsg( "running ps -C $FindBin::Script -o pid=");
+#$ppid = qx|ps -C $FindBin::Script -o pid=|;
 $ppid = qx|/bin/pidof $FindBin::Script|;
+#logMsg("found ppid=$ppid\n");
 open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
 print PID $ppid;
 close PID;
