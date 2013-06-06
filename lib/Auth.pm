@@ -130,12 +130,18 @@ sub new {
 	
 	my %arg = @_;	
 	$C = $arg{conf},
+
+	my $banner = undef;
+	if ( $arg{banner} ne "" ) {
+		$banner = $arg{banner}
+	}
 	
 	my $self = {
 		_require => 1,
 		dir => $arg{dir},
 		user => undef,
 		config => undef,
+		banner => $banner,
 		priv => undef,
 		privlevel => 0, # default all
 		cookie => undef,
@@ -868,7 +874,7 @@ EOHTML
     <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
 |;
 
-	print do_login_banner();
+	print $self->do_login_banner();
 
 	print start_form({method=>"POST", action=>"?", target=>"_top"});
 
@@ -1021,7 +1027,7 @@ $javascript
     <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
 |;
 
-	print do_login_banner();
+	print $self->do_login_banner();
 
 	print start_table();
 	print Tr(td({class=>"info Plain"}, p(h2("Logged out of system") .
@@ -1043,9 +1049,16 @@ $javascript
 sub do_login_banner {
 	my $self = shift;
 	my @banner = ();
+	my $banner_string = "NMIS $NMIS::VERSION";
+	
+	if ( defined $self->{banner}  ) {
+		$banner_string = $self->{banner};
+	}
+
+	print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 	
 	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;	
-	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg pad'},$logo, "NMIS $NMIS::VERSION");
+	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg pad'},$logo, $banner_string);
 	push @banner,div({class=>'title2'},"Network Management Information System");
 		
 	return @banner;
