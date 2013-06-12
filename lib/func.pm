@@ -764,7 +764,10 @@ sub setFileProt {
 				logMsg("ERROR, could not set the group of $filename $C->{'nmis_group'}.");
 			}
 			
-			if ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
+			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
+				$permission = $C->{'os_execperm'} ;
+			} 
+			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
 			} 
 			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {

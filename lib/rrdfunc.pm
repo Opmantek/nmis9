@@ -617,6 +617,7 @@ sub createRRD {
 			dbg("creating database directory $dir,$permission");
 			
 			mkdir($dir, $permission) or warn "Cannot mkdir $dir: $!\n";
+			setFileProt($dir);
 		}
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);

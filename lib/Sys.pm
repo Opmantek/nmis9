@@ -788,6 +788,10 @@ sub parseString {
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
 			if ($indx ne '') {
+				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
+				$ifAlias = $self->{info}{interface}{$indx}{Description};
+				$Description = $self->{info}{interface}{$indx}{Description};
+				###
 				$ifDescr = convertIfName($self->{info}{interface}{$indx}{ifDescr});
 				$ifType = $self->{info}{interface}{$indx}{ifType};
 				$ifSpeed = $self->{info}{interface}{$indx}{ifSpeed};
