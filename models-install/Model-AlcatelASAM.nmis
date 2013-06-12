@@ -196,6 +196,53 @@
       },
     },
   },
+  'systemHealth' => {
+    'sections' => 'eqptHolder,eqptPortMapping',
+    'sys' => {
+      'eqptHolder' => {        
+        'indexed' => 'eqptHolderPlannedType',        
+        'headers' => 'eqptHolderPlannedType',
+        'snmp' => {
+          'eqptHolderPlannedType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.3',
+            'sysObjectName' => 'eqptHolderPlannedType',
+            'title' => 'EQPT Holder Planned Type'
+          },
+          'eqptHolderStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.6',
+            'sysObjectName' => 'eqptHolderStatus',
+            'title' => 'EQPT Holder Status'
+          },
+          'eqptHolderIndex' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.11',
+            'sysObjectName' => 'eqptHolderIndex',
+            'title' => 'EQPT Holder Index'
+          },
+        },
+      },      
+      'eqptPortMapping' => {        
+        'indexed' => 'eqptPortMappingLogPortType',        
+        'headers' => 'eqptPortMappingLogPortType,eqptPortMappingLSMSlot',
+        'snmp' => {
+          'eqptPortMappingLogPortType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.2',
+            'sysObjectName' => 'eqptPortMappingLogPortType',
+            'title' => 'The logical port type',
+            'replace' => {
+              '1' => 'uplink',
+              '2' => 'downlink',
+              '3' => 'hostlink',
+            },
+          },
+          'eqptPortMappingLSMSlot' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.6',
+            'sysObjectName' => 'eqptPortMappingLSMSlot',
+            'title' => 'The equipment slot index'
+          },
+        },
+      },      
+    },
+  },
   'custom' => {
 		'interface' => {
 			'ifAdminStatus' => 'false',

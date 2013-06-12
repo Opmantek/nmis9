@@ -230,7 +230,7 @@
     'net-snmp' => {
       'order' => {
         '10' => {
-          'net-snmp' => 'Linux|SunOS|Darwin'
+          'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
         }
       }
     },
@@ -317,6 +317,13 @@
         }
       }
     },
+    'MikroTik' => {
+      'order' => {
+        '10' => {
+          'MikroTik' => 'RouterOS'
+        }
+      }
+    },
     'Emerson Energy Systems' => {
       'order' => {
         '10' => {
@@ -330,7 +337,7 @@
           'ServersCheck' => 'Temperature \& Sensor Gateway'
         }
       }
-    }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

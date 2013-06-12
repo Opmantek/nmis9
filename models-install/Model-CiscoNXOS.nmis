@@ -125,9 +125,12 @@
   	'nodeVendor' => 'Cisco Systems',
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
-  'environment' => {
+  'systemHealth' => {
     'sys' => {
       'env_temp' => {
+        'indexed' => 'entSensorStatus',
+        'headers' => 'tempDescr',
+        'control' => 'CVAR= tempType;$CVAR =~ /celsius/',
         'snmp' => {
           'tempDescr' => {
             'oid' => 'entPhysicalDescr',
@@ -163,19 +166,18 @@
             'title' => 'Status'
           }
         },
-        'indexed' => 'entSensorStatus'
       }
     },
     'rrd' => {
       'env_temp' => {
+        'indexed' => 'true',
+        'threshold' => 'env_temp',
+        'graphtype' => 'env-temp',
         'snmp' => {
           'currentTemp' => {
             'oid' => 'entSensorValue',
           }
         },
-        'indexed' => 'true',
-        'threshold' => 'env_temp',
-        'graphtype' => 'env-temp'
       },
     }
   },
