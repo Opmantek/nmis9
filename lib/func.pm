@@ -781,6 +781,9 @@ sub setFileProt {
 				logMsg("ERROR, could not change $filename permissions to $permission, $!");
 			}
 		}
+		else {
+			dbg("INFO: $filename can not change unless root or you own it.");
+		}
 	}
 }
 

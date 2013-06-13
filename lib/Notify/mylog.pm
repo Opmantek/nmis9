@@ -58,7 +58,11 @@ sub sendNotification {
 	my $message = $arg{message};
 	
 	if ( not -d $dir ) {
-		mkpath($dir);
+		my $permission = "0770";
+
+		my $umask = umask(0);
+		mkpath($dir,{verbose => 0, mode => oct($permission)});
+		umask($umask);
 	}
 	
 	# add the time now to the event data.

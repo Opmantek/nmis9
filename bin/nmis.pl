@@ -5574,7 +5574,7 @@ EO_TEXT
 		setFileProtDirectory($C->{'<nmis_models>'});
 		setFileProtDirectory($C->{'<nmis_var>'});
 		setFileProtDirectory($C->{'config_logs'});
-		setFileProtDirectory($C->{'database_root'});
+		setFileProtDirectory($C->{'database_root'},"true");
 		setFileProtDirectory($C->{'json_logs'});
 		setFileProtDirectory($C->{'log_root'});
 		setFileProtDirectory($C->{'mib_root'});

@@ -616,7 +616,9 @@ sub createRRD {
 
 			dbg("creating database directory $dir,$permission");
 			
-			mkdir($dir, $permission) or warn "Cannot mkdir $dir: $!\n";
+			my $umask = umask(0);
+			mkdir($dir, oct($permission)) or warn "Cannot mkdir $dir: $!\n";
+			umask($umask);
 			setFileProt($dir);
 		}
 
