@@ -707,7 +707,7 @@ sub setFileProt {
 	my $gid;
 	my $C = loadConfTable();
 
-	if ( not -r $filename ) {
+	if ( not -r $filename and ! -d $filename ) {	# adapted for directory: Till Dierkesmann
 		logMsg("ERROR, file=$filename does not exist");
 		return ;
 	}
@@ -717,20 +717,24 @@ sub setFileProt {
 		if ($username eq '') {
 			if ( $C->{'os_username'} ne "" ) {
 				$username = $C->{'os_username'} ;
-			} else {
+			} 
+			else {
 				$username = "nmis"; # default
 			}
 		}
 		if ($permission eq '') {
 			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
 				$permission = $C->{'os_fileperm'} ;
-			} 
+			}
+			elsif ( -d $filename ) {	# Directory permission added by Till Dierkesmann
+				$permission = "0770"; # Default for dirs
+			}
 			else {
 				$permission = "0660"; # default
 			}
@@ -766,13 +770,16 @@ sub setFileProt {
 			
 			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
 				$permission = $C->{'os_fileperm'} ;
-			} 
+			}
+			elsif ( -d $filename ) {	# Directory permission added by Till Dierkesmann
+				$permission = "0770"; # Default for dirs
+			}
 			else {
 				$permission = "0660"; # default
 			}
@@ -1511,9 +1518,15 @@ sub createDir {
 	my $dir = shift;
 	my $C = loadConfTable();
 	if ( not -d $dir ) {
-		mkpath($dir,{mode=>$C->{'os_username'}});
+		my $permission = "0770"; # default
+		if ( $C->{'os_execperm'} ne "" ) {
+			$permission = $C->{'os_execperm'} ;
+		} 
+
+		my $umask = umask(0);
+		mkpath($dir,{verbose => 0, mode => oct($permission)});
+		umask($umask);
 	}
-	setFileProt($dir);
 }
 
 sub checkDir {
@@ -1619,7 +1632,7 @@ sub checkFile {
 		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
 		my $username = getpwuid($uid);
 		
-		if ( $fstat->size > $C->{'file_size_warning'} ) {
+		if ( $fstat->size > $C->{'file_size_warning'} and $C->{'file_size_warning'} ne "" and $C->{'file_size_warning'} > 0 ) {
 			$result = 0;
 			my $size = $fstat->size;
 			push(@messages,"WARN: $file is $size bytes, larger than $C->{'file_size_warning'} bytes");			
@@ -1630,7 +1643,12 @@ sub checkFile {
     #S_IRWXO S_IROTH S_IWOTH S_IXOTH
 		
 		# Are the user and group permissions correct.    
-    # are the files executable or non-executable
+    # are the files executable or non-executable    
+    if (! defined $C->{'nmis_executable'}) { #Added by Till Dierkesmann
+        $C->{'nmis_executable'} = '\.pl$|\.sh$';
+        dbg("nmis_executable set to \"$C->{'nmis_executable'}\"",1);
+    }
+    
     if ( $file =~ /$C->{'nmis_executable'}/ ) {
 			my $user_rwx = ($mode & S_IRWXU) >> 6;
 	    my $group_rwx = ($mode & S_IRWXG) >> 3;
