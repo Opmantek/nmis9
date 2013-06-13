@@ -208,7 +208,8 @@
       },
   	},
   },
-    'systemHealth' => {
+  'systemHealth' => {
+    'sections' => 'cpu_cpm,entityMib',
     'sys' => {
       'cpu_cpm' => {
         'indexed' => 'cpmCPUTotalPhysicalIndex',        

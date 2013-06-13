@@ -397,6 +397,7 @@
     }
   },
   'systemHealth' => {
+    'sections' => 'diskIOTable',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        

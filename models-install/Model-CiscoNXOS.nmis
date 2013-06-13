@@ -126,11 +126,12 @@
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
+    'sections' => 'env_temp',
     'sys' => {
       'env_temp' => {
         'indexed' => 'entSensorStatus',
         'headers' => 'tempDescr',
-        'control' => 'CVAR= tempType;$CVAR =~ /celsius/',
+        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
         'snmp' => {
           'tempDescr' => {
             'oid' => 'entPhysicalDescr',
