@@ -9,10 +9,10 @@
 				{ 'group' => { header => 'Groups',display => 'header,text', value => [ '' ] }},
 				
 				{ 'protocol' => { header => 'Protocol',display => 'header,popup', value => [ 'http', "https" ] }},
-				{ 'port' => { header => 'Port',display => 'header,popup', value => [ 80,443,8080,8443 ] }},
+				{ 'port' => { header => 'Port',display => 'header,popup', value => [ 3000,80,443,8080,8443 ] }},
 
 				{ 'portal_protocol' => { header => 'Portal Protocol',display => 'header,popup', value => [ 'http', "https" ] }},
-				{ 'portal_port' => { header => 'Portal Port',display => 'header,popup', value => [ 80,443,8080,8443 ] }},
+				{ 'portal_port' => { header => 'Portal Port',display => 'header,popup', value => [ 3000,80,443,8080,8443 ] }},
 				{ 'portal_host' => { header => 'Portal Host',display => 'header,text', value => [ 'server.domain.com' ] }},
 				
 				{ 'url_base' => { header => 'URL Base',display => 'header,text', value => [ '/nmis8' ] }},
