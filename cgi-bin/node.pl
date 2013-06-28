@@ -156,7 +156,10 @@ sub typeGraph {
 			},
 		-head=>[
 			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"})
+			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),			
+			"<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>",			
+			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>",
+			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>"
 			]
 		);
 
@@ -545,13 +548,16 @@ sub typeGraph {
 			}
 			push @output, end_Tr;
 		}
-	
-		my $graphLink="$C->{'<cgi_url_base>'}/rrddraw.pl?conf=$Q->{conf}&amp;act=draw_graph_view".
+		# opmantek_rrdfunc::rrdFetchGraphPData( C => $C, graphtype=>$graphtype,node=>$node, width => $width, height => $height, start => $start, end => $end, 
+		# 						  intf => $index, item=> $item, group => $group );
+		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
 				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
 	
+		push @output, "<script type='text/javascript'>window.graphs = []; window.graphs.push( { url : '$graphLink', div : 'chartDivId', span : 'chartSpanId' } );</script>";
+		
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, '<div class="chartDiv" id="chartDivId"><div class="chartSpan" id="chartSpanId" style="height: 400px"></div></div>'));
+			# push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		} 
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
@@ -575,7 +581,9 @@ sub typeGraph {
 	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
 	print hidden(-name=>'func', -default=>"view",-override=>'1');
 
-	print end_table, end_form, comment("typeGraph end"), end_html;
+	print end_table, end_form, comment("typeGraph end");	
+	print end_html;
+
 } # end typeGraph
 
 sub typeExport {
