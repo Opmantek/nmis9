@@ -441,14 +441,23 @@ function	createDialog(opt) {
 	// this is a kludge, dialog.options should allow title text aligned right.
 	// insert after the title span tag, that has our 'id' as a secure point of reference
 	// could add other objects here, like refresh !!
+
+	dialog = dialogHandle.dialog();
+	titleBar = dialog.parents('.ui-dialog').find('.ui-dialog-titlebar');
+	title = dialog.parents('.ui-dialog').find('.ui-dialog-title');
 	$('span#timer_' + opt.id ).remove();
+	title.css('width','auto');
+	
 	// insert + dialogNewPage + '&nbsp;' in below to get newPageButton
 	var insertNewPage = dialogNewPage + '&nbsp;';
 	if ( opt.title == 'Quick Search' ) {
 		insertNewPage = '';
 	}
-	$('<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + '&nbsp;' + pDate + '</span>').insertAfter( $('#ui-dialog-title-' + opt.id ) );
-	
+	newTitle = '<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;width:auto">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + '&nbsp;' + pDate + '</span>';	
+	$(newTitle)
+    .appendTo(titleBar);
+
+
 	// =================================================================
 	// bind a handler to the close icon 'X', that will clean up after delete.
 

@@ -150,20 +150,23 @@
     'company_logo' => ''
   },
   'css' => {
-    'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.8.15.custom.css',
+    'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.10.3.custom.css',
     'jquery_jdmenu_css' => '<menu_url_base>/css/jquery.jdMenu.css',
     'styles' => '<menu_url_base>/css/dash8.css'
   },
   'javascript' => {
-    'jquery' => '<menu_url_base>/js/jquery-1.6.2.js',
-    'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.8.15.custom.min.js',
+    'jquery' => '<menu_url_base>/js/jquery-1.8.3.min.js',
+    'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.10.3.custom.js',
     'jquery_bgiframe' => '<menu_url_base>/js/jquery.bgiframe-2.1.2.js',
     'jquery_positionby' => '<menu_url_base>/js/jquery.positionBy.js',
     'jquery_jdmenu' => '<menu_url_base>/js/jquery.jdMenu.js',			
     'calendar' => '<menu_url_base>/js/calendar.js',			
     'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
     'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
-    'nmis_common' => '<menu_url_base>/js/commonv8.js'
+    'nmis_common' => '<menu_url_base>/js/commonv8.js',
+    'chart' => '<menu_url_base>/js/chart.js',
+    'highcharts' => '<menu_url_base>/js/highcharts.js',
+    'highstock' => '<menu_url_base>/js/highstock.js'
   },
   'email' => {
     'mail_server' => '127.0.0.1',

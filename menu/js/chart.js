@@ -33,9 +33,8 @@ function drawSummaryGraph(jsonData, renderTo, div, stacking )
     // $("#"+renderTo).highcharts({
     chart: {      
       renderTo: renderTo,
-      plotBackgroundColor: null,
-      plotBorderColor: '#346691',
-      plotBorderWidth: 2,
+      plotBackgroundColor: null,      
+      plotBorderWidth: null,
       plotShadow: false,
       zoomType: 'x',
       events: {
