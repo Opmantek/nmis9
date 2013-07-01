@@ -287,12 +287,12 @@ sub rrdFetchGraphPData {
 			unlink($tmpimg) or logMsg("$NI->{system}{name}, Can't delete $tmpimg: $!");
 		}
 	} else {
-		print "Getting graphfetch, options=\n".Dumper(\@options);
+		# print "Getting graphfetch, options=\n".Dumper(\@options);
 		# ($begin,$step,$types,$name,$data) = RRDs::graphfetch('-', @options);		
 		my $begin;
 		my $end;
 		($r_start,$r_end,$r_width,$types,$legend,$colours,$pdata,$chart_options) = RRDs::fetch_graph_pdata('-', @options);
-		print STDERR "Graphfetch returned start=$r_start,end=$r_end,width=$r_width\n";
+		# print STDERR "Graphfetch returned start=$r_start,end=$r_end,width=$r_width\n";
 		# print STDERR "Graphfetch returned begin=$begin, width=$width,\n name=".Dumper($name)."\n data=".Dumper($pdata)."\n";		
 
 		if ($ERROR = RRDs::error) {

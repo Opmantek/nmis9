@@ -237,7 +237,7 @@ function	createDialog(opt) {
 	if ( opt.url.indexOf('act=log') != -1 ) {
 		opt.id = 'log_file_view';
 	}
-	
+
 	// if no title configured 
 	if ( ! opt.title ) {
 	 opt.title = 'Default Title '+opt.id ;
@@ -286,11 +286,10 @@ function	createDialog(opt) {
 	if ( objData.status != true ) {	
 	
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
-		dialogContainer.appendTo('body');
+		dialogContainer.appendTo('body');	
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
-		dialogHandle.dialog("widget").attr( 'id' , opt.id );
-
+		dialogHandle.dialog("widget").attr( 'id' , opt.id );		
 		// save the datastore dialog on the NMISV8 tag
 		objData.widgetHandle = dialogHandle;
 			
@@ -328,6 +327,9 @@ function	createDialog(opt) {
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
+					if ( typeof(loadCharts) != undefined ) {
+            loadCharts(dialogHandle);
+          }
 				}
 			});	
 		}
@@ -344,6 +346,9 @@ function	createDialog(opt) {
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
+					if ( typeof(loadCharts) != undefined ) {
+            loadCharts(dialogHandle);
+          }
 				}
 			});	
 			
@@ -368,6 +373,9 @@ function	createDialog(opt) {
 				// nmisdev 24 AUg 2012 - change click function syntax to preferred context.
 				//$(this).attr('onClick', "clickMenu(this);return false");
 				$(this).click(function(){
+					if( $(this).attr("href") === "#") {
+						return false;
+					}
 					clickMenu(this);
 					return false;
    			});
@@ -460,14 +468,14 @@ function	createDialog(opt) {
 
 	// =================================================================
 	// bind a handler to the close icon 'X', that will clean up after delete.
-
+	if ( objData.status != true ) {	
 		dialogHandle.bind( "dialogbeforeclose", function(event, ui) {
 			var id = $(this).dialog("widget").attr( 'id' );
 			var objData = $('div#NMISV8').data('NMISV8'+ id);
 
 			// get and store where we might have been dragged too
 			var pl = $(this).offset().left;
-			var pt = $(this).offset().top;
+			var pt = $(this).offset().top;	
 
 			objData.options.position = [ pl,pt ]  ;
 			
@@ -482,16 +490,19 @@ function	createDialog(opt) {
 
 		// bind a handler on the 'close' event, just to clean up.
 		// the before close was really just to get and store the widget position before it got closed.
-			dialogHandle.bind( "dialogclose", function(event, ui) {
+		dialogHandle.bind( "dialogclose", function(event, ui) {
 			var id = $(this).dialog("widget").attr( 'id' );
 			var objData = $('div#NMISV8').data('NMISV8'+ id);
 		// remove the widget, and the 'div id=xx></div> will magically appear as it was when we inserted this
+			if ( typeof(loadCharts) != undefined ) {
+				unLoadCharts($(this));
+			}
 			$(this).dialog("destroy");
 			$('div#'+id).hide().remove();
 			return false;
 		});
 		
-
+	}
 	dialogHandle.dialog('open');
 
 	//===============================================	
@@ -513,6 +524,9 @@ function	createDialog(opt) {
 			 var namespace = 'NMISV8' + opt.id;
 			 var objData = $('div#NMISV8').data(namespace);
 			 if ( objData.status === true ) {
+			 	if ( typeof(loadCharts) != undefined ) {
+					unLoadCharts(objData.widgetHandle);
+				}
 	 			createDialog(objData.options);
 	 		};
 	 	});
@@ -546,6 +560,9 @@ function dialogRefreshClick(rfID) {
 	
 		 var namespace = 'NMISV8' + rfID;
 			 var objData = $('div#NMISV8').data(namespace);
+			 if ( typeof(loadCharts) != undefined ) {
+					unLoadCharts(objData.widgetHandle);
+				}
 			 createDialog({
 			 	id : rfID,
 			 	url: objData.options.url
