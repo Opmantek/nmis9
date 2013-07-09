@@ -4,12 +4,11 @@
 				{ 'host' => { header => 'Server Host or IP',display => 'header,text', value => [ '' ] }},
 				{ 'user' => { header => 'Server User',display => 'header,text', value => [ 'nmismst' ] }},
 				{ 'passwd' => { header => 'Server Password',display => 'text', value => [ 'C00kb00k' ] }},
-				{ 'community' => { header => 'Shared Community',display => 'text', value => [ 'secret' ] }},
 				{ 'config' => { header => 'Config',display => 'header,text', value => [ 'Config' ] }},
 				{ 'group' => { header => 'Groups',display => 'header,text', value => [ '' ] }},
 				
 				{ 'protocol' => { header => 'Protocol',display => 'header,popup', value => [ 'http', "https" ] }},
-				{ 'port' => { header => 'Port',display => 'header,popup', value => [ 80,443,8080,8443 ] }},
+				{ 'port' => { header => 'Port',display => 'header,popup', value => [ 3000,80,443,8080,8443 ] }},
 
 				{ 'portal_protocol' => { header => 'Portal Protocol',display => 'header,popup', value => [ 'http', "https" ] }},
 				{ 'portal_port' => { header => 'Portal Port',display => 'header,popup', value => [ 80,443,8080,8443 ] }},

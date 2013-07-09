@@ -1,10 +1,23 @@
 %hash = (
+  'localhost' => {    
+    'name' => 'localhost',
+    'config' => 'Config',
+    'protocol' => 'http',
+    'port' => '3000',
+    'host' => 'nmis1.domain.com',
+    'portal_protocol' => 'http',
+    'portal_port' => '80',
+    'portal_host' => 'nmis1.alternate.com',
+    'cgi_url_base' => '/cgi-nmis8',
+    'url_base' => '/nmis8',
+    'user' => 'nmismst',
+    'passwd' => 'C00kb00k'
+  },    
   'nmis1' => {
-    'community' => 'secret',
     'name' => 'nmis1',
     'config' => 'Config',
-    'protocol' => 'https',
-    'port' => '443',
+    'protocol' => 'http',
+    'port' => '3000',
     'host' => 'nmis1.domain.com',
     'portal_protocol' => 'http',
     'portal_port' => '80',
@@ -15,11 +28,10 @@
     'passwd' => 'C00kb00k'
   },
   'nmis2' => {
-    'community' => 'secret',
     'name' => 'nmis2',
     'config' => 'Config',
     'protocol' => 'http',
-    'port' => '80',
+    'port' => '3000',
     'host' => '192.168.1.42',
     'portal_protocol' => 'http',
     'portal_port' => '80',
