@@ -833,9 +833,19 @@ sub top10Report {
 	
 			$linkTable{$int}{totalBits} = ($linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2 ;
 			# only report these if pkts rrd available to us.
-			if (($S->getTypeName(type=>'pkts',check=>'true'))) {
-				# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
-			    my $hash = getSummaryStats(sys=>$S,type=>"pkts",start=>$start,end=>$end,index=>$intf);
+			my $got_pkts = 0;
+			my $hash;
+			# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
+			if (($S->getTypeName(type=>'pkts_hc',check=>'true'))) {
+			  $hash = getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);
+			  $got_pkts = "pkts_hc";
+			}
+			elsif (($S->getTypeName(type=>'pkts',check=>'true'))) {
+			  $hash = getSummaryStats(sys=>$S,type=>"pkts",start=>$start,end=>$end,index=>$intf);
+			  $got_pkts = "pkts";
+			}
+
+			if ( $got_pkts ) {
 				foreach my $k (keys %{$hash->{$intf}}) {
 					$pktsTable{$int}{$k} = $hash->{$intf}{$k};
 					$pktsTable{$int}{$k} =~ s/NaN/0/ ;

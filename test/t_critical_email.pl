@@ -54,8 +54,6 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>"true");
 
 # Code Node
 my $node_core = ( defined($nvp{node}) ) ? $nvp{node} : "asgard";
-# my $node_dist = "meatball";
-# my $node_acc = "golden";
 
 interfaceDown($node_core, $critical_text);
 

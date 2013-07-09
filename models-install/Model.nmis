@@ -286,8 +286,10 @@
         },
         '30' => {
           'ZyXEL-IES' => 'IES'
-        }
-      }
+        },
+        '40' => {
+          'Default-HC' => 'ES-2108-G'
+        }      }
     },
     'Rapid City Communication' => {
       'order' => {

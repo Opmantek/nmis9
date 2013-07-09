@@ -140,6 +140,18 @@ then
 	exit 0
 fi
 
+if [ "$1" == "conf" ]
+then
+	if [ -f $nmis_base/conf/$2.nmis ]
+	then
+		$editor $nmis_base/conf/$2.nmis
+	else
+		echo Config $nmis_base/conf/$2.nmis does not exist
+	fi
+	exit 0
+fi
+
+
 if [ "$2" == "" ] 
 then
 	echo NMIS Shell option not understood.

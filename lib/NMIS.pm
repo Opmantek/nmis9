@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.4G";
+$VERSION = "8.4.5G";
 
 @ISA = qw(Exporter);
 
@@ -2583,6 +2583,7 @@ sub resolveDNStoAddr {
 	return;
 }
 
+
 # create http for a clickable graph
 sub htmlGraph {
 	my %args = @_;
@@ -2597,6 +2598,7 @@ sub htmlGraph {
 		$target = $group;
 	}
 
+	my $id = "$target-$intf-$graphtype";
 	my $C = loadConfTable();
 
 	my $width = $args{width}; # graph size
@@ -2606,14 +2608,20 @@ sub htmlGraph {
 
 	my $time = time();
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&node=$node&intf=$intf&server=$server";
-
-	my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
-				"&start=&end=&width=$width&height=$height&time=$time";
 	
-	### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-	return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
-					
-	#return a({href=>"$clickurl",target=>'ViewWindow',onClick=>"viewdoc(\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
+
+	my $C = loadConfTable();
+	if( $C->{display_opcharts} eq 'true' ) {
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+				"&start=&end=&width=$width&height=$height&time=$time";
+		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
+	}
+	else {
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+			"&start=&end=&width=$width&height=$height&time=$time";
+		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
+		return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
+	}	
 }
 
 sub createHrButtons {
@@ -2898,6 +2906,8 @@ sub startNmisPage {
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>    
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
+    <script src="$C->{'highstock'}" type="text/javascript"></script>
+		<script src="$C->{'chart'}" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -2931,6 +2941,9 @@ sub pageStart {
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
+    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'highstock'}" type="text/javascript"></script>
+		<script src="$C->{'chart'}" type="text/javascript"></script>
     <script>
 $jscript
 </script>
@@ -2974,6 +2987,8 @@ sub pageStartJscript {
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>    
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
+    <script src="$C->{'highstock'}" type="text/javascript"></script>
+		<script src="$C->{'chart'}" type="text/javascript"></script>
   </head>
   <body>
 |;
