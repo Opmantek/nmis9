@@ -119,7 +119,7 @@ sub rrdDraw {
 	my $filename = $Q->{filename};
 
 	
-	print STDERR $q->query_string();
+	# print STDERR $q->query_string();
 
 	my $content = get("http://localhost:3000/nmis/nmis_graph/chart?".$q->query_string);
 	print "Content-type: application/json\n\n";
