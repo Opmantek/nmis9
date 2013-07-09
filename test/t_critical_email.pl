@@ -45,6 +45,8 @@ my %nvp;
 my $interface_index = -1;
 my $critical_text = "CRITICAL";
 
+my %nvp = getArguements(@ARGV);
+
 my $t = NMIS::Timing->new();
 
 print $t->elapTime(). " Begin\n";
@@ -53,9 +55,7 @@ print $t->elapTime(). " loadConfTable\n";
 my $C = loadConfTable(conf=>$nvp{conf},debug=>"true");
 
 # Code Node
-my $node_core = "winterfell";
-# my $node_dist = "meatball";
-# my $node_acc = "golden";
+my $node_core = ( defined($nvp{node}) ) ? $nvp{node} : "asgard";
 
 interfaceDown($node_core, $critical_text);
 

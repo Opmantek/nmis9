@@ -44,6 +44,12 @@ function loadChart(url, chartSpan, chartDiv) {
     cache   : false,
     success : function(data) {
       drawChart(data, chartSpan, chartDiv);
+    },
+    error: function (x, e) {    
+      if (x.status == 405 ) {
+        // this is essentially a made-up status code that tells us to re-autheticate              
+        document.location = document.location.href;
+      }
     }
   });
 }
@@ -69,13 +75,61 @@ function drawChart(jsonData, renderTo, div )
   chartWidth = $(div).attr("data-chart-width");
   chartHeight = $(div).attr("data-chart-height");
 
+  titleStyle = null;
+  itemStyle = null;
+  axisStyle = null;
+  if( chartWidth <= 400 ) {
+    Highcharts.setOptions({
+      chart: {
+        style: {
+          fontFamily: '"Lucida Grande", "Lucida Sans Unicode", Verdana, Arial, Helvetica, sans-serif', // default font
+          fontSize: '9px'
+        }
+      }
+    });    
+    titleStyle = { fontSize: '10px' };
+    itemStyle = {
+       cursor: 'pointer',
+       color: '#274b6d',
+       fontSize: '9px'
+    };
+    axisStyle = {
+      color: '#6D869F',
+      fontWeight: 'bold',
+      fontSize: '9px'
+    };
+  }
+  else {
+    Highcharts.setOptions({
+      chart: {
+        style: {
+          fontFamily: '"Lucida Grande", "Lucida Sans Unicode", Verdana, Arial, Helvetica, sans-serif', // default font
+          fontSize: '12px'
+        }
+      }
+    });
+    titleStyle = {
+      color: '#3E576F',
+      fontSize: '16px'
+    };
+    itemStyle = {
+       cursor: 'pointer',
+       color: '#274b6d',
+       fontSize: '12px'
+    };
+    axisStyle = {
+      color: '#6D869F',
+      fontWeight: 'bold'
+    };
+  }
+
   cleanUpChart(div);
   
   graph = new Highcharts.Chart({    
     chart: { 
       renderTo: renderTo,
       height: chartHeight,
-      width: chartWidth,
+      width: chartWidth,      
       plotBackgroundColor: null,      
       plotBorderWidth: null,
       plotShadow: false,
@@ -89,7 +143,8 @@ function drawChart(jsonData, renderTo, div )
       },
     },
     legend: {
-      enabled: true
+      enabled: true,
+      itemStyle: itemStyle
     },
     rangeSelector : {
       enabled : false
@@ -102,6 +157,9 @@ function drawChart(jsonData, renderTo, div )
       maxZoom: 60000,      
       title: {
         text: ""
+      },
+      labels : {
+        style: axisStyle
       }
     },
     yAxis:
@@ -112,6 +170,9 @@ function drawChart(jsonData, renderTo, div )
         offset: 20,
         max: jsonData.max,
         min: jsonData.min,
+        labels : {
+          style: axisStyle
+        }
       },
       { 
         title: { text: jsonData.yAxis1TitleText },
@@ -119,10 +180,11 @@ function drawChart(jsonData, renderTo, div )
         showEmpty: false,
         offset: 20,
       }
+      
     ],
     plotOptions: {      
       series: {        
-        showCheckbox: true,
+        showCheckbox: false,
         stacking: jsonData.stacking,
         marker: {
           enabled: false
@@ -136,13 +198,15 @@ function drawChart(jsonData, renderTo, div )
                     }
                 }
             }
-        // pointStart: pointStart,
-        // pointInterval: pointInterval
+      },
+      line : {
+        lineWidth : 2
       }
     },
     title: {
       text: titleText,
-      useHTML: true
+      useHTML: true,
+      style: titleStyle
     },
     // subtitle: {
     //         text: jsonData.subTitle,
@@ -159,16 +223,12 @@ function drawChart(jsonData, renderTo, div )
   }); 
   widthAdjustment = -10;
   setChart(renderTo, graph, div, widthAdjustment);  
-  // $("#"+div).append("<pre>"+jsonData.subTitle+"</pre>")
+  $(div).append("<p style='fontSize: \'8px\';'>"+jsonData.subTitle+"</p>")
   return graph;
 }
 
 function setChart(renderTo, graph, div, widthAdjustment)
 {
-  if( typeof renderTo === "object" ) 
-  {
-    renderTo = renderTo.id;
-  }
   $(div).data("chart", graph );
   $(graph).data("enclosingDiv", div );
   $(graph).data("renderTo", renderTo );

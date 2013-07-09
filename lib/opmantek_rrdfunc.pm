@@ -118,7 +118,7 @@ sub rrdFetchGraphPData {
 	my @opt;
 	my $db;
 	
-	my ($r_start,$r_end,$r_width,$types,$legend,$colours,$pdata,$chart_options);
+	my ($r_start,$r_end,$r_width,$types,$ds_names,$legend,$colours,$pdata,$chart_options);
 	my ($hash_data,$hash_head);
 
 	if ($graphtype eq 'metrics') {
@@ -133,6 +133,8 @@ sub rrdFetchGraphPData {
 		@opt = graphCalls(sys=>$S,graphtype=>$graphtype,intf=>$intf,item=>$item,start=>$start,end=>$end,width=>$width,height=>$height);
 	} else {
 
+		my $getDBName =$S->getDBName(graphtype=>$graphtype,index=>$intf,item=>$item);
+		# print "getDBName = ".Dumper($getDBName);
 		if (!($db = $S->getDBName(graphtype=>$graphtype,index=>$intf,item=>$item)) ) { # get database name from node info
 			error();
 			return 0;
@@ -291,7 +293,7 @@ sub rrdFetchGraphPData {
 		# ($begin,$step,$types,$name,$data) = RRDs::graphfetch('-', @options);		
 		my $begin;
 		my $end;
-		($r_start,$r_end,$r_width,$types,$legend,$colours,$pdata,$chart_options) = RRDs::fetch_graph_pdata('-', @options);
+		($r_start,$r_end,$r_width,$types,$ds_names,$legend,$colours,$pdata,$chart_options) = RRDs::fetch_graph_pdata('-', @options);
 		# print STDERR "Graphfetch returned start=$r_start,end=$r_end,width=$r_width\n";
 		# print STDERR "Graphfetch returned begin=$begin, width=$width,\n name=".Dumper($name)."\n data=".Dumper($pdata)."\n";		
 
@@ -303,7 +305,7 @@ sub rrdFetchGraphPData {
 			#print "Graph Return:\n",(join "\n", @$graphret),"\n\n";
 		}
 	}
-	return ($r_start,$r_end,$r_width,$types,$legend,$colours,$pdata,$chart_options);
+	return ($r_start,$r_end,$r_width,$types,$ds_names,$legend,$colours,$pdata,$chart_options);
 }
 
 1;

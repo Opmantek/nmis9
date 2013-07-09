@@ -75,6 +75,7 @@ sub ext_ping {
 		'MSWin32' =>	"ping -l $length -n $count -w $timeout $host",
 		'aix'	=>	"/etc/ping $host $length $count",
 		'bsdos'	=>	"/bin/ping -s $length -c $count $host",
+		'darwin' =>	"/sbin/ping -s $length -c $count $host",
 		'freebsd' =>	"/sbin/ping -s $length -c $count $host",
 		'hpux'	=>	"/etc/ping $host $length $count",
 		'irix'	=>	"/usr/etc/ping -c $count -s $length $host",
