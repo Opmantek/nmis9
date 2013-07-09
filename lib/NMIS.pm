@@ -2608,14 +2608,20 @@ sub htmlGraph {
 
 	my $time = time();
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&node=$node&intf=$intf&server=$server";
+	
 
-	my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+	my $C = loadConfTable();
+	if( $C->{display_opcharts} eq 'true' ) {
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
-
-	my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
-	### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-	# return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
-	return $retval;
+		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
+	}
+	else {
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+			"&start=&end=&width=$width&height=$height&time=$time";
+		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
+		return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
+	}	
 }
 
 sub createHrButtons {

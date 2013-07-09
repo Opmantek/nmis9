@@ -148,6 +148,12 @@ sub typeGraph {
 	my $heading = $S->graphHeading(graphtype=>$graphtype,index=>$index,item=>$group);
 
 	print header($headeropts);
+	my $opcharts_scripts = "";
+	if( $C->{display_opcharts} ) {
+		$opcharts_scripts = "<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>".		
+			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>".
+			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
+	}
 	print start_html(
 		-title => "Graph Drill In for $heading @ ".returnDateStamp,
 		-meta => { 'CacheControl' => "no-cache",
@@ -157,10 +163,8 @@ sub typeGraph {
 		-head=>[
 			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
 			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),			
-			"<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>",			
-			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>",
-			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>"
-			]
+			$opcharts_scripts
+			]			
 		);
 
 	# verify that user is authorized to view the node within the user's group list
@@ -550,12 +554,19 @@ sub typeGraph {
 		}		
 		
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";				
-		my $chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;
-		
+				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
+		my $chartDiv = "";
+		if( $C->{display_opcharts} eq "true" ) {
+			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;	
+		}
+				
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
-			# push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+			if( $C->{display_opcharts} eq "true" ) {
+				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
+			} else {
+				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
+				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+			}
 		} 
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
