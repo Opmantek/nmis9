@@ -156,7 +156,10 @@ sub typeGraph {
 			},
 		-head=>[
 			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"})
+			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),			
+			"<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>",			
+			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>",
+			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>"
 			]
 		);
 
@@ -544,14 +547,15 @@ sub typeGraph {
 							-onChange=>'JavaScript:this.form.submit()'));
 			}
 			push @output, end_Tr;
-		}
-	
-		my $graphLink="$C->{'<cgi_url_base>'}/rrddraw.pl?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
-	
+		}		
+		
+		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
+				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";				
+		my $chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;
+		
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
+			# push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		} 
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
@@ -575,7 +579,9 @@ sub typeGraph {
 	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
 	print hidden(-name=>'func', -default=>"view",-override=>'1');
 
-	print end_table, end_form, comment("typeGraph end"), end_html;
+	print end_table, end_form, comment("typeGraph end");	
+	print end_html;
+
 } # end typeGraph
 
 sub typeExport {

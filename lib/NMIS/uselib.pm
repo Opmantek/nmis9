@@ -39,10 +39,10 @@ require Exporter;
 
 @EXPORT_OK = qw($rrdtool_lib);
 
-my $default_rrd = "/usr/local/rrdtool/lib/perl";
+my $default_rrd = "/opt/rrdtool-1.4.7/lib/perl";
 
 # Modify this line to suit your RRD Setup, if not in the above location.
-my $alternate_rrd = "/usr/rrdtool/lib/perl";
+my $alternate_rrd = "/usr/rrdtool/lib/perl/dasdfadsf";
 
 $rrdtool_lib = $default_rrd if -d $default_rrd;
 
