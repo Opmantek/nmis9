@@ -1392,7 +1392,7 @@ sub _GetPrivs {
 	}
 	logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $debug;
 
-	dbg("USER groups \n".Dumper($C->{group_list}) );
+#	dbg("USER groups \n".Dumper($C->{group_list}) );
 
 	my @groups = split /,/, $UT->{$user}{groups};
 	if ( not @groups and $C->{auth_default_groups} ne "" ) {

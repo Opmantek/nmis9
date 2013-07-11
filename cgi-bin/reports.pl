@@ -879,6 +879,7 @@ sub top10Report {
 
 	# if debug, print all
 	if ( $Q->{debug} eq "true" ) {
+		print "<pre>";
 		print "reportTable\n";
 		print Dumper(\%reportTable);
 		print "cpuTable\n";
@@ -889,6 +890,7 @@ sub top10Report {
 		print Dumper(\%pktsTable);
 		print "pvcTable\n";
 		print Dumper(\%pvcTable);
+		print "</pre>";
 	}
 
 	# start of form

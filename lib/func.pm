@@ -1229,7 +1229,7 @@ sub logAuth {
 	if ($C->{debug} == 1) {
 		my $string;
 		($string = (caller(1))[3]) =~ s/\w+:://;
-		print returnTime." $string, $msg\n";
+		print STDERR returnTime." $string, $msg\n";
 	} else {
 		dbg($msg); # 
 	}
