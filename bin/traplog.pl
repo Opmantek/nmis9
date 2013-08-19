@@ -77,21 +77,23 @@ close(DATA);
 sub returnDateStamp {
 	my $time = shift;
 	if ( $time == 0 ) { $time = time; }
+	my $SEP = "T";
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
+	# A Y2.07K problem
 	if ($year > 70) { $year=$year+1900; }
-	        else { $year=$year+2000; }
+	else { $year=$year+2000; }
+	#Increment Month!
+	++$mon;
 	if ($mon<10) {$mon = "0$mon";}
 	if ($mday<10) {$mday = "0$mday";}
+	if ($hour<10) {$hour = "0$hour";}
 	if ($min<10) {$min = "0$min";}
 	if ($sec<10) {$sec = "0$sec";}
-
 
 	# Do some sums to calculate the time date etc 2 days ago
 	$wday=('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$wday];
 
-	$mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$mon];
-
-	return "$year-$mon-$mday-$hour:$min:$sec";
+	return "$year-$mon-$mday$SEP$hour:$min:$sec";
 }
 
 exit;

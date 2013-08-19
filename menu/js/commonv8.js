@@ -34,6 +34,7 @@ var nsRef = new Array();
 var nsHtml;
 var menu_url_base = '/menu8';
 var widget_refresh_glob = 180;
+var opCharts = false;
 
 // ===============================================
 // jQuery document ready in nmiscgi.pl will call this first
@@ -327,7 +328,7 @@ function	createDialog(opt) {
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
-					if ( typeof(loadCharts) != undefined ) {
+					if ( opCharts == true && typeof(loadCharts) != undefined ) {
             loadCharts(dialogHandle);
           }
 				}
@@ -346,7 +347,7 @@ function	createDialog(opt) {
 				cache: false,
 				success: function(data) {
 					dialogHandle.html(data);
-					if ( typeof(loadCharts) != undefined ) {
+					if ( opCharts == true && typeof(loadCharts) != undefined ) {
             loadCharts(dialogHandle);
           }
 				}
@@ -494,7 +495,7 @@ function	createDialog(opt) {
 			var id = $(this).dialog("widget").attr( 'id' );
 			var objData = $('div#NMISV8').data('NMISV8'+ id);
 		// remove the widget, and the 'div id=xx></div> will magically appear as it was when we inserted this
-			if ( typeof(loadCharts) != undefined ) {
+			if ( opCharts == true && typeof(loadCharts) != undefined ) {
 				unLoadCharts($(this));
 			}
 			$(this).dialog("destroy");
@@ -524,7 +525,7 @@ function	createDialog(opt) {
 			 var namespace = 'NMISV8' + opt.id;
 			 var objData = $('div#NMISV8').data(namespace);
 			 if ( objData.status === true ) {
-			 	if ( typeof(loadCharts) != undefined ) {
+			 	if ( opCharts == true && typeof(loadCharts) != undefined ) {
 					unLoadCharts(objData.widgetHandle);
 				}
 	 			createDialog(objData.options);
@@ -560,7 +561,7 @@ function dialogRefreshClick(rfID) {
 	
 		 var namespace = 'NMISV8' + rfID;
 			 var objData = $('div#NMISV8').data(namespace);
-			 if ( typeof(loadCharts) != undefined ) {
+			 if ( opCharts == true && typeof(loadCharts) != undefined ) {
 					unLoadCharts(objData.widgetHandle);
 				}
 			 createDialog({

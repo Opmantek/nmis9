@@ -249,6 +249,7 @@ $tos = 0 if not $tos;
 # define hash key
 my $tnode = ($rnode eq "other") ? $raddr : $rnode;
 my $dest = ($optype =~ /http/ and $url =~ m:.*//(.*)(/|$).*: ) ? $1 : $tnode ;
+$dest =~ s/\/\-/g;
 my $nno = "${pnode}_${dest}_${optype}_${tos}"; # key for hash table %RTTcfg
 
 # store typed community

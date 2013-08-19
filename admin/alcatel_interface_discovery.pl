@@ -105,10 +105,17 @@ sub processNode {
 			#asamActiveSoftware2	active
 			#asamSoftwareVersion1	OSWP/66.98.63.71/L6GPAA42.413/L6GPAA42.413
 			#asamSoftwareVersion2	OSWP/66.98.63.71/OSWPAA42.413/OSWPAA42.413
-
-			my $asamVersion41 = qr/OSWPAA41.353|OSWPAA37.432/;
-			my $asamVersion42 = qr/OSWPAA42.413|L6GPAA42.413/;
 			
+			### 2013-08-09 New Version strings.
+			#asamSoftwareVersion1 OSWP/66.98.63.71/OSWPAA41.363/OSWPAA41.363
+			#asamSoftwareVersion2 OSWP/66.98.63.71/OSWPAA41.353/OSWPAA41.353
+	
+			### 2013-08-09 keiths, Coverting for new version strings.
+			#my $asamVersion41 = qr/OSWPAA41.353|OSWPAA37.432|OSWPAA41.363/;
+			#my $asamVersion42 = qr/OSWPAA42.413|L6GPAA42.413/;			
+			my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37/;
+			my $asamVersion42 = qr/OSWPAA42|L6GPAA42/;
+		
 			my $rack_count = 1;
 			my $shelf_count = 1;
 			

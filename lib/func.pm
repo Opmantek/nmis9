@@ -891,7 +891,8 @@ sub loadTable {
 					return $Table_cache{$index}{data}; # oke
 				}
 			} else {
-				logMsg("ERROR file does not exist dir=$dir name=$name, nmis_var=$nmis_var nmis_conf=$nmis_conf");
+				### 2013-08-13 keiths, enhancement submitted by Mateusz Kwiatkowski <mateuszk870@gmail.com>
+				logMsg("ERROR file does not exist or has bad permissions dir=$dir name=$name, nmis_var=$nmis_var nmis_conf=$nmis_conf");
 			}
 		} else {
 			logMsg("ERROR unknown dir=$dir specified with name=$name");

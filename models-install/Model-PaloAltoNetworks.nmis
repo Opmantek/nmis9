@@ -54,7 +54,7 @@
   },
   'system' => {
     'nodeVendor' => 'Palo Alto Networks',
-    'nodegraph' => 'health,response',
+    'nodegraph' => 'health,response,sessions,session-util',
     'nodeModel' => 'PaloAltoNetworks',
     'nodeType' => 'generic',
     'sys' => {
@@ -93,19 +93,6 @@
             'title' => 'Contact'
           }
         }
-      },
-      'temp' => {
-        'snmp' => {
-          'tempio' => {
-            'oid' => 'ciscoEnvMonTemperatureStatusValue.2',
-            'title' => 'Temp I/O Cont Outlet'
-          },
-          'tempnpe' => {
-            'oid' => 'ciscoEnvMonTemperatureStatusValue.4',
-            'title' => 'Temp NPE Outlet'
-          }
-        },
-        'control' => '$sysObjectName =~ /7206/'
       },
       'extra' => {
         'snmp' => {
@@ -197,8 +184,7 @@
             'oid' => 'panSessionSslProxyUtilization'
           },
         },
-        'threshold' => 'sessions',
-        'graphtype' => 'sessions'
+        'graphtype' => 'sessions,session-util'
       },
     },
   },

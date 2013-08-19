@@ -114,7 +114,11 @@
       'diskio-rwbytes' => 'Disk Read Write Bytes',
       'systemvoltage' => 'System Voltage',
       'systemcurrent' => 'System Current',
-      'systemcapacity' => 'System capacity'
+      'systemcapacity' => 'System capacity',
+      'gsm_status_2g' => '2G GSM Status',
+      'gsm_status_3g' => '3G GSM Status',
+      'sessions' => 'Sessions Statistics',
+      'session-util' => 'Session Utilisation',
     }
   }
 );

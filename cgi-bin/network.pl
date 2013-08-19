@@ -915,6 +915,18 @@ sub viewPollingSummary {
 					}
 				}
 			}
+			### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
+			my $S = Sys::->new;
+			if ($S->init(name=>$node,snmp=>'false')) { 
+				my $IF = $S->ifinfo;
+				foreach my $int (keys %{$IF}) {
+					++$sum->{count}{interface};
+					++$sum->{ifType}{$IF->{$int}{ifType}};		
+					if ( getbool($IF->{$int}{collect}) ) {
+						++$sum->{count}{interface_collect};
+					}
+				}
+			}		
 		}
 		if ( getbool($LNT->{$node}{collect}) ) {
 			++$sum->{count}{collect};
@@ -923,16 +935,7 @@ sub viewPollingSummary {
 			++$sum->{count}{ping};
 		}
 	}
-	
-	my $II = loadInterfaceInfo();
-	foreach my $int (keys %{$II}) {
-		++$sum->{count}{interface};
-		++$sum->{ifType}{$II->{$int}{ifType}};		
-		if ( getbool($II->{$int}{collect}) ) {
-			++$sum->{count}{interface_collect};
-		}
-	}
-	
+		
 	print header($headeropts);
 	pageStart(title => "NMIS Polling Summary") if ($widget eq "false");
 	print start_table({class=>'dash'});
@@ -2010,7 +2013,7 @@ sub viewOverviewIntf {
 	my $gr_menu = "";
 
 	# start of form
-	print start_form(-id=>"nmis",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=network_interface_overview");
+	print start_form(-id=>"ntw_int_overview",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=network_interface_overview");
 
 	if ($ii_cnt > 1000) {
 		my $GT = loadGroupTable();
@@ -2020,9 +2023,13 @@ sub viewOverviewIntf {
 		popup_menu(-name=>'group', -override=>'1',
 		-values=>\@groups,
 		-default=>$Q->{group},
-		-onChange=>"javascript:get('nmis');"));
+		-onChange=>"javascript:get('ntw_int_overview');"));
 	}
 
+	if ($ii_cnt > 50000) {
+		print table(Tr(th({class=>'title'},'Too many interfaces to run report.')));
+		return;
+	}
 
 	print table(Tr(th({class=>'title'},'Overview of status of Interfaces'),
 	td({class=>'info Plain'},img({src=>"$C->{'<menu_url_base>'}/img/arrow_up_green.png",border=>'0', width=>'11', height=>'10'}),'Up'),
@@ -2089,9 +2096,7 @@ sub viewTop10 {
 
 	my $NT = loadNodeTable();
 	my $GT = loadGroupTable();
-	my $II = loadInterfaceInfo();
 	my $S = Sys::->new;
-	my $NI;
 
 	my $start = time()-(15*60);
 	my $end = time();
@@ -2103,74 +2108,65 @@ sub viewTop10 {
 	# Get each of the nodes info in a HASH for playing with
 	my %reportTable;
 	my %cpuTable;
+	my %linkTable;
+
 	foreach my $reportnode ( keys %{$NT} ) {
 		next unless $AU->InGroup($NT->{$reportnode}{group});
 		if ( $NT->{$reportnode}{active} eq 'true') {
 			$S->init(name=>$reportnode,snmp=>'false');
-			$NI = $S->ndinfo;
+			my $NI = $S->ndinfo;
+			my $IF = $S->ifinfo;
 			# reachable, available, health, response
 			%reportTable = (%reportTable,%{getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)});
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			if ($NI->{system}{nodeType} eq 'router' and $NI->{system}{collect} eq 'true') {
+			if ($NI->{graphtype}{nodehealth} =~ /cpu/ and $NI->{system}{collect} eq 'true') {
 				%cpuTable = (%cpuTable,%{getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)});
+				print STDERR "Result: ". Dumper \%cpuTable;
 			}
+
+			foreach my $int (keys %{$IF} ) {
+				if ( $IF->{$int}{collect} eq "true" ) {
+					# availability, inputUtil, outputUtil, totalUtil
+					my $intf = $IF->{$int}{ifIndex};
+													
+					# Availability, inputBits, outputBits
+					my $hash = getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
+					foreach my $k (keys %{$hash->{$intf}}) {
+						$linkTable{$int}{$k} = $hash->{$intf}{$k};
+						$linkTable{$int}{$k} =~ s/NaN/0/ ;
+						$linkTable{$int}{$k} ||= 0 ;
+					}
+					$linkTable{$int}{node} = $reportnode;
+					$linkTable{$int}{intf} = $intf ;
+					$linkTable{$int}{ifDescr} = $IF->{$int}{ifDescr} ;
+					$linkTable{$int}{Description} = $IF->{$int}{Description} ;
+					
+					$linkTable{$int}{totalBits} = ($linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2 ;
+				}
+			}			
 		} # end $reportnode loop
 	}
-
+	
 	foreach my $k (keys %cpuTable) {
 		foreach my $l (keys %{$cpuTable{$k}}) {
 			$cpuTable{$k}{$l} =~ s/NaN/0/ ;
 			$cpuTable{$k}{$l} ||= 0 ;
 		}
 	}
-
-	# now the link stats - by linkname
-	
-	my %linkTable;
-	my %pktsTable;
-	my $prev_node;
-	my %interfaceInfo = %{$II}; # copy
-	
-	foreach my $int (sort keys %interfaceInfo ) {
-		if ( $interfaceInfo{$int}{collect} eq "true" ) {
-			next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group});
-			# availability, inputUtil, outputUtil, totalUtil
-			my $tmpifDescr = convertIfName($interfaceInfo{$int}{ifDescr});
-			my $intf = $interfaceInfo{$int}{ifIndex};
 		
-			if ($interfaceInfo{$int}{node} ne $prev_node) {
-				$S->init(name=>$interfaceInfo{$int}{node},snmp=>'false');
-				$prev_node = $interfaceInfo{$int}{node};
-			}
-		
-			# Availability, inputBits, outputBits
-			my $hash = getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
-			foreach my $k (keys %{$hash->{$intf}}) {
-				$linkTable{$int}{$k} = $hash->{$intf}{$k};
-				$linkTable{$int}{$k} =~ s/NaN/0/ ;
-				$linkTable{$int}{$k} ||= 0 ;
-			}
-			$linkTable{$int}{node} = $interfaceInfo{$int}{node} ;
-			$linkTable{$int}{intf} = $intf ;
-			$linkTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
-			$linkTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
-			
-			$linkTable{$int}{totalBits} = ($linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2 ;
-		}
-	}
-
 	my @out_resp;
 	my @out_cpu;
 	my $i;
-	#print start_table({class=>'notwide'});
-	print start_table({width=>'500px'});
+	print start_table({class=>'dash'});
+	#class=>'table'
+	#print start_table({width=>'500px'});
 	# header with time info
-	print Tr(th({class=>'title',align=>'center',colspan=>'4'},$header));
+	print Tr(th({class=>'header lrg',align=>'center',colspan=>'4'},$header));
 	
 	print Tr(
-		th({class=>'title',align=>'center',colspan=>'2',width=>'50%'},'Average Response Time'),
-		th({class=>'title',align=>'center',colspan=>'2',width=>'50%'},'Nodes by CPU Load')
+		th({class=>'header lrg',align=>'center',colspan=>'2',width=>'50%'},'Average Response Time'),
+		th({class=>'header lrg',align=>'center',colspan=>'2',width=>'50%'},'Nodes by CPU Load')
 	);
 	# header and data summary
 	print Tr(
@@ -2182,7 +2178,6 @@ sub viewTop10 {
 
 	$i=10;
 	for my $reportnode ( sortall(\%reportTable,'response','rev')) {
-		next unless $AU->InGroup($NT->{$reportnode}{group});
 		push @out_resp,
 		td({class=>"info Plain $nodewrap"},
 		a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)).
@@ -2192,7 +2187,6 @@ sub viewTop10 {
 	}
 	$i=10;
 	for my $reportnode ( sortall(\%cpuTable,'avgBusy5min','rev')) {
-		next unless $AU->InGroup($NT->{$reportnode}{group});
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		push @out_cpu,
 		td({class=>"info Plain $nodewrap"},
@@ -2228,7 +2222,6 @@ sub viewTop10 {
 	for my $reportlink ( sortall(\%linkTable,'totalUtil','rev')) {
 		last if $linkTable{$reportlink}{inputUtil} and $linkTable{$reportlink}{outputUtil} == 0;
 		my $reportnode = $linkTable{$reportlink}{node} ;
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		my $intf = $linkTable{$reportlink}{intf} ;
 		$linkTable{$reportlink}{inputUtil} =~ /(^\d+)/;
 		my $input = $1;
@@ -2262,7 +2255,6 @@ sub viewTop10 {
 		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0;
 		my $reportnode = $linkTable{$reportlink}{node} ;
 		my $intf = $linkTable{$reportlink}{intf} ;
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),

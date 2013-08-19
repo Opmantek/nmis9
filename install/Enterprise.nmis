@@ -40639,6 +40639,10 @@
     'Enterprise' => 'PVT a.s. - pvt.net',
     'OID' => '2546'
   },
+  '25461' => {
+    'Enterprise' => 'Palo Alto Networks',
+    'OID' => '25461'
+  },
   '2547' => {
     'Enterprise' => 'Catholic University of Pelotas',
     'OID' => '2547'

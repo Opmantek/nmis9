@@ -1055,7 +1055,7 @@ sub do_login_banner {
 		$banner_string = $self->{banner};
 	}
 
-	print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
+	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 	
 	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;	
 	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg pad'},$logo, $banner_string);

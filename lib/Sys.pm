@@ -123,8 +123,13 @@ sub init {
 	## This is overriding the devices with the nodedown=true!
 	if (($info = loadTable(dir=>'var',name=>"nmis-system"))) { # add nmis system database filenames and attribs
 		### 2012-12-15 keiths, this should never exist in the nmis-system file.
-		if ( exists $info->{system}{nodedown} and $info->{system}{nodedown} ne "" ) {
-			delete $info->{system}{nodedown};
+		#if ( exists $info->{system}{nodedown} and $info->{system}{nodedown} ne "" ) {
+		#	delete $info->{system}{nodedown};
+		#}
+		### 2013-08-09 keiths, the system object should not be complete for nmis-system
+		if ( defined $info->{system} and ref($info->{system}) eq "HASH" ) {
+			logMsg("INFO var/nmis-system.nmis file is corrupted, deleting \$info->{system}");
+			delete $info->{system};
 		}
 		$self->mergeHash($self->{info},$info);
 		dbg("info of nmis-system loaded");
@@ -173,7 +178,7 @@ sub init {
 		$exit = $self->initsnmp();
 	}
 ##	writeTable(dir=>'var',name=>"nmis-model-debug",data=>$self);
-	dbg("nodedown=$self->{info}{system}{nodedown} nodeType=$self->{info}{system}{nodeType}");
+	dbg("$self->{name} nodedown=$self->{info}{system}{nodedown} snmpdown=$self->{info}{system}{snmpdown} nodeType=$self->{info}{system}{nodeType} group=$self->{info}{system}{group}");
 	dbg("returning from Sys->init with exit of $exit");
 	return $exit;
 }
@@ -265,6 +270,32 @@ sub close {
 	return $self->{snmp}->close;
 }
 
+
+#===================================================================
+
+### 2013-08-07 keiths, new method for interface summaries.
+sub ifDescrInfo {
+	my $self = shift; 
+	
+	my %ifDescrInfo;
+	
+	foreach my $indx (keys %{$self->{info}{interface}}) {
+		my $ifDescr = $self->{info}{interface}{$indx}{ifDescr};
+		$ifDescrInfo{$ifDescr}{ifDescr} = $self->{info}{interface}{$indx}{ifDescr};
+		$ifDescrInfo{$ifDescr}{collect} = $self->{info}{interface}{$indx}{collect};
+		$ifDescrInfo{$ifDescr}{threshold} = $self->{info}{interface}{$indx}{threshold};
+		$ifDescrInfo{$ifDescr}{Description} = $self->{info}{interface}{$indx}{Description};
+		$ifDescrInfo{$ifDescr}{ifSpeed} = $self->{info}{interface}{$indx}{ifSpeed};
+		$ifDescrInfo{$ifDescr}{ifHighSpeed} = $self->{info}{interface}{$indx}{ifHighSpeed};
+		$ifDescrInfo{$ifDescr}{ifIndex} = $self->{info}{interface}{$indx}{ifIndex};
+		$ifDescrInfo{$ifDescr}{ifType} = $self->{info}{interface}{$indx}{ifType};
+		$ifDescrInfo{$ifDescr}{ipAdEntAddr1} = $self->{info}{interface}{$indx}{ipAdEntAddr1};
+		$ifDescrInfo{$ifDescr}{ipAdEntNetMask1} = $self->{info}{interface}{$indx}{ipAdEntNetMask1};
+	}
+	
+	return \%ifDescrInfo;
+}
+
 #===================================================================
 
 # copy config and model info into node info table
@@ -321,6 +352,10 @@ sub loadInfo {
 				if ($index ne '') {
 					foreach my $indx (keys %{$result->{$sect}}) {
 						print "  MODEL section=$sect\n" if $dmodel;
+						### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
+						if ( $self->{info}{$table}{$indx}{index} eq "" ) {
+							$self->{info}{$table}{$indx}{index} = $indx;
+						}
 						foreach my $ds (keys %{$result->{$sect}{$indx}}) {
 							$self->{info}{$table}{$indx}{$ds} = $result->{$sect}{$indx}{$ds}{value}; # store in {info}
 							# check model for title, if exists store this info/value in view table

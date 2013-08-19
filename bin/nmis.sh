@@ -42,18 +42,21 @@ taillines=50
 
 helptext() {
 	echo NMIS Shell Options
-	echo "    $0 log"
-	echo "    $0 event"
-	echo "    $0 apache"
-	echo "    $0 summary"
 	echo "    $0 master"
+	echo "    $0 escalate"
+	echo "    $0 summary"
 	echo "    $0 threshold"
+	echo "    $0 apache"
+	echo "    $0 event"
+	echo "    $0 log"
+	echo "    $0 crontab"
+	echo "    $0 config"
+	echo "    $0 audit"
 	echo "    $0 Nodes"
 	echo "    $0 Config"
 	echo "    $0 mib \"<search string>\""
-	echo "    $0 grepcode \"<search string>\""
-	echo "    $0 grepnmis \"<search string>\""
-	echo "    $0 Config"
+	echo "    $0 grep|grepcode \"<search string>\""
+	echo "    $0 grepfile \"<search string>\""
 	echo "    $0 <node_name>|all collect"
 	echo "    $0 <node_name>|all update"
 	echo "    $0 <node_name>|all model"
@@ -86,9 +89,45 @@ then
 	exit 0
 fi
 
+if [ "$1" == "master" ]
+then
+	$nmis type=master debug=true sleep=1
+	exit 0
+fi
+
+if [ "$1" == "threshold" ]
+then
+	$nmis type=threshold debug=true sleep=1
+	exit 0
+fi
+
 if [ "$1" == "summary" ]
 then
 	$nmis type=summary debug=true
+	exit 0
+fi
+
+if [ "$1" == "audit" ]
+then
+	$nmis type=audit debug=true
+	exit 0
+fi
+
+if [ "$1" == "config" ]
+then
+	$nmis type=config debug=true
+	exit 0
+fi
+
+if [ "$1" == "crontab" ]
+then
+	$nmis type=crontab debug=true
+	exit 0
+fi
+
+if [ "$1" == "escalate" ]
+then
+	$nmis type=escalate debug=true
 	exit 0
 fi
 
@@ -101,18 +140,6 @@ fi
 if [ "$1" == "Config" ]
 then
 	$editor $nmis_base/conf/Config.nmis
-	exit 0
-fi
-
-if [ "$1" == "master" ]
-then
-	$nmis type=master debug=true sleep=1
-	exit 0
-fi
-
-if [ "$1" == "threshold" ]
-then
-	$nmis type=threshold debug=true sleep=1
 	exit 0
 fi
 

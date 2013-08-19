@@ -73,11 +73,8 @@ my $runfile     = "$C->{'<nmis_var>'}/nmis-fpingd.pid";
 
 #----------------------------------------
 # figure out if we have fping installed or not
-#my $fpingbin = `which fping`;
 my ( undef, $fpingbin , undef ) = split /\s+/, qx|whereis -b fping|;
-#print "1fpingbin=$fpingbin\n";
 chomp $fpingbin;
-#print "2fpingbin=$fpingbin\n";
 if ( -x $fpingbin and qx|$fpingbin -v| ) {
 	&debug("fping binary executable found: $fpingbin");
 }

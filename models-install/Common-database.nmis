@@ -119,6 +119,8 @@
       'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
       'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
       'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
+      'gsm_status_2g' => '/health/$nodeType/$node-gsm_status_2g.rrd',
+      'gsm_status_3g' => '/health/$nodeType/$node-gsm_status_3g.rrd',
     }
   }
 );

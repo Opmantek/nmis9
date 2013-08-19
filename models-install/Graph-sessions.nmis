@@ -1,0 +1,103 @@
+#
+## $Id: Graph-ip.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Session Statistics',
+		'short' => 'Session Stats'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:panSessionMax=$database:panSessionMax:AVERAGE',
+			'DEF:panSessionActive=$database:panSessionActive:AVERAGE',
+			'DEF:panSessActTcp=$database:panSessActTcp:AVERAGE',
+			'DEF:panSessActUdp=$database:panSessActUdp:AVERAGE',
+			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
+			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
+
+			#'HRULE:panSessionMax#ff0000:Max Sessions',
+
+			'LINE1:panSessionActive#00ff00:Active Sessions\t',
+			'GPRINT:panSessionActive:AVERAGE:Avg %8.0lf\t',
+			'GPRINT:panSessionActive:MAX:Max %8.0lf\\n',
+
+			'LINE1:panSessActTcp#0000ff:Active TCP Sess.\t',
+			'GPRINT:panSessActTcp:AVERAGE:Avg %8.0lf\t',
+			'GPRINT:panSessActTcp:MAX:Max %8.0lf\\n',
+
+			'LINE1:panSessActUdp#00ffff:Active UDP Sess.\t',
+			'GPRINT:panSessActUdp:AVERAGE:Avg %8.0lf\t',
+			'GPRINT:panSessActUdp:MAX:Max %8.0lf\\n',
+
+			'LINE1:panSessActICMP#ff00ff:Active ICMP Sess.\t',
+			'GPRINT:panSessActICMP:AVERAGE:Avg %8.0lf\t',
+			'GPRINT:panSessActICMP:MAX:Max %8.0lf\\n',
+
+			'LINE1:panSessActSslProxy#000000:Active SSL Proxy\t',
+			'GPRINT:panSessActSslProxy:AVERAGE:Avg %8.0lf\t',
+			'GPRINT:panSessActSslProxy:MAX:Max %8.0lf\\n',
+
+			'GPRINT:panSessionMax:MAX:Max Sessions %8.0lf\\n',
+		],
+		'small' => [
+			'DEF:panSessionMax=$database:panSessionMax:AVERAGE',
+			'DEF:panSessionActive=$database:panSessionActive:AVERAGE',
+			'DEF:panSessActTcp=$database:panSessActTcp:AVERAGE',
+			'DEF:panSessActUdp=$database:panSessActUdp:AVERAGE',
+			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
+			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
+
+			#'HRULE:panSessionMax#ff0000:Max Sessions',
+
+			'LINE1:panSessionActive#00ff00:Avg Active Sess.',
+			'GPRINT:panSessionActive:AVERAGE:%2.0lf\t',
+			'GPRINT:panSessionMax:MAX:Max Sessions %2.0lf\n',
+
+			'LINE1:panSessActTcp#0000ff:Avg TCP Sess.',
+			'GPRINT:panSessActTcp:AVERAGE:%2.0lf\t',
+
+			'LINE1:panSessActUdp#00ffff:Avg UDP Sess.',
+			'GPRINT:panSessActUdp:AVERAGE:%2.0lf\n',
+
+			'LINE1:panSessActICMP#ff00ff:Avg ICMP Sess.',
+			'GPRINT:panSessActICMP:AVERAGE:%2.0lf\t',
+
+			'LINE1:panSessActSslProxy#000000:Avg SSL Proxy',
+			'GPRINT:panSessActSslProxy:AVERAGE:%2.0lf\n',
+
+		]
+	}
+);
+

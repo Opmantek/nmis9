@@ -123,16 +123,16 @@ NMIS version $NMIS::VERSION
 if ($type =~ /collect|update/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
-elsif ( $type eq "escalate") { runEscalate(); } # included in type=collect
+elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
 elsif ( $type eq "audit" ) { checkConfig(audit => "true", change => "false"); }
 elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); } # included in type=collect
+elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # included in type=collect
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" ) { runThreshold($node); } # included in type=collect
-elsif ( $type eq "master" ) { nmisMaster(); } # included in type=collect
+elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
+elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
 else { checkArgs(); }
 
 exit;
@@ -4392,8 +4392,9 @@ sub runEscalate {
 	# load the escalation policy table
 	my $EST = loadEscalationsTable();
 
+	### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
 	# load the interface file to later check interface collect status.
-	my $II = loadInterfaceInfo();
+	#my $II = loadInterfaceInfo();
 
 	my $LocationsTable = loadLocationsTable();
 	
@@ -4625,18 +4626,24 @@ LABEL_ESC:
 			next LABEL_ESC;
 		}
 
-		my $tmpDesc = convertIfName($ET->{$event_hash}{element});
+		### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
 		if ( $ET->{$event_hash}{event} =~ /interface/i 
 			and $ET->{$event_hash}{event} !~ /proactive/i 
-			and $II->{"$ET->{$event_hash}{node}-$tmpDesc"}{collect} ne 'true' 
-		) {
-			logEvent(node => $ET->{$event_hash}{node}, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => " no matching interface or no collect Element=$ET->{$event_hash}{element}");
-			logMsg("INFO ($ET->{$event_hash}{node}) Interface not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
-			delete $ET->{$event_hash};
-			if ($C->{db_events_sql} eq 'true') {
-				DBfunc::->delete(table=>'Events',index=>$event_hash);
+		) {			
+			### load the interface information and check the collect status.
+			my $S = Sys::->new; # node object
+			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
+				my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
+				if ( $IFD->{$ET->{$event_hash}{element}}{collect} ne "true" ) {			
+					logEvent(node => $ET->{$event_hash}{node}, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => " no matching interface or no collect Element=$ET->{$event_hash}{element}");
+					logMsg("INFO ($ET->{$event_hash}{node}) Interface not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
+					delete $ET->{$event_hash};
+					if ($C->{db_events_sql} eq 'true') {
+						DBfunc::->delete(table=>'Events',index=>$event_hash);
+					}
+					next LABEL_ESC;
+				}
 			}
-			next LABEL_ESC;
 		}
 
 		# if an planned outage is in force, keep writing the start time of any unack event to the current start time
@@ -5768,32 +5775,40 @@ EO_TEXT
 
 sub checkArgs {
 	print <<EO_TEXT;
-$0 NMIS Polling Engine - Network Management Information System
-Copyright (C) 2007 NMIS Development Team
-Version $NMIS::VERSION
+$0 
+NMIS Polling Engine - Network Management Information System
+
+NMIS Copyright (C) 1999-2013 Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software licensed under GNU GPL, and you are welcome to 
+redistribute it under certain conditions; see www.opmantek.com or email
+contact\@opmantek.com
+
+NMIS version $NMIS::VERSION
 
 command line options are:
-	type=<option>          Where <option> is one of the following:
-													 collect   NMIS will collect all statistics;
-													 update    Update all the dynamic NMIS configuration
-													 threshold Calculate thresholds
-													 master    Run NMIS Master Functions
-													 escalate  Run the escalation routine only ( debug use only)
-													 config    Validate the chosen configuration file
-													 audit     Audit the configuration without changes
-													 apache    Produce Apache configuration for NMIS
-													 crontab   Produce Crontab configuration for NMIS
-													 links     Generate the links.csv file.
-													 rme       Read and generate a node.csv file from a Ciscoworks RME file
-	[conf=<file name>]     Optional alternate configuation file in directory /conf;
-	[node=<node name>]     Run operations on a single node;
-	[group=<group name>]   Run operations on all nodes in the names group;
-	[debug=true|false|0-9] default=false - Show debuging information, handy;
-	[rmefile=<file name>]  RME file to import.
-	[mthread=true|false]   default=false - Enable Multithreading or not;
-	[mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
-	[maxthreads=<1..XX>]  default=2 - How many threads should nmis create;
-
+  type=<option>          
+    Where <option> is one of the following:
+      collect   NMIS will collect all statistics;
+      update    Update all the dynamic NMIS configuration
+      threshold Calculate thresholds
+      master    Run NMIS Master Functions
+      escalate  Run the escalation routine only ( debug use only)
+      config    Validate the chosen configuration file
+      audit     Audit the configuration without changes
+      apache    Produce Apache configuration for NMIS
+      crontab   Produce Crontab configuration for NMIS
+      links     Generate the links.csv file.
+      rme       Read and generate a node.csv file from a Ciscoworks RME file
+  [conf=<file name>]     Optional alternate configuation file in directory /conf;
+  [node=<node name>]     Run operations on a single node;
+  [group=<group name>]   Run operations on all nodes in the names group;
+  [debug=true|false|0-9] default=false - Show debuging information, handy;
+  [rmefile=<file name>]  RME file to import.
+  [mthread=true|false]   default=false - Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
+  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create;
+  
 EO_TEXT
 }
 
@@ -5983,6 +5998,11 @@ sub doThreshold {
 						}
 					}
 				}
+				
+				#print Dumper $S;
+				# Save the new status results
+				$S->writeNodeInfo();
+
 			}
 		}
 	}
@@ -6032,9 +6052,9 @@ sub runThrHld {
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset);
+		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
 	}
-
+	
 }
 
 sub getThresholdLevel {
@@ -6148,11 +6168,26 @@ sub thresholdProcess {
 			if ( defined $args{details} and $args{details} ne "" ) {
 				$details = "$args{details}: Value=$args{value}, Threshold=$args{thrvalue}";
 			}
+			my $statusResult = "ok";
 			if ( $args{level} =~ /Normal/i ) { 
 				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details,value=>$args{value},reset=>$args{reset});
 			}
 			else {
 				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details);
+				$statusResult = "error";
+			}
+			my $index = $args{index};
+			if ( $index eq "" ) {
+				$index = 0;
+			}
+			my $statusKey = "$args{thrname}--$index";
+			$S->{info}{status}{$statusKey} = {
+				property => $args{thrname},
+				index => $args{index},
+				level => $args{level},
+				status => $statusResult,
+				element => $args{element},
+				value => $args{value}
 			}
 		}
 	}
@@ -6165,6 +6200,11 @@ sub getPidFileName {
 	}
 	return $PIDFILE;	
 }
+
+sub printRunTime {
+	my $endTime = time() - $C->{starttime};
+	print "\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n\n";
+	}
 
 # *****************************************************************************
 # NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)

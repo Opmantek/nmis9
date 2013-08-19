@@ -8538,3 +8538,4 @@
 "asam"  "1.3.6.1.4.1.637.61.1"
 "eqptHolderPlannedType" "1.3.6.1.4.1.637.61.1.23.2.1.3"
 "eqptPortMappingLogPortType" "1.3.6.1.4.1.637.61.1.23.13.1.2"
+"serverscheck"  "1.3.6.1.4.1.17095"
