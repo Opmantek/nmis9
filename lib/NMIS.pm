@@ -2074,7 +2074,10 @@ sub overallNodeStatus {
 				my $nodedown = 0;
 				my $outage = "";
 				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					my $event_hash = eventHash($node,"Node Down","");
+					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+					my $down_event = "Node Down";
+					$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+					my $event_hash = eventHash($node,$down_event,"");
 					($outage,undef) = outageCheck(node=>$node,time=>time());
 					$nodedown = exists $ET->{$event_hash}{node};
 				}
@@ -2104,7 +2107,10 @@ sub overallNodeStatus {
 					my $nodedown = 0;
 					my $outage = "";
 					if ( $NT->{$node}{server} eq $C->{server_name} ) {
-						my $event_hash = eventHash($node,"Node Down","");
+						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+						my $down_event = "Node Down";
+						$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+						my $event_hash = eventHash($node,$down_event,"");
 						($outage,undef) = outageCheck(node=>$node,time=>time());
 						$nodedown = exists $ET->{$event_hash}{node};
 					}
@@ -2140,7 +2146,10 @@ sub overallNodeStatus {
 				my $nodedown = 0;
 				my $outage = "";
 				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					my $event_hash = eventHash($node,"Node Down","");
+					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+					my $down_event = "Node Down";
+					$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+					my $event_hash = eventHash($node,$down_event,"");
 					($outage,undef) = outageCheck(node=>$node,time=>time());
 					$nodedown = exists $ET->{$event_hash}{node};
 				}
