@@ -54,8 +54,8 @@
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'Default-HC',
-    'nodeType' => 'generic',
+    'nodeModel' => 'MikroTik',
+    'nodeType' => 'router',
     'sys' => {
       'standard' => {
         'snmp' => {

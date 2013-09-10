@@ -128,7 +128,6 @@ sub init {
 		#}
 		### 2013-08-09 keiths, the system object should not be complete for nmis-system
 		if ( defined $info->{system} and ref($info->{system}) eq "HASH" ) {
-			logMsg("INFO var/nmis-system.nmis file is corrupted, deleting \$info->{system}");
 			delete $info->{system};
 		}
 		$self->mergeHash($self->{info},$info);
@@ -997,6 +996,12 @@ sub writeNodeInfo {
 	delete $self->{info}{view_interface};
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
+	### 2013-08-27 keiths, the system object should not exist for nmis-system
+	if ( $name eq "nmis-system" and defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
+		logMsg("INFO var/nmis-system.nmis file is corrupted, deleting \$info->{system}");
+		delete $self->{info}{system};
+	}
+
 	writeTable(dir=>'var',name=>$name,data=>$self->{info}); # write node info
 }
 

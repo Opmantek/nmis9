@@ -52,11 +52,11 @@ if ( ! %nvp ) {
 		print <<EOF;
 
 Command line options are:
- restart=true         - kill the running daemon(s) and restart
- debug=true           - print status to console and logfile
- kill=true            - kill the running deamon(s) and exit. Does not launch a new process.
- logging=true         - creates a log file 'fpingd.log' in the standard nmis log directory
- conf=*.nmis		  - specify an alternative Conf.nmis file.
+ restart=true   - kill the running daemon(s) and restart
+ debug=true     - print status to console and logfile
+ kill=true      - kill the running deamon(s) and exit. Does not launch a new process.
+ logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
+ conf=*.nmis    - specify an alternative Conf.nmis file.
 
 default action is to killall and restart , no logging, no debug...
 
@@ -88,10 +88,7 @@ else {
 # Process Control
 
 # get the pid - this should be 'portable'
-# logMsg( "running ps -C $FindBin::Script -o pid=");
-#$ppid = qx|ps -C $FindBin::Script -o pid=|;
-$ppid = qx|/bin/pidof $FindBin::Script|;
-#logMsg("found ppid=$ppid\n");
+$ppid = qx|ps -C $FindBin::Script -o pid=|;
 chomp $ppid;
 if ( -f $runfile ) {
 	open(F, "<$runfile");
@@ -99,7 +96,7 @@ if ( -f $runfile ) {
 	close(F);
 	chomp $fpid if $fpid;
 }
-if ( defined $nvp{kill} ) {
+if ( defined $nvp{kill} and $nvp{kill} eq "true" ) {
 	killall();
 	unlink($runfile) and &debug("Killed process $FindBin::Script deleted $runfile");
 	exit(0);

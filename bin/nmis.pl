@@ -355,10 +355,13 @@ sub	runThreads {
 	$C->{collecttime} = time();
 
 	# if an update, 
-	if ( $type eq "update" ) { 
-		getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.nmis
+	if ( $type eq "update" ) {
+		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.nmis
-		runLinks();
+		if ( $C->{disable_interfaces_summary} ne "true" ) {
+			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.nmis
+			runLinks();
+		}		 
 	}
 
 	# Couple of post processing things.
@@ -4095,6 +4098,12 @@ sub getIntfAllInfo {
 	my $intHash;
 	my %interfaceInfo;
 
+	### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
+	if ( $C->{disable_interfaces_summary} eq "true" ) {
+		logMsg("getIntfAllInfo disabled with disable_interfaces_summary=$C->{disable_interfaces_summary}");
+		return;
+	}
+
 	dbg("Starting");
 
 	dbg("Getting Interface Info from all nodes");
@@ -5242,6 +5251,12 @@ sub runLinks {
 	my $subnet;
 	my $cnt;
 
+	### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
+	if ( $C->{disable_interfaces_summary} eq "true" ) {
+		logMsg("runLinks disabled with disable_interfaces_summary=$C->{disable_interfaces_summary}");
+		return;
+	}
+		
 	dbg("Start");
 
 	if (!($II = loadInterfaceInfo())) {

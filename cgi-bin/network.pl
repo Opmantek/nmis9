@@ -95,7 +95,7 @@ elsif ( $Q->{refresh} eq "" and $widget eq "false" ) {
 my $nodewrap = "nowrap";
 $nodewrap = "wrap" if $C->{'wrap_node_names'} eq "true";
 
-my $smallGraphHeight = 200;
+my $smallGraphHeight = 50;
 my $smallGraphWidth = 400;
 
 $smallGraphHeight = $C->{'small_graph_height'} if $C->{'small_graph_height'} ne "";
@@ -1050,7 +1050,7 @@ sub viewNode {
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");	
+	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 	
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists

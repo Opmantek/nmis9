@@ -110,6 +110,7 @@
     'ping_count' => '3',
     'wrap_node_names' => 'false',
     'nmis_summary_poll_cycle' => 'false',
+    'disable_interfaces_summary' => 'false',
     'snpp_server' => '<server_name>',
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
