@@ -6039,12 +6039,19 @@ sub runThrHld {
 	my $details = $args{details};
 	my $stats;
 	my $element;
+	
+	my $threshold_period = "-15 minutes";
+	### 2013-09-16 keiths, User defined threshold periods.
+	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" ) {
+		$threshold_period = $C->{"threshold_period-$type"};
+		dbg("Found Configured Threshold, changing to \"$threshold_period\"");
+	}
 
 	#	check if values are already in table (done by doSummaryBuild)
 	if (exists $sts->{$S->{name}}{$type}) {
 		$stats = $sts->{$S->{name}}{$type};
 	} else {
-		$stats = getSummaryStats(sys=>$S,type=>$type,start=>"-15 minutes",end=>'now',index=>$index);
+		$stats = getSummaryStats(sys=>$S,type=>$type,start=>$threshold_period,end=>'now',index=>$index);
 	}
 
 	# get name of element
