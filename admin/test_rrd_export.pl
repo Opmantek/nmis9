@@ -47,6 +47,9 @@ use RRDs 1.000.490; # from Tobias
 
 my $t = NMIS::Timing->new();
 
+my $perfDir = "/usr/local/omk/var/perf";
+
+
 print $t->elapTime(). " Begin\n";
 
 # Variables for command line munging
@@ -84,14 +87,18 @@ my $LNT = loadLocalNodeTable();
 print "  done in ".$t->deltaTime() ."\n";
 
 my $sum = initSummary();
+my $objtotal = 0;
 
 # Work through each node looking for interfaces, etc to tune.
 foreach my $node (sort keys %{$LNT}) {
 	++$sum->{count}{node};
-	my $intcount = 0;
+	my $objcount = 0;
 	
 	# Is the node active and are we doing stats on it.
 	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+		my $time = time();
+		my $perf;
+		
 		++$sum->{count}{active};
 		print $t->markTime(). " Processing $node\n";
 
@@ -100,6 +107,8 @@ foreach my $node (sort keys %{$LNT}) {
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		my $NI = $S->ndinfo;
 
+		my $availability = undef;
+		my $reachability = undef;
 		my $responsetime = undef;
 		my $MemoryFreePROC = undef;
 		my $MemoryUsedPROC = undef;
@@ -120,68 +129,104 @@ foreach my $node (sort keys %{$LNT}) {
 		if (defined $NI->{database}{health}) {
 			my $rrd = $NI->{database}{health};
 			my $hash = RRDs::info($rrd);
+			++$objcount;
 
+			$availability = $hash->{'ds[availability].last_ds'};
+			$reachability = $hash->{'ds[reachability].last_ds'};
 			$responsetime = $hash->{'ds[responsetime].last_ds'};
 			#$responsetimeValue = $hash->{'ds[responsetime].value'};
 		}
-
-		print "  ". $t->elapTime(). " Looking for nodehealth data\n";
-		if (defined $NI->{database}{nodehealth}) {
-			my $rrd = $NI->{database}{nodehealth};
-			my $hash = RRDs::info($rrd);
-
-			$MemoryFreePROC = $hash->{'ds[MemoryFreePROC].last_ds'};
-			#$MemoryFreePROCValue = $hash->{'ds[MemoryFreePROC].value'};
-
-			$MemoryUsedPROC = $hash->{'ds[MemoryUsedPROC].last_ds'};
-			#$MemoryUsedPROCValue = $hash->{'ds[MemoryUsedPROC].value'};
-
-			$MemoryFreeIO = $hash->{'ds[MemoryFreeIO].last_ds'};
-			#$MemoryFreeIOValue = $hash->{'ds[MemoryFreeIO].value'};
-
-			$MemoryUsedIO = $hash->{'ds[MemoryUsedIO].last_ds'};
-			#$MemoryUsedIOValue = $hash->{'ds[MemoryUsedIO].value'};
-
-			$avgBusy5 = $hash->{'ds[avgBusy5].last_ds'};
-			#$avgBusy5Value = $hash->{'ds[avgBusy5].value'};
-
-			$bufferElFree = $hash->{'ds[bufferElFree].last_ds'};
-			#$bufferElFreeValue = $hash->{'ds[bufferElFree].value'};
-
-			$bufferElHit = $hash->{'ds[bufferElHit].last_ds'};
-			#$bufferElHitValue = $hash->{'ds[bufferElHit].value'};
-
-			$bufferFail = $hash->{'ds[bufferFail].last_ds'};
-			#$bufferFailValue = $hash->{'ds[bufferFail].value'};		
-
-			if ( defined $MemoryUsedPROC and defined $MemoryFreePROC ) {
-				$MemoryTotalPROC = $MemoryUsedPROC + $MemoryFreePROC;
-				$PerMemoryFreePROC = sprintf("%.2f",$MemoryFreePROC / $MemoryTotalPROC * 100);
-				$PerMemoryUsedPROC = sprintf("%.2f",$MemoryUsedPROC / $MemoryTotalPROC * 100);
-
-			}
-			
-			if ( defined $MemoryUsedIO and defined $MemoryFreeIO ) {
-				$MemoryTotalIO = $MemoryUsedIO + $MemoryFreeIO;
-			}
-		}
 		
-		print qq|$node responsetime=$responsetime avgBusy5=$avgBusy5
+		$perf->{node} = $node;
+		$perf->{time} = $time;
+		$perf->{system}{Availability} = $availability;
+		$perf->{system}{Reachability} = $reachability;
+		$perf->{system}{NRT} = $responsetime;
+
+		if ( $NI->{system}{nodeModel} eq "CiscoRouter" ) {
+			print "  ". $t->elapTime(). " Looking for nodehealth data\n";
+			if (defined $NI->{database}{nodehealth}) {
+				my $rrd = $NI->{database}{nodehealth};
+				my $hash = RRDs::info($rrd);
+				++$objcount;
+	
+				$MemoryFreePROC = $hash->{'ds[MemoryFreePROC].last_ds'};
+				#$MemoryFreePROCValue = $hash->{'ds[MemoryFreePROC].value'};
+	
+				$MemoryUsedPROC = $hash->{'ds[MemoryUsedPROC].last_ds'};
+				#$MemoryUsedPROCValue = $hash->{'ds[MemoryUsedPROC].value'};
+	
+				$MemoryFreeIO = $hash->{'ds[MemoryFreeIO].last_ds'};
+				#$MemoryFreeIOValue = $hash->{'ds[MemoryFreeIO].value'};
+	
+				$MemoryUsedIO = $hash->{'ds[MemoryUsedIO].last_ds'};
+				#$MemoryUsedIOValue = $hash->{'ds[MemoryUsedIO].value'};
+	
+				$avgBusy5 = $hash->{'ds[avgBusy5].last_ds'};
+				#$avgBusy5Value = $hash->{'ds[avgBusy5].value'};
+	
+				$bufferElFree = $hash->{'ds[bufferElFree].last_ds'};
+				#$bufferElFreeValue = $hash->{'ds[bufferElFree].value'};
+	
+				$bufferElHit = $hash->{'ds[bufferElHit].last_ds'};
+				#$bufferElHitValue = $hash->{'ds[bufferElHit].value'};
+	
+				$bufferFail = $hash->{'ds[bufferFail].last_ds'};
+				#$bufferFailValue = $hash->{'ds[bufferFail].value'};		
+	
+				if ( defined $MemoryUsedPROC and defined $MemoryFreePROC ) {
+					$MemoryTotalPROC = $MemoryUsedPROC + $MemoryFreePROC;
+					$PerMemoryFreePROC = sprintf("%.2f",$MemoryFreePROC / $MemoryTotalPROC * 100);
+					$PerMemoryUsedPROC = sprintf("%.2f",$MemoryUsedPROC / $MemoryTotalPROC * 100);
+	
+				}
+				
+				if ( defined $MemoryUsedIO and defined $MemoryFreeIO ) {
+					$MemoryTotalIO = $MemoryUsedIO + $MemoryFreeIO;
+				}
+			}
+				
+			$perf->{system}{MFreeProc} = $MemoryFreePROC;
+			$perf->{system}{MUsedProc} = $MemoryUsedPROC;
+			$perf->{system}{MFreeIO} = $MemoryFreeIO;
+			$perf->{system}{MUsedIO} = $MemoryUsedIO;
+			$perf->{system}{TotMem} = $MemoryTotalPROC;
+			$perf->{system}{Per_MFree} = $PerMemoryFreePROC;
+			$perf->{system}{Per_MUsed} = $PerMemoryUsedPROC;
+			$perf->{system}{Per_CPU} = $avgBusy5;
+			$perf->{system}{BufferElFree} = $bufferElFree;
+			$perf->{system}{BufferElHit} = $bufferElHit;
+			$perf->{system}{BufferFail} = $bufferFail; 
+			
+			$perf->{system}{ExcpCpu} = $NI->{status}{'cpu--0'}{level};
+			$perf->{system}{Per_CPU} = $NI->{status}{'cpu--0'}{value};
+
+			$perf->{system}{ExcpMem} = $NI->{status}{'mem-proc--0'}{level};
+		}
+        		
+		print qq|$node reachability=$reachability availability=$availability responsetime=$responsetime|;
+		if ( $NI->{system}{nodeModel} eq "CiscoRouter" ) {
+			print qq|avgBusy5=$avgBusy5
     		PerMemoryFreePROC=$PerMemoryFreePROC PerMemoryUsedPROC=$PerMemoryUsedPROC
     		bufferElFree=$bufferElFree bufferElHit=$bufferElHit bufferFail=$bufferFail
 |;
+
+		}
+		else {
+			print "\n";
+		}
 		
 		#Are there any interface RRDs?
 		print "  ". $t->elapTime(). " Looking for interface databases\n";
 		if (defined $NI->{database}{interface}) {
 			foreach my $intf (keys %{$NI->{database}{interface}}) {
 				++$sum->{count}{interface};
-				++$intcount;
 				my $rrd = $NI->{database}{interface}{$intf};
 				#print "    ". $t->elapTime(). " Found $rrd\n";
 
 				# Get the ifSpeed
 				my $ifDescr = $NI->{interface}{$intf}{ifDescr};
+				my $ifIndex = $NI->{interface}{$intf}{ifIndex};
 				my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
 				
 				# only proceed if the ifSpeed is correct
@@ -189,7 +234,8 @@ foreach my $node (sort keys %{$LNT}) {
 
 					# Get the RRD info on the Interface
 					my $hash = RRDs::info($rrd);
-					
+					++$objcount;
+
 					if ( time() - $hash->{'last_update'} > 300 ) {
 						print "    ". $t->elapTime(). " ERROR $hash->{'last_update'} was more than 300 seconds ago\n";
 					}
@@ -198,9 +244,51 @@ foreach my $node (sort keys %{$LNT}) {
 					my $ifOutOctetsLast = $hash->{'ds[ifOutOctets].last_ds'};
 					my $ifInOctetsValue = $hash->{'ds[ifInOctets].value'};
 					my $ifOutOctetsValue = $hash->{'ds[ifOutOctets].value'};
+					my $TOTIFOCTETS = $ifInOctetsLast + $ifOutOctetsLast;
+					
+					my $PERIFOUTOCTETS = undef;	
+					my $PERIFINOCTETS = undef;	
+					    
+					if ( defined $TOTIFOCTETS and $TOTIFOCTETS > 0 ) {
+						$PERIFOUTOCTETS = sprintf("%.2f",($ifInOctetsLast * 100) / $TOTIFOCTETS);	
+						$PERIFINOCTETS = sprintf("%.2f",($ifOutOctetsLast * 100) / $TOTIFOCTETS);	
+					}
+					
 					my $ifInUtil = sprintf("%.2f",($ifInOctetsValue * 8 * 100) / ( 300 * $ifSpeed));					
 					my $ifOutUtil = sprintf( "%.2f",($ifOutOctetsValue * 8 * 100) / ( 300 * $ifSpeed));
-					
+
+					$perf->{interfaces}{$ifDescr} = {
+						INTERFACE => $ifDescr,
+						ifIndex => $ifIndex,
+						BW => $ifSpeed,
+						IFINOCTECTS => $ifInOctetsLast,
+						IFOUTOCTETS => $ifOutOctetsLast,
+						PERIFINOCTECTS => $PERIFINOCTETS,
+						PERIFOUTOCTETS => $PERIFOUTOCTETS,
+						
+						EXCPIN => $NI->{status}{"util_in--$ifIndex"}{level},
+						IfInU => $NI->{status}{"util_in--$ifIndex"}{value},
+						IfInDiscards => undef,
+						IfInErrors => undef,
+
+						EXCPOUT => $NI->{status}{"util_out--$ifIndex"}{level},
+						IfOutU => $NI->{status}{"util_out--$ifIndex"}{value},
+						IfOutDiscards => undef,
+						IfOutErrors => undef,
+
+						ExcpErrIn => $NI->{status}{"pkt_errors_in--$ifIndex"}{level},
+						PerIfInErrors => $NI->{status}{"pkt_errors_in--$ifIndex"}{value},
+
+						ExcpErrOut => $NI->{status}{"pkt_errors_out--$ifIndex"}{level},
+						PerIfOutErrors => $NI->{status}{"pkt_errors_out--$ifIndex"}{value},
+
+						ExcpDisIn => $NI->{status}{"pkt_discards_in--$ifIndex"}{level},
+						PerIfInDiscards => $NI->{status}{"pkt_discards_in--$ifIndex"}{value},
+
+						ExcpDisOut => $NI->{status}{"pkt_discards_out--$ifIndex"}{level},
+						PerIfOutDiscards => $NI->{status}{"pkt_discards_out--$ifIndex"}{value},
+					};
+						   					
 					print "  ". $t->elapTime(). " $ifDescr $ifSpeed ifInOctets=$ifInOctetsLast ifOutOctets=$ifOutOctetsLast ifInOctetsValue=$ifInOctetsValue ifOutOctetsValue=$ifOutOctetsValue ifInUtil=$ifInUtil\% ifOutUtil=$ifOutUtil\%\n";
 				}
 				# no valid ifSpeed found.
@@ -260,69 +348,76 @@ foreach my $node (sort keys %{$LNT}) {
 		#		}
 		#	}
 		#}
-    #
-		##Are there any CBQoS RRDs?
-		print "  ". $t->elapTime(). " Looking for CBQoS databases\n";
-		my @cbqosdb = qw(cbqos-in cbqos-out);
-		
-		foreach my $cbqos (@cbqosdb) {
-			if (defined $NI->{database}{$cbqos}) {
-				++$sum->{count}{$cbqos};
-				foreach my $intf (keys %{$NI->{database}{$cbqos}}) {
-					++$sum->{count}{"$cbqos-interface"};
     
-					# Get the ifSpeed
-					my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
-					my $ifDescr = $NI->{interface}{$intf}{ifDescr};
-					
-					# only proceed if the ifSpeed is correct
-					if ( $ifSpeed ) {    
-						foreach my $class (keys %{$NI->{database}{$cbqos}{$intf}}) {
-							++$sum->{count}{"$cbqos-classes"};
-							my $rrd = $NI->{database}{$cbqos}{$intf}{$class};
-							print "    ". $t->elapTime(). " Found $rrd\n";
-		
-							# Get the RRD info on the Interface
-							my $hash = RRDs::info($rrd);
-							
-							my ($nuf,$direction) = split("-",$cbqos);
-							
-							my $PolicyBandwidth = undef;
-							foreach my $classidx (keys %{$NI->{cbqos}{$intf}{$direction}{ClassMap}}) {
-								if ( $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{Name} eq $class ) {
-									if ( defined $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{BW}{Value} ) {
-										$PolicyBandwidth = $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{BW}{Value};
+		##Are there any CBQoS RRDs?
+		if ( $NI->{system}{nodeModel} eq "CiscoRouter" ) {		
+			print "  ". $t->elapTime(). " Looking for CBQoS databases\n";
+			my @cbqosdb = qw(cbqos-in cbqos-out);
+			
+			foreach my $cbqos (@cbqosdb) {
+				if (defined $NI->{database}{$cbqos}) {
+					++$sum->{count}{$cbqos};
+					foreach my $intf (keys %{$NI->{database}{$cbqos}}) {
+						++$sum->{count}{"$cbqos-interface"};
+	    
+						# Get the ifSpeed
+						my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
+						my $ifDescr = $NI->{interface}{$intf}{ifDescr};
+						
+						# only proceed if the ifSpeed is correct
+						if ( $ifSpeed ) {    
+							foreach my $class (keys %{$NI->{database}{$cbqos}{$intf}}) {
+								++$sum->{count}{"$cbqos-classes"};
+								my $rrd = $NI->{database}{$cbqos}{$intf}{$class};
+								print "    ". $t->elapTime(). " Found $rrd\n";
+			
+								# Get the RRD info on the Interface
+								my $hash = RRDs::info($rrd);
+								++$objcount;
+								
+								my ($nuf,$direction) = split("-",$cbqos);
+								
+								my $PolicyBandwidth = undef;
+								foreach my $classidx (keys %{$NI->{cbqos}{$intf}{$direction}{ClassMap}}) {
+									if ( $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{Name} eq $class ) {
+										if ( defined $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{BW}{Value} ) {
+											$PolicyBandwidth = $NI->{cbqos}{$intf}{$direction}{ClassMap}{$classidx}{BW}{Value};
+										}
 									}
 								}
-							}
-
-							my $PrePolicyByteLast = $hash->{'ds[PrePolicyByte].last_ds'};
-							my $PrePolicyPktLast = $hash->{'ds[PrePolicyPkt].last_ds'};
-							my $DropByteLast = $hash->{'ds[DropByte].last_ds'};
-							my $DropPktLast = $hash->{'ds[DropPkt].last_ds'};
-							my $NoBufDropPktLast = $hash->{'ds[NoBufDropPkt].last_ds'};
-
-							my $PrePolicyByteValue = $hash->{'ds[PrePolicyByte].value'};
-							my $DropByteValue = $hash->{'ds[DropByte].value'};
-							my $PrePolicyPktValue = $hash->{'ds[PrePolicyPkt].value'};
-							my $DropPktValue = $hash->{'ds[DropPkt].value'};
-							my $NoBufDropPktValue = $hash->{'ds[NoBufDropPkt].value'};
-							
-							my $PostPolicyByteLast = $PrePolicyByteLast + $DropByteLast;
-							
-							print "  ". $t->elapTime(). " $ifDescr $class $ifSpeed PrePolicyByteLast=$PrePolicyByteLast DropByteLast=$DropByteLast PostPolicyByteLast=$PostPolicyByteLast PolicyBandwidth=$PolicyBandwidth\n";
-							
-						}							
+	
+								my $PrePolicyByteLast = $hash->{'ds[PrePolicyByte].last_ds'};
+								my $PrePolicyPktLast = $hash->{'ds[PrePolicyPkt].last_ds'};
+								my $DropByteLast = $hash->{'ds[DropByte].last_ds'};
+								my $DropPktLast = $hash->{'ds[DropPkt].last_ds'};
+								my $NoBufDropPktLast = $hash->{'ds[NoBufDropPkt].last_ds'};
+	
+								my $PrePolicyByteValue = $hash->{'ds[PrePolicyByte].value'};
+								my $DropByteValue = $hash->{'ds[DropByte].value'};
+								my $PrePolicyPktValue = $hash->{'ds[PrePolicyPkt].value'};
+								my $DropPktValue = $hash->{'ds[DropPkt].value'};
+								my $NoBufDropPktValue = $hash->{'ds[NoBufDropPkt].value'};
+								
+								my $PostPolicyByteLast = $PrePolicyByteLast + $DropByteLast;
+								
+								print "  ". $t->elapTime(). " $ifDescr $class $ifSpeed PrePolicyByteLast=$PrePolicyByteLast DropByteLast=$DropByteLast PostPolicyByteLast=$PostPolicyByteLast PolicyBandwidth=$PolicyBandwidth\n";
+								
+							}							
+						}
+						# no valid ifSpeed found.
+						else {
+							print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
+						}		
 					}
-					# no valid ifSpeed found.
-					else {
-						print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
-					}		
 				}
 			}
 		}
+		my $perfFile = "$perfDir/$node.nmis";
+		writeHashtoFile(file => $perfFile, data => $perf);
+		
+		$objtotal += $objcount;
 
-		print "  $node $intcount interface(s) done in ".$t->deltaTime() ."\n";		
+		print "  $node $objcount rrd objects(s) done in ".$t->deltaTime() ."\n";		
 	}
 	else {
 		print $t->elapTime(). " Skipping node $node active=$LNT->{$node}{active} and collect=$LNT->{$node}{collect}\n";	
@@ -330,14 +425,14 @@ foreach my $node (sort keys %{$LNT}) {
 }
 
 my $complete = $t->elapTime();
-my $intPerSec = sprintf("%.2f",$sum->{count}{interface} / $complete);
+my $intPerSec = sprintf("%.2f",$objtotal / $complete);
 
 print "$complete Done\n";	
 	
 print qq|
 $sum->{count}{node} nodes processed, $sum->{count}{active} nodes active
-$sum->{count}{interface}\tinterface RRDs in $complete seconds
-$intPerSec interfaces per second.
+$objtotal\tRRD Objects in $complete seconds
+$intPerSec RRD objects per second.
 
 |;
 
