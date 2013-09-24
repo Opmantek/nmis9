@@ -312,8 +312,6 @@ function	createDialog(opt) {
 		dialogHandle.dialog( "option", "title", opt.title );
 	}
 		
-	// dialog is open and ready for html
-	objData.status = true;
 	
 	// get some additional content
 	// but only if we have an URL !!
@@ -504,6 +502,8 @@ function	createDialog(opt) {
 		});
 		
 	}
+	// dialog is open and ready for html
+	objData.status = true;
 	dialogHandle.dialog('open');
 
 	//===============================================	

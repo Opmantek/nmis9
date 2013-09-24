@@ -166,9 +166,9 @@
     'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
     'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
     'nmis_common' => '<menu_url_base>/js/commonv8.js',
-    'chart' => '<menu_url_base>/js/chart.js',
-    'highcharts' => '<menu_url_base>/js/highcharts.js',
-    'highstock' => '<menu_url_base>/js/highstock.js'
+    'chart' => '', #'<menu_url_base>/js/chart.js',
+    'highcharts' => '', #'<menu_url_base>/js/highcharts.js',
+    'highstock' => '', #'<menu_url_base>/js/highstock.js'
   },
   'email' => {
     'mail_server' => '127.0.0.1',

@@ -109,6 +109,7 @@ sub sendEmail {
 			if( $use_sasl eq 'true' )
 			{
 				require Net::SMTP::SSL;
+				#if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, SSL_verify_mode => SSL_VERIFY_PEER, Debug => $smtp_debug)) {
 				if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, Debug => $smtp_debug)) {
 					if( $smtp->auth($arg{user}, $arg{password}) ) {
 						if ($debug) { print "SASL auth successfull"; }
