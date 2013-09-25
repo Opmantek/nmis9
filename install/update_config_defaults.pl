@@ -38,10 +38,10 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 
+my $confFile = "/usr/local/nmis8/conf/Config.nmis";
 
 print <<EO_TEXT;
-This script will update your running NMIS Config based on the required design 
-policy.
+This script will update your running NMIS Config with the latest defaults, especially JQuery.
 
 EO_TEXT
 
@@ -49,13 +49,16 @@ if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 ERROR: $0 needs to know the NMIS config file to update
 usage: $0 <CONFIG_1>
-eg: $0 /usr/local/nmis8/conf/Config.nmis
+eg: $0 $confFile
 
 EO_TEXT
 	exit 1;
 }
+else {
+	$confFile = $ARGV[0];
+}
 
-print "Updating $ARGV[0] with policy\n";
+print "Updating $ARGV[0] with new defaults\n";
 
 my $conf;
 
@@ -64,36 +67,28 @@ if ( -f $ARGV[0] ) {
 	$conf = readFiletoHash(file=>$ARGV[0]);
 }
 else {
-	print "ERROR: something wrong with config file 1: $ARGV[0]\n";
+	print "ERROR: something wrong with config file: $ARGV[0]\n";
 	exit 1;
 }
 
-# Syslog Server for CNOC will be 172.27.130.31
-# Syslog Server for IT will be 172.27.7.168
+backupFile(file => $ARGV[0], backup => "$ARGV[0].backup");
 
-$conf->{'syslog'}{'syslog_events'} = "true";
-$conf->{'syslog'}{'syslog_use_escalation'} = "false";
-$conf->{'syslog'}{'syslog_server'} = "172.27.130.31:udp:514";
-  
-$conf->{'authentication'}{'auth_default_privilege'} = 'guest';
-$conf->{'authentication'}{'auth_default_groups'} = 'all';
-$conf->{'authentication'}{'auth_ms_ldap_server'} = '172.27.5.56';
-$conf->{'authentication'}{'auth_ms_ldap_dn_acc'} = 'LDAPRead';
-$conf->{'authentication'}{'auth_ms_ldap_dn_psw'} = 'Y1taBc*20';
-$conf->{'authentication'}{'auth_ms_ldap_base'} = 'DC=corp,DC=codetel,DC=com,DC=do';
-$conf->{'authentication'}{'auth_ms_ldap_attr'} = 'sAMAccountName';
-$conf->{'authentication'}{'auth_ms_ldap_debug'} = 'false';
-$conf->{'authentication'}{'auth_method_1'} = 'ms-ldap';
-$conf->{'authentication'}{'auth_method_2'} = 'htpasswd';
+$conf->{'authentication'}{'auth_user_name_regex'} = "[\\w \\-\\.\\@\\`\\']+";
 
-$conf->{'email'}{'mail_server'} = 'localhost';
-$conf->{'email'}{'mail_from'} = 'nmis1@claro.com.do';
-$conf->{'email'}{'mail_domain'} = 'claro.com.do';
-$conf->{'email'}{'mail_combine'} = 'true';
+$conf->{'system'}{'threshold_period-default'} = "-15 minutes";
+$conf->{'system'}{'threshold_period-health'} = "-4 hours";
+$conf->{'system'}{'threshold_period-pkts'} = "-5 minutes";
+$conf->{'system'}{'threshold_period-pkts_hc'} = "-5 minutes";
+$conf->{'system'}{'threshold_period-interface'} = "-5 minutes";
 
-$conf->{'master_slave'}{'server_community'} = 'ClaroServerCommunity';
-$conf->{'master_slave'}{'slave_community'} = 'ClaroServerCommunity';
-$conf->{'master_slave'}{'server_master'} = 'false';
-
+$conf->{'javascript'}{'chart'} = "";
+$conf->{'javascript'}{'highcharts'} = "";
+$conf->{'javascript'}{'highstock'} = "";
+$conf->{'javascript'}{'jquery'} = "<menu_url_base>/js/jquery-1.8.3.min.js";
+$conf->{'javascript'}{'jquery_ui'} = "<menu_url_base>/js/jquery-ui-1.9.2.custom.js";
     
+$conf->{'css'}{'jquery_ui_css'} = "<menu_url_base>/css/smoothness/jquery-ui-1.9.2.custom.css";
+
 writeHashtoFile(file=>$ARGV[0],data=>$conf);
+
+print "Done updating $ARGV[0]\n";

@@ -5879,10 +5879,20 @@ sub doSummaryBuild {
 				next if $NI->{system}{nodedown} eq 'true';
 
 				foreach my $tp (keys %{$M->{summary}{statstype}}) { # oke, look for requests in summary of Model 
+					### 2013-09-16 keiths, User defined threshold periods.
+					my $threshold_period = "-15 minutes";
+					if ( $C->{"threshold_period-default"} ne "" ) {
+						$threshold_period = $C->{"threshold_period-default"};
+					}
+				
+					if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" ) {
+						$threshold_period = $C->{"threshold_period-$tp"};
+						dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
+					}
 					# check for indexed
 					if (ref $NI->{database}{$tp} eq "HASH") {
 						foreach my $i (keys %{$NI->{database}{$tp}}) {
-							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>"-15 minutes",end=>'now',index=>$i);
+							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now',index=>$i);
 							# save all info in %sts for threshold run
 							foreach (keys %{$sts->{$i}}) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
 							# 
@@ -5902,7 +5912,7 @@ sub doSummaryBuild {
 						}
 					} else {
 						if (exists $NI->{database}{$tp}) {
-							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>"-15 minutes",end=>'now');							
+							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now');							
 							# save all info in %sts for threshold run
 							foreach (keys %{$sts}) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
 							# check if threshold level available, thresholdname must be equal to type
@@ -5919,10 +5929,22 @@ sub doSummaryBuild {
 						}
 					}
 				}
+				### 2013-09-16 keiths, User defined threshold periods.
+				my $threshold_period = "-15 minutes";
+				if ( $C->{"threshold_period-default"} ne "" ) {
+					$threshold_period = $C->{"threshold_period-default"};
+				}
+				
+				my $tp = "interface";
+				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" ) {
+					$threshold_period = $C->{"threshold_period-$tp"};
+					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
+				}
+
 				# get all collected interfaces
 				foreach my $index (keys %{$IF}) {
 					next unless $IF->{$index}{collect} eq 'true';
-					my $sts = getSummaryStats(sys=>$S,type=>'interface',start=>'-15 minutes',end=>time(),index=>$index);
+					my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>time(),index=>$index);
 					foreach (keys %{$sts->{$index}}) { $stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_}; } # save for threshold
 					foreach (keys %{$sts->{$index}}) {
 						$stsintf{"${index}.$S->{name}"}{inputUtil} = $sts->{$index}{inputUtil};
@@ -6041,10 +6063,13 @@ sub runThrHld {
 	my $element;
 	
 	my $threshold_period = "-15 minutes";
+	if ( $C->{"threshold_period-default"} ne "" ) {
+		$threshold_period = $C->{"threshold_period-default"};
+	}
 	### 2013-09-16 keiths, User defined threshold periods.
 	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" ) {
 		$threshold_period = $C->{"threshold_period-$type"};
-		dbg("Found Configured Threshold, changing to \"$threshold_period\"");
+		dbg("Found Configured Threshold for $type, changing to \"$threshold_period\"");
 	}
 
 	#	check if values are already in table (done by doSummaryBuild)
