@@ -4888,7 +4888,7 @@ LABEL_ESC:
 												$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
 											}
 											
-											#2013-10-08 arturom, keiths, Added link to interface name if interface event.
+											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
 											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n";
 											if ( $ET->{$event_hash}{event} =~ /Interface/ ) {
