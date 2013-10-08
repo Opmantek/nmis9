@@ -4898,7 +4898,7 @@ LABEL_ESC:
 													my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 													if ( $IFD->{$ET->{$event_hash}{element}}{collect} eq "true" ) {
 														$ifIndex = $IFD->{$ET->{$event_hash}{element}}{ifIndex};
-														$message .= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}&intf=$ifIndex\n";
+														$message .= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$ET->{$event_hash}{node}&intf=$ifIndex\n";
 													}
 												}
 											}
