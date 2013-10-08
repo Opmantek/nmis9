@@ -863,14 +863,15 @@ sub getNodeInfo {
 		$exit = 1; # done
 	}
 	# modify results by nodeConf ?
-	if ($NCT->{$S->{node}}{sysLocation} ne '') {
+	my $node = $NI->{system}{name};
+	if ($NCT->{$node}{sysLocation} ne '') {
 		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$NI->{system}{name}}{sysLocation};
 		$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
 		dbg("Manual update of sysLocation by nodeConf");
 	} else {
 		$NI->{system}{sysLocation} = $NI->{system}{sysLocation};
 	}
-	if ($NCT->{$S->{node}}{sysContact} ne '') {
+	if ($NCT->{$node}{sysContact} ne '') {
 		$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$NI->{system}{name}}{sysContact};
 		$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
 		dbg("Manual update of sysContact by nodeConf");
@@ -1302,22 +1303,24 @@ sub getIntfInfo {
 			}
 			### add in anything we find from nodeConf - allows manual updating of interface variables
 			### warning - will overwrite what we got from the device - be warned !!!
-			if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
+			### 2013-09-26 keiths, fix for nodes with Capital Letters!
+			my $node = $NI->{system}{name};
+			if ($NCT->{$node}{$ifDescr}{Description} ne '') {
 				$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
-				$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
+				$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$node}{$ifDescr}{Description};
 				dbg("Manual update of Description by nodeConf");
 			}
-			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
+			if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
 				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
+				$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$node}{$ifDescr}{ifSpeed};
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
 				dbg("Manual update of ifSpeed by nodeConf");
 			}
 
-			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedIn} ne '') {
+			if ($NCT->{$node}{$ifDescr}{ifSpeedIn} ne '') {
 				$IF->{$index}{nc_ifSpeedIn} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeedIn} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedIn};
+				$IF->{$index}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeedIn};
 
 				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{nc_ifSpeedIn};
 				$IF->{$index}{ifSpeed} = $IF->{$index}{ifSpeedIn};
@@ -1327,9 +1330,9 @@ sub getIntfInfo {
 				dbg("Manual update of ifSpeedIn by nodeConf");
 			}
 			
-			if ($NCT->{$S->{node}}{$ifDescr}{ifSpeedOut} ne '') {
+			if ($NCT->{$node}{$ifDescr}{ifSpeedOut} ne '') {
 				$IF->{$index}{nc_ifSpeedOut} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeedOut} = $NCT->{$S->{node}}{$ifDescr}{ifSpeedOut};
+				$IF->{$index}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeedOut};
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($IF->{$index}{ifSpeedOut});
 				dbg("Manual update of ifSpeedOut by nodeConf");
@@ -2062,14 +2065,15 @@ sub updateNodeInfo {
 		$NI->{system}{lastUpdateSec} = time();
 
 		# modify by nodeConf ?
-		if ($NCT->{$S->{node}}{sysLocation} ne '') {
+		my $node = $NI->{system}{name};
+		if ($NCT->{$node}{sysLocation} ne '') {
 			$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
-			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$S->{node}}{sysLocation};
+			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$node}{sysLocation};
 			dbg("Manual update of sysLocation by nodeConf");
 		}
-		if ($NCT->{$S->{node}}{sysContact} ne '') {
+		if ($NCT->{$node}{sysContact} ne '') {
 			$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
-			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$S->{node}}{sysContact};
+			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$node}{sysContact};
 			dbg("Manual update of sysContact by nodeConf");
 		}
 
@@ -2358,8 +2362,9 @@ sub getIntfData {
 								# If new ifDescr is different from old ifDescr rebuild interface info table
 								# check if nodeConf modified this inteface
 								
+								my $node = $NI->{system}{name};
 								my $ifDescr = $IF->{$index}{ifDescr};
-								if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$S->{node}}{$ifDescr}{Description} eq '' and
+								if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{Description} eq '' and
 									$D->{ifDescr}{value} ne '' and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
 									# Reload the interface config won't get that one right but should get the next one right
 									logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"); 
@@ -4629,8 +4634,8 @@ LABEL_ESC:
 				DBfunc::->delete(table=>'Events',index=>$event_hash);
 			}
 			
-			my $message = "event_hash=$event_hash nd=$nd node=$ET->{$event_hash}{node} active=$NT->{$nd}{active}";
-			dbg($message);			
+			my $dbgmsg = "event_hash=$event_hash nd=$nd node=$ET->{$event_hash}{node} active=$NT->{$nd}{active}";
+			dbg($dbgmsg);			
 
 			next LABEL_ESC;
 		}
@@ -4883,8 +4888,21 @@ LABEL_ESC:
 												$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
 											}
 											
+											#2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
-											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\n$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n\n";
+											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n";
+											if ( $ET->{$event_hash}{event} =~ /Interface/ ) {
+												my $ifIndex = undef;
+												my $S = Sys::->new; # node object
+												if (($S->init(name=>$ET->{$event_hash}{node},snmp=>'false'))) { # get all info of node
+													my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
+													if ( $IFD->{$ET->{$event_hash}{element}}{collect} eq "true" ) {
+														$ifIndex = $IFD->{$ET->{$event_hash}{element}}{ifIndex};
+														$message .= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}&intf=$ifIndex\n";
+													}
+												}
+											}
+											$message .= "\n";
 
 											#$ET->{$event_hash}{level}
 											
