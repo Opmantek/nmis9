@@ -1888,18 +1888,34 @@ sub getSystemHealthInfo {
 			delete $NI->{$section};
 			# get Index table
 			my $index_var = '';
+			
+			### 2013-10-11 keiths, adding support for obscure SNMP Indexes....
+			# in the systemHealth section of the model 'index_regex' => '\.(\d+\.\d+\.\d+)$',
+			my $index_regex = '\.(\d+)$';
+
+			### 2013-10-14 keiths, adding support for using OID for index_var....
+			# in the systemHealth section of the model 'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
+			my $index_snmp = undef;
+			
 			if( exists($M->{systemHealth}{sys}{$section}) ) {
 				$index_var = $M->{systemHealth}{sys}{$section}{indexed};
+				$index_snmp = $M->{systemHealth}{sys}{$section}{indexed};
+				if( exists($M->{systemHealth}{sys}{$section}{index_regex}) ) {
+					$index_regex = $M->{systemHealth}{sys}{$section}{index_regex};
+				}
+				if( exists($M->{systemHealth}{sys}{$section}{index_oid}) ) {
+					$index_snmp = $M->{systemHealth}{sys}{$section}{index_oid};
+				}
 			}
 			if ($index_var ne '') {
-				dbg("systemHealth: index_var=$index_var");
+				dbg("systemHealth: index_var=$index_var, index_snmp=$index_snmp");
 				my %healthIndexNum;
 				my $healthIndexTable;
-				if ($healthIndexTable = $SNMP->gettable($index_var)) {
+				if ($healthIndexTable = $SNMP->gettable($index_snmp)) {
 					# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
 					foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable})) {
 						my $index = $oid;
-						if ( $oid =~ /\.(\d+)$/ ) {
+						if ( $oid =~ /$index_regex/ ) {
 							$index = $1;
 						}
 						$healthIndexNum{$index}=$index;

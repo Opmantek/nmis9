@@ -49,7 +49,7 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 my $CT = loadContactsTable();
 
 my $username = "nmis";
-my $password = "monkey42";
+my $password = "opmantek";
 #my $password = "nm1888";
 
 # NMIS Authentication module
