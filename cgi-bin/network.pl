@@ -397,7 +397,7 @@ sub selectNetworkHealth {
 		print
 		start_Tr,
 		td(
-			{class=>'info Plain'},
+			{class=>'infolft Plain'},
 			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
 		),
 		td({class=>"info $overallStatus"},"$overallStatus"),
@@ -574,7 +574,7 @@ sub printGroup {
 
 	print
 	start_Tr,
-	start_td({class=>'info left Plain'});
+	start_td({class=>'infolft Plain'});
 
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
@@ -625,7 +625,7 @@ sub printHealth {
 
 	print
 	start_Tr,
-	start_td({class=>'info left Plain'});
+	start_td({class=>'infolft Plain'});
 
 	#if ($AU->InGroup($group)) {
 	# force a new window if clicked
@@ -845,7 +845,7 @@ sub selectLarge {
 			}
 
 			print Tr(
-				td({class=>"info Plain $nodewrap"},$nodelink),
+				td({class=>"infolft Plain $nodewrap"},$nodelink),
 				td({class=>'info Plain'},$groupSummary->{$node}{sysLocation}),
 				td({class=>'info Plain'},$groupSummary->{$node}{nodeType}),
 				td({class=>'info Plain'},$groupSummary->{$node}{netType}),
