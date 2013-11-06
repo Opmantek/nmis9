@@ -48,7 +48,7 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 my $CT = loadContactsTable();
 
 my $username = "nmis";
-my $password = "monkey42";
+my $password = "opmantek";
 #my $password = "nm1888";
 
 # NMIS Authentication module
@@ -68,7 +68,8 @@ if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
 my $testauth = $AU->loginout(type=>"",username=>$username,password=>$password,headeropts=>$headeropts);
 
 if ( $testauth ) {
-	print "AUTH SUCCESS: user=$AU->{user}, level=$AU->{privlevel} cookie=$AU->{cookie}\n";
+	my $cookie = join(",",@{$AU->{cookie}});
+	print "AUTH SUCCESS: user=$AU->{user}, level=$AU->{privlevel} cookie=$cookie\n";
 }
 else {
 	print "AUTH FAILURE\n";

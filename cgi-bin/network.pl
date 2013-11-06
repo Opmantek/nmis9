@@ -1099,7 +1099,7 @@ EO_HTML
 		,'nodeType'
 		,'nodeModel'
 		,'sysUpTime'
-		,'IfNumber'
+		,'ifNumber'
 		,'sysLocation'
 		,'sysContact'
 		,'sysDescr'
@@ -1109,6 +1109,12 @@ EO_HTML
 		,'roleType'
 		,'netType'
 	);
+	
+	### 2013-10-17 keiths, optionally allow custom ordering.
+	if ( exists $C->{network_viewNode_field_list} and $C->{network_viewNode_field_list} ne "" ) {
+		@order = split(",",$C->{network_viewNode_field_list});
+	}
+	
 	my @keys = grep { $_ =~ /value$/ } sort keys %{$V->{system}};
 	map { $_ =~ s/_value$// } @keys;
 	my @items;

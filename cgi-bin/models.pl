@@ -76,6 +76,12 @@ $AU->CheckAccess("table_models_view","header");
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
+my $widget = "true";
+if ($Q->{widget} eq 'false' ) {	
+	$widget = "false"; 
+	$Q->{expand} = "true";
+}
+
 #======================================================================
 
 
@@ -192,6 +198,8 @@ sub displayModel{
 	#start of page
 	print header($headeropts);
 
+	pageStart(title => "NMIS Modeling", refresh => 86400) if ($widget eq "false");
+
 	my $S = Sys::->new; # create system object and load base Model or nodeModel
 	if (!($S->init(name=>$node,snmp=>'false'))) {
 		print Tr(td({class=>'error', colspan=>'9'},"ERROR init, $S->{error}"));
@@ -219,11 +227,13 @@ sub displayModel{
 
 	my @common = keys %{$S->{mdl}{'-common-'}{class}};
 
-
+	### 2013-10 keiths, trying to get to work as non-widget, more work required.
 	# start of form
-
-	print start_form(-id=>"nmisModels",
-				-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_model_menu");
+	my $startform = start_form(-id=>"nmisModels", -href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_model_menu");
+	if ( $widget eq "false" ) {
+		$startform = start_form({ method=>"get", -id=>'nmisModels', action=>"$C->{'<cgi_url_base>'}/models.pl?conf=$C->{conf}&act=config_model_menu"});
+	}
+	print "$startform\n";
 
 	print start_table() ; # first table level
 
@@ -304,7 +314,7 @@ sub displayModel{
 
 End_page:
 	print end_table();
-
+	pageEnd() if ($widget eq "false");
 }
 
 # walk through the hash table
@@ -672,8 +682,10 @@ sub editModel{
 	print Tr(td({colspan=>"$index"}),td({colspan=>(8-$index)},
 			textfield(-name=>"value",align=>"left",override=>1,size=>((length $value) * 1.5),value=>"$value")));
 
-	print Tr(td({colspan=>"$index"}), td(submit(-name=>"button",onclick=>"get('nmisModels');", -value=>"Edit"),
-				submit(-name=>"button",onclick=>"get('nmisModels','cancel');", -value=>"Cancel")));
+	print Tr(td({colspan=>"$index"}), td(
+			submit(-name=>"button",onclick=>"get('nmisModels');", -value=>"Edit"),
+			submit(-name=>"button",onclick=>"get('nmisModels','cancel');", -value=>"Cancel")
+	));
 
 	my $info = getHelp($field);
 	print Tr(td({class=>'info',colspan=>'8'},$info)) if $info ne "";

@@ -53,6 +53,7 @@
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
+    'network_viewNode_field_list' => 'status,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
     'domain_name' => '',
