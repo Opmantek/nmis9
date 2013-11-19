@@ -4766,7 +4766,7 @@ LABEL_ESC:
 				$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 				$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 				$EST->{$esc}{Event_Node} =~ s;/;;g;
-				$EST->{$esc}{Event_Element} =~ s;/;;g;
+				$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
 				if ($klst eq $esc_short
 						and $ET->{$event_hash}{node} =~ /$EST->{$esc}{Event_Node}/i 
 						and $ET->{$event_hash}{element} =~ /$EST->{$esc}{Event_Element}/i 
