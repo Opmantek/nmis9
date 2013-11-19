@@ -259,7 +259,14 @@
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf',
       ],
-
+      'cpuUtil' => [
+        'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
+        'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
+      ],
+      'memUtil' => [
+        'DEF:memUtil=$database:memUtil:AVERAGE',
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+      ],
     }
   }
 );

@@ -48,7 +48,7 @@ print "This script will convert an NMIS4 Nodes file to an NMIS8 Nodes file.\n";
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
-ERROR: $0 needs to know the NMIS config files to compare
+ERROR: $0 needs to know the NMIS files to convert
 usage: $0 <NODES_1> <NODES_2>
 eg: $0 /usr/local/nmis4/conf/nodes.csv /usr/local/nmis8/conf/Nodes.nmis.new
 

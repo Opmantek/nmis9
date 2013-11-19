@@ -119,6 +119,8 @@
       'gsm_status_3g' => '3G GSM Status',
       'sessions' => 'Sessions Statistics',
       'session-util' => 'Session Utilisation',
+      'cpuUtil' => 'CPU Utilisation',
+      'memUtil' => 'Memory Utilisation',
     }
   }
 );

@@ -635,7 +635,7 @@ function get(Id,optTrue,optFalse,evnt) {
 			}
 			else {
 
-				if (e.type=="text") {
+				if (e.type=="text" || e.type=="textarea") {
 					getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 				}
 
@@ -658,6 +658,10 @@ function get(Id,optTrue,optFalse,evnt) {
 					getstr+="&"+e.name+"="+e.value;
 				}
 			}
+		}
+
+		if (e.tagName=="TEXTAREA") {
+			getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 		}
 
 		if (e.tagName=="SELECT") {

@@ -828,6 +828,8 @@ sub getNodeInfo {
 				$V->{system}{businessService_title} = 'Business Service';
 				$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
 				$V->{system}{serviceStatus_title} = 'Service Status';
+				$V->{system}{notes_value} = $NI->{system}{notes};
+				$V->{system}{notes_title} = 'Notes';
 	
 				# update node info table with this new model
 				if ($S->loadNodeInfo()) { 
@@ -2459,9 +2461,10 @@ sub getIntfData {
 				$V->{interface}{"${index}_operAvail_value"} = 'N/A';
 				$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
 				# inerface problems
+				### 2013-11-06 keiths: this Interface Down does not appear to be valid, no data means we don't know commenting out the notify and changing to logMsg
 				if ($IF->{$index}{event} eq 'true') {
-					dbg("Interface Status 20: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
-					notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+					logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
+					###notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 				}
 			}
 

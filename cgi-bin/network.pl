@@ -1096,6 +1096,7 @@ EO_HTML
 		,'location'
 		,'businessService'
 		,'serviceStatus'
+		,'notes'
 		,'nodeType'
 		,'nodeModel'
 		,'sysUpTime'
