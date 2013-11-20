@@ -197,8 +197,37 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'eqptHolder,eqptPortMapping',
+    'sections' => 'eqptHolder,eqptPortMapping,cpuUtil,memUsageUtil',
     'sys' => {
+      'cpuUtil' => {
+        'indexed' => 'cpuUtil',
+        'snmpObjectName' => 'slotId',        
+        'index_oid' => '1.3.6.1.4.1.637.61.1.9.29.1.1.1',        
+        'headers' => 'index,cpuUtil',
+        'snmp' => {
+          'cpuUtil' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.1.1.4',
+            'title' => 'CPU Utilisation'
+          },
+        },
+      },
+      'memUsageUtil' => {
+        'indexed' => 'totalMemSize',
+        'index_oid' => '1.3.6.1.4.1.637.61.1.9.29.2.1.1',        
+        'headers' => 'index,memTotal,memUsed',
+        'snmp' => {
+          'memTotal' => {
+            'snmpObjectName' => 'totalMemSize',        
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.2.1.1',
+            'title' => 'Total Megabytes'
+          },
+          'memUsed' => {
+            'snmpObjectName' => 'memAbsoluteUsage',        
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.2.1.2',
+            'title' => 'Used Megabytes'
+          },
+        },
+      },
       'eqptHolder' => {        
         'indexed' => 'eqptHolderPlannedType',        
         'headers' => 'eqptHolderPlannedType',
@@ -242,6 +271,31 @@
         },
       },      
     },
+    'rrd' => {
+      'cpuUtil' => {
+        'indexed' => 'true',
+        'graphtype' => 'cpuUtil',
+        'threshold' => 'cpuUtil',
+        'snmp' => {
+          'cpuUtil' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.1.1.4',
+          },
+        },
+      },
+      'memUsageUtil' => {
+        'indexed' => 'true',
+        'graphtype' => 'memUsageUtil',
+        'threshold' => 'memUtil',
+        'snmp' => {
+          'memTotal' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.2.1.1',
+          },
+          'memUsed' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.9.29.2.1.2',
+          },
+        },
+      },
+    }
   },
   'custom' => {
 		'interface' => {

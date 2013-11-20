@@ -194,74 +194,77 @@ sub displayNodeConf {
 	if ($NI->{system}{collect} eq 'true') {
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
 		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) {
-			my ($description,$speed,$speedIn,$speedOut,$collect,$event,$threshold,$size);
-			
-			# keep the ifDescr to work on.
-			my $ifDescr = $IF->{$intf}{ifDescr};
-
-			# check if interfaces are changed
-			if ($NCT->{$node}{$ifDescr}{ifDescr} ne "" and $IF->{$intf}{ifDescr} ne $NCT->{$node}{$ifDescr}{ifDescr}) {
-				$collect = $event = $threshold = $description = $speed = "";
-			} else {
-				if ( $NCT->{$node}{$ifDescr}{ifSpeedIn} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
-					$NCT->{$node}{$ifDescr}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeed};
+			### 2013-11-20 keiths, preventing an autovivifaction bug from displaying bad interfaces
+			if ( exists $IF->{$intf}{ifDescr} and  $IF->{$intf}{ifDescr} ne "" ) {
+				my ($description,$speed,$speedIn,$speedOut,$collect,$event,$threshold,$size);
+				
+				# keep the ifDescr to work on.
+				my $ifDescr = $IF->{$intf}{ifDescr};
+	
+				# check if interfaces are changed
+				if ($NCT->{$node}{$ifDescr}{ifDescr} ne "" and $IF->{$intf}{ifDescr} ne $NCT->{$node}{$ifDescr}{ifDescr}) {
+					$collect = $event = $threshold = $description = $speed = "";
+				} else {
+					if ( $NCT->{$node}{$ifDescr}{ifSpeedIn} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
+						$NCT->{$node}{$ifDescr}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeed};
+					}
+					if ( $NCT->{$node}{$ifDescr}{ifSpeedOut} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
+						$NCT->{$node}{$ifDescr}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeed};
+					}
+					$description = $NCT->{$node}{$ifDescr}{Description};
+					$speed = $NCT->{$node}{$ifDescr}{ifSpeed};
+					$speedIn = $NCT->{$node}{$ifDescr}{ifSpeedIn};
+					$speedOut = $NCT->{$node}{$ifDescr}{ifSpeedOut};
+					$collect = $NCT->{$node}{$ifDescr}{collect} || 'not';
+					$event = $NCT->{$node}{$ifDescr}{event} || 'not';
+					$threshold = $NCT->{$node}{$ifDescr}{threshold} || 'not';
 				}
-				if ( $NCT->{$node}{$ifDescr}{ifSpeedOut} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
-					$NCT->{$node}{$ifDescr}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeed};
+	
+				my $NCT_Description = exists $IF->{$intf}{nc_Description} ? $IF->{$intf}{nc_Description} : $IF->{$intf}{Description};
+				print Tr,
+					td({class=>'header'}, $IF->{$intf}{ifDescr}),
+					td({class=>'header'},"Description"),td({class=>'header3'},$NCT_Description),
+					td({class=>"Plain"},textfield(-name=>"descr_${intf}",-override=>1,-value=>$description));
+	
+				my $NCT_ifSpeed = $IF->{$intf}{nc_ifSpeed} || $IF->{$intf}{ifSpeed};
+				#print Tr,td({class=>'header'}),
+				#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
+				#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
+	
+				my $NCT_ifSpeedIn = $IF->{$intf}{nc_ifSpeedIn} || $IF->{$intf}{ifSpeedIn};
+				$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
+				print Tr,td({class=>'header'}),
+					td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
+					td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
+	
+				my $NCT_ifSpeedOut = $IF->{$intf}{nc_ifSpeedOut} || $IF->{$intf}{ifSpeedOut};
+				$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
+				print Tr,td({class=>'header'}),
+					td({class=>'header'},"Speed Out"),td({class=>'header3'},$NCT_ifSpeedOut),
+					td({class=>"Plain"},textfield(-name=>"speedOut_${intf}",-override=>1,-value=>$speedOut));
+	
+				my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
+				print Tr,td({class=>'header'}),
+					td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
+					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",-values=>['not',$NCT_collect eq 'true' ? 'false':'true'],-default=>$collect));
+	
+				if ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true') ) {
+					my $NCT_event = $IF->{$intf}{nc_event} || $IF->{$intf}{event};
+					print Tr,td({class=>'header'}),
+						td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
+						td({class=>"Plain"},radio_group(-name=>"event_${intf}",-values=>['not',$NCT_event eq 'true' ? 'false':'true'],-default=>$event));
+				} else {
+					print hidden(-name=>"event_${intf}", -default=>'not',-override=>'1');
 				}
-				$description = $NCT->{$node}{$ifDescr}{Description};
-				$speed = $NCT->{$node}{$ifDescr}{ifSpeed};
-				$speedIn = $NCT->{$node}{$ifDescr}{ifSpeedIn};
-				$speedOut = $NCT->{$node}{$ifDescr}{ifSpeedOut};
-				$collect = $NCT->{$node}{$ifDescr}{collect} || 'not';
-				$event = $NCT->{$node}{$ifDescr}{event} || 'not';
-				$threshold = $NCT->{$node}{$ifDescr}{threshold} || 'not';
+				if ($NI->{system}{threshold} eq 'true' and ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true')) ) {
+					my $NCT_threshold = $IF->{$intf}{nc_threshold} || $IF->{$intf}{threshold};
+					print Tr,td({class=>'header'}),
+						td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
+						td({class=>"Plain"},radio_group(-name=>"threshold_${intf}",-values=>['not',$NCT_threshold eq 'true' ? 'false':'true'],-default=>$threshold));
+				} else {
+					print hidden(-name=>"threshold_${intf}", -default=>'not',-override=>'1');
+				}				
 			}
-
-			my $NCT_Description = exists $IF->{$intf}{nc_Description} ? $IF->{$intf}{nc_Description} : $IF->{$intf}{Description};
-			print Tr,
-				td({class=>'header'}, $IF->{$intf}{ifDescr}),
-				td({class=>'header'},"Description"),td({class=>'header3'},$NCT_Description),
-				td({class=>"Plain"},textfield(-name=>"descr_${intf}",-override=>1,-value=>$description));
-
-			my $NCT_ifSpeed = $IF->{$intf}{nc_ifSpeed} || $IF->{$intf}{ifSpeed};
-			#print Tr,td({class=>'header'}),
-			#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
-			#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
-
-			my $NCT_ifSpeedIn = $IF->{$intf}{nc_ifSpeedIn} || $IF->{$intf}{ifSpeedIn};
-			$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
-			print Tr,td({class=>'header'}),
-				td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
-				td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
-
-			my $NCT_ifSpeedOut = $IF->{$intf}{nc_ifSpeedOut} || $IF->{$intf}{ifSpeedOut};
-			$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
-			print Tr,td({class=>'header'}),
-				td({class=>'header'},"Speed Out"),td({class=>'header3'},$NCT_ifSpeedOut),
-				td({class=>"Plain"},textfield(-name=>"speedOut_${intf}",-override=>1,-value=>$speedOut));
-
-			my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
-			print Tr,td({class=>'header'}),
-				td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
-				td({class=>"Plain"},radio_group(-name=>"collect_${intf}",-values=>['not',$NCT_collect eq 'true' ? 'false':'true'],-default=>$collect));
-
-			if ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true') ) {
-				my $NCT_event = $IF->{$intf}{nc_event} || $IF->{$intf}{event};
-				print Tr,td({class=>'header'}),
-					td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
-					td({class=>"Plain"},radio_group(-name=>"event_${intf}",-values=>['not',$NCT_event eq 'true' ? 'false':'true'],-default=>$event));
-			} else {
-				print hidden(-name=>"event_${intf}", -default=>'not',-override=>'1');
-			}
-			if ($NI->{system}{threshold} eq 'true' and ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true')) ) {
-				my $NCT_threshold = $IF->{$intf}{nc_threshold} || $IF->{$intf}{threshold};
-				print Tr,td({class=>'header'}),
-					td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
-					td({class=>"Plain"},radio_group(-name=>"threshold_${intf}",-values=>['not',$NCT_threshold eq 'true' ? 'false':'true'],-default=>$threshold));
-			} else {
-				print hidden(-name=>"threshold_${intf}", -default=>'not',-override=>'1');
-			}				
 		}
 	} else {
 		print Tr(td({class=>'info',colspan=>'4'},"No collect of Interfaces"));

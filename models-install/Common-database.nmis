@@ -123,6 +123,7 @@
       'gsm_status_3g' => '/health/$nodeType/$node-gsm_status_3g.rrd',
       'cpuUtil' => '/health/$nodeType/$node-cpu-$index.rrd',
       'memUtil' => '/health/$nodeType/$node-mem.rrd',
+      'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
     }
   }
 );

@@ -267,6 +267,12 @@
         'DEF:memUtil=$database:memUtil:AVERAGE',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
       ],
+      'memUsageUtil' => [
+			  'DEF:memTotal=$database:memTotal:AVERAGE',
+			  'DEF:memUsed=$database:memUsed:AVERAGE',
+			  'CDEF:memUtil=memUsed,memTotal,/,100,*',
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+      ],
     }
   }
 );

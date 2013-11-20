@@ -121,6 +121,7 @@
       'session-util' => 'Session Utilisation',
       'cpuUtil' => 'CPU Utilisation',
       'memUtil' => 'Memory Utilisation',
+      'memUsageUtil' => 'Memory Utilisation',
     }
   }
 );

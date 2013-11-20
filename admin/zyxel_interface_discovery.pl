@@ -72,6 +72,7 @@ print $t->elapTime(). " End\n" if $debug;
 
 sub processNode {
 	my $LNT = loadLocalNodeTable();
+	my $IFT = loadifTypesTable();
 	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
 		print $t->markTime(). " Processing $node\n" if $debug;
 
@@ -113,6 +114,16 @@ sub processNode {
 			my $subrPortNameOid = "1.3.6.1.4.1.890.1.5.13.5.8.1.1.1";
 			my $subrPortTelOid = "1.3.6.1.4.1.890.1.5.13.5.8.1.1.2";
 			
+			# The IES 1248 Appears to use the next MIB ID along.
+			if ( $NI->{system}{sysDescr} =~ /1248/ ) {
+				#"iesSeries"		"1.3.6.1.4.1.890.1.5.13"
+				#ZYXEL-MIB::iesSeries.6.8.1.1.1.48 = STRING: "teresa-luisoni"
+				#ZYXEL-MIB::iesSeries.6.8.1.1.2.1 = STRING: "8095380218"
+
+				$subrPortNameOid = "1.3.6.1.4.1.890.1.5.13.6.8.1.1.1";
+				$subrPortTelOid = "1.3.6.1.4.1.890.1.5.13.6.8.1.1.2";
+			}
+			
 			my $subrPortName = getIndexData($session,$subrPortNameOid);
 			my $subrPortTel = getIndexData($session,$subrPortTelOid);
 
@@ -126,21 +137,22 @@ sub processNode {
 					"$ifAdminStatusOid.$index",
 					"$ifOperStatusOid.$index",
 					"$ifLastChangeOid.$index",
-					"$ifAliasOid.$index",
-					"$ifHighSpeedOid.$index",
+					# These do not appear to be implemented consistently
+					#"$ifAliasOid.$index",
+					#"$ifHighSpeedOid.$index",
 				);
 				
 				# Store them straight into the results
 				my $snmpData = getData($session,@oids);
 				
 				my $ifDescr = $snmpData->{"$ifDescrOid.$index"};
-				my $ifType = $snmpData->{"$ifTypeOid.$index"};
+				my $ifType = $IFT->{$snmpData->{"$ifTypeOid.$index"}}{ifType};
 				my $ifSpeed = $snmpData->{"$ifSpeedOid.$index"};
-				my $ifAdminStatus = $snmpData->{"$ifAdminStatusOid.$index"};
-				my $ifOperStatus = $snmpData->{"$ifOperStatusOid.$index"};
+				my $ifAdminStatus = ifStatus($snmpData->{"$ifAdminStatusOid.$index"});
+				my $ifOperStatus = ifStatus($snmpData->{"$ifOperStatusOid.$index"});
 				my $ifLastChange = $snmpData->{"$ifLastChangeOid.$index"};
-				my $ifAlias = $snmpData->{"$ifAliasOid.$index"};
-				my $ifHighSpeed = $snmpData->{"$ifHighSpeedOid.$index"};
+				my $ifAlias = $snmpData->{"$ifAliasOid.$index"} || undef;
+				my $ifHighSpeed = $snmpData->{"$ifHighSpeedOid.$index"} || undef;
 								
 				my $Description = $ifAlias;
 				if ( $subrPortTel->{$index} ne "" and $subrPortName->{$index} ne "") {
@@ -153,7 +165,7 @@ sub processNode {
 					$Description = "$subrPortTel->{$index}";
 				}
 
-				dbg("SNMP $node $ifDescr $Description, index=$index, ifType=$ifType, ifSpeed=$ifSpeed, subrPortName=$subrPortName->{$index}, subrPortTel=$subrPortTel->{$index}");
+				dbg("SNMP $node $ifDescr $Description, index=$index, ifType=$ifType, ifSpeed=$ifSpeed, ifAdminStatus=$ifAdminStatus, ifOperStatus=$ifOperStatus, subrPortName=$subrPortName->{$index}, subrPortTel=$subrPortTel->{$index}");
 				
 				$S->{info}{interface}{$index} = {
 		      'Description' => $Description,
@@ -173,7 +185,15 @@ sub processNode {
 				# preset collect,event to required setting, Node Configuration Will override.
 				$S->{info}{interface}{$index}{collect} = "false";
 				$S->{info}{interface}{$index}{event} = "false";
-									
+				$S->{info}{interface}{$index}{nocollect} = "Manual interface discovery policy";
+
+				# collect the uplinks!
+				if ( $ifType =~ "ethernetCsmacd" and $ifDescr !~ /virtual/ and $ifOperStatus eq "up" and $ifOperStatus eq "up" ) {
+					$S->{info}{interface}{$index}{collect} = "true";
+					$S->{info}{interface}{$index}{event} = "true";
+					$S->{info}{interface}{$index}{nocollect} = "";
+				}
+
 				# ifDescr must always be filled
 				if ($S->{info}{interface}{$index}{ifDescr} eq "") { $S->{info}{interface}{$index}{ifDescr} = $index; }
 				# check for duplicated ifDescr
@@ -412,8 +432,27 @@ sub getData {
 	my($session, @oids) = @_;
 		
 	my $result = $session->get_request( -varbindlist => \@oids );
-	
-	#print Dumper $result;
-		
+
+	if ( $session->error() ne "" ) {
+		my $error = $session->error();
+		dbg("SNMP ERROR: $error");
+		return undef;
+	}
+				
 	return $result;
 }
+
+sub ifStatus {
+	my $statusNumber = shift;
+	
+	return 'up' if $statusNumber == 1;
+	return 'down' if $statusNumber == 2;
+	return 'testing' if $statusNumber == 3;
+	return 'dormant' if $statusNumber == 5;
+	return 'notPresent' if $statusNumber == 6;
+	return 'lowerLayerDown' if $statusNumber == 7;
+	
+	# 4 is unknown.
+	return 'unknown';
+}	
+
