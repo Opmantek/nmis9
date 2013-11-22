@@ -92,7 +92,55 @@
             'oid' => 'sysName'
           }
         }
-      }
+      },
+
+#CPS6000-MIB::cps6000Ps1Swv.0 = STRING: 2.0.9
+#CPS6000-MIB::cps6000Ps1Verb.0 = STRING: 1.1.0
+#CPS6000-MIB::cps6000Ps1Verw.0 = STRING: 1.10.0SP
+#CPS6000-MIB::cps6000Ps1Verd.0 = STRING: 1.4
+#CPS6000-MIB::cps6000Ps1Dflt.0 = STRING: FTTN.1.0
+#CPS6000-MIB::cps6000Ps1Brc.0 = STRING: QS841A
+#CPS6000-MIB::cps6000Ps1Sn.0 = STRING: 12KZ20024863
+#"cps6000Ps1Swv"		"1.3.6.1.4.1.10520.2.1.1.2.5" "Software Version"
+#"cps6000Ps1Verb"		"1.3.6.1.4.1.10520.2.1.1.2.6" "Boot Block Version"
+#"cps6000Ps1Verw"		"1.3.6.1.4.1.10520.2.1.1.2.7" "Web Page Version"
+#"cps6000Ps1Verd"		"1.3.6.1.4.1.10520.2.1.1.2.8" "Display Version"
+#"cps6000Ps1Dflt"		"1.3.6.1.4.1.10520.2.1.1.2.9" "Defaults Version"
+#"cps6000Ps1Brc"		"1.3.6.1.4.1.10520.2.1.1.2.10" "Board Code"
+#"cps6000Ps1Sn"		"1.3.6.1.4.1.10520.2.1.1.2.11" "Serial Number"
+
+      'extra' => {
+        'snmp' => {
+          'cps6000Ps1Swv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.5.0',
+            'title' => 'Software Version'
+          },
+          'cps6000Ps1Verb' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.6.0',
+            'title' => 'Boot Block Version'
+          },
+          'cps6000Ps1Verw' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.7.0',
+            'title' => 'Web Page Version'
+          },
+          'cps6000Ps1Verd' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.8.0',
+            'title' => 'Display Version'
+          },
+          'cps6000Ps1Dflt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.9.0',
+            'title' => 'Defaults Version'
+          },
+          'cps6000Ps1Brc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.10.0',
+            'title' => 'Board Code'
+          },
+          'cps6000Ps1Sn' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.11.0',
+            'title' => 'Serial Number'
+          },
+        }
+      },
     },
     'rrd' => {
       'mib2ip' => {
@@ -166,55 +214,17 @@
     }
   },
   'alerts' => {
-    'services' => {
-      'HighProcessMemoryUsage' => {
+    'cps6000Alarm' => {
+      'cps6000AlarmActive' => {
         'type' => 'test',
-        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1',
-        'unit' => 'KBytes',
-        'element' => 'hrSWRunName',
-        'event' => 'High Process Memory Usage',
+        'test' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 == 1',
+        'value' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 = "active" || "inactive"',
+        'unit' => '',
+        'element' => 'cps6000AlarmEntryDes',
+        'event' => 'GE Alarm Active',
         'level' => 'Warning'
       }
     },
-    'storage' => {
-      'HighDiskUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-          'Normal' => '70',
-          'Warning' => '75',
-          'Minor' => '80',
-          'Major' => '95',
-          'Critical' => '98',
-          'Fatal' => '99',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Disk Usage',
-        'level' => '',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
-      },
-      'HighMemoryUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-          'Normal' => '97',
-          'Warning' => '0',
-          'Minor' => '0',
-          'Major' => '0',
-          'Critical' => '98',
-          'Fatal' => '99',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Memory Usage',
-        'level' => '',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
-      }
-    }
   },
 
 #CPS6000-MIB::cps6000AlarmEntryIndex.0 = INTEGER: 0
@@ -252,7 +262,7 @@
       'cps6000Alarm' => {        
         'indexed' => 'cps6000AlarmEntryIndex',
         'index_oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.1',    
-        'headers' => 'cps6000AlarmEntryIndex,cps6000AlarmEntryDes',
+        'headers' => 'cps6000AlarmEntryIndex,cps6000AlarmEntryDes,cps6000AlarmEntryAst,cps6000AlarmEntrySev,cps6000AlarmEntryAcc',
         'snmp' => {
           'cps6000AlarmEntryIndex' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.1',
@@ -270,46 +280,33 @@
             },
             'title' => 'Alarm State'
           },
+          'cpsAlarmEntryAst' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.3',
+            'title' => 'Alarm State'
+          },
           'cps6000AlarmEntrySev' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.4',
             'title' => 'Alarm Severity'
           },
           'cps6000AlarmEntryAcc' => {
-            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.4',
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.5',
             'title' => 'Contact Closure'
           },
         },
       },      
     },
-    #'rrd' => {
-    #  'diskIOTable' => {
-    #    'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\-/',
-    #    'indexed' => 'true',
-    #    'graphtype' => 'diskio-rw,diskio-rwbytes',
-    #    'snmp' => {
-    #      'diskIONReadX' => {
-    #        'oid' => 'diskIONReadX',
-    #        'option' => 'counter,0:U',
-    #        'title' => 'The number of bytes read from this device since boot'
-    #      },
-    #      'diskIONWrittenX' => {
-    #        'oid' => 'diskIONWrittenX',
-    #        'option' => 'counter,0:U',
-    #        'title' => 'The number of bytes written from this device since boot'
-    #      },
-    #      'diskIOReads' => {
-    #        'oid' => 'diskIOReads',
-    #        'option' => 'counter,0:U',
-    #        'title' => 'The number of read accesses from this device since boot'
-    #      },
-    #      'diskIOWrites' => {
-    #        'oid' => 'diskIOWrites',
-    #        'option' => 'counter,0:U',
-    #        'title' => 'The number of write accesses to this device since boot'
-    #      },
-    #    },
-    #  },
-    #}
+    'rrd' => {
+      'cps6000Alarm' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Alarm',
+        'snmp' => {
+          'cpsAlarmEntryAst' => {
+            'sysObjectName' => 'cps6000AlarmEntryAst',
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.3',
+          },
+        },
+      },
+    }
   },
   'interface' => {
     'sys' => {
@@ -360,15 +357,6 @@
           }
         }
       },
-      'extra' => {
-        'indexed' => 'true',
-        'snmp' => {
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description'
-          }
-        }
-      }
     },
     'rrd' => {
       'interface' => {
@@ -394,10 +382,6 @@
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
           },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -414,10 +398,6 @@
             'oid' => 'ifOutOctets',
             'option' => 'counter,0:U'
           },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          }
         },
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
@@ -425,20 +405,12 @@
       'pkts' => {
         'indexed' => 'true',
         'snmp' => {
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
           'ifInUcastPkts' => {
             'oid' => 'ifInUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifInDiscards' => {
             'oid' => 'ifInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {

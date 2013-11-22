@@ -122,6 +122,7 @@
       'cpuUtil' => 'CPU Utilisation',
       'memUtil' => 'Memory Utilisation',
       'memUsageUtil' => 'Memory Utilisation',
+      'cps6000Alarm' => 'CPS 6000 Alarm Status',
     }
   }
 );

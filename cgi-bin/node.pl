@@ -312,6 +312,14 @@ sub typeGraph {
 				if ( $NI->{graphtype}{$index}{$gtype} =~ /$graphtype/ and exists $M->{systemHealth}{rrd}{$gtype} ) {
 					$systemHealth = 1;
 					$systemHealthSection = $gtype;
+					### 2013-11-22 keiths, handling headers a bit better in the graph drill in
+					if ( $M->{systemHealth}{sys}{$gtype}{headers} !~ /,/ ) {
+						$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
+					}
+					else {
+						my @tmpHeaders = split(",",$M->{systemHealth}{sys}{$gtype}{headers});
+						$systemHealthHeader = $tmpHeaders[0];
+					}
 					$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
 					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{database}{$systemHealthSection}};
 	

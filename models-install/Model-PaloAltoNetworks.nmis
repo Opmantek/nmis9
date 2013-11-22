@@ -100,8 +100,8 @@
             'oid' => 'panSysSwVersion',
             'title' => 'SW Version'
           },
-          'panSysSwVersion' => {
-            'oid' => 'panSysSwVersion',
+          'panSysHwVersion' => {
+            'oid' => 'panSysHwVersion',
             'title' => 'HW Version'
           },
 

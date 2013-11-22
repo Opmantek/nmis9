@@ -44,6 +44,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use NMIS;
 use func;
+use NMIS::Timing;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -85,6 +86,11 @@ if ($Q->{widget} eq 'false' ) {
 	$Q->{expand} = "true";
 }
 
+### 2013-11-23 keiths adding some timing debug
+my $t = NMIS::Timing->new();
+my $timing = 0;
+$timing = 1 if $Q->{timing} eq 'true';
+
 if ( $Q->{refresh} eq "" and $widget eq "true" ) { 
 	$Q->{refresh} = $C->{widget_refresh_time};
 }
@@ -100,6 +106,8 @@ my $smallGraphWidth = 400;
 
 $smallGraphHeight = $C->{'small_graph_height'} if $C->{'small_graph_height'} ne "";
 $smallGraphWidth = $C->{'small_graph_width'} if $C->{'small_graph_width'} ne "";
+
+logMsg("TIMING: ".$t->elapTime()." Begin act=$Q->{act}") if $timing;
 
 # select function
 my $select;
@@ -137,6 +145,8 @@ sub notfound {
 	print "Request not found\n";
 }
 
+logMsg("TIMING: ".$t->elapTime()." Select Subs") if $timing;
+
 # option to generate html to file
 if ($Q->{http} eq 'true') {
 	print start_html(
@@ -153,6 +163,8 @@ if ($Q->{http} eq 'true') {
 }
 
 pageStart(title => "NMIS Network Status", refresh => $Q->{refresh}) if ($widget eq "false");
+
+logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
 
 my $NT = loadNodeTable();
 my $GT = loadGroupTable();
@@ -180,6 +192,8 @@ my $end = '-8 hours';
 # Call each of the base  network display subs.
 #======================================
 
+logMsg("TIMING: ".$t->elapTime()." typeSummary") if $timing;
+
 print "<!-- typeSummary select=$select start -->\n";
 
 if ( $select eq 'metrics' ) { selectMetrics(); }
@@ -197,6 +211,8 @@ elsif ( $select eq 'allgroups' ) { selectAllGroups();}
 print "<!-- typeSummary select=$select end-->\n";
 pageEnd() if ($widget eq "false");
 
+logMsg("TIMING: ".$t->elapTime()." END $Q->{act}") if $timing;
+
 exit();
  # end main()
 
@@ -205,6 +221,8 @@ sub getSummaryStatsbyGroup {
 	my $group = $args{group};
 	my $customer = $args{customer};
 	my $business = $args{business};
+
+	logMsg("TIMING: ".$t->elapTime()." getSummaryStatsbyGroup begin: $group$customer$business") if $timing;
 
 	$groupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-8 hours", end => "now");
 	$oldGroupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-16 hours", end => "-8 hours");
@@ -254,6 +272,8 @@ sub getSummaryStatsbyGroup {
 	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
 	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = colorPercentLo(0); }
 	#else { $groupSummary->{average}{countdowncolor} = "$overallColor"; }
+
+	logMsg("TIMING: ".$t->elapTime()." getSummaryStatsbyGroup end") if $timing;
 
 } # end sub get SummaryStatsby group
 
@@ -378,6 +398,8 @@ sub selectNetworkHealth {
 		$healthTitle = "All Nodes Status";
 		$healthType = "business";
 	}
+
+	logMsg("TIMING: ".$t->elapTime()." selectNetworkHealth healthTitle=$healthTitle healthType=$healthType") if $timing;
 
 	print
 	start_table( {class=>"noborder" }),
@@ -1864,7 +1886,7 @@ sub viewSystemHealth {
 		$gotHeaders = 1;
 	}
 	
-	foreach my $index (sort keys %{$NI->{$section}} ) {
+	foreach my $index (sort {$a <=> $b} keys %{$NI->{$section}} ) {
 		if( exists( $M->{systemHealth}{rrd}{$section}{control} ) && 
 				$S->parseString(string=>"($M->{systemHealth}{rrd}{$section}{control}) ? 1:0",sys=>$S,index=>$index,sect=>$section) ne "1") {
 			next;

@@ -360,6 +360,7 @@ sub loadInfo {
 							# check model for title, if exists store this info/value in view table
 							if ($self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{title} ne '') {
 								$self->{view}{"${table}"}{"${indx}_${ds}_value"} = rmBadChars($result->{$sect}{$indx}{$ds}{value});
+								$self->{view}{"${table}"}{"${indx}_${ds}_title"} = rmBadChars($self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{title});
 							}
 							my $modext = "";
 							$modext = "ERROR:" if $result->{$sect}{$indx}{$ds}{value} eq "noSuchObject";
@@ -374,6 +375,7 @@ sub loadInfo {
 						# check model for title, if exists store this info in view table
 						if ($self->{mdl}{$table}{sys}{$sect}{snmp}{$ds}{title} ne '') {
 							$self->{view}{"${table}"}{"${ds}_value"} = rmBadChars($result->{$sect}{$ds}{value});
+							$self->{view}{"${table}"}{"${ds}_title"} = rmBadChars($self->{mdl}{$table}{sys}{$sect}{snmp}{$ds}{title});
 						}
 						my $modext = "";
 						$modext = "ERROR:" if $result->{$sect}{$ds}{value} eq "noSuchObject";
