@@ -322,7 +322,7 @@ sub typeGraph {
 						$systemHealthHeader = $tmpHeaders[0];
 					}
 
-					if ( $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} ne "" ) {
+					if ( exists $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} and $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} ne "" ) {
 						$systemHealthTitle =  $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title};
 					}
 					else {
