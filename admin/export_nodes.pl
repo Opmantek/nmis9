@@ -45,7 +45,7 @@ if ( $ARGV[0] eq "" ) {
 $0 will export nodes from NMIS.
 ERROR: need some files to work with
 usage: $0 <NODES_CSV_FILE>
-eg: $0 nodes=/data/nodes.csv debug=true
+eg: $0 nodes=/data/nodes.csv debug=true separator=(comma|tab)
 
 EO_TEXT
 	exit 1;
@@ -67,6 +67,9 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 # Step 1: define you prefered seperator
 my $sep = ",";
+if ( $arg{separator} eq "tab" ) {
+	$sep = "\t";
+}
 
 # Step 2: Define the elements you want from the NMIS Nodes.nmis file.
 my @nodesHeaders = qw(name uuid host group businessService serviceStatus services netType roleType);

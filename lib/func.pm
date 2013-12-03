@@ -45,6 +45,8 @@ use Data::Dumper;
 $Data::Dumper::Indent=1;
 $Data::Dumper::Sortkeys=1;
 
+use Storable qw(store_fd fd_retrieve);
+
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Exporter;
@@ -859,12 +861,15 @@ sub loadTable {
 	
 	# return an empty structure if I can't do anything else.
 	my $empty = { };
+	
+	my $useOmkFiles = 0;
 
 	if ($name ne '') {
 		my $fname = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention, default 'nmis'
 		if ($dir =~ /conf|models|var/) {
 			if (existFile(dir=>$dir,name=>$name)) {
 				my $file = getDir(dir=>$dir)."/$fname";
+				($file,$useOmkFiles) = getStorableFileName($file);
 				print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
 				if ($lock eq 'true') {
 					return readFiletoHash(file=>$file,lock=>$lock);
@@ -924,6 +929,17 @@ sub writeTable {
 	return;
 }
 
+sub getStorableFileName {
+	my $file = shift;
+	
+	my $useOmkFiles = 0;
+	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
+		$file .= '.omk' if $file !~ /\.omk$/;
+		$file =~ s/\.nmis//g;
+	}	
+	return ($file,$useOmkFiles);
+}
+
 ### write hash to file using Data::Dumper
 ###
 sub writeHashtoModel {
@@ -938,8 +954,18 @@ sub writeHashtoFile {
 	my $file = $args{file};
 	my $data = $args{data};
 	my $handle = $args{handle}; # if handle specified then file is locked EX
-
-	$file .= '.nmis' if $file !~ /\./;
+	
+	
+	### 2013-11-29 keiths, adding support for Perl Storable.
+	my $useOmkFiles = 0;
+	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
+		($file,$useOmkFiles) = getStorableFileName($file);
+	}
+	else {
+		### 2013-11-29 keiths, if the nodename has "." it is not appending an extension.
+		#$file .= '.nmis' if $file !~ /\.nmis$/;
+		$file .= ".nmis" if $file !~ /\./;
+	}
 
 	dbg("write data to $file");
 	if ($handle eq "") {
@@ -955,8 +981,16 @@ sub writeHashtoFile {
 		seek($handle,0,0) or warn "writeHashtoFile, ERROR can't seek file: $!";
 		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 	}
-	if ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		logMsg("ERROR cannot write file $file: $!");
+
+	if ( $useOmkFiles ) {
+		if ( not store_fd($data, $handle) ) {
+			logMsg("ERROR cannot write file $file: $!");
+		}
+	}
+	else {
+		if ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
+			logMsg("ERROR cannot write file $file: $!");
+		}
 	}
 	close $handle;
 
@@ -980,26 +1014,54 @@ sub readFiletoHash {
 	my %hash;
 	my $handle;
 	my $line;
+	
+	my $useOmkFiles = 0;
 
-	$file .= ".nmis" if $file !~ /\./;
+	### 2013-11-29 keiths, adding support for Perl Storable.
+	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
+		($file,$useOmkFiles) = getStorableFileName($file);
+	}
+  
+  # Does the file exist or do we need to load the .NMIS file first time.
+	if ( -r $file and $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
+		$useOmkFiles = 1;
+	}
+	else {
+		### 2013-11-29 keiths, if the nodename has "." it is not appending an extension.
+		$file = $args{file};
+		#$file .= '.nmis' if $file !~ /\.nmis$/;
+		$file .= '.nmis' if $file !~ /\./;
+		$useOmkFiles = 0;
+	}
 
+	#print STDERR ("INFO file is file=$file, $!");
+	
 	if ( -r $file ) {
 		my $filerw = ($lock eq 'true') ? "+<$file" : "<$file";
 		my $lck = ($lock eq 'true') ? LOCK_EX : LOCK_SH;
+
 		if (open($handle, "$filerw")) {
-			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
-			while (<$handle>) { $line .= $_; }
-			# convert data to hash
-			%hash = eval $line;
-			if ($@) {
-				logMsg("ERROR convert $file to hash table, $@");
-				close $handle;
-				return;
+			
+			if ( $useOmkFiles ) {
+				print STDERR "DEBUG: $filerw\n";
+				my $hashref = fd_retrieve($handle);
+				return $hashref;
 			}
-			return (\%hash,$handle) if ($lock eq 'true');
-			# else
-			close $handle;
-			return \%hash;
+			else {						
+				flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
+				while (<$handle>) { $line .= $_; }
+				# convert data to hash
+				%hash = eval $line;
+				if ($@) {
+					logMsg("ERROR convert $file to hash table, $@");
+					close $handle;
+					return;
+				}
+				return (\%hash,$handle) if ($lock eq 'true');
+				# else
+				close $handle;
+				return \%hash;
+			}
 		} else{
 			logMsg("ERROR cannot open file=$file, $!");
 		}
