@@ -120,12 +120,20 @@ sub getRRDasHash {
 	return (\%s,\@h);
 }
 
+# retrieves rrd data and computes a number of descriptive stats 
+# args: hour_from hour_to define the daily period [from,to].
+# if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
+# for midnight use either 0 or 24, depending on whether you want the inside or outside interval
 sub getRRDStats {
 	my %args = @_;
 	my $S = $args{sys};
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
 	my $item = $args{item};
+
+	my $minhr = $args{hour_from} // 0;
+	my $maxhr = $args{hour_to} // 24;
+	my $invertperiod = $minhr > $maxhr;
 
 	my $db = $S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item);
 
@@ -137,26 +145,21 @@ sub getRRDStats {
 		for(my $a = 0; $a <= $#{$data}; ++$a) {
 			my $date = returnDateStamp($time);
 			my $hour = $date;
-			my $f = 1;
 			$hour =~ s/\d+-[a-zA-Z]+-\d+ (\d+):\d+:\d+/$1/;		
-			for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) {
-				if ( (	defined $data->[$a][$b] 
-						and ! defined $args{hour_from}
-						and ! defined $args{hour_to}
-					) or ( 
-						defined $data->[$a][$b] 
-						and defined $args{hour_from} 
-						and defined $args{hour_to} 
-						and $hour > $args{hour_from} 
-						and $hour < $args{hour_to} 
-					)
-				) {
-					if ($f) { 
-						#print "$date hour=$hour\n";
-						$f = 0;
+			for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) 
+			{
+					if ( defined $data->[$a][$b] 
+							 and 
+							 ( 
+								 # between from (incl) and to (excl) hour if not inverted 
+								 ( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+								 or
+								 # before to (excl) or after from (incl) hour if inverted,
+								 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
+					{
+#							print STDERR ("accepting hour $hour, from $minhr, to $maxhr, inverted $invertperiod\n");
+							push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
 					}
-					push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
-				}
 			}
 			$time = $time + $step;
 		}
