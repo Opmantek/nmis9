@@ -1,5 +1,5 @@
 #
-## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+## $Id: Graph-cps6000Alarm.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -35,7 +35,7 @@
 		'short' => '$node $length'
 	},
 	'vlabel' => {
-		'standard' => '% CPU Util.'
+		'standard' => 'Alarm Status'
 	},
 	'option' => {
 		'standard' => [
@@ -44,7 +44,7 @@
 			'--rigid',
 			'DEF:cpsAlarmEntryAst=$database:cpsAlarmEntryAst:AVERAGE',
 			'AREA:cpsAlarmEntryAst#ff0000:Alarm Status',
-			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%',
 			'COMMENT:\t0 Alarm Inactive, 1 Alarm Active\\n'
 		],
 		'small' => [
@@ -53,7 +53,7 @@
 			'--rigid',
 			'DEF:cpsAlarmEntryAst=$database:cpsAlarmEntryAst:AVERAGE',
 			'AREA:cpsAlarmEntryAst#ff0000:Alarm Status',
-			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%%',
+			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%',
 			'COMMENT:\t0 Alarm Inactive, 1 Alarm Active\\n'
 		]
 	}

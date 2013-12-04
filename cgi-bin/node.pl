@@ -304,6 +304,7 @@ sub typeGraph {
 	my $systemHealth = 0;
 	my $systemHealthSection = "";
 	my $systemHealthHeader = "";
+	my $systemHealthTitle = "";
 	my @systemHealthLabels;
 	
 	foreach my $index (keys %{$NI->{graphtype}}) {
@@ -320,9 +321,15 @@ sub typeGraph {
 						my @tmpHeaders = split(",",$M->{systemHealth}{sys}{$gtype}{headers});
 						$systemHealthHeader = $tmpHeaders[0];
 					}
-					$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
+
+					if ( exists $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} and $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} ne "" ) {
+						$systemHealthTitle =  $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title};
+					}
+					else {
+						$systemHealthTitle = $systemHealthHeader;
+					}
 					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{database}{$systemHealthSection}};
-	
+					
 				}
 			}
 		}
@@ -430,7 +437,7 @@ sub typeGraph {
 										-onChange=>'JavaScript:this.form.submit()');
 						} 
 						elsif ($systemHealth) {
-							return 	"$systemHealthHeader ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{database}{$systemHealthSection}}],
 										-default=>"$index",
 										-labels=>{ @systemHealthLabels },
