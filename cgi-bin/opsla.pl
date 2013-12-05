@@ -356,7 +356,7 @@ sub displayIPSLAmenu {
 	my $probe = $IPSLA->getProbe(probe => $nno);
 		
 	# get node info from /var, this file is produced by nmis.pl type=update
-	my $RTTInfo = readFiletoHash(file => "$C->{'<nmis_var>'}/nmis-nodeinfo.nmis"); # global hash
+	my $RTTInfo = readFiletoHash(file => "$C->{'<nmis_var>'}/nmis-nodeinfo"); # global hash
 	
 	my (@pnode,@nodes);
 	@pnode = @nodes = grep { $_ if $RTTInfo->{$_}{nodeModel} eq "CiscoRouter" and $AU->InGroup($NT->{$_}{group}) } sort keys %{$RTTInfo};
@@ -1025,7 +1025,7 @@ sub displayRTTnode {
 					src=>"$C->{rrddraw}?conf=$Q->{conf}&act=draw_graph_view&node=$pnode&graphtype=$aref->[2]&start=0&end=0&width=350&height=50&title=small"})));
 	}
 
-	#src="/cgi-nmis8/rrddraw.pl?conf=Config.nmis&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
+	#src="/cgi-nmis8/rrddraw.pl?conf=Config.xxxx&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
 }
 
 sub displayRTTdata {

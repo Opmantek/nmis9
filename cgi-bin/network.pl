@@ -1160,7 +1160,7 @@ EO_HTML
 		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node=$NI->{system}{name}";
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
-	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.nmis&act=
+	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
 	
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	

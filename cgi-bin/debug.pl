@@ -378,10 +378,13 @@ my $OT = loadOutageTable();
 print "<h2>Outage Table</h2>";
 print dumper_html($OT);
 
+my $ext = getExtension();
+
 foreach my $node (sort keys %{$NT}) {
 	if ( $C->{server_name} eq $NT->{$node}{server} ) {
 		my $nodeInfo = loadNodeInfoTable($node);
-		print "<h2>$node System File ( /var/$node.nmis) </h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$node.nmis\") *24*60) ]} minutes ago</b><br>";
+		
+		print "<h2>$node System File ( /var/$node.$ext) </h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$node.$ext\") *24*60) ]} minutes ago</b><br>";
 		print dumper_html($nodeInfo);
 	}
 }
@@ -395,7 +398,7 @@ foreach my $summary ( qw( nmis-summary8h nmis-summary16h ) ) {
 
 	my %summaryHash = readFiletoHash(file=>"$dir/$summary");
 
-	print "<h2>$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$summary.nmis\") *24*60) ]} minutes ago</b><br>";
+	print "<h2>$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$summary.$ext\") *24*60) ]} minutes ago</b><br>";
 	print dumper_html(\%summaryHash);
 }
 

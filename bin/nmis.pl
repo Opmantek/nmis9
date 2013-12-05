@@ -357,9 +357,9 @@ sub	runThreads {
 	# if an update, 
 	if ( $type eq "update" ) {
 		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
-		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.nmis
+		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
 		if ( $C->{disable_interfaces_summary} ne "true" ) {
-			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.nmis
+			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
 			runLinks();
 		}		 
 	}
@@ -423,7 +423,7 @@ sub	runThreads {
 			$NI->{database}{nmis} = $db;
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
-		$S->writeNodeInfo; # var/nmis-system.nmis, the base info system
+		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
 		#
 	}
 
@@ -515,8 +515,8 @@ sub doUpdate {
 	}
 	#print Dumper($S)."\n";
 	runReach(sys=>$S);
-	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
-	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
+	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	
 	### 2013-03-19 keiths, NMIS Plugins!
 	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
@@ -610,7 +610,7 @@ sub doCollect {
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
 	$S->writeNodeView;
-	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	$S->close; 
 	dbg("Finished");
 	return;
@@ -619,7 +619,7 @@ sub doCollect {
 #=========================================================================================
 
 #
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.nmis
+# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
 # if node info missing then ping.pm is used
 #
 sub runPing {
@@ -3049,7 +3049,7 @@ sub getCalls {
 					$InstalledVoice++;
 				} #end foreach
 			
-				# create $nodes-calls.nmis file which contains interface mapping and descirption data	
+				# create $nodes-calls.xxxx file which contains interface mapping and descirption data	
 				delete $S->{info}{calls};
 				if ( %callsTable) {
 					# callsTable has some values, so write it out
@@ -4300,16 +4300,16 @@ sub nmisMaster {
 			dbg("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 			
 			dbg("Get loadnodedetails from $srv");
-			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
+			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes"));
 
 			dbg("Get sumnodetable from $srv");
-			getFileFromRemote(server => $srv, func => "sumnodetable", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum.nmis");
+			getFileFromRemote(server => $srv, func => "sumnodetable", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum"));
 						
 			my @hours = qw(8 16);
 			foreach my $hour (@hours) {
 				my $function = "summary". $hour ."h";
 				dbg("get summary$hour from $srv");
-				getFileFromRemote(server => $srv, func => "summary$hour", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-$srv-$function.nmis");
+				getFileFromRemote(server => $srv, func => "summary$hour", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-$srv-$function"));
 			}
 		}
 	}
@@ -4384,7 +4384,7 @@ sub nmisSummary {
 
 ### 11-Nov-11, keiths, update to this, changed the escalation so that through policy you can 
 ### wait for 5 mins or just notify now, so Ecalation0 is 0 seconds, Escalation1 is 300 seconds
-### then in Ecalations.nmis, core devices might notify at Escalation0 while others at Escalation1
+### then in Ecalations.xxxx, core devices might notify at Escalation0 while others at Escalation1
 sub runEscalate {
 	my %args = @_;
 
@@ -5477,6 +5477,8 @@ sub checkConfig {
 	my %args = @_;
 	my $change = $args{change};
 	my $audit = $args{audit};
+	
+	my $ext = getExtension();
 
 	local *checkFunc;
 	my $checkType;
@@ -5516,7 +5518,7 @@ default location.  Check the installation guide at Opmantek.com.
 
 What will probably fix it is if you copy the config file samples from 
 $nmis_base/install to $nmis_base/conf 
-and verify that $nmis_base/conf/Config.nmis reflects 
+and verify that $nmis_base/conf/Config.$ext reflects 
 the correct file paths.
 EO_TEXT
 				exit 0;
@@ -5608,7 +5610,7 @@ EO_TEXT
 		writeTable(dir=>'var',name=>'nmis-event',data=>$hsh);
 	}
 	else {
-		checkFile("$C->{'<nmis_var>'}/nmis-event.nmis");
+		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-event"));
 	}
 
 	if ( not existFile(dir=>'var',name=>'nmis-system')) {
@@ -5617,7 +5619,7 @@ EO_TEXT
 		writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
 	}
 	else {
-		checkFile("$C->{'<nmis_var>'}/nmis-system.nmis");
+		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-system"));
 	}
 	
 	if ( $change eq "true" ) {
@@ -5664,7 +5666,7 @@ EO_TEXT
 		checkDirectoryFiles($C->{'web_root'});
 	}
 
-	#== convert config .csv to .nmis (hash) file format ==
+	#== convert config .csv to .xxxx (hash) file format ==
 	convertConfFiles();
 	#==
 	

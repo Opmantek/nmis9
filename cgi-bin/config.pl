@@ -451,7 +451,8 @@ sub storeTable {
 	if ($C->{$item} eq 'true') {
 		print Tr(td({class=>'info Plain'}," mySQL Database is active now"));
 	} else {
-		print Tr(td({class=>'info Plain'}," conf/$table.nmis is active now"));
+		my $ext = getExtension();
+		print Tr(td({class=>'info Plain'}," conf/$table.$ext is active now"));
 	} 
 	
 	print Tr(td('Make your choice'));
@@ -508,7 +509,8 @@ sub doStoreTable {
 		# from DB to file
 		if (($T = DBfunc::->select(table=>$table)) ) {
 			writeTable(dir=>'conf',name=>$table,data=>$T);
-			logMsg("INFO table=$table transfer from DB to file=conf/$table.nmis done");
+			my $ext = getExtension();
+			logMsg("INFO table=$table transfer from DB to file=conf/$table.$ext done");
 		} else {
 			return;
 		}

@@ -41,11 +41,11 @@ use Time::ParseDate;
 use Time::Local;
 use CGI::Pretty qw(:standard);
 
+use JSON::XS;
+
 use Data::Dumper;
 $Data::Dumper::Indent=1;
 $Data::Dumper::Sortkeys=1;
-
-use Storable qw(store_fd fd_retrieve);
 
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
@@ -101,6 +101,8 @@ $VERSION = 1.00;
 		setFileProtDirectory
 		existFile
 		mtimeFile
+		getFileName
+		getExtension
 		writeHashtoFile
 		readFiletoHash
 
@@ -818,9 +820,10 @@ sub existFile {
 	my $dir = $args{dir};
 	my $name = $args{name};
 	my $file;
+	my $useJson;
 	return if $dir eq '' or $name eq '';
-	$name = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention
 	$file = getDir(dir=>$dir)."/$name";
+	$file = getFileName(file => $file);
 	return ( -r $file ) ;
 }
 
@@ -831,9 +834,10 @@ sub mtimeFile {
 	my $dir = $args{dir};
 	my $name = $args{name};
 	my $file;
+	my $useJson;
 	return if $dir eq '' or $name eq '';
-	$name = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention
 	$file = getDir(dir=>$dir)."/$name";
+	$file = getFileName(file => $file);
 	if ( -r $file ) {
 		return stat($file)->mtime;
 	}
@@ -862,14 +866,13 @@ sub loadTable {
 	# return an empty structure if I can't do anything else.
 	my $empty = { };
 	
-	my $useOmkFiles = 0;
+	my $useJson = 0;
 
 	if ($name ne '') {
-		my $fname = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention, default 'nmis'
 		if ($dir =~ /conf|models|var/) {
 			if (existFile(dir=>$dir,name=>$name)) {
-				my $file = getDir(dir=>$dir)."/$fname";
-				($file,$useOmkFiles) = getStorableFileName($file);
+				my $file = getDir(dir=>$dir)."/$name";
+				$file = getFileName(file => $file);
 				print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
 				if ($lock eq 'true') {
 					return readFiletoHash(file=>$file,lock=>$lock);
@@ -916,9 +919,8 @@ sub writeTable {
 	my $C = loadConfTable();
 
 	if ($name ne '') {
-		my $fname = ($name =~ /\./) ? $name : "$name.nmis"; # check for extention, default 'nmis'
 		if ($dir =~ /conf|models|var/) {
-			my $file = getDir(dir=>$dir)."/$fname";
+			my $file = getDir(dir=>$dir)."/$name";
 			return writeHashtoFile(file=>$file,data=>$args{data},handle=>$args{handle});
 		} else {
 			logMsg("ERROR unknown dir=$dir specified with name=$name");
@@ -929,15 +931,32 @@ sub writeTable {
 	return;
 }
 
-sub getStorableFileName {
-	my $file = shift;
+sub getFileName {
+	my %args = @_;
+	my $file = $args{file};
+	my $json = $args{json};
 	
-	my $useOmkFiles = 0;
-	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
-		$file .= '.omk' if $file !~ /\.omk$/;
+	my $useJson = 0;
+	if ( $C_cache->{use_json} eq 'true' or $json ) {
+		$file .= '.json' if $file !~ /\.json$/;
 		$file =~ s/\.nmis//g;
-	}	
-	return ($file,$useOmkFiles);
+		$useJson = 1;
+	}
+	else {
+		$file .= ".nmis" if $file !~ /\.nmis$/;
+	}
+	return $file;
+}
+
+sub getExtension {
+	my %args = @_;
+	my $json = $args{json};
+	
+	my $extension = "nmis";
+	if ( $C_cache->{use_json} eq 'true' or $json ) {
+		$extension = "json";
+	}
+	return $extension;
 }
 
 ### write hash to file using Data::Dumper
@@ -954,18 +973,12 @@ sub writeHashtoFile {
 	my $file = $args{file};
 	my $data = $args{data};
 	my $handle = $args{handle}; # if handle specified then file is locked EX
-	
-	
-	### 2013-11-29 keiths, adding support for Perl Storable.
-	my $useOmkFiles = 0;
-	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
-		($file,$useOmkFiles) = getStorableFileName($file);
-	}
-	else {
-		### 2013-11-29 keiths, if the nodename has "." it is not appending an extension.
-		#$file .= '.nmis' if $file !~ /\.nmis$/;
-		$file .= ".nmis" if $file !~ /\./;
-	}
+	my $json = $args{json};
+	my $pretty = $args{pretty};
+	$pretty = (defined($pretty)) ? $pretty : 0;		
+	### 2013-11-29 keiths, adding support for JSON.
+	my $useJson = ($C_cache->{use_json} eq 'true' or $json) ? 1 : 0;
+	$file = getFileName(file => $file, json => $json);
 
 	dbg("write data to $file");
 	if ($handle eq "") {
@@ -982,16 +995,20 @@ sub writeHashtoFile {
 		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 	}
 
-	if ( $useOmkFiles ) {
-		if ( not store_fd($data, $handle) ) {
+	if ( $useJson and ( $C_cache->{use_json_pretty} eq 'true' or $pretty) ) {
+		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
 			logMsg("ERROR cannot write file $file: $!");
 		}
 	}
-	else {
-		if ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
+	elsif ( $useJson ) {
+		if ( not print $handle encode_json($data) ) {
 			logMsg("ERROR cannot write file $file: $!");
 		}
 	}
+	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
+		logMsg("ERROR cannot write file $file: $!");
+	}
+
 	close $handle;
 
 	setFileProt($file);
@@ -1011,50 +1028,37 @@ sub readFiletoHash {
 	my %args = @_;
 	my $file = $args{file};
 	my $lock = $args{lock}; # option
+	my $json = $args{json};
 	my %hash;
 	my $handle;
 	my $line;
-	
-	my $useOmkFiles = 0;
-
-	### 2013-11-29 keiths, adding support for Perl Storable.
-	if ( $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
-		($file,$useOmkFiles) = getStorableFileName($file);
-	}
-  
-  # Does the file exist or do we need to load the .NMIS file first time.
-	if ( -r $file and $C_cache->{use_storable} eq 'true' and $file =~ /\/var/ ) {
-		$useOmkFiles = 1;
-	}
-	else {
-		### 2013-11-29 keiths, if the nodename has "." it is not appending an extension.
-		$file = $args{file};
-		#$file .= '.nmis' if $file !~ /\.nmis$/;
-		$file .= '.nmis' if $file !~ /\./;
-		$useOmkFiles = 0;
-	}
-
-	#print STDERR ("INFO file is file=$file, $!");
+			
+	### 2013-11-29 keiths, adding support for JSON.
+	my $useJson = ($C_cache->{use_json} eq 'true' or $json) ? 1 : 0;
+	$file = getFileName(file => $file, json => $json);
 	
 	if ( -r $file ) {
 		my $filerw = ($lock eq 'true') ? "+<$file" : "<$file";
 		my $lck = ($lock eq 'true') ? LOCK_EX : LOCK_SH;
-
 		if (open($handle, "$filerw")) {
-			
-			if ( $useOmkFiles ) {
-				print STDERR "DEBUG: $filerw\n";
-				my $hashref = fd_retrieve($handle);
+			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";     
+			local $/ = undef;
+			my $data = <$handle>;
+			if ( $useJson ) {
+				my $hashref = decode_json($data);
+				if ( $@ ) {
+					logMsg("ERROR convert $file to hash table, $@");
+				}
+				return ($hashref,$handle) if ($lock eq 'true');
+				# else
+				close $handle;
 				return $hashref;
 			}
-			else {						
-				flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
-				while (<$handle>) { $line .= $_; }
+			else {
 				# convert data to hash
-				%hash = eval $line;
+				%hash = eval $data;
 				if ($@) {
 					logMsg("ERROR convert $file to hash table, $@");
-					close $handle;
 					return;
 				}
 				return (\%hash,$handle) if ($lock eq 'true');
@@ -1407,16 +1411,20 @@ sub getConfFileName {
 	my $dir = $args{dir};
 
 	# See if customised config file required.
-	my $configfile = "$FindBin::Bin/../conf/$conf"; 
+	my $configfile = "$FindBin::Bin/../conf/$conf";
+	
+	my $altconf = getFileName(file => "/etc/nmis/$conf"); 
 	
 	if ( $dir ) {
 		$configfile = "$dir/$conf"; 
 	}
 	
+	$configfile = getFileName(file => $configfile);
+	
 	if (not -r $configfile ) {
 		# the following should be conformant to Linux FHS
-		if ( -e "/etc/nmis/$conf") {
-			$configfile = "/etc/nmis/$conf";
+		if ( -e $altconf ) {
+			$configfile = $altconf;
 		} else { 
 			if ( $ENV{SCRIPT_NAME} ne "" ) {
 				print header();
@@ -1428,7 +1436,7 @@ sub getConfFileName {
 					});
 			}
 			
-			print "Can't access neither NMIS configuration file=$configfile, nor /etc/nmis/$conf \n";
+			print "Can't access neither NMIS configuration file=$configfile, nor $altconf \n";
 			
 			if ( $ENV{SCRIPT_NAME} ne "" ) {
 				print end_html;
@@ -1443,7 +1451,7 @@ sub getConfFileName {
 
 sub readConfData {
 	my %args = @_;
-	my $conf = $args{conf} || 'Config.nmis';
+	my $conf = $args{conf} || 'Config';
 	my $configfile;
 	my $CC;
 
@@ -1475,14 +1483,14 @@ sub loadConfTable {
 		$conf = $Config_cache;
 	}
 	elsif ( $conf eq "" ) {
-		$conf = 'Config.nmis';
+		$conf = 'Config';
 	}
 
 	# on start of program parameters are defined
 	return $C_cache if defined $C_cache and scalar @_ == 0;
 
 	# add extension if missing
-	$conf = $conf =~ /\./ ? $conf : "${conf}.nmis";
+	$conf = $conf =~ /\./ ? $conf : "${conf}";
 	
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 

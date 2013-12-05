@@ -56,15 +56,15 @@ use vars qw($q $Q $C $AU);
 $q = CGI->new; # This processes all parameters passed via GET and POST
 $Q = $q->Vars; # values in hash
 
-# toss in a default conf=Config.nmis
-$Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
+# toss in a default conf=Config.xxxx
+my $ext = getExtension();
+$Q->{conf} = $Q->{conf} ? $Q->{conf} : "Config.$ext";
 
 $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 # For for Tenants
-#if ( ($Q->{conf} eq "" or $Q->{conf} eq "Config" or $Q->{conf} eq "Config.nmis")
 if ( ($Q->{conf} eq "" )
-	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
+	and -f getFileName(file => "$C->{'<nmis_conf>'}/Tenants") and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
 ) {
 	logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
 	print $q->header($q->redirect(
@@ -164,7 +164,7 @@ if ($C->{auth_method_1} eq "apache") {
 ## removing the display of the Portal Links for now.
 my $ptime = &get_localtime();
 my $confString = "";
-if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.nmis" ) {
+if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.$ext" ) {
 	$confString = "Conf: $Q->{conf},";
 }
 #-----------------------------------------------

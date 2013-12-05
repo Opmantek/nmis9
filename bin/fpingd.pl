@@ -49,14 +49,15 @@ my %INFO;
 my $qripaddr = qr/\d+\.\d+\.\d+\.\d+/;
 
 if ( ! %nvp ) {
-		print <<EOF;
+	my $ext = getExtension();
+	print <<EOF;
 
 Command line options are:
  restart=true   - kill the running daemon(s) and restart
  debug=true     - print status to console and logfile
  kill=true      - kill the running deamon(s) and exit. Does not launch a new process.
  logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
- conf=*.nmis    - specify an alternative Conf.nmis file.
+ conf=*.$ext    - specify an alternative Conf.$ext file.
 
 default action is to killall and restart , no logging, no debug...
 
@@ -147,10 +148,12 @@ $fpingcmd =~ s/length/$length/;
 $fpingcmd =~ s/retries/$retries/;
 $fpingcmd =~ s/count/$count/;
 
+my $ext = getExtension();
+
 &debug( "logfile = $FindBin::Bin/../logs/fpingd.log") if defined $nvp{logging};
 &debug( "logging not enabled - set cmdline option \'logging=true\' if logging required") if !defined $nvp{logging};
 &debug( "pidfile = $FindBin::Bin/../var/fpingd.pid");
-&debug( "ping result file = $FindBin::Bin/../var/fping.nmis");
+&debug( "ping result file = $FindBin::Bin/../var/fping.$ext");
 &debug( "fping cmd: $fpingcmd");
 #---------------------------------------
 # process control

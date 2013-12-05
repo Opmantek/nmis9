@@ -36,7 +36,7 @@ use strict;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Exporter;
-use Data::Dumper;
+use JSON;
 use File::Path;
 
 $VERSION = 1.00;
@@ -112,10 +112,10 @@ sub sendNotification {
 	#};
 
 	my $fcount = 1;
-	my $file ="$dir/$event->{startdate}-$fcount.nmis";
+	my $file ="$dir/$event->{startdate}-$fcount.json";
 	while ( -f $file ) {
 		++$fcount;
-		$file ="$dir/$event->{startdate}-$fcount.nmis";
+		$file ="$dir/$event->{startdate}-$fcount.json";
 	}
 	
 	my $mylog;
@@ -124,7 +124,7 @@ sub sendNotification {
 	$mylog->{message} = $message;
 	
 	open(LOG,">$file") or logMsg("ERROR, can not write to $file");
-	print LOG Dumper $mylog;
+	print LOG Dumper to_json($mylog, { pretty => 1 });
 	close LOG;
 	# good to set permissions on file.....
 }

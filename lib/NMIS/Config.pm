@@ -49,14 +49,15 @@ my %Table_cache = ();
  
 sub new {
 	my ($class,%arg) = @_;
-
+	my $ext = getExtension();
 	my $debug = $arg{debug} || 0;
 	my $conf = $arg{conf} || 'nmis';			# default config name is 'nmis'
-	my $file = $arg{file} || 'ConfigV8.nmis' if $conf eq 'nmis';
+	my $file = $arg{file} || 'Config.$ext' if $conf eq 'nmis';
 	my $dir = $arg{dir} || "$FindBin::Bin/../conf" if $conf eq 'nmis';
 
+ my $ext = getExtension();
  $conf = 'nmis';			# default config name is 'nmis'
- $file = 'ConfigV8.nmis' ;
+ $file = "Config.$ext" ;
  $dir =  '/usr/local/nmis8/conf';
 	
 	# check that config file exist and is readable.

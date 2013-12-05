@@ -100,6 +100,8 @@ sub init {
 	$self->{view} = {};
 	$self->{snmp} = undef;
 	$self->{cfg} = {node => { ping => 'true'}};
+	
+	my $ext = getExtension();
 
 	# load info of node and interfaces in tables of this object
 	if ($self->{name} ne "") { 
@@ -112,7 +114,7 @@ sub init {
 			}
 			dbg("info of node=$self->{name} loaded");
 		} else {
-			$self->{error} = "ERROR loading var/$self->{node}-node.nmis";
+			$self->{error} = "ERROR loading var/$self->{node}-node.$ext";
 			dbg("ignore error message") if $self->{update};
 			$exit = 0;
 		}
@@ -133,7 +135,7 @@ sub init {
 		$self->mergeHash($self->{info},$info);
 		dbg("info of nmis-system loaded");
 	} else {
-		logMsg("ERROR cannot load var/nmis-system.nmis");
+		logMsg("ERROR cannot load var/nmis-system.$ext");
 	}
 
 	# load node configuration
@@ -688,10 +690,12 @@ sub loadModel {
 	my $exit = 1;
 	my $name;
 	my $mdl;
+	
+	my $ext = getExtension();
 
 	$self->{mdl} = loadTable(dir=>'models',name=>$model); # caching included
 	if (!$self->{mdl}) {
-		$self->{error} = "ERROR ($self->{name}) reading Model file models/$model.nmis";
+		$self->{error} = "ERROR ($self->{name}) reading Model file models/$model.$ext";
 		$exit = 0;
 	} else {
 		# continue with loading common Models
@@ -699,7 +703,7 @@ sub loadModel {
 			$name = "Common-".$self->{mdl}{'-common-'}{class}{$class}{'common-model'};
 			$mdl = loadTable(dir=>'models',name=>$name);
 			if (!$mdl) {
-				$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.nmis";
+				$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.$ext";
 				$exit = 0;
 			} else {
 				$self->mergeHash($self->{mdl},$mdl); # add or overwrite
@@ -996,11 +1000,12 @@ sub writeNodeInfo {
 	# remove old info
 	delete $self->{info}{view_system};
 	delete $self->{info}{view_interface};
+	my $ext = getExtension();
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
 	### 2013-08-27 keiths, the system object should not exist for nmis-system
 	if ( $name eq "nmis-system" and defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
-		logMsg("INFO var/nmis-system.nmis file is corrupted, deleting \$info->{system}");
+		dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}");
 		delete $self->{info}{system};
 	}
 

@@ -395,7 +395,7 @@ sub menu_bar_site {
 
 sub menu_bar_portal {
 	
-	# take this to config.nmis.!
+	# take this to config.xxxx.!
 	# portal menu of nodes or clients to link to.
 	
 	print header({-type=>"text/html",-expires=>'now'});
@@ -409,7 +409,7 @@ sub menu_bar_portal {
 				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS8 Home</a>|);
 				push @menu_portal,	( qq|Client Views|,
 												[
-												 qq|<a href="http://master.nmis.co.nz/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
+												 qq|<a href="http://master.domain.com/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
 												  qq|<a href="#" >Customer A</a>|,
 												   qq|<a href="#" >Customer B</a>|
 												   
