@@ -298,33 +298,28 @@ sub ifDescrInfo {
 #===================================================================
 
 # copy config and model info into node info table
-sub copyModelCfgInfo {
-	my $self = shift;
-	my %args = @_;
-	my $type = $args{type};
-
-	# copy some node info
-	$self->{info}{system}{name} = $self->{cfg}{node}{name};
-	$self->{info}{system}{host} = $self->{cfg}{node}{host};
-	$self->{info}{system}{active} = $self->{cfg}{node}{active};
-	$self->{info}{system}{collect} = $self->{cfg}{node}{collect};
-	$self->{info}{system}{ping} = $self->{cfg}{node}{ping};
-	$self->{info}{system}{group} = $self->{cfg}{node}{group};
-	$self->{info}{system}{timezone} = $self->{cfg}{node}{timezone};
-	$self->{info}{system}{webserver} = $self->{cfg}{node}{webserver};
-	$self->{info}{system}{roleType} = $self->{cfg}{node}{roleType};
-	$self->{info}{system}{netType} = $self->{cfg}{node}{netType};
-	$self->{info}{system}{threshold} = $self->{cfg}{node}{threshold};
-	$self->{info}{system}{customer} = $self->{cfg}{node}{customer};
-	$self->{info}{system}{location} = $self->{cfg}{node}{location};
-	$self->{info}{system}{serviceStatus} = $self->{cfg}{node}{serviceStatus};
-	$self->{info}{system}{businessService} = $self->{cfg}{node}{businessService};
-	
-	if ( $type eq 'all' ) {
-		$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} if $self->{info}{system}{nodeModel} eq "";
-		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}; # if $self->{info}{system}{nodeModel} eq "";
-		dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel}, $self->{mdl}{system}{nodeModel}, $self->{mdl}{system}{nodeType}");
-	}
+# args: type
+sub copyModelCfgInfo 
+{
+		my $self = shift;
+		my %args = @_;
+		my $type = $args{type};
+		
+		# copy all node info, with the exception of auth-related fields
+		my $dontcopy = qr/^(community|(auth|priv)(key|password|protocol))$/;
+		
+		for my $fn (keys %{$self->{cfg}->{node}})
+		{
+				next if ($fn =~ $dontcopy);
+				$self->{info}->{system}->{$fn} = $self->{cfg}->{node}->{$fn};
+		}
+		
+		if ( $type eq 'all' ) {
+				$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} 
+				if $self->{info}{system}{nodeModel} eq "";
+				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}; # if $self->{info}{system}{nodeModel} eq "";
+				dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel}, $self->{mdl}{system}{nodeModel}, $self->{mdl}{system}{nodeType}");
+		}
 }
 
 #===================================================================

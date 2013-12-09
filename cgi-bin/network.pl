@@ -1108,7 +1108,7 @@ EO_HTML
 	my $ET = loadEventStateNoLock();
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 	
-	# display all info with a prefered (partial) order
+	# fallback/default order and set of propertiess for displaying all information
 	my @order = (
 		'status'
 		,'sysName'
@@ -1133,7 +1133,8 @@ EO_HTML
 		,'netType'
 	);
 	
-	### 2013-10-17 keiths, optionally allow custom ordering.
+  # the fallback is overruled and the list can be extended with custom properties
+  # given in network_viewNode_field_list
 	if ( exists $C->{network_viewNode_field_list} and $C->{network_viewNode_field_list} ne "" ) {
 		@order = split(",",$C->{network_viewNode_field_list});
 	}
