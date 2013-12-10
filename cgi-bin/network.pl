@@ -1099,7 +1099,7 @@ sub viewNode {
 		//var attrib = "scrollbars=yes,resizable=yes,width=" + 800 + ",height=" + 600;
 		//ViewWindow = window.open('$url','$node',attrib);
 		//ViewWindow.focus();
-		$('div#node_view_$node').hide().remove();
+		\$('div#node_view_$node').hide().remove();
 	</script>
 EO_HTML
   	return;
