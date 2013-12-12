@@ -142,6 +142,7 @@ sub open {
 			-unsigned => 0x1,		# unsigned integers
 			-octet_string => 0x1],   # Lets octal string
 			-port		=> $port,
+			-maxmsgsize => $max_msg_size,
 			@authopts,
 		);
 
@@ -155,7 +156,7 @@ sub open {
 
 	$self->{session} = $session;
 	$self->{version} = $version;
-	$self->{max_msg_size} = $self->{session}->max_msg_size($max_msg_size);
+	$self->{max_msg_size} = $session->max_msg_size; # get and remember the actual limit
 
 	return 1;
 }

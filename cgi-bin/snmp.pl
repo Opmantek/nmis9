@@ -209,11 +209,12 @@ sub viewSNMP {
 
 		$SNMP = snmp::->new;
 		$SNMP->init(debug=>$Q->{debug});
-		if (!$SNMP->open(host=>stripSpaces($host),
-				version=>stripSpaces($version),
-				community=>stripSpaces($community),
-				port=>$port,
-				debug=>$Q->{debug})) {
+		if (!$SNMP->open( host => stripSpaces($host),
+											version => stripSpaces($version),
+											community => stripSpaces($community),
+											port => $port,
+											max_msg_size => $C->{snmp_max_msg_size},
+											debug => $Q->{debug})) {
 			print Tr(td({class=>'error'},$SNMP->error));
 			return;
 		}
