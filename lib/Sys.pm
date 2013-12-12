@@ -228,6 +228,10 @@ sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->aler
 
 
 # open snmp session based on host address
+#
+# for max message size we try in order: host-specific value if set for this host,
+# what is given as argument or default 1472. argument is expected to reflect the
+# global default. 
 sub open {
 	my $self = shift;
 	my %args = @_;
@@ -238,7 +242,7 @@ sub open {
 	my $timeout = $args{timeout} || 5;
 	my $retries = $args{retries} || 1;
 	my $oidpkt = $args{oidpkt} || 10;
-	my $max_msg_size = $args{max_msg_size} || 1472;
+	my $max_msg_size = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
 	if ($self->{snmp}->open(
 				host => stripSpaces($host),
