@@ -55,6 +55,9 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
+my $wantwidget = ($Q->{widget} ne "false"); # default is thus 1=widgetted.
+$Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
+
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
@@ -75,12 +78,6 @@ $AU->CheckAccess("table_models_view","header");
 
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
-
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-	$Q->{expand} = "true";
-}
 
 #======================================================================
 
@@ -174,7 +171,7 @@ if ($Q->{act} eq 'config_model_menu') {				displayModel();
 } else { notfound(); }
 
 sub notfound {
-	print header($headeropts);
+	print header(-status => 400, %$headeropts);
 	print "Models: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
 }
@@ -197,8 +194,7 @@ sub displayModel{
 
 	#start of page
 	print header($headeropts);
-
-	pageStart(title => "NMIS Modeling", refresh => 86400) if ($widget eq "false");
+	pageStart(title => "NMIS Modeling", refresh => 86400) if (!$wantwidget);
 
 	my $S = Sys::->new; # create system object and load base Model or nodeModel
 	if (!($S->init(name=>$node,snmp=>'false'))) {
@@ -227,13 +223,13 @@ sub displayModel{
 
 	my @common = keys %{$S->{mdl}{'-common-'}{class}};
 
-	### 2013-10 keiths, trying to get to work as non-widget, more work required.
 	# start of form
-	my $startform = start_form(-id=>"nmisModels", -href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_model_menu");
-	if ( $widget eq "false" ) {
-		$startform = start_form({ method=>"get", -id=>'nmisModels', action=>"$C->{'<cgi_url_base>'}/models.pl?conf=$C->{conf}&act=config_model_menu"});
-	}
-	print "$startform\n";
+	# the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"nmisModels", -href => url(-absolute => 1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_model_menu")
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
 
 	print start_table() ; # first table level
 
@@ -254,7 +250,7 @@ sub displayModel{
 				popup_menu(-name=>'node', -override=>'1',
 					-values=>\@nodes,
 					-default=>$node,
-					-onChange=>"get('nmisModels');"));
+					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
 	if ($node ne "" and $model eq "") { $model = $NI->{system}{nodeModel}; } # get nodeModel from node info
 	my @models;
@@ -271,7 +267,7 @@ sub displayModel{
 				popup_menu(-name=>'model', -override=>'1',
 					-values=>\@models,
 					-default=>$model,
-					-onChange=>"get('nmisModels');"));
+					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
 	if ($model ne $pmodel) { $section = ""; }
 	my @sections = ('',sort keys %{$M});
@@ -281,12 +277,13 @@ sub displayModel{
 				popup_menu(-name=>'section', -override=>'1',
 					-values=>\@sections,
 					-default=>$section,
-					-onChange=>"javascript:get('nmisModels');"));
+					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
+
 	print td({class=>"header", colspan=>'1'},'Check Model<br>',
 			checkbox( -name=>"checkmodel",
 					-checked=>"$Q->{checkmodel}",
 					-label=>"$Q->{checkmodel}",
-					-onChange=>"get('nmisModels');"));
+					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
 	if ($model ne "" and $section ne "" and $Q->{checkmodel} eq 'on') {
 		if ((my $err = checkModel(sys=>$S))) {
@@ -314,7 +311,7 @@ sub displayModel{
 
 End_page:
 	print end_table();
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 # walk through the hash table
@@ -423,7 +420,8 @@ sub afunc {
 	my $name = $args{name};
 
 	my $func = checkHash($hash);
-	my $opt = "&node=$Q->{node}&pnode=$Q->{pnode}&model=$Q->{model}&pmodel=$Q->{pmodel}&section=$Q->{section}&hash=$hash&checkmodel=$Q->{checkmodel}";
+	my $opt = "&node=$Q->{node}&pnode=$Q->{pnode}&model=$Q->{model}&pmodel=$Q->{pmodel}&section=$Q->{section}&hash=$hash&checkmodel=$Q->{checkmodel}&widget=$Q->{widget}";
+	
 	if ($AU->CheckAccess("Table_Models_rw","check")) {
 		if ($func eq 'ablank') {
 			return td({class=>'info'});
@@ -632,7 +630,8 @@ sub editModel{
 	my $section = $Q->{section};
 
 	#start of page
-	print header({-type=>"text/html"});
+	print header($headeropts);
+	pageStart(title => "NMIS Edit Model", refresh => 86400) if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Models_rw");
 
@@ -648,9 +647,13 @@ sub editModel{
 		}
 	}
 
-	# start of form
-	print start_form(-id=>"nmisModels",-action=>"javascript:return false;",
-					-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_model_doedit");
+	# start of form, explanation of href-vs-hiddens see previous start_form
+	print start_form(-id=>"nmisModels",
+									 -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_model_doedit")
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
+			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel");
 
 	print start_table() ; # first table level
 
@@ -682,10 +685,18 @@ sub editModel{
 	print Tr(td({colspan=>"$index"}),td({colspan=>(8-$index)},
 			textfield(-name=>"value",align=>"left",override=>1,size=>((length $value) * 1.5),value=>"$value")));
 
-	print Tr(td({colspan=>"$index"}), td(
-			submit(-name=>"button",onclick=>"get('nmisModels');", -value=>"Edit"),
-			submit(-name=>"button",onclick=>"get('nmisModels','cancel');", -value=>"Cancel")
-	));
+	# for some unknown reason the cancel doesn't work if both get() sets a cancel parameter in the url
+	# and if there is a cancel input field at the same time; fix for now: enforce the input field,
+	# and not let get() make a mess.
+	print Tr(td({colspan=>"$index"}), 
+					 td(
+							 submit(-name=>"button", 
+											onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
+											-value=>"Edit"),
+							 submit(-name=>"button",
+											onclick => '$("#cancel").val("true");' 
+											.($wantwidget? 'get("nmisModels")' : 'submit()' ),
+											-value=>'Cancel')));
 
 	my $info = getHelp($field);
 	print Tr(td({class=>'info',colspan=>'8'},$info)) if $info ne "";
@@ -705,14 +716,13 @@ sub editModel{
 
 End_editModel:
 	print end_table();
-	print end_html;
-
+	pageEnd() if (!$wantwidget);
 }
 
 sub doEditModel {
 	my %args = @_;
 
-	return if $Q->{cancel} eq 'true';
+	return if ($Q->{cancel} eq 'true');
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 
@@ -765,7 +775,8 @@ sub deleteModel{
 	my $section = $Q->{section};
 
 	#start of page
-	print header({-type=>"text/html",-expires=>'now'});
+	print header($headeropts);
+	pageStart(title => "NMIS Delete Model", refresh => 86400) if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Models_rw");
 
@@ -781,9 +792,13 @@ sub deleteModel{
 		}
 	}
 
-	# start of form
-	print start_form(-id=>"nmisModels",-action=>'javascript:return false;',
-				-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_model_dodelete");
+	# start of form, explanation of href-vs-hiddens see previous start_form
+	print start_form(-id=>"nmisModels",
+									 -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_model_dodelete")
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
+			. hidden(-id => "cancel", -override => 1, -name => "cancel", -value => '');
 
 	print start_table() ; # first table level
 
@@ -835,9 +850,15 @@ sub deleteModel{
 		$index++;
 		print @{nextDelSect(sys=>$S,sect=>$ref->{$hs},index=>$index,output=>\@output)};
 	}
-	print Tr(td({colspan=>($index-1)}), td({colspan=>(9-$index),align=>'center',nowrap=>undef},
-					submit(-name=>'button',onclick=>"get('nmisModels');", -value=>'DELETE'),b('Are your sure ?'),
-						submit(-name=>'button',onclick=>"get('nmisModels','cancel');", -value=>'Cancel')));
+	print Tr(td({colspan=>($index-1)}), 
+					 td({colspan=>(9-$index),align=>'center',nowrap=>undef},
+							submit(-name=>'button',
+										 onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
+										 -value=>'DELETE'),b('Are you sure ?'),
+							submit(-name=>'button',
+										 onclick => '$("#cancel").val("true");'
+										 .($wantwidget? 'get("nmisModels")' : 'submit()' ),
+										 -value=>'Cancel')));
 
 	# background values
 	print hidden(-name=>'node', -default=>$node,-override=>'1');
@@ -851,8 +872,7 @@ sub deleteModel{
 
 End_deleteModel:
 	print end_table();
-	print end_html;
-
+	pageEnd() if (!$wantwidget)
 }
 
 sub nextDelSect {
@@ -905,7 +925,7 @@ sub nextDelSect {
 sub doDeleteModel {
 	my %args = @_;
 
-	return if $Q->{cancel} eq 'true';
+	return if ($Q->{cancel} eq 'true');
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 
@@ -965,7 +985,8 @@ sub addModel{
 
 
 	#start of page
-	print header({-type=>"text/html",-expires=>'now'});
+	print header($headeropts);
+	pageStart(title => "NMIS Add Model", refresh => 86400) if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Models_rw");
 
@@ -981,9 +1002,13 @@ sub addModel{
 		}
 	}
 
-	# start of form
-	print start_form(-id=>"nmisModels",-action=>'javascript:return false;',
-					-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_model_doadd");
+	# start of form, explanation of href-vs-hiddens see previous start_form
+	print start_form(-id=>"nmisModels", 
+					-href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_model_doadd")
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
+			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel");
 
 	print start_table() ; # first table level
 
@@ -1046,8 +1071,14 @@ sub addModel{
 		push @help,$f;
 	}
 
-	print Tr(td({colspan=>"$index"}), td(submit(-name=>"button",onclick=>"get('nmisModels');",-value=>"Add"),
-					submit(-name=>"button",onclick=>"get('nmisModels','cancel');",-value=>"Cancel")));
+	print Tr(td({colspan=>"$index"}), 
+					 td(submit(-name=>"button",
+										 onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
+										 -value=>"Add"),
+							submit(-name=>"button",
+										 onclick => '$("#cancel").val("true");' 
+										 .($wantwidget? 'get("nmisModels")' : 'submit()' ),
+										 -value=>"Cancel")));
 
 	foreach (@help) {
 		my $info = getHelp($_);
@@ -1066,15 +1097,14 @@ sub addModel{
 
 End_addModel:
 	print end_table();
-	print end_html;
-
+	pageEnd() if (!$wantwidget)
 }
 
 
 sub doAddModel {
 	my %args = @_;
 
-	return if $Q->{cancel} eq 'true';
+	return if ($Q->{cancel} eq 'true');
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 
