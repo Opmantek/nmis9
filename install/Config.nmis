@@ -39,6 +39,7 @@
     'threshold_rising_reset_dampening' => '0.9',
     'threshold_falling_reset_dampening' => '1.1',
     'global_collect_Description' => '(CNOC|Collection)',
+		'global_collect_ifDescr' => '',
     'global_nocollect_ifOperStatus' => '',
     'global_nocollect_ifDescr' => '',
     'global_nocollect_Description' => '',

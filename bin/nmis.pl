@@ -1225,7 +1225,11 @@ sub getIntfInfo {
 		
 		### 2012-03-14 keiths, collecting override based on interface description.
 		my $qr_collect_ifAlias_gen = 0;
-		$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/ if $S->{mdl}{interface}{collect}{Description};
+		$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/
+				if $S->{mdl}{interface}{collect}{Description};
+		my $qr_collect_ifDescr_gen = 0; # undef would be a match-always regex!
+		$qr_collect_ifDescr_gen = qr/($S->{mdl}->{interface}->{collect}->{ifDescr})/i
+				if ($S->{mdl}->{interface}->{collect}->{ifDescr});
 		
 		my $qr_no_event_ifAlias_gen = qr/($S->{mdl}{interface}{noevent}{Description})/i;
 		my $qr_no_event_ifDescr_gen = qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
@@ -1243,8 +1247,15 @@ sub getIntfInfo {
     	$qr_collect_ifAlias_gen = qr/($C->{global_collect_Description})/i;
     	dbg("INFO Model overriden by Global Config for global_collect_Description");
     }
-    	
-    if ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" ) {
+   
+		# is collection overridden globally, on or off? (on wins if both are set)
+		if ( $C->{global_collect_ifDescr} ne '' )
+		{
+				$qr_collect_ifDescr_gen = qr/($C->{global_collect_ifDescr})/i;
+				dbg("INFO Model overriden by Global Config for global_collect_ifDescr");
+		}
+		elsif ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" )
+		{
     	$qr_no_collect_ifDescr_gen = qr/($C->{global_nocollect_ifDescr})/i;
     	dbg("INFO Model overriden by Global Config for global_nocollect_ifDescr");
     }
@@ -1348,9 +1359,16 @@ sub getIntfInfo {
 			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
 			# If the interface is admin down no statistics
 			### 2012-03-14 keiths, collecting override based on interface description.
-			if ($qr_collect_ifAlias_gen and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) {
+			if ($qr_collect_ifAlias_gen
+					and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) 
+			{
 				$IF->{$index}{collect} = "true";
 				$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
+			}
+			elsif ($IF->{$index}{ifDescr} =~ /$qr_collect_ifDescr_gen/i)
+			{
+					$IF->{$index}{collect} = "true";
+					$IF->{$index}{nocollect} = "Collecting: found $1 in ifDescr";
 			}
 			elsif ($IF->{$index}{ifAdminStatus} =~ /down|testing|null/ ) {
 				$IF->{$index}{collect} = "false";
@@ -1360,23 +1378,23 @@ sub getIntfInfo {
 			} 
 			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifDescr"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifDescr"; # reason
 			} 
 			elsif ($IF->{$index}{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifType"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifType"; # reason
 			} 
 			elsif ($IF->{$index}{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in Description"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in Description"; # reason
 			} 
 			elsif ($IF->{$index}{Description} eq "" and $noDescription eq 'true') {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "no Description (ifAlias)"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: no Description (ifAlias)"; # reason
 			} 
 			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifOperStatus"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
 			}
 	
 			# send events ?
