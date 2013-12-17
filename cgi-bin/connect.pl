@@ -243,7 +243,7 @@ sub doSend{
 
 	} elsif ($func eq "summary8" or $func eq "summary16") {
 		# get the file
-		my $datafile = "$C->{'<nmis_var>'}/nmis-${func}h.nmis";
+		my $datafile = getFileName(file => "$C->{'<nmis_var>'}/nmis-${func}h");
 		if ( -r $datafile ) {
 			my $summaryHash;
 			if ( $group eq "" ) {
@@ -442,7 +442,7 @@ sub doSend{
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'readvartohash') {
-		my $datafile = "$C->{'<nmis_var>'}/$Q->{name}.nmis";
+		my $datafile = getFileName(file => "$C->{'<nmis_var>'}/$Q->{name}");
 		if ( -r $datafile ) {
 			my $hash = readFiletoHash(file=>$datafile);
 			printTextHead if ($format eq "text");
@@ -465,14 +465,15 @@ sub doSend{
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'readconftohash') {
-		if ( -r "$C->{'<nmis_conf>'}/$Q->{name}.nmis") {
+		if ( -r getFileName(file => "$C->{'<nmis_conf>'}/$Q->{name}")) {
 			my $hash = loadTable(dir=>'conf',name=>$Q->{name});
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 			print Data::Dumper->Dump([$hash], [qw(*hash)]);
 			printTail if ($format eq "html");
 		} else {
-			typeError("file $C->{'<nmis_conf>'}/$Q->{name}.nmis not found");
+			my $ext = getExtension(dir=>'conf');
+			typeError("file $C->{'<nmis_conf>'}/$Q->{name}.$ext not found");
 		}
 
 	} elsif ($func eq 'readflatfile') {
@@ -482,8 +483,7 @@ sub doSend{
 		if ( $Q->{file} =~ /Nodes/ ) {
 			$dir = $C->{'<nmis_conf>'};
 		}
-		my $flatfile = "$dir/$Q->{file}";
-		$flatfile .= ".nmis" if $flatfile !~ /\.nmis$/;
+		my $flatfile = getFileName(file => "$dir/$Q->{file}");
 		if ( -r $flatfile ) {
 			if (open($handle, "<$flatfile")) {
 				flock($handle,LOCK_SH);
@@ -561,7 +561,7 @@ sub doSend{
 		$tm->{timestamps}{now} = time();
 
 		# get start and end time of nmis runtime
-		my $systemfile = "$C->{'<nmis_var>'}/nmis-system.nmis";
+		my $systemfile = getFileName(file => "$C->{'<nmis_var>'}/nmis-system");
 		if (($NI = readFiletoHash(file=>$systemfile))) {
 			$tm->{timestamps}{start} = $NI->{timestamps}{start};
 			$tm->{timestamps}{end} = $NI->{timestamps}{end};

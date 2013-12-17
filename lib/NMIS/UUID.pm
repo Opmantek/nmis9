@@ -75,7 +75,7 @@ sub auditNodeUUID {
 			}
 		}
 	}
-	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID.nmis", data => $UUID_INDEX);
+	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID", data => $UUID_INDEX);
 	return $success;
 }
 
@@ -114,9 +114,10 @@ sub createNodeUUID {
 			$UUID_INDEX->{$LNT->{$node}{uuid}} = $node;
 		}
 	}
-	backupFile(file => "$C->{'<nmis_conf>'}/Nodes.nmis", backup => "$C->{'<nmis_conf>'}/Nodes.nmis.bak");
-	writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes.nmis", data => $LNT);
-	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID.nmis", data => $UUID_INDEX);
+	my $ext = getExtension(dir=>'conf');
+	backupFile(file => "$C->{'<nmis_conf>'}/Nodes.$ext", backup => "$C->{'<nmis_conf>'}/Nodes.$ext.bak");
+	writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes", data => $LNT);
+	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID", data => $UUID_INDEX);
 	return $success;
 }
 

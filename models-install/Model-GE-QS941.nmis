@@ -219,6 +219,7 @@
         'type' => 'test',
         'test' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 == 1',
         'value' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 = "active" || "inactive"',
+        'control' => 'CVAR=cps6000AlarmEntryDes;$CVAR =~ /Major Communication Fail Alarm|Number Not Configured|No Dial-Out Response|External Password Reset|Auxiliary \d|Program Line Invalid|Energy Management Disabled|Incompatible Rectifier|Load Share Fail|Incompatible Converter|Fan Fail|Input Power|CB Trip|Circuit Fail|Converter \w+|Multiple Circuits Fail|Loss of Redundancy|Load \w+|Line Test Failed/',
         'unit' => '',
         'element' => 'cps6000AlarmEntryDes',
         'event' => 'GE Alarm Active',

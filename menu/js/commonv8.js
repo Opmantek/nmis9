@@ -36,12 +36,62 @@ var menu_url_base = '/menu8';
 var widget_refresh_glob = 180;
 var opCharts = false;
 
+// recreate vars that are expected
+
+var namesAll = new Array();
+var deviceContext = new Object();
+deviceContext['Type'] = new Object();
+deviceContext['Vendor'] = new Object();
+deviceContext['Model'] = new Object();
+deviceContext['Role'] = new Object();
+deviceContext['Net'] = new Object();
+deviceContext['Group'] = new Object();
+
 // ===============================================
 // jQuery document ready in nmiscgi.pl will call this first
 // put all init calls here.
 
 function commonv8Init(widget_refresh,config,registered,modules) {
 	widget_refresh_glob = widget_refresh;
+
+	// build namesAll
+	
+	var nodeInfoLength = nodeInfo.length;
+	for(var nodeIndex = 0; nodeIndex < nodeInfoLength; nodeIndex++) {
+		var node = nodeInfo[nodeIndex];
+		var nodeName = node['name'];
+		namesAll.push(nodeName);
+
+		if( deviceContext.Type[node.Type] === undefined ) {
+			deviceContext.Type[node.Type] = new Array();
+		}
+		deviceContext.Type[node.Type].push(nodeIndex);
+
+		if( deviceContext.Vendor[node.Vendor] === undefined ) {
+			deviceContext.Vendor[node.Vendor] = new Array();
+		}
+		deviceContext.Vendor[node.Vendor].push(nodeIndex);
+
+		if( deviceContext.Model[node.Model] === undefined ) {
+			deviceContext.Model[node.Model] = new Array();
+		}
+		deviceContext.Model[node.Model].push(nodeIndex);
+
+		if( deviceContext.Role[node.Role] === undefined ) {
+			deviceContext.Role[node.Role] = new Array();
+		}
+		deviceContext.Role[node.Role].push(nodeIndex);
+
+		if( deviceContext.Net[node.Net] === undefined ) {
+			deviceContext.Net[node.Net] = new Array();
+		}
+		deviceContext.Net[node.Net].push(nodeIndex);
+
+		if( deviceContext.Group[node.Group] === undefined ) {
+			deviceContext.Group[node.Group] = new Array();
+		}
+		deviceContext.Group[node.Group].push(nodeIndex);
+	} 
 
  	// global error handler
  	
@@ -862,12 +912,12 @@ onclick="nodeInfoPanel( this.form.names.options[this.form.names.selectedIndex].v
 function selectNode_init_all() {
 	$("div#nsContextMenu").empty();
 	nsHtml = '<ul class="jd_menu jd_menu_vertical">';
-	preFilter(Group, 'Group');
-	preFilter(Model, 'Model');
-	preFilter(Type, 'Type');
-	preFilter(Role, 'Role');
-	preFilter(Net, 'Net');
-	preFilter(Vendor, 'Vendor');
+	preFilter(deviceContext.Group, 'Group');
+	preFilter(deviceContext.Model, 'Model');
+	preFilter(deviceContext.Type, 'Type');
+	preFilter(deviceContext.Role, 'Role');
+	preFilter(deviceContext.Net, 'Net');
+	preFilter(deviceContext.Vendor, 'Vendor');
 
 	nsHtml += '</ul>';
 	$("div#nsContextMenu").append(nsHtml);
@@ -880,9 +930,9 @@ function preFilter(filter, filtername) {
 	nsHtml += '<li>' + filtername + '<ul>';
 	// subitems
 	// store the list name as an object indexed by the str name, so can be looked up by clickevent
-	nsRef[filtername] = filter;
+	// nsRef[filtername] = filter;
 	for (var n in filter) { // Each top-level entry
-		var al = "<a name=" + filtername + " id=" + filtername + " onClick='nsClick(this);return false;'>" + n + "</a>";
+		var al = "<a name=" + filtername + " id=" + filtername + " onClick='nsClick(this);return false;'>" + n + "</a> (" + filter[n].length + ")";
 		nsHtml += '<li>' + al + '</li>';
 	}
 	nsHtml += '</ul></li>';
@@ -892,7 +942,19 @@ function preFilter(filter, filtername) {
 // so just pass the array index, which will be a pointer to a list of nodes that matched this criteria
 function nsClick(p) {
 	//alert( p.name+','+p.innerHTML);
-	selectNode_init( nsRef[p.name][p.innerHTML] );
+	
+	var contextName = p.name;
+	var filterName = p.innerHTML;
+
+	// build up the array, no caching, so large # of nodes doesn't slow system down
+	var searchArray = new Array();
+	var loopLength = deviceContext[contextName][filterName].length;
+	for( var i = 0; i < loopLength; i++ ) {
+		var nodeInfoIndex = deviceContext[contextName][filterName][i];
+		searchArray.push( namesAll[nodeInfoIndex] );
+	}
+
+	selectNode_init( searchArray );
 };
 
 

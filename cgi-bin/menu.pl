@@ -178,8 +178,12 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_graph' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_metrics_graph">Network Metric Graphs</a>|;
 		push @netstatus, qq|<a id='ntw_health' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
 		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
-		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|;
-		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=25&amp;logname=Event_Log">Network Events</a>|;
+		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
+				if ($AU->CheckAccess("tls_event_db","check"));
+
+		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=25&amp;logname=Event_Log">Network Events</a>|
+						if ($AU->CheckAccess("Event_Log","check"));
+
 		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if tableExists('Customers');
 		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if tableExists('BusinessServices');
 		push @netstatus, qq|<a id='ntw_map' href="$modules->{opMaps}{link}?widget=true">Network Maps</a>| if $M->moduleInstalled(module => "opMaps");
@@ -188,11 +192,14 @@ sub menu_bar_site {
 
 
 		my @netperf;		 
-		push @netperf, qq|<a target='ntw_ipsla' href="$C->{ipsla}?conf=$Q->{conf}">IPSLA Monitor</a>|;
+		push @netperf, qq|<a target='ntw_ipsla' href="$C->{ipsla}?conf=$Q->{conf}">IPSLA Monitor</a>|
+				if ($AU->CheckAccess("ipsla_menu","check"));
 		push @netperf, qq|<a id='ntw_overview' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_allgroups">All Groups</a>|;
 		push @netperf, qq|<a id='ntw_overview' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_interface_overview">OverView</a>|;
 		push @netperf, qq|<a id='ntw_top10' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_top10_view">Top 10</a>|;
-		push @netperf, qq|<a id='ntw_links' href="links.pl?conf=$Q->{conf}&amp;act=network_links_view">Link List</a>|;
+
+		push @netperf, qq|<a id='ntw_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Link List</a>|
+								if ($AU->CheckAccess("Table_Links_view","check"));
 		
 		### 2012-11-26 keiths, Optional opFlow Widgets if opFlow Installed.
 		if ($M->moduleInstalled(module => "opFlow") ) {
@@ -214,15 +221,16 @@ sub menu_bar_site {
 		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if $C->{view_mtr} eq 'true';
 		push @nettools, qq|<a id='tls_snmp' href="snmp.pl?conf=$Q->{conf}&amp;act=snmp_var_menu">SNMP Tool</a>|;
 													
-		push @nettools,	( qq|IP Tools|,
-											[
-												qq|<a id='tls_ip' href="ip.pl?conf=$Q->{conf}&amp;act=tool_ip_menu">IP Calc</a>|,
-												qq|<a id='tls_dns_host' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=host">IP host</a>|,
-												qq|<a id='tls_dns_dns' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=dns">IP dns</a>|,
-												qq|<a id='tls_dns_arpa' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=arpa">IP arpa</a>|,
-												qq|<a id='tls_dns_loc' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=loc">IP loc</a>|
-											]
-										);
+
+		my @netitems;
+		push @netitems, qq|<a id='tls_ip' href="ip.pl?conf=$Q->{conf}&amp;act=tool_ip_menu">IP Calc</a>|,
+		qq|<a id='tls_dns_host' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=host">IP host</a>|,
+		qq|<a id='tls_dns_dns' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=dns">IP dns</a>|,
+		qq|<a id='tls_dns_arpa' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=arpa">IP arpa</a>|,
+		qq|<a id='tls_dns_loc' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_dns&amp;dns=loc">IP loc</a>| 
+				if ($AU->CheckAccess("tls_dns","check"));
+
+		push @nettools,	qq|IP Tools|, \@netitems if (@netitems);
 
 		push @menu_site,(qq|Network Tools|,[ @nettools ]);		
 
@@ -233,26 +241,34 @@ sub menu_bar_site {
 		my @reports;
 		#push @reports, qq|<a id='opReports' href="$modules->{opReports}{link}?widget=true">opReports</a>| if $M->moduleInstalled(module => "opReports");
 
-		push @reports,	( qq|Current|,
-											[ qq|<a id='dyn_available' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_avail">Availability</a>|,
-												qq|<a id='dyn_health' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_health">Health</a>|,
-												qq|<a id='dyn_response' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_response">Response Time</a>|,
-												qq|<a id='dyn_top10' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_top10">Top 10</a>|,
-												qq|<a id='dyn_outage' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_outage">Outage</a>|,
-												qq|<a id='dyn_port' href="reports.pl?conf=$Q->{conf}&amp;act=report_dynamic_port">Port Counts</a>|
-											]
-										);
-		push @reports,	( qq|History|,
-											[ qq|<a id='strd_available' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_avail">Availability</a>|,
-												qq|<a id='strd_health' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_health">Health</a>|,
-												qq|<a id='strd_response' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_response">Response Time</a>|,
-												qq|<a id='strd_top10' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_top10">Top 10</a>|,
-												qq|<a id='strd_outage' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_outage">Outage</a>|,
-												qq|<a id='strd_port' href="reports.pl?conf=$Q->{conf}&amp;act=report_stored_port">Port Counts</a>|
-											]
-										);
-												
-		push @menu_site,(qq|Reports|,[ @reports ]);		
+		my @flavours=(qw(Current dynamic dyn History stored strd));
+		while (@flavours)
+		{
+				my $long = shift @flavours;
+				my $short = shift @flavours;
+				my $accesskey = shift @flavours;
+				
+				my @details=("avail","Availability","available",
+										 "health","Health","health",
+										 "response","Response Time","response",
+										 "top10","Top 10","top10",
+										 "outage","Outage","outage",
+										 "port","Port Counts","port");
+				my @localrep;
+				while (@details)
+				{
+						my $repkey = shift @details;
+						my $replabel = shift @details;
+						my $accesssub = shift @details;
+						
+						push @localrep, qq|<a id='${short}_$repkey' href="reports.pl?conf=$Q->{conf}&amp;act=report_${short}_${repkey}">$replabel</a>|
+								if ($AU->CheckAccess("${accesskey}_${accesssub}","check"));
+				}
+				
+				push @reports, $long, \@localrep if (@localrep);
+		}
+				
+		push @menu_site,(qq|Reports|,[ @reports ]) if (@reports);
 										
 		# Potential Future Capabilities
 		#push @menu_site,	( qq|Traffic Monitor|,
@@ -261,113 +277,77 @@ sub menu_bar_site {
 		#										]
 		#									);
 		
-		push @menu_site,	( qq|Service Desk|,
-												[
-													( qq|Alerts|,
-														[
-															qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Events</a>|,
-															qq|<a id='src_outages' href="outages.pl?conf=$Q->{conf}&amp;act=outage_table_view">Outages</a>|,
-															qq|<a id='src_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Links</a>|
-														]
-													),
-													(	qq|Find|,
-														[	qq|<a id='find_node' href="find.pl?conf=$Q->{conf}&amp;act=find_node_menu">Node</a>|,
-															qq|<a id='find_interface' href="find.pl?conf=$Q->{conf}&amp;act=find_interface_menu">Interface</a>|
-														]
-													),
-													(	qq|Logs|,
-														[	qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=NMIS_Log">NMIS Log</a>|,
-															qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=Event_Log">Event Log</a>|,
-															qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_list_view">Log List</a>|
-														]
-													)
-												]
-											);
+		my @stuff; 
+		push @stuff, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Events</a>| 
+				if ($AU->CheckAccess("tls_event_db","check"));
+		push @stuff, qq|<a id='src_outages' href="outages.pl?conf=$Q->{conf}&amp;act=outage_table_view">Outages</a>|;
+		push @stuff, qq|<a id='src_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Links</a>|
+								if ($AU->CheckAccess("Table_Links_view","check"));
+
+		my @logstuff;
+		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=NMIS_Log">NMIS Log</a>|
+				if ($AU->CheckAccess("NMIS_Log","check"));
+		push @logstuff, qq|<a id='eventlogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=Event_Log">Event Log</a>|
+				if ($AU->CheckAccess("Event_Log","check"));
+		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_list_view">Log List</a>|
+				if ($AU->CheckAccess("log_list","check"));
+
+		my @sdeskstuff;
+		push @sdeskstuff, qq|Alerts|, \@stuff if (@stuff);
+		push @sdeskstuff, qq|Find|, 
+		[	
+				qq|<a id='find_node' href="find.pl?conf=$Q->{conf}&amp;act=find_node_menu">Node</a>|,
+				qq|<a id='find_interface' href="find.pl?conf=$Q->{conf}&amp;act=find_interface_menu">Interface</a>|
+		];
+		push @sdeskstuff, qq|Logs|, \@logstuff if (@logstuff);
+								
+		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 
 		my @tableMenu;		 
 
 		my $Tables = loadGenericTable('Tables');
 			
-		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|;
-		push @tableMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|;
-		push @tableMenu, qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|;
-		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|;
-		push @tableMenu, qq|------|;
+		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));
 
-		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} }keys %{$Tables}) { 
-			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if $table ne "Nodes";
+		push @tableMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @tableMenu, qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|
+				if ($AU->CheckAccess("table_models_view","check"));
+
+		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|
+				if ($AU->CheckAccess("table_nodeconf_view","check"));
+
+		push @tableMenu, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
+
+		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} } keys %{$Tables}) { 
+			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if ($table ne "Nodes" and $AU->CheckAccess("Table_${table}_view","check"));
 		}
-																						
-		push @menu_site,(	qq|System|,
-											[
-												( qq|System Configuration|,
-													[	@tableMenu ]
-												),
-												( qq|Configuration Check|,
-													[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
-														qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>|
-													]
-												),
-												( qq|Host Diagnostics|,
-													[
-														qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
-														qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|,
-														qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|,
-														qq|<a id='tls_date' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_date">date</a>|,
-														qq|<a id='tls_df' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_df">df</a>|,
-														qq|<a id='tls_ps' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ps">ps</a>|,
-														qq|<a id='tls_iostat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_iostat">iostat</a>|,
-														qq|<a id='tls_vmstat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_vmstat">vmstat</a>|,
-														qq|<a id='tls_who' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_who">who</a>|
-													]
-												)
-											]
-										);
 
-		#push @menu_site,(	qq|OLD System|,
-		#									[
-		#										( qq|System Configuration|,
-		#											[	
-		#												qq|<a id='cfg_access' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Access">Access</a>|,
-		#												qq|<a id='cfg_businessservices' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=BusinessServices">Business Services</a>|,
-		#												qq|<a id='cfg_cmdbmodels' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=cmdbModels">CMDB Models</a>|,
-		#												qq|<a id='cfg_contacts' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contacts</a>|,
-		#												qq|<a id='cfg_escalations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Escalations</a>|,
-		#												qq|<a id='cfg_iftypes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ifTypes">ifTypes</a>|,
-		#												qq|<a id='cfg_locations' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Locations">Locations</a>|,
-		#												qq|<a id='cfg_logs' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Logs">Logs</a>|,
-		#												qq|<a id='cfg_models' href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu">NMIS Models</a>|,
-		#												qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">NMIS Configuration</a>|,
-		#												qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|,
-		#												qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">Nodes (devices)</a>|,
-		#												qq|<a id='cfg_portal' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Portal">Portal</a>|,
-		#												qq|<a id='cfg_privmap' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=PrivMap">PrivMap</a>|,
-		#												qq|<a id='cfg_services' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Services">Services</a>|,
-		#												qq|<a id='cfg_servicestatus' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=ServiceStatus">Service Status</a>|,
-		#												qq|<a id='cfg_users' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Users">Users</a>|,
-		#											]
-		#										),
-		#										( qq|Configuration Check|,
-		#											[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
-		#												qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>|
-		#											]
-		#										),
-		#										( qq|Host Diagnostics|,
-		#											[
-		#												qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
-		#												qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|,
-		#												qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|,
-		#												qq|<a id='tls_date' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_date">date</a>|,
-		#												qq|<a id='tls_df' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_df">df</a>|,
-		#												qq|<a id='tls_ps' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ps">ps</a>|,
-		#												qq|<a id='tls_iostat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_iostat">iostat</a>|,
-		#												qq|<a id='tls_vmstat' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_vmstat">vmstat</a>|,
-		#												qq|<a id='tls_who' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_who">who</a>|
-		#											]
-		#										)
-		#									]
-		#								);
-										
+		my @systemitems;
+		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
+		push @systemitems, qq|Configuration Check|,
+		[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
+			qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>| ]
+					if ($AU->CheckAccess("tls_event_flow","check"));
+
+		my @hostdiags;
+		push @hostdiags, qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
+		qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|
+				if ($AU->CheckAccess("tls_nmis_runtime","check"));
+
+		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
+
+		for my $cmd (qw(date df ps iostat vmstat who))
+		{
+				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_$cmd">$cmd</a>|
+						if ($AU->CheckAccess("tls_$cmd","check"));
+		}		
+		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
+		push @menu_site, qq|System|, \@systemitems if (@systemitems);
+
+		# fixme az [2013-12-16 Mon 16:48] this seems to be dead code?
 		push @menu_site,( qq|Quick Select|,
 												[	qq|<a id='selectServer_open' onclick="selectServerDisplay();return false;">NMIS Server</a>|,
 													qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|
@@ -395,7 +375,7 @@ sub menu_bar_site {
 
 sub menu_bar_portal {
 	
-	# take this to config.nmis.!
+	# take this to config.xxxx.!
 	# portal menu of nodes or clients to link to.
 	
 	print header({-type=>"text/html",-expires=>'now'});
@@ -409,7 +389,7 @@ sub menu_bar_portal {
 				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS8 Home</a>|);
 				push @menu_portal,	( qq|Client Views|,
 												[
-												 qq|<a href="http://master.nmis.co.nz/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
+												 qq|<a href="http://master.domain.com/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,
 												  qq|<a href="#" >Customer A</a>|,
 												   qq|<a href="#" >Customer B</a>|
 												   

@@ -575,9 +575,9 @@ sub runRTTstart {
 			push @params,"rttMonEchoAdminSourceAddress.$entry",'octetstring',$soct if $probe->{saddr} ne "" and $probe->{tas} eq "";
 			push @params,"rttMonCtrlAdminFrequency.$entry",'integer',$probe->{frequence} ;
 			push @params,"rttMonCtrlAdminTimeout.$entry",'integer', $probe->{timeout}*1000 if $probe->{timeout} ne "" ;
-			push @params,"rttMonEchoAdminTOS.$entry",'integer',$probe->{tos} if $probe->{tos} ne "";
+			push @params,"rttMonEchoAdminTOS.$entry",'integer',$probe->{tos} if $probe->{tos} ne "" and $probe->{optype} !~ /dns/i;
 			push @params,"rttMonEchoAdminVrfName.$entry",'string',$probe->{vrf} if $probe->{vrf} ne "";
-			push @params,"rttMonCtrlAdminVerifyData.$entry",'integer',$probe->{verify} if $probe->{verify} ne "";
+			push @params,"rttMonCtrlAdminVerifyData.$entry",'integer',$probe->{verify} if $probe->{verify} ne "" and $probe->{optype} !~ /dns/i;
 			push @params,"rttMonStatisticsAdminNumHops.$entry",'integer',$probe->{hops} if $probe->{hops} ne "" ;
 			if ($probe->{optype} =~ /tcpConnect|udpEcho/) {
 				push @params,"rttMonEchoAdminTargetPort.$entry",'integer',$probe->{dport} ;
@@ -871,7 +871,7 @@ sub runRTTcollect {
 		if (!snmpmaptable($hoststr,
 			sub () {
 				my ($index, $time, $rtt, $sense, $addr) = @_;
-				my $stime = convertUpTime($time);
+				my $stime = convertUpTime($time) * 100;
 				my ($a0,$a1,$a2,$a3) = unpack ("CCCC", $addr);
 				my ($k0,$k1,$k2) = split /\./,$index,3;
 				my $target = "$a0.$a1.$a2.$a3";
@@ -996,8 +996,8 @@ sub runRTTcollect {
 			my $stime = time();
 			my $pkterr = $lossSD + $lossDS + $OoS + $MIA + $late ;
 			$timeout_cnt++ if $sense == 4; # timeout
-			my $tmpcodec = $probe->{codec} ne "" ? ":3L2_mos:2L2_icpif" : "";
-			my $valcodec = $probe->{codec} ne "" ? ":$mos:$icpif" : "";
+			my $tmpcodec = $probe->{codec} ne "" and $probe->{codec} ? ":3L2_mos:2L2_icpif" : "";
+			my $valcodec = $probe->{codec} ne "" and $probe->{codec} ? ":$mos:$icpif" : "";
 			$negSD *= -1;
 			$negDS *= -1;
 			my $tmp = "sense:4L2_positivesSD:4L2_negativesSD:4L2_positivesDS:4L2_negativesDS".$tmpcodec.":0P2_packetLossSD:0P2_packetLossDS:0P2_packetError";

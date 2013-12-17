@@ -357,9 +357,9 @@ sub	runThreads {
 	# if an update, 
 	if ( $type eq "update" ) {
 		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
-		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.nmis
+		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
 		if ( $C->{disable_interfaces_summary} ne "true" ) {
-			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.nmis
+			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
 			runLinks();
 		}		 
 	}
@@ -423,7 +423,7 @@ sub	runThreads {
 			$NI->{database}{nmis} = $db;
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
-		$S->writeNodeInfo; # var/nmis-system.nmis, the base info system
+		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
 		#
 	}
 
@@ -515,8 +515,8 @@ sub doUpdate {
 	}
 	#print Dumper($S)."\n";
 	runReach(sys=>$S);
-	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
-	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
+	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	
 	### 2013-03-19 keiths, NMIS Plugins!
 	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
@@ -610,7 +610,7 @@ sub doCollect {
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
 	$S->writeNodeView;
-	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	$S->close; 
 	dbg("Finished");
 	return;
@@ -619,7 +619,7 @@ sub doCollect {
 #=========================================================================================
 
 #
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.nmis
+# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
 # if node info missing then ping.pm is used
 #
 sub runPing {
@@ -1225,7 +1225,11 @@ sub getIntfInfo {
 		
 		### 2012-03-14 keiths, collecting override based on interface description.
 		my $qr_collect_ifAlias_gen = 0;
-		$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/ if $S->{mdl}{interface}{collect}{Description};
+		$qr_collect_ifAlias_gen = qr/($S->{mdl}{interface}{collect}{Description})/
+				if $S->{mdl}{interface}{collect}{Description};
+		my $qr_collect_ifDescr_gen = 0; # undef would be a match-always regex!
+		$qr_collect_ifDescr_gen = qr/($S->{mdl}->{interface}->{collect}->{ifDescr})/i
+				if ($S->{mdl}->{interface}->{collect}->{ifDescr});
 		
 		my $qr_no_event_ifAlias_gen = qr/($S->{mdl}{interface}{noevent}{Description})/i;
 		my $qr_no_event_ifDescr_gen = qr/($S->{mdl}{interface}{noevent}{ifDescr})/i;
@@ -1243,8 +1247,15 @@ sub getIntfInfo {
     	$qr_collect_ifAlias_gen = qr/($C->{global_collect_Description})/i;
     	dbg("INFO Model overriden by Global Config for global_collect_Description");
     }
-    	
-    if ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" ) {
+   
+		# is collection overridden globally, on or off? (on wins if both are set)
+		if ( defined $C->{global_collect_ifDescr} and $C->{global_collect_ifDescr} ne '' )
+		{
+				$qr_collect_ifDescr_gen = qr/($C->{global_collect_ifDescr})/i;
+				dbg("INFO Model overriden by Global Config for global_collect_ifDescr");
+		}
+		elsif ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" )
+		{
     	$qr_no_collect_ifDescr_gen = qr/($C->{global_nocollect_ifDescr})/i;
     	dbg("INFO Model overriden by Global Config for global_nocollect_ifDescr");
     }
@@ -1344,13 +1355,22 @@ sub getIntfInfo {
 			# preset collect,event on true
 			$IF->{$index}{collect} = "true";
 			$IF->{$index}{event} = "true";
+			$IF->{$index}{nocollect} = "Collecting: Collection Policy";
 			#
 			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
 			# If the interface is admin down no statistics
 			### 2012-03-14 keiths, collecting override based on interface description.
-			if ($qr_collect_ifAlias_gen and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) {
+			if ($qr_collect_ifAlias_gen
+					and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i ) 
+			{
 				$IF->{$index}{collect} = "true";
 				$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
+			}
+			elsif ($qr_collect_ifDescr_gen 
+					and $IF->{$index}{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
+			{
+					$IF->{$index}{collect} = "true";
+					$IF->{$index}{nocollect} = "Collecting: found $1 in ifDescr";
 			}
 			elsif ($IF->{$index}{ifAdminStatus} =~ /down|testing|null/ ) {
 				$IF->{$index}{collect} = "false";
@@ -1360,23 +1380,23 @@ sub getIntfInfo {
 			} 
 			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifDescr"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifDescr"; # reason
 			} 
 			elsif ($IF->{$index}{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifType"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifType"; # reason
 			} 
 			elsif ($IF->{$index}{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in Description"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in Description"; # reason
 			} 
 			elsif ($IF->{$index}{Description} eq "" and $noDescription eq 'true') {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "no Description (ifAlias)"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: no Description (ifAlias)"; # reason
 			} 
 			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
 				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "found $1 in ifOperStatus"; # reason
+				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
 			}
 	
 			# send events ?
@@ -1452,15 +1472,15 @@ sub getIntfInfo {
 	
 			$V->{interface}{"${index}_collect_value"} = $IF->{$index}{collect};
 			$V->{interface}{"${index}_collect_title"} = 'Collect on';
-	
+			
+			$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
+			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
+				
 			# collect status
-			delete $V->{interface}{"${index}_nocollect_title"};
 			if ($IF->{$index}{collect} eq "true") {
-				dbg("ifIndex $index, collect=true");
+				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
 			} else {
-				$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
-				$V->{interface}{"${index}_nocollect_title"} = 'Reason';
-				dbg("ifIndex $index, collect=false, $IF->{$index}{nocollect}");
+				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
 				# no collect => no event, no threshold
 				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
 				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
@@ -3049,7 +3069,7 @@ sub getCalls {
 					$InstalledVoice++;
 				} #end foreach
 			
-				# create $nodes-calls.nmis file which contains interface mapping and descirption data	
+				# create $nodes-calls.xxxx file which contains interface mapping and descirption data	
 				delete $S->{info}{calls};
 				if ( %callsTable) {
 					# callsTable has some values, so write it out
@@ -3374,6 +3394,7 @@ sub runServices {
 		# clear global hash each time around as this is used to pass results to rrd update
 		undef %snmpTable;
 		$ret = 0;
+		my $snmpdown = 0;
 
 		# DNS gets treated simply ! just lookup our own domain name.
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
@@ -3530,16 +3551,31 @@ sub runServices {
 				
 				### 2012-12-20 keiths, keep the services for display later.
 				$NI->{services} = \%services;
-			}	
+			}
+			else {
+				# is the service already down?
+				$snmpdown = 1;
+			}
 		}
 		# now the scripts !
-		elsif ( $ST->{$service}{Service_Type} eq "script" ) {
-
-			### lets do the user defined scripts
-			### ($ret,$msg) = sapi($ip,$port,$script,$ScriptTimeout);
-
-			($ret,$msg) = sapi($NI->{system}{host},$ST->{$service}{Port},"$C->{script_root}/$service",3);
-			dbg("Results of $service is $ret, msg is $msg");
+		elsif ( $ST->{$service}{Service_Type} eq "script" ) 
+		{
+				### lets do the user defined scripts
+				my $scripttext;
+				if (!open(F, "$C->{script_root}/$service"))
+				{
+						dbg("ERROR, can't open script file for $service: $!");
+				}
+				else
+				{
+						$scripttext=join("",<F>);
+						close(F);
+						($ret,$msg) = sapi($NI->{system}{host},
+															 $ST->{$service}{Port},
+															 $scripttext,
+															 3);
+						dbg("Results of $service is $ret, msg is $msg");
+				}
 		}
 		else {
 			# no service type found
@@ -3554,9 +3590,17 @@ sub runServices {
 		$V->{system}{"${service}_color"} =  $ret ? 'white' : 'red';
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
+		
+		my $serviceValue = $ret*100;
 
 		# lets raise or clear an event 
-		if ( $ret ) {
+		if ( $snmpdown ) {
+			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
+			$V->{system}{"${service}_value"} = 'unknown';
+			$V->{system}{"${service}_color"} = 'gray';
+			$serviceValue = '';
+		}
+		elsif ( $ret ) {
 			# Service is UP!
 			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available");
 			checkEvent(sys=>$S,event=>"Service Down",level=>"Normal",element=>$ST->{$service}{Name},details=>"" );
@@ -3567,7 +3611,7 @@ sub runServices {
 		}
 
 		# save result for availability history - one file per service per node
-		$Val{service}{value} = $ret*100;
+		$Val{service}{value} = $serviceValue;
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}
@@ -4300,16 +4344,16 @@ sub nmisMaster {
 			dbg("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 			
 			dbg("Get loadnodedetails from $srv");
-			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes.nmis");
+			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes"));
 
 			dbg("Get sumnodetable from $srv");
-			getFileFromRemote(server => $srv, func => "sumnodetable", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum.nmis");
+			getFileFromRemote(server => $srv, func => "sumnodetable", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-${srv}-nodesum"));
 						
 			my @hours = qw(8 16);
 			foreach my $hour (@hours) {
 				my $function = "summary". $hour ."h";
 				dbg("get summary$hour from $srv");
-				getFileFromRemote(server => $srv, func => "summary$hour", group => $ST->{$srv}{group}, format => "text", file => "$C->{'<nmis_var>'}/nmis-$srv-$function.nmis");
+				getFileFromRemote(server => $srv, func => "summary$hour", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-$srv-$function"));
 			}
 		}
 	}
@@ -4384,7 +4428,7 @@ sub nmisSummary {
 
 ### 11-Nov-11, keiths, update to this, changed the escalation so that through policy you can 
 ### wait for 5 mins or just notify now, so Ecalation0 is 0 seconds, Escalation1 is 300 seconds
-### then in Ecalations.nmis, core devices might notify at Escalation0 while others at Escalation1
+### then in Ecalations.xxxx, core devices might notify at Escalation0 while others at Escalation1
 sub runEscalate {
 	my %args = @_;
 
@@ -5477,6 +5521,8 @@ sub checkConfig {
 	my %args = @_;
 	my $change = $args{change};
 	my $audit = $args{audit};
+	
+	my $ext = getExtension(dir=>'conf');
 
 	local *checkFunc;
 	my $checkType;
@@ -5516,7 +5562,7 @@ default location.  Check the installation guide at Opmantek.com.
 
 What will probably fix it is if you copy the config file samples from 
 $nmis_base/install to $nmis_base/conf 
-and verify that $nmis_base/conf/Config.nmis reflects 
+and verify that $nmis_base/conf/Config.$ext reflects 
 the correct file paths.
 EO_TEXT
 				exit 0;
@@ -5608,7 +5654,7 @@ EO_TEXT
 		writeTable(dir=>'var',name=>'nmis-event',data=>$hsh);
 	}
 	else {
-		checkFile("$C->{'<nmis_var>'}/nmis-event.nmis");
+		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-event"));
 	}
 
 	if ( not existFile(dir=>'var',name=>'nmis-system')) {
@@ -5617,7 +5663,7 @@ EO_TEXT
 		writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
 	}
 	else {
-		checkFile("$C->{'<nmis_var>'}/nmis-system.nmis");
+		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-system"));
 	}
 	
 	if ( $change eq "true" ) {
@@ -5664,7 +5710,7 @@ EO_TEXT
 		checkDirectoryFiles($C->{'web_root'});
 	}
 
-	#== convert config .csv to .nmis (hash) file format ==
+	#== convert config .csv to .xxxx (hash) file format ==
 	convertConfFiles();
 	#==
 	
@@ -6059,9 +6105,15 @@ sub doThreshold {
 									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked										
 										foreach my $index (keys %{$NI->{database}{$type}}) { # there must be a rrd file
 											my $details = undef;
-											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" ) {
+											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
+											{
 												$details = $IF->{$index}{Description};
-											}											
+												if ($C->{global_events_bandwidth} eq 'true')
+												{
+														$details .= " Bandwidth=".$IF->{$index}->{ifSpeed};
+												}
+												
+											}
 											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
 										}
 									} else {

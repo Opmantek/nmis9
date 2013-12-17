@@ -321,6 +321,8 @@ print dumper_html($C);
 # slave servers
 
 if ($C->{master_dash} eq "true") {
+	
+	my $ext = getExtension(dir=>'var');
 
 	print "<h1>Master/Slave communications</h1>";
 	my $ST = loadTable(dir=>'conf',name=>'Servers');
@@ -336,14 +338,14 @@ if ($C->{master_dash} eq "true") {
 
 		my $slaveNodes = readFiletoHash(file=>"$C->{'<nmis_var>'}/$name-nodes");	
 
-		print "<br><h2>$name-nodes.nmis</h2><b>last modified  @{[ int ((-M \"$C->{Slaves_Table}\") *24*60) ]} minutes ago</b><br>";
+		print "<br><h2>$name-nodes.$ext</h2><b>last modified  @{[ int ((-M \"$C->{Slaves_Table}\") *24*60) ]} minutes ago</b><br>";
 		print dumper_html($slaveNodes);
 
 	
 		foreach my $summary ( qw( summary8h summary16h ) ) {
-			my $summaryHash = readFiletoHash(file=>"$C->{'<nmis_var>'}/$name-$summary.nmis");
+			my $summaryHash = readFiletoHash(file=>"$C->{'<nmis_var>'}/$name-$summary");
 
-			print "<h2>$name-$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$name-$summary.nmis\") *24*60) ]} minutes ago</b><br>";
+			print "<h2>$name-$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$name-$summary.$ext\") *24*60) ]} minutes ago</b><br>";
 			print dumper_html($summaryHash);
 		}
 	}

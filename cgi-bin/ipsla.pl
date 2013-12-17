@@ -940,7 +940,7 @@ sub displayRTTnode {
 					src=>"$C->{rrddraw}?conf=$Q->{conf}&act=draw_graph_view&node=$pnode&graphtype=$aref->[2]&start=0&end=0&width=350&height=50&title=small"})));
 	}
 
-	#src="/cgi-nmis8/rrddraw.pl?conf=Config.nmis&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
+	#src="/cgi-nmis8/rrddraw.pl?conf=Config.xxxx&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
 }
 
 sub displayRTTdata {
@@ -1076,14 +1076,23 @@ sub displayRTTgraph {
 			$color = shift @colors if $cnt++ < 10;
 			push @options,"DEF:avg$cnt=$database:${ds}:AVERAGE" if $az =~ /[LP]/ ;
 			push @options,"DEF:max$cnt=$database:${ds}:MAX" if $az =~ /M/ ;
+
+			my $field = "avg$cnt";
+			if ( $ds =~ "mos" ) {
+				$field = "mos";
+				push @options,"CDEF:$field=avg$cnt,100,/" ;
+			}
 			$ds =~ s/_/\./g ; # back to IP address format if needed
+			if ( $RTTcfg{$nno}{optype} eq "dns" ) {
+				$ds = $RTTcfg{$nno}{tas};
+			}
 			if ($az eq "L") {
-				push @options,"LINE1:avg$cnt#$color:${ds}";
-				push @options,"GPRINT:avg$cnt:AVERAGE:Avg %0.1lf msec." if $gp == 1;
-				push @options,"GPRINT:avg$cnt:AVERAGE:Avg %0.1lf" if $gp == 2;
+				push @options,"LINE1:$field#$color:${ds}";
+				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf msec." if $gp == 1;
+				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf" if $gp == 2;
 			} elsif ($az eq "P") {
-				push @p_options,"GPRINT:avg$cnt:AVERAGE:$ds Avg %0.1lf msec." if $gp == 1 ;
-				push @p_options,"GPRINT:avg$cnt:AVERAGE:$ds Avg %0.1lf" if $gp == 2;
+				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf msec." if $gp == 1 ;
+				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf" if $gp == 2;
 			} elsif ($az eq "M") {
 				push @p_options,"GPRINT:max$cnt:MAX:$ds %0.1lf msec." if $gp == 1 ;
 			}
@@ -1109,7 +1118,7 @@ sub writeHashtoVar {
 	my $data = shift; # address of hash
 	my $handle;
 
-	my $datafile = "$C->{'<nmis_var>'}/$file.nmis";
+	my $datafile = getFileName(file => "$C->{'<nmis_var>'}/$file");
 
 
 	open DB, ">$datafile" or warn returnTime." writeHashtoVar: cannot open $datafile: $!\n";
@@ -1128,7 +1137,7 @@ sub readVartoHash {
 	my $handle;
 	my $line;
 
-	my $datafile = "$C->{'<nmis_var>'}/$file.nmis";
+	my $datafile = getFileName(file => "$C->{'<nmis_var>'}/$file");
 
 	if ( -r $datafile ) {
 		sysopen($handle, $datafile, O_RDONLY )
