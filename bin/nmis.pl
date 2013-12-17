@@ -3558,13 +3558,24 @@ sub runServices {
 			}
 		}
 		# now the scripts !
-		elsif ( $ST->{$service}{Service_Type} eq "script" ) {
-
-			### lets do the user defined scripts
-			### ($ret,$msg) = sapi($ip,$port,$script,$ScriptTimeout);
-
-			($ret,$msg) = sapi($NI->{system}{host},$ST->{$service}{Port},"$C->{script_root}/$service",3);
-			dbg("Results of $service is $ret, msg is $msg");
+		elsif ( $ST->{$service}{Service_Type} eq "script" ) 
+		{
+				### lets do the user defined scripts
+				my $scripttext;
+				if (!open(F, "$C->{script_root}/$service"))
+				{
+						dbg("ERROR, can't open script file for $service: $!");
+				}
+				else
+				{
+						$scripttext=join("",<F>);
+						close(F);
+						($ret,$msg) = sapi($NI->{system}{host},
+															 $ST->{$service}{Port},
+															 $scripttext,
+															 3);
+						dbg("Results of $service is $ret, msg is $msg");
+				}
 		}
 		else {
 			# no service type found
