@@ -1249,7 +1249,7 @@ sub getIntfInfo {
     }
    
 		# is collection overridden globally, on or off? (on wins if both are set)
-		if ( $C->{global_collect_ifDescr} ne '' )
+		if ( defined $C->{global_collect_ifDescr} and $C->{global_collect_ifDescr} ne '' )
 		{
 				$qr_collect_ifDescr_gen = qr/($C->{global_collect_ifDescr})/i;
 				dbg("INFO Model overriden by Global Config for global_collect_ifDescr");
@@ -1355,6 +1355,7 @@ sub getIntfInfo {
 			# preset collect,event on true
 			$IF->{$index}{collect} = "true";
 			$IF->{$index}{event} = "true";
+			$IF->{$index}{nocollect} = "Collecting: Collection Policy";
 			#
 			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
 			# If the interface is admin down no statistics
@@ -1365,7 +1366,8 @@ sub getIntfInfo {
 				$IF->{$index}{collect} = "true";
 				$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
 			}
-			elsif ($IF->{$index}{ifDescr} =~ /$qr_collect_ifDescr_gen/i)
+			elsif ($qr_collect_ifDescr_gen 
+					and $IF->{$index}{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
 			{
 					$IF->{$index}{collect} = "true";
 					$IF->{$index}{nocollect} = "Collecting: found $1 in ifDescr";
@@ -1470,15 +1472,15 @@ sub getIntfInfo {
 	
 			$V->{interface}{"${index}_collect_value"} = $IF->{$index}{collect};
 			$V->{interface}{"${index}_collect_title"} = 'Collect on';
-	
+			
+			$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
+			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
+				
 			# collect status
-			delete $V->{interface}{"${index}_nocollect_title"};
 			if ($IF->{$index}{collect} eq "true") {
-				dbg("ifIndex $index, collect=true");
+				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
 			} else {
-				$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
-				$V->{interface}{"${index}_nocollect_title"} = 'Reason';
-				dbg("ifIndex $index, collect=false, $IF->{$index}{nocollect}");
+				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
 				# no collect => no event, no threshold
 				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
 				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
@@ -3392,6 +3394,7 @@ sub runServices {
 		# clear global hash each time around as this is used to pass results to rrd update
 		undef %snmpTable;
 		$ret = 0;
+		my $snmpdown = 0;
 
 		# DNS gets treated simply ! just lookup our own domain name.
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
@@ -3548,7 +3551,11 @@ sub runServices {
 				
 				### 2012-12-20 keiths, keep the services for display later.
 				$NI->{services} = \%services;
-			}	
+			}
+			else {
+				# is the service already down?
+				$snmpdown = 1;
+			}
 		}
 		# now the scripts !
 		elsif ( $ST->{$service}{Service_Type} eq "script" ) {
@@ -3572,9 +3579,17 @@ sub runServices {
 		$V->{system}{"${service}_color"} =  $ret ? 'white' : 'red';
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
+		
+		my $serviceValue = $ret*100;
 
 		# lets raise or clear an event 
-		if ( $ret ) {
+		if ( $snmpdown ) {
+			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
+			$V->{system}{"${service}_value"} = 'unknown';
+			$V->{system}{"${service}_color"} = 'gray';
+			$serviceValue = '';
+		}
+		elsif ( $ret ) {
 			# Service is UP!
 			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available");
 			checkEvent(sys=>$S,event=>"Service Down",level=>"Normal",element=>$ST->{$service}{Name},details=>"" );
@@ -3585,7 +3600,7 @@ sub runServices {
 		}
 
 		# save result for availability history - one file per service per node
-		$Val{service}{value} = $ret*100;
+		$Val{service}{value} = $serviceValue;
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}

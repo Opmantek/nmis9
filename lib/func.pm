@@ -793,7 +793,7 @@ sub setFileProt {
 			}
 		}
 		else {
-			dbg("INFO: $filename can not change unless root or you own it.");
+			dbg("INFO: $filename can not change unless root or you own it.",2);
 		}
 	}
 }

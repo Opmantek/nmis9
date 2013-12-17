@@ -1004,7 +1004,7 @@ sub writeNodeInfo {
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
 	### 2013-08-27 keiths, the system object should not exist for nmis-system
 	if ( $name eq "nmis-system" and defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
-		dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}");
+		dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}",2);
 		delete $self->{info}{system};
 	}
 

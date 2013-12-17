@@ -124,7 +124,7 @@ sub sendNotification {
 	$mylog->{message} = $message;
 	
 	open(LOG,">$file") or logMsg("ERROR, can not write to $file");
-	print LOG Dumper to_json($mylog, { pretty => 1 });
+	print LOG to_json($mylog, { pretty => 1 });
 	close LOG;
 	# good to set permissions on file.....
 }

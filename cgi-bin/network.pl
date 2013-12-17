@@ -1511,9 +1511,6 @@ sub viewActivePort {
 	my $dir;
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
-	my $S = Sys::->new; # get system object
-	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
 
@@ -1522,6 +1519,7 @@ sub viewActivePort {
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -1564,7 +1562,18 @@ sub viewActivePort {
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
 	
 	my $graphtype = ($Q->{graphtype} eq '') ? $C->{default_graphtype} : $Q->{graphtype};
-	my @graphtypes = ('','autil','util','abits','bits','pkts','pkts_hc','errpkts');
+	
+	### 2013-12-17 keiths, added dynamic building of the graph types
+	my @graphtypes = ('');
+	my @interfaceModels = ('interface','pkts_hc','pkts');
+	foreach my $im (@interfaceModels) {
+		if ( exists $M->{interface}{rrd}{$im} ) {
+			foreach my $gt (split(/,/,$M->{interface}{rrd}{$im}{graphtype})) {
+				push(@graphtypes,$gt);
+			}
+		}
+	}		
+
 	my $colspan=2;
 	
 	print start_Tr,start_td,start_table;
