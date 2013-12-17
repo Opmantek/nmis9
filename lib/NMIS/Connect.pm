@@ -93,7 +93,8 @@ sub curlDataFromRemote {
 		return $data;
 	}
 	else {
-		logMsg("ERROR issue with slave $server name or community, check Servers.nmis");
+		my $ext = getExtension(dir=>'conf');
+		logMsg("ERROR issue with slave $server name or community, check Servers.$ext");
 	}
 }
 

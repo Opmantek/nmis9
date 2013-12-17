@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.7G";
+$VERSION = "8.4.8A";
 
 @ISA = qw(Exporter);
 
@@ -705,11 +705,11 @@ sub loadServersTable {
 	return loadTable(dir=>'conf',name=>'Servers');
 }
 
-# !! this sub intended for write on var/nmis-event.nmis only with a previously open filehandle !!
+# !! this sub intended for write on var/nmis-event.xxxx only with a previously open filehandle !!
 # The lock on the open file must be maintained while the hash is being updated
 # to prevent another thread from opening and writing some other changes before we write our thread's hash copy back
 # we also need to make sure that we process the hash quickly, to avoid multithreading becoming singlethreading,
-# because of the lock being maintained on nmis-event.nmis
+# because of the lock being maintained on nmis-event.xxxx
 
 sub writeEventStateLock {
 	my %args = @_;
@@ -723,8 +723,8 @@ sub writeEventStateLock {
 	return;
 }
 
-# improved locking on var/nmis-event.nmis
-# this sub intended for read on nmis-event.nmis only
+# improved locking on var/nmis-event.xxxx
+# this sub intended for read on nmis-event.xxxx only
 
 sub loadEventStateNoLock {
 	my %args = @_;
@@ -749,7 +749,7 @@ sub loadEventStateNoLock {
 		}
 	} else {
 		# does the file exist
-		if ( not -r "$C->{'<nmis_var>'}/nmis-event.nmis") {
+		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/nmis-event") ) {
 			my %hash = ();
 			writeTable(dir=>'var',name=>"nmis-event",data=>\%hash); # create an empty file
 		}
@@ -758,7 +758,7 @@ sub loadEventStateNoLock {
 	}
 }
 
-# !!!this sub intended for read and LOCK on nmis-event.nmis only - MUST use writeEventStateLock to write the hash back from this call!!!
+# !!!this sub intended for read and LOCK on nmis-event.xxxx only - MUST use writeEventStateLock to write the hash back from this call!!!
 # need to maintain a lock on the file while the event hash is being processed by this thread
 # must pass our filehandle back to writeEventStateLock
 sub loadEventStateLock {
@@ -1524,7 +1524,7 @@ sub getGroupSummary {
 		my $mtime;
 		if ( (($SUM,$mtime) = loadTable(dir=>'var',name=>"nmis-$filename",mtime=>'true')) ) {
 			if ($mtime < (time()-900)) {
-				logMsg("INFO (nmis) cache file var/nmis-$filename.nmis does not exist or is old; calculate summary");
+				logMsg("INFO (nmis) cache file var/nmis-$filename does not exist or is old; calculate summary");
 			} else {
 				$cache = 1;
 			}
@@ -2219,6 +2219,7 @@ sub convertConfFiles {
 
 	my $C = loadConfTable();
 
+	my $ext = getExtension(dir=>'conf');
 	#==== check Nodes ====
 
 	if (!existFile(dir=>'conf',name=>'Nodes')) {
@@ -2291,7 +2292,7 @@ sub convertConfFiles {
 					$NT->{$node}{timezone} = 0 ;
 				}
 				writeTable(dir=>'conf',name=>'Nodes',data=>$NT);
-				print " csv file $C->{Nodes_Table} converted to conf/Nodes.nmis\n";
+				print " csv file $C->{Nodes_Table} converted to conf/Nodes.$ext\n";
 			} else {
 				dbg("ERROR, could not find or read $C->{Nodes_Table} or empty node file");
 			}
@@ -2313,7 +2314,7 @@ sub convertConfFiles {
 				}
 			}
 			writeTable(dir=>'conf',name=>'Escalations',data=>\%table_data);
-			print " csv file $C->{Escalation_Table} converted to conf/Escalation.nmis\n";
+			print " csv file $C->{Escalation_Table} converted to conf/Escalation.$ext\n";
 			rename "$C->{'Escalation_Table'}","$C->{'Escalation_Table'}.old";
 		} else {
 			dbg("ERROR, could not find or read $C->{'Escalation_Table'}");
@@ -2338,7 +2339,8 @@ sub convertConfFiles {
 			if ( -r "$C->{\"${name}_Table\"}") {
 				my %table_data = loadCSV($C->{"${name}_Table"},$C->{"${name}_Key"});
 				writeTable(dir=>'conf',name=>$name,data=>\%table_data);
-				print " csv file $C->{\"${name}_Table\"} converted to conf/${name}.nmis\n";
+				
+				print " csv file $C->{\"${name}_Table\"} converted to conf/${name}.$ext\n";
 				rename "$C->{\"${name}_Table\"}","$C->{\"${name}_Table\"}.old";
 			} else {
 				dbg("ERROR, could not find or read $C->{\"${name}_Table\"}");
@@ -2770,7 +2772,7 @@ sub loadPortalCode {
 	$conf = $C->{'conf'} if not $conf;
 	
 	my $portalCode;
-	if  ( -f "$C->{'<nmis_conf>'}/Portal.nmis" ) {
+	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Portal") ) {
 		# portal menu of nodes or clients to link to.
 		my $P = loadTable(dir=>'conf',name=>"Portal");
 		
@@ -2818,7 +2820,7 @@ sub loadServerCode {
 	$conf = $C->{'conf'} if not $conf;
 	
 	my $serverCode;
-	if  ( -f "$C->{'<nmis_conf>'}/Servers.nmis" ) {
+	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Servers") ) {
 		# portal menu of nodes or clients to link to.
 		my $ST = loadTable(dir=>'conf',name=>"Servers");
 		
@@ -2854,7 +2856,7 @@ sub loadTenantCode {
 	$conf = $C->{'conf'} if not $conf;
 	
 	my $tenantCode;
-	if  ( -f "$C->{'<nmis_conf>'}/Tenants.nmis" ) {
+	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Tenants") ) {
 		# portal menu of nodes or clients to link to.
 		my $MT = loadTable(dir=>'conf',name=>"Tenants");
 		

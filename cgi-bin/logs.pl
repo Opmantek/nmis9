@@ -31,7 +31,7 @@
 #*****************************************************************************
 #
 # 2012-07-19 nmisdev -restyled all code.
-# Logs.nmis configuration file has changed format , example file at end of ths routine.
+# Logs.xxxx configuration file has changed format , example file at end of ths routine.
 # Interface changes.
 # Logs are now displayed matching their RFC severity level.
 # use option 'ALL' to display all logs.
@@ -147,7 +147,7 @@ if (defined $C->{kernelname} and $C->{kernelname} ne "") {
 }
 #
 # setup global vars
-my $LL;		# global ref to conf/Logs.nmis configuration file
+my $LL;		# global ref to conf/Logs.xxxx configuration file
 
 ### nmisdev 14Jul2012
 # the node file is a hash, indexed by a name, which could be an arbitary name, an ip address, or a hostname, or a fqdn hostname.
@@ -166,7 +166,7 @@ foreach my $k ( keys %{$NT} ) {
 }
 
 my $GT = loadGroupTable();
-my $logFileName;						# this gets set to the full qualified filename in conf/Logs.nmis config fiel
+my $logFileName;						# this gets set to the full qualified filename in conf/Logs.xxxx config fiel
 
 # defaults
 my $logName = 'Event_Log';
@@ -187,7 +187,7 @@ my $logRefresh = defined $Q->{refresh} ? $Q->{refresh} : '';
 # keep the requested value for filtering
 my $logLevelRequest = $logLevel;
 
-# read contents of conf/Logs.nmis configuration files
+# read contents of conf/Logs.xxxx configuration files
 # file is a hash of log names.
 # numeric index so hash is auto sorted by userconfiguation
 # if no pathname on {logFileName}, then add our root pathname
@@ -257,7 +257,7 @@ pageEnd() if ($widget eq "false");
 
 exit;
 # ------------------------------------------------------
-# menu of available logs from conf/Logs.nmis_logs
+# menu of available logs from conf/Logs.xxxx_logs
 # display 'UA' if log file not readable.
 
 sub viewLogList {
@@ -350,11 +350,11 @@ sub loadLogFile {
 	my $searchLogNum; 
 
 	# get all files that match the glob '$file*'
-	# $file includes full path as configured in Logs.nmis, or derived from default path
+	# $file includes full path as configured in Logs.xxxx, or derived from default path
 	my $tac = "tac";
 	my $zcat = "zcat -q";
 	if ($kernel =~ /freebsd|tru64|solaris/i) { $tac = "tail -r"; }
-	# if the 'tac' comand is referenced in Confg.nmis, then use that
+	# if the 'tac' comand is referenced in Confg.xxxx, then use that
 	if  ( defined $C->{'os_cmd_read_file_reverse'} and $C->{'os_cmd_read_file_reverse'} ne '' ) {
 		$tac = $C->{'os_cmd_read_file_reverse'};
 	}
@@ -1065,7 +1065,7 @@ sub logSummary {
 
 # new format log file
 # here for copy and use, if reqired.
-# template configuration file /install/Logs.nmis and working file /conf/Logs.nmis should match this new format.
+# template configuration file /install/Logs.xxxx and working file /conf/Logs.xxxx should match this new format.
 # 2012-07-19 nmisdev added a numerical index to keep order on displayed log files
 #
 # %hash = (

@@ -1350,8 +1350,8 @@ sub CheckAccessCmd {
 
 # Private routines go here
 #
-# _GetPrivs -- load and parse the conf/Users.nmis file
-# also loads conf/PrivMap.nmis to map the privilege to a
+# _GetPrivs -- load and parse the conf/Users.xxxx file
+# also loads conf/PrivMap.xxxx to map the privilege to a
 # numeric privilege level.
 #
 sub _GetPrivs {
@@ -1397,7 +1397,8 @@ sub _GetPrivs {
 	my @groups = split /,/, $UT->{$user}{groups};
 	if ( not @groups and $C->{auth_default_groups} ne "" ) {
 		@groups = split /,/, $C->{auth_default_groups};
-		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.nmis->auth_default_groups");	
+		my $ext = getExtension(dir=>'conf');
+		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.$ext -> auth_default_groups");	
 	}
 
 	if ( grep { $_ eq 'all' } @groups) {

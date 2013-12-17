@@ -234,8 +234,9 @@ sub displayModel{
 	print start_table() ; # first table level
 
 	# header info
-	my $hdmdl = $model ? "Model-$model.nmis" : 
-						($node ne "") ? "Model-$NI->{system}{nodeModel}" : "base Model.nmis";
+	my $ext = getExtension(dir=>'models');
+	my $hdmdl = $model ? "Model-$model.$ext" : 
+						($node ne "") ? "Model-$NI->{system}{nodeModel}" : "base Model.$ext";
 
 	print Tr(td({class=>'header',colspan=>'4'},"Model - $hdmdl loaded"));
 
@@ -491,7 +492,7 @@ sub checkGraphType {
 	my @types = split /,/,$types;
 	foreach my $graph (@types) {
 		if ( ! loadTable(dir=>'models',name=>"Graph-$graph") ) {
-			$S->{errorfound} = "file does not exists or has bad format or cannot read file models/Graph-$graph.nmis";
+			$S->{errorfound} = "file does not exists or has bad format or cannot read file models/Graph-$graph.$ext";
 			return 'error',$S->{errorfound};
 		}
 	}
@@ -1286,7 +1287,7 @@ sub doAddModel {
 			if ( existFile(dir=>'models',name=>"Common-$Q->{'common-model'}") ) {
 				$ref->{lc $Q->{class}}{'common-model'} = $Q->{'common-model'};
 			} else {
-				logMsg("ERROR common Model file models/Common-$Q->{'common-model'}.nmis does not exist");
+				logMsg("ERROR common Model file models/Common-$Q->{'common-model'}.$ext does not exist");
 			}
 		}
 	}
@@ -1333,6 +1334,8 @@ sub writeModel {
 
 sub getHelp {
 	my $help = shift;
+	
+	my $ext = getExtension(dir=>'models');
 
 	my %help = (
 		'type' => 			'Format: string<br>'.
@@ -1345,7 +1348,7 @@ sub getHelp {
 								'in section stats.',
 		'graphtype' =>		'Format: comma separated list<br>'.
 								'List of graph names. There must be a description file exist in '.
-								'models/Graph-\'graphtype\'.nmis for every graph.',
+								'models/Graph-\'graphtype\'.$ext for every graph.',
 		'ds' =>				'Format: string, max. length is 18 characters<br>'.
 								'The name of the RRD Data Source.',
 		'attribute' => 		'Format: string<br>'.
@@ -1392,7 +1395,7 @@ sub getHelp {
 									'</ul>',
 		'healthgraph' =>	'Format: comma separated list<br>'.
 								'List of graph(type)s which are active in Node health page.<br>'.
-								'There must be a description file exist in model/Graph-\'graphtype\'.nmis for every grpah.',
+								'There must be a description file exist in model/Graph-\'graphtype\'.$ext for every grpah.',
 		'nodeType' =>		'Format: string<br>'.
 								'Type of node: router, switch, server, firewall, generic.',
 		'rrdopt' =>			'RRD option rule.<br>'.

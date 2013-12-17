@@ -126,7 +126,7 @@
           'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G'
         },
         '45' => {
-          'CatalystIOS' => 'IOS Software, c7600|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|Cisco IOS Software c7600s|Cisco IOS Software, Catalyst 4500'
+          'CatalystIOS' => 'IOS Software, c7600|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|Cisco IOS Software c7600s|IOS \(tm\) s3223_rp|Cisco IOS Software, Catalyst 4500'
         },
         '50' => {
           'CiscoNXOS' => 'Cisco NX-OS'

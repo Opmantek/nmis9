@@ -124,6 +124,7 @@
       'cpuUtil' => '/health/$nodeType/$node-cpu-$index.rrd',
       'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
+      'cps6000Alarm' => '/health/$nodeType/$node-cps6000Alarm-$index.rrd',
     }
   }
 );
