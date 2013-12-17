@@ -6077,9 +6077,15 @@ sub doThreshold {
 									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked										
 										foreach my $index (keys %{$NI->{database}{$type}}) { # there must be a rrd file
 											my $details = undef;
-											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" ) {
+											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
+											{
 												$details = $IF->{$index}{Description};
-											}											
+												if ($C->{global_events_bandwidth} eq 'true')
+												{
+														$details .= " Bandwidth=".$IF->{$index}->{ifSpeed};
+												}
+												
+											}
 											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
 										}
 									} else {

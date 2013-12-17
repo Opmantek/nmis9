@@ -48,6 +48,7 @@
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
     'global_noevent_ifType' => '',
+		'global_events_bandwidth' => 'true',
     'uuid_add_with_node' => 'true',
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com'
