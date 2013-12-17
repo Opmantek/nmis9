@@ -114,7 +114,7 @@ sub createNodeUUID {
 			$UUID_INDEX->{$LNT->{$node}{uuid}} = $node;
 		}
 	}
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'conf');
 	backupFile(file => "$C->{'<nmis_conf>'}/Nodes.$ext", backup => "$C->{'<nmis_conf>'}/Nodes.$ext.bak");
 	writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes", data => $LNT);
 	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID", data => $UUID_INDEX);

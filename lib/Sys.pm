@@ -101,7 +101,7 @@ sub init {
 	$self->{snmp} = undef;
 	$self->{cfg} = {node => { ping => 'true'}};
 	
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'var');
 
 	# load info of node and interfaces in tables of this object
 	if ($self->{name} ne "") { 
@@ -691,7 +691,7 @@ sub loadModel {
 	my $name;
 	my $mdl;
 	
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'models');
 
 	$self->{mdl} = loadTable(dir=>'models',name=>$model); # caching included
 	if (!$self->{mdl}) {
@@ -1000,7 +1000,7 @@ sub writeNodeInfo {
 	# remove old info
 	delete $self->{info}{view_system};
 	delete $self->{info}{view_interface};
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'var');
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
 	### 2013-08-27 keiths, the system object should not exist for nmis-system

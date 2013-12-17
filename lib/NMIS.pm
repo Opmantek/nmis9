@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.7G";
+$VERSION = "8.4.8A";
 
 @ISA = qw(Exporter);
 
@@ -2219,7 +2219,7 @@ sub convertConfFiles {
 
 	my $C = loadConfTable();
 
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'conf');
 	#==== check Nodes ====
 
 	if (!existFile(dir=>'conf',name=>'Nodes')) {

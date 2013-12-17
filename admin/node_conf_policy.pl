@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+ø#!/usr/bin/perl
 #
 ## $Id: convertnodes.pl,v 8.3 2012/08/13 05:05:00 keiths Exp $
 #

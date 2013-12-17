@@ -322,7 +322,7 @@ print dumper_html($C);
 
 if ($C->{master_dash} eq "true") {
 	
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'var');
 
 	print "<h1>Master/Slave communications</h1>";
 	my $ST = loadTable(dir=>'conf',name=>'Servers');

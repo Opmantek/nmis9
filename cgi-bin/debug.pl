@@ -378,7 +378,7 @@ my $OT = loadOutageTable();
 print "<h2>Outage Table</h2>";
 print dumper_html($OT);
 
-my $ext = getExtension();
+my $ext = getExtension(dir=>'var');
 
 foreach my $node (sort keys %{$NT}) {
 	if ( $C->{server_name} eq $NT->{$node}{server} ) {

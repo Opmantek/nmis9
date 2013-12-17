@@ -56,15 +56,15 @@ use vars qw($q $Q $C $AU);
 $q = CGI->new; # This processes all parameters passed via GET and POST
 $Q = $q->Vars; # values in hash
 
-# toss in a default conf=Config.xxxx
-my $ext = getExtension();
-$Q->{conf} = $Q->{conf} ? $Q->{conf} : "Config.$ext";
+# toss in a default conf=Config.nmis
+$Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 
 $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 # For for Tenants
+#if ( ($Q->{conf} eq "" or $Q->{conf} eq "Config" or $Q->{conf} eq "Config.nmis")
 if ( ($Q->{conf} eq "" )
-	and -f getFileName(file => "$C->{'<nmis_conf>'}/Tenants") and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
+	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
 ) {
 	logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
 	print $q->header($q->redirect(
@@ -164,7 +164,7 @@ if ($C->{auth_method_1} eq "apache") {
 ## removing the display of the Portal Links for now.
 my $ptime = &get_localtime();
 my $confString = "";
-if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.$ext" ) {
+if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.nmis" ) {
 	$confString = "Conf: $Q->{conf},";
 }
 #-----------------------------------------------
@@ -235,8 +235,8 @@ for my $node ( sort keys %{$NT}) {
 		}
 	}
 }
-my $jsNode = to_json(\@valNode );
-print script("namesAll = ".$jsNode);
+# my $jsNode = to_json(\@valNode );
+# print script("namesAll = ".$jsNode);
 
 # upload list of nodenames that match predefined criteria
 # @header is list of criteria - in display english and sentence case etc.
@@ -244,25 +244,33 @@ print script("namesAll = ".$jsNode);
 my @header=( 'Type', 'Vendor', 'Model', 'Role', 'Net', 'Group');
 my @nk =( 'nodeType', 'nodeVendor', 'nodeModel', 'roleType', 'netType', 'group');
 # init the hash
-my %NS = ();
-foreach ( @header ) {
-	$NS{$_} = ();
-}
+# my %NS = ();
+# foreach ( @header ) {
+# 	$NS{$_} = ();
+# }
 
 # read the hash - note al filenames are lowercase - loadTable should take care of this
 # list of nodes is already authorised, just load the details.
-foreach my $node (@valNode) {	
+my $nodeInfo = [];
+foreach my $node (@valNode) {
+	my $nodeValues = { name => $node };
 	foreach my $i ( 0 .. $#header) {
 		next unless defined $NSum->{$node}{$nk[$i]};
+		# $nodeInfo->{$node}{$header[$i]} = $NSum->{$node}{$nk[$i]};
 		$NSum->{$node}{$nk[$i]} =~ s/\s+/_/g;
-		push @{ $NS{ $header[$i] }{ $NSum->{$node}{$nk[$i]} } }	, $NT->{$node}{name};
+		$nodeValues->{$header[$i]} = $NSum->{$node}{$nk[$i]};		
+		# push @{ $NS{ $header[$i] }{ $NSum->{$node}{$nk[$i]} } }	, $NT->{$node}{name};
 	}
+	push( @{$nodeInfo}, $nodeValues );
 }
 # write to browser
-foreach my $i ( 0 .. $#header) {
-	my $jsData = to_json( \%{ $NS{$header[$i]} } );
-	print script("$header[$i] = ".$jsData);
-}
+# my $jsData = to_json( \%{ $NS{$header[$i]} } );
+print script( "nodeInfo = " . encode_json($nodeInfo) );
+# foreach my $i ( 0 .. $#header) {
+	# my $jsData = to_json( \%{ $NS{$header[$i]} } );
+
+	# print script("$header[$i] = ".$jsData);
+# }
 
 $C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
 $C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";

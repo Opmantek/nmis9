@@ -5478,7 +5478,7 @@ sub checkConfig {
 	my $change = $args{change};
 	my $audit = $args{audit};
 	
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'conf');
 
 	local *checkFunc;
 	my $checkType;

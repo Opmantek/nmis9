@@ -43,7 +43,7 @@ use vars qw(@EXPORT_OK $VERSION);
 
 use Exporter;
 
-$VERSION = "2.5";
+$VERSION = "2.5.1";
 
 @EXPORT_OK = qw(	
 			$version
@@ -236,7 +236,7 @@ sub _queryProbes {
 	
 	# Create the statement.
  	my $query =<<EO_SQL;
-		SELECT `probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`
+		SELECT `probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `tas`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`
 		FROM $self->{_prefix}probes
 		WHERE probe = '$arg{probe}';
 EO_SQL
@@ -267,6 +267,7 @@ EO_SQL
   	$rec{vrf} = $row->{vrf};		
   	$rec{tnode} = $row->{tnode};		
   	$rec{responder} = $row->{responder};		
+  	$rec{tas} = $row->{tas};		
   	$rec{starttime} = $row->{starttime};		
   	$rec{interval} = $row->{interval};		
   	$rec{tos} = $row->{tos};		
@@ -365,7 +366,7 @@ sub loadProbeCache {
 	
 	# Create the statement.
  	my $query =<<EO_SQL;
-		SELECT `probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`
+		SELECT `probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `tas`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`
 		FROM $self->{_prefix}probes
 		WHERE 1;
 EO_SQL
@@ -396,6 +397,7 @@ EO_SQL
   	$self->{_probes}{$row->{probe}}{vrf} = $row->{vrf};		
   	$self->{_probes}{$row->{probe}}{tnode} = $row->{tnode};		
   	$self->{_probes}{$row->{probe}}{responder} = $row->{responder};		
+  	$self->{_probes}{$row->{probe}}{tas} = $row->{tas};		
   	$self->{_probes}{$row->{probe}}{starttime} = $row->{starttime};		
   	$self->{_probes}{$row->{probe}}{interval} = $row->{interval};		
   	$self->{_probes}{$row->{probe}}{tos} = $row->{tos};		
@@ -554,8 +556,8 @@ sub addProbe {
 	
 		# Create the statement.
 	 	my $stmt =<<EO_SQL;
-INSERT INTO $self->{_prefix}probes (`probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`)
-VALUES ('$arg{probe}', '$arg{entry}', '$arg{pnode}', '$arg{status}', '$arg{func}', '$arg{optype}', '$arg{database}', '$arg{frequence}', '$arg{message}', '$arg{select}', '$arg{rnode}', '$arg{codec}', '$arg{raddr}', '$arg{timeout}', '$arg{numpkts}', '$arg{deldb}', '$arg{history}', '$arg{saddr}', '$arg{vrf}', '$arg{tnode}', '$arg{responder}', '$arg{starttime}', '$arg{interval}', '$arg{tos}', '$arg{verify}', '$arg{tport}', '$arg{url}', '$arg{dport}', '$arg{reqdatasize}', '$arg{factor}', '$arg{lsrpath}', '$arg{lastupdate}', '$arg{items}');
+INSERT INTO $self->{_prefix}probes (`probe`, `entry`, `pnode`, `status`, `func`, `optype`, `database`, `frequence`, `message`, `select`, `rnode`, `codec`, `raddr`, `timeout`, `numpkts`, `deldb`, `history`, `saddr`, `vrf`, `tnode`, `responder`, `tas`, `starttime`, `interval`, `tos`, `verify`, `tport`, `url`, `dport`, `reqdatasize`, `factor`, `lsrpath`, `lastupdate`, `items`)
+VALUES ('$arg{probe}', '$arg{entry}', '$arg{pnode}', '$arg{status}', '$arg{func}', '$arg{optype}', '$arg{database}', '$arg{frequence}', '$arg{message}', '$arg{select}', '$arg{rnode}', '$arg{codec}', '$arg{raddr}', '$arg{timeout}', '$arg{numpkts}', '$arg{deldb}', '$arg{history}', '$arg{saddr}', '$arg{vrf}', '$arg{tnode}', '$arg{responder}', '$arg{tas}', '$arg{starttime}', '$arg{interval}', '$arg{tos}', '$arg{verify}', '$arg{tport}', '$arg{url}', '$arg{dport}', '$arg{reqdatasize}', '$arg{factor}', '$arg{lsrpath}', '$arg{lastupdate}', '$arg{items}');
 EO_SQL
 	
 		print "DEBUG: Inserting: $arg{probe}; SQL:\n$stmt\n" if $self->{_debug};
@@ -729,6 +731,11 @@ sub updateProbe {
 			$change = 1;
 		}
 
+		if ( $arg{tas} ne "" and $rec->{tas} ne $arg{tas} ) {
+			$rec->{tas} = $arg{tas};
+			$change = 1;
+		}
+
 		if ( $arg{starttime} ne "" and $rec->{starttime} ne $arg{starttime} ) {
 			$rec->{starttime} = $arg{starttime};
 			$change = 1;
@@ -848,6 +855,7 @@ SET
   `vrf` = '$rec->{vrf}',
   `tnode` = '$rec->{tnode}',
   `responder` = '$rec->{responder}',
+  `tas` = '$rec->{tas}',
   `starttime` = '$rec->{starttime}',
   `interval` = '$rec->{interval}',
   `tos` = '$rec->{tos}',
@@ -1212,6 +1220,7 @@ CREATE TABLE if not exists $self->{_prefix}probes (
   `vrf` varchar(64),
   `tnode` varchar(128),
   `responder` varchar(9),
+  `tas` varchar(128),
   `starttime` varchar(64),
   `interval` integer,
   `tos` integer,
@@ -1236,9 +1245,11 @@ EO_SQL
 sub alterProbeTable {
 	my ($self,%arg) = @_;
 
+#ADD `lastupdate` integer
+
 	my $stmt =<<EO_SQL;
 ALTER TABLE $self->{_prefix}probes
-ADD `lastupdate` integer
+ADD `tas` varchar(128)
 
 EO_SQL
 	

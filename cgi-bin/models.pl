@@ -238,7 +238,7 @@ sub displayModel{
 	print start_table() ; # first table level
 
 	# header info
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'models');
 	my $hdmdl = $model ? "Model-$model.$ext" : 
 						($node ne "") ? "Model-$NI->{system}{nodeModel}" : "base Model.$ext";
 
@@ -1305,7 +1305,7 @@ sub writeModel {
 sub getHelp {
 	my $help = shift;
 	
-	my $ext = getExtension();
+	my $ext = getExtension(dir=>'models');
 
 	my %help = (
 		'type' => 			'Format: string<br>'.

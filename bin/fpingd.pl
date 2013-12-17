@@ -148,7 +148,7 @@ $fpingcmd =~ s/length/$length/;
 $fpingcmd =~ s/retries/$retries/;
 $fpingcmd =~ s/count/$count/;
 
-my $ext = getExtension();
+my $ext = getExtension(dir=>'var');
 
 &debug( "logfile = $FindBin::Bin/../logs/fpingd.log") if defined $nvp{logging};
 &debug( "logging not enabled - set cmdline option \'logging=true\' if logging required") if !defined $nvp{logging};

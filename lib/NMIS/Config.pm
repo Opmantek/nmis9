@@ -55,7 +55,7 @@ sub new {
 	my $file = $arg{file} || 'Config.$ext' if $conf eq 'nmis';
 	my $dir = $arg{dir} || "$FindBin::Bin/../conf" if $conf eq 'nmis';
 
- my $ext = getExtension();
+ my $ext = getExtension(dir=>'conf');
  $conf = 'nmis';			# default config name is 'nmis'
  $file = "Config.$ext" ;
  $dir =  '/usr/local/nmis8/conf';

@@ -472,7 +472,7 @@ sub doSend{
 			print Data::Dumper->Dump([$hash], [qw(*hash)]);
 			printTail if ($format eq "html");
 		} else {
-			my $ext = getExtension();
+			my $ext = getExtension(dir=>'conf');
 			typeError("file $C->{'<nmis_conf>'}/$Q->{name}.$ext not found");
 		}
 

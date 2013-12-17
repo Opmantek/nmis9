@@ -820,7 +820,6 @@ sub existFile {
 	my $dir = $args{dir};
 	my $name = $args{name};
 	my $file;
-	my $useJson;
 	return if $dir eq '' or $name eq '';
 	$file = getDir(dir=>$dir)."/$name";
 	$file = getFileName(file => $file);
@@ -834,7 +833,6 @@ sub mtimeFile {
 	my $dir = $args{dir};
 	my $name = $args{name};
 	my $file;
-	my $useJson;
 	return if $dir eq '' or $name eq '';
 	$file = getDir(dir=>$dir)."/$name";
 	$file = getFileName(file => $file);
@@ -866,8 +864,6 @@ sub loadTable {
 	# return an empty structure if I can't do anything else.
 	my $empty = { };
 	
-	my $useJson = 0;
-
 	if ($name ne '') {
 		if ($dir =~ /conf|models|var/) {
 			if (existFile(dir=>$dir,name=>$name)) {
@@ -933,14 +929,16 @@ sub writeTable {
 
 sub getFileName {
 	my %args = @_;
-	my $file = $args{file};
 	my $json = $args{json};
-	
-	my $useJson = 0;
-	if ( $C_cache->{use_json} eq 'true' or $json ) {
+	my $file = $args{file};
+	my $dir = $args{dir};
+
+	my $check = $dir;
+	$check = $file if $file ne "";
+		
+	if ( ( $C_cache->{use_json} eq 'true' or $json ) and ( $check =~ /\/var/ or $check eq "var" ))  {
 		$file .= '.json' if $file !~ /\.json$/;
 		$file =~ s/\.nmis//g;
-		$useJson = 1;
 	}
 	else {
 		$file .= ".nmis" if $file !~ /\.nmis$/;
@@ -951,9 +949,14 @@ sub getFileName {
 sub getExtension {
 	my %args = @_;
 	my $json = $args{json};
+	my $file = $args{file};
+	my $dir = $args{dir};
+	
+	my $check = $dir;
+	$check = $file if $file ne "";
 	
 	my $extension = "nmis";
-	if ( $C_cache->{use_json} eq 'true' or $json ) {
+	if ( ( $C_cache->{use_json} eq 'true' or $json ) and ( $check eq "var" or $check =~ /\/var/ ) ) {
 		$extension = "json";
 	}
 	return $extension;
@@ -977,7 +980,7 @@ sub writeHashtoFile {
 	my $pretty = $args{pretty};
 	$pretty = (defined($pretty)) ? $pretty : 0;		
 	### 2013-11-29 keiths, adding support for JSON.
-	my $useJson = ($C_cache->{use_json} eq 'true' or $json) ? 1 : 0;
+	my $useJson = ( ( $C_cache->{use_json} eq 'true' or $json ) and $file =~ /\/var/ ) ? 1 : 0;
 	$file = getFileName(file => $file, json => $json);
 
 	dbg("write data to $file");
@@ -1034,7 +1037,7 @@ sub readFiletoHash {
 	my $line;
 			
 	### 2013-11-29 keiths, adding support for JSON.
-	my $useJson = ($C_cache->{use_json} eq 'true' or $json) ? 1 : 0;
+	my $useJson = ( ( $C_cache->{use_json} eq 'true' or $json ) and $file =~ /\/var/ ) ? 1 : 0;
 	$file = getFileName(file => $file, json => $json);
 	
 	if ( -r $file ) {

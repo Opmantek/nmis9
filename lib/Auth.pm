@@ -1397,7 +1397,7 @@ sub _GetPrivs {
 	my @groups = split /,/, $UT->{$user}{groups};
 	if ( not @groups and $C->{auth_default_groups} ne "" ) {
 		@groups = split /,/, $C->{auth_default_groups};
-		my $ext = getExtension();
+		my $ext = getExtension(dir=>'conf');
 		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.$ext -> auth_default_groups");	
 	}
 
