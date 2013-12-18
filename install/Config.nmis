@@ -81,6 +81,7 @@
     'cbqos_cm_collect_all' => 'true',
     'buttons_in_logs' => 'false',
     'node_button_in_logs' => 'true',
+    'log_max_table_lines' => 25000,
     'http_req_timeout' => '60',
     'server_name' => 'localhost',
     'global_collect' => 'true',
