@@ -1088,18 +1088,16 @@ sub viewNode {
 	### 2012-01-05 keiths, check if node is managed by slave server
 	if ( $NT->{$node}{server} ne $C->{server_name} ) {	
 		my $ST = loadServersTable();
+		my $wd = 850;
+		my $ht = 700;
 				
 		my $server = $NT->{$node}{server};
 		my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node=$node";
-		my $nodelink = a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',800,600)"},$NT->{$node}{name});
+		my $nodelink = a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$NT->{$node}{name});
 		print "$nodelink is managed by server $NT->{$node}{server}";
 		print <<EO_HTML;
 	<script>
-		viewwndw('$node','$url',800,600);
-		//var attrib = "scrollbars=yes,resizable=yes,width=" + 800 + ",height=" + 600;
-		//ViewWindow = window.open('$url','$node',attrib);
-		//ViewWindow.focus();
-		$('div#node_view_$node').hide().remove();
+		viewwndw('$node','$url',$wd,$ht);
 	</script>
 EO_HTML
   	return;
