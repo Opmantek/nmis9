@@ -38,6 +38,8 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+use JSON::XS;
+
 # 
 use strict;
 use NMIS;
@@ -183,7 +185,17 @@ sub doSend{
 		foreach (keys %{$NI->{system}}) {
 			$ni{$_} = $NI->{system}{$_};
 		}	
-		print Data::Dumper->Dump([\%ni], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%ni);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%ni);
+		}	
+		else {
+			print Data::Dumper->Dump([\%ni], [qw(*hash)]);
+		}
+		
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "loadnodedetails") {
@@ -195,7 +207,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$NT], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($NT);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($NT);
+		}	
+		else {
+			print Data::Dumper->Dump([$NT], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "sumnodetable") {
@@ -204,14 +226,34 @@ sub doSend{
 
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$NS], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($NS);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($NS);
+		}	
+		else {
+			print Data::Dumper->Dump([$NS], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "eventtable") {
 		my $ET = loadEventStateNoLock();
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$ET], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($ET);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($ET);
+		}	
+		else {
+			print Data::Dumper->Dump([$ET], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "summary") {
@@ -238,7 +280,17 @@ sub doSend{
 		#
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%summaryHash], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%summaryHash);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%summaryHash);
+		}	
+		else {
+			print Data::Dumper->Dump([\%summaryHash], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "summary8" or $func eq "summary16") {
@@ -259,7 +311,17 @@ sub doSend{
 			}
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
-			print Data::Dumper->Dump([$summaryHash], [qw(*hash)]);
+
+			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+				print JSON::XS->new->pretty(1)->encode($summaryHash);
+			}	
+			elsif ( $C->{use_json} eq 'true' ) {
+				print encode_json($summaryHash);
+			}	
+			else {
+				print Data::Dumper->Dump([$summaryHash], [qw(*hash)]);
+			}
+
 			printTail if ($format eq "html");
 		} else {
 			typeError("file $datafile not found");
@@ -270,7 +332,17 @@ sub doSend{
 		my $stats = getSummaryStats(sys=>$S,type=>$par0,start=>$par1,end=>$par2,index=>$par5);
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$stats], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($stats);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($stats);
+		}	
+		else {
+			print Data::Dumper->Dump([$stats], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "interfacetable") {
@@ -279,14 +351,34 @@ sub doSend{
 		my $IF = $S->ifinfo;
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$IF], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($IF);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($IF);
+		}	
+		else {
+			print Data::Dumper->Dump([$IF], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "loadinterfaceinfo") {
 		my $II = loadInterfaceInfo();
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$II], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($II);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($II);
+		}	
+		else {
+			print Data::Dumper->Dump([$II], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_reporttable") {
@@ -302,7 +394,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%reportTable], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%reportTable);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%reportTable);
+		}	
+		else {
+			print Data::Dumper->Dump([\%reportTable], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_cputable") {
@@ -318,7 +420,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%cpuTable], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%cpuTable);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%cpuTable);
+		}	
+		else {
+			print Data::Dumper->Dump([\%cpuTable], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_linktable") {
@@ -357,7 +469,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%linkTable], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%linkTable);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%linkTable);
+		}	
+		else {
+			print Data::Dumper->Dump([\%linkTable], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_pktstable") {
@@ -393,7 +515,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%pktsTable], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%pktsTable);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%pktsTable);
+		}	
+		else {
+			print Data::Dumper->Dump([\%pktsTable], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_pvctable") {
@@ -430,7 +562,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%pvcTable], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%pvcTable);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%pvcTable);
+		}	
+		else {
+			print Data::Dumper->Dump([\%pvcTable], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq "report_outagetable") {
@@ -438,7 +580,17 @@ sub doSend{
 		# ??
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%logreport], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%logreport);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%logreport);
+		}	
+		else {
+			print Data::Dumper->Dump([\%logreport], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'readvartohash') {
@@ -447,7 +599,17 @@ sub doSend{
 			my $hash = readFiletoHash(file=>$datafile);
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
-			print Data::Dumper->Dump([$hash], [qw(*hash)]);
+
+			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+				print JSON::XS->new->pretty(1)->encode($hash);
+			}	
+			elsif ( $C->{use_json} eq 'true' ) {
+				print encode_json($hash);
+			}	
+			else {
+				print Data::Dumper->Dump([$hash], [qw(*hash)]);
+			}
+
 			printTail if ($format eq "html");
 		} else {
 			typeError("$datafile not found");
@@ -461,7 +623,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([\%hash], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode(\%hash);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json(\%hash);
+		}	
+		else {
+			print Data::Dumper->Dump([\%hash], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'readconftohash') {
@@ -469,7 +641,17 @@ sub doSend{
 			my $hash = loadTable(dir=>'conf',name=>$Q->{name});
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
-			print Data::Dumper->Dump([$hash], [qw(*hash)]);
+
+			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+				print JSON::XS->new->pretty(1)->encode($hash);
+			}	
+			elsif ( $C->{use_json} eq 'true' ) {
+				print encode_json($hash);
+			}	
+			else {
+				print Data::Dumper->Dump([$hash], [qw(*hash)]);
+			}
+
 			printTail if ($format eq "html");
 		} else {
 			my $ext = getExtension(dir=>'conf');
@@ -508,7 +690,17 @@ sub doSend{
 		if (($hash = getSummaryStats(sys=>$S,type=>$Q->{gtype},start=>$Q->{start},end=>$Q->{end},index=>$Q->{index},item=>$Q->{item})) ) {
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
-			print Data::Dumper->Dump([$hash], [qw(*hash)]);
+
+			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+				print JSON::XS->new->pretty(1)->encode($hash);
+			}	
+			elsif ( $C->{use_json} eq 'true' ) {
+				print encode_json($hash);
+			}	
+			else {
+				print Data::Dumper->Dump([$hash], [qw(*hash)]);
+			}
+
 			printTail if ($format eq "html");
 		} else {
 			typeError("ERROR with calculating SummaryStats");
@@ -525,7 +717,17 @@ sub doSend{
 		}
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$hash], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($hash);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($hash);
+		}	
+		else {
+			print Data::Dumper->Dump([$hash], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'addoutage') {
@@ -540,7 +742,17 @@ sub doSend{
 
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$OT], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($OT);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($OT);
+		}	
+		else {
+			print Data::Dumper->Dump([$OT], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'deleteoutage') {
@@ -551,7 +763,17 @@ sub doSend{
 
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$OT], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($OT);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($OT);
+		}	
+		else {
+			print Data::Dumper->Dump([$OT], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 	} elsif ($func eq 'timestamps') {
@@ -569,7 +791,17 @@ sub doSend{
 
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
-		print Data::Dumper->Dump([$tm], [qw(*hash)]);
+
+		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			print JSON::XS->new->pretty(1)->encode($tm);
+		}	
+		elsif ( $C->{use_json} eq 'true' ) {
+			print encode_json($tm);
+		}	
+		else {
+			print Data::Dumper->Dump([$tm], [qw(*hash)]);
+		}
+
 		printTail if ($format eq "html");
 
 		# more ??

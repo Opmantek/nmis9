@@ -236,9 +236,12 @@ sub loadNodeTable {
 	$GT_cache = undef;
 
 	my $LNT = loadLocalNodeTable();
+	my $master_server_priority = $C->{master_server_priority} || 10;
 
 	foreach my $node (keys %{$LNT}) {
 		$NT_cache->{$node}{server} = $C->{server_name};
+		### set the default server priority to 10 as local node
+		$NT_cache->{$node}{server_priority} = $master_server_priority;
 		foreach my $k (keys %{$LNT->{$node}} ) {
 			$NT_cache->{$node}{$k} = $LNT->{$node}{$k};
 		}
@@ -255,15 +258,23 @@ sub loadNodeTable {
 		for my $srv (keys %{$ST}) {
 			# Relies on nmis.pl getting the file every 5 minutes.
 			my $name = "nmis-${srv}-Nodes";
+			my $server_priority = $ST->{$srv}{server_priority} || 5;
 	
 			if (($NT = loadTable(dir=>'var',name=>$name)) ) {
 				foreach my $node (keys %{$NT}) {
-					$NT_cache->{$node}{server} = $srv ;
-					foreach my $k (keys %{$NT->{$node}} ) {
-						$NT_cache->{$node}{$k} = $NT->{$node}{$k};
-					}
-					if ( getbool($NT->{$node}{active})) {
-						$GT_cache->{$NT->{$node}{group}} = $NT->{$node}{group};
+					$NT->{$node}{server} = $srv ;
+					$NT->{$node}{server_priority} = $server_priority ;
+					if ( 
+						( not defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} eq "" )
+						or 
+						( defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} ne "" and $NT->{$node}{server_priority}  > $NT_cache->{$node}{server_priority} )
+					) {
+						foreach my $k (keys %{$NT->{$node}} ) {
+							$NT_cache->{$node}{$k} = $NT->{$node}{$k};
+						}
+						if ( getbool($NT->{$node}{active})) {
+							$GT_cache->{$NT->{$node}{group}} = $NT->{$node}{group};
+						}
 					}
 				}
 			}

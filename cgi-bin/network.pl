@@ -1084,7 +1084,7 @@ sub viewNode {
 		print "You are not authorized for this request group=$NT->{$node}{group}";
 		return;
 	}
-
+	
 	### 2012-01-05 keiths, check if node is managed by slave server
 	if ( $NT->{$node}{server} ne $C->{server_name} ) {	
 		my $ST = loadServersTable();

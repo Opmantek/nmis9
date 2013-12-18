@@ -48,6 +48,10 @@ sub new {
 	if ( defined $arg{module_base} ) { $module_base = $arg{module_base} }
 	elsif ( not defined $module_base ) { $module_base = "/usr/local/opmantek" }
 
+	my $omk_base = undef;
+	if ( defined $arg{omk_base} ) { $module_base = $arg{omk_base} }
+	elsif ( not defined $omk_base ) { $module_base = "/usr/local/omk" }
+
 	my $nmis_base = undef;
 	if ( defined $arg{nmis_base} ) { $nmis_base = $arg{nmis_base} }
 	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8" }
