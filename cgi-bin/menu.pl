@@ -42,7 +42,7 @@ use func;
 use Sys;
 use NMIS::Modules;
 
-use JSON;
+use JSON::XS;
 
 # Prefer to use CGI::Pretty for html processing
 # use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *ul *li);
@@ -501,7 +501,7 @@ EO_TEXT
 
 sub save_window_state {
 	my $data = $Q->{POSTDATA};	
-	my $windowData = from_json($data);	
+	my $windowData = decode_json($data);	
 	my $userWindowData = { $user => $windowData->{windowData} };
 	
 	writeTable(dir=>'conf',name=>"WindowState",data=>$userWindowData);

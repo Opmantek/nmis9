@@ -42,7 +42,7 @@ use func;
 use NMIS;
 use NMIS::Modules;
 use NMIS::License;
-use JSON;
+use JSON::XS;
 
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
@@ -235,7 +235,7 @@ for my $node ( sort keys %{$NT}) {
 		}
 	}
 }
-# my $jsNode = to_json(\@valNode );
+# my $jsNode = encode_json(\@valNode );
 # print script("namesAll = ".$jsNode);
 
 # upload list of nodenames that match predefined criteria
@@ -264,13 +264,7 @@ foreach my $node (@valNode) {
 	push( @{$nodeInfo}, $nodeValues );
 }
 # write to browser
-# my $jsData = to_json( \%{ $NS{$header[$i]} } );
 print script( "nodeInfo = " . encode_json($nodeInfo) );
-# foreach my $i ( 0 .. $#header) {
-	# my $jsData = to_json( \%{ $NS{$header[$i]} } );
-
-	# print script("$header[$i] = ".$jsData);
-# }
 
 $C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
 $C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";
@@ -286,7 +280,7 @@ my $userWindowData = "false";
 if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user} ne '' )
 {	
 	$savedWindowState = "true";
-	$userWindowData = to_json($windowData->{$user});
+	$userWindowData = encode_json($windowData->{$user});
 }
 
 ### 2012-02-22 keiths, added widget_refresh timer, and passing through to jQuery

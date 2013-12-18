@@ -36,7 +36,7 @@ use strict;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Exporter;
-use JSON;
+use JSON::XS;
 use File::Path;
 
 $VERSION = 1.00;
@@ -124,7 +124,7 @@ sub sendNotification {
 	$mylog->{message} = $message;
 	
 	open(LOG,">$file") or logMsg("ERROR, can not write to $file");
-	print LOG to_json($mylog, { pretty => 1 });
+	print LOG JSON::XS->new->pretty(1)->encode($mylog);
 	close LOG;
 	# good to set permissions on file.....
 }

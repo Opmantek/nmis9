@@ -40,7 +40,7 @@ use func;
 use NMIS;
 use NMIS::Timing;
 use NMIS::Connect;
-use JSON;
+use JSON::XS;
 use Fcntl qw(:DEFAULT :flock);
 
 
@@ -123,7 +123,7 @@ while ($run) {
 	print $t->markTime(). " JSON serialize to file with pretty\n";
 	open(my $fh, ">$jsonfile");
 	#print $fh encode_json($II); 
-	print $fh to_json($II, { ascii => 1, pretty => 1 });
+	print $fh JSON::XS->new->pretty(1)->encode($II1);
 	close $fh;
 	print "  done in ".$t->deltaTime() ."\n";
 }	

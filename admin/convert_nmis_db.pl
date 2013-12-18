@@ -38,7 +38,6 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use NMIS;
-use JSON;
 
 my $debug = 0;
 
@@ -146,9 +145,14 @@ sub processNmisFile {
 	my ($jsonfile,undef) = getFileName(file => $file, json => 1);
 	
 	if ( $jsonfile =~ /json/ ) {
-		print &indent . "Converting $file to $jsonfile\n";
-		my $data = readFiletoHash(file=>$file);
-		writeHashtoFile(data=>$data,file=>$file, json => 1, pretty => $pretty);	
+		if ( not -f $jsonfile ) {
+			print &indent . "Converting $file to $jsonfile\n";
+			my $data = readFiletoHash(file=>$file);
+			writeHashtoFile(data=>$data,file=>$file, json => 1, pretty => $pretty);	
+		}
+		else {
+			print &indent . "SKIPPING: JSON file $jsonfile already exists for $file, remove json file to recreate\n";
+		}
 	}
 }
 
