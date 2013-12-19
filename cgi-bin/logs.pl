@@ -324,7 +324,7 @@ sub loadLogFile {
  	# Open the logfile(s) in suffix (numbered) order, filter by $search and store in array, 
  	# then list array front to back, or back to front.
  	# set a limit here of table_lines, so we dont read file(s) for ever and ever, in case log directory is full of un-arcgived logs...
- 	my $logMaxTableLines = 4000 ;
+ 	my $logMaxTableLines = $C->{'log_max_table_lines'} || 10000;
  	
 	my $index=0;
 	return if ! -r $file;		# no file

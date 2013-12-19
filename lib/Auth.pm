@@ -113,7 +113,7 @@ $CGI::Pretty::INDENT = "  ";
 $CGI::Pretty::LINEBREAK = "\n";
 
 # for handling errors in javascript
-use JSON;
+use JSON::XS;
 
 # You should change this to be unique for your site
 #
@@ -835,7 +835,7 @@ sub do_login {
 		# forward url will have a function in it, we want to go back to regular nmis
 		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";			
 		my $ret = { name => "JSONRequestError", message => "Authentication Error" };
-		my $json_data = to_json( $ret ); #, { pretty => 1 } );
+		my $json_data = encode_json( $ret ); #, { pretty => 1 } );
 
     print <<EOHTML;
 Status: 405 Method Not Allowed
@@ -947,7 +947,7 @@ sub do_force_login {
 	{		
 		my $url_no_forward = $url;
 		my $ret = { name => "JSONRequestError", message => "Authentication Error", redirect_url => $url_no_forward };
-		my $json_data = to_json( $ret ); #, { pretty => 1 } );
+		my $json_data = encode_json( $ret ); #, { pretty => 1 } );
 
     print <<EOHTML;
 Status: 405 Method Not Allowed

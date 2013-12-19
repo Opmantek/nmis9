@@ -48,6 +48,14 @@ sub new {
 	if ( defined $arg{module_base} ) { $module_base = $arg{module_base} }
 	elsif ( not defined $module_base ) { $module_base = "/usr/local/opmantek" }
 
+	my $omk_base = undef;
+	if ( defined $arg{omk_base} ) { $omk_base = $arg{omk_base} }
+	elsif ( not defined $omk_base ) { $omk_base = "/usr/local/omk" }
+
+	my $opmojo_base = undef;
+	if ( defined $arg{opmojo_base} ) { $opmojo_base = $arg{opmojo_base} }
+	elsif ( not defined $opmojo_base ) { $opmojo_base = "/usr/local/opmojo" }
+
 	my $nmis_base = undef;
 	if ( defined $arg{nmis_base} ) { $nmis_base = $arg{nmis_base} }
 	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8" }
@@ -67,6 +75,8 @@ sub new {
 	   	module_base => $module_base,
 	   	nmis_base => $nmis_base,
 	   	oav2_base => $oav2_base,
+	   	opmojo_base => $opmojo_base,
+	   	omk_base => $omk_base,
 	   	nmis_cgi_url_base => $nmis_cgi_url_base,
 	   	debug => $debug
 	};
@@ -117,6 +127,21 @@ sub installedModules {
 					push(@installed,$modules->{$mod}{name});
 				}
 			}
+			elsif ( $modules->{$mod}{base} eq "omk" ) { 
+				if ( -f "$self->{omk_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} eq "opmojo" ) { 
+				if ( -f "$self->{opmojo_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} eq "open-audit" ) { 
+				if ( -f "$self->{oav2_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
 			elsif ( $modules->{$mod}{base} =~ /nmis/ ) {
 				print STDERR "DEBUG: nmis_base=$self->{nmis_base} base=$modules->{$mod}{base}, $self->{nmis_base}$modules->{$mod}{file}\n" if $self->{debug};
 				if ( -f "$self->{nmis_base}$modules->{$mod}{file}" ) {
@@ -151,8 +176,15 @@ sub getModuleCode {
 		elsif ( $modules->{$mod}{base} =~ /oav2|open-audit/ ) {
 			$base = $self->{oav2_base};
 		}
+		elsif ( $modules->{$mod}{base} =~ /opmojo/ ) {
+			$base = $self->{opmojo_base};
+		}
+		elsif ( $modules->{$mod}{base} eq "omk" ) {
+			$base = $self->{omk_base};
+		}
 		
-		if ( not $mod =~ /Modules/ and not -f "$base/$modules->{$mod}{file}" ) {
+		print STDERR "DEBUG: $mod $base$modules->{$mod}{file}\n";
+		if ( not $mod =~ /Modules/ and not -f "$base$modules->{$mod}{file}" ) {
 			$link = "$self->{nmis_cgi_url_base}/modules.pl?module=$mod";
 		}
 		$modOption .= qq|<option value="$link">$modules->{$mod}{name}</option>\n|;

@@ -38,7 +38,6 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use NMIS;
-use JSON;
 
 my $debug = 0;
 
@@ -68,15 +67,15 @@ print "\nCurrent important test is RRD Variables greater than $rrdlen\n";
 # 1. Stop NMIS Polling
 # 2. Convert NMIS files to JSON files
 # 3. Change config to use JSON
-# 4. Verify NMIS working
-# 5. Start NMIS polling.
+# 4. Start NMIS polling.
 
 if ( $debug ) {
 	&processDir(dir => "/tmp/models");
 }
 else {
-	&processDir(dir => $C->{'<nmis_base>'});
-	&updateNmisConfig();
+	&updateNmisConfigBefore();
+	&processDir(dir => $C->{'<nmis_var>'});
+	&updateNmisConfigAfter();
 }
 
 print "Done.  Processed $file_count NMIS files.\n";
@@ -146,14 +145,20 @@ sub processNmisFile {
 	my ($jsonfile,undef) = getFileName(file => $file, json => 1);
 	
 	if ( $jsonfile =~ /json/ ) {
-		print &indent . "Converting $file to $jsonfile\n";
-		my $data = readFiletoHash(file=>$file);
-		writeHashtoFile(data=>$data,file=>$file, json => 1, pretty => $pretty);	
+		if ( not -f $jsonfile ) {
+			print &indent . "Converting $file to $jsonfile\n";
+			my $data = readFiletoHash(file=>$file);
+			writeHashtoFile(data=>$data,file=>$file, json => 1, pretty => $pretty);	
+		}
+		else {
+			print &indent . "SKIPPING: JSON file $jsonfile already exists for $file, remove json file to recreate\n";
+		}
 	}
 }
 
-sub updateNmisConfig {
+sub updateNmisConfigBefore {
 	my $configFile = "$C->{'<nmis_conf>'}/Config.nmis";
+	my $conf;
 	
 	if ( -f $configFile ) {
 		$conf = readFiletoHash(file=>$configFile);
@@ -162,12 +167,30 @@ sub updateNmisConfig {
 		print "ERROR: something wrong with config file 1: $configFile\n";
 		exit 1;
 	}
+	$conf->{'system'}{'global_collect'} = "false";
+
+	writeHashtoFile(file=>$configFile,data=>$conf);
+}
+
+sub updateNmisConfigAfter {
+	my $configFile = "$C->{'<nmis_conf>'}/Config.nmis";
+	my $conf;
+		
+	if ( -f $configFile ) {
+		$conf = readFiletoHash(file=>$configFile);
+	}
+	else {
+		print "ERROR: something wrong with config file 1: $configFile\n";
+		exit 1;
+	}
 	
-	if ( not exist $conf->{'system'}{'use_json'} ) { 
+	if ( not exists $conf->{'system'}{'use_json'} ) { 
 		$conf->{'system'}{'use_json'} = "true";
 	}
-	if ( not exist $conf->{'system'}{'use_json_pretty'} ) { 
+	if ( not exists $conf->{'system'}{'use_json_pretty'} ) { 
 		$conf->{'system'}{'use_json_pretty'} = "true";
 	}
+	$conf->{'system'}{'global_collect'} = "true";
+
 	writeHashtoFile(file=>$configFile,data=>$conf);
 }

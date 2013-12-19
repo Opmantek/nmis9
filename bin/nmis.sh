@@ -54,6 +54,7 @@ helptext() {
 	echo "    $0 audit"
 	echo "    $0 Nodes"
 	echo "    $0 Config"
+	echo "    $0 Users"
 	echo "    $0 mib \"<search string>\""
 	echo "    $0 grep|grepcode \"<search string>\""
 	echo "    $0 grepfile \"<search string>\""
@@ -140,6 +141,12 @@ fi
 if [ "$1" == "Config" ]
 then
 	$editor $nmis_base/conf/Config.nmis
+	exit 0
+fi
+
+if [ "$1" == "Users" ]
+then
+	$editor $nmis_base/conf/Users.nmis
 	exit 0
 fi
 
