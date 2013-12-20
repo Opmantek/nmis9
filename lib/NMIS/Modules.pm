@@ -46,23 +46,23 @@ sub new {
 
 	my $module_base = undef;
 	if ( defined $arg{module_base} ) { $module_base = $arg{module_base} }
-	elsif ( not defined $module_base ) { $module_base = "/usr/local/opmantek" }
+	elsif ( not defined $module_base ) { $module_base = "/usr/local/opmantek/" }
 
 	my $omk_base = undef;
 	if ( defined $arg{omk_base} ) { $omk_base = $arg{omk_base} }
-	elsif ( not defined $omk_base ) { $omk_base = "/usr/local/omk" }
+	elsif ( not defined $omk_base ) { $omk_base = "/usr/local/omk/" }
 
 	my $opmojo_base = undef;
 	if ( defined $arg{opmojo_base} ) { $opmojo_base = $arg{opmojo_base} }
-	elsif ( not defined $opmojo_base ) { $opmojo_base = "/usr/local/opmojo" }
+	elsif ( not defined $opmojo_base ) { $opmojo_base = "/usr/local/opmojo/" }
 
 	my $nmis_base = undef;
 	if ( defined $arg{nmis_base} ) { $nmis_base = $arg{nmis_base} }
-	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8" }
+	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8/" }
 
 	my $oav2_base = undef;
 	if ( defined $arg{oav2_base} ) { $oav2_base = $arg{oav2_base} }
-	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/open-audit" }
+	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/open-audit/" }
 
 	my $nmis_cgi_url_base = undef;
 	if ( defined $arg{nmis_cgi_url_base} ) { $nmis_cgi_url_base = $arg{nmis_cgi_url_base} }
