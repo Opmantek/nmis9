@@ -183,7 +183,6 @@ sub getModuleCode {
 			$base = $self->{omk_base};
 		}
 		
-		print STDERR "DEBUG: $mod $base$modules->{$mod}{file}\n";
 		if ( not $mod =~ /Modules/ and not -f "$base$modules->{$mod}{file}" ) {
 			$link = "$self->{nmis_cgi_url_base}/modules.pl?module=$mod";
 		}

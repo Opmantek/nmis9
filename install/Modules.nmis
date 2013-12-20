@@ -13,7 +13,7 @@
       'base' => 'omk',
       'file' => '/lib/EventsController.pm.exe',
       'link' => '/omk/opEvents',
-      'description' => 'Open-AudIT intelligently scans an organizations network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).',
+      'description' => 'Event Management working like ITIL V3 intended. Managing syslog, SNMP trap, NMIS events and any log content.  Handle event detection, make automated actions, send notifications and manage escalations through to resolution.',
     },
 	  'opConfig' => {
 	    'order' => '3',
