@@ -1257,9 +1257,8 @@ sub outageReport {
 		if ( $logfile =~ /\.gz$/ ) {
 			$logfile = "gzip -dc $logfile |";
 		}
-		#open (DATA, $logfile)
-		sysopen(DATA, "$logfile", O_RDONLY) or warn returnTime."outageReport, Cannot open the file $logfile. $!\n";
-		flock(DATA, LOCK_SH) or warn "can't lock filename: $!";
+		# Handling gzip files which are not files which need to be locked.
+		open (DATA, $logfile) or warn returnTime." outageReport, Cannot open the file $logfile. $!\n";
 		# find the line with the entry in and store in hash
 		while (<DATA>) {
 			chomp;
