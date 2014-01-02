@@ -4880,14 +4880,17 @@ LABEL_ESC:
 										}
 									}
 
-									# check if UpNotify is true, and save with this event
-									# and send all the up event notifies when the event is cleared.
-									if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
-										my $ct = "$type:$contact";
-										my @l = split(',',$ET->{$event_hash}{notify});
-										if (not grep { $_ eq $ct } @l ) {
-											push @l, $ct;
-											$ET->{$event_hash}{notify} = join(',',@l);
+									### better handling of upnotify for certain notification types.
+									if ( $type !~ /email|pager/ ) {
+										# check if UpNotify is true, and save with this event
+										# and send all the up event notifies when the event is cleared.
+										if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+											my $ct = "$type:$contact";
+											my @l = split(',',$ET->{$event_hash}{notify});
+											if (not grep { $_ eq $ct } @l ) {
+												push @l, $ct;
+												$ET->{$event_hash}{notify} = join(',',@l);
+											}
 										}
 									}
 
@@ -4916,6 +4919,18 @@ LABEL_ESC:
 											} else {
 												$target = $target ? $target.",".$CT->{$contact}{Email} : $CT->{$contact}{Email};
 											}
+
+											# check if UpNotify is true, and save with this event
+											# and send all the up event notifies when the event is cleared.
+											if ( $EST->{$esc_key}{UpNotify} eq "true" and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+												my $ct = "$type:$contact";
+												my @l = split(',',$ET->{$event_hash}{notify});
+												if (not grep { $_ eq $ct } @l ) {
+													push @l, $ct;
+													$ET->{$event_hash}{notify} = join(',',@l);
+												}
+											}
+		
 										}
 										else {
 											dbg("STOP Contact duty time: $contactDutyTime, contact level: $contactLevelSend");
