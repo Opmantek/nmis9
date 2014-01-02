@@ -290,8 +290,11 @@ function	createDialog(opt) {
 	}
 
 	// if no title configured 
-	if ( ! opt.title ) {
-	 opt.title = 'Default Title '+opt.id ;
+	if ( ! opt.title && opt.id ) {
+	 opt.title = opt.id ;
+	}
+	else if ( ! opt.title ) {
+	 opt.title = 'Default Title';
 	}
 	
 	// see if we have a data entry in our namespace

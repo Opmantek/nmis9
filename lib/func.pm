@@ -941,7 +941,7 @@ sub getFileName {
 		$file =~ s/\.nmis//g;
 	}
 	else {
-		$file .= ".nmis" if $file !~ /\.nmis$/;
+		$file .= ".nmis" if $file !~ /\.nmis/;
 	}
 	return $file;
 }

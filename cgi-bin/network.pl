@@ -1183,6 +1183,17 @@ EO_HTML
 					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
 					$color = colorPercentHi(0) if $color eq "red";
 
+					if ($k eq 'status') {
+						# check status from event db
+						if ( eventExist($node, "Node Down", "") ) {
+							$value = "unreachable";
+							$color = "#F00";
+						}
+						else {
+							$value = "reachable";
+							$color = "#0F0";							
+						}
+					}
 		
 					if ($k eq 'lastUpdate') {
 						# check lastupdate
@@ -1222,7 +1233,7 @@ EO_HTML
 					if ($ET->{$_}{node} eq $node) {
 						my $state = $ET->{$_}{ack} eq 'false' ? 'active' : 'inactive';
 						my $details = $ET->{$_}{details};
-						$details = "$ET->{$_}{element} $details" if $ET->{$_}{event} =~ /Proactive/ ;
+						$details = "$ET->{$_}{element} $details" if $ET->{$_}{event} =~ /^Proactive|^Alert/ ;
 						$details = $ET->{$_}{element} if $details eq "";
 						push @out,Tr(td({class=>'info Plain'},'Event'),
 						td({class=>'info Plain'},"$ET->{$_}{event} - $details, Escalate $ET->{$_}{escalate}, $state"));
@@ -1315,7 +1326,7 @@ sub viewInterface {
 	
 	print start_table;
 	
-	print Tr(td({class=>'error'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	
 	print start_Tr;
 	# first column
@@ -1435,7 +1446,7 @@ sub viewAllIntf {
 	
 	print start_table;
 	
-	print Tr(td({class=>'error'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
 	
@@ -1555,7 +1566,7 @@ sub viewActivePort {
 	
 	print start_table;
 	
-	print Tr(td({class=>'error'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
 	
@@ -1656,7 +1667,7 @@ sub viewStorage {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Storage of node $NI->{system}{name}"));
 	
@@ -1701,7 +1712,7 @@ sub viewService {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if eventExist($node, "Node Down", "");
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
 	
@@ -1756,7 +1767,7 @@ sub viewServiceList {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'error',colspan=>'6'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'6'},'Node unreachable')) if eventExist($node, "Node Down", "");
 
 	print Tr(th({class=>'title',colspan=>'6'},"List of Services on node $NI->{system}{name}"));
 	
@@ -1821,7 +1832,7 @@ sub viewEnvironment {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Environment of node $NI->{system}{name}"));
 	
@@ -1925,7 +1936,7 @@ sub viewSystemHealth {
 			push(@cells,td({class=>'header'},"History")) if $graphtype;
 			++$colspan;
 			
-			print Tr(td({class=>'error',colspan=>$colspan},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+			print Tr(td({class=>'error',colspan=>$colspan},'Node unreachable')) if eventExist($node, "Node Down", "");
 			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
 
 			my $row = join(" ",@cells);			
@@ -1981,7 +1992,7 @@ sub viewCSSGroup {
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
-	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
 
 	foreach my $index (sort keys %{$NI->{cssgroup}} ) {
@@ -2015,7 +2026,7 @@ sub viewCSSContent {
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
-	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if $NI->{system}{nodedown} eq 'true';
+	print Tr(td({class=>'error',colspan=>'3'},'Node unreachable')) if eventExist($node, "Node Down", "");
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));
 
 	foreach my $index (sort keys %{$NI->{csscontent}} ) {
