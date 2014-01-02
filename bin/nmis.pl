@@ -6354,8 +6354,8 @@ sub getPidFileName {
 
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};
-	print "\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n\n";
-	}
+	dbg("\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n");
+}
 
 # *****************************************************************************
 # NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)

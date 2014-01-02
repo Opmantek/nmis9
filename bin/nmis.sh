@@ -58,6 +58,7 @@ helptext() {
 	echo "    $0 mib \"<search string>\""
 	echo "    $0 grep|grepcode \"<search string>\""
 	echo "    $0 grepfile \"<search string>\""
+	echo "    $0 unixtime \"time string|epoch\""
 	echo "    $0 <node_name>|all collect"
 	echo "    $0 <node_name>|all update"
 	echo "    $0 <node_name>|all model"
@@ -153,6 +154,12 @@ fi
 if [ "$1" == "grep" ]
 then
 	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
+	exit 0
+fi
+
+if [ "$1" == "unixtime" ]
+then
+	$nmis_base/admin/unixtime.pl $2
 	exit 0
 fi
 

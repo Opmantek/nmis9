@@ -841,7 +841,7 @@ sub logMenuBar {
 				textfield(-name=>'search',size=>'15')),
 			th({class=>'header'},'Lines',
 				popup_menu(-name=>'lines', 
-					-values=>[qw(15 25 50 100 250 500 1000)],
+					-values=>[qw(15 25 50 100 250 500 1000 5000 10000 25000)],
 					-default=>$logLines)),
 			th({class=>'header'},'Level',
 				popup_menu(-name=>'level', -override=>'1',

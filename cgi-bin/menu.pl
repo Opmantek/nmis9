@@ -187,6 +187,7 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if tableExists('Customers');
 		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if tableExists('BusinessServices');
 		push @netstatus, qq|<a id='ntw_map' href="$modules->{opMaps}{link}?widget=true">Network Maps</a>| if $M->moduleInstalled(module => "opMaps");
+		push @netstatus, qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|;
 		
 		push @menu_site,(qq|Network Status|,[ @netstatus ]);		
 
@@ -347,12 +348,12 @@ sub menu_bar_site {
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
 		push @menu_site, qq|System|, \@systemitems if (@systemitems);
 
-		# fixme az [2013-12-16 Mon 16:48] this seems to be dead code?
-		push @menu_site,( qq|Quick Select|,
-												[	qq|<a id='selectServer_open' onclick="selectServerDisplay();return false;">NMIS Server</a>|,
-													qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|
-												]
-										);
+		# Moved Quick Search to network status and do not need NMIS Server anymore.
+		#push @menu_site,( qq|Quick Select|,
+		#										[	qq|<a id='selectServer_open' onclick="selectServerDisplay();return false;">NMIS Server</a>|,
+		#											qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|
+		#										]
+		#								);
 
 		push @menu_site,( qq|Windows|,
 												[	qq|<a id='saveWindow_open' onclick="saveWindowState();return false;">Save Windows and Positions</a>|,
