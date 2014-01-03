@@ -170,6 +170,8 @@ execPrint("$site/admin/fixperms.pl");
 printBanner("NMIS Should be Ready to Roll!");
 
 
+exit 0;
+
 # this is called for every file found
 sub getModules {
 
