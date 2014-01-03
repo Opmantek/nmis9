@@ -110,6 +110,7 @@ $VERSION = "8.4.8C";
 		eventAck
 		notify
 		cleanEvent
+		nodeStatus
 
 		getSummaryStats
 		getGroupSummary
@@ -1110,6 +1111,22 @@ sub notify {
 
 	dbg("Finished");
 } # end notify
+
+sub nodeStatus {
+	my %args = @_;
+	my $NI = $args{NI};
+
+	# 1 for reachable
+	# 0 for unreachable
+	my $status = 1;	
+
+	my $down_event = "Node Down";
+	$down_event = "SNMP Down" if $NI->{system}{ping} eq 'false';
+
+	$status = 0 if eventExist($NI->{system}{name}, $down_event, "");
+		
+	return $status;
+}
 
 sub logConfigEvent {
 	my %args = @_;

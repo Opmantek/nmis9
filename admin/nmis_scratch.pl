@@ -6,6 +6,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use NMIS;
+use Data::Dumper;
 
 my %arg = getArguements(@ARGV);
 
