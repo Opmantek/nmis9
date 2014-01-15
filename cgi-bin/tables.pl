@@ -501,7 +501,7 @@ sub doeditTable {
 				return 0;
 			}
 		}
-		print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
+		#print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
 		cleanEvent($key,"tables.pl.editNodeTable");
 		if ($Q->{update} eq 'true') {
 			doNodeUpdate(node=>$key);
@@ -549,11 +549,31 @@ sub doNodeUpdate {
 	# now run the update and display 
 	print header($headeropts);
 	pageStartJscript(title => "Run update on $node") if ($widget eq "false");
+
+	print start_form(-id=>"$formid",
+					-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget");
+
+	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
+				td(button(-name=>'button',-onclick=>"get('".$formid."')",-value=>'Ok'))));
+	print end_form;
 	
 	print "<pre>\n";
 	print "Running update on node $node\n\n\n";
 	
 	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node debug=1 2>&1 |"); 
+	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
+	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
+
+	while ( <PIPE> ) {
+		print ;
+	}
+	close(PIPE);
+	print "\n</pre>\n";
+
+	print "<pre>\n";
+	print "Running collect on node $node\n\n\n";
+	
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node debug=1 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 

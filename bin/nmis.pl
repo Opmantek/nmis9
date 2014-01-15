@@ -6315,9 +6315,9 @@ sub thresholdProcess {
 		dbg("event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 	###	logMsg("INFO ($S->{node}) event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 		if ( $args{value} !~ /NaN/i ) {
-			my $details = "Value=$args{value}, Threshold=$args{thrvalue}";
+			my $details = "Value=$args{value} Threshold=$args{thrvalue}";
 			if ( defined $args{details} and $args{details} ne "" ) {
-				$details = "$args{details}: Value=$args{value}, Threshold=$args{thrvalue}";
+				$details = "$args{details}: Value=$args{value} Threshold=$args{thrvalue}";
 			}
 			my $statusResult = "ok";
 			if ( $args{level} =~ /Normal/i ) { 

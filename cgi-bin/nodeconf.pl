@@ -409,11 +409,36 @@ sub doNodeUpdate {
 	{
 			pageStart(title => "$node update");
 	}
+
+	my $thisurl = url(-absolute => 1)."?";
+	print start_form(-id=>"nmis", -href => $thisurl);
+	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
+
+	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
+				td(button(-name=>'button', 
+									-onclick => ($wantwidget? "javascript:get('nmis');" : "submit()"),
+									-value=>'Ok'))));
+	print end_form;
 	
 	print "<pre>\n";
 	print "Running update on node $node - Please wait.....\n\n\n";
 	
 	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node debug=1 2>&1 |"); 
+	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
+	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
+
+	while ( <PIPE> ) {
+		print ;
+	}
+	close(PIPE);
+	print "\n</pre>\n";
+
+	print "<pre>\n";
+	print "Running collect on node $node - Please wait.....\n\n\n";
+	
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node debug=1 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
