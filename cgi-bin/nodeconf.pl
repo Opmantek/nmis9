@@ -192,18 +192,22 @@ sub displayNodeConf {
 					if ($AU->CheckAccess("Table_nodeConf_rw","check")) 
 					{
 
-							# in case of store config non-widgetted we only need to submit the form
-							# (and ensure the doupdate hidden field is off, if we're coming back to this page!)
+							# in case of store config non-widgetted we only need to
+							# submit the form
+							# (and ensure the doupdate hidden field is off, if we're
+							# coming back to this page!)
 							return button(-name=>'button', 
-														onClick => ($wantwidget? "javascript:get('nmis');" 
+														onClick => ($wantwidget? "javascript:get('nmis');"
 																				: '$("#doupdate").val(""); submit()'), 
 														-value=>'Store'),
 
-							# but to emulate the update=true get() call, we need to set 
-							# the appropriate hidden field before submitting
+							# but to emulate the update=true get() call, we need to set
+							# the appropriate hidden field before submitting and convince
+							# get not to mess with the url, or we'll have duplicate but
+							# different update fields...
 							button(-name=>'button',
-										 onClick => ($wantwidget? "javascript:get('nmis','update');" 
-																 : '$("#doupdate").val("true"); submit()'),
+										 onClick => '$("#doupdate").val("true"); '
+										 .($wantwidget? "javascript:get('nmis');" : 'submit();'),
 										 -value=>'Store and Update Node');
 					} else { return ""; }
 				}));
