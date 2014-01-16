@@ -37,6 +37,7 @@ nmis_log=$nmis_base/logs/nmis.log
 event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
 editor=/bin/vi
+DEBUG="debug=false"
 
 taillines=50
 
@@ -73,6 +74,16 @@ then
 	helptext
 fi
 
+if [ "$3" == "debug" ]
+then
+	DEBUG="debug=true"
+fi
+
+if [ "$2" == "debug" ]
+then
+	DEBUG="debug=true"
+fi
+
 if [ "$1" == "log" ]
 then
 	tail -$taillines $nmis_log
@@ -105,19 +116,19 @@ fi
 
 if [ "$1" == "summary" ]
 then
-	$nmis type=summary debug=true
+	$nmis type=summary debug=true $DEBUG
 	exit 0
 fi
 
 if [ "$1" == "audit" ]
 then
-	$nmis type=audit debug=true
+	$nmis type=audit debug=true $DEBUG
 	exit 0
 fi
 
 if [ "$1" == "config" ]
 then
-	$nmis type=config debug=true
+	$nmis type=config debug=true $DEBUG
 	exit 0
 fi
 
@@ -207,26 +218,26 @@ fi
 
 if [ "$2" == "collect" ]
 then
-	$nmis type=collect "$node" debug=true
+	$nmis type=collect "$node" info=true $DEBUG
 	exit 0
 fi
 
 if [ "$2" == "update" ]
 then
-	$nmis type=update "$node" debug=true
+	$nmis type=update "$node" info=true $DEBUG
 	exit 0
 fi
 
 if [ "$2" == "threshold" ]
 then
-	$nmis type=threshold "$node" debug=true
+	$nmis type=threshold "$node" info=true $DEBUG
 	exit 0
 fi
 
 if [ "$2" == "model" ]
 then
-	$nmis type=update "$node" model=true
-	$nmis type=collect "$node" model=true
+	$nmis type=update "$node" model=true info=true
+	$nmis type=collect "$node" model=true info=true
 	exit 0
 fi
 

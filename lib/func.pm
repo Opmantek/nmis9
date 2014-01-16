@@ -113,6 +113,7 @@ $VERSION = 1.00;
 		logIpsla
 		logPolling
 		dbg
+		info
 		getbool
 		loadConfTable
 		readConfData
@@ -1085,6 +1086,40 @@ sub readFiletoHash {
 }
 
 # debug info with (class::)method names and line number
+sub info {
+	my $msg = shift;
+	my $level = shift || 1;
+	my $string;
+	my $caller;
+
+	if ($C_cache->{debug}) {
+		dbg($msg,$level);
+	}
+	else {
+		if ($C_cache->{info} >= $level or $level == 0) {
+			if ($level == 1) {
+				($string = (caller(1))[3]) =~ s/\w+:://;
+				$string .= ",";
+			} else {
+				if ((my $caller = (caller(1))[3]) =~ s/main:://) {
+					my $ln = (caller(0))[2];
+					print returnTime." $caller#$ln, $msg\n";
+				} else {
+					for my $i (1..10) {
+						my ($caller) = (caller($i))[3];
+						my ($ln) = (caller($i-1))[2];
+						$string = "$caller#$ln->".$string;
+						last if $string =~ s/main:://;
+					}
+					$string = "$string\n\t";
+				}
+			}
+			print returnTime." $string $msg\n";
+		}
+	}
+}
+
+# debug info with (class::)method names and line number
 sub dbg {
 	my $msg = shift;
 	my $level = shift || 1;
@@ -1471,6 +1506,7 @@ sub loadConfTable {
 	my $conf = $args{conf};
 	my $dir = $args{dir};
 	my $debug = $args{debug} || 0;
+	my $info = $args{info} || 0;
 	my $name;
 	my $value;
 	my $key;
@@ -1527,6 +1563,7 @@ sub loadConfTable {
 				}
 			}
 			$Table_cache{$conf}{debug} = setDebug($debug); # include debug setting in conf table
+			$Table_cache{$conf}{info} = setDebug($info); # include debug setting in conf table
 			$Table_cache{$conf}{conf} = $conf;
 			$Table_cache{$conf}{configfile} = $configfile;
 			$Table_cache{$conf}{configfile_name} = substr($configfile, rindex($configfile, "/")+1);

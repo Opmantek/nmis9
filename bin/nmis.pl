@@ -2,7 +2,7 @@
 #
 ## $Id: nmis.pl,v 8.52 2012/12/03 07:47:26 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -72,7 +72,7 @@ use Errno qw(EAGAIN ESRCH EPERM);
 my %nvp = getArguements(@ARGV);
 
 # load configuration table
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
 
 # check for global collection off or on 
 # useful for disabling nmis poll for server maintenance
@@ -109,7 +109,7 @@ if ( $type eq "" ) {
 } 
 
 print qq/
-NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
+NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to 
 redistribute it under certain conditions; see www.opmantek.com or email
@@ -117,7 +117,7 @@ contact\@opmantek.com
 
 NMIS version $NMIS::VERSION
 
-/ if $C->{debug};
+/ if $C->{debug} or $C->{info};
 
 
 if ($type =~ /collect|update/) {
@@ -431,7 +431,7 @@ sub	runThreads {
 		logMsg("INFO end of update process");
 	}
 
-	if ($debug or $mthreadDebug) {
+	if ($C->{info} or $debug or $mthreadDebug) {
 		my $endTime = time() - $C->{starttime};
 		my $stats = getUpdateStats();
 		print "\n".returnTime ." Number of Data Points: $stats->{datapoints}, Sum of Bytes: $stats->{databytes}, RRDs updated: $stats->{rrdcount}, Nodes with Updates: $stats->{nodecount}\n";
@@ -531,17 +531,17 @@ sub doCollect {
 	my %args = @_;
 	my $name = $args{name};
 
-	dbg("================================");
-	dbg("Starting, node $name");
+	info("================================");
+	info("Starting, node $name");
 
 	my $S = Sys::->new; # create system object
 	### 2013-02-25 keiths, fixing down node refreshing......
 	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
 	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
 	if (! $S->init(name=>$name) ) {
-		dbg("no info available of node $name, refresh it");
+		info("no info available of node $name, refresh it");
 		doUpdate(name=>$name);
-		dbg("Finished");
+		info("Finished");
 		return; # next run to collect
 	}
 
@@ -550,8 +550,8 @@ sub doCollect {
 	$S->{docollect} = 'true'; # flag what is running
 	$S->readNodeView; # from prev. run
 	# print what we are
-	dbg("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
-	dbg("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
+	info("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
+	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
 
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
@@ -569,7 +569,7 @@ sub doCollect {
 					else {
 						
 						### 2012-12-03 keiths, adding some model testing and debugging options.
-						if ( $model ) {
+						if ( $model or $C->{info}) {
 							print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
 							print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
 							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
@@ -612,7 +612,7 @@ sub doCollect {
 	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	$S->close; 
-	dbg("Finished");
+	info("Finished");
 	return;
 } # end runCollect
 
@@ -650,7 +650,7 @@ sub runPing {
 			# copy values
 			$ping_avg = $PT->{$NC->{node}{name}}{avg};
 			$ping_loss = $PT->{$NC->{node}{name}}{loss};
-			dbg("INFO ($S->{name}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			info("INFO ($S->{name}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 			#
 			# notify and checkevent are handled by fpingd
 			if ($ping_loss < 100) {
@@ -677,7 +677,7 @@ sub runPing {
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
 			my $host = $NC->{node}{host};			# ip name/adress of node
 
-			dbg("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
+			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
 			if ( $< and getKernelName() !~ /linux/i ) { # not root and update, assume called from www interface
 				$pingresult = 100;
@@ -691,7 +691,7 @@ sub runPing {
 				# Node is down
 				$RI->{pingloss} = 100;
 				$RI->{pingresult} = $pingresult;
-				dbg("Pinging Failed $S->{name} is NOT REACHABLE");
+				info("Pinging Failed $S->{name} is NOT REACHABLE");
 				logMsg("ERROR ($S->{name}) ping failed") if $NI->{system}{nodedown} ne 'true';
 
 				notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed");
@@ -700,7 +700,7 @@ sub runPing {
 				$RI->{pingavg} = $ping_avg; # results for sub runReach
 				$RI->{pingresult} = $pingresult;
 				$RI->{pingloss} = $ping_loss;
-				dbg("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+				info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 	
 				# reset event only if snmp was not the reason of down
 				if ($NI->{system}{snmpdown} ne 'true' ) {
@@ -714,7 +714,7 @@ sub runPing {
 			}
 		}
 	} else {
-		dbg("$S->{name} ping not requested");
+		info("$S->{name} ping not requested");
 		$RI->{pingresult} = 100; # results for sub runReach
 		$RI->{pingavg} = 0;
 		$RI->{pingloss} = 0;
@@ -730,7 +730,7 @@ sub runPing {
 		$NI->{system}{nodedown} = 'true';
 	}
 
-	dbg("Finished with exit=$exit, nodedown=$NI->{system}{nodedown}");
+	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown}");
 	return $exit;
 } # end runPing
 
@@ -752,7 +752,7 @@ sub getNodeInfo {
 	my $exit = 0; # preset failure
 	$RI->{snmpresult} = 0; # preset failure
 
-	dbg("Starting");
+	info("Starting");
 
 	# cleanups
 	delete $V->{interface}  if $S->{doupdate} eq 'true' and $NC->{node}{collect} ne 'true'; # rebuild small
@@ -782,8 +782,8 @@ sub getNodeInfo {
 				# if the vendors product oid file is loaded, this will give product name.
 				$NI->{system}{sysObjectName} = oid2name($NI->{system}{sysObjectID});
 	
-				dbg("sysObjectId=$NI->{system}{sysObjectID}, sysObjectName=$NI->{system}{sysObjectName}");
-				dbg("sysDescr=$NI->{system}{sysDescr}");
+				info("sysObjectId=$NI->{system}{sysObjectID}, sysObjectName=$NI->{system}{sysObjectName}");
+				info("sysDescr=$NI->{system}{sysDescr}");
 		
 				# Decide on vendor name.
 				my @x = split(/\./,$NI->{system}{sysObjectID});
@@ -796,11 +796,11 @@ sub getNodeInfo {
 				if ($NC->{node}{model} eq 'automatic' || $NC->{node}{model} eq "") {
 					# get nodeModel based on nodeVendor and sysDescr
 					$NI->{system}{nodeModel} = $S->selectNodeModel(); # select and save name in node info table
-					dbg("selectNodeModel result model=$NI->{system}{nodeModel}");
+					info("selectNodeModel result model=$NI->{system}{nodeModel}");
 					$NI->{system}{nodeModel} = 'Default' if $NI->{system}{nodeModel} eq "";
 				} else {
 					$NI->{system}{nodeModel} = $NC->{node}{model};
-					dbg("node model=$NI->{system}{nodeModel} set by node config");
+					info("node model=$NI->{system}{nodeModel} set by node config");
 				}
 				dbg("about to loadModel model=$NI->{system}{nodeModel}");
 				$S->loadModel(model=>"Model-$NI->{system}{nodeModel}");
@@ -854,7 +854,7 @@ sub getNodeInfo {
 				} else { logMsg("INFO loadNodeInfo failed"); }				
 			}
 			else {
-				dbg("ERROR values of sysDescr and/or sysObjectID are empty");
+				info("ERROR values of sysDescr and/or sysObjectID are empty");
 			}
 		} else {
 			#  # load this model prev found
@@ -869,7 +869,7 @@ sub getNodeInfo {
 	if ($NCT->{$node}{sysLocation} ne '') {
 		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$NI->{system}{name}}{sysLocation};
 		$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
-		dbg("Manual update of sysLocation by nodeConf");
+		info("Manual update of sysLocation by nodeConf");
 	} else {
 		$NI->{system}{sysLocation} = $NI->{system}{sysLocation};
 	}
@@ -929,7 +929,7 @@ sub getNodeInfo {
 
 	$NI->{system}{nodedown} = $NI->{system}{snmpdown} = $exit ? 'false' : 'true';
 
-	dbg("Finished with exit=$exit nodedown=$NI->{system}{nodedown}");
+	info("Finished with exit=$exit nodedown=$NI->{system}{nodedown}");
 	return $exit;
 } # end getNodeInfo
 
@@ -996,15 +996,15 @@ sub checkPower {
 	my $NI = $S->ndinfo;
 	my $V =  $S->view;
 	my $M = $S->mdl;
-	dbg("Starting");
+	info("Starting");
 
 	my $attr = $args{attr};
 
-	dbg("Start with attribute=$attr");
+	info("Start with attribute=$attr");
 
 	delete $V->{system}{"${attr}_value"};
 
-	dbg("Power check attribute=$attr value=$NI->{system}{$attr}");
+	info("Power check attribute=$attr value=$NI->{system}{$attr}");
 	if ($NI->{system}{$attr} ne '') {
 		if ($NI->{system}{$attr} !~ /noSuch/) {
 			$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
@@ -1018,7 +1018,7 @@ sub checkPower {
 		}
 	}
 
-	dbg("Finished");
+	info("Finished");
 	return;
 
 } # end checkPower
@@ -1030,9 +1030,7 @@ sub checkNodeConfiguration {
 	my $NI = $S->ndinfo;
 	my $V =  $S->view;
 	my $M = $S->mdl;
-	dbg("Starting");
-
-	dbg("Start checkNodeConfiguration ");
+	info("Starting");
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
 	# create previous values if they don't exist
@@ -1047,7 +1045,7 @@ sub checkNodeConfiguration {
 	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged};
 	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev};
 
-	dbg("checkNodeConfiguration configLastChanged=$configLastChanged, configLastSaved=$configLastSaved, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
+	info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastSaved=$configLastSaved, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
 	# check if config is saved:
 	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 );
 	$V->{system}{configLastSaved_value} = convUpTime( $configLastSaved/100 );
@@ -1056,7 +1054,7 @@ sub checkNodeConfiguration {
 	if( $configLastChanged > $bootConfigLastChanged ) {
 		$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
 		$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
-		dbg("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
+		info("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
 	} else {
 		$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
 		$V->{system}{"configurationState_color"} = "#00BB00";	#normal	
@@ -1077,7 +1075,7 @@ sub checkNodeConfiguration {
 		}
 	}
 
-	dbg("Finished");
+	info("Finished");
 	return;
 
 } # end checkNodeConfiguration
@@ -1101,8 +1099,8 @@ sub getIntfInfo {
 	my $C = loadConfTable();
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
-		dbg("Starting");
-		dbg("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+		info("Starting");
+		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 	
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
@@ -1122,7 +1120,7 @@ sub getIntfInfo {
 			if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
 				snmpNodeDown(sys=>$S);
 			}
-			dbg("Finished");
+			info("Finished");
 			return 0;
 		}
 		
@@ -1149,11 +1147,11 @@ sub getIntfInfo {
 				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
 				$IF = $S->ifinfo; # renew pointer
 				logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
-				dbg("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
+				info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
 			} else {
 				# failed by snmp
 				snmpNodeDown(sys=>$S);
-				dbg("Finished");
+				info("Finished");
 				return 0;
 			}
 		}
@@ -1195,14 +1193,14 @@ sub getIntfInfo {
 		my $ifAdEntTable;
 		my $ifMaskTable;
 		my %ifCnt;
-		dbg("Getting Device IP Address Table"); 
+		info("Getting Device IP Address Table"); 
 		if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
 			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
 				foreach my $addr (keys %{$ifAdEntTable}) {
 					my $index = $ifAdEntTable->{$addr};
 					next if ($intf_one ne '' and $intf_one ne $index);
 					$ifCnt{$index} += 1;
-					dbg("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");	
+					info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");	
 					$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
 					$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
 					($IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
@@ -1240,54 +1238,54 @@ sub getIntfInfo {
 		### 2013-03-05 keiths, global collect policy override from Config!
     if ( defined $C->{global_nocollect_noDescription} and $C->{global_nocollect_noDescription} ne "" ) {
     	$noDescription = $C->{global_nocollect_noDescription};
-    	dbg("INFO Model overriden by Global Config for global_nocollect_noDescription");
+    	info("INFO Model overriden by Global Config for global_nocollect_noDescription");
     }
 
     if ( defined $C->{global_collect_Description} and $C->{global_collect_Description} ne "" ) {
     	$qr_collect_ifAlias_gen = qr/($C->{global_collect_Description})/i;
-    	dbg("INFO Model overriden by Global Config for global_collect_Description");
+    	info("INFO Model overriden by Global Config for global_collect_Description");
     }
    
 		# is collection overridden globally, on or off? (on wins if both are set)
 		if ( defined $C->{global_collect_ifDescr} and $C->{global_collect_ifDescr} ne '' )
 		{
 				$qr_collect_ifDescr_gen = qr/($C->{global_collect_ifDescr})/i;
-				dbg("INFO Model overriden by Global Config for global_collect_ifDescr");
+				info("INFO Model overriden by Global Config for global_collect_ifDescr");
 		}
 		elsif ( defined $C->{global_nocollect_ifDescr} and $C->{global_nocollect_ifDescr} ne "" )
 		{
     	$qr_no_collect_ifDescr_gen = qr/($C->{global_nocollect_ifDescr})/i;
-    	dbg("INFO Model overriden by Global Config for global_nocollect_ifDescr");
+    	info("INFO Model overriden by Global Config for global_nocollect_ifDescr");
     }
 
     if ( defined $C->{global_nocollect_Description} and $C->{global_nocollect_Description} ne "" ) {
     	$qr_no_collect_ifAlias_gen = qr/($C->{global_nocollect_Description})/i;
-    	dbg("INFO Model overriden by Global Config for global_nocollect_Description");
+    	info("INFO Model overriden by Global Config for global_nocollect_Description");
     }
 
     if ( defined $C->{global_nocollect_ifType} and $C->{global_nocollect_ifType} ne "" ) {
     	$qr_no_collect_ifType_gen = qr/($C->{global_nocollect_ifType})/i;
-    	dbg("INFO Model overriden by Global Config for global_nocollect_ifType");
+    	info("INFO Model overriden by Global Config for global_nocollect_ifType");
     }
 
     if ( defined $C->{global_nocollect_ifOperStatus} and $C->{global_nocollect_ifOperStatus} ne "" ) {
     	$qr_no_collect_ifOperStatus_gen = qr/($C->{global_nocollect_ifOperStatus})/i;
-    	dbg("INFO Model overriden by Global Config for global_nocollect_ifOperStatus");
+    	info("INFO Model overriden by Global Config for global_nocollect_ifOperStatus");
     }
 
     if ( defined $C->{global_noevent_ifDescr} and $C->{global_noevent_ifDescr} ne "" ) {
     	$qr_no_event_ifDescr_gen = qr/($C->{global_noevent_ifDescr})/i;
-    	dbg("INFO Model overriden by Global Config for global_noevent_ifDescr");
+    	info("INFO Model overriden by Global Config for global_noevent_ifDescr");
     }
 
     if ( defined $C->{global_noevent_Description} and $C->{global_noevent_Description} ne "" ) {
     	$qr_no_event_ifAlias_gen = qr/($C->{global_noevent_Description})/i;
-    	dbg("INFO Model overriden by Global Config for global_noevent_Description");
+    	info("INFO Model overriden by Global Config for global_noevent_Description");
     }
 
     if ( defined $C->{global_noevent_ifType} and $C->{global_noevent_ifType} ne "" ) {
     	$qr_no_event_ifType_gen = qr/($C->{global_noevent_ifType})/i;
-    	dbg("INFO Model overriden by Global Config for global_noevent_ifType");
+    	info("INFO Model overriden by Global Config for global_noevent_ifType");
     }
 		
 		my $intfTotal = 0;
@@ -1311,7 +1309,7 @@ sub getIntfInfo {
 				if ($index ne $i and $IF->{$index}{ifDescr} eq $IF->{$i}{ifDescr}) {
 					$IF->{$index}{ifDescr} = "$IF->{$index}{ifDescr}-${index}"; # add index to string
 					$V->{interface}{"${index}_ifDescr_value"} = $IF->{$index}{ifDescr}; # update
-					dbg("Interface Description changed to $IF->{$index}{ifDescr}");
+					info("Interface Description changed to $IF->{$index}{ifDescr}");
 				}
 			}
 			### add in anything we find from nodeConf - allows manual updating of interface variables
@@ -1321,14 +1319,14 @@ sub getIntfInfo {
 			if ($NCT->{$node}{$ifDescr}{Description} ne '') {
 				$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
 				$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$node}{$ifDescr}{Description};
-				dbg("Manual update of Description by nodeConf");
+				info("Manual update of Description by nodeConf");
 			}
 			if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
 				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{ifSpeed}; # save
 				$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$node}{$ifDescr}{ifSpeed};
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
-				dbg("Manual update of ifSpeed by nodeConf");
+				info("Manual update of ifSpeed by nodeConf");
 			}
 
 			if ($NCT->{$node}{$ifDescr}{ifSpeedIn} ne '') {
@@ -1340,7 +1338,7 @@ sub getIntfInfo {
 
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($IF->{$index}{ifSpeedIn});
-				dbg("Manual update of ifSpeedIn by nodeConf");
+				info("Manual update of ifSpeedIn by nodeConf");
 			}
 			
 			if ($NCT->{$node}{$ifDescr}{ifSpeedOut} ne '') {
@@ -1348,7 +1346,7 @@ sub getIntfInfo {
 				$IF->{$index}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeedOut};
 				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 				$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($IF->{$index}{ifSpeedOut});
-				dbg("Manual update of ifSpeedOut by nodeConf");
+				info("Manual update of ifSpeedOut by nodeConf");
 			}
 			
 			
@@ -1422,7 +1420,7 @@ sub getIntfInfo {
 			if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
 				$IF->{$index}{nc_collect} = $IF->{$index}{collect};
 				$IF->{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
-				dbg("Manual update of Collect by nodeConf");
+				info("Manual update of Collect by nodeConf");
 				if ($IF->{$index}{collect} eq 'false') {
 					$IF->{$index}{nocollect} = "Manual update by nodeConf";
 				}
@@ -1431,13 +1429,13 @@ sub getIntfInfo {
 				$IF->{$index}{nc_event} = $IF->{$index}{event};
 				$IF->{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
 				$IF->{$index}{noevent} = "Manual update by nodeConf" if $IF->{$index}{event} eq 'false'; # reason
-				dbg("Manual update of Event by nodeConf");
+				info("Manual update of Event by nodeConf");
 			}
 			if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
 				$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
 				$IF->{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
 				$IF->{$index}{nothreshold} = "Manual update by nodeConf" if $IF->{$index}{threshold} eq 'false'; # reason
-				dbg("Manual update of Threshold by nodeConf");
+				info("Manual update of Threshold by nodeConf");
 			}
 	
 			# interface now up or down, check and set or clear outstanding event.
@@ -1478,9 +1476,9 @@ sub getIntfInfo {
 				
 			# collect status
 			if ($IF->{$index}{collect} eq "true") {
-				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
+				info("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
 			} else {
-				dbg("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
+				info("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
 				# no collect => no event, no threshold
 				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
 				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
@@ -1495,10 +1493,10 @@ sub getIntfInfo {
 			$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 		}
 	
-		dbg("Finished");
+		info("Finished");
 	}
 	else {
-		dbg("Skipping, interfaces not defined in Model");		
+		info("Skipping, interfaces not defined in Model");		
 	}
 	return 1;
 } # end getIntfInfo
@@ -1895,8 +1893,8 @@ sub getSystemHealthInfo {
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
-	dbg("Starting");
-	dbg("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	info("Starting");
+	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
 	if ($M->{systemHealth} eq '') {
 		dbg("No class 'systemHealth' declared in Model");
@@ -1930,7 +1928,7 @@ sub getSystemHealthInfo {
 				}
 			}
 			if ($index_var ne '') {
-				dbg("systemHealth: index_var=$index_var, index_snmp=$index_snmp");
+				info("systemHealth: index_var=$index_var, index_snmp=$index_snmp");
 				my %healthIndexNum;
 				my $healthIndexTable;
 				if ($healthIndexTable = $SNMP->gettable($index_snmp)) {
@@ -1942,7 +1940,7 @@ sub getSystemHealthInfo {
 						}
 						$healthIndexNum{$index}=$index;
 						# check for online of sensor, value 1 is online
-						dbg("systemHealth section=$section index=$index is found");
+						dbg("section=$section index=$index is found");
 					}
 				} else {
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
@@ -1954,7 +1952,7 @@ sub getSystemHealthInfo {
 				# Loop to get information, will be stored in {info}{$section} table
 				foreach my $index (sort keys %healthIndexNum) {					
 					if ($S->loadInfo(class=>'systemHealth',section=>$section,index=>$index,table=>$section,model=>$model)) {
-						dbg("systemHealth section=$section index=$index read and stored");
+						info("section=$section index=$index read and stored");
 					} else {
 						# failed by snmp
 						snmpNodeDown(sys=>$S);
@@ -1966,7 +1964,7 @@ sub getSystemHealthInfo {
 			}
 		}
 	}
-	dbg("Finished");
+	info("Finished");
 	return 1;
 }
 #=========================================================================================
@@ -1982,8 +1980,8 @@ sub getSystemHealthData {
 
 	my $C = loadConfTable();
 
-	dbg("Starting");
-	dbg("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	info("Starting");
+	info("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
 	if ($M->{systemHealth} eq '') {
 		dbg("No class 'systemHealth' declared in Model");
@@ -2024,7 +2022,7 @@ sub getSystemHealthData {
 			
 		}
 	}
-	dbg("Finished");
+	info("Finished");
 	return 1;
 }	
 #=========================================================================================
@@ -2040,11 +2038,11 @@ sub updateNodeInfo {
 	my $result;
 	my $exit = 1;
 
-		dbg("Starting Update Node Info, node $S->{name}");
+		info("Starting Update Node Info, node $S->{name}");
 
 	# check node reset count
 	if ($NI->{system}{noderesetcnt} > 0) {
-		dbg("noderesetcnt=$NI->{system}{noderesetcnt} skip collecting");
+		info("noderesetcnt=$NI->{system}{noderesetcnt} skip collecting");
 		$NI->{system}{noderesetcnt}--;
 		$NI->{system}{noderesetcnt} = 4 if $NI->{system}{noderesetcnt} > 4; # limit
 		delete $NI->{system}{noderesetcnt} if $NI->{system}{noderesetcnt} <= 0; # failure
@@ -2077,14 +2075,14 @@ sub updateNodeInfo {
 		$NI->{system}{sysUpTimeSec} = int($NI->{system}{sysUpTime}/100); # seconds	
 
 		$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec});
-		dbg("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
+		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
 		### 2012-08-18 keiths, Special debug for Node Reset false positives
 		#logMsg("DEBUG Node Reset: Node=$S->{name} Old=$sysUpTime New=$NI->{system}{sysUpTime} OldSec=$sysUpTimeSec NewSec=$NI->{system}{sysUpTimeSec}");
 		#if ( $NI->{system}{sysUpTime} ) {
 		#	
 		#}
 		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
-			dbg("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
+			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
 			notify(sys=>$S, event=>"Node Reset",element=>"",details=>"Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
 			# calculate time of node no collecting to overlap heartbeat
 			my $cnt = 4 - ((time() - $NI->{system}{lastUpdateSec})/300);
@@ -2107,12 +2105,12 @@ sub updateNodeInfo {
 		if ($NCT->{$node}{sysLocation} ne '') {
 			$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
 			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$node}{sysLocation};
-			dbg("Manual update of sysLocation by nodeConf");
+			info("Manual update of sysLocation by nodeConf");
 		}
 		if ($NCT->{$node}{sysContact} ne '') {
 			$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
 			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$node}{sysContact};
-			dbg("Manual update of sysContact by nodeConf");
+			info("Manual update of sysContact by nodeConf");
 		}
 
 		# ok we are running snmp
@@ -2155,7 +2153,7 @@ sub updateNodeInfo {
 	}
 
 END_updateNodeInfo:
-	dbg("Finished with exit=$exit");
+	info("Finished with exit=$exit");
 	return $exit;
 } # end updateNodeInfo
 
@@ -2168,7 +2166,7 @@ sub processAlerts {
 
 	foreach my $alert (@{$alerts}) 
 	{
-		dbg("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
+		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
 		dbg("Processing alert ".Dumper($alert),3);
 		my $tresult = "Normal";
 		$tresult = $alert->{level} if $alert->{test_result};
@@ -2194,7 +2192,7 @@ sub getNodeData {
 
 	my $rrdData;
 
-	dbg("Starting Node get data, node $S->{name}");
+	info("Starting Node get data, node $S->{name}");
 
 	if (($rrdData = $S->getData(class=>'system', model => $model))) {
 		processAlerts( S => $S );
@@ -2226,7 +2224,7 @@ sub getNodeData {
 		return 0;
 	}
 	
-	dbg("Finished");
+	info("Finished");
 	return 1;
 } # end getNodeData
 
@@ -2242,6 +2240,8 @@ sub checkNodeHealth {
 	my $NI = $S->ndinfo;
 	my $RI = $S->reach;
 
+	info("Starting, node $S->{name}");
+
 	# take care of negative values from 6509 MSCF
 	if ( exists $D->{bufferElHit} and $D->{bufferElHit}{value} < 0) { $D->{bufferElHit}{value} = sprintf("%u",$D->{bufferElHit}{value}); }
 	
@@ -2256,7 +2256,7 @@ sub checkNodeHealth {
 	if ( exists $D->{MemoryFreePROC} ) {
 		$RI->{memfree} = $D->{MemoryFreePROC}{value};
 	}
-	dbg("Finished");
+	info("Finished");
 	return 1;
 } # end checkHealth
 
@@ -2280,7 +2280,7 @@ sub getIntfData {
 
 	my $createdone = "false";
 	
-	dbg("Starting Interface get data, node $S->{name}");
+	info("Starting Interface get data, node $S->{name}");
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
 
@@ -2305,208 +2305,210 @@ sub getIntfData {
 	# Start a loop which go through the interface table
 
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
-		dbg("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
+		if ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
+			info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
 
-		# only collect on interfaces that are defined, with collection turned on globally
-		if ( $IF->{$index}{collect} eq 'true') {
-			dbg("collect interface index=$index");
-
-			my $rrdData;
-			if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
-				processAlerts( S => $S );
-				if ( $rrdData->{error} eq "" ) {
-					foreach my $sect (keys %{$rrdData}) {
+			# only collect on interfaces that are defined, with collection turned on globally
+			if ( $IF->{$index}{collect} eq 'true') {
+				dbg("collect interface index=$index");
 	
-						my $D = $rrdData->{$sect}{$index};
-	
-						# if HC exists then copy values
-						if (exists $D->{ifHCInOctets}) {
-							dbg("process HC counters");
-							#copy HC counters if exists
-							if ($D->{ifHCInOctets}{value} =~ /\d+/) {
-								$D->{ifInOctets}{value} = $D->{ifHCInOctets}{value};
-								$D->{ifInOctets}{option} = $D->{ifHCInOctets}{option};
-							}
-							delete $D->{ifHCInOctets};
-							if ($D->{ifHCOutOctets}{value} =~ /\d+/) {
-								$D->{ifOutOctets}{value} = $D->{ifHCOutOctets}{value};
-								$D->{ifOutOctets}{option} = $D->{ifHCOutOctets}{option};
-							}
-							delete $D->{ifHCOutOctets};
-						}
-	
-						### 2012-08-14 keiths, added additional HC mappings
-						if ($sect eq 'pkts' or $sect eq 'pkts_hc') {
-							dbg("process HC counters of $sect");
-							if ($D->{ifHCInUcastPkts}{value} =~ /\d+/) {
-								$D->{ifInUcastPkts}{value} = $D->{ifHCInUcastPkts}{value};
-								$D->{ifInUcastPkts}{option} = $D->{ifHCInUcastPkts}{option};
-							}
-							delete $D->{ifHCInUcastPkts};
-							if ($D->{ifHCOutUcastPkts}{value} =~ /\d+/) {
-								$D->{ifOutUcastPkts}{value} = $D->{ifHCOutUcastPkts}{value};
-								$D->{ifOutUcastPkts}{option} = $D->{ifHCOutUcastPkts}{option};
-							}
-							delete $D->{ifHCOutUcastPkts};
-
-							if ($D->{ifHCInMcastPkts}{value} =~ /\d+/) {
-								$D->{ifInMcastPkts}{value} = $D->{ifHCInMcastPkts}{value};
-								$D->{ifInMcastPkts}{option} = $D->{ifHCInMcastPkts}{option};
-							}
-							delete $D->{ifHCInMcastPkts};
-							if ($D->{ifHCOutMcastPkts}{value} =~ /\d+/) {
-								$D->{ifOutMcastPkts}{value} = $D->{ifHCOutMcastPkts}{value};
-								$D->{ifOutMcastPkts}{option} = $D->{ifHCOutMcastPkts}{option};
-							}
-							delete $D->{ifHCOutMcastPkts};
-
-							if ($D->{ifHCInBcastPkts}{value} =~ /\d+/) {
-								$D->{ifInBcastPkts}{value} = $D->{ifHCInBcastPkts}{value};
-								$D->{ifInBcastPkts}{option} = $D->{ifHCInBcastPkts}{option};
-							}
-							delete $D->{ifHCInBcastPkts};
-							if ($D->{ifHCOutBcastPkts}{value} =~ /\d+/) {
-								$D->{ifOutBcastPkts}{value} = $D->{ifHCOutBcastPkts}{value};
-								$D->{ifOutBcastPkts}{option} = $D->{ifHCOutBcastPkts}{option};
-							}
-							delete $D->{ifHCOutBcastPkts};
-
-						}
-	
-						if ($sect eq 'interface') {
-							$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
-							# Cache any data for use later.
-							$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
-							$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
-				
-							if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
-								dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
-	
-								if ($D->{ifOperStatus}{value} eq 'down') {
-									if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
-										# going down
-										getIntfInfo(sys=>$S,index=>$index); # update this interface
-									}
+				my $rrdData;
+				if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
+					processAlerts( S => $S );
+					if ( $rrdData->{error} eq "" ) {
+						foreach my $sect (keys %{$rrdData}) {
+		
+							my $D = $rrdData->{$sect}{$index};
+		
+							# if HC exists then copy values
+							if (exists $D->{ifHCInOctets}) {
+								dbg("process HC counters");
+								#copy HC counters if exists
+								if ($D->{ifHCInOctets}{value} =~ /\d+/) {
+									$D->{ifInOctets}{value} = $D->{ifHCInOctets}{value};
+									$D->{ifInOctets}{option} = $D->{ifHCInOctets}{option};
 								}
-								# must be up
-								else {
-									# Check if the status changed
-									if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
-										# going up
-										getIntfInfo(sys=>$S,index=>$index); # update this interface
-									}
+								delete $D->{ifHCInOctets};
+								if ($D->{ifHCOutOctets}{value} =~ /\d+/) {
+									$D->{ifOutOctets}{value} = $D->{ifHCOutOctets}{value};
+									$D->{ifOutOctets}{option} = $D->{ifHCOutOctets}{option};
 								}
-								
-								# If new ifDescr is different from old ifDescr rebuild interface info table
-								# check if nodeConf modified this inteface
-								
-								my $node = $NI->{system}{name};
-								my $ifDescr = $IF->{$index}{ifDescr};
-								if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{Description} eq '' and
-									$D->{ifDescr}{value} ne '' and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
-									# Reload the interface config won't get that one right but should get the next one right
-									logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"); 
-									getIntfInfo(sys=>$S,index=>$index); # update this interface
-								}
-									
-								delete $D->{ifDescr}; # dont store in rrd
-								delete $D->{ifAdminStatus};
-	
-								if (exists $D->{ifLastChange}{value}){
-									# convert time integer to time string
-									$V->{interface}{"${index}_ifLastChange_value"} = 
-										$IF->{$index}{ifLastChange} = 
-											convUpTime($IF->{$index}{ifLastChangeSec} = int($D->{ifLastChange}{value}/100));
-									dbg("last change time=$IF->{$index}{ifLastChange}, timesec=$IF->{$index}{ifLastChangeSec}");
-								}
-								delete $D->{ifLastChange};
-				
-								my $operStatus;
-								# Calculate Operational Status
-								$operStatus =  ($D->{ifOperStatus}{value} =~ /up|ok|dormant/ ) ? 100 : 0;
-								$D->{ifOperStatus}{value} = $operStatus; # store real value in rrd
-				
-								# While updating start calculating the total availability of the node, depends on events set
-								my $opstatus = $IF->{$index}{event} eq 'true' ? $operStatus : 100;
-								$RI->{operStatus} = $RI->{operStatus} + $opstatus;
-								$RI->{operCount} = $RI->{operCount} + 1;
-	
-								# count total number of collected interfaces up ( if events are set on)
-								$RI->{intfColUp} += $operStatus/100 if $IF->{$index}{event} eq 'true'; 
-							} else{
-								logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
+								delete $D->{ifHCOutOctets};
 							}
-						}
+		
+							### 2012-08-14 keiths, added additional HC mappings
+							if ($sect eq 'pkts' or $sect eq 'pkts_hc') {
+								dbg("process HC counters of $sect");
+								if ($D->{ifHCInUcastPkts}{value} =~ /\d+/) {
+									$D->{ifInUcastPkts}{value} = $D->{ifHCInUcastPkts}{value};
+									$D->{ifInUcastPkts}{option} = $D->{ifHCInUcastPkts}{option};
+								}
+								delete $D->{ifHCInUcastPkts};
+								if ($D->{ifHCOutUcastPkts}{value} =~ /\d+/) {
+									$D->{ifOutUcastPkts}{value} = $D->{ifHCOutUcastPkts}{value};
+									$D->{ifOutUcastPkts}{option} = $D->{ifHCOutUcastPkts}{option};
+								}
+								delete $D->{ifHCOutUcastPkts};
 	
-						if ($C->{debug}) {
-							foreach my $ds (keys %{$D}) {
-								dbg("rrdData section $sect, ds $ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
+								if ($D->{ifHCInMcastPkts}{value} =~ /\d+/) {
+									$D->{ifInMcastPkts}{value} = $D->{ifHCInMcastPkts}{value};
+									$D->{ifInMcastPkts}{option} = $D->{ifHCInMcastPkts}{option};
+								}
+								delete $D->{ifHCInMcastPkts};
+								if ($D->{ifHCOutMcastPkts}{value} =~ /\d+/) {
+									$D->{ifOutMcastPkts}{value} = $D->{ifHCOutMcastPkts}{value};
+									$D->{ifOutMcastPkts}{option} = $D->{ifHCOutMcastPkts}{option};
+								}
+								delete $D->{ifHCOutMcastPkts};
+	
+								if ($D->{ifHCInBcastPkts}{value} =~ /\d+/) {
+									$D->{ifInBcastPkts}{value} = $D->{ifHCInBcastPkts}{value};
+									$D->{ifInBcastPkts}{option} = $D->{ifHCInBcastPkts}{option};
+								}
+								delete $D->{ifHCInBcastPkts};
+								if ($D->{ifHCOutBcastPkts}{value} =~ /\d+/) {
+									$D->{ifOutBcastPkts}{value} = $D->{ifHCOutBcastPkts}{value};
+									$D->{ifOutBcastPkts}{option} = $D->{ifHCOutBcastPkts}{option};
+								}
+								delete $D->{ifHCOutBcastPkts};
+	
 							}
-						}
-	
-						# RRD Database update and remember filename
-						dbg("updateRRD type$sect index=$index",2);
-						if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-							$NI->{database}{$sect}{$index} = $db;
-						}
-					}
-					# calculate summary statistics of this interface only if intf up
-					my $util = getSummaryStats(sys=>$S,type=>"interface",start=>"-6 hours",end=>time,index=>$index);
-					$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
-					$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
-					$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
-					$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
+		
+							if ($sect eq 'interface') {
+								$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
+								# Cache any data for use later.
+								$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
+								$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
 					
-					if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} eq "false" ) {
-						dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
-						$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
-						$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
-						$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
-						$V->{interface}{"${index}_ifOperStatus_value"} = $IFCACHE->{$index}{ifOperStatus};
+								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
+									dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+		
+									if ($D->{ifOperStatus}{value} eq 'down') {
+										if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
+											# going down
+											getIntfInfo(sys=>$S,index=>$index); # update this interface
+										}
+									}
+									# must be up
+									else {
+										# Check if the status changed
+										if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
+											# going up
+											getIntfInfo(sys=>$S,index=>$index); # update this interface
+										}
+									}
+									
+									# If new ifDescr is different from old ifDescr rebuild interface info table
+									# check if nodeConf modified this inteface
+									
+									my $node = $NI->{system}{name};
+									my $ifDescr = $IF->{$index}{ifDescr};
+									if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{Description} eq '' and
+										$D->{ifDescr}{value} ne '' and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
+										# Reload the interface config won't get that one right but should get the next one right
+										logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"); 
+										getIntfInfo(sys=>$S,index=>$index); # update this interface
+									}
+										
+									delete $D->{ifDescr}; # dont store in rrd
+									delete $D->{ifAdminStatus};
+		
+									if (exists $D->{ifLastChange}{value}){
+										# convert time integer to time string
+										$V->{interface}{"${index}_ifLastChange_value"} = 
+											$IF->{$index}{ifLastChange} = 
+												convUpTime($IF->{$index}{ifLastChangeSec} = int($D->{ifLastChange}{value}/100));
+										dbg("last change time=$IF->{$index}{ifLastChange}, timesec=$IF->{$index}{ifLastChangeSec}");
+									}
+									delete $D->{ifLastChange};
+					
+									my $operStatus;
+									# Calculate Operational Status
+									$operStatus =  ($D->{ifOperStatus}{value} =~ /up|ok|dormant/ ) ? 100 : 0;
+									$D->{ifOperStatus}{value} = $operStatus; # store real value in rrd
+					
+									# While updating start calculating the total availability of the node, depends on events set
+									my $opstatus = $IF->{$index}{event} eq 'true' ? $operStatus : 100;
+									$RI->{operStatus} = $RI->{operStatus} + $opstatus;
+									$RI->{operCount} = $RI->{operCount} + 1;
+		
+									# count total number of collected interfaces up ( if events are set on)
+									$RI->{intfColUp} += $operStatus/100 if $IF->{$index}{event} eq 'true'; 
+								} else{
+									logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
+								}
+							}
+		
+							if ($C->{debug}) {
+								foreach my $ds (keys %{$D}) {
+									dbg("rrdData section $sect, ds $ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
+								}
+							}
+		
+							# RRD Database update and remember filename
+							info("updateRRD type$sect index=$index",2);
+							if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
+								$NI->{database}{$sect}{$index} = $db;
+							}
+						}
+						# calculate summary statistics of this interface only if intf up
+						my $util = getSummaryStats(sys=>$S,type=>"interface",start=>"-6 hours",end=>time,index=>$index);
+						$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
+						$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
+						$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
+						$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
+						
+						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} eq "false" ) {
+							dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
+							$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+							$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+							$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
+							$V->{interface}{"${index}_ifOperStatus_value"} = $IFCACHE->{$index}{ifOperStatus};
+						}
+		
+						### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
+						### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
+						if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
+							checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+						}
 					}
+					else {
+						### 2012-03-29 keiths, SNMP is OK, some other error happened.
+						dbg("ERROR ($NI->{system}{name}) on getIntfData, $rrdData->{error}");
+					}
+					
+				} else {
+					dbg("ERROR ($S->{name}) on getting data of interface=$index");
+					$V->{interface}{"${index}_operAvail_value"} = 'N/A';
+					$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
+					# inerface problems
+					### 2013-11-06 keiths: this Interface Down does not appear to be valid, no data means we don't know commenting out the notify and changing to logMsg
+					if ($IF->{$index}{event} eq 'true') {
+						logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
+						###notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+					}
+				}
 	
-					### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
-					### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-					if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
-						checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
-					}
-				}
-				else {
-					### 2012-03-29 keiths, SNMP is OK, some other error happened.
-					dbg("ERROR ($NI->{system}{name}) on getIntfData, $rrdData->{error}");
-				}
-				
-			} else {
-				dbg("ERROR ($S->{name}) on getting data of interface=$index");
-				$V->{interface}{"${index}_operAvail_value"} = 'N/A';
-				$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
-				# inerface problems
-				### 2013-11-06 keiths: this Interface Down does not appear to be valid, no data means we don't know commenting out the notify and changing to logMsg
+				# header info of web page
+				$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
+				$V->{interface}{"${index}_totalUtil_title"} = 'Util. 6hrs';
+	
+				# check escalation if event is on
 				if ($IF->{$index}{event} eq 'true') {
-					logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
-					###notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+					my $event_hash = eventHash($S->{node}, "Interface Down", $IF->{$index}{ifDescr});
+					my $escalate = exists $ET->{$event_hash}{escalate} ? $ET->{$event_hash}{escalate} : 'none';
+					$V->{interface}{"${index}_escalate_title"} = 'Esc.';
+					$V->{interface}{"${index}_escalate_value"} = $escalate;
 				}
+	
+			} else {
+				dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}");
 			}
-
-			# header info of web page
-			$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
-			$V->{interface}{"${index}_totalUtil_title"} = 'Util. 6hrs';
-
-			# check escalation if event is on
-			if ($IF->{$index}{event} eq 'true') {
-				my $event_hash = eventHash($S->{node}, "Interface Down", $IF->{$index}{ifDescr});
-				my $escalate = exists $ET->{$event_hash}{escalate} ? $ET->{$event_hash}{escalate} : 'none';
-				$V->{interface}{"${index}_escalate_title"} = 'Esc.';
-				$V->{interface}{"${index}_escalate_value"} = $escalate;
-			}
-
-		} else {
-			dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}");
 		}
 	} # FOR LOOP
 
 	$S->{ET} = '';
-	dbg("Finished");
+	info("Finished");
 } # getIntfData
 
 
@@ -2524,12 +2526,12 @@ sub getCBQoS {
 	my $NC = $S->ndcfg;
 
 	if ($NC->{node}{cbqos} !~ /true|input|output|both/) {
-		dbg("no collecting ($NC->{node}{cbqos}) for node $NI->{system}{name}");
+		info("no collecting ($NC->{node}{cbqos}) for node $NI->{system}{name}");
 		delete $NI->{database}{cbqos}; # cleanup
 		return;
 	}
 
-	dbg("Starting for node $S->{name}");
+	info("Starting for node $S->{name}");
 
 	## oke,lets go
 	if ($S->{doupdate} eq 'true') {
@@ -2539,7 +2541,7 @@ sub getCBQoS {
 		getCBQoSdata(sys=>$S); 	# get data
 	}
 
-	dbg("Finished"); 
+	info("Finished"); 
 
 	return;
 
@@ -2569,7 +2571,7 @@ sub getCBQoS {
 							foreach my $key (keys %{$CB->{$direction}{'ClassMap'}}) {
 								my $CMName = $CB->{$direction}{'ClassMap'}{$key}{'Name'};
 								my $OIndex = $CB->{$direction}{'ClassMap'}{$key}{'Index'};
-								dbg("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
+								info("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
 
 								# get the number of bytes/packets transfered and dropped
 								my $port = "$PIndex.$OIndex";
@@ -2584,8 +2586,8 @@ sub getCBQoS {
 											return undef;
 										}
 										# oke, store the data
-										dbg("bytes transfered  $D->{'PrePolicyByte'}{value}, bytes dropped  $D->{'DropByte'}{value}");
-										dbg("packets transfered  $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
+										dbg("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
+										dbg("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
 										dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 										#
 										# update RRD
@@ -2634,13 +2636,13 @@ sub getCBQoS {
 
 		# get the interface indexes and objects from the snmp table
 
-		dbg("start table scanning");
+		info("start table scanning");
 
 		# read qos interface table
 		if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex')) {
 			foreach my $PIndex (keys %{$ifIndexTable}) {
 				my $intf = $ifIndexTable->{$PIndex}; # the interface number from de snmp qos table
-				dbg("CBQoS, scan interface $intf");
+				info("CBQoS, scan interface $intf");
 				# is this an active interface 
 				if ( exists $IF->{$intf}) {
 					# oke, go
@@ -2654,7 +2656,7 @@ sub getCBQoS {
 							($answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/) ) {
 						# interface found with QoS input or output configured
 						$direction = ($answer->{'cbQosPolicyDirection'} == 1) ? "in" : "out";
-						dbg("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+						info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
 
 						# get the policy config table for this interface
 						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
@@ -3233,7 +3235,7 @@ sub runServer {
 
 	if ($NI->{system}{nodeType} ne 'server') { return;}
 
-	dbg("Starting server device/storage collection, node $NI->{system}{name}");
+	info("Starting server device/storage collection, node $NI->{system}{name}");
 
 	# get cpu info
 	delete $NI->{device};
@@ -3243,7 +3245,7 @@ sub runServer {
 		foreach my $index (keys %{$deviceIndex}) {
 			if ($S->loadInfo(class=>'device',index=>$index,model=>$model)) {
 				my $D = $NI->{device}{$index};
-				dbg("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
+				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ($D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3') { # hrDeviceProcessor
 					($hrCpuLoad,$D->{hrDeviceDescr}) = $SNMP->getarray("hrProcessorLoad.${index}","hrDeviceDescr.${index}");
 					
@@ -3251,7 +3253,7 @@ sub runServer {
 					push(@{$S->{reach}{cpuList}},$hrCpuLoad);
 					
 					$NI->{device}{$index}{hrCpuLoad} = ($hrCpuLoad =~ /noSuch/i) ? $NI->{device}{hrCpuLoad} : $hrCpuLoad ;
-					dbg("cpu Load=$NI->{device}{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
+					info("cpu Load=$NI->{device}{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
 					$Val{hrCpuLoad}{value} = $NI->{device}{$index}{hrCpuLoad} || 0;
 					if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrsmpcpu",index=>$index))) {
@@ -3280,7 +3282,7 @@ sub runServer {
 		foreach my $index (keys %{$storageIndex}) {
 			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
 				my $D = $NI->{storage}{$index};
-				dbg("storage Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
+				info("storage Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
 				if (($M->{storage}{nocollect}{Description} ne '' and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/ ) 
 							or $D->{hrStorageSize} <= 0) {
 					delete $NI->{storage}{$index};
@@ -3347,7 +3349,7 @@ sub runServer {
 		my @tt = unpack("C*", shift );
 		return eval(($tt[0] *256) + $tt[1])."-".$tt[2]."-".$tt[3].",".$tt[4].":".$tt[5].":".$tt[6].".".$tt[7];
 	}
-	dbg("Finished");
+	info("Finished");
 } # end runServer
 
 
@@ -3362,7 +3364,7 @@ sub runServices {
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
 
-	dbg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
+	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	### 2012-09-11 keiths, running services even if node down.
 	#if ($NI->{system}{nodedown} eq 'true') {
@@ -3389,7 +3391,7 @@ sub runServices {
 		next if $service =~ /n\/a/i;
 		next if $ST->{$service}{Service_Type} =~ /n\/a/i;
 		next if $service eq '';
-		dbg("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
+		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
 
 		# clear global hash each time around as this is used to pass results to rrd update
 		undef %snmpTable;
@@ -3536,14 +3538,14 @@ sub runServices {
 							$cpu = $services{$_}{hrSWRunPerfCPU};
 							$memory = $services{$_}{hrSWRunPerfMem};
 							$gotMemCpu = 1;
-							dbg("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+							info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
 						}
 						else {
 							$ret = 0;
 							$cpu = $services{$_}{hrSWRunPerfCPU};
 							$memory = $services{$_}{hrSWRunPerfMem};
 							$gotMemCpu = 1;
-							dbg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
+							info("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
 							last;
 						}
 					}					
@@ -3630,7 +3632,7 @@ sub runServices {
 		}
 	} # foreach
 END_runServices:
-	dbg("Finished");
+	info("Finished");
 } # end runServices
 
 #=========================================================================================
@@ -3647,10 +3649,10 @@ sub runAlerts {
 	my %ValMeM;
 	my $hrCpuLoad;
 
-	dbg("Running Customer Alerts for node $NI->{system}{name}");
+	info("Running Custom Alerts for node $NI->{system}{name}");
 		
 	foreach my $sect (keys %{$CA}) {
-		dbg("Custom Alerts for $sect");
+		info("Custom Alerts for $sect");
 		foreach my $index ( keys %{$NI->{$sect}} ) {
 			foreach my $alrt ( keys %{$CA->{$sect}} ) {
 				if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {					
@@ -3773,7 +3775,7 @@ sub runAlerts {
 						}
 					}
 					
-					dbg("alert result: test_result=$test_result level=$level",2);
+					info("alert result: test_result=$test_result level=$level",2);
 					$alert->{type} = $CA->{$sect}{$alrt}{type};
 					$alert->{test} = $CA->{$sect}{$alrt}{value};
 					$alert->{name} = $S->{name};
@@ -3791,7 +3793,7 @@ sub runAlerts {
 	
 	processAlerts( S => $S );
 
-	dbg("Finished");
+	info("Finished");
 } # end runAlerts
 
 #=========================================================================================
@@ -3880,7 +3882,7 @@ sub runReach {
 	my $intWeight;
 	my $index;
 	
-	dbg("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
+	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
 	$RI->{memused} = ($RI->{memused} - $RI->{memfree}) if $NI->{nodeModel} =~ /FoundrySwitch/;
@@ -4073,7 +4075,7 @@ sub runReach {
 							($memWeight * $C->{weight_mem})
 							;
 		}
-		dbg("Calculation of health=$reach{health}");
+		info("Calculation of health=$reach{health}");
 		if (lc $reach{health} eq 'nan') {
 			dbg("Values Calc. reachability=$reach{reachability} * $C->{weight_reachability}");
 			dbg("Values Calc. intWeight=$intWeight * $C->{weight_int}");
@@ -4119,10 +4121,10 @@ sub runReach {
 	dbg("memWeight=$memWeight (normalised)");
 	dbg("intWeight=$intWeight (100 less the actual total interface utilisation)");
 	dbg("responseWeight=$responseWeight (normalised)");
-	dbg("total number of interfaces=$reach{intfTotal}");
-	dbg("total number of interfaces up=$reach{intfUp}");
-	dbg("total number of interfaces collected=$reach{intfCollect}");
-	dbg("total number of interfaces coll. up=$reach{intfColUp}");
+	info("total number of interfaces=$reach{intfTotal}");
+	info("total number of interfaces up=$reach{intfUp}");
+	info("total number of interfaces collected=$reach{intfCollect}");
+	info("total number of interfaces coll. up=$reach{intfColUp}");
 
 	for $index ( sort keys %reach ) {
 		dbg("$index=$reach{$index}");
@@ -4155,7 +4157,7 @@ sub runReach {
 	$NI->{graphtype}{health} = $NI->{system}{nodeModel} eq 'PingOnly' ? "health-ping,response" : "health,response,numintf";
 
 END_runReach:
-	dbg("Finished");
+	info("Finished");
 } # end runHealth
 
 #=========================================================================================
@@ -4330,18 +4332,18 @@ sub nmisMaster {
 	$C->{master_sleep} = 15 if $C->{master_sleep} eq "";
 
 	if ($C->{server_master} eq "true") {
-		dbg("Running NMIS Master Functions");
+		info("Running NMIS Master Functions");
 		
 		if ( $C->{master_sleep} or $sleep ) {
 			my $sleepNow = $C->{master_sleep};
 			$sleepNow = $sleep if $sleep;
-			dbg("Master is sleeping $sleepNow seconds (waiting for summary updates on slaves)");
+			info("Master is sleeping $sleepNow seconds (waiting for summary updates on slaves)");
 			sleep $sleepNow;	
 		}
 	
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
-			dbg("Master, processing Slave Server $srv, $ST->{$srv}{host}");
+			info("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 			
 			dbg("Get loadnodedetails from $srv");
 			getFileFromRemote(server => $srv, func => "loadnodedetails", group => $ST->{$srv}{group}, format => "text", file => getFileName(file => "$C->{'<nmis_var>'}/nmis-${srv}-Nodes"));
@@ -5603,13 +5605,13 @@ EO_TEXT
 	}
 	
 	# Do the var directories exist if not make them?
-	dbg("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
+	info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
 	if ($C->{'<nmis_var>'} ne '') {
 		checkFunc("$C->{'<nmis_var>'}");
 	}
 
 	# Do the log directories exist if not make them?
-	dbg("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
+	info("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
 		checkFunc("$C->{'<nmis_logs>'}");
 		checkFunc("$C->{'json_logs'}");
@@ -5617,13 +5619,13 @@ EO_TEXT
 	}
 
 	# Do the conf directories exist if not make them?
-	dbg("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
+	info("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
 	if ($C->{'<nmis_conf>'} ne '') {
 		checkFunc("$C->{'<nmis_conf>'}");
 	}
 		
 	# Do the database directories exist if not make them?
-	dbg("Config $checkType - Checking database directories");
+	info("Config $checkType - Checking database directories");
 	if ($C->{database_root} ne '') {
 		checkFunc("$C->{database_root}");
 		checkFunc("$C->{database_root}/health");
@@ -6354,11 +6356,11 @@ sub getPidFileName {
 
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};
-	dbg("\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n");
+	info("\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n");
 }
 
 # *****************************************************************************
-# NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
+# NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
 # This is free software licensed under GNU GPL, and you are welcome to 
 # redistribute it under certain conditions; see www.opmantek.com or email

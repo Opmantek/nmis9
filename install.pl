@@ -58,6 +58,11 @@ my $defaultCpan = 1;
 my $installLog = undef;
 my $nmisModules;			# local modules used in our scripts
 
+if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
+	printHelp();
+	exit 0;
+}
+
 # Get some command line arguements.
 my %arg = getArguements(@ARGV);
 
@@ -392,4 +397,23 @@ sub logInstall {
 		print OUT "$string\n";
 		close(OUT);
 	}
+}
+
+sub printHelp {
+	print qq/
+NMIS Install Script version $NMIS::VERSION
+
+NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+
+usage: $0 [site=$defaultSite] [fping=$defaultFping] [cpan=(true|false)]
+
+Options:  
+  site	Target site for installation, default is $defaultSite 
+  fping	Location of the fping program, default is $defaultFping 
+  cpan	Check Perl dependancies or not, default is true
+
+eg: $0 site=$defaultSite fping=$defaultFping cpan=true
+
+/;	
 }
