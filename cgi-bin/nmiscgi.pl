@@ -2,7 +2,7 @@
 #
 ## $Id: nmiscgi.pl,v 8.26 2012/09/18 01:40:59 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -307,7 +307,7 @@ EOF
 
 # script end
 # *****************************************************************************
-# NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
+# Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
 # This is free software licensed under GNU GPL, and you are welcome to 
 # redistribute it under certain conditions; see www.opmantek.com or email

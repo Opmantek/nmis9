@@ -2,7 +2,7 @@
 #
 ## $Id: fixperms.pl,v 8.3 2011/11/09 06:16:04 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

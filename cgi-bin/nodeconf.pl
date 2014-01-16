@@ -2,7 +2,7 @@
 #
 ## $Id: nodeconf.pl,v 8.8 2012/10/08 08:17:50 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  

@@ -1,7 +1,7 @@
 #
 ## $Id: Sys.pm,v 8.17 2012/12/03 07:47:26 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  

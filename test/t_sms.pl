@@ -2,7 +2,7 @@
 #
 ## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

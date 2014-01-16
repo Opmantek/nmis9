@@ -2,7 +2,7 @@
 #
 ## $Id: run-reports.pl,v 8.1 2013/01/03 07:42:50 keiths Exp $
 #
-#  Copyright Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

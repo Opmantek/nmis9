@@ -2,7 +2,7 @@
 #
 ## $Id: model_audit.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

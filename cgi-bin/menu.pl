@@ -2,7 +2,7 @@
 #
 ## $Id: menu.pl,v 8.23 2012/08/13 05:05:00 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -490,7 +490,7 @@ sub menu_about_view {
 <br/>
 Network Management Information System<br/>
 NMIS Version $NMIS::VERSION<br/>
-Copyright (C) 1999-2011 <a href="http://www.opmantek.com">Opmantek Limited (www.opmantek.com)</a><br/>
+Copyright (C) <a href="http://www.opmantek.com">Opmantek Limited (www.opmantek.com)</a><br/>
 This program comes with ABSOLUTELY NO WARRANTY;<br/>
 This is free software licensed under GNU GPL, and you are welcome to<br/>
 redistribute it under certain conditions; see <a href="http://www.opmantek.com">www.opmantek.com</a> or email<br/>
@@ -515,7 +515,7 @@ EO_TEXT
 	return;
 }
 # *****************************************************************************
-# NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
+# Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
 # This is free software licensed under GNU GPL, and you are welcome to 
 # redistribute it under certain conditions; see www.opmantek.com or email

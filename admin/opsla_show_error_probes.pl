@@ -2,7 +2,7 @@
 #
 ## $Id: opsla_show_error_probes.pl,v 1.2 2012/05/16 05:23:45 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

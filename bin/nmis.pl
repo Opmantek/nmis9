@@ -2,7 +2,7 @@
 #
 ## $Id: nmis.pl,v 8.52 2012/12/03 07:47:26 keiths Exp $
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -109,7 +109,7 @@ if ( $type eq "" ) {
 } 
 
 print qq/
-NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
+Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to 
 redistribute it under certain conditions; see www.opmantek.com or email
@@ -5893,7 +5893,7 @@ sub checkArgs {
 $0 
 NMIS Polling Engine - Network Management Information System
 
-NMIS Copyright (C) 1999-2013 Opmantek Limited (www.opmantek.com)
+Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to 
 redistribute it under certain conditions; see www.opmantek.com or email
@@ -6360,7 +6360,7 @@ sub printRunTime {
 }
 
 # *****************************************************************************
-# NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
+# Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
 # This is free software licensed under GNU GPL, and you are welcome to 
 # redistribute it under certain conditions; see www.opmantek.com or email

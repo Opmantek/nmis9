@@ -2,7 +2,7 @@
 #
 ## $Id: diffconfigs.pl,v 8.4 2012/08/14 12:38:53 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

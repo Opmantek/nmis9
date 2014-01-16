@@ -2,7 +2,7 @@
 #
 ## $Id: nmis_post_proc.pl,v 8.1 2011/12/19 04:13:32 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -99,7 +99,7 @@ sub getNetworkSummary {
 1;
 
 # *****************************************************************************
-# NMIS Copyright (C) 1999-2011 Opmantek Limited (www.opmantek.com)
+# Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
 # This is free software licensed under GNU GPL, and you are welcome to 
 # redistribute it under certain conditions; see www.opmantek.com or email

@@ -2,7 +2,7 @@
 #
 ## $Id: install.pl,v 8.2 2012/05/24 13:24:37 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -403,7 +403,7 @@ sub printHelp {
 	print qq/
 NMIS Install Script version $NMIS::VERSION
 
-NMIS Copyright (C) 1999-2014 Opmantek Limited (www.opmantek.com)
+NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
 usage: $0 [site=$defaultSite] [fping=$defaultFping] [cpan=(true|false)]

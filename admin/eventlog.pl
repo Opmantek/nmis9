@@ -2,7 +2,7 @@
 #
 ## $Id: modelcheck.pl,v 1.1 2011/11/16 01:59:35 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

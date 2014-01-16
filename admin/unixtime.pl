@@ -2,7 +2,7 @@
 #
 ## $Id: unixtime.pl,v 1.5 2012/08/16 07:26:00 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

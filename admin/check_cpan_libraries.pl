@@ -2,7 +2,7 @@
 #
 ## $Id: check_cpan_libraries.pl,v 8.2 2012/05/24 13:24:37 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #

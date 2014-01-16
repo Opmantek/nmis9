@@ -2,7 +2,7 @@
 #
 ## $Id: opsla_add_probes.pl,v 1.4 2013/01/08 23:51:38 keiths Exp $
 #
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
