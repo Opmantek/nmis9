@@ -121,7 +121,7 @@ sub displayConfig{
 	print start_table() ; # first table level
 	print Tr(td({class=>'header',align=>'center'},"NMIS Configuration - $C->{conf} loaded"));
 
-	my @sections = ('',sort keys %{$CT});
+	my @sections = ('',sort keys %{$CC});
 	print start_Tr;
 	print td({class=>'header', colspan=>'1'},
 			"Select section ".
@@ -166,7 +166,7 @@ sub typeSect {
 	# create items list, contains of presets and adds
 	my @items = map { keys %{$_} } @{$CT->{$section}};
 	my @items_all = @items;
-	my @items_cfg = keys %{$CC->{$section}};
+	my @items_cfg = sort keys %{$CC->{$section}};
 	for my $i (@items_cfg) { push @items_all,$i unless grep { $_ eq $i } @items; }
 
 	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'2'},"&nbsp;"),td({class=>'info Plain'},

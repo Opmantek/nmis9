@@ -1,33 +1,36 @@
 #!/usr/bin/perl
 #
-## $Id: modelcheck.pl,v 1.1 2011/11/16 01:59:35 keiths Exp $
-#
-#  Copyright (C) Opmantek Limited (www.opmantek.com)
-#
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#
-#  This file is part of Network Management Information System ("NMIS").
-#
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).
-#  If not, see <http://www.gnu.org/licenses/>
-#
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com
-#
-#  User group details:
-#  http://support.opmantek.com/users/
-#
+# THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND LICENSED 
+# BY OPMANTEK.  
+# 
+# YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
+# 
+# This code is NOT Open Source
+# 
+# IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER 
+# LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE 
+# SOFTWARE  YOU ACKNOWLEDGE THAT (1) YOU HAVE READ AND REVIEWED THE LICENSE 
+# AGREEMENT IN ITS ENTIRETY, (2) YOU AGREE TO BE BOUND BY THE AGREEMENT, (3) 
+# THE INDIVIDUAL USING THE SOFTWARE HAS THE POWER, AUTHORITY AND LEGAL RIGHT 
+# TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR 
+# OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE, THIS 
+# AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU AND 
+# OPMANTEK LTD. 
+# 
+# Opmantek is a passionate, committed open source software company - we really 
+# are.  This particular piece of code was taken from a commercial module and 
+# thus we can't legally supply under GPL. It is supplied in good faith as 
+# source code so you can get more out of NMIS.  According to the license 
+# agreement you can not modify or distribute this code, but please let us know 
+# if you want to and we will certainly help -  in most cases just by emailing 
+# you a different agreement that better suits what you want to do but covers 
+# Opmantek legally too. 
+# 
+# contact opmantek by emailing code@opmantek.com
+# 
+# All licenses for all software obtained from Opmantek (GPL and commercial) 
+# are viewable at http://opmantek.com/licensing
+#   
 # *****************************************************************************
 
 # Auto configure to the <nmis-base>/lib

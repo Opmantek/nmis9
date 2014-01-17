@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.8E";
+$VERSION = "8.4.8G";
 
 @ISA = qw(Exporter);
 
@@ -1118,12 +1118,24 @@ sub nodeStatus {
 
 	# 1 for reachable
 	# 0 for unreachable
-	my $status = 1;	
+	# -1 for degraded
+	my $status = 1;
+	
+	my $node_down = "Node Down";
+	my $snmp_down = "SNMP Down";
 
-	my $down_event = "Node Down";
-	$down_event = "SNMP Down" if $NI->{system}{ping} eq 'false';
-
-	$status = 0 if eventExist($NI->{system}{name}, $down_event, "");
+	if ( $NI->{system}{ping} eq 'false' ) {
+		$status = 0 if eventExist($NI->{system}{name}, $snmp_down, "");
+	}
+	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
+		$status = 0;
+	}
+	elsif ( eventExist($NI->{system}{name}, $snmp_down, "") ) {
+		$status = -1;
+	}
+	else {
+		$status = 1;
+	}
 		
 	return $status;
 }

@@ -45,9 +45,11 @@
 			'CDEF:inputSplitUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:outputUtil=output,8,*,$ifSpeedOut,/,100,*',
 			'$GLINE:inputSplitUtil#0000ff:In',
-			'GPRINT:inputUtil:AVERAGE:Avg %1.2lf %% \\n',
+			'GPRINT:inputUtil:AVERAGE:Avg %1.2lf %%',
+			'GPRINT:inputUtil:AVERAGE:Max %1.2lf %% \\n',
 			'$GLINE:outputUtil#00ff00:Out',
-			'GPRINT:outputUtil:AVERAGE:Avg %1.2lf %% \\n',
+			'GPRINT:outputUtil:AVERAGE:Avg %1.2lf %%',
+			'GPRINT:outputUtil:AVERAGE:Max %1.2lf %% \\n',
 			'COMMENT:\tInterface Speed $speed\\n'
 		],
 		'small' => [

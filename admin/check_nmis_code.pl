@@ -121,20 +121,25 @@ sub processDir {
 			if ( $extension =~ /$filename[$#filename]/i and ! -d "$dir/$dirlist[$i]" ) {
 				print "." if $log and not $debug;
 
-				print "    ". $t->markTime(). " Checking $dir/$dirlist[$i]\n" if $debug;
-				my $codePass = &checkCode("$dir/$dirlist[$i]");
-				print "      done in ".$t->deltaTime() ."\n" if $debug;
+				if ( $dirlist[$i] !~ /^Table\-/ ) {
+					print "    ". $t->markTime(). " Checking $dir/$dirlist[$i]\n" if $debug;
+					my $codePass = &checkCode("$dir/$dirlist[$i]");
+					print "     done in ".$t->deltaTime() ."\n" if $debug;
 
-				if ( $codePass ) {
-					++$sum->{pass};	
+					if ( $codePass ) {
+						++$sum->{pass};	
+					}
+					else {
+						++$sum->{fail};
+						push(@failed,"$dir/$dirlist[$i]");
+					}
+
+					if ( $allPass and not $codePass ) {
+						$allPass = 0;	
+					}
 				}
 				else {
-					++$sum->{fail};
-					push(@failed,"$dir/$dirlist[$i]");
-				}
-				
-				if ( $allPass and not $codePass ) {
-					$allPass = 0;	
+					print "    ". $t->markTime(). " Skipping $dir/$dirlist[$i]\n" if $debug;
 				}
 			}
 			elsif ( -d "$dir/$dirlist[$i]" and $dirlist[$i] !~ /^\.|CVS/ ) {

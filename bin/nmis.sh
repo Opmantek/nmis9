@@ -116,19 +116,19 @@ fi
 
 if [ "$1" == "summary" ]
 then
-	$nmis type=summary debug=true $DEBUG
+	$nmis type=summary debug=true
 	exit 0
 fi
 
 if [ "$1" == "audit" ]
 then
-	$nmis type=audit debug=true $DEBUG
+	$nmis type=audit debug=true
 	exit 0
 fi
 
 if [ "$1" == "config" ]
 then
-	$nmis type=config debug=true $DEBUG
+	$nmis type=config debug=true
 	exit 0
 fi
 
