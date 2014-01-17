@@ -1,0 +1,235 @@
+#!/usr/bin/perl
+#
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+# This program should be run from Cron for the required alerting period, e.g. 5 minutes
+#4-59/5 * * * * /usr/local/admin/interface_util_alerts.pl
+
+# The average utilisation will be calculated for each interface for the last X minutes
+use strict;
+use warnings;
+
+# *****************************************************************************
+
+my $syslog_facility = 'local3';
+my $syslog_server = 'localhost:udp:514';
+
+my $threshold_period = "-5 minutes";
+my $thresholds = {
+              'fatal' => '90',
+              'critical' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+             };
+
+my $event = "Proactive Interface Utilisation";
+
+# *****************************************************************************
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+ 
+use func;
+use NMIS;
+use Data::Dumper;
+use rrdfunc;
+use notify;
+
+my %arg = getArguements(@ARGV);
+
+# Set debugging level.
+my $debug = setDebug($arg{debug});
+
+# Set debugging level.
+my $info = setDebug($arg{info});
+
+my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
+
+my $LNT = loadLocalNodeTable();
+
+foreach my $node (sort keys %{$LNT}) {
+	
+	# Is the node active and are we doing stats on it.
+	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+		print "Processing $node\n" if $info;
+		my $S = Sys::->new; # get system object
+		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
+		my $NI = $S->ndinfo;
+		my $IF = $S->ifinfo;
+
+		for my $ifIndex (sort keys %{$IF}) {
+			if ( exists $IF->{$ifIndex}{collect} and $IF->{$ifIndex}{collect} eq "true") {
+				
+				# get the summary stats
+				my $stats = getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex);
+				
+				# skip if bad data
+				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
+				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
+
+				next if not defined $stats->{$ifIndex}{inputUtil};
+				next if not defined $stats->{$ifIndex}{outputUtil};
+
+				# get the max if in/out utilisation
+				my $util = 0;
+				$util = $stats->{$ifIndex}{inputUtil} if $stats->{$ifIndex}{inputUtil} > $util;
+				$util = $stats->{$ifIndex}{outputUtil} if $stats->{$ifIndex}{outputUtil} > $util;
+			
+				
+				my $level = undef;
+				my $reset = undef;
+				my $thrvalue = undef;
+				
+				my $element = $IF->{$ifIndex}{ifDescr};
+
+				# apply the thresholds
+				if ( $util < $thresholds->{warning} ) { $level = "Normal"; $reset = $thresholds->{warning}; $thrvalue = $thresholds->{warning}; }
+				elsif ( $util >= $thresholds->{warning} and $util < $thresholds->{minor} ) { $level = "Warning"; $thrvalue = $thresholds->{warning}; }
+				elsif ( $util >= $thresholds->{minor} and $util < $thresholds->{major} ) { $level = "Minor"; $thrvalue = $thresholds->{minor}; }
+				elsif ( $util >= $thresholds->{major} and $util < $thresholds->{critical} ) { $level = "Major"; $thrvalue = $thresholds->{major}; }
+				elsif ( $util >= $thresholds->{critical} and $util < $thresholds->{fatal} ) { $level = "Critical"; $thrvalue = $thresholds->{critical}; }
+				elsif ( $util >= $thresholds->{fatal} ) { $level = "Fatal"; $thrvalue = $thresholds->{fatal}; }
+												
+				# if the level is normal, make sure there isn't an existing event open
+				my $eventExists = eventExist($NI->{system}{name}, $event, $element);
+				my $sendSyslog = 0;
+				my $condition = 0;
+				my $details = undef;
+
+				if ( $eventExists and $level =~ /Normal/i) {
+					# Proactive Closed.
+					$condition = 1;
+					deleteEvent($node,$event,$element);
+					$event = "$event Closed";
+					$sendSyslog = 1;
+				}
+				elsif ( not $eventExists and $level =~ /Normal/i) {
+					$condition = 2;
+					# Life is good, nothing to see here.
+				}
+				elsif ( not $eventExists and $level !~ /Normal/i) {
+					$condition = 3;
+
+					# build a details string
+					$details = $IF->{$ifIndex}{Description} if exists $IF->{$ifIndex}{Description};
+	
+					if ($C->{global_events_bandwidth} eq 'true')
+					{
+							if ( $details ) {
+								$details .= " Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
+							}
+							else {
+								$details = "Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
+							}
+					}
+					
+					if ( $details ) {
+						$details = "$details: Value=$util Threshold=$thrvalue";
+					}
+					else {
+						$details = "Value=$util Threshold=$thrvalue";
+					}
+
+					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
+					# new event send the syslog.
+					$sendSyslog = 1;
+				}
+				elsif ( $eventExists and $level !~ /Normal/i) {
+					$condition = 4;
+					# existing condition
+				}
+
+				if ( $sendSyslog ) {
+					sendSyslog(
+						server_string => $syslog_server,
+						facility => $syslog_facility,
+						nmis_host => $C->{server_name},
+						time => time(),
+						node => $node,
+						event => $event,
+						level => $level,
+						element => $element,
+						details => $details
+					);
+				}
+				
+				# This section will enable normal NMIS processing of the event in addition to the custom syslog above.
+				#if ( $level =~ /Normal/i ) { 
+				#	checkEvent(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$util,reset=>$reset);
+				#}
+				#else {
+				#	notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
+				#}
+
+
+				#\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}
+				print "  $element: condition=$condition ifIndex=$IF->{$ifIndex}{ifIndex} util=$util level=$level thrvalue=$thrvalue\n" if $info;
+
+			}
+		}
+	}
+}
+		
+sub deleteEvent {		
+	my $node = shift;
+	my $event = shift;
+	my $element = shift;
+	
+	print "DEBUG deleteEvent: $node,$event,$element\n";
+
+	my $event_hash = eventHash($node,$event,$element);
+
+	print "DEBUG deleteEvent: $event_hash\n";
+
+	my ($ET,$handle);
+	if ($C->{db_events_sql} eq 'true') {
+		$ET = DBfunc::->select(table=>'Events');
+	} else {
+		($ET,$handle) = loadEventStateLock();
+	}
+
+	# remove this entry
+	if ($C->{db_events_sql} eq 'true') {
+		DBfunc::->delete(table=>'Events',index=>$event_hash);
+	} else {
+		if ( exists $ET->{$event_hash}{node} and $ET->{$event_hash}{node} ne "" ) {
+			delete $ET->{$event_hash};
+		}
+		else {
+			print STDERR "ERROR no event found for: $event_hash\n";
+		}
+	}
+
+	if ($C->{db_events_sql} ne 'true') {
+		writeEventStateLock(table=>$ET,handle=>$handle);
+	}
+
+}
