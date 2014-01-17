@@ -1185,13 +1185,17 @@ EO_HTML
 
 					if ($k eq 'status') {
 						# check status from event db
-						if ( nodeStatus(NI => $NI) ) {
-							$value = "reachable";
-							$color = "#0F0";							
-						}
-						else {
+						if ( not nodeStatus(NI => $NI) ) {
 							$value = "unreachable";
 							$color = "#F00";
+						}
+						elsif ( nodeStatus(NI => $NI) == -1 ) {
+							$value = "degraded";
+							$color = "#FF0";
+						}
+						else {
+							$value = "reachable";
+							$color = "#0F0";							
 						}
 					}
 		
@@ -1326,7 +1330,12 @@ sub viewInterface {
 	
 	print start_table;
 	
-	print Tr(td({class=>'Critical', colspan=>'2'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical', colspan=>'2'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning', colspan=>'2'},'Node degraded')); 	
+	}
 	
 	print start_Tr;
 	# first column
@@ -1446,7 +1455,12 @@ sub viewAllIntf {
 	
 	print start_table;
 	
-	print Tr(td({class=>'Critical'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning'},'Node degraded')); 	
+	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
 	
@@ -1566,7 +1580,12 @@ sub viewActivePort {
 	
 	print start_table;
 	
-	print Tr(td({class=>'Critical'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning'},'Node degraded')); 	
+	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
 	
@@ -1666,7 +1685,12 @@ sub viewStorage {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Storage of node $NI->{system}{name}"));
 	
@@ -1711,7 +1735,12 @@ sub viewService {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
 	
@@ -1766,7 +1795,12 @@ sub viewServiceList {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'6'},'Node degraded')); 	
+	}
 
 	print Tr(th({class=>'title',colspan=>'6'},"List of Services on node $NI->{system}{name}"));
 	
@@ -1830,7 +1864,12 @@ sub viewEnvironment {
 	
 	print start_table({class=>'table'});
 	
-	print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Environment of node $NI->{system}{name}"));
 	
@@ -1932,7 +1971,13 @@ sub viewSystemHealth {
 			push(@cells,td({class=>'header'},"History")) if $graphtype;
 			++$colspan;
 			
-			print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')) if not nodeStatus(NI => $NI);
+			if ( not nodeStatus(NI => $NI) ) {
+				print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')); 
+			}						
+			elsif ( nodeStatus(NI => $NI) == -1 ) {
+				print Tr(td({class=>'Warning',colspan=>$colspan},'Node degraded')); 	
+			}
+			
 			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
 
 			my $row = join(" ",@cells);			
@@ -1988,7 +2033,14 @@ sub viewCSSGroup {
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
-	print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')) if not nodeStatus(NI => $NI);
+
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+	}
+		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
 
 	foreach my $index (sort keys %{$NI->{cssgroup}} ) {
@@ -2022,7 +2074,13 @@ sub viewCSSContent {
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	print start_table({class=>'table'});
-	print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')) if not nodeStatus(NI => $NI);
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+	}
+		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));
 
 	foreach my $index (sort keys %{$NI->{csscontent}} ) {

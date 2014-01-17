@@ -489,6 +489,8 @@ sub checkGraphType {
 	my $S = $args{sys};
 	my $types = $args{types};
 
+	my $ext = getExtension(dir=>'models');
+
 	my @types = split /,/,$types;
 	foreach my $graph (@types) {
 		if ( ! loadTable(dir=>'models',name=>"Graph-$graph") ) {
@@ -1287,6 +1289,7 @@ sub doAddModel {
 			if ( existFile(dir=>'models',name=>"Common-$Q->{'common-model'}") ) {
 				$ref->{lc $Q->{class}}{'common-model'} = $Q->{'common-model'};
 			} else {
+				my $ext = getExtension(dir=>'models');
 				logMsg("ERROR common Model file models/Common-$Q->{'common-model'}.$ext does not exist");
 			}
 		}
