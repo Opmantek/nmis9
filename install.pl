@@ -48,6 +48,7 @@ use Data::Dumper;
 use Fcntl qw(:DEFAULT :flock);
 #use File::Copy;
 use File::Find;
+use File::Basename;
 #use File::Path;
 use Cwd;
 
@@ -81,7 +82,10 @@ printBanner("NMIS Installation Version $NMIS::VERSION");
 ###************************************************************************###
 printBanner("Getting installation source location...");
 
-my $src = cwd() . $ARGV[0];
+# try the current dir first, otherwise check the dirname of 
+# this command's invocation
+my $src = cwd();
+$src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
 $src = input_str("Full path to distribution folder:", $src);
 
 $installLog = "$src/install.log";

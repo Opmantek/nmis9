@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 # ****** Shouldn't be anything else to customise below here *******************
 # best to customise in the nmis.conf file.
 #
-require 5.010001;
+require 5.008_001;
 
 use strict;
 use csv;				# local
