@@ -131,8 +131,9 @@ sub getRRDStats {
 	my $index = $args{index};
 	my $item = $args{item};
 
-	my $minhr = $args{hour_from} // 0;
-	my $maxhr = $args{hour_to} // 24;
+	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
+	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
+	
 	my $invertperiod = $minhr > $maxhr;
 
 	my $db = $S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item);
