@@ -112,6 +112,8 @@
       'ss-blocks' => 'System Stats - Block Input/Output',
       'diskio-rw' => 'Disk IO Blocks',
       'diskio-rwbytes' => 'Disk Read Write Bytes',
+			'ds3Errors' => "DS3 Errors",
+			'SONETErrors' => "SONET Errors",
       'systemvoltage' => 'System Voltage',
       'systemcurrent' => 'System Current',
       'systemcapacity' => 'System capacity',

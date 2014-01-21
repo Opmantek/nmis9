@@ -131,7 +131,7 @@
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
     'upnotify_stateful_events' => 'down|proactive|alert',
-    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable',
+    'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
   },
