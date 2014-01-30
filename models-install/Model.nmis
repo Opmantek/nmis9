@@ -341,6 +341,13 @@
         }
       }
     },
+		"Rad Data Communications Ltd." => {
+				'order' => {
+						'10' => {
+								'RadOptimux' => "OP-155[13]",
+						},
+				},
+		},
   },
   'system' => {
     'nodeModel' => 'Default',
