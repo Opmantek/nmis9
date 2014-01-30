@@ -176,7 +176,7 @@ execPrint("$site/admin/fixperms.pl");
 
 
 ###************************************************************************###
-printBanner("NMIS Should be Ready to Roll!");
+printBanner("NMIS Should be Ready to Poll!");
 
 
 exit 0;

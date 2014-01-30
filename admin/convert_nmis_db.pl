@@ -62,9 +62,8 @@ my $indent = 0;
 my @path;
 my $rrdlen = 19;
 
-print "This script will perform a check the models for a few things.\n";
-print "Using configured model directory $C->{'<nmis_models>'}\n";
-print "\nCurrent important test is RRD Variables greater than $rrdlen\n";
+print "This script will convert the NMIS database to use JSON.\n";
+print "Using configured var directory $C->{'<nmis_var>'}\n";
 
 # Process
 # 1. Stop NMIS Polling
