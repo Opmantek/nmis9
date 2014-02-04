@@ -46,10 +46,13 @@ my $thresholds = {
               'critical' => '80',
               'major' => '60',
               'minor' => '50',
-              'warning' => '40'
+              'warning' => '10'
              };
 
 my $event = "Proactive Interface Utilisation";
+
+# set this to 1 to include group in the message details, 0 to exclude.
+my $includeGroup = 1;
 
 # *****************************************************************************
 
@@ -128,7 +131,7 @@ foreach my $node (sort keys %{$LNT}) {
 					# Proactive Closed.
 					$condition = 1;
 					deleteEvent($node,$event,$element);
-					$event = "$event Closed";
+					$event = "$event Closed" if $event !~ /Closed/;
 					$sendSyslog = 1;
 				}
 				elsif ( not $eventExists and $level =~ /Normal/i) {
@@ -137,26 +140,27 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 				elsif ( not $eventExists and $level !~ /Normal/i) {
 					$condition = 3;
-
-					# build a details string
-					$details = $IF->{$ifIndex}{Description} if exists $IF->{$ifIndex}{Description};
+					my @detailBits;
+										
+					if ( $includeGroup ) {
+						push(@detailBits,"$LNT->{$node}{group}");
+					}
+					
+					if ( exists $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
+						push(@detailBits,"$IF->{$ifIndex}{Description}");
+					}
 	
 					if ($C->{global_events_bandwidth} eq 'true')
 					{
-							if ( $details ) {
-								$details .= " Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-							}
-							else {
-								$details = "Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-							}
+							push(@detailBits,"Bandwidth=".$IF->{$ifIndex}->{ifSpeed});
 					}
-					
-					if ( $details ) {
-						$details = "$details: Value=$util Threshold=$thrvalue";
-					}
-					else {
-						$details = "Value=$util Threshold=$thrvalue";
-					}
+
+					push(@detailBits,"Value=$util Threshold=$thrvalue");
+
+					$details = join(": ",@detailBits);
+
+					#remove dodgy quotes
+					$details =~ s/[\"|\']//g;
 
 					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
@@ -168,6 +172,8 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 
 				if ( $sendSyslog ) {
+					
+					
 					sendSyslog(
 						server_string => $syslog_server,
 						facility => $syslog_facility,
