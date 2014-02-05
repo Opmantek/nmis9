@@ -4466,8 +4466,8 @@ sub runEscalate {
 
 	my $BusinessServicesTable;
 	my $useBusinessServicesTable = 0;
-	if ( tableExists('BusinessServicesTable') ) {
-		$BusinessServicesTable = loadGenericTable('BusinessServicesTable');
+	if ( tableExists('BusinessServices') ) {
+		$BusinessServicesTable = loadGenericTable('BusinessServices');
 		$useBusinessServicesTable = 1;
 	}
 	

@@ -56,6 +56,7 @@ helptext() {
 	echo "    $0 Nodes"
 	echo "    $0 Config"
 	echo "    $0 Users"
+	echo "    $0 fpingd restart"
 	echo "    $0 mib \"<search string>\""
 	echo "    $0 grep|grepcode \"<search string>\""
 	echo "    $0 grepfile \"<search string>\""
@@ -174,6 +175,15 @@ then
 	exit 0
 fi
 
+if [ "$1" == "fpingd" ]
+then
+	if [ "$2" == "restart" ]
+	then
+		sudo $nmis_base/bin/fpingd.pl restart
+		exit 0
+	fi
+fi
+
 if [ "$1" == "grepcode" ]
 then
 	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
@@ -251,7 +261,15 @@ fi
 if [ "$2" == "node" ]
 then
 	node=${1,,}
-	cat "$nmis_base/var/$node-node.nmis"
-	exit 0
+	if [ -f "$nmis_base/var/$node-node.json" ]
+	then
+		cat "$nmis_base/var/$node-node.json"
+		exit 0
+	fi
+	if [ -f "$nmis_base/var/$node-node.nmis" ]
+	then
+		cat "$nmis_base/var/$node-node.nmis"
+		exit 0
+	fi
 fi
 

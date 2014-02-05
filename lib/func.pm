@@ -1005,8 +1005,10 @@ sub writeHashtoFile {
 		}
 	}
 	elsif ( $useJson ) {
-		if ( not print $handle encode_json($data) ) {
-			logMsg("ERROR cannot write file $file: $!");
+		eval { print $handle encode_json($data) } ;
+		if ( $@ ) {
+			logMsg("ERROR convert data objet to $file: $@");
+			info("ERROR convert data objet to $file: $@");
 		}
 	}
 	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
@@ -1049,9 +1051,11 @@ sub readFiletoHash {
 			local $/ = undef;
 			my $data = <$handle>;
 			if ( $useJson ) {
-				my $hashref = decode_json($data);
+				my $hashref; 
+				eval { $hashref = decode_json($data); } ;
 				if ( $@ ) {
 					logMsg("ERROR convert $file to hash table, $@");
+					info("ERROR convert $file to hash table, $@");
 				}
 				return ($hashref,$handle) if ($lock eq 'true');
 				# else
