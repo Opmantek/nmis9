@@ -613,7 +613,7 @@ sub getValues {
 						my (@CVAR, $rebuiltcalc, $consumeme);
 						$consumeme=$calc;
 						# rip apart calc, rebuild it with var substitutions
-						while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//gs)
+						while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
 						{
 								$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
 								my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group

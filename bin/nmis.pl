@@ -3676,7 +3676,7 @@ sub runAlerts {
 								my $origexpr = $CA->{$sect}{$alrt}{$key};
 								my ($rebuilt,@CVAR);
 								# rip apart expression, rebuild it with var substitutions
-								while ($origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//gs)
+								while ($origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
 								{
 										$rebuilt.=$1;					 # the unmatched, non-cvar stuff at the begin
 										my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
