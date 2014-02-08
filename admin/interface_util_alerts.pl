@@ -45,7 +45,7 @@ my $thresholds = {
               'fatal' => '90',
               'critical' => '80',
               'major' => '60',
-              'minor' => '50',
+              'minor' => '20',
               'warning' => '10'
              };
 
@@ -53,6 +53,9 @@ my $event = "Proactive Interface Utilisation";
 
 # set this to 1 to include group in the message details, 0 to exclude.
 my $includeGroup = 1;
+
+# the seperator for the details field.
+my $detailSep = ": ";
 
 # *****************************************************************************
 
@@ -66,6 +69,12 @@ use rrdfunc;
 use notify;
 
 my %arg = getArguements(@ARGV);
+
+if ( $arg{clean} eq "true" ) {
+	print "Cleaning Events\n";
+	cleanEvents();
+	exit;
+}
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
@@ -95,11 +104,11 @@ foreach my $node (sort keys %{$LNT}) {
 				my $stats = getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex);
 				
 				# skip if bad data
-				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
-				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
-
 				next if not defined $stats->{$ifIndex}{inputUtil};
 				next if not defined $stats->{$ifIndex}{outputUtil};
+
+				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
+				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
 
 				# get the max if in/out utilisation
 				my $util = 0;
@@ -139,6 +148,8 @@ foreach my $node (sort keys %{$LNT}) {
 					# Life is good, nothing to see here.
 				}
 				elsif ( not $eventExists and $level !~ /Normal/i) {
+					print "  DEBUG condition3 node=>$node,event=>$event,level=>$level,element=>$element,details=>$details\n" if $info or $debug;
+
 					$condition = 3;
 					my @detailBits;
 										
@@ -157,11 +168,14 @@ foreach my $node (sort keys %{$LNT}) {
 
 					push(@detailBits,"Value=$util Threshold=$thrvalue");
 
-					$details = join(": ",@detailBits);
+					$details = join($detailSep,@detailBits);
 
 					#remove dodgy quotes
 					$details =~ s/[\"|\']//g;
 
+					$event =~ s/ Closed//g;
+
+					print "  DEBUG eventAdd node=>$node,event=>$event,level=>$level,element=>$element,details=>$details\n" if $info or $debug;
 					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
 					$sendSyslog = 1;
@@ -172,8 +186,6 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 
 				if ( $sendSyslog ) {
-					
-					
 					sendSyslog(
 						server_string => $syslog_server,
 						facility => $syslog_facility,
@@ -231,6 +243,28 @@ sub deleteEvent {
 		}
 		else {
 			print STDERR "ERROR no event found for: $event_hash\n";
+		}
+	}
+
+	if ($C->{db_events_sql} ne 'true') {
+		writeEventStateLock(table=>$ET,handle=>$handle);
+	}
+
+}
+
+sub cleanEvents {		
+
+	my ($ET,$handle);
+	if ($C->{db_events_sql} eq 'true') {
+		$ET = DBfunc::->select(table=>'Events');
+	} else {
+		($ET,$handle) = loadEventStateLock();
+	}
+	
+	foreach my $key (keys %$ET) {
+		if ( $ET->{$key}{event} =~ /Closed/ ) {
+			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
+			delete($ET->{$key});
 		}
 	}
 
