@@ -124,6 +124,26 @@ foreach my $node (sort keys %{$LNT}) {
 				my $condition = 0;
 				my $details = undef;
 
+				# build a details string
+				$details = $IF->{$ifIndex}{Description} if exists $IF->{$ifIndex}{Description};
+
+				if ($C->{global_events_bandwidth} eq 'true')
+				{
+						if ( $details ) {
+							$details .= " Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
+						}
+						else {
+							$details = "Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
+						}
+				}
+				
+				if ( $details ) {
+					$details = "$details: Value=$util Threshold=$thrvalue";
+				}
+				else {
+					$details = "Value=$util Threshold=$thrvalue";
+				}
+
 				if ( $eventExists and $level =~ /Normal/i) {
 					# Proactive Closed.
 					$condition = 1;
@@ -137,27 +157,7 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 				elsif ( not $eventExists and $level !~ /Normal/i) {
 					$condition = 3;
-
-					# build a details string
-					$details = $IF->{$ifIndex}{Description} if exists $IF->{$ifIndex}{Description};
-	
-					if ($C->{global_events_bandwidth} eq 'true')
-					{
-							if ( $details ) {
-								$details .= " Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-							}
-							else {
-								$details = "Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-							}
-					}
 					
-					if ( $details ) {
-						$details = "$details: Value=$util Threshold=$thrvalue";
-					}
-					else {
-						$details = "Value=$util Threshold=$thrvalue";
-					}
-
 					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
 					$sendSyslog = 1;

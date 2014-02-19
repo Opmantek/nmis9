@@ -2655,8 +2655,13 @@ sub getCBQoS {
 					if( ($answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/) or
 							($answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/) ) {
 						# interface found with QoS input or output configured
+						
 						$direction = ($answer->{'cbQosPolicyDirection'} == 1) ? "in" : "out";
 						info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+												
+						my $ifSpeedIn = $IF->{$intf}{ifSpeedIn} ? $IF->{$intf}{ifSpeedIn} : $IF->{$intf}{ifSpeed};
+						my $ifSpeedOut = $IF->{$intf}{ifSpeedOut} ? $IF->{$intf}{ifSpeedOut} : $IF->{$intf}{ifSpeed};
+						my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
 
 						# get the policy config table for this interface
 						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
@@ -2755,7 +2760,7 @@ sub getCBQoS {
 								if ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1) {
 									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'}*1000;
 								} elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2 or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 ) {
-									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $IF->{$intf}{'ifSpeed'}/100;
+									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed/100;
 								}
 								if ($CMRate eq 0) { $CMRate = "undef"; }
 								dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
