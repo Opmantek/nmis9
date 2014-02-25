@@ -54,6 +54,10 @@
           'PrePolicyByte' => {
             'oid' => 'cbQosCMPrePolicyByte64',
             'option' => 'counter,U:U'
+          },
+          'PostPolicyByte' => {
+            'oid' => 'cbQosCMPostPolicyByte64',
+            'option' => 'counter,U:U'
           }
         },
         'graphtype' => 'cbqos-out'

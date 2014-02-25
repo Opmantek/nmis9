@@ -438,13 +438,13 @@ sub rrdDraw {
 				$alias =~ s/\-\-/\//g;
 				my $tab = "\\t";
 				if ( length($alias) <= 5 ) {
-					$tab = "\\t\\t\\t\\t\\t";
-				}
-				elsif ( length($alias) <= 12 ) { 
 					$tab = "\\t\\t\\t\\t";
 				}
-				elsif ( length($alias) <= 15 ) { 
+				elsif ( length($alias) <= 14 ) { 
 					$tab = "\\t\\t\\t";
+				}
+				elsif ( length($alias) <= 15 ) { 
+					$tab = "\\t\\t";
 				}
 				elsif ( length($alias) <= 19 ) { 
 					$tab = "\\t\\t";
@@ -452,6 +452,8 @@ sub rrdDraw {
 				elsif ( length($alias) <= 21 ) { 
 					$tab = "\\t";
 				}
+				#$tab = "\\t";
+				
 				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
 				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
 				push(@opt,"DEF:maxPPB$i=$database:PrePolicyByte:MAX");
@@ -463,10 +465,10 @@ sub rrdDraw {
 				push(@opt,"CDEF:maxDBR$i=maxDB$i,8,*");
 				if ($width > 400) {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
-					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %9.0lf bps\\t");
-					push(@opt,"GPRINT:maxPPR$i:MAX:Max %9.0lf bps\\t");
-					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.0lf bps\\t");
-					push(@opt,"GPRINT:maxDBR$i:MAX:Max Drops %6.0lf bps\\l");
+					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %8.2lf%s\\t");
+					push(@opt,"GPRINT:maxPPR$i:MAX:Max %8.2lf%s\\t");
+					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.2lf%s\\t");
+					push(@opt,"GPRINT:maxDBR$i:MAX:Max Drops %6.2lf%s\\l");
 				}
 				else {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias");
@@ -485,10 +487,10 @@ sub rrdDraw {
 
 			if ($width > 400) {
 				push(@opt,"COMMENT:\\l");
-				push(@opt,"GPRINT:avgPrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate\\t%12.0lf bps\\t");
-				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate\\t%12.0lf bps\\l");
-				push(@opt,"GPRINT:avgDropBitrate:AVERAGE:Avg DropBitrate\\t\\t%12.0lf bps\\t");
-				push(@opt,"GPRINT:maxDropBitrate:MAX:Max DropBitrate\\t\\t%12.0lf bps\\l");
+				push(@opt,"GPRINT:avgPrePolicyBitrate:AVERAGE:PrePolicyBitrate\\t\\t\\tAvg %8.2lf%s\\t");
+				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max\\t%8.2lf%s\\l");
+				push(@opt,"GPRINT:avgDropBitrate:AVERAGE:DropBitrate\\t\\t\\tAvg %8.2lf%s\\t");
+				push(@opt,"GPRINT:maxDropBitrate:MAX:Max\\t%8.2lf%s\\l");
 			}
 
 			# reset $database so any errors reference the correct class-map
