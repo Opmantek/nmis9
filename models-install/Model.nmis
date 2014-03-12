@@ -348,6 +348,14 @@
 						},
 				},
 		},
+		"ELTEK Energy AS" => {
+				'order' => {
+						"10" => {
+								"Eltek" => "WebPower",
+						},
+				},
+		},
+		
   },
   'system' => {
     'nodeModel' => 'Default',

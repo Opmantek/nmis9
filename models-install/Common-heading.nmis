@@ -127,6 +127,14 @@
       'memUtil' => 'Memory Utilisation',
       'memUsageUtil' => 'Memory Utilisation',
       'cps6000Alarm' => 'CPS 6000 Alarm Status',
+			'EltekCapacity' => "Battery Capacity",
+			'EltekCurrents' => "Currents",
+			'EltekACVoltage' => "AC Voltage",
+			'EltekBattTemp' => "Battery Temperature",
+			'EltekRectifierState' => "Rectifier Status",
+			'EltekBreakerAlarms' => "Breaker Alarms",
+			'EltekVoltageAlarms' => "Voltage Alarms",
+			'EltekTempAlarms' => "Temperature Alarms",
     }
   }
 );

@@ -1,0 +1,556 @@
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response,ip,EltekCapacity,EltekCurrents,EltekACVoltage,EltekBattTemp,EltekRectifierState,EltekBreakerAlarms,EltekVoltageAlarms,EltekTempAlarms', # fixme for more graphs on front page
+    'nodeModel' => 'Eltek',
+    'nodeType' => 'generic',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      }, # standard
+			'power' => 
+			{
+					'snmp' => {
+							# these are weird measurements: UNITS 	"Ah/%;  23 = 23 Ah or in %"
+							# so we're reduced to guessing whether they're amphours or percent...
+							'batCapLeft' => {
+									'oid' => '1.3.6.1.4.1.12148.9.3.20.2.0', # batteryCapacityLeft
+									'title' => 'Battery Capacity Left',
+							},
+					
+							'batCapUsed' => {
+									'oid' => '1.3.6.1.4.1.12148.9.3.20.3.0', # batteryCapacityUsed
+									'title' => 'Battery Capacity Used',
+							},
+							
+							'batCapTotal' => {
+									'oid' => '1.3.6.1.4.1.12148.9.3.20.4.0', # batteryCapacityTotal
+									'title' => 'Battery Capacity Total',
+							},
+
+							'batCapLeftPct' => {
+									'oid' => '1.3.6.1.4.1.12148.9.3.20.4.0', # batteryCapacityTotal
+									'title' => 'Battery Capacity Left (%)',
+									# calculate percentage
+									'calculate' => 'CVAR1=batCapLeft; return ($r? 100*$CVAR1/$r : 0);',
+							},
+
+							# again guessing: 'may be i Amperes or in Deciamperes depending on global system settings'
+							'loadCurrent' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.4.1.0',
+									'title' => 'Load Current',
+							},
+							# this one is in deciampere
+							# fixme scale to ampere?
+							'rectifierCurrent' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.5.3.0',
+									'title' => 'Rectifier Current',
+							},
+							'breakerStatus' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.4.2.0',
+									'title' => 'Distribution Breaker Status',
+									'replace' => 
+									{
+											'0' => 'normal',
+											'1' => 'Alarm',
+									},
+							},
+							'rectifiersInst' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.5.1.0',
+									'title' => 'Number of Installed Rectifiers',
+							},
+							'rectifiersActive' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.5.2.0',
+									'title' => 'Number of Active Rectifiers',
+							},
+							'rectifierUtil' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.5.4.0',
+									'title' => 'Rectifier Utilisation (%)',
+							},
+							
+							'acVoltage1' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.6.1.0',
+									'title' => "AC Voltage Phase 1",
+							},
+
+							'acVoltage2' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.6.2.0',
+									'title' => "AC Voltage Phase 2",
+							},
+
+							'acVoltage3' =>
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.6.3.0',
+									'title' => "AC Voltage Phase 3",
+							},
+
+							'MinorBattVHigh' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.2.0',
+									'title' => 'Minor Battery Overvoltage Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'MinorBattVLow' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.4.0',
+									'title' => 'Minor Battery Undervoltage Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'MajorBattVHigh' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.1.0',
+									'title' => 'Major Battery Overvoltage Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'MajorBattVLow' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.3.0',
+									'title' => 'Major Battery Undervoltage Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+
+							'MinorBattTemp' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.6.0',
+									'title' => 'Minor Battery Temperature Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'MajorBattTemp' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.5.0',
+									'title' => 'Major Battery Temperature Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+
+							'BattDisconnect' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.7.0',
+									'title' => 'Battery Disconnect Open Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'DistribBreaker' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.13.0',
+									'title' => 'Distribution Breaker Open Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+
+							'ACMains' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.11.0',
+									'title' => 'AC Mains Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+
+							'MajorRectifier' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.14.0',
+									'title' => 'Major Rectifier Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+							'MinorRectifier' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.7.1.15.0',
+									'title' => 'Minor Rectifier Alarm',
+									'replace' => {
+											'0' => 'normal',
+											'1' => 'Alarm',
+									}
+							},
+
+							'batteryTemp0' => 
+							{
+									#	'indexed' => 'battmonUnitsIndex',
+									# the battmonUnitsIndex mib variable is useless, despite the mib's claims
+									# a) there's only one but battmonNumberOfUnits says 2 units installed,
+									# b) the value is at .0, not at .X. 
+									# c) no other snmp variables work for indexing of the monitors as they
+									# all start at .0 and are not accepted as snmp tables.
+									'oid' => '1.3.6.1.4.1.12148.9.3.21.3.1.12.0',
+									'title' => "Battery Temperature 1",
+							},
+
+							'batteryTemp1' => 
+							{
+									'oid' => '1.3.6.1.4.1.12148.9.3.21.3.1.12.1',
+									'title' => "Battery Temperature 2",
+							},
+					},
+			},												# power
+    },
+    'rrd' => {
+			'power' =>
+			{
+				'snmp' =>
+				{
+					'batCapLeft' => {
+							'oid' => '1.3.6.1.4.1.12148.9.3.20.2.0', # batteryCapacityLeft
+							'title' => 'Battery Capacity Left',
+							'option' => "gauge,0:U",
+					},
+					
+					'batCapUsed' => {
+							'oid' => '1.3.6.1.4.1.12148.9.3.20.3.0', # batteryCapacityUsed
+							'title' => 'Battery Capacity Used',
+							'option' => "gauge,0:U",
+					},
+					
+					'batCapTotal' => {
+							'oid' => '1.3.6.1.4.1.12148.9.3.20.4.0', # batteryCapacityTotal
+							'title' => 'Battery Capacity Total',
+							'option' => "gauge,0:U",
+					},
+
+					'batCapLeftPct' => {
+							'oid' => '1.3.6.1.4.1.12148.9.3.20.4.0', # batteryCapacityTotal
+							'title' => 'Battery Capacity Left (%)',
+							# calculate percentage
+							'calculate' => 'CVAR1=batCapLeft; return ($r? 100*$CVAR1/$r : 0);',
+							'option' => "gauge,0:100",
+					},
+
+					# again guessing: 'may be i Amperes or in Deciamperes depending on global system settings'
+					'loadCurrent' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.4.1.0',
+							'title' => 'Load Current',
+							'option' => 'gauge,0:U',
+					},
+					# this one is in deciampere
+					# fixme scale to ampere?
+					'rectifierCurrent' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.5.3.0',
+							'title' => 'Rectifier Current',
+							'option' => "gauge,0:U",
+					},
+					'breakerStatus' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.4.2.0',
+							'title' => 'Distribution Breaker Status',
+					},
+					'rectifiersInst' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.5.1.0',
+							'title' => 'Number of Installed Rectifiers',
+							'option' => "gauge,0:U",
+					},
+					'rectifiersActive' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.5.2.0',
+							'title' => 'Number of Active Rectifiers',
+							'option' => "gauge,0:U",
+					},
+					'rectifierUtil' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.5.4.0',
+							'title' => 'Rectifier Utilisation (%)',
+							'option' => "gauge,0:100",
+					},
+					
+					'acVoltage1' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.6.1.0',
+							'title' => "AC Voltage Phase 1",
+							'option' => "gauge,0:U",
+					},
+
+					'acVoltage2' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.6.2.0',
+							'title' => "AC Voltage Phase 2",
+							'option' => "gauge,0:U",
+					},
+
+					'acVoltage3' =>
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.6.3.0',
+							'title' => "AC Voltage Phase 3",
+							'option' => "gauge,0:U",
+					},
+
+					'MinorBattVHigh' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.2.0',
+							'title' => 'Minor Battery Overvoltage Alarm',
+							'option' => "gauge,0:1",
+					},
+					'MinorBattVLow' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.4.0',
+							'title' => 'Minor Battery Undervoltage Alarm',
+							'option' => "gauge,0:1",
+					},
+					'MajorBattVHigh' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.1.0',
+							'title' => 'Major Battery Overvoltage Alarm',
+							'option' => "gauge,0:1",
+					},
+					'MajorBattVLow' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.3.0',
+							'title' => 'Major Battery Undervoltage Alarm',
+							'option' => "gauge,0:1",
+					},
+
+					'MinorBattTemp' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.6.0',
+							'title' => 'Minor Battery Temperature Alarm',
+							'option' => "gauge,0:1",
+					},
+					'MajorBattTemp' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.5.0',
+							'title' => 'Major Battery Temperature Alarm',
+							'option' => "gauge,0:1",
+					},
+
+					'BattDisconnect' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.7.0',
+							'title' => 'Battery Disconnect Open Alarm',
+							'option' => "gauge,0:1",					
+					},
+					'DistribBreaker' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.13.0',
+							'title' => 'Distribution Breaker Open Alarm',
+							'option' => "gauge,0:1",
+					},
+
+					'ACMains' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.11.0',
+							'title' => 'AC Mains Alarm',
+							'option' => "gauge,0:1",
+					},
+
+					'MajorRectifier' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.14.0',
+							'title' => 'Major Rectifier Alarm',
+							'option' => "gauge,0:1",
+					},
+					'MinorRectifier' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.7.1.15.0',
+							'title' => 'Minor Rectifier Alarm',
+							'option' => "gauge,0:1",
+					},
+
+					'batteryTemp0' => 
+					{
+							#	'indexed' => 'battmonUnitsIndex',
+							# the battmonUnitsIndex mib variable is useless, despite the mib's claims
+							# a) there's only one but battmonNumberOfUnits says 2 units installed,
+							# b) the value is at .0, not at .X. 
+							# c) no other snmp variables work for indexing of the monitors as they
+							# all start at .0 and are not accepted as snmp tables.
+							'oid' => '1.3.6.1.4.1.12148.9.3.21.3.1.12.0',
+							'title' => "Battery Temperature 1",
+							'option' => "gauge,0:U",
+					},
+
+					'batteryTemp1' => 
+					{
+							'oid' => '1.3.6.1.4.1.12148.9.3.21.3.1.12.1',
+							'title' => "Battery Temperature 2",
+							'option' => "gauge,0:U",
+					},
+					
+				},
+				'graphtype' => 'EltekCapacity,EltekCurrents,EltekRectifierState,EltekACVoltage,EltekVoltageAlarms,EltekTempAlarms,EltekBreakerAlarms,EltekRectifierAlarms,EltekBattTemp', # fixme define graphs
+			},
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    }
+	},
+);

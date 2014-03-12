@@ -1,0 +1,66 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node AC Voltage'
+	},
+	'vlabel' => {
+		'standard' => 'Volt'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ac1=$database:acVoltage1:AVERAGE',
+			'DEF:ac2=$database:acVoltage2:AVERAGE',
+			'DEF:ac3=$database:acVoltage3:AVERAGE',
+			'LINE:ac1#FF0000:Phase 1',
+			'GPRINT:ac1:AVERAGE:%5.2lf V',
+			'COMMENT:\\n',
+			'LINE:ac2#FFA500:Phase 2',
+			'GPRINT:ac2:AVERAGE:%5.2lf V',
+			'COMMENT:\\n',	
+			'LINE:ac3#4B0082:Phase 3',
+			'GPRINT:ac3:AVERAGE:%5.2lf V',
+			'COMMENT:\\n',	
+		],
+		'small' => [
+			'DEF:ac1=$database:acVoltage1:AVERAGE',
+			'DEF:ac2=$database:acVoltage2:AVERAGE',
+			'DEF:ac3=$database:acVoltage3:AVERAGE',
+			'LINE:ac1#FF0000:Phase 1',
+			'GPRINT:ac1:AVERAGE:%5.2lf V',
+			'LINE:ac2#FFA500:Phase 2',
+			'GPRINT:ac2:AVERAGE:%5.2lf V',
+			'LINE:ac3#4B0082:Phase 3',
+			'GPRINT:ac3:AVERAGE:%5.2lf V',
+		]
+	}
+);
+
