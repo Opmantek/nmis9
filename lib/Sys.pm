@@ -157,13 +157,16 @@ sub init {
 		$condition = "update";
 		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}") ;
 	}
-	### 2012-10-26 keiths, fixing nodes loosing config when down during an update 
-	### 2012-11-16 keiths, fixing the fix
-	#elsif ($self->{info}{system}{nodedown} eq "true" and $self->{info}{system}{nodeModel} ne "") {
-	#	$condition = "nodedown";
-	#	dbg("update is keeping the defined model");
-	#	$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}") ;
-	#} 
+	# if we allow a down node's nodetype to be overwritten (which happens
+	# because after the default model is loaded nmis runs
+	# copyModelCfgInfo(type=all)), then that incorrect nodetype is never
+	# corrected (getnodeinfo isn't run if runping is not successful,
+	# which it never is on a down node)
+	elsif ($self->{info}{system}{nodedown} eq "true" and $self->{info}{system}{nodeModel} ne "") {
+		$condition = "nodedown";
+		dbg("update is keeping the defined model");
+		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}");
+	}
 	elsif ($self->{cfg}{node}{ping} eq 'true' and $self->{cfg}{node}{collect} ne 'true' and $self->{update}) {
 		$condition = "PingOnly";
 		$exit = $self->loadModel(model=>"Model-PingOnly");
@@ -323,7 +326,7 @@ sub copyModelCfgInfo
 		if ( $type eq 'all' ) {
 				$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} 
 				if $self->{info}{system}{nodeModel} eq "";
-				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}; # if $self->{info}{system}{nodeModel} eq "";
+				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType};
 				dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel}, $self->{mdl}{system}{nodeModel}, $self->{mdl}{system}{nodeType}");
 		}
 }
