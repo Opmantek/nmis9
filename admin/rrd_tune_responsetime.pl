@@ -54,7 +54,7 @@ my %arg = getArguements(@ARGV);
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
-$debug = 1;
+#$debug = 1;
 
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
@@ -86,7 +86,8 @@ print "  done in ".$t->deltaTime() ."\n";
 
 my $sum = initSummary();
 
-my $qrdst = qr/ds\[(TopChanges)\]\.type/;
+my $qrdst = qr/ds\[(responsetime)\]\.max/;     
+my $maxrt = 30000;
 
 # Work through each node looking for interfaces, etc to tune.
 foreach my $node (sort keys %{$LNT}) {
@@ -103,8 +104,8 @@ foreach my $node (sort keys %{$LNT}) {
 		my $NI = $S->ndinfo;
 		
 		#Are there any interface RRDs?
-		print "  ". $t->elapTime(). " Looking for nodehealth databases\n";
-		my $rrd = $NI->{database}{nodehealth};
+		print "  ". $t->elapTime(). " Looking for health databases\n";
+		my $rrd = $NI->{database}{health};
 		print "    ". $t->elapTime(). " Found $rrd\n";
 
 		# Get the RRD info on the Interface
@@ -116,22 +117,13 @@ foreach my $node (sort keys %{$LNT}) {
 			# Is this an RRD DS (data source)
 			if ( $key =~ /^ds/ ) {
 				
-#ds[ipForwDatagrams].type = "GAUGE"
-#ds[ipFragCreates].type = "GAUGE"
-#ds[ipFragFails].type = "GAUGE"
-#ds[ipFragOKs].type = "GAUGE"
-#ds[ipInAddrErrors].type = "GAUGE"
-#ds[ipInDelivers].type = "GAUGE"
-#ds[ipInDiscards].type = "GAUGE"
-#ds[ipInHdrErrors].type = "GAUGE"
-#ds[ipInReceives].type = "GAUGE"
-#ds[ipInUnknownProtos].type = "GAUGE"
-#ds[ipOutDiscards].type = "GAUGE"
-#ds[ipOutNoRoutes].type = "GAUGE"
-#ds[ipOutRequests].type = "GAUGE"
-#ds[ipReasmFails].type = "GAUGE"
-#ds[ipReasmOKs].type = "GAUGE"
-#ds[ipReasmReqds].type = "GAUGE"
+#ds[responsetime].type = "GAUGE"
+#ds[responsetime].minimal_heartbeat = 900
+#ds[responsetime].min = 0.0000000000e+00
+#ds[responsetime].max = NaN
+#ds[responsetime].last_ds = "0.87"
+#ds[responsetime].value = 2.3398737000e+00
+#ds[responsetime].unknown_sec = 0
 
 				# Is this the DS's we are intersted in?
 				if ( $key =~ /$qrdst/ ) {
@@ -139,19 +131,19 @@ foreach my $node (sort keys %{$LNT}) {
 					print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
 				
 					# Is the value blank (which means in RRD U, unbounded).
-					if ( $hash->{$key} eq "" or $hash->{$key} eq "GAUGE") {
+					if ( $hash->{$key} eq "" or $hash->{$key} != $maxrt) {
 						# We need to tune this RRD
 						print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
 													
 						# Got everything we need
-						#print qq|RRDs::tune($rrd, "--maximum", "$dsname:$maxBytes")\n| if $debug;
+						print qq|RRDs::tune($rrd, "--maximum", "$dsname:$maxrt")\n| if $debug;
 						
 						# Only make the change if change is set to true
 						if ($arg{change} eq "true" ) {
 							print "      ". $t->elapTime(). " Tuning RRD, updating data type for $dsname\n";
 							#Execute the RRDs::tune API.
 							#--data-source-type|-d ds-name:DST
-							RRDs::tune($rrd, "--data-source-type", "$dsname:COUNTER");
+							RRDs::tune($rrd, "--maximum", "$dsname:$maxrt");
 							
 							# Check for errors.
 							my $ERROR = RRDs::error;
@@ -161,7 +153,7 @@ foreach my $node (sort keys %{$LNT}) {
 							else {
 								# All GOOD!
 								print "      ". $t->elapTime(). " RRD Tune Successful\n";
-								++$sum->{count}{'tune-nodehealth'};
+								++$sum->{count}{'tune-reach'};
 							}
 						}
 						else {
@@ -172,6 +164,9 @@ foreach my $node (sort keys %{$LNT}) {
 					else {
 						print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
 					}
+				}
+				else {
+					print "      ". $t->elapTime(). " KEY $key, value = \"$hash->{$key}\"\n" if $debug > 1;
 				}
 			}
 		}
@@ -185,7 +180,7 @@ foreach my $node (sort keys %{$LNT}) {
 	
 print qq|
 $sum->{count}{node} nodes processed, $sum->{count}{active} nodes active
-$sum->{count}{'tune-nodehealth'}\tnodehealth RRDs tuned
+$sum->{count}{'tune-reach'}\treach RRDs tuned
 |;
 
 
@@ -193,7 +188,7 @@ sub initSummary {
 	my $sum;
 
 	$sum->{count}{node} = 0;
-	$sum->{count}{'tune-nodehealth'} = 0;
+	$sum->{count}{'tune-reach'} = 0;
 
 	return $sum;
 }
