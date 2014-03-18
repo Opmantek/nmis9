@@ -292,7 +292,7 @@ foreach my $node (sort keys %{$LNT}) {
 								
 									# Is this the DS's we are intersted in?
 									#CBQoS, with PrePolicyByte, DropByte, PrePolicyPkt, DropPkt, NoBufDropPkt
-									if ( $key =~ /ds\[(PrePolicyByte|DropByte|PrePolicyPkt|DropPkt|NoBufDropPkt)\]\.max/ ) {
+									if ( $key =~ /ds\[(PrePolicyByte|DropByte|PostPolicyByte|PrePolicyPkt|DropPkt|NoBufDropPkt)\]\.max/ ) {
 										my $dsname = $1;
 										print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
 			

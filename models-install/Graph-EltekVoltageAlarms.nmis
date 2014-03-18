@@ -1,7 +1,5 @@
 #
-## $Id: Common-cbqos-out.nmis,v 8.2 2011/08/28 15:11:41 nmisdev Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -30,39 +28,34 @@
 # *****************************************************************************
 
 %hash = (
-  'cbqos-out' => {
-    'rrd' => {
-      'cbqos-out' => {
-        'indexed' => 'true',
-        'snmp' => {
-          'DropPkt' => {
-            'oid' => 'cbQosCMDropPkt64',
-            'option' => 'counter,U:U'
-          },
-          'NoBufDropPkt' => {
-            'oid' => 'cbQosCMNoBufDropPkt64',
-            'option' => 'counter,U:U'
-          },
-          'PrePolicyPkt' => {
-            'oid' => 'cbQosCMPrePolicyPkt64',
-            'option' => 'counter,U:U'
-          },
-          'DropByte' => {
-            'oid' => 'cbQosCMDropByte64',
-            'option' => 'counter,U:U'
-          },
-          'PrePolicyByte' => {
-            'oid' => 'cbQosCMPrePolicyByte64',
-            'option' => 'counter,U:U'
-          },
-          'PostPolicyByte' => {
-            'oid' => 'cbQosCMPostPolicyByte64',
-            'option' => 'counter,U:U'
-          }
-        },
-        'graphtype' => 'cbqos-out'
-      }
-    }
-  }
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node Voltage Alarms'
+	},
+	'vlabel' => {
+			standard => "0 Normal",
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit','2',
+			'--lower-limit','-2',
+			'--rigid',
+			'DEF:ivhi=$database:MinorBattVHigh:AVERAGE',
+			'DEF:ivlo=$database:MinorBattVLow:AVERAGE',
+			'DEF:avhi=$database:MajorBattVHigh:AVERAGE',
+			'DEF:avlo=$database:MajorBattVLow:AVERAGE',
+			'CDEF:xavhi=avhi,2,*',
+			'CDEF:xavlo=avlo,-2,*',
+			'CDEF:navlo=0,avlo,-',
+			'AREA:ivhi#DC143C:Minor Batt Voltage High',	
+			'AREA:xavhi#ff0000:Major Batt Voltage High',
+			'AREA:navlo#FFA500:Minor Batt Voltage Low',
+			'AREA:xavlo#FF4500:Major Batt Voltage Low',
+			'COMMENT:\\n',
+			'COMMENT:0 normal, all others Alarm Active\\n',
+			'CDEF:axis=ivhi,UN,0,0,IF',
+			'LINE:axis#808080:',   
+		],
+	}
 );
 
