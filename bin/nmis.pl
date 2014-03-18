@@ -4127,7 +4127,8 @@ sub runReach {
 	$reachVal{intfColUp}{value} = $reach{intfTotal} eq 'U' ? 'U' : $reach{intfColUp};
 	$reachVal{reachability}{option} = "gauge,0:100";
 	$reachVal{availability}{option} = "gauge,0:100";
-	$reachVal{responsetime}{option} = "gauge,0:U";
+	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
+	$reachVal{responsetime}{option} = "gauge,0:30000";
 	$reachVal{health}{option} = "gauge,0:100";
 	$reachVal{loss}{option} = "gauge,0:100";
 	$reachVal{intfTotal}{option} = "gauge,0:U";
@@ -5283,7 +5284,8 @@ sub runMetrics {
 	# RRD options
 	$data->{reachability}{option} = "gauge,0:100";
 	$data->{availability}{option} = "gauge,0:100";
-	$data->{responsetime}{option} = "gauge,0:U";
+	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
+	$data->{responsetime}{option} = "gauge,0:30000";
 	$data->{health}{option} = "gauge,0:100";
 	$data->{status}{option} = "gauge,0:100";
 	$data->{intfCollect}{option} = "gauge,0:U";
