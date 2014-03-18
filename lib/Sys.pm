@@ -485,6 +485,10 @@ sub getData {
 #===================================================================
 
 # get data by snmp defined in Model
+# supports: calculate, with $r and CVAR[0-9], and replace 
+#
+# fixme: the CVARn handling should be integrated into parseString (must supply input of known subst values, as 
+# $result->{$sect}{$index}{$ds} isn't built up by the time the substitutions must take place
 sub getValues {
 	my $self = shift;
 	my %args = @_;
@@ -569,12 +573,18 @@ sub getValues {
 		}
 	}
 	# get values by snmp
-	if (@oid ) { #and $gotGraphType) {
-		### 2012-08-24 keiths, removed extra () was if ((@res = $SNMP->getarray(@oid))) {
-		### related to Node Reset and SNMP not failing.
+	if (@oid ) { 
 		@res = $SNMP->getarray(@oid);
-		if (not defined $self->getSnmpError()) {
-			foreach my $rs (@res) {
+		if (not defined $self->getSnmpError()) 
+		{
+			my %oidname2value;				# cache the raw oid to value relationships for CVARn
+			for my $idx (0..$#res)
+			{
+					$oidname2value{$ds[$idx]}=$res[$idx];
+			}
+							
+			foreach my $rs (@res) 
+			{
 				my $r = $rs;
 				my $sect = shift @sect;
 				my $ds = shift @ds;
@@ -584,7 +594,7 @@ sub getValues {
 				my $calc = shift @calc;
 				my $form = shift @form;
 				my $alert = shift @alert;
-
+				
 				if (ref $rpc eq 'HASH') { # replace table exist
 					# replace result
 					if ($rpc->{$r} ne "") { 
@@ -593,9 +603,48 @@ sub getValues {
 						$r = $rpc->{unknown} if $rpc->{unknown} ne "";
 					}
 				}
-				if ($calc ne '') {
-					$r = eval { eval $calc; };
-					logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@") if $@;
+				if ($calc ne '') 
+				{
+						# calculate understands as placeholders: $r for the current oid,
+						# and "CVAR[n]=oidname;" stanzas, with n in 0..9
+						# all CVARn initialisations need to come before use, 
+						# and the RAW ds/oid values are substituted, not post-calc/replace/whatever
+
+						my (@CVAR, $rebuiltcalc, $consumeme);
+						$consumeme=$calc;
+						# rip apart calc, rebuild it with var substitutions
+						while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
+						{
+								$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
+								my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
+
+								if (defined $varnum) # cvar declaration
+								{
+										# decl holds oid, which is known in @res but likely not in $result yet
+										$CVAR[$varnum] = $oidname2value{$decl};
+										logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"")
+												if (!exists $oidname2value{$decl});
+								}
+								elsif (defined $varuse) # cvar use
+								{
+										logMsg("ERROR: CVAR$varuse used but not defined in calc \"$calc\"")
+												if (!exists $CVAR[$varuse]);
+
+										$rebuiltcalc .= $CVAR[$varuse]; # sub in the actual value
+								}
+								else 						# shouldn't be reached, ever
+								{
+										logMsg("ERROR: CVAR parsing failure for \"$calc\"");
+										$rebuiltcalc=$consumeme='';
+										last;
+								}
+						}
+						$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
+						dbg("calc translated \"$calc\" into \"$rebuiltcalc\"",3);
+						$calc = $rebuiltcalc;
+
+						$r = eval { eval $calc; };
+						logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@") if $@;
 				}
 				if ($form ne '') {
 					if (!($r = sprintf("${form}",$r)) ) {
@@ -641,9 +690,8 @@ sub getValues {
 	elsif ( $noGraphs ) {
 		dbg("no graphs intentionally defined for section=$section sect=@sect");		
 	}
-	#elsif ( $section ne $sect ) {
-	#	dbg("nothing to do for section=@sect");		
-	#}
+	# fixme: if a section is skipped b/c of control saying no, then we reach here but 
+	# it's a false positive
 	else {
 		my @sect = keys %{$class};
 		dbg("no oid loaded for section=@sect");

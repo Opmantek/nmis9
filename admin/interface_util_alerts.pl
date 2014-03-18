@@ -45,11 +45,17 @@ my $thresholds = {
               'fatal' => '90',
               'critical' => '80',
               'major' => '60',
-              'minor' => '50',
-              'warning' => '40'
+              'minor' => '20',
+              'warning' => '10'
              };
 
 my $event = "Proactive Interface Utilisation";
+
+# set this to 1 to include group in the message details, 0 to exclude.
+my $includeGroup = 1;
+
+# the seperator for the details field.
+my $detailSep = "-- ";
 
 # *****************************************************************************
 
@@ -63,6 +69,12 @@ use rrdfunc;
 use notify;
 
 my %arg = getArguements(@ARGV);
+
+if ( defined $arg{clean} and $arg{clean} eq "true" ) {
+	print "Cleaning Events\n";
+	cleanEvents();
+	exit;
+}
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
@@ -92,11 +104,11 @@ foreach my $node (sort keys %{$LNT}) {
 				my $stats = getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex);
 				
 				# skip if bad data
-				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
-				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
-
 				next if not defined $stats->{$ifIndex}{inputUtil};
 				next if not defined $stats->{$ifIndex}{outputUtil};
+
+				next if $stats->{$ifIndex}{inputUtil} =~ /NaN/;
+				next if $stats->{$ifIndex}{outputUtil} =~ /NaN/;
 
 				# get the max if in/out utilisation
 				my $util = 0;
@@ -122,33 +134,35 @@ foreach my $node (sort keys %{$LNT}) {
 				my $eventExists = eventExist($NI->{system}{name}, $event, $element);
 				my $sendSyslog = 0;
 				my $condition = 0;
-				my $details = undef;
 
-				# build a details string
-				$details = $IF->{$ifIndex}{Description} if exists $IF->{$ifIndex}{Description};
+				my @detailBits;
+									
+				if ( $includeGroup ) {
+					push(@detailBits,"$LNT->{$node}{group}");
+				}
+				
+				if ( defined $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
+					push(@detailBits,"$IF->{$ifIndex}{Description}");
+				}
 
 				if ($C->{global_events_bandwidth} eq 'true')
 				{
-						if ( $details ) {
-							$details .= " Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-						}
-						else {
-							$details = "Bandwidth=".$IF->{$ifIndex}->{ifSpeed};
-						}
+						push(@detailBits,"Bandwidth=".$IF->{$ifIndex}->{ifSpeed});
 				}
-				
-				if ( $details ) {
-					$details = "$details: Value=$util Threshold=$thrvalue";
-				}
-				else {
-					$details = "Value=$util Threshold=$thrvalue";
-				}
+
+				push(@detailBits,"Value=$util Threshold=$thrvalue");
+
+				my $details = join($detailSep,@detailBits);
+
+				#remove dodgy quotes
+				$details =~ s/[\"|\']//g;
+
 
 				if ( $eventExists and $level =~ /Normal/i) {
 					# Proactive Closed.
 					$condition = 1;
 					deleteEvent($node,$event,$element);
-					$event = "$event Closed";
+					$event = "$event Closed" if $event !~ /Closed/;
 					$sendSyslog = 1;
 				}
 				elsif ( not $eventExists and $level =~ /Normal/i) {
@@ -157,7 +171,8 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 				elsif ( not $eventExists and $level !~ /Normal/i) {
 					$condition = 3;
-					
+					$event =~ s/ Closed//g;
+
 					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
 					$sendSyslog = 1;
@@ -203,11 +218,11 @@ sub deleteEvent {
 	my $event = shift;
 	my $element = shift;
 	
-	print "DEBUG deleteEvent: $node,$event,$element\n";
+	#print "DEBUG deleteEvent: $node,$event,$element\n";
 
 	my $event_hash = eventHash($node,$event,$element);
 
-	print "DEBUG deleteEvent: $event_hash\n";
+	#print "DEBUG deleteEvent: $event_hash\n";
 
 	my ($ET,$handle);
 	if ($C->{db_events_sql} eq 'true') {
@@ -225,6 +240,28 @@ sub deleteEvent {
 		}
 		else {
 			print STDERR "ERROR no event found for: $event_hash\n";
+		}
+	}
+
+	if ($C->{db_events_sql} ne 'true') {
+		writeEventStateLock(table=>$ET,handle=>$handle);
+	}
+
+}
+
+sub cleanEvents {		
+
+	my ($ET,$handle);
+	if ($C->{db_events_sql} eq 'true') {
+		$ET = DBfunc::->select(table=>'Events');
+	} else {
+		($ET,$handle) = loadEventStateLock();
+	}
+	
+	foreach my $key (keys %$ET) {
+		if ( $ET->{$key}{event} =~ /Closed/ ) {
+			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
+			delete($ET->{$key});
 		}
 	}
 

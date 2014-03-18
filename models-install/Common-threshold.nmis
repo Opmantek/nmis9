@@ -5,7 +5,7 @@
         'item' => 'outputUtil',
         'event' => 'Proactive Interface Output Utilisation',
         'select' => {
-          '1' => {
+          '10' => {
             'value' => {
               'critical' => '90',
               'fatal' => '95',
@@ -15,7 +15,7 @@
             },
             'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
           },
-          '2' => {
+          '20' => {
             'value' => {
               'critical' => '75',
               'fatal' => '90',
@@ -25,7 +25,7 @@
             },
             'control' => '$ifSpeed == 10000000'
           },
-          '3' => {
+          '30' => {
             'value' => {
               'critical' => '65',
               'fatal' => '80',
@@ -35,7 +35,7 @@
             },
             'control' => '$ifSpeed == 100000000'
           },
-          '4' => {
+          '40' => {
             'value' => {
               'critical' => '55',
               'fatal' => '70',
@@ -300,7 +300,7 @@
         'item' => 'response',
         'event' => 'Proactive Response Time',
         'select' => {
-          '1' => {
+          '10' => {
             'value' => {
               'critical' => '2000',
               'fatal' => '3000',
@@ -310,7 +310,7 @@
             },
             'control' => '$nodeType =~ /example/'
           },
-          '10' => {
+          '20' => {
             'value' => {
               'critical' => '2000',
               'fatal' => '3000',
@@ -395,7 +395,7 @@
         'item' => 'inputUtil',
         'event' => 'Proactive Interface Input Utilisation',
         'select' => {
-          '4' => {
+          '40' => {
             'value' => {
               'critical' => '55',
               'fatal' => '70',
@@ -405,7 +405,7 @@
             },
             'control' => '$ifSpeed == 1000000000'
           },
-          '1' => {
+          '10' => {
             'value' => {
               'critical' => '90',
               'fatal' => '95',
@@ -415,7 +415,7 @@
             },
             'control' => '$ifSpeed <= 5000000 and $ifSpeed >= 1000000'
           },
-          '3' => {
+          '30' => {
             'value' => {
               'critical' => '65',
               'fatal' => '80',
@@ -434,7 +434,7 @@
               'major' => '90'
             }
           },
-          '2' => {
+          '20' => {
             'value' => {
               'critical' => '75',
               'fatal' => '90',

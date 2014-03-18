@@ -249,7 +249,7 @@ $tos = 0 if not $tos;
 # define hash key
 my $tnode = ($rnode eq "other") ? $raddr : $rnode;
 my $dest = ($optype =~ /http/ and $url =~ m:.*//(.*)(/|$).*: ) ? $1 : $tnode ;
-$dest =~ s/\ /\-/g;
+$dest =~ s/\ |\//\-/g;
 my $nno = "${pnode}_${dest}_${optype}_${tos}"; # key for hash table %RTTcfg
 
 # store typed community
@@ -359,7 +359,7 @@ sub displayIPSLAmenu {
 	my $RTTInfo = readFiletoHash(file => "$C->{'<nmis_var>'}/nmis-nodeinfo"); # global hash
 	
 	my (@pnode,@nodes);
-	@pnode = @nodes = grep { $_ if $RTTInfo->{$_}{nodeModel} eq "CiscoRouter" and $AU->InGroup($NT->{$_}{group}) } sort keys %{$RTTInfo};
+	@pnode = @nodes = grep { $_ if $RTTInfo->{$_}{nodeModel} =~ /CiscoRouter|Catalyst/ and $AU->InGroup($NT->{$_}{group}) } sort keys %{$RTTInfo};
 	@pnode = @nodes = sort keys %{$RTTInfo} if scalar @nodes == 0; # depends on nmis.pl code
 	unshift @pnode, "";
 
@@ -708,7 +708,7 @@ sub runRTTstart {
 			$sprobe{vrf} = $vrf if $vrf ne "";
 			$sprobe{deldb} = $deldb; # delete database
 			$sprobe{verify} = ($verify == 0) ? 2 : $verify;
-			my $n = $nno; $n =~ s/[\._]/-/g ;
+			my $n = $nno; $n =~ s/[\._\/]/-/g ;
 			$sprobe{database} = "$C->{database_root}/misc/ipsla-${n}.rrd";
 	
 			$sprobe{status} = "start requested";

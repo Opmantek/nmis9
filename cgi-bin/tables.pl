@@ -78,10 +78,9 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 my $formid = $Q->{table} ? "nmis$Q->{table}" : "nmisTable";
 
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-}
+my $widget = $Q->{widget} eq 'false'? "false" : "true";
+my $wantwidget = $widget eq "true";
+
 
 #======================================================================
 
@@ -216,8 +215,12 @@ EOF
 		}
 		
 		if ($AU->CheckAccess("Table_${table}_rw","check")) {
-			$bt = a({href=>"$url&act=config_table_edit&key=$k&widget=$widget"},'&nbsp;edit').
-					a({href=>"$url&act=config_table_delete&key=$k&widget=$widget"},'&nbsp;delete');
+			$bt = '&nbsp;'
+					.	a({href=>"$url&act=config_table_edit&key=$k&widget=$widget"},
+							'edit')
+					. '&nbsp;'
+					. a({href=>"$url&act=config_table_delete&key=$k&widget=$widget"},
+							'delete');
 		} else {
 			$bt = '';
 		}
@@ -231,6 +234,7 @@ EOF
 
 }
 
+# shows the table contents, optionally with a delete button
 sub viewTable {
 
 	my $table = $Q->{table};
@@ -246,15 +250,19 @@ sub viewTable {
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
 	my $CT = loadCfgTable(table=>$table); # load table configuration
+	# not delete -> we assume view
+	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
-	if ($Q->{act} =~ /delete/) {
-		 print start_form(-id=>"$formid",
-					-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_table_dodelete&table=$table&key=$key&widget=$widget");
-		}
-	if ($Q->{act} =~ /view/) {
-			 print start_form(-id=>"$formid",
-					-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_table_menu&table=$table&key=$key&widget=$widget");
-	}
+
+  # the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"$formid", -href=>url(-absolute=>1)."?");
+	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => $action)
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "table", -value => $table)
+			. hidden(-override => 1, -name => "key", -value => $key)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 		
 	print start_table;
 	print Tr(td({class=>'header',colspan=>'2'},"Table $table"));
@@ -267,14 +275,26 @@ sub viewTable {
 		}
 	}
 
-	if ($Q->{act} =~ /delete/) {
-		print Tr(td('&nbsp;'),td(	
-				button(-name=>"button",onclick=>"get('".$formid."');",-value=>"Delete"),"Are you sure",
-				button(-name=>'button',onclick=>"get('".$formid."','cancel');",-value=>"Cancel")));
+	if ($Q->{act} =~ /delete/) 
+	{
+			print Tr(td('&nbsp;'),
+							 td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
+												 -value=>"Delete"),
+									"Are you sure",
+									# need to set the cancel parameter
+									button(-name=>'button',
+												 onclick=> '$("#cancelinput").val("true");' 
+												 . ($wantwidget? "get('$formid');" : 'submit();'),
+												 -value=>"Cancel")));
 	}
-	if ($Q->{act} =~ /view/) {
-		print Tr(td('&nbsp;'),td(	
-				button(-name=>'button',onclick=>"get('".$formid."','cancel');",-value=>"Ok"))); # bypass
+	else
+	{
+			# in mode view submitting the form straight is side-effect free and ok.
+			print Tr(td('&nbsp;'),
+							 td(	
+									 button(-name=>'button', 
+													onclick=> ($wantwidget? "get('$formid');" : 'submit()'),
+													-value=>"Ok")));
 	}
 
 	print end_table;
@@ -356,11 +376,19 @@ sub editTable {
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
 	my $button = ($Q->{act} eq 'config_table_add') ? 'Add' : 'Edit';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_${func}&table=${table}&widget=$widget";
+	my $url = url(-absolute=>1)."?";
 
-	# start of form
-	print start_form(-name=>"$formid",-id=>"$formid",-href=>"$url");
+  # the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-name=>"$formid",-id=>"$formid",-href=>"$url")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf} )
+			. hidden(-override => 1, -name => "act", -value => "config_table_$func")
+			. hidden(-override => 1, -name => "table" , -value => $table )
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
+ 			. hidden(-override => 1, -name => "update", -value => '', -id=> "updateinput");
 
+	
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
 
@@ -412,13 +440,20 @@ sub editTable {
 
 	print hidden(-name=>'hash', -default=>join(',',@hash),-override=>'1');
 	print Tr(td('&nbsp;'),
-				td( eval {
-					if ($table eq 'Nodes') {
-						return button(-name=>"button",onclick=>"javascript:get('".$formid."','update');", -value=>"$button and Update Node");
-					} else { return "&nbsp;"; }
-				},
-				button(-name=>"button",onclick=>"get('".$formid."');", -value=>$button),
-				button(-name=>'button',onclick=>"get('".$formid."','cancel');",-value=>"Cancel")));
+					 td( 
+							 ($table eq 'Nodes' ? 
+								# set update to true, then submit
+							 button(-name=>"button",
+											onclick => '$("#updateinput").val("true");' 
+											. ($wantwidget? "javascript:get('$formid');" : 'submit();' ),
+											-value=>"$button and Update Node") : "&nbsp;" ),
+							 # the submit/add/edit button just submits the form as-is
+							 button(-name=>"button", onclick => ( $wantwidget ? "get('$formid');" : 'submit();' ),
+											-value=>$button),
+							 # the cancel button needs to set the cancel input 
+							 button(-name=>'button', onclick=> '$("#cancelinput").val("true");' 
+											. ($wantwidget? "get('$formid');" : 'submit();'),
+											-value=>"Cancel")));
 
 	print end_table;
 	print end_form;
@@ -550,13 +585,20 @@ sub doNodeUpdate {
 	print header($headeropts);
 	pageStartJscript(title => "Run update on $node") if ($widget eq "false");
 
-	print start_form(-id=>"$formid",
-					-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget");
+	print start_form(-id => "$formid",
+									 -href => url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_table_menu")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "table", -value => $Q->{table});
+
+	
+#									 conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget",
+#									 -action => url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget" );
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button',-onclick=>"get('".$formid."')",-value=>'Ok'))));
-	print end_form;
-	
+				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
+									-value=>'Ok'))));
 	print "<pre>\n";
 	print "Running update on node $node\n\n\n";
 	
@@ -583,11 +625,9 @@ sub doNodeUpdate {
 	close(PIPE);
 	print "\n</pre>\n";
 
-	print start_form(-id=>"$formid",
-					-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget");
-
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button',-onclick=>"get('".$formid."')",-value=>'Ok'))));
+				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
+									-value=>'Ok'))));
 	print end_form;
 	pageEnd() if ($widget eq "false");
 }

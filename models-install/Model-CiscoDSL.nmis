@@ -62,7 +62,7 @@
     }
   },
   'system' => {
-    'nodeModel' => 'CiscoRouter',
+    'nodeModel' => 'CiscoDSL',
     'nodeType' => 'router',
     'nbarpd_check' => 'true',
     'nodeVendor' => 'Cisco Systems',
