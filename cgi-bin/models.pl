@@ -299,7 +299,7 @@ sub displayModel{
 		$S->{section} = $section;
 		my @output;
 		if ( grep(/$section/,@common)) {
-			print Tr(td({class=>"header",align=>'center',style=>'background-color:yellow;',colspan=>'11'},
+			print Tr(td({class=>"header",align=>'center',style=>'background-color:black;',colspan=>'11'},
 				'===== Common Model ====='));
 		}
 		print @{nextSect(sys=>$S,sect=>$M->{$section},index=>0,output=>\@output,hash=>$section)};

@@ -426,7 +426,7 @@ sub resolveDNS {
 	
 	# convert node name to oct ip address
 	if ($dns ne "") {
-		if ($dns !~ /^([0-9]|\.)+/) {
+		if ($dns !~ /^\d+\.\d+\.\d+\.\d+$/) {
 			if ($h = gethostbyname($dns)) {
 				$addr = inet_ntoa($h->addr);
 			}

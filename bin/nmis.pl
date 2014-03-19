@@ -2655,8 +2655,13 @@ sub getCBQoS {
 					if( ($answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/) or
 							($answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/) ) {
 						# interface found with QoS input or output configured
+						
 						$direction = ($answer->{'cbQosPolicyDirection'} == 1) ? "in" : "out";
 						info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+												
+						my $ifSpeedIn = $IF->{$intf}{ifSpeedIn} ? $IF->{$intf}{ifSpeedIn} : $IF->{$intf}{ifSpeed};
+						my $ifSpeedOut = $IF->{$intf}{ifSpeedOut} ? $IF->{$intf}{ifSpeedOut} : $IF->{$intf}{ifSpeed};
+						my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
 
 						# get the policy config table for this interface
 						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
@@ -2755,7 +2760,7 @@ sub getCBQoS {
 								if ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1) {
 									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'}*1000;
 								} elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2 or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 ) {
-									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $IF->{$intf}{'ifSpeed'}/100;
+									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed/100;
 								}
 								if ($CMRate eq 0) { $CMRate = "undef"; }
 								dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
@@ -4122,7 +4127,8 @@ sub runReach {
 	$reachVal{intfColUp}{value} = $reach{intfTotal} eq 'U' ? 'U' : $reach{intfColUp};
 	$reachVal{reachability}{option} = "gauge,0:100";
 	$reachVal{availability}{option} = "gauge,0:100";
-	$reachVal{responsetime}{option} = "gauge,0:U";
+	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
+	$reachVal{responsetime}{option} = "gauge,0:30000";
 	$reachVal{health}{option} = "gauge,0:100";
 	$reachVal{loss}{option} = "gauge,0:100";
 	$reachVal{intfTotal}{option} = "gauge,0:U";
@@ -5278,7 +5284,8 @@ sub runMetrics {
 	# RRD options
 	$data->{reachability}{option} = "gauge,0:100";
 	$data->{availability}{option} = "gauge,0:100";
-	$data->{responsetime}{option} = "gauge,0:U";
+	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
+	$data->{responsetime}{option} = "gauge,0:30000";
 	$data->{health}{option} = "gauge,0:100";
 	$data->{status}{option} = "gauge,0:100";
 	$data->{intfCollect}{option} = "gauge,0:U";

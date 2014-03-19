@@ -55,7 +55,7 @@ my $event = "Proactive Interface Utilisation";
 my $includeGroup = 1;
 
 # the seperator for the details field.
-my $detailSep = ": ";
+my $detailSep = "-- ";
 
 # *****************************************************************************
 
@@ -70,7 +70,7 @@ use notify;
 
 my %arg = getArguements(@ARGV);
 
-if ( $arg{clean} eq "true" ) {
+if ( defined $arg{clean} and $arg{clean} eq "true" ) {
 	print "Cleaning Events\n";
 	cleanEvents();
 	exit;
@@ -134,7 +134,29 @@ foreach my $node (sort keys %{$LNT}) {
 				my $eventExists = eventExist($NI->{system}{name}, $event, $element);
 				my $sendSyslog = 0;
 				my $condition = 0;
-				my $details = undef;
+
+				my @detailBits;
+									
+				if ( $includeGroup ) {
+					push(@detailBits,"$LNT->{$node}{group}");
+				}
+				
+				if ( defined $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
+					push(@detailBits,"$IF->{$ifIndex}{Description}");
+				}
+
+				if ($C->{global_events_bandwidth} eq 'true')
+				{
+						push(@detailBits,"Bandwidth=".$IF->{$ifIndex}->{ifSpeed});
+				}
+
+				push(@detailBits,"Value=$util Threshold=$thrvalue");
+
+				my $details = join($detailSep,@detailBits);
+
+				#remove dodgy quotes
+				$details =~ s/[\"|\']//g;
+
 
 				if ( $eventExists and $level =~ /Normal/i) {
 					# Proactive Closed.
@@ -148,34 +170,9 @@ foreach my $node (sort keys %{$LNT}) {
 					# Life is good, nothing to see here.
 				}
 				elsif ( not $eventExists and $level !~ /Normal/i) {
-					print "  DEBUG condition3 node=>$node,event=>$event,level=>$level,element=>$element,details=>$details\n" if $info or $debug;
-
 					$condition = 3;
-					my @detailBits;
-										
-					if ( $includeGroup ) {
-						push(@detailBits,"$LNT->{$node}{group}");
-					}
-					
-					if ( exists $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
-						push(@detailBits,"$IF->{$ifIndex}{Description}");
-					}
-	
-					if ($C->{global_events_bandwidth} eq 'true')
-					{
-							push(@detailBits,"Bandwidth=".$IF->{$ifIndex}->{ifSpeed});
-					}
-
-					push(@detailBits,"Value=$util Threshold=$thrvalue");
-
-					$details = join($detailSep,@detailBits);
-
-					#remove dodgy quotes
-					$details =~ s/[\"|\']//g;
-
 					$event =~ s/ Closed//g;
 
-					print "  DEBUG eventAdd node=>$node,event=>$event,level=>$level,element=>$element,details=>$details\n" if $info or $debug;
 					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
 					$sendSyslog = 1;
@@ -221,11 +218,11 @@ sub deleteEvent {
 	my $event = shift;
 	my $element = shift;
 	
-	print "DEBUG deleteEvent: $node,$event,$element\n";
+	#print "DEBUG deleteEvent: $node,$event,$element\n";
 
 	my $event_hash = eventHash($node,$event,$element);
 
-	print "DEBUG deleteEvent: $event_hash\n";
+	#print "DEBUG deleteEvent: $event_hash\n";
 
 	my ($ET,$handle);
 	if ($C->{db_events_sql} eq 'true') {

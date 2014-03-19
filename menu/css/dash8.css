@@ -265,7 +265,7 @@ th.info {
 }
 
 .wrap {
-		white-space: wrap;
+		word-wrap: break-word;
 }
 
 .nowrap {
