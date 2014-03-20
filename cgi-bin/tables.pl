@@ -164,7 +164,7 @@ sub menuTable{
 
 	print <<EOF;
 <script>
-clearInterval();
+clearInterval(null);
 </script>
 EOF
 
