@@ -1,34 +1,31 @@
 #!/usr/bin/perl
 #
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #
-## $Id: traplog.pl,v 8.2 2011/08/28 15:10:52 nmisdev Exp $
-#
-#  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (“NMIS”).
-#  
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 #
 # Intentionally left distant from NMIS Code, as we want it to run 
@@ -37,41 +34,63 @@
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Socket;
 
 my $trapfilter = qr/foobardiddly/;
 
-my $filename = "$FindBin::Bin/../logs/trap.log";
-# Open STDIN for reading
-open(IN,"<&STDIN") || die "Cannot open the file STDIN";
+# allow a logfile to be explicitely specified as first/only argument, 
+# but fall back to the 'usual' location
+my $filename = $ARGV[0] || "$FindBin::Bin/../logs/trap.log";
 
-# Start Loop for processing IN file
+# snmptrapd feeds us, one per line, this: the hostname and 'ip
+# address' of the sending party, and the var bindings in the form of
+# oid space value.
+# 
+# note that: the ip address is not just the raw ip address, but a
+# connection string of the form 'UDP: [1.2.3.4]:33608->[5.6.7.8]',
+# where 1.2.3.4 is the other party and 5.6.7.8 is this box.
+#
+# note also that the sending party may NOT be the originator if the
+# trap was forwarded, but merely indicates the last hop. it is
+# therefore necessary to check the variable
+# SNMP-COMMUNITY-MIB::snmpTrapAddress.0 as well, which holds the
+# originating agent's address.
+# 
 my @buffer;
-while (<IN>) {
+my $hostname = <STDIN>;
+my $ipaddress = <STDIN>;
+chomp ($hostname, $ipaddress);
+
+# the remainder is all variables 
+while (<STDIN>) {
 	chomp;
-	my @spaceParts = split(/\s+/,$_);
-	my $pdu;
-	if ( $#spaceParts > 1 ) {
-		#$_ =~ s/(\s+)/=/g;
-		my $p1 = shift(@spaceParts);
-		my $p2 = shift(@spaceParts);
-		$pdu = "$p1=$p2 @spaceParts";
+
+	my ($varname,$rest) = split(/\s+/,$_,2); 
+  # the one and only variable we're specially interested in: if the trap
+	# originator doesn't match what snmptrapd reports, then we replace 
+	# the hostname with the trap originator's hostname (if we can find one)
+	if ($varname eq "SNMP-COMMUNITY-MIB::snmpTrapAddress.0"
+			and $ipaddress !~ /^UDP:\s*\[$rest\]/)
+	{
+			my $addrbin = inet_aton($rest);
+			my $newhostname = gethostbyaddr($addrbin, AF_INET);
+			if (defined $newhostname)
+			{
+					$hostname = $newhostname;
+					$ipaddress = $rest;
+			}
 	}
-	else {
-		$_ =~ s/\s+/=/g;
-		$pdu = $_;
-	}
-	push(@buffer,$pdu);
+	push @buffer,"$varname=$rest";
 }
 
-my $out = join("\t",@buffer);
-# Open output file for sending stuff to
-open (DATA, ">>$filename") || die "Cannot open the file $ARGV[0]";
+my $out = join("\t",$hostname,$ipaddress,@buffer);
 
 if ( $out !~ /$trapfilter/ ) {
-	my $out = join("\t",@buffer);
-	print DATA &returnDateStamp."\t$out\n";
+		# Open output file for sending stuff to
+		open (DATA, ">>$filename") || die "Cannot open the file $filename: $!\n";
+		print DATA &returnDateStamp."\t$out\n";
+		close(DATA);
 }
-close(DATA);
 
 #Function which returns the time
 sub returnDateStamp {
