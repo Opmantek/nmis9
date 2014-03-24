@@ -90,8 +90,8 @@ sub processNode {
 		$port = 161 if not $port;
 		my $session = mysnmpsession($LNT->{$node}{host},$LNT->{$node}{community},$port);
 
-		if ( $NI->{system}{sysDescr} =~ /GS108T/ and $NI->{system}{nodeVendor} eq "Netgear" ) {			
-			my @ifIndexNum = qw(1 2 3 4 5 6 7 8);
+		if ( $NI->{system}{sysDescr} =~ /GS108T|GS724Tv3/ and $NI->{system}{nodeVendor} eq "Netgear" ) {			
+			my @ifIndexNum = (1..24);
 
 			my $intfTotal = 0;
 			my $intfCollect = 0; # reset counters
@@ -100,7 +100,10 @@ sub processNode {
 				$intfTotal++;				
 				my $ifDescr = "Port $index Gigabit Ethernet";
 				
-				my $prefix = "1.3.6.1.2.1.10.7.10.1.2";
+				$NCT->{$S->{node}}{$ifDescr}{ifDescr} = $ifDescr;
+				
+				#my $prefix = "1.3.6.1.2.1.10.7.10.1.2";
+				my $prefix = "1.3.6.1.2.1.10.7.2.1.3";
 				my $oid = "$prefix.$index";
 				my $dot3PauseOperMode = mysnmpget($session,$oid) if defined $session;
 				
@@ -120,15 +123,15 @@ sub processNode {
 		      'ifOperStatus' => 'unknown',
 		      'ifSpeed' => 1000000000,
 		      'ifType' => 'ethernetCsmacd',
-		      'interface' => "port-$index-gigabit-ethernet",
+		      'interface' => convertIfName($ifDescr),
 		      'real' => 'true',
-		      'threshold' => 'true',
 		      'dot3PauseOperMode' => $dot3PauseOperMode->{$oid},
 				};
 				
 				# preset collect,event to required setting, Node Configuration Will override.
 				$S->{info}{interface}{$index}{collect} = "false";
 				$S->{info}{interface}{$index}{event} = "true";
+				$S->{info}{interface}{$index}{threshold} = "false";
 									
 				# ifDescr must always be filled
 				if ($S->{info}{interface}{$index}{ifDescr} eq "") { $S->{info}{interface}{$index}{ifDescr} = $index; }
@@ -251,7 +254,8 @@ sub processNode {
 			# print Dumper $S;
 
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
-			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis			
+			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis
+			writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
 		}
 	}
 }

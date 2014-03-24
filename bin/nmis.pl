@@ -2285,7 +2285,7 @@ sub getIntfData {
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
 
 	# check first if admin status of interfaces changed
-	if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} ne "false" ) {
+	if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus} or ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} and $S->{mdl}{custom}{interface}{ifAdminStatus} ne "false" ) ) {
 		my $ifAdminTable;
 		my $ifOperTable;
 		if ( ($ifAdminTable = $S->{snmp}->getindex('ifAdminStatus')) ) {
@@ -2380,30 +2380,48 @@ sub getIntfData {
 								$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
 								$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
 					
-								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
-									dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
-		
-									if ($D->{ifOperStatus}{value} eq 'down') {
-										if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
-											# going down
-											getIntfInfo(sys=>$S,index=>$index); # update this interface
+								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {		
+									if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus} ) {
+										dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+										if ($D->{ifOperStatus}{value} eq 'down') {
+											if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
+												# going down
+												getIntfInfo(sys=>$S,index=>$index); # update this interface
+											}
+										}
+										# must be up
+										else {
+											# Check if the status changed
+											if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
+												# going up
+												getIntfInfo(sys=>$S,index=>$index); # update this interface
+											}
 										}
 									}
-									# must be up
 									else {
-										# Check if the status changed
-										if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
-											# going up
-											getIntfInfo(sys=>$S,index=>$index); # update this interface
-										}
+										### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
+										# interface now up or down, check and set or clear outstanding event.
+										dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+										$IF->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
+										$IF->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
+
+										if ( $IF->{$index}{collect} eq 'true'
+												and $IF->{$index}{ifAdminStatus} =~ /up|ok/ 
+												and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/ 
+										) {
+											if ($IF->{$index}{event} eq 'true') {
+												notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+											}
+										} else {
+											checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+										}										
 									}
 									
 									# If new ifDescr is different from old ifDescr rebuild interface info table
 									# check if nodeConf modified this inteface
-									
 									my $node = $NI->{system}{name};
 									my $ifDescr = $IF->{$index}{ifDescr};
-									if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{Description} eq '' and
+									if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{ifDescr} eq '' and
 										$D->{ifDescr}{value} ne '' and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
 										# Reload the interface config won't get that one right but should get the next one right
 										logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"); 

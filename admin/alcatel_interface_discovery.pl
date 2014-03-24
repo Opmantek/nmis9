@@ -170,6 +170,8 @@ sub processNode {
 				$intfTotal++;				
 				my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
 				my $Description = getDescription(version => $version, ifIndex => $index);
+				
+				$NCT->{$S->{node}}{$ifDescr}{ifDescr} = $ifDescr;
 
 				my $offset = 12288;
 				if ( $version eq "4.2" )  {
@@ -197,15 +199,14 @@ sub processNode {
 		      'ifOperStatus' => 'unknown',
 		      'ifSpeed' => 1000000000,
 		      'ifType' => 'atm',
-		      'interface' => "atm-$index",
+		      'interface' => convertIfName($ifDescr),
 		      'real' => 'true',
-		      'threshold' => 'true'
-				
 				};
 				
 				# preset collect,event to required setting, Node Configuration Will override.
 				$S->{info}{interface}{$index}{collect} = "false";
 				$S->{info}{interface}{$index}{event} = "false";
+				$S->{info}{interface}{$index}{threshold} = "false";
 									
 				# ifDescr must always be filled
 				if ($S->{info}{interface}{$index}{ifDescr} eq "") { $S->{info}{interface}{$index}{ifDescr} = $index; }
@@ -334,6 +335,7 @@ sub processNode {
 
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis			
+			writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
 		}
 	}
 }

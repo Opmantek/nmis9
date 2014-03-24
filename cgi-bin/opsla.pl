@@ -708,7 +708,7 @@ sub runRTTstart {
 			$sprobe{vrf} = $vrf if $vrf ne "";
 			$sprobe{deldb} = $deldb; # delete database
 			$sprobe{verify} = ($verify == 0) ? 2 : $verify;
-			my $n = $nno; $n =~ s/[\._\/]/-/g ;
+			my $n = $nno; $n =~ s/[\._]\//-/g ;
 			$sprobe{database} = "$C->{database_root}/misc/ipsla-${n}.rrd";
 	
 			$sprobe{status} = "start requested";
@@ -1161,8 +1161,10 @@ sub displayRTTgraph {
 
 	my $cnt = 0;
 	my @p_options = ();
+	my $times = 0;
 	foreach (@items) {
 		if ( /^\d+([A-Z])(\d+)_(.*)/ ) {
+			++$times;
 			my $az = $1;
 			my $gp = $2;
 			my $ds = $3;

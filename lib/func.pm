@@ -1097,7 +1097,9 @@ sub info {
 	my $caller;
 
 	if ($C_cache->{debug}) {
-		dbg($msg,$level);
+		my $upCall = (caller(1))[3];
+		$upCall =~ s/main:://;
+		dbg($msg,$level,$upCall);
 	}
 	else {
 		if ($C_cache->{info} >= $level or $level == 0) {
@@ -1127,11 +1129,17 @@ sub info {
 sub dbg {
 	my $msg = shift;
 	my $level = shift || 1;
+	my $upCall = shift || undef;
 	my $string;
 	my $caller;
 	if ($C_cache->{debug} >= $level or $level == 0) {
 		if ($level == 1) {
-			($string = (caller(1))[3]) =~ s/\w+:://;
+			if ( defined $upCall ) {
+				$string = $upCall;
+			}
+			else {
+				($string = (caller(1))[3]) =~ s/\w+:://;
+			}
 			$string .= ",";
 		} else {
 			if ((my $caller = (caller(1))[3]) =~ s/main:://) {
