@@ -480,6 +480,7 @@ sub doUpdate {
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
 			if (getNodeInfo(sys=>$S)) {
+				# getnodeinfo has deleted the interface info, need to rebuild from scratch
 				if ( $NC->{node}{collect} eq 'true') {
 					if (getIntfInfo(sys=>$S)) {
 						#print Dumper($S)."\n";
@@ -737,7 +738,7 @@ sub runPing {
 #=========================================================================================
 #
 # get node info by snmp, define Model of node
-#
+# attention: this deletes the interface info if other steps successful
 sub getNodeInfo {
 	my %args = @_;
 	my $S = $args{sys}; 	# node object
@@ -1084,6 +1085,7 @@ sub checkNodeConfiguration {
 
 
 # Create the Interface configuration from SNMP Stuff!!!!!
+# except on collect it is always called with a blank interface info 
 sub getIntfInfo {
 	my %args = @_;
 	my $S = $args{sys}; # object
@@ -1349,10 +1351,10 @@ sub getIntfInfo {
 				info("Manual update of ifSpeedOut by nodeConf");
 			}
 			
-			
-			# preset collect,event on true
+			# set default for collect, event and threshold: on, possibly overridden later
 			$IF->{$index}{collect} = "true";
 			$IF->{$index}{event} = "true";
+			$IF->{$index}{threshold} = "true";
 			$IF->{$index}{nocollect} = "Collecting: Collection Policy";
 			#
 			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
@@ -1450,8 +1452,6 @@ sub getIntfInfo {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 	
-			$IF->{$index}{threshold} = $IF->{$index}{collect};
-	
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
 	
@@ -1479,7 +1479,7 @@ sub getIntfInfo {
 				info("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
 			} else {
 				info("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
-				# no collect => no event, no threshold
+				# if  collect is of then disable event and threshold (clearly not applicable)
 				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
 				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
 			}
@@ -2065,7 +2065,7 @@ sub updateNodeInfo {
 			$exit = getNodeInfo(sys=>$S);
 			goto END_updateNodeInfo; # ready with new info
 		}
-
+		# nodeinfo will have deleted the interface section, need to recreate from scratch
 		if ($ifNumber != $NI->{system}{ifNumber}) {
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
@@ -6134,6 +6134,14 @@ sub doThreshold {
 														$details .= " Bandwidth=".$IF->{$index}->{ifSpeed};
 												}
 												
+											}
+											# thresholds can be selectively disabled for individual interfaces
+											if (defined $NI->{$type} and defined $NI->{$type}{$index}
+													and defined $NI->{$type}{$index}{threshold} 
+													and $NI->{$type}{$index}{threshold} eq "false")
+											{
+													dbg("skipping disabled threshold type $type for index $index");
+													next; 
 											}
 											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
 										}
