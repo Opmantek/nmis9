@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.8G1";
+$VERSION = "8.4.10G";
 
 @ISA = qw(Exporter);
 
