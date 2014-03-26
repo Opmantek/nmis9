@@ -871,7 +871,7 @@ EOHTML
 	
 	print qq|
   <div id="login_frame">
-    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
+    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-top">
 |;
 
 	print $self->do_login_banner();
@@ -1024,7 +1024,7 @@ $javascript
 
 	print qq|
   <div id="login_frame">
-    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
+    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-top">
 |;
 
 	print $self->do_login_banner();
@@ -1058,7 +1058,7 @@ sub do_login_banner {
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 	
 	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;	
-	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-all ui-widget-header lrg pad'},$logo, $banner_string);
+	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
 	push @banner,div({class=>'title2'},"Network Management Information System");
 		
 	return @banner;

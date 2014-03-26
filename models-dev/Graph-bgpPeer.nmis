@@ -1,5 +1,5 @@
 #
-## $Id: Graph-sensortemp.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+## $Id: Graph-fan.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -32,25 +32,28 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'BGP Peer Status'
 	},
 	'vlabel' => {
-		'standard' => 'degrees',
-		'short' => 'degrees'
+		'standard' => 'BGP Peer Status'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature\\n',
-			'GPRINT:TempAVG:AVERAGE:Avg Temperature %1.1lf degrees\n',
-			'GPRINT:TempMAX:MAX:Max Temperature %1.1lf degrees\n',
-			'GPRINT:TempMIN:MIN:Min Temperature %1.1lf degrees\n'
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'DEF:bgpPeerState=$database:bgpPeerState:AVERAGE',
+			'LINE2:bgpPeerState#00ff00: BGP Peer State',
+			'GPRINT:bgpPeerState:AVERAGE:Avg. %1.2lf%%\\n',
+			'COMMENT:100%=established, 80%=openconfirm, 60%=opensent, 40%=active, 20%=connect, 0%=idle\\n'
 		],
 		'small' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'LINE1:TempAVG#0000ff:Temperature\\n',
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'DEF:bgpPeerState=$database:bgpPeerState:AVERAGE',
+			'LINE2:bgpPeerState#00ff00: BGP Peer State',
+			'GPRINT:bgpPeerState:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}
 );

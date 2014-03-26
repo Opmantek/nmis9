@@ -2700,34 +2700,34 @@ sub createHrButtons {
 	my $server = ($C->{server_master} eq 'true') ? '' : $NI->{system}{server};
 
 	push @out, start_table({class=>'table'}),start_Tr;
-	push @out, td({class=>'header'},'Node ',
+	push @out, td({class=>'header litehead'},'Node ',
 			a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
 
 	if (scalar keys %{$NI->{module}}) {
-		push @out, td({class=>'header'},
+		push @out, td({class=>'header litehead'},
 			a({href=>"network.pl?%conf=$Q->{conf}&act=network_module_view&node=$node&server=$server"},"modules"));
 	}
 
 	if ($NI->{system}{collect} eq 'true') {
-		push @out, td({class=>'header'},
+		push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"));
-		push @out, td({class=>'header'},
+		push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_interface_view_act&node=$node&refresh=$refresh&widget=$widget&server=$server"},"active intf"));
 		if ($NI->{system}{nodeType} =~ /router|switch/) {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_port_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		if ($NI->{system}{nodeType} =~ /server/) {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_storage_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 		if (defined $NI->{database}{service}) {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_service_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"services"));
 		}
 		### 2012-12-20 keiths, adding services list support
 		if (defined $NI->{services}) {
-					push @out, td({class=>'header'},
+					push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	
 
@@ -2738,7 +2738,7 @@ sub createHrButtons {
 			
 			foreach my $sysHealth (@systemHealth) {	
 				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
-					push @out, td({class=>'header'},
+					push @out, td({class=>'header litehead'},
 						a({href=>"network.pl?%conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
 				}
 			}
@@ -2746,54 +2746,54 @@ sub createHrButtons {
 
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_environment_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_environment_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{cssgroup} ne '') {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_cssgroup_view&node=$node&refresh=false&server=$server"},"Group"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
  		if ($NI->{csscontent} ne '') {
-			push @out, td({class=>'header'},
+			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?%conf=$Q->{conf}&act=network_csscontent_view&node=$node&refresh=false&server=$server"},"Content"));
 		}
 	}
 
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"events.pl?%conf=$Q->{conf}&act=event_table_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"events"));
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"outages.pl?%conf=$Q->{conf}&act=outage_table_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"outage"));
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
 				if $C->{view_telnet} eq 'true';
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"tools.pl?%conf=$Q->{conf}&act=tool_system_ping&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
 				if $C->{view_ping} eq 'true';
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"tools.pl?%conf=$Q->{conf}&act=tool_system_trace&node=$node&refresh=$refresh&widget=$widget&server=$server"},"trace")) 
 				if $C->{view_trace} eq 'true';
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"tools.pl?%conf=$Q->{conf}&act=tool_system_mtr&node=$node&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
 				if $C->{view_mtr} eq 'true';
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"tools.pl?%conf=$Q->{conf}&act=tool_system_lft&node=$node&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
 				if $C->{view_lft} eq 'true';
-	push @out, td({class=>'header'},
+	push @out, td({class=>'header litehead'},
 			a({href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
 				if $NI->{system}{webserver} eq 'true';
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
-		push @out, td({class=>'header'},
+		push @out, td({class=>'header litehead'},
 				a({href=>"tables.pl?%conf=$Q->{conf}&act=config_table_show&table=Contacts&key=$NI->{system}{sysContact}&node=$node&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
-		push @out, td({class=>'header'},
+		push @out, td({class=>'header litehead'},
 				a({href=>"tables.pl?%conf=$Q->{conf}&act=config_table_show&table=Locations&key=$NI->{system}{sysLocation}&node=$node&refresh=$refresh&widget=$widget&server=$server"},"location"))
 					if $NI->{system}{sysLocation} ne '';
 	}

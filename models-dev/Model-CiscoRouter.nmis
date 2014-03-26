@@ -1,51 +1,20 @@
-#
-## $Id: Model-CiscoRouter.nmis,v 8.6 2012/10/29 12:31:27 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (“NMIS”).
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
   '-common-' => {
     'class' => {
-      'database' => {
-        'common-model' => 'database'
-      },
       'calls' => {
         'common-model' => 'calls'
       },
-      'threshold' => {
-        'common-model' => 'threshold'
-      },
-      'summary' => {
-        'common-model' => 'summary'
-      },
       'cbqos-in' => {
         'common-model' => 'cbqos-in'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out'
+      },
+      'database' => {
+        'common-model' => 'database'
+      },
+      'event' => {
+        'common-model' => 'event'
       },
       'heading' => {
         'common-model' => 'heading'
@@ -53,193 +22,582 @@
       'stats' => {
         'common-model' => 'stats'
       },
-      'cbqos-out' => {
-        'common-model' => 'cbqos-out'
+      'summary' => {
+        'common-model' => 'summary'
       },
-      'event' => {
-        'common-model' => 'event'
+      'threshold' => {
+        'common-model' => 'threshold'
+      }
+    }
+  },
+  'alerts' => {
+    'bgpPeer' => {
+      'bgpPeerStateDown' => {
+        'element' => 'index',
+        'event' => 'BGP Peer Down',
+        'level' => 'Warning',
+        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 6',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+      },
+    },
+
+    'rttMonLatestRtt' => {
+      'HighOperCompletionTime' => {
+        'element' => 'index',
+        'event' => 'High Oper Completion Time',
+        'level' => 'Warning',
+        'test' => 'CVAR1=OperCompletionTime;$CVAR1 > 500',
+        'type' => 'test',
+        'unit' => 'ms',
+        'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1'
+      },
+      'OperationAlertError' => {
+        'element' => 'index',
+        'event' => 'RTT Completion Status Not OK',
+        'level' => 'Warning',
+        'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
+        'type' => 'test',
+        'unit' => 'OperSense',
+        'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1'
+      }
+    }
+  },
+  'interface' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
+    },
+    'nocollect' => {
+      'Description' => '^#',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
+      'ifOperStatus' => 'other|notPresent',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|tunnel|adsl|^atm',
+      'noDescription' => 'false'
+    },
+    'noevent' => {
+      'Description' => '^!|^0',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    },
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          }
+        },
+        'threshold' => 'util_in,util_out,util_out_low,util_in_low'
+      },
+      'pkts_hc' => {
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out'
+      }
+    },
+    'sys' => {
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          }
+        }
+      },
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          }
+        }
       }
     }
   },
   'system' => {
+    'nbarpd_check' => 'true',
     'nodeModel' => 'CiscoRouter',
     'nodeType' => 'router',
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
     'rrd' => {
-      'nodehealth' => {
-        'snmp' => {
-          'MemoryUsedPROC' => {
-            'oid' => 'ciscoMemoryPoolUsed.1'
-          },
-          'MemoryFreePROC' => {
-            'oid' => 'ciscoMemoryPoolFree.1'
-          },
-          'avgBusy5' => {
-            'oid' => 'avgBusy5'
-          },
-          'avgBusy1' => {
-            'oid' => 'avgBusy1'
-          },
-          'bufferFail' => {
-            'oid' => 'bufferFail',
-            'option' => 'counter,U:U'
-          },
-          'bufferElHit' => {
-            'oid' => 'bufferElHit',
-            'option' => 'counter,U:U'
-          },
-          'MemoryUsedIO' => {
-            'oid' => 'ciscoMemoryPoolUsed.2'
-          },
-          'MemoryFreeIO' => {
-            'oid' => 'ciscoMemoryPoolFree.2'
-          },
-          'bufferElFree' => {
-            'oid' => 'bufferElFree'
-          }
-        },
-        'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router'
-      },
-      'modem' => {
-        'snmp' => {
-          'ModemsInUse' => {
-            'oid' => 'cmSystemModemsInUse'
-          },
-          'ModemsAvailable' => {
-            'oid' => 'cmSystemModemsAvailable'
-          },
-          'ModemsOffline' => {
-            'oid' => 'cmSystemModemsOffline'
-          },
-          'ModemsDead' => {
-            'oid' => 'cmSystemModemsDead'
-          },
-          'ModemsUnavailable' => {
-            'threshold' => 'modem_unav',
-            'oid' => 'cmSystemModemsUnavailable'
-          },
-          'InstalledModem' => {
-            'oid' => 'cmSystemInstalledModem'
-          }
-        },
-        'threshold' => 'modem_dead',
-        'graphtype' => 'modem',
-        'control' => '$InstalledModems > 0'
-      },
       'mib2ip' => {
+        'graphtype' => 'ip,frag',
         'snmp' => {
-          'ipInAddrErrors' => {
-            'oid' => 'ipInAddrErrors',
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
             'option' => 'counter,0:U'
           },
           'ipFragCreates' => {
             'oid' => 'ipFragCreates',
             'option' => 'counter,0:U'
           },
-          'ipInDiscards' => {
-            'oid' => 'ipInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ipInReceives' => {
-            'oid' => 'ipInReceives',
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
             'option' => 'counter,0:U'
           },
           'ipFragOKs' => {
             'oid' => 'ipFragOKs',
             'option' => 'counter,0:U'
           },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
           'ipInDelivers' => {
             'oid' => 'ipInDelivers',
             'option' => 'counter,0:U'
           },
-          'ipReasmFails' => {
-            'oid' => 'ipReasmFails',
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
             'option' => 'counter,0:U'
-          },
-          'ipReasmReqds' => {
-            'oid' => 'ipReasmReqds',
-            'option' => 'counter,0:U'
-          },
-          'ipFragFails' => {
-            'oid' => 'ipFragFails',
-            'option' => 'counter,0:U'
-          },
-          'ipOutRequests' => {
-            'oid' => 'ipOutRequests',
-            'option' => 'counter,0:U'
-          },
-          'ipOutNoRoutes' => {
-            'oid' => 'ipOutNoRoutes'
           },
           'ipInHdrErrors' => {
             'oid' => 'ipInHdrErrors',
             'option' => 'counter,0:U'
           },
-          'ipForwDatagrams' => {
-            'oid' => 'ipForwDatagrams',
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
             'option' => 'counter,0:U'
           },
           'ipOutDiscards' => {
             'oid' => 'ipOutDiscards',
             'option' => 'counter,0:U'
           },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
           'ipReasmOKs' => {
             'oid' => 'ipReasmOKs',
             'option' => 'counter,0:U'
           },
-          'ipInUnknownProtos' => {
-            'oid' => 'ipInUnknownProtos',
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
             'option' => 'counter,0:U'
           }
+        }
+      },
+      'modem' => {
+        'control' => '$InstalledModems > 0',
+        'graphtype' => 'modem',
+        'snmp' => {
+          'InstalledModem' => {
+            'oid' => 'cmSystemInstalledModem'
+          },
+          'ModemsAvailable' => {
+            'oid' => 'cmSystemModemsAvailable'
+          },
+          'ModemsDead' => {
+            'oid' => 'cmSystemModemsDead'
+          },
+          'ModemsInUse' => {
+            'oid' => 'cmSystemModemsInUse'
+          },
+          'ModemsOffline' => {
+            'oid' => 'cmSystemModemsOffline'
+          },
+          'ModemsUnavailable' => {
+            'oid' => 'cmSystemModemsUnavailable',
+            'threshold' => 'modem_unav'
+          }
         },
-        'graphtype' => 'ip,frag'
+        'threshold' => 'modem_dead'
+      },
+      'nodehealth' => {
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,routenumber',
+        'snmp' => {
+          'MemoryFreeIO' => {
+            'oid' => 'ciscoMemoryPoolFree.2'
+          },
+          'MemoryFreePROC' => {
+            'oid' => 'ciscoMemoryPoolFree.1'
+          },
+          'MemoryUsedIO' => {
+            'oid' => 'ciscoMemoryPoolUsed.2'
+          },
+          'MemoryUsedPROC' => {
+            'oid' => 'ciscoMemoryPoolUsed.1'
+          },
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+          'avgBusy1' => {
+            'oid' => 'avgBusy1'
+          },
+          'avgBusy5' => {
+            'oid' => 'avgBusy5'
+          },
+          'bufferElFree' => {
+            'oid' => 'bufferElFree'
+          },
+          'bufferElHit' => {
+            'oid' => 'bufferElHit',
+            'option' => 'counter,U:U'
+          },
+          'bufferFail' => {
+            'oid' => 'bufferFail',
+            'option' => 'counter,U:U'
+          }
+        },
+        'threshold' => 'cpu,mem-proc'
       }
     },
     'sys' => {
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'alert' => {
+              'event' => 'High TCP Connection Count',
+              'level' => 'Warning',
+              'test' => '$r > 5',
+              'unit' => 'connections'
+            },
+            'oid' => 'tcpCurrEstab',
+            'oidcorrect' => '1.3.6.1.2.1.6.9.0',
+            'sysObjectName' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions'
+          }
+        }
+      },
+      'extra' => {
+        'snmp' => {
+          'chassisVer' => {
+            'oid' => 'chassisVersion',
+            'title' => 'Chassis Version'
+          },
+          'processorRam' => {
+            'calculate' => '${r}/1000000',
+            'format' => '%1.2f Mb',
+            'oid' => 'processorRam',
+            'title' => 'Processor Mem'
+          },
+          'serialNum' => {
+            'oid' => 'chassisId',
+            'title' => 'Serial Number'
+          },
+          'softwareImage' => {
+            'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
+            'snmpObjectName' => 'ciscoImageString',
+            'title' => 'Software Image'
+          },
+          'softwareVersion' => {
+            'calculate' => '$r =~ /CW_VERSION\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
+            'snmpObjectName' => 'ciscoVersionString',
+            'title' => 'Software Version'
+          }
+        }
+      },
+      'modem' => {
+        'control' => '$InstalledModems > 0',
+        'snmp' => {
+          'InstalledModems' => {
+            'oid' => 'cmSystemInstalledModem',
+            'title' => 'Modems'
+          }
+        }
+      },
+      'nodeConfiguration' => {
+        'snmp' => {
+          'bootConfigLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
+            'snmpObject' => 'ccmHistoryStartupLastChanged',
+            'title' => 'Boot Configuration Last Changed'
+          },
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
+            'snmpObject' => 'ccmHistoryRunningLastChanged',
+            'title' => 'Configuration Last Changed'
+          },
+          'configLastSaved' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
+            'snmpObject' => 'ccmHistoryRunningLastSaved',
+            'title' => 'Configuration Last Viewed'
+          }
+        }
+      },
+      'power' => {
+        'control' => '$sysObjectName =~ /7206|6509|7304/',
+        'snmp' => {
+          'SupplyDescr1' => {
+            'oid' => 'ciscoEnvMonSupplySource.1',
+            'replace' => {
+              '2' => 'ac',
+              '3' => 'dc',
+              '4' => 'externalPowerSupply',
+              '5' => 'internalRedundant'
+            },
+            'title' => 'Power Supply 1 Type'
+          },
+          'SupplyDescr2' => {
+            'oid' => 'ciscoEnvMonSupplySource.2',
+            'replace' => {
+              '2' => 'ac',
+              '3' => 'dc',
+              '4' => 'externalPowerSupply',
+              '5' => 'internalRedundant'
+            },
+            'title' => 'Power Supply 2 Type'
+          },
+          'SupplyState1' => {
+            'check' => 'checkPower',
+            'oid' => 'ciscoEnvMonSupplyState.1',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Power Supply 1'
+          },
+          'SupplyState2' => {
+            'check' => 'checkPower',
+            'oid' => 'ciscoEnvMonSupplyState.2',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Power Supply 2'
+          }
+        }
+      },
       'standard' => {
         'snmp' => {
+          'InstalledModems' => {
+            'oid' => 'cmSystemInstalledModem',
+            'replace' => {
+              '' => '0',
+              'noSuchObject' => '0'
+            }
+          },
           'ifNumber' => {
             'oid' => 'ifNumber',
             'title' => 'Interfaces'
           },
-          'sysName' => {
-            'oid' => 'sysName'
-          },
-          'sysLocation' => {
+          'sysContact' => {
+            'oid' => 'sysContact',
             'replace' => {
               '' => 'default'
             },
-            'oid' => 'sysLocation',
-            'title' => 'Location'
-          },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
+            'title' => 'Contact'
           },
           'sysDescr' => {
             'oid' => 'sysDescr',
             'title' => 'Description'
           },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
-          },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
-          },
-          'sysContact' => {
+          'sysLocation' => {
+            'oid' => 'sysLocation',
             'replace' => {
               '' => 'default'
             },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
+            'title' => 'Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
           }
         }
       },
       'temp' => {
+        'control' => '$sysObjectName =~ /7206/',
         'snmp' => {
           'tempio' => {
             'oid' => 'ciscoEnvMonTemperatureStatusValue.2',
@@ -249,289 +607,312 @@
             'oid' => 'ciscoEnvMonTemperatureStatusValue.4',
             'title' => 'Temp NPE Outlet'
           }
-        },
-        'control' => '$sysObjectName =~ /7206/'
-      },
-      'power' => {
-        'snmp' => {
-          'SupplyState1' => {
-            'replace' => {
-              '6' => 'notFunctioning',
-              '4' => 'shutdown',
-              '1' => 'normal',
-              '3' => 'critical',
-              '2' => 'warning',
-              '5' => 'notPresent'
-            },
-            'check' => 'checkPower',
-            'oid' => 'ciscoEnvMonSupplyState.1',
-            'title' => 'Power Supply 1'
-          },
-          'SupplyDescr1' => {
-            'replace' => {
-              '4' => 'externalPowerSupply',
-              '3' => 'dc',
-              '2' => 'ac',
-              '5' => 'internalRedundant'
-            },
-            'oid' => 'ciscoEnvMonSupplySource.1',
-            'title' => 'Power Supply 1 Type'
-          },
-          'SupplyDescr2' => {
-            'replace' => {
-              '4' => 'externalPowerSupply',
-              '3' => 'dc',
-              '2' => 'ac',
-              '5' => 'internalRedundant'
-            },
-            'oid' => 'ciscoEnvMonSupplySource.2',
-            'title' => 'Power Supply 2 Type'
-          },
-          'SupplyState2' => {
-            'replace' => {
-              '6' => 'notFunctioning',
-              '4' => 'shutdown',
-              '1' => 'normal',
-              '3' => 'critical',
-              '2' => 'warning',
-              '5' => 'notPresent'
-            },
-            'check' => 'checkPower',
-            'oid' => 'ciscoEnvMonSupplyState.2',
-            'title' => 'Power Supply 2'
-          }
-        },
-        'control' => '$sysObjectName =~ /7206|6509|7304/'
-      },
-      'extra' => {
-        'snmp' => {
-          'chassisVer' => {
-            'oid' => 'chassisVersion',
-            'title' => 'Serial Number'
-          },
-          'processorRam' => {
-            'format' => '%1.2f Mb',
-            'oid' => 'processorRam',
-            'title' => 'Processor Mem',
-            'calculate' => '${r}/1000000'
-          },
-          'serialNum' => {
-            'oid' => 'chassisId',
-            'title' => 'Chassis Version'
-          }
         }
-      },
-      'modem' => {
-        'snmp' => {
-          'InstalledModems' => {
-            'oid' => 'cmSystemInstalledModem',
-            'title' => 'Modems'
-          }
-        },
-        'control' => '$InstalledModems > 0'
       }
-    },
-    'nbarpd_check' => 'true',
-    'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,ip,frag,buffer,mem-router,mem-proc,mem-io,modem,calls'
+    }
   },
-  'interface' => {
+
+
+ 
+  'systemHealth' => {
     'rrd' => {
-      'pkts' => {
+      'bgpPeer' => {        
+        'indexed' => 'true',
+        'graphtype' => 'bgpPeer,bgpPeerStats',
         'snmp' => {
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
-            'option' => 'counter,0:U'
+          'bgpPeerState' => {
+            'replace' => {
+              '1' => '0',
+              '2' => '20',
+              '3' => '40',
+              '4' => '60',
+              '5' => '80',
+              '6' => '100',
+            },
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'title' => 'BGP Peer State'
           },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
-            'option' => 'counter,0:U'
+          'bgpPeerInUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.10',
+            'option' => 'counter,0:U'            
           },
-          'ifInDiscards' => {
-            'oid' => 'ifInDiscards',
-            'option' => 'counter,0:U'
+          'bgpPeerOutUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.11',
+            'option' => 'counter,0:U'            
           },
-          'ifInUcastPkts' => {
-            'oid' => 'ifInUcastPkts',
-            'option' => 'counter,0:U'
+          'bgpPeerInTotMsgs' => {
+          	'sysObjectName' => 'bgpPeerInTotalMessages',
+            'oid' => '1.3.6.1.2.1.15.3.1.12',
+            'option' => 'counter,0:U'            
           },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:U'
+          'bgpPeerOutTotMsgs' => {
+          	'sysObjectName' => 'bgpPeerOutTotalMessages',
+            'oid' => '1.3.6.1.2.1.15.3.1.13',
+            'option' => 'counter,0:U'            
           },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
+          'bgpPeerFsmEstTran' => {
+          	'sysObjectName' => 'bgpPeerFsmEstablishedTransitions',
+            'oid' => '1.3.6.1.2.1.15.3.1.15',
+            'option' => 'counter,0:U'            
           },
-          'ifOutErrors' => {
-            'oid' => 'ifOutErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifOutDiscards' => {
-            'oid' => 'ifOutDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifInNUcastPkts' => {
-            'oid' => 'ifInNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInErrors' => {
-            'oid' => 'ifInErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifOutNUcastPkts' => {
-            'oid' => 'ifOutNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifOutUcastPkts' => {
-            'oid' => 'ifOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInOctets' => {
-            'oid' => 'ifInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          }
         },
-        'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts,errpkts',
-        'control' => '$sysObjectName !~ /748|499/'
-      },
-      'interface' => {
-        'snmp' => {
-          'ifOperStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifOperStatus',
-            'option' => 'gauge,0:100'
-          },
-          'ifDescr' => {
-            'oid' => 'ifDescr'
-          },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:$ifSpeed'
-          },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:$ifSpeed'
-          },
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus'
-          },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange'
-          },
-          'ifInOctets' => {
-            'oid' => 'ifInOctets',
-            'option' => 'counter,0:$ifSpeed'
-          },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:$ifSpeed'
-          }
-        },
-        'indexed' => 'true',
-        'threshold' => 'util_in,util_out',
-        'graphtype' => 'bits,abits,maxbits,util,autil,predutil'
-      }
-    },
-    'sys' => {
-      'standard' => {
+      },      
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /cisco8..|cisco18../',
+        'graphtype' => 'fan-status',
         'indexed' => 'true',
         'snmp' => {
-          'ifOperStatus' => {
+          'fanValue' => {
+            'oid' => 'ciscoEnvMonFanState',
             'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifOperStatus',
-            'title' => 'Oper Status'
-          },
-          'ifDescr' => {
-            'oid' => 'ifDescr',
-            'title' => 'Name (ifDescr)'
-          },
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus',
-            'title' => 'Admin Status'
-          },
-          'ifSpeed' => {
-            'oid' => 'ifSpeed',
-            'title' => 'Bandwidth'
-          },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange',
-            'title' => 'Last Change'
-          },
-          'ifType' => {
-            'oid' => 'ifType',
-            'title' => 'Type (ifType)'
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
           }
         }
       },
-      'extra' => {
+      'rttMonLatestRtt' => {
+        'graphtype' => 'rttMonLatestRtt',
+        'indexed' => 'true',
         'snmp' => {
-          'ifHighSpeed' => {
-            'oid' => 'ifHighSpeed'
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime'
           },
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description'
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense'
           }
-        },
-        'indexed' => 'true'
+        }
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'temp-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'tempValue' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
       }
     },
-    'noevent' => {
-      'ifDescr' => 'null',
-      'Description' => '^!|^0',
-      'ifType' => 'other'
-    },
-    'collect' => {
-      'Description' => '(CNOC|Collection)',
-    },
-    'nocollect' => {
-      'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub',
-      'noDescription' => 'true',
-      'Description' => '^#',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|tunnel'
+    'sections' => 'bgpPeer,tempStatus,fanStatus,rttMonLatestRtt',
+    'sys' => {
+      'bgpPeer' => {        
+        'indexed' => 'bgpPeerIdentifier',
+        'index_oid' => '1.3.6.1.2.1.15.3.1.1',        
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+)$',        
+        'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',
+        'snmp' => {
+          'bgpPeerIdentifier' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.1',
+            'title' => 'BGP Peer Identifier'
+          },
+          'bgpPeerState' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'title' => 'BGP Peer State'
+          },
+          'bgpPeerStateName' => {
+            'replace' => {
+              '1' => 'idle',
+              '2' => 'connect',
+              '3' => 'active',
+              '4' => 'opensent',
+              '5' => 'openconfirm',
+              '6' => 'established',
+            },
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'title' => 'BGP Peer State'
+          },
+          'bgpPeerAdminStatus' => {
+            'replace' => {
+              '1' => 'stop',
+              '2' => 'start',
+            },
+            'oid' => '1.3.6.1.2.1.15.3.1.3',
+            'title' => 'BGP Peer Admin Status'
+          },
+          'bgpPeerRemoteAddr' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.7',
+            'title' => 'BGP Peer Remote Address'
+          },
+          'bgpPeerRemoteAs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.9',
+            'title' => 'BGP Peer Remote AS'
+          },
+          'bgpPeerInUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.10',
+            'title' => 'BGP Peer In Updates'
+          },
+          'bgpPeerOutUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.11',
+            'title' => 'BGP Peer Out Updates'
+          },
+          'bgpPeerInTotMsgs' => {
+            'sysObjectName' => 'bgpPeerInTotalMessages',
+            'oid' => '1.3.6.1.2.1.15.3.1.12',
+            'title' => 'BGP Peer In Messages'
+          },
+          'bgpPeerOutTotMsgs' => {
+            'sysObjectName' => 'bgpPeerOutTotalMessages',
+            'oid' => '1.3.6.1.2.1.15.3.1.13',
+            'title' => 'BGP Peer Out Messages'
+          },
+          'bgpPeerFsmEstTran' => {
+          	'sysObjectName' => 'bgpPeerFsmEstablishedTransitions',
+            'oid' => '1.3.6.1.2.1.15.3.1.15',
+            'title' => 'BGP Peer Transitions'
+          },
+          
+        },
+      },      
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /cisco8..|cisco18../',
+        'headers' => 'FanStatusDescr',
+        'indexed' => 'ciscoEnvMonFanStatusDescr',
+        'snmp' => {
+          'FanStateName' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Fan State'
+          },
+          'FanStatusDescr' => {
+            'oid' => 'ciscoEnvMonFanStatusDescr',
+            'title' => 'Fan Status Descr'
+          }
+        }
+      },
+      'rttMonLatestRtt' => {
+        'headers' => 'index,CtrlAdminRttType,EchoAdminTargetAddress,CtrlOperState,OperSense,OperCompletionTime',
+        'indexed' => 'rttMonLatestRttOperCompletionTime',
+        'snmp' => {
+          'CtrlAdminRttType' => {
+            'oid' => 'rttMonCtrlAdminRttType',
+            'replace' => {
+              '1' => 'echo',
+              '10' => 'dlsw',
+              '11' => 'dhcp',
+              '12' => 'ftp',
+              '13' => 'voip',
+              '14' => 'rtp',
+              '15' => 'lspGroup',
+              '16' => 'icmpjitter',
+              '17' => 'lspPing',
+              '18' => 'lspTrace',
+              '19' => 'ethernetPing',
+              '2' => 'pathEcho',
+              '20' => 'ethernetJitter',
+              '21' => 'lspPingPseudowire',
+              '22' => 'video',
+              '3' => 'fileIO',
+              '4' => 'script',
+              '5' => 'udpEcho',
+              '6' => 'tcpConnect',
+              '7' => 'http',
+              '8' => 'dns',
+              '9' => 'jitter'
+            },
+            'title' => 'CtrlAdminRttType'
+          },
+          'CtrlOperState' => {
+            'oid' => 'rttMonCtrlOperState',
+            'replace' => {
+              '1' => 'reset',
+              '2' => 'orderlyStop',
+              '3' => 'immediateStop',
+              '4' => 'pending',
+              '5' => 'inactive',
+              '6' => 'active',
+              '7' => 'restart'
+            },
+            'title' => 'CtrlOperState'
+          },
+          'EchoAdminTargetAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminTargetAddress',
+            'title' => 'EchoAdminTargetAddress'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime',
+            'title' => 'OperCompletionTime'
+          },
+          'OperSense' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'replace' => {
+              '0' => 'other',
+              '1' => 'ok',
+              '10' => 'applicationSpecific',
+              '11' => 'dnsServerTimeout',
+              '12' => 'tcpConnectTimeout',
+              '13' => 'httpTransactionTimeout',
+              '14' => 'dnsQueryError',
+              '15' => 'httpError',
+              '16' => 'error',
+              '17' => 'mplsLspEchoTxError',
+              '18' => 'mplsLspUnreachable',
+              '19' => 'mplsLspMalformedReq',
+              '2' => 'disconnected',
+              '20' => 'mplsLspReachButNotFEC',
+              '3' => 'overThreshold',
+              '4' => 'timeout',
+              '5' => 'busy',
+              '6' => 'notConnected',
+              '7' => 'dropped',
+              '8' => 'sequenceError',
+              '9' => 'verifyError'
+            },
+            'title' => 'OperSense'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'title' => 'OperSenseValue'
+          },
+          'OperTime' => {
+            'oid' => 'rttMonLatestRttOperTime',
+            'title' => 'OperTime'
+          }
+        }
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /cisco8../',
+        'headers' => 'TemperatureStatusDescr',
+        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
+        'snmp' => {
+          'TemperatureStateName' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Temperature State'
+          },
+          'TemperatureStatusDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Temperature Status Descr'
+          }
+        }
+      }
     }
   }
 );
-

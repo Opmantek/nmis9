@@ -1,0 +1,306 @@
+#
+## $Id: Model-ESXi.nmis,v 1.1 2012/08/13 05:09:18 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response,hrsmpcpu',
+    'nodeType' => 'server',
+    'nodeModel' => 'ESXi',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
+      }
+    },
+    'nodeVendor' => 'VMware Inc.'
+  },
+  'device' => {
+    'sys' => {
+      'cpu' => {
+        'snmp' => {
+          'hrCpuLoad' => {
+            'oid' => 'laLoad.2'
+          }
+        }
+      },
+      'device' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      }
+    }
+  },
+  'interface' => {
+    'rrd' => {
+      'interface' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          }
+        },
+        'indexed' => 'true',
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      }
+    },
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          }
+        }
+      }
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer|null',
+      'noDescription' => 'false',
+      'Description' => '^#',
+      'ifType' => 'other|softwareloopback|isdn'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	}
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        }
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'vmwVm',
+    'sys' => {
+      'vmwVm' => {        
+        'indexed' => 'vmwVmDisplayName',
+        'index_oid' => '1.3.6.1.4.1.6876.2.1.1.2',        
+        'index_regex' => '\.(\d+)$',        
+        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmGuestOS,vmwVmUUID,vmwVmState,vmwVmGuestState,vmwVmMemSize,vmwVmCpus',
+        'snmp' => {
+          'vmwVmDisplayName' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.2',
+            'title' => 'Display Name'
+          },
+          'vmwVmConfigFile' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.3',
+            'title' => 'Config File'
+          },
+          'vmwVmGuestOS' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
+            'title' => 'Guest OS'
+          },
+          'vmwVmMemSize' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
+            'title' => 'Memory Size'
+          },
+          'vmwVmState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
+            'title' => 'State'
+          },
+          'vmwVmUUID' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.10',
+            'title' => 'VMID'
+          },
+          'vmwVmGuestState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+            'title' => 'Guest State'
+          },
+          'vmwVmCpus' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
+            'title' => 'CPUs'
+          },
+          
+        },
+      },      
+    }
+  }
+);

@@ -135,6 +135,8 @@
       'EltekBreakerAlarms' => "Breaker Alarms",
       'EltekVoltageAlarms' => "Voltage Alarms",
       'EltekTempAlarms' => "Temperature Alarms",
+      'bgpPeer' => 'BGP Peer Status',
+      'bgpPeerStats' => 'BGP Peer Stats'
     }
   }
 );

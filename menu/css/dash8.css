@@ -291,6 +291,12 @@ th.info {
 	  border: 1px solid #999999;
 }
 
+td.litehead {
+	  color: black;
+	  background-color: #a3a3a3;
+	  border: 1px solid #666666;
+}
+
 .noborder {
 	  border: 0px solid #000000;
 }

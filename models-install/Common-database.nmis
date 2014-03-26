@@ -118,16 +118,16 @@
       'hrsmpcpu' => '/health/$nodeType/$node-hrsmpcpu$index.rrd',
       'cpu_cpm' => '/health/$nodeType/$node-cpu-cpm-$index.rrd',
       'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
-			'ds3Errors' => '/health/$nodeType/$node-ds3errors-$index.rrd',
-      'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
+      'ds3Errors' => '/health/$nodeType/$node-ds3errors-$index.rrd',
+      'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'gsm_status_2g' => '/health/$nodeType/$node-gsm_status_2g.rrd',
       'gsm_status_3g' => '/health/$nodeType/$node-gsm_status_3g.rrd',
       'cpuUtil' => '/health/$nodeType/$node-cpu-$index.rrd',
       'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
       'cps6000Alarm' => '/health/$nodeType/$node-cps6000Alarm-$index.rrd',
-			'power' => '/health/$nodeType/$node-power.rrd',
+      'power' => '/health/$nodeType/$node-power.rrd',
     }
   }
 );
