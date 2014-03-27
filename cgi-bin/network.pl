@@ -866,7 +866,7 @@ sub selectLarge {
 			else {
 				my $server = $NT->{$node}{server};
 				my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node=$node";
-				$nodelink = a({href=>"$url", target=>"Graph-$node", onclick=>"viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height})"},$NT->{$node}{name}) ." ". img({src=>"$C->{'nmis_slave'}",alt=>"NMIS Server $server"});
+				$nodelink = a({target=>"Graph-$node", onclick=>"viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},$NT->{$node}{name},img({src=>"$C->{'nmis_slave'}",alt=>"NMIS Server $server"})) ;
 			}
 
 			print Tr(
