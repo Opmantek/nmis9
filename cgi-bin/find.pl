@@ -155,22 +155,22 @@ sub viewInterfaceFind {
 				$II->{$intHash}{ifSpeed} = convertIfSpeed($II->{$intHash}{ifSpeed});
 	
 				push @out,Tr(
-					td({class=>'info',nowrap=>undef},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}"},$II->{$intHash}{node})),
+					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}"},$II->{$intHash}{node})),
 					eval {
 						if ($II->{$intHash}{collect} eq 'true') {
-							return td({class=>'info'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}"},$II->{$intHash}{ifDescr}));
+							return td({class=>'info Plain'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}"},$II->{$intHash}{ifDescr}));
 						} else {
-							return td({class=>'info'},$II->{$intHash}{ifDescr});
+							return td({class=>'info Plain'},$II->{$intHash}{ifDescr});
 						} 
 					},
-					td({class=>'info'},$II->{$intHash}{ipAdEntAddr}),
-				#	td({class=>'info'},$II->{$intHash}{ipAdEntNetMask}),
-					td({class=>'info'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{ipSubnet}"},$II->{$intHash}{ipSubnet})),
-					td({class=>'info'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{Description}"},$II->{$intHash}{Description})),
-					td({class=>'info'},$II->{$intHash}{ifType}),
-					td({class=>'info',align=>'right'},$II->{$intHash}{ifSpeed}),
-					td({class=>'info'},$II->{$intHash}{ifAdminStatus}),
-					td({class=>'info'},$II->{$intHash}{ifOperStatus})
+					td({class=>'info Plain'},$II->{$intHash}{ipAdEntAddr}),
+				#	td({class=>'info Plain'},$II->{$intHash}{ipAdEntNetMask}),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{ipSubnet}"},$II->{$intHash}{ipSubnet})),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{Description}"},$II->{$intHash}{Description})),
+					td({class=>'info Plain'},$II->{$intHash}{ifType}),
+					td({class=>'info Plain',align=>'right'},$II->{$intHash}{ifSpeed}),
+					td({class=>'info Plain'},$II->{$intHash}{ifAdminStatus}),
+					td({class=>'info Plain'},$II->{$intHash}{ifOperStatus})
 				);
 			}
 		}

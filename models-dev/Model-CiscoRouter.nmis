@@ -291,6 +291,9 @@
     'nodeType' => 'router',
     'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'cbqos' => {
+      'nocollect' => 'regex for cbqos control',
+    },
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',

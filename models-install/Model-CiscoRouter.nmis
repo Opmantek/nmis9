@@ -67,6 +67,9 @@
     'nbarpd_check' => 'true',
     'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'cbqos' => {
+      'nocollect' => 'regex for cbqos control',
+    },
     'rrd' => {
       'nodehealth' => {
         'threshold' => 'cpu,mem-proc',

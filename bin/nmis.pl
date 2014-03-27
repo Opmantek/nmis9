@@ -2663,6 +2663,13 @@ sub getCBQoS {
 				info("CBQoS, scan interface $intf");
 				# is this an active interface 
 				if ( exists $IF->{$intf}) {
+					
+					### 2014-03-27 keiths, skipping CBQoS if not collecting data
+					if ( $IF->{$intf}{collect} eq "false" ) {
+						dbg("Skipping CBQoS, No collect on interface $IF->{$intf}{ifDescr} ifIndex=$intf");
+						next;
+					}
+					
 					# oke, go
 					my $answer;
 					my %CMValues;
@@ -2843,7 +2850,7 @@ sub getCBQoS {
 						dbg("No collect requested in Node table");
 					}
 				} else {
-					dbg("Interface $intf does not exitst");
+					dbg("Interface $intf does not exist");
 				}
 			}
 			delete $S->{info}{cbqos}; # remove old info

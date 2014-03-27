@@ -219,7 +219,7 @@ td.info {
 		border: 1px solid #999999;
 		padding: 0.5em;
 		text-align: center;
-		white-space: wrap;
+		word-wrap: break-word;
 		min-width: 5em;
 		max-width: 10em;
 }
@@ -229,7 +229,7 @@ td.infolft {
 		border: 1px solid #999999;
 		padding: 0.5em;
 		text-align: left;
-		white-space: wrap;
+		word-wrap: break-word;
 		min-width: 5em;
 		max-width: 10em;
 }
@@ -239,7 +239,7 @@ th.info {
 		border: 1px solid #999999;
 		padding: 0.5em;
 		text-align: center;
-		white-space: wrap;
+		word-wrap: break-word;
 		min-width: 5em;
 		max-width: 10em;
 }
@@ -249,7 +249,7 @@ th.info {
 		border: 1px solid #999999;
 		padding: 0.5em;
 		text-align: left;
-		white-space: wrap;
+		word-wrap: break-word;
 		min-width: 5em;
 		max-width: 10em;
 }
@@ -259,7 +259,7 @@ th.info {
 		border: 1px solid #999999;
 		padding: 0.5em;
 		text-align: right;
-		white-space: wrap;
+		word-wrap: break-word;
 		min-width: 5em;
 		max-width: 10em;
 }

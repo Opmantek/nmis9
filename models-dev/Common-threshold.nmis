@@ -523,6 +523,16 @@
           '10' => {
             'control' => '$roleType =~ /core/',
             'value' => {
+              'critical' => '-1',
+              'fatal' => '-1',
+              'major' => '-1',
+              'minor' => '-1',
+              'warning' => '-1'
+            }
+          },
+          '100' => {
+            'control' => '$roleType =~ /sample/',
+            'value' => {
               'critical' => '0.04',
               'fatal' => '0.01',
               'major' => '0.06',
