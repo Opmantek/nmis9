@@ -75,6 +75,7 @@ my $widget = "true";
 if ($Q->{widget} eq 'false' ) {	
 	$widget = "false"; 
 }
+my $wantwidget = $widget eq 'true';
 
 #======================================================================
 
@@ -99,7 +100,7 @@ sub viewOutage {
 	my @out;
 	my $node = $Q->{node};
 	
-	my $title = "Outages for $node";
+	my $title = $node? "Outages for $node" : "List of Outages";
 
 	my $time = time();
 
@@ -110,7 +111,10 @@ sub viewOutage {
 	my $NT = loadNodeTable();
 
 	# start of form
-	print start_form(-id=>"nmisOutages",-action=>'return false',-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_doadd");
+	print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print createHrButtons(node=>$node,refresh=>$Q->{refresh},widget=>$widget);
 
@@ -150,7 +154,8 @@ sub viewOutage {
 			td({class=>'info'},
 				textfield(-name=>'change',-style=>'background-color:yellow;width:200px;',override=>'1',-value=>$change)),
 			td({class=>'info',colspan=>'2',align=>'center'},
-				button(-name=>'button',-onclick=>"get('nmisOutages');",-value=>"Add"))
+				button(-name=>'button',-onclick=> ($wantwidget? "get('nmisOutages');" : "submit()"),
+							 -value=>"Add"))
 			);
 		if ($Q->{error} ne '') {
 			print Tr(td({class=>'error',colspan=>'6'},$Q->{error}));
@@ -190,7 +195,7 @@ sub viewOutage {
 			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{end})),
 			td({class=>'info',style=>getBGColor($color)},$OT->{$ot}{change}),
 			td({class=>'info',style=>getBGColor($color)},$outage),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot"},'delete'))
+			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot&widget=$widget"},'delete'))
 			);
 	}
 	if ($#out > 0) {

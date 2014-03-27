@@ -80,6 +80,7 @@ my $widget = "true";
 if ($Q->{widget} eq 'false' ) {	
 	$widget = "false"; 
 }
+my $wantwidget = $widget eq 'true';
 #======================================================================
 
 # select function
@@ -132,7 +133,7 @@ sub viewEvent {
 			$cnt++;
 			my $state = $ET->{$event_hash}{ack} eq 'false' ? 'active' : 'inactive';
 			print Tr( eval { my $line;
-				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node"},$node));
+				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widget"},$node));
 				my $outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
 				$line .= td({class=>'info Plain'},$outage);
 				$line .= td({class=>'info Plain'},returnDateStamp($ET->{$event_hash}{startdate}));
@@ -160,7 +161,7 @@ sub viewEvent {
 sub listEvent {
 
 	print header($headeropts);
-	pageStart(title => "NMIS List Events") if ($widget eq "false");
+	pageStartJscript(title => "NMIS List Events") if ($widget eq "false");
 
 	my $ET = loadEventStateNoLock();
 
@@ -172,7 +173,10 @@ sub listEvent {
 #	}
 
 	# start of form
-	print start_form(-id=>"src_events_form",-href=>url(-absolute=>1)."?conf=$Q->{conf}&act=event_table_update");
+	print start_form(-id=>"src_events_form",-href=>url(-absolute=>1)."?")
+			.	hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "event_table_update")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;
 
@@ -307,7 +311,7 @@ sub displayEvents {
 			td({class=>"info $ET->{$event_hash}{level}"},
 				eval {
 					return $AU->CheckAccess("src_events","check")
-						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$ET->{$event_hash}{node}&sort=descending"},$ET->{$event_hash}{node})
+						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$ET->{$event_hash}{node}&sort=descending&widget=$widget"},$ET->{$event_hash}{node})
 							: "$ET->{$event_hash}{node}";
 					}),
 			td({class=>"info $ET->{$event_hash}{level}"},$outage),
@@ -332,7 +336,8 @@ sub displayEvents {
 	} # foreach $event_hash
 
 	print Tr(td({class=>'info Plain',colspan=>'8',align=>'right'},
-				button(-name=>'button',onclick=>"get('src_events_form');",-value=>"Submit Changes")),
+				button(-name=>'button',onclick=> ($wantwidget? "get('src_events_form');" : "submit()"),
+							 -value=>"Submit Changes")),
 					td({class=>'info Plain',colspan=>'2'}, '&nbsp'));
 
 	# java - ack=false event=active
@@ -342,7 +347,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventnoackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"false$tempnode\")"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
 				"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
@@ -358,7 +363,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"true$tempnode\")"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
 				"&nbsp;$eventackcount->{$tempnode} Event(s)",
