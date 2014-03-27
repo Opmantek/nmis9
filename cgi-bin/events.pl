@@ -132,7 +132,7 @@ sub viewEvent {
 			$cnt++;
 			my $state = $ET->{$event_hash}{ack} eq 'false' ? 'active' : 'inactive';
 			print Tr( eval { my $line;
-				$line .= td({class=>'info Plain'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$node"},$node));
+				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node"},$node));
 				my $outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
 				$line .= td({class=>'info Plain'},$outage);
 				$line .= td({class=>'info Plain'},returnDateStamp($ET->{$event_hash}{startdate}));
@@ -307,7 +307,7 @@ sub displayEvents {
 			td({class=>"info $ET->{$event_hash}{level}"},
 				eval {
 					return $AU->CheckAccess("src_events","check")
-						? a({href=>"logs.pl?%&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$ET->{$event_hash}{node}&sort=descending"},$ET->{$event_hash}{node})
+						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$ET->{$event_hash}{node}&sort=descending"},$ET->{$event_hash}{node})
 							: "$ET->{$event_hash}{node}";
 					}),
 			td({class=>"info $ET->{$event_hash}{level}"},$outage),
@@ -342,7 +342,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventnoackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"false$tempnode\")"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"false$tempnode\")"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
 				"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
@@ -358,7 +358,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"true$tempnode\")"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode",onClick=>"ExpandCollapse(\"true$tempnode\")"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
 				"&nbsp;$eventackcount->{$tempnode} Event(s)",

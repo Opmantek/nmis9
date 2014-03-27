@@ -190,7 +190,7 @@ sub viewOutage {
 			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{end})),
 			td({class=>'info',style=>getBGColor($color)},$OT->{$ot}{change}),
 			td({class=>'info',style=>getBGColor($color)},$outage),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?%conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot"},'delete'))
+			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot"},'delete'))
 			);
 	}
 	if ($#out > 0) {

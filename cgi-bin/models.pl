@@ -430,10 +430,10 @@ sub afunc {
 			my @func = split /,/ ,$func;
 			my $line;
 			foreach (@func) {
-				$line .= a({style=>'text-decoration: underline;',href=>url(-absolute=>1)."?%conf=$Q->{conf}&act=config_model_$_$opt"},"$_&nbsp;");
+				$line .= a({style=>'text-decoration: underline;',href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_model_$_$opt"},"$_&nbsp;");
 			}
 			if ($hash =~ /oid/ and $Q->{node} ne '') {
-				$line .= a({style=>'text-decoration: underline;',href=>"snmp.pl?%conf=$Q->{conf}&act=snmp_var_menu&node=$Q->{node}&var=$name&go=true"},'snmp');
+				$line .= a({style=>'text-decoration: underline;',href=>"snmp.pl?conf=$Q->{conf}&act=snmp_var_menu&node=$Q->{node}&var=$name&go=true"},'snmp');
 			}
 			return td({class=>'info',nowrap=>undef},$line);
 		}

@@ -171,9 +171,9 @@ sub displayEventList{
 		my $details = $ET->{$event_hash}{details};
 		my $line = "$date $time $node - $event - $element";
 		$flag++;
-		print Tr(td({class=>'info'},a({href=>"view-event.pl?%conf=$Q->{conf}&act=event_database_view&node=$node&event=$event&element=$element"},$line)),
-			td({class=>'info'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$node"},'see node')),
-			td({class=>'info'},a({href=>"view-event.pl?%conf=$Q->{conf}&act=event_database_delete&node=$node&event=$event&element=$element"},'delete'))
+		print Tr(td({class=>'info'},a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_view&node=$node&event=$event&element=$element"},$line)),
+			td({class=>'info'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node"},'see node')),
+			td({class=>'info'},a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_delete&node=$node&event=$event&element=$element"},'delete'))
 			);
 	}
 	print Tr(td({class=>'info'},"no event current")) if !$flag;
@@ -569,7 +569,7 @@ sub displayEventItems {
 DELETE:
 	if ($Q->{act} =~ /delete$/) {
 		print Tr(td({class=>'header'},b('Delete this Event ? ')),
-			td(a({href=>"view-event.pl?%conf=$Q->{conf}&act=event_database_dodelete&hash=$event_hash"},'DELETE')));
+			td(a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_dodelete&hash=$event_hash"},'DELETE')));
 	}
 	#=====================================================
 
