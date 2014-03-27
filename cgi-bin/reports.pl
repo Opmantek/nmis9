@@ -281,7 +281,7 @@ sub healthReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&act=report_dynamic_health&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_health&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
 
 	# header and data summary
 	print start_Tr,start_td({width=>'100%',colspan=>'2'}),start_table;
@@ -347,7 +347,7 @@ sub healthReport {
 		for my $reportnode (sortall(\%reportTable,"$Q->{sort}", $sortdir)) {
 			if ($reportTable{$reportnode}{group} eq $group) {
 				print Tr(
-					td({class=>'info Plain'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportTable{$reportnode}{node})),
+					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportTable{$reportnode}{node})),
 					td({class=>'info Plain'},$reportTable{$reportnode}{devicetype}),
 					td({class=>'info Plain'},$reportTable{$reportnode}{role}),
 					td({class=>'info Plain'},$reportTable{$reportnode}{net}),
@@ -436,7 +436,7 @@ sub availReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&act=report_dynamic_avail&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_avail&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
 
 	print Tr(th({class=>'title',align=>'center',colspan=>'3'},"% Availability ( Reachability) for all Devices"));
 	print Tr(
@@ -451,7 +451,7 @@ sub availReport {
 	foreach my $reportnode (sortall(\%reportTable,$Q->{sort},$sortdir)) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
 		print Tr(
-			td({class=>'info Plain'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
 			td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($reportTable{$reportnode}{reachable}))},
 							sprintf($dec_format,$reportTable{$reportnode}{reachable}))
@@ -694,7 +694,7 @@ sub responseReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
 
 
 	print Tr(th({class=>'title',align=>'center',colspan=>'3'},"Average Response Time for All Devices"));
@@ -714,7 +714,7 @@ sub responseReport {
 		my $color = colorResponseTime($reportTable{$reportnode}{response});
 		print Tr(
 			td({class=>'info Plain'},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportTable{$reportnode}{node})),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportTable{$reportnode}{node})),
 			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
 			td({class=>'info Plain',align=>'right',style=>getBGColor($color)},
 						sprintf($dec_format,$reportTable{$reportnode}{response}).' msec')
@@ -905,7 +905,7 @@ sub top10Report {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
 
 	print start_Tr,start_td({colspan=>'2'}),start_table;
 
@@ -925,7 +925,7 @@ sub top10Report {
 		my $bar = $1 / 2;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$reportTable{$reportnode}{response}),
 			td({class=>'lft Plain',colspan=>'6'},img({height=>'12',width=>"$bar",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 		);
@@ -949,7 +949,7 @@ sub top10Report {
 		$reportTable{$reportnode}{loss} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$reportTable{$reportnode}{loss}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -974,7 +974,7 @@ sub top10Report {
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{avgBusy5min}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -999,7 +999,7 @@ sub top10Report {
 		$cpuTable{$reportnode}{ProcMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{ProcMemUsed}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1024,7 +1024,7 @@ sub top10Report {
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'rht Plain'},$cpuTable{$reportnode}{IOMemUsed}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
@@ -1056,7 +1056,7 @@ sub top10Report {
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$linkTable{$reportlink}{ifDescr} $linkTable{$reportlink}{Description}"),
 			td({class=>'rht Plain'},"$linkTable{$reportlink}{inputUtil} %"),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$input",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
@@ -1086,7 +1086,7 @@ sub top10Report {
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$linkTable{$reportlink}{ifDescr} $linkTable{$reportlink}{Description}"),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},getBits($linkTable{$reportlink}{inputBits},'ps')),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},getBits($linkTable{$reportlink}{outputBits},'ps'))
@@ -1114,7 +1114,7 @@ sub top10Report {
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},$pvcTable{$reportlink}{pvc}),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},$pvcTable{$reportlink}{ReceivedBECNs}),
 			td({class=>'info Plain',colspan=>'2',align=>'right'},$pvcTable{$reportlink}{ReceivedFECNs})
@@ -1144,7 +1144,7 @@ sub top10Report {
 		$pktsTable{$reportlink}{Description} = '' if $pktsTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$pktsTable{$reportlink}{ifDescr} $pktsTable{$reportlink}{Description}"),
 			td({class=>'info Plain',align=>'right'},$pktsTable{$reportlink}{ifInErrors}),
 			td({class=>'info Plain',align=>'right'},$pktsTable{$reportlink}{ifInDiscards}),
@@ -1171,7 +1171,7 @@ sub top10Report {
 		$downTable{$reportlink}{Description} = '' if $downTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 			td({class=>'info Plain',colspan=>'3',width=>'50%'},"$downTable{$reportlink}{ifDescr} $downTable{$reportlink}{Description}"),
 			td({class=>'info Plain',colspan=>'4',align=>'center'},$downTable{$reportlink}{ifLastChange})
 		);
@@ -1316,7 +1316,7 @@ sub outageReport {
 	print Tr(th({class=>'title',align=>'center',colspan=>'6'},
 			"Outage Report, $datestamp_start to $datestamp_end"));
 
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&act=report_dynamic_outage&level=$Q->{level}"
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_outage&level=$Q->{level}"
 					."&time_start=$Q->{time_start}&time_end=$Q->{time_end}&sortdir=$Q->{sortdir}&period=$Q->{period}";
 
 	print Tr(
@@ -1336,7 +1336,7 @@ sub outageReport {
 			print Tr(
 				td({class=>'info Plain',style=>getBGColor($color)},returnDateStamp($logreport{$index}{time})),
 				td({class=>'info Plain',style=>getBGColor($color)},
-					a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+					a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
 				td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{outype}),
 				td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{outime}),
 				eval { return $logreport{$index}{element} ? td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{element}) : td({class=>'info Plain'},'&nbsp;');},
@@ -1521,7 +1521,7 @@ sub storedReport {
 		my $index = shift;
 		my $table = shift;
 		print td({class=>'info Plain'},
-			a({href=>"reports.pl?%conf=$Q->{conf}&act=report_stored_file&file=$table->{$index}{dir}"},$table->{$index}{link}));
+			a({href=>"reports.pl?conf=$Q->{conf}&act=report_stored_file&file=$table->{$index}{dir}"},$table->{$index}{link}));
 	}
 	sub printe {
 		print td({class=>'info Plain'},'&nbsp;');

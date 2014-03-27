@@ -137,7 +137,10 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_interface_overview') {	viewOverviewIntf(); exit;
 } elsif ($Q->{act} eq 'nmis_runtime_view') {	viewRunTime(); exit;
 } elsif ($Q->{act} eq 'nmis_polling_summary') {	viewPollingSummary(); exit;
-} else { notfound(); exit }
+} else { 
+	$select = 'health';
+	#notfound(); exit 
+}
 
 sub notfound {
 	print header($headeropts);

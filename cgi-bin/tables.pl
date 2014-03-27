@@ -177,7 +177,7 @@ EOF
 
 	print start_table;
 
-	my $url = url(-absolute=>1)."?%conf=$Q->{conf}&table=$table";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&table=$table";
 
 	# print short info
 	#print header

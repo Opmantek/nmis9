@@ -72,8 +72,19 @@ if ($AU->Require) {
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
+# widget defaults to true
+my $wantwidget = $Q->{widget} ne "false";
+my $widgetstate = $wantwidget?"true":"false";
+
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+
+# prime the output
+print header($headeropts);
+if (!$wantwidget)
+{
+		pageStart(title => "NMIS Find");
+}
 
 #======================================================================
 
@@ -86,11 +97,11 @@ if ($Q->{act} eq 'find_interface_menu') {		menuFind('interface');
 } else { notfound(); }
 
 sub notfound {
-	print header($headeropts);
 	print "Network: ERROR, act=$Q->{act}<br>\n";
 	print "Request not found\n";
 }
 
+pageEnd() if (!$wantwidget);
 exit 1;
 
 #===================
@@ -98,15 +109,21 @@ exit 1;
 sub menuFind {
 	my $obj = shift;
 
-	print header($headeropts);
-
-	print start_form(-id=>'nmis',action=>"javascript:get('nmis');", href=>url(-absolute=>1)."?conf=$Q->{conf}&act=find_${obj}_view");
+	my $thisurl = url(-absolute=>1)."?";
+	# the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>'nmis', -href => $thisurl);
+	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
+			. hidden(-override => 1, -name => "widget", -value => $widgetstate);
 
 	print table(
 			Tr(td({class=>'header',align=>'center',colspan=>'4'},
 				eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
 			Tr(td({class=>'header'},'Find String '),td(textfield(-name=>"find",size=>'35',value=>'')),
-			td(button(-name=>'submit',onclick=>"javascript:get('nmis');",-value=>"Go"))));
+				 # making the button type=submit activates it as the enter key handler, which Is A Good Thing(tm).
+				 td(submit(-name=>'submit',onclick=> ($wantwidget? "javascript:get('nmis');" : "submit()"),
+									 -value=>"Go"))));
 	print end_form;
 
 }
@@ -116,7 +133,6 @@ sub viewInterfaceFind {
 
 	my $find = $Q->{find};
 
-	print header($headeropts);
 
 	# verify access to this command
 	$AU->CheckAccess("find_interface"); # same as menu
@@ -155,18 +171,18 @@ sub viewInterfaceFind {
 				$II->{$intHash}{ifSpeed} = convertIfSpeed($II->{$intHash}{ifSpeed});
 	
 				push @out,Tr(
-					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}"},$II->{$intHash}{node})),
+					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}&widget=$widgetstate"},$II->{$intHash}{node})),
 					eval {
 						if ($II->{$intHash}{collect} eq 'true') {
-							return td({class=>'info Plain'},a({href=>"network.pl?%conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}"},$II->{$intHash}{ifDescr}));
+							return td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}&widget=$widgetstate"},$II->{$intHash}{ifDescr}));
 						} else {
 							return td({class=>'info Plain'},$II->{$intHash}{ifDescr});
 						} 
 					},
 					td({class=>'info Plain'},$II->{$intHash}{ipAdEntAddr}),
 				#	td({class=>'info Plain'},$II->{$intHash}{ipAdEntNetMask}),
-					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{ipSubnet}"},$II->{$intHash}{ipSubnet})),
-					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?%act=find_interface_view&find=$II->{$intHash}{Description}"},$II->{$intHash}{Description})),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$II->{$intHash}{ipSubnet}&widget=$widgetstate"},$II->{$intHash}{ipSubnet})),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$II->{$intHash}{Description}&widget=$widgetstate"},$II->{$intHash}{Description})),
 					td({class=>'info Plain'},$II->{$intHash}{ifType}),
 					td({class=>'info Plain',align=>'right'},$II->{$intHash}{ifSpeed}),
 					td({class=>'info Plain'},$II->{$intHash}{ifAdminStatus}),
@@ -201,8 +217,6 @@ sub viewNodeFind {
 
 	my $find = $Q->{find};
 
-	print header($headeropts);
-
 	# verify access to this command
 	$AU->CheckAccess("find_node"); # same as menu
 
@@ -235,7 +249,9 @@ sub viewNodeFind {
 				++$counter;
 	
 				push @out,Tr(
-					td({class=>'info',nowrap=>undef},a({href=>"network.pl?%conf=$Q->{conf}&act=network_node_view&node=$node"},$NT->{$node}{name})),
+					td({class=>'info',nowrap=>undef},
+						 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widgetstate"},
+							 $NT->{$node}{name})),
 					td({class=>'info'},$NT->{$node}{host}),
 					td({class=>'info'},$NT->{$node}{group}),
 					td({class=>'info'},$NT->{$node}{active}),

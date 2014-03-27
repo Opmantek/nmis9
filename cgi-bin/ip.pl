@@ -73,6 +73,11 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
+my $wantwidget = $Q->{widget} ne "false";
+
+print header($headeropts);
+pageStart(title => "NMIS IP Calc") if (!$wantwidget);
+
 #======================================================================
 
 # select function
@@ -81,21 +86,22 @@ if ($Q->{act} =~ /tool_ip_menu/) {	menuIP();
 } else { notfound(); }
 
 sub notfound {
-	print header($headeropts);
 	print "IP: ERROR, act=$Q->{act}, node=$Q->{node}<br>\n";
 	print "Request not found\n";
 }
 
+
+pageEnd if (!$wantwidget);
 exit;
 
 #===================
 
 sub menuIP {
 
-	print header($headeropts);
-
-	print start_form(-id=>"nmis", -action=>"javascript:get('nmis');",
-						-href=>"ip.pl?conf=$Q->{conf}&act=tool_ip_menu");
+		print start_form(-id=>"nmis", -href=> url(-absolute => 1)."?")
+				.hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+				. hidden(-override => 1, -name => "act", -value => "tool_ip_menu")
+				. hidden(-override => 1, -name => "widget", -value => ($wantwidget?"true":"false"));
 
 	print start_table;
 	print Tr(td({class=>'header',colspan=>'3'},"IP Subnet Calculator"));
@@ -111,7 +117,9 @@ sub menuIP {
 			td({class=>'header'},'Extended subnet mask for full network'));
 
 	print Tr(td('&nbsp;'),
-				td(button(-name=>"button",-onclick=>"get('nmis');", -value=>'GO')));
+				td(submit(-name=>"button",-onclick => 
+									($wantwidget? "javascript:get('nmis');" : "submit()"),
+									-value=>'GO')));
 
 	ipDesc() if $Q->{address} eq '';
 

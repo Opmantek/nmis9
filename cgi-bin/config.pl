@@ -161,7 +161,7 @@ sub typeSect {
 
 	my $CT = loadCfgTable(); # load configuration of table
 
-	my $ref = url(-absolute=>1)."?%conf=$Q->{conf}";
+	my $ref = url(-absolute=>1)."?conf=$Q->{conf}";
 
 	# create items list, contains of presets and adds
 	my @items = map { keys %{$_} } @{$CT->{$section}};
