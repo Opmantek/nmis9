@@ -1423,8 +1423,12 @@ sub getIntfInfo {
 				$IF->{$index}{nc_collect} = $IF->{$index}{collect};
 				$IF->{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
 				info("Manual update of Collect by nodeConf");
+				### 2014-04-28 keiths, fixing info for GUI
 				if ($IF->{$index}{collect} eq 'false') {
-					$IF->{$index}{nocollect} = "Manual update by nodeConf";
+					$IF->{$index}{nocollect} = "Not Collecting: Manual update by nodeConf";
+				}
+				else {
+					$IF->{$index}{nocollect} = "Collecting: Manual update by nodeConf";
 				}
 			}
 			if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
