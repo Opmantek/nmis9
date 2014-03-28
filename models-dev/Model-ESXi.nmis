@@ -55,7 +55,7 @@
   'alerts' => {
     'VirtMachines' => {
       'VirtMachinesRunning' => {
-        'element' => 'index',
+        'element' => 'vmwVmDisplayName',
         'event' => 'Virtual Machine not Running',
         'level' => 'Warning',
         'test' => 'CVAR1=vmwVmGuestState;"$CVAR1" ne "running"',
