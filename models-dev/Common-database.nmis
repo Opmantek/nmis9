@@ -132,6 +132,7 @@
       'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
       'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
+      'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
     }
   }
 );

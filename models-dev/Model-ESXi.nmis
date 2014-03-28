@@ -54,14 +54,14 @@
   },
   'alerts' => {
     'VirtMachines' => {
-      'VirtMachines' => {
+      'VirtMachinesRunning' => {
         'element' => 'index',
         'event' => 'Virtual Machine not Running',
         'level' => 'Warning',
         'test' => 'CVAR1=vmwVmGuestState;$CVAR1 ne "running"',
         'type' => 'test',
-        'unit' => '',
-        'value' => 'CVAR1=vmwVmGuestState;$CVAR1'
+        'unit' => 'state',
+        'value' => 'CVAR1=vmwVmGuestState;return $CVAR1'
       },
     },
   },
@@ -272,6 +272,38 @@
   },
   'systemHealth' => {
     'sections' => 'VirtMachines',
+    'rrd' => {
+      'VirtMachines' => {        
+        'indexed' => 'true',
+        'graphtype' => 'vmwVmState',
+        'snmp' => {
+          'vmwVmState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
+            'replace' => {
+              'powered off' => '0',
+              'powered on' => '100',
+            },
+          },
+          'vmwVmGuestState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+            'replace' => {
+              'unknown' => '0',
+              'notrunning' => '20',
+              'standby' => '40',
+              'resetting' => '60',
+              'shuttingdown' => '80',
+              'running' => '100',
+            },
+          },
+          'vmwVmMemSize' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
+          },
+          'vmwVmCpus' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
+          },
+        },
+      },      
+    },
     'sys' => {
       'VirtMachines' => {        
         'indexed' => 'vmwVmDisplayName',
@@ -311,7 +343,6 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
             'title' => 'CPUs'
           },
-          
         },
       },      
     }
