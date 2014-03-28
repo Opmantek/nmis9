@@ -58,10 +58,10 @@
         'element' => 'index',
         'event' => 'Virtual Machine not Running',
         'level' => 'Warning',
-        'test' => 'CVAR1=vmwVmGuestState;$CVAR1 ne "running"',
+        'test' => 'CVAR1=vmwVmGuestState;"$CVAR1" ne "running"',
         'type' => 'test',
         'unit' => 'state',
-        'value' => 'CVAR1=vmwVmGuestState;return $CVAR1'
+        'value' => 'CVAR1=vmwVmGuestState;return "$CVAR1"'
       },
     },
   },
