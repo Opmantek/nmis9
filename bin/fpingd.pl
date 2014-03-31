@@ -213,7 +213,7 @@ sub fastping {
 	my %ping_result = ();
 	my $start_time;
 
-	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$retries}$/;
+	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
 	while(1) {
 
