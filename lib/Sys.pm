@@ -78,6 +78,8 @@ sub new {
 	return $self;
 }
 
+# initialise the system object for a given node
+# args: node (required, or name), snmp (defaults to 1)
 sub init {
 	my $self = shift;
 	my %args = @_;
@@ -153,19 +155,10 @@ sub init {
 	# load Model of node or base Model
 	my $tmpmodel = $self->{info}{system}{nodeModel};
 	my $condition = "none";
+
 	if ($self->{info}{system}{nodeModel} ne "" and $exit and not $self->{update}) {
-		$condition = "update";
+		$condition = "not update";
 		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}") ;
-	}
-	# if we allow a down node's nodetype to be overwritten (which happens
-	# because after the default model is loaded nmis runs
-	# copyModelCfgInfo(type=all)), then that incorrect nodetype is never
-	# corrected (getnodeinfo isn't run if runping is not successful,
-	# which it never is on a down node)
-	elsif ($self->{info}{system}{nodedown} eq "true" and $self->{info}{system}{nodeModel} ne "") {
-		$condition = "nodedown";
-		dbg("update is keeping the defined model");
-		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}");
 	}
 	elsif ($self->{cfg}{node}{ping} eq 'true' and $self->{cfg}{node}{collect} ne 'true' and $self->{update}) {
 		$condition = "PingOnly";
@@ -176,13 +169,12 @@ sub init {
 		dbg("loading the default model");
 		$exit = $self->loadModel(model=>"Model");
 	}
-	#logMsg("INIT: condition=$condition exit=$exit BeforeModel=$tmpmodel AfterModel=$self->{info}{system}{nodeModel} nodedown=$self->{info}{system}{nodedown} update=$self->{update} ping=$self->{cfg}{node}{ping} collect=$self->{cfg}{node}{ping}");
 
 	if ($exit and $self->{name} ne "" and $snmp) {
 		$exit = $self->initsnmp();
 	}
-##	writeTable(dir=>'var',name=>"nmis-model-debug",data=>$self);
-	dbg("$self->{name} nodedown=$self->{info}{system}{nodedown} snmpdown=$self->{info}{system}{snmpdown} nodeType=$self->{info}{system}{nodeType} group=$self->{info}{system}{group}");
+
+	dbg("node=$self->{name} condition=$condition nodedown=$self->{info}{system}{nodedown} snmpdown=$self->{info}{system}{snmpdown} nodeType=$self->{info}{system}{nodeType} group=$self->{info}{system}{group}");
 	dbg("returning from Sys->init with exit of $exit");
 	return $exit;
 }
@@ -307,7 +299,9 @@ sub ifDescrInfo {
 #===================================================================
 
 # copy config and model info into node info table
-# args: type
+# args: type, if type==all then nodeModel and nodeType are only updated from mdl if missing
+# if type==overwrite then nodeModel and nodeType are updated unconditionally
+# if no type arg, then nodemodel and type aren't touched
 sub copyModelCfgInfo 
 {
 		my $self = shift;
@@ -323,11 +317,17 @@ sub copyModelCfgInfo
 				$self->{info}->{system}->{$fn} = $self->{cfg}->{node}->{$fn};
 		}
 		
-		if ( $type eq 'all' ) {
+		if ( $type eq 'all' or $type eq 'overwrite' )
+		{
+				my $mustoverwrite = ($type eq 'overwrite');
+
+				dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}");
+
+				# make the changes unconditionally if overwrite requested, otherwise only if not present
 				$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel} 
-				if $self->{info}{system}{nodeModel} eq "";
-				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType};
-				dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel}, $self->{mdl}{system}{nodeModel}, $self->{mdl}{system}{nodeType}");
+				if (!$self->{info}{system}{nodeModel} or $mustoverwrite);
+				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}
+				if (!$self->{info}{system}{nodeType} or $mustoverwrite);
 		}
 }
 

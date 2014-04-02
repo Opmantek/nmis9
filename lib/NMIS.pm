@@ -1112,6 +1112,16 @@ sub notify {
 	dbg("Finished");
 } # end notify
 
+# this is the most official reporter of node status, and should be
+# used instead of just looking at local system info nodedown
+#
+# reason: underlying events state can change asynchronously (eg. fpingd),
+# and the per-node status from the node file cannot be guaranteed to
+# be up to date if that happens.
+#
+# note: nodestatus DOES LOCK UP EVERYTHING HARD if used while
+# an exclusive lock on the event state file is held!
+# (ie. between loadEventStateLock and writeEventStateLock)
 sub nodeStatus {
 	my %args = @_;
 	my $NI = $args{NI};
@@ -1124,12 +1134,15 @@ sub nodeStatus {
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
 
+	# ping disabled ->  snmp state is authoritative
 	if ( $NI->{system}{ping} eq 'false' ) {
 		$status = 0 if eventExist($NI->{system}{name}, $snmp_down, "");
 	}
+	# ping enabled, but unpingable -> down
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
 		$status = 0;
 	}
+	# ping enabled, pingable but dead snmp -> degraded
 	elsif ( eventExist($NI->{system}{name}, $snmp_down, "") ) {
 		$status = -1;
 	}
