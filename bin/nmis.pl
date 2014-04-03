@@ -470,13 +470,15 @@ sub doUpdate {
 	dbg("Starting, node $name");
 
 	my $S = Sys::->new; # create system object
-	$S->init(name=>$name,update=>'true'); # load old node info
-	# nmisdev Apr2011 Copy all to catch problem with nodeType coming through blank
-	$S->copyModelCfgInfo(type=>'all');					# copy standard/running model info in node info table
+	$S->init(name=>$name,update=>'true'); # loads old node info, and the DEFAULT(!) model (always)
+	# loads the node config, and updates model and type in node info table but only if missing
+	$S->copyModelCfgInfo(type=>'all');
+
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->{doupdate} = 'true'; # flag what is running
 	$S->readNodeView; # from prev. run  
+	# if reachable then we can update the model and get rid of the default we got from init above
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
 			if (getNodeInfo(sys=>$S)) {
@@ -806,7 +808,9 @@ sub getNodeInfo {
 				dbg("about to loadModel model=$NI->{system}{nodeModel}");
 				$S->loadModel(model=>"Model-$NI->{system}{nodeModel}");
 
-				$S->copyModelCfgInfo(type=>'all');							# copy model info in node info table
+				# now we know more about the host, nodetype and model have been positively determined,
+				# so we'll force-overwrite those values
+				$S->copyModelCfgInfo(type=>'overwrite');
 
 				###
 				delete $V->{system} if $S->{doupdate} eq 'true'; # rebuild
@@ -1887,6 +1891,7 @@ sub getEnvData {
 }	
 #=========================================================================================
 
+# retrieve system health data from snmp, done during update
 sub getSystemHealthInfo {
 	my %args = @_;
 	my $S = $args{sys}; # object
