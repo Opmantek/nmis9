@@ -171,7 +171,7 @@ sub processNode {
 				my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
 				my $Description = getDescription(version => $version, ifIndex => $index);
 				
-				$NCT->{$S->{node}}{$ifDescr}{ifDescr} = $ifDescr;
+				$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
 
 				my $offset = 12288;
 				if ( $version eq "4.2" )  {
@@ -220,18 +220,18 @@ sub processNode {
 				}
 				### add in anything we find from nodeConf - allows manual updating of interface variables
 				### warning - will overwrite what we got from the device - be warned !!!
-				if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
+				if ($NCT->{$node}{$ifDescr}{Description} ne '') {
 					$S->{info}{interface}{$index}{nc_Description} = $S->{info}{interface}{$index}{Description}; # save
-					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
+					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$node}{$ifDescr}{Description};
 					dbg("Manual update of Description by nodeConf");
 				}
 				else {
 					$V->{interface}{"${index}_Description_value"} = $S->{info}{interface}{$index}{Description};
 				}
 				
-				if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
+				if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
-					$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
+					$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$node}{$ifDescr}{ifSpeed};
 					dbg("Manual update of ifSpeed by nodeConf");
 				}
 				
@@ -243,23 +243,23 @@ sub processNode {
 				
 				### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 				# modify by node Config ?
-				if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+				if ($NCT->{$node}{$ifDescr}{collect} ne '' and $NCT->{$node}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 					$S->{info}{interface}{$index}{nc_collect} = $S->{info}{interface}{$index}{collect};
-					$S->{info}{interface}{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
+					$S->{info}{interface}{$index}{collect} = $NCT->{$node}{$ifDescr}{collect};
 					dbg("Manual update of Collect by nodeConf");
 					if ($S->{info}{interface}{$index}{collect} eq 'false') {
 						$S->{info}{interface}{$index}{nocollect} = "Manual update by nodeConf";
 					}
 				}
-				if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+				if ($NCT->{$node}{$ifDescr}{event} ne '' and $NCT->{$node}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 					$S->{info}{interface}{$index}{nc_event} = $S->{info}{interface}{$index}{event};
-					$S->{info}{interface}{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
+					$S->{info}{interface}{$index}{event} = $NCT->{$node}{$ifDescr}{event};
 					$S->{info}{interface}{$index}{noevent} = "Manual update by nodeConf" if $S->{info}{interface}{$index}{event} eq 'false'; # reason
 					dbg("Manual update of Event by nodeConf");
 				}
-				if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+				if ($NCT->{$node}{$ifDescr}{threshold} ne '' and $NCT->{$node}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 					$S->{info}{interface}{$index}{nc_threshold} = $S->{info}{interface}{$index}{threshold};
-					$S->{info}{interface}{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
+					$S->{info}{interface}{$index}{threshold} = $NCT->{$node}{$ifDescr}{threshold};
 					$S->{info}{interface}{$index}{nothreshold} = "Manual update by nodeConf" if $S->{info}{interface}{$index}{threshold} eq 'false'; # reason
 					dbg("Manual update of Threshold by nodeConf");
 				}
