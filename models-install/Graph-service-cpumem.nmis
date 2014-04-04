@@ -35,25 +35,29 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Status',
-		'short' => 'Status'
+		'standard' => 'MBytes',
+		'short' => 'Mbytes'
 	},
 	'option' => {
 		'standard' => [
+			'--right-axis','1:0',
+			'--right-axis-label','centi-seconds',
 			'DEF:memory=$database:memory:AVERAGE',
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',			
-			'LINE2:memMBytes#00aa00:Memory $indx',
-			'LINE2:cpu#0000ff:CPU $indx\\n',
-			'GPRINT:memMBytes:AVERAGE:Avg $indx memory %1.3lf MBytes',
-			'GPRINT:cpu:AVERAGE:Avg $indx cpu %1.3lf centi-seconds\\n',
+			'LINE2:memMBytes#ADFF2F:Memory $indx',
+			'GPRINT:memMBytes:AVERAGE:Avg %1.3lf MBytes\\n',
+			'LINE2:cpu#DA70D6:CPU $indx',
+			'GPRINT:cpu:AVERAGE:Avg CPU %1.3lf centi-seconds\\n',
 		],
 		'small' => [
+			'--right-axis','1:0',
+			'--right-axis-label','centi-s',
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'DEF:memory=$database:memory:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',			
-			'LINE2:cpu#0000ff:CPU $indx',
-			'LINE2:memMBytes#00aa00:Memory $indx',
+			'LINE2:cpu#DA70D6:CPU $indx',
+			'LINE2:memMBytes#ADFF2F:Memory $indx',
 		]
 	}
 );

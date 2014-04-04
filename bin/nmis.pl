@@ -46,6 +46,7 @@ use csv;				# local
 use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
+use NMIS::Timing;
 use func;				# local
 use ip;					# local
 use sapi;				# local
@@ -2008,6 +2009,14 @@ sub getSystemHealthData {
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
+
+								# update retrieved values in node info, too, not just the rrd database
+								for my $item (keys %$D)
+								{
+										dbg("updating node info $section $index $item: old ".$S->{info}{$section}{$index}{$item}
+												." new $D->{$item}{value}");
+										$S->{info}{$section}{$index}{$item}=$D->{$item}{value};
+								}
 			
 								# RRD Database update and remember filename
 								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
@@ -2016,7 +2025,9 @@ sub getSystemHealthData {
 							}
 						}
 						else {
-							dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
+								# fixme: known problem in sys.pm: reports elements that are skipped because
+								# of control saying so as 'no oid loaded' in the rror msg, which we should ignore but don't.
+								dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
 						}
 					}
 					else {
@@ -3405,12 +3416,6 @@ sub runServices {
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
-	### 2012-09-11 keiths, running services even if node down.
-	#if ($NI->{system}{nodedown} eq 'true') {
-	#	dbg("node down - skip");
-	#	goto END_runServices;
-	#}
-
 	my %snmpTable;
 	my %Val;
 	my $service;
@@ -3423,6 +3428,7 @@ sub runServices {
 	my %services;		# hash to hold snmp gathered service status.
 
 	my $ST = loadServicesTable();
+	my $timer = NMIS::Timing->new;
 
 	# services to be polled are saved in a list
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
@@ -3436,6 +3442,9 @@ sub runServices {
 		undef %snmpTable;
 		$ret = 0;
 		my $snmpdown = 0;
+
+		# record the service response time, more precisely the time it takes us testing the service
+		$timer->resetTime;
 
 		# DNS gets treated simply ! just lookup our own domain name.
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
@@ -3598,7 +3607,7 @@ sub runServices {
 				$snmpdown = 1;
 			}
 		}
-		# now the scripts !
+		# now the sapi 'scripts' (similar to expect scripts)
 		elsif ( $ST->{$service}{Service_Type} eq "script" ) 
 		{
 				### lets do the user defined scripts
@@ -3625,9 +3634,12 @@ sub runServices {
 			$msg = '';
 			next;			# just do the next one - no alarms
 		}
+		
+		my $responsetime = $timer->elapTime;
 
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
+		$V->{system}{"${service}_responsetime"} = $responsetime;
 		$V->{system}{"${service}_color"} =  $ret ? 'white' : 'red';
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
@@ -3656,6 +3668,9 @@ sub runServices {
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}
+		$Val{responsetime}{value} = $responsetime;
+		$Val{responsetime}{option} = "GAUGE,0:U";
+
 		if ($gotMemCpu) {	
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
@@ -3664,9 +3679,9 @@ sub runServices {
 		}
 		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
 			$NI->{database}{service}{$service} = $db;
-			$NI->{graphtype}{$service}{service} = 'service';
+			$NI->{graphtype}{$service}{service} = 'service,service-response';
 			if ($gotMemCpu) {	
-				$NI->{graphtype}{$service}{service} = 'service,service-cpumem';
+				$NI->{graphtype}{$service}{service} = 'service,service-response,service-cpumem';
 			}
 		}
 	} # foreach

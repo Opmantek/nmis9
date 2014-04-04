@@ -385,7 +385,7 @@ sub typeGraph {
 										-values=>['',sort keys %{$NI->{database}{hrsmpcpu}}],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($Q->{graphtype} =~ /service|service-cpumem/) {
+						} elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
 							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{database}{service}}],
 										-default=>"$index",

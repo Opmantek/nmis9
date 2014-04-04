@@ -431,9 +431,11 @@ sub updateRRD {
 	foreach my $var (keys %{$data}) {
 		$ds .= ":" if $ds ne "";
 		$ds .= $var;
-		# cleanup invalid values
+		# cleanup invalid values:
+		# nonexistent or blank object we treat as 0
 		$data->{$var}{value} = 0 if $data->{$var}{value} eq "noSuchObject" or $data->{$var}{value} eq "noSuchInstance" or $data->{$var}{value} eq "";
-		$data->{$var}{value} = "U" if $data->{$var}{value} eq "N/A";
+		# other non-numeric input becomes rrdtool's 'undefined' value
+		$data->{$var}{value} = "U" if ($data->{$var}{value} !~ /^\d+(\.\d+)?$/);
 		$value .= ":$data->{$var}{value}";
 	}
 	push @options,("-t",$ds,$value);
