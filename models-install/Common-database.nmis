@@ -96,6 +96,7 @@
       'upsbat' => '/misc/$nodeType/$node-apc-ups-bat.rrd',
       'cbqos-in' => '/interface/$nodeType/$node/$node-$ifDescr-in-$item.rrd',
       'service' => '/health/$nodeType/$node-$item.rrd',
+      'service-response' => '/health/$nodeType/$node-$item.rrd',
       'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
       'upsvolt' => '/misc/$nodeType/$node-apc-ups-volt.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd',

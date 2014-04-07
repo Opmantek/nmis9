@@ -46,6 +46,7 @@ use csv;				# local
 use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
+use NMIS::Timing;
 use func;				# local
 use ip;					# local
 use sapi;				# local
@@ -60,6 +61,7 @@ use Proc::Queue ':all'; # from CPAN
 use Data::Dumper; 
 use DBfunc;				# local
 use Statistics::Lite qw(mean);
+use POSIX qw(:sys_wait_h);
 
 Data::Dumper->import();
 $Data::Dumper::Indent = 1;
@@ -2008,6 +2010,14 @@ sub getSystemHealthData {
 						if ( $rrdData->{error} eq "" ) {
 							foreach my $sect (keys %{$rrdData}) {
 								my $D = $rrdData->{$sect}{$index};
+
+								# update retrieved values in node info, too, not just the rrd database
+								for my $item (keys %$D)
+								{
+										dbg("updating node info $section $index $item: old ".$S->{info}{$section}{$index}{$item}
+												." new $D->{$item}{value}");
+										$S->{info}{$section}{$index}{$item}=$D->{$item}{value};
+								}
 			
 								# RRD Database update and remember filename
 								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
@@ -2016,7 +2026,9 @@ sub getSystemHealthData {
 							}
 						}
 						else {
-							dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
+								# fixme: known problem in sys.pm: reports elements that are skipped because
+								# of control saying so as 'no oid loaded' in the rror msg, which we should ignore but don't.
+								dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
 						}
 					}
 					else {
@@ -3405,12 +3417,6 @@ sub runServices {
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
-	### 2012-09-11 keiths, running services even if node down.
-	#if ($NI->{system}{nodedown} eq 'true') {
-	#	dbg("node down - skip");
-	#	goto END_runServices;
-	#}
-
 	my %snmpTable;
 	my %Val;
 	my $service;
@@ -3421,8 +3427,10 @@ sub runServices {
 	my $msg;
 	my $servicePoll = 0;
 	my %services;		# hash to hold snmp gathered service status.
+	my %status;			# hash to hold generic/non-snmp service status
 
 	my $ST = loadServicesTable();
+	my $timer = NMIS::Timing->new;
 
 	# services to be polled are saved in a list
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
@@ -3436,6 +3444,10 @@ sub runServices {
 		undef %snmpTable;
 		$ret = 0;
 		my $snmpdown = 0;
+
+		# record the service response time, more precisely the time it takes us testing the service
+		$timer->resetTime;
+		my $responsetime;						# blank the responsetime
 
 		# DNS gets treated simply ! just lookup our own domain name.
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
@@ -3598,7 +3610,7 @@ sub runServices {
 				$snmpdown = 1;
 			}
 		}
-		# now the scripts !
+		# now the sapi 'scripts' (similar to expect scripts)
 		elsif ( $ST->{$service}{Service_Type} eq "script" ) 
 		{
 				### lets do the user defined scripts
@@ -3618,6 +3630,86 @@ sub runServices {
 						dbg("Results of $service is $ret, msg is $msg");
 				}
 		}
+		# 'real' scripts, or more precisely external programs
+		elsif ( $ST->{$service}{Service_Type} eq "program" )
+		{
+				$ret = 0;
+				my $svc = $ST->{$service};
+				if (!$svc->{Program} or !-x $svc->{Program})
+				{
+						info("ERROR, service $service defined with no working Program to run!");
+						logMsg("ERROR service $service defined with no working Program to run!");
+						next;
+				}
+				# check the arguments (if given), substitute node.XYZ values
+				my $finalargs;
+				if ($svc->{Args})
+				{
+						$finalargs = $svc->{Args};
+						$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
+
+						dbg("external program args were $svc->{Args}, now $finalargs");
+				}
+
+				my $programexit = 0;
+				eval 
+				{ 
+						my @responses;
+
+						local $SIG{ALRM} = sub { die "alarm\n"; };
+						alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
+						
+						# run given program with given arguments and possibly read from it
+						dbg("running external program '$svc->{Program} $finalargs', "
+								.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
+						if (!open(PRG,"$svc->{Program} $finalargs|"))
+						{
+								info("ERROR, cannot start service program $svc->{Program}: $!");
+						}
+						else
+						{
+								@responses = <PRG>; # always check for output but discard it if not required
+								close PRG;
+								$programexit = $?;
+						
+								if (getbool($svc->{Collect_Output}))
+								{
+										# now determine how to save the values in question
+										for my $response (@responses)
+										{
+												chomp $response;
+												my ($k,$v) = split(/=/,$response,2);
+												dbg("collected response $k value $v");
+												
+												$Val{$k} = {value => $v};
+												if ($k eq "responsetime") # response time is handled specially
+												{
+														$responsetime = $v;
+												}
+												else
+												{
+														$status{$svc->{Service_Name}}->{extra}->{$k} = $v;
+												}
+
+										}
+								}
+						}
+						alarm(0) if ($svc->{Max_Runtime} > 0); # cancel any timeout
+				};
+
+				if ($@ and $@ eq "alarm\n")
+				{
+						info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+						$ret=0;
+				}
+				else
+				{
+						# if the external program died abnormally we treat this as 0=dead.
+						$programexit = WIFEXITED($programexit)? WEXITSTATUS($programexit) : 0; 
+						dbg("external program terminated with exit code $programexit");
+						$ret = $programexit > 100? 100: $programexit;
+				};
+		}
 		else {
 			# no service type found
 			dbg("ERROR, service handling not found");
@@ -3625,14 +3717,22 @@ sub runServices {
 			$msg = '';
 			next;			# just do the next one - no alarms
 		}
+		
+		# let external programs set the responsetime if so desired
+		$responsetime = $timer->elapTime if (!defined $responsetime);
+		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
+		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
+		$V->{system}{"${service}_responsetime"} = $responsetime;
 		$V->{system}{"${service}_color"} =  $ret ? 'white' : 'red';
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
 		
-		my $serviceValue = $ret*100;
+		# external programs return 0..100 directly
+		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100;
+		$status{$ST->{$service}{Service_Name}}->{status} = $serviceValue;
 
 		# lets raise or clear an event 
 		if ( $snmpdown ) {
@@ -3656,6 +3756,9 @@ sub runServices {
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}
+		$Val{responsetime}{value} = $responsetime; # might be a NOP
+		$Val{responsetime}{option} = "GAUGE,0:U";
+
 		if ($gotMemCpu) {	
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
@@ -3664,12 +3767,16 @@ sub runServices {
 		}
 		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
 			$NI->{database}{service}{$service} = $db;
-			$NI->{graphtype}{$service}{service} = 'service';
+			$NI->{graphtype}{$service}{service} = 'service,service-response';
 			if ($gotMemCpu) {	
-				$NI->{graphtype}{$service}{service} = 'service,service-cpumem';
+				$NI->{graphtype}{$service}{service} = 'service,service-response,service-cpumem';
 			}
 		}
 	} # foreach
+
+	# save the service_status node info
+	$S->{info}{service_status} = \%status;
+
 END_runServices:
 	info("Finished");
 } # end runServices

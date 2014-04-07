@@ -59,6 +59,7 @@
       'a3errors' => 'System Errors',
       'mem-router' => 'Router Memory Utilisation',
       'service' => 'Service',
+      'service-response' => 'Service Response Time',
       'service-cpumem' => 'Service CPU and Memory',
       'hrwincpu' => 'CPU Utilisation',
       'upsbatremtim' => 'UPS Battery Remaining Time',
