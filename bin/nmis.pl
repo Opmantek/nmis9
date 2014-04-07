@@ -3427,6 +3427,7 @@ sub runServices {
 	my $msg;
 	my $servicePoll = 0;
 	my %services;		# hash to hold snmp gathered service status.
+	my %status;			# hash to hold generic/non-snmp service status
 
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
@@ -3446,6 +3447,7 @@ sub runServices {
 
 		# record the service response time, more precisely the time it takes us testing the service
 		$timer->resetTime;
+		my $responsetime;						# blank the responsetime
 
 		# DNS gets treated simply ! just lookup our own domain name.
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
@@ -3679,8 +3681,16 @@ sub runServices {
 												my ($k,$v) = split(/=/,$response,2);
 												dbg("collected response $k value $v");
 												
-												# fixme: do we need to restrict response value names?
 												$Val{$k} = {value => $v};
+												if ($k eq "responsetime") # response time is handled specially
+												{
+														$responsetime = $v;
+												}
+												else
+												{
+														$status{$svc->{Service_Name}}->{extra}->{$k} = $v;
+												}
+
 										}
 								}
 						}
@@ -3689,7 +3699,6 @@ sub runServices {
 
 				if ($@ and $@ eq "alarm\n")
 				{
-						# fixme handle: test script failed
 						info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 						$ret=0;
 				}
@@ -3709,7 +3718,10 @@ sub runServices {
 			next;			# just do the next one - no alarms
 		}
 		
-		my $responsetime = $timer->elapTime;
+		# let external programs set the responsetime if so desired
+		$responsetime = $timer->elapTime if (!defined $responsetime);
+		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
+		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
@@ -3719,7 +3731,8 @@ sub runServices {
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
 		
 		# external programs return 0..100 directly
-		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100; 
+		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100;
+		$status{$ST->{$service}{Service_Name}}->{status} = $serviceValue;
 
 		# lets raise or clear an event 
 		if ( $snmpdown ) {
@@ -3743,8 +3756,7 @@ sub runServices {
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}
-		# let an external program set a responsetime if it wants to, otherwise we fall back to the elapsed time
-		$Val{responsetime}{value} = $responsetime if (!defined $Val{responsetime}{value}); 
+		$Val{responsetime}{value} = $responsetime; # might be a NOP
 		$Val{responsetime}{option} = "GAUGE,0:U";
 
 		if ($gotMemCpu) {	
@@ -3761,6 +3773,10 @@ sub runServices {
 			}
 		}
 	} # foreach
+
+	# save the service_status node info
+	$S->{info}{service_status} = \%status;
+
 END_runServices:
 	info("Finished");
 } # end runServices
