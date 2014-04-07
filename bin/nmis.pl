@@ -61,6 +61,7 @@ use Proc::Queue ':all'; # from CPAN
 use Data::Dumper; 
 use DBfunc;				# local
 use Statistics::Lite qw(mean);
+use POSIX qw(:sys_wait_h);
 
 Data::Dumper->import();
 $Data::Dumper::Indent = 1;
@@ -3627,6 +3628,79 @@ sub runServices {
 						dbg("Results of $service is $ret, msg is $msg");
 				}
 		}
+		# 'real' scripts, or more precisely external programs
+		elsif ( $ST->{$service}{Service_Type} eq "program" )
+		{
+				$ret = 0;
+				my $svc = $ST->{$service};
+				if (!$svc->{Program} or !-x $svc->{Program})
+				{
+						info("ERROR, service $service defined with no working Program to run!");
+						logMsg("ERROR service $service defined with no working Program to run!");
+						next;
+				}
+				# check the arguments (if given), substitute node.XYZ values
+				my $finalargs;
+				if ($svc->{Args})
+				{
+						$finalargs = $svc->{Args};
+						$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
+
+						dbg("external program args were $svc->{Args}, now $finalargs");
+				}
+
+				my $programexit = 0;
+				eval 
+				{ 
+						my @responses;
+
+						local $SIG{ALRM} = sub { die "alarm\n"; };
+						alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
+						
+						# run given program with given arguments and possibly read from it
+						dbg("running external program '$svc->{Program} $finalargs', "
+								.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
+						if (!open(PRG,"$svc->{Program} $finalargs|"))
+						{
+								info("ERROR, cannot start service program $svc->{Program}: $!");
+						}
+						else
+						{
+								@responses = <PRG>; # always check for output but discard it if not required
+								close PRG;
+								$programexit = $?;
+						
+								if (getbool($svc->{Collect_Output}))
+								{
+										# now determine how to save the values in question
+										for my $response (@responses)
+										{
+												chomp $response;
+												my ($k,$v) = split(/=/,$response,2);
+												dbg("collected response $k value $v");
+												
+												# fixme: do we need to restrict response value names?
+												$Val{$k} = {value => $v};
+										}
+								}
+						}
+						alarm(0) if ($svc->{Max_Runtime} > 0); # cancel any timeout
+				};
+
+				if ($@ and $@ eq "alarm\n")
+				{
+						# fixme handle: test script failed
+						info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+						$ret=0;
+				}
+				else
+				{
+						# if the external program died abnormally we treat this as 0=dead.
+						$programexit = WIFEXITED($programexit)? WEXITSTATUS($programexit) : 0; 
+						dbg("external program terminated with exit code $programexit");
+						$ret = $programexit > 100? 100: $programexit;
+				};
+		}
 		else {
 			# no service type found
 			dbg("ERROR, service handling not found");
@@ -3644,7 +3718,8 @@ sub runServices {
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
 		
-		my $serviceValue = $ret*100;
+		# external programs return 0..100 directly
+		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100; 
 
 		# lets raise or clear an event 
 		if ( $snmpdown ) {
@@ -3668,7 +3743,8 @@ sub runServices {
 		if ( $cpu < 0 ) {
 			$cpu = $cpu * -1;
 		}
-		$Val{responsetime}{value} = $responsetime;
+		# let an external program set a responsetime if it wants to, otherwise we fall back to the elapsed time
+		$Val{responsetime}{value} = $responsetime if (!defined $Val{responsetime}{value}); 
 		$Val{responsetime}{option} = "GAUGE,0:U";
 
 		if ($gotMemCpu) {	

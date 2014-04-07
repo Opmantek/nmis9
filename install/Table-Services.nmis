@@ -1,39 +1,14 @@
-#
-#  Copyright Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System ("NMIS").
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
 			Services => [
 				{ 'Name' => { header => 'Name',display => 'key,header,text', value => [ '' ] }},
 				{ 'Service_Name' => { header => 'Service Name',display => 'header,text', value => [ '' ] }},
-				{ 'Service_Type' => { header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi' ] }},
+				{ 'Service_Type' => { header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi', 'program' ] }},
 				{ 'Port' => { header => 'Port',display => 'header,text', value => [ '' ] }},
-				{ 'Poll_Interval' => { header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1h", "1d" ] }}
+				{ 'Poll_Interval' => { header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1h", "1d" ] }},
+				{ 'Program' => { header => "Program Path", display => "header,text", value => [''] }},
+				{ 'Args' => { header => "Program Args", display => "header,text",  value => [''] }},
+				{ 'Max_Runtime' => { header => "Max Program Runtime", display => "header,text", value => ['10'] }},
+				{ 'Collect_Output' => { header => "Collect Program Output", display => "header,popup", value => [ 'false','true' ] }},
 			]
 );
 
