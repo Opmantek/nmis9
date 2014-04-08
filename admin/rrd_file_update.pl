@@ -63,6 +63,10 @@ if ($info =~ /.*RRDtool\s+(\d+)\.(\d+)\.(\d+).*/) {
 	dbg("RRDtool version is $1.$2.$3");
 }
 
+#my $onerrd = "/usr/local/nmis8/database/health/router/meatball-reach.rrd";
+#processRRDFile(file => $onerrd);
+#exit 0;
+
 my $dir = $C->{database_root};
 
 if ($ARG{dir} ne '') { $dir = $ARG{dir}; }
@@ -152,7 +156,7 @@ sub processRRDFile {
 					close (OUTF);
 					dbg("xml written to $rrd.xml");
 					# Re-import
-					RRDs::restore($rrd.".xml",$rrd);
+					RRDs::restore("--range-check",$rrd.".xml",$rrd);
 					if (my $ERROR = RRDs::error) {
 						print "update ERROR database=$rrd: $ERROR\n";
 					} else {
