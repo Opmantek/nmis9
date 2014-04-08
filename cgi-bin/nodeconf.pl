@@ -227,6 +227,8 @@ sub displayNodeConf {
 				td({class=>'header'},'disabled'));
 	}
 
+	# label for the 'desired state' column, whose 'not' value isn't very helpful
+	my %rglabels = ('not' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
 	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 	# interfaces
@@ -285,13 +287,13 @@ sub displayNodeConf {
 				my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
 				print Tr,td({class=>'header'}),
 					td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
-					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",-values=>['not',$NCT_collect eq 'true' ? 'false':'true'],-default=>$collect));
+					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",-values=>['not',$NCT_collect eq 'true' ? 'false':'true'],-default=>$collect,-labels=>\%rglabels));
 	
 				if ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true') ) {
 					my $NCT_event = $IF->{$intf}{nc_event} || $IF->{$intf}{event};
 					print Tr,td({class=>'header'}),
 						td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
-						td({class=>"Plain"},radio_group(-name=>"event_${intf}",-values=>['not',$NCT_event eq 'true' ? 'false':'true'],-default=>$event));
+						td({class=>"Plain"},radio_group(-name=>"event_${intf}",-values=>['not',$NCT_event eq 'true' ? 'false':'true'],-default=>$event,-labels=>\%rglabels));
 				} else {
 					print hidden(-name=>"event_${intf}", -default=>'not',-override=>'1');
 				}
@@ -299,7 +301,7 @@ sub displayNodeConf {
 					my $NCT_threshold = $IF->{$intf}{nc_threshold} || $IF->{$intf}{threshold};
 					print Tr,td({class=>'header'}),
 						td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
-						td({class=>"Plain"},radio_group(-name=>"threshold_${intf}",-values=>['not',$NCT_threshold eq 'true' ? 'false':'true'],-default=>$threshold));
+						td({class=>"Plain"},radio_group(-name=>"threshold_${intf}",-values=>['not',$NCT_threshold eq 'true' ? 'false':'true'],-default=>$threshold,-labels=>\%rglabels));
 				} else {
 					print hidden(-name=>"threshold_${intf}", -default=>'not',-override=>'1');
 				}				
