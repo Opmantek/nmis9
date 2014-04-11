@@ -3449,49 +3449,32 @@ sub runServices {
 		$timer->resetTime;
 		my $responsetime;						# blank the responsetime
 
-		# DNS gets treated simply ! just lookup our own domain name.
+		# DNS: lookup whatever Service_name contains (fqdn or ip address), nameserver being the host in question
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
-			if ($NI->{system}{host} =~ /^\d+.\d+.\d+.\d+$/) {
-				dbg("host $NI->{system}{host} must be a fqdn");
-				logMsg("ERROR, ($NI->{system}{name}) service=$service must contain a fqdn");
+			use Net::DNS;
+			my $lookfor = $ST->{$service}{Service_Name};
+			if (!$lookfor) {
+				dbg("Service_Name for $NI->{system}{host} must be a FQDN or IP address");
+				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must contain an FQDN or IP address");
 				next;
 			}
-			my $res;
-			my $packet;
-			my $rr;
+			my $res = Net::DNS::Resolver->new;
+			$res->nameserver($NI->{system}{host});
+			$res->udp_timeout(10);						# don't waste more than 10s on dud dns
+			$res->usevc(0);										# force to udp (default)
+			$res->debug(1) if $C->{debug} >3;	# set this to 1 for debug
 
-			# resolve $node to an IP address first so Net::DNS points at the remote server
-			if ( my $packed_ip = inet_aton($NI->{system}{host})) {
-				my $ip = inet_ntoa($packed_ip);
-
-				use Net::DNS;
-				$res = Net::DNS::Resolver->new;
-					$res->nameservers($ip);
-					$res->recurse(0);
-					$res->retry(2);
-					$res->usevc(0);			# force to udp (default)
-					$res->debug(1) if $C->{debug} >3;			# set this to 1 for debug
-
-				if ( !$@ ) {
-					$packet = $res->query($NI->{system}{host});		# lookup its own nodename on itself, should always work..?
-					if (!$packet) {
-						$ret = 0;
-						dbg("ERROR Unable to lookup data for $node from $ip\[$NI->{system}{host}\]");
-					}
-					else {
-						# stores the last RR we receive
-						foreach $rr ($packet->answer) {
-							$ret = 1;
-							my $tmp = $rr->address;
-							dbg("RR data for $node from $ip\[$NI->{system}{host}\] was $tmp");
-						}
-					}
-				}
-				else {
-					dbg("ERROR Net::DNS error $@");
+			my $packet = $res->search($lookfor); # resolver figures out what to look for
+			if (!defined $packet)
+			{
 					$ret = 0;
-				}
-			} else { dbg("ERROR Could not resolve $NI->{system}{host} to ip"); }
+					dbg("ERROR Unable to lookup $lookfor on DNS server $NI->{system}{host}");
+			}
+			else
+			{
+					$ret = 1;
+					dbg("DNS data for $lookfor from $NI->{system}{host} was ".$packet->string);
+			}
 		} # end DNS
 
 		# now the 'port' 
