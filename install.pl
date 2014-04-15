@@ -37,8 +37,6 @@
 # Load the necessary libraries
 use FindBin;
 use lib "$FindBin::Bin/lib";
-use NMIS;
-use func;
 
 use strict;
 #use warnings;
@@ -58,6 +56,9 @@ my $defaultFping = "/usr/local/sbin/fping";
 my $defaultCpan = 1;
 my $installLog = undef;
 my $nmisModules;			# local modules used in our scripts
+
+# there are some slight but annoying differences
+my $osflavour = -f "/etc/redhat-release" ? "redhat" : -f "/etc/debian_version"? "debian" : undef;
 
 if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
 	printHelp();
@@ -115,7 +116,7 @@ if ( $cpan ) {
 
 ###************************************************************************###
 printBanner("Configuring installation path...");
-my $site = input_str("Folder to install NMIS in", $defaultSite);
+$site = input_str("Folder to install NMIS in", $defaultSite);
 
 
 ###************************************************************************###
@@ -135,23 +136,42 @@ printBanner("Copying NMIS system files...");
 exit unless input_yn("OK to copy NMIS distribution files from $src to $site:");
 print "Copying source files from $src to $site...\n";
 
+my $isnewinstall;
 if ( not -d $site ) {
+	$isnewinstall=1;
 	execPrint("mkdir $site");
 }
 execPrint("cp -r $src/* $site");
 
 
-###************************************************************************###
-printBanner("Update the config files with new options...");
+if ($isnewinstall)
+{
+		printBanner("Installing default config files...");
+		execPrint("cp -a $site/install/* $site/conf/");
+		execPrint("cp -a $site/models-install/* $site/models/");
 
-exit unless input_yn("OK to update the config files?:");
+		if (input_yn("OK to create NMIS user?"))
+		{
+				execPrint("adduser nmis");
+		}
+		else
+		{
+				print("ok, continuing without nmis user.\n");
+		}
+}
+else
+{
+		###************************************************************************###
+		printBanner("Update the config files with new options...");
+		
+		exit unless input_yn("OK to update the config files?:");
 # merge changes for new NMIS Config options. 
-execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
-execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
- 
+		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
+		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
+		
 # update default config options that have been changed:
-execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
-
+		execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
+}
 
 ###************************************************************************###
 if ( -f $fping ) {
@@ -168,6 +188,36 @@ execPrint("fc-cache -f -v");
 ###************************************************************************###
 printBanner("Checking configuration...");
 execPrint("$site/bin/nmis.pl type=config");
+
+if ($isnewinstall)
+{
+		printBanner("Setting up Apache config...");
+		my $apacheconf = "00nmis.conf";
+		execPrint("$site/bin/nmis.pl type=apache > /tmp/$apacheconf");
+		my $finaltarget = $osflavour eq "redhat"? 
+				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
+											 "/etc/apache2/sites-available/$apacheconf" : undef;
+		if ($finaltarget 
+				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access?"))
+		{
+				execPrint("mv /tmp/$apacheconf $finaltarget");
+				execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
+						if (-d "/etc/apache2/sites-enabled");
+				
+				if ($osflavour eq "redhat")
+				{
+						execPrint("usermod -G nmis apache");
+				}
+				elsif ($osflavour eq "debian")
+				{
+						execPrint("adduser www-data nmis");
+				}
+		}
+		else
+		{
+				print "ok, continuing without adjusting Apache configuration.\n";
+		}
+}
 
 
 ###************************************************************************###
@@ -420,4 +470,17 @@ Options:
 eg: $0 site=$defaultSite fping=$defaultFping cpan=true
 
 /;	
+}
+
+sub getArguements {
+	my @argue = @_;
+	my (%nvp, $name, $value, $line, $i);
+	for ($i=0; $i <= $#argue; ++$i) {
+	        if ($argue[$i] =~ /.+=/) {
+	                ($name,$value) = split("=",$argue[$i]);
+	                $nvp{$name} = $value;
+	        } 
+	        else { print "Invalid command argument: $argue[$i]\n"; }
+	}
+	return %nvp;
 }

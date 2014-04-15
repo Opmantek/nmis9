@@ -35,29 +35,29 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Memory Usage',
-		'small' => 'Mem Usage',
+		'standard' => 'Swap Usage',
+		'small' => 'Swap',
 				
 	},
 	'option' => {
 		'standard' => [
-			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
-			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#006400:Total Memory',
-			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrMemUsed#7FFF00:Memory Used',
-			'GPRINT:hrMemUsed:MIN:Min Used %1.3lf %sb',
-			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
+			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
+			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
+			'LINE1:hrSwapMemSize#8B0000:Total Swap Space',
+			'GPRINT:hrSwapMemSize:AVERAGE:%1.3lf %sb\\n',
+			'AREA:hrSwapMemUsed#FF4500:Swap Used',
+			'GPRINT:hrSwapMemUsed:MIN:Min Used %1.3lf %sb',
+			'GPRINT:hrSwapMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:hrSwapMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		],
 		'small' => [
-			'DEF:hrMemSize=$database:hrMemSize:AVERAGE',
-			'DEF:hrMemUsed=$database:hrMemUsed:AVERAGE',
-			'LINE1:hrMemSize#006400:Total Memory',
-			'GPRINT:hrMemSize:AVERAGE:%1.3lf %sb\\n',
-			'AREA:hrMemUsed#7FFF00:Memory Used',
-			'GPRINT:hrMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:hrMemUsed:MAX:Max Used %1.3lf %Sb\\n'
+			'DEF:hrSwapMemSize=$database:hrSwapMemSize:AVERAGE',
+			'DEF:hrSwapMemUsed=$database:hrSwapMemUsed:AVERAGE',
+			'LINE1:hrSwapMemSize#8B0000:Total Memory',
+			'GPRINT:hrSwapMemSize:AVERAGE:%1.3lf %sb\\n',
+			'AREA:hrSwapMemUsed#FF4500:Memory Used',
+			'GPRINT:hrSwapMemUsed:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:hrSwapMemUsed:MAX:Max Used %1.3lf %Sb\\n'
 		]
 	}
 );
