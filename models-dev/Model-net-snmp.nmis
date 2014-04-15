@@ -52,24 +52,45 @@
         'unit' => '%',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100'
       },
+			# fixme: ideally this should calculate
+			# phys mem used mem minus cache and buffers
+			# at least on linux 100% used is common with lots of buffers/cache
       'HighMemoryUsage' => {
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '99',
+          'Warning' => '0',
+          'Minor' => '0',
+          'Major' => '0',
+          'Critical' => '0',
+          'Fatal' => '100',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+        'unit' => '%',
         'event' => 'High Memory Usage',
         'level' => '',
-        'test' => '',
-        'threshold' => {
-          'Critical' => '98',
-          'Fatal' => '99',
-          'Major' => '0',
-          'Minor' => '0',
-          'Normal' => '97.9',
-          'Warning' => '0'
-        },
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /^(Virtual )?Memory/',
+      },
+			'HighSwapUsage' => {
         'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '10',
+          'Warning' => '15',
+          'Minor' => '20',
+          'Major' => '30',
+          'Critical' => '50',
+          'Fatal' => '75',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
         'unit' => '%',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100'
-      }
+        'event' => 'High Swap Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Swap/',
+			},
     }
   },
   'device' => {
@@ -324,7 +345,7 @@
     'nodeModel' => 'net-snmp',
     'nodeType' => 'server',
     'nodeVendor' => 'net-snmp',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     'rrd' => {
       'laload' => {
         'graphtype' => 'laload',

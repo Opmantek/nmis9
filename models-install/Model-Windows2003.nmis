@@ -104,35 +104,20 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'nodegraph' => 'health,response,ip,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2003',
     'rrd' => {
       'hrwin' => {
+        'graphtype' => 'hrwinproc,hrwinusers',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers'
           },
-          'UserTime' => {
-            'oid' => 'cpuPercentUserTime.1.48'
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses',
           },
-          'AvailableBytes' => {
-            'oid' => 'memoryAvailableBytes'
-          },
-          'CommittedBytes' => {
-            'oid' => 'memoryCommittedBytes'
-          },
-          'PagesPerSec' => {
-            'oid' => 'memoryPagesPerSec'
-          },
-          'ProcessorTime' => {
-            'oid' => 'cpuPercentProcessorTime.1.48'
-          },
-          'InterruptsPerSec' => {
-            'oid' => 'cpuInterruptsPerSec.1.48'
-          }
         },
-        'graphtype' => 'hrwincpuint,hrwinpps,hrwinusers,hrwinmem'
       },
       'mib2ip' => {
         'snmp' => {

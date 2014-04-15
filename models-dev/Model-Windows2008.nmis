@@ -104,34 +104,37 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008',
     'rrd' => {
       'hrwin' => {
-        'graphtype' => 'hrwincpuint,hrwinpps,hrwinusers,hrwinmem',
+        'graphtype' => 'hrwinproc,hrwinusers',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers'
           },
-          'UserTime' => {
-            'oid' => 'cpuPercentUserTime.1.48'
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses',
           },
-          'AvailableBytes' => {
-            'oid' => 'memoryAvailableBytes'
-          },
-          'CommittedBytes' => {
-            'oid' => 'memoryCommittedBytes'
-          },
-          'PagesPerSec' => {
-            'oid' => 'memoryPagesPerSec'
-          },
-          'ProcessorTime' => {
-            'oid' => 'cpuPercentProcessorTime.1.48'
-          },
-          'InterruptsPerSec' => {
-            'oid' => 'cpuInterruptsPerSec.1.48'
-          }
+          #'UserTime' => {
+          #  'oid' => 'cpuPercentUserTime.1.48'
+          #},
+          #'AvailableBytes' => {
+          #  'oid' => 'memoryAvailableBytes'
+          #},
+          #'CommittedBytes' => {
+          #  'oid' => 'memoryCommittedBytes'
+          #},
+          #'PagesPerSec' => {
+          #  'oid' => 'memoryPagesPerSec'
+          #},
+          #'ProcessorTime' => {
+          #  'oid' => 'cpuPercentProcessorTime.1.48'
+          #},
+          #'InterruptsPerSec' => {
+          #  'oid' => 'cpuInterruptsPerSec.1.48'
+          #}
         },
       },
       'tcp' => {
@@ -307,6 +310,10 @@
           'hrProcesses' => {
             'oid' => 'hrSystemProcesses.0',
             'title' => 'Processes'
+          },
+          'hrMemorySize' => {
+            'oid' => 'hrMemorySize.0',
+            'title' => 'Memory'
           },
         }
       }
