@@ -31,23 +31,20 @@
 # *****************************************************************************
 
 # TODO:
-# * Unattended install e.g. install.pl site=/usr/local/nmis8 fping=/usr/local/sbin/fping cpan=true
-# * Documented command line options
+# * support for completely unattended install (silencing confirmations)
+# e.g. install.pl site=/usr/local/nmis8 fping=/usr/local/sbin/fping cpan=true
 
 # Load the necessary libraries
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
 use strict;
-#use warnings;
 use DirHandle;
 use Data::Dumper;
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
-#use File::Copy;
 use File::Find;
 use File::Basename;
-#use File::Path;
 use Cwd;
 
 ## Setting Default Install Options.
@@ -71,6 +68,7 @@ my %arg = getArguements(@ARGV);
 my $site = $arg{site} ? $arg{site} : $defaultSite;
 my $fping = $arg{fping} ? $arg{fping} : $defaultFping;
 my $cpan = 0 ? $arg{cpan} =~ /0|false|no/ : $defaultCpan;
+my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 
 my $debug = 0;
 $debug = 1 if $arg{debug};
@@ -78,7 +76,7 @@ $debug = 1 if $arg{debug};
 print qx|clear|;
 
 ###************************************************************************###
-printBanner("NMIS Installation Version $NMIS::VERSION");
+printBanner("NMIS Installation Script");
 
 ###************************************************************************###
 printBanner("Getting installation source location...");
@@ -109,8 +107,13 @@ else {
 
 
 ###************************************************************************###
-if ( $cpan ) {
+if ( $cpan || $listdeps) {
 	checkCpan();
+	if ($listdeps)
+	{
+			print "NOT proceeding with installation, as requested.\n";
+			exit 0;
+	}
 }
 
 
@@ -123,7 +126,7 @@ $site = input_str("Folder to install NMIS in", $defaultSite);
 if ( -d $site ) {
 	printBanner("Make a backup of an existing install...");
 
-	exit unless input_yn("OK to make a backup of your current NMIS?:");
+	exit unless input_yn("OK to make a backup of your current NMIS");
 	my $backupFile = getBackupFileName();
 	execPrint("cd $site;tar cvf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
 	print "Backup of NMIS install in $backupFile\n";
@@ -133,7 +136,7 @@ if ( -d $site ) {
 ###************************************************************************###
 printBanner("Copying NMIS system files...");
 
-exit unless input_yn("OK to copy NMIS distribution files from $src to $site:");
+exit unless input_yn("OK to copy NMIS distribution files from $src to $site");
 print "Copying source files from $src to $site...\n";
 
 my $isnewinstall;
@@ -150,7 +153,7 @@ if ($isnewinstall)
 		execPrint("cp -a $site/install/* $site/conf/");
 		execPrint("cp -a $site/models-install/* $site/models/");
 
-		if (input_yn("OK to create NMIS user?"))
+		if (input_yn("OK to create NMIS user"))
 		{
 				execPrint("adduser nmis");
 		}
@@ -164,7 +167,7 @@ else
 		###************************************************************************###
 		printBanner("Update the config files with new options...");
 		
-		exit unless input_yn("OK to update the config files?:");
+		exit unless input_yn("OK to update the config files");
 # merge changes for new NMIS Config options. 
 		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
 		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
@@ -198,7 +201,7 @@ if ($isnewinstall)
 				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
 											 "/etc/apache2/sites-available/$apacheconf" : undef;
 		if ($finaltarget 
-				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access?"))
+				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access"))
 		{
 				execPrint("mv /tmp/$apacheconf $finaltarget");
 				execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
@@ -293,6 +296,9 @@ installed with CPAN
   perl -MCPAN -e shell
     install [module name]
 
+  or more conveniently by running
+   cpan [module name] [module name...]
+
 EOF
 	
 	my $libPath = "$src/lib";
@@ -361,8 +367,12 @@ sub listModules {
   $f1,                     $f2,                                      $f3
 .
 
+  my @missing;
+  logInstall("Module status follows:\n");
 	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules) {
 		$f1 = $k;
+    logInstall("$k\t$nmisModules->{$k}->{file}");
+    push @missing, $k if ($nmisModules->{$k}->{file} eq "MODULE NOT FOUND");
 		( $f2 , $f3) = split /\s+/, $nmisModules->{$k}{file}, 2;
 		$f3 = ' ' if !$f3;
 		write();
@@ -373,9 +383,10 @@ You will need to investigate and possibly install modules indicated with MODULE 
 
 The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, Authen::TacacsPlus, Authen::Simple::RADIUS are optionally required by the NMIS AAA system.
 
-|;
-	
-	logInstall(Dumper $nmisModules);
+The missing modules are: |. join(" ",@missing)."\n\n";
+
+  logInstall("Missing modules: ".join(" ",@missing)."\n");
+	logInstall("Module status details: ".Dumper($nmisModules)) if ($debug);
 }
 
 
@@ -455,14 +466,15 @@ sub logInstall {
 
 sub printHelp {
 	print qq/
-NMIS Install Script version $NMIS::VERSION
+NMIS Install Script
 
 NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-usage: $0 [site=$defaultSite] [fping=$defaultFping] [cpan=(true|false)]
+usage: $0 [site=$defaultSite] [fping=$defaultFping] [cpan=(true|false)] [listdeps=(true|false)]
 
 Options:  
+  listdeps Only show Perl module dependencies, do not install NMIS
   site	Target site for installation, default is $defaultSite 
   fping	Location of the fping program, default is $defaultFping 
   cpan	Check Perl dependancies or not, default is true
