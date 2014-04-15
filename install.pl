@@ -196,7 +196,7 @@ if ($isnewinstall)
 {
 		printBanner("Setting up Apache config...");
 		my $apacheconf = "00nmis.conf";
-		execPrint("$site/bin/nmis.pl type=apache > /tmp/$apacheconf");
+		system("$site/bin/nmis.pl type=apache > /tmp/$apacheconf");
 		my $finaltarget = $osflavour eq "redhat"? 
 				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
 											 "/etc/apache2/sites-available/$apacheconf" : undef;
