@@ -34,11 +34,15 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use File::Basename;
+use Getopt::Std;
 
-my $usage="Usage: ".basename($0)." <CONFIG_1> <CONFIG_2>
+my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2>
 eg: ".basename($0)." /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/Config.nmis\n
 This script compares two NMIS Config files and reports the differences.
 Exit code 0: no differences, exit code 1: differences were found, other exit codes: internal failure\n\n";
+
+my %opts;
+getopts("q",\%opts) or die $usage;
 
 die($usage) if (@ARGV != 2 or !-f $ARGV[0] or !-f $ARGV[1]);
 my ($cf1,$cf2)=@ARGV;
@@ -49,7 +53,8 @@ die "Error: could not read $cf1: $!\n" if (!$c1);
 my $c2 = readFiletoHash(file=>$cf2);
 die "Error: could not read $cf2: $!\n" if (!$c2);
 
-print "\nComparing $cf1 to $cf2\nOutput format:\n\n\"Config Key Path:\n-\tStatus in $cf1\n+\tStatus in $cf2\"\n\n";
+print "\nComparing $cf1 to $cf2\n";
+print "Output format:\n\n\"Config Key Path:\n-\tStatus in $cf1\n+\tStatus in $cf2\"\n\n" if (!$opts{q});
 compare($c1,$c2,"");
 
 my @diffsummary;
@@ -85,8 +90,8 @@ sub compare
 				return;
 		}
 
-		# scalars? compare directly
-		if (!$ftype)
+		# scalars or qr// regexps? compare directly
+		if (!$ftype or $ftype eq "Regexp")
 		{
 				if ($first ne $second)
 				{
