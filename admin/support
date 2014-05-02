@@ -102,7 +102,7 @@ if ($args{action} eq "collect")
 				}
 		}
 		print "\nall done.\n",
-		"collected system information is in $zfn\nplease email this file to <support\@opmantek.com>.\n\n";
+		"Collected system information is in $zfn\nPlease include this zip file when you contact the NMIS Community or the Opmantek Team.\n\n";
 }
 
 # remove tempdir (done automatically on exit)
