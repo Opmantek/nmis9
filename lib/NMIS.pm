@@ -219,6 +219,9 @@ sub loadNodeTable {
 		# check modify of remote node tables
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+
 			my $name = "nmis-${srv}-Nodes";
 			if (! loadTable(dir=>'var',name=>$name,check=>'true') ) {
 				$reload = 'true';
@@ -257,6 +260,9 @@ sub loadNodeTable {
 		my $ST = loadServersTable();	
 		my $NT;
 		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+
 			# Relies on nmis.pl getting the file every 5 minutes.
 			my $name = "nmis-${srv}-Nodes";
 			my $server_priority = $ST->{$srv}{server_priority} || 5;
@@ -812,6 +818,9 @@ sub loadNodeSummary {
 		dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+			
 			my $slavenodesum = "nmis-$srv-nodesum";
 			dbg("Processing Slave $srv for $slavenodesum");
 			# I should now have an up to date file, if I don't log a message
@@ -1655,6 +1664,9 @@ sub getGroupSummary {
 		dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+
 			my $slavefile = "nmis-$srv-$filename";
 			dbg("Processing Slave $srv for $slavefile");
 			
@@ -2875,16 +2887,18 @@ sub loadServerCode {
 	my $serverCode;
 	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Servers") ) {
 		# portal menu of nodes or clients to link to.
-		my $ST = loadTable(dir=>'conf',name=>"Servers");
+		my $ST = loadServersTable();
 		
 		my $serverOption;
 		
 		$serverOption .= qq|<option value="$ENV{SCRIPT_NAME}" selected="NMIS Servers">NMIS Servers</option>\n|;
 		
-		foreach my $s ( sort {$ST->{$a}{name} cmp $ST->{$b}{name}} keys %{$ST} ) {
+		foreach my $srv ( sort {$ST->{$a}{name} cmp $ST->{$b}{name}} keys %{$ST} ) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+
 			# If the link is part of NMIS, append the config
-			
-			$serverOption .= qq|<option value="$ST->{$s}{portal_protocol}://$ST->{$s}{portal_host}:$ST->{$s}{portal_port}$ST->{$s}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$s}{config}">$ST->{$s}{name}</option>\n|;
+			$serverOption .= qq|<option value="$ST->{$srv}{portal_protocol}://$ST->{$srv}{portal_host}:$ST->{$srv}{portal_port}$ST->{$srv}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$srv}{config}">$ST->{$srv}{name}</option>\n|;
 		}
 		
 		

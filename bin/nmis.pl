@@ -4483,6 +4483,9 @@ sub nmisMaster {
 
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+			
 			info("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 
 			dbg("Get loadnodedetails from $srv");
@@ -6505,7 +6508,7 @@ sub getPidFileName {
 
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};
-	info("\n".returnTime ." End of $0, type=$type ran for $endTime seconds.\n");
+	info("End of $0, type=$type ran for $endTime seconds.\n");
 }
 
 # *****************************************************************************
