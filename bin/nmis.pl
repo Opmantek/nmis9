@@ -2491,7 +2491,8 @@ sub getIntfData {
 							}
 						}
 						# calculate summary statistics of this interface only if intf up
-						my $util = getSummaryStats(sys=>$S,type=>"interface",start=>"-6 hours",end=>time,index=>$index);
+						my $period = $C->{interface_util_period} || "-6 hours"; # bsts plus backwards compat
+						my $util = getSummaryStats(sys=>$S,type=>"interface",start=> $period, end=>time,index=>$index);
 						$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
 						$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
 						$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
@@ -2530,7 +2531,7 @@ sub getIntfData {
 
 				# header info of web page
 				$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
-				$V->{interface}{"${index}_totalUtil_title"} = 'Util. 6hrs';
+				$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs'; # backwards compat
 
 				# check escalation if event is on
 				if ($IF->{$index}{event} eq 'true') {
