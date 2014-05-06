@@ -979,13 +979,17 @@ EOHTML
 
 # do_logout -- set auth cookie to blank, expire now, and redirect to top
 #
-sub do_logout {	
+sub do_logout {
 	my $self = shift;
 	my %args = @_;
 	my $config = $args{conf};
-
+	
 	# Javascript that sets window.location to login URL
-	my $javascript = "function redir() { window.location = '" . url(-full=>1) . "'; }";
+	### fixing the logout so it can be reverse proxied
+	my $url = url(-full=>1);
+	$url =~ s/http:|https://;
+	
+	my $javascript = "function redir() { window.location = '" . $url ."'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user}");
