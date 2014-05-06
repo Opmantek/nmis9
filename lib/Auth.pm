@@ -987,7 +987,7 @@ sub do_logout {
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	my $url = url(-full=>1);
-	$url =~ s/http:|https://;
+	$url =~ s!^[^:]+://!//!;
 	
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
