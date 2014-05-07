@@ -35,6 +35,7 @@ var nsHtml;
 var menu_url_base = '/menu8';
 var widget_refresh_glob = 180;
 var opCharts = false;
+var config = 'Config';
 
 // recreate vars that are expected
 
@@ -51,7 +52,8 @@ deviceContext['Group'] = new Object();
 // jQuery document ready in nmiscgi.pl will call this first
 // put all init calls here.
 
-function commonv8Init(widget_refresh,config,registered,modules) {
+function commonv8Init(widget_refresh,configinit,registered,modules) {
+	config = configinit;
 	widget_refresh_glob = widget_refresh;
 
 	// build namesAll
@@ -970,7 +972,7 @@ function nodeInfoPanel(nodename) {
 
 	//var pserver = getServer();
 	//var url ='network.pl?act=network_node_view&refresh=60&node=' + nodename + '&server=' + pserver + '';
-	var url ='network.pl?act=network_node_view&refresh=' + widget_refresh_glob + '&node=' + nodename + '';
+	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + nodename + '';
 	
 	var node = nodename.split(".", 1 )[0];
 	if ( node == '' ) {
