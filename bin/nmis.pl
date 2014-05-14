@@ -1104,6 +1104,9 @@ sub getIntfInfo {
 	my $IF = $S->ifinfo; # interface info table
 	my $NC = $S->ndcfg; # node config table
 
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
+
 	my $C = loadConfTable();
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
@@ -1118,7 +1121,7 @@ sub getIntfInfo {
 		# get interface Index table
 		my @ifIndexNum;
 		my $ifIndexTable;
-		if (($ifIndexTable = $SNMP->gettable('ifIndex'))) {
+		if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions))) {
 			foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
 				push @ifIndexNum,$ifIndexTable->{$oid};
 			}
@@ -1649,6 +1652,9 @@ sub getEnvInfo {
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
+
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -1665,7 +1671,7 @@ sub getEnvInfo {
 				if ($index_var ne '') {
 					my %envIndexNum;
 					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var))) {
+					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
 						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
 							$oid =~ /\.(\d+)$/;
 							my $index= $oid;
@@ -1703,7 +1709,7 @@ sub getEnvInfo {
 				if ($index_var ne '') {
 					my %envIndexNum;
 					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var))) {
+					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
 						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
 							if ($section eq "cssgroup") {
 								$oid =~ s/1.3.6.1.4.1.9.9.368.1.17.2.1.2.//g;
@@ -1736,7 +1742,7 @@ sub getEnvInfo {
 				if ($index_var ne '') {
 					my %envIndexNum;
 					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var))) {
+					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
 						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
 							my $index = $oid;
 							if ( $oid =~ /\.(\d+)$/ ) {
@@ -1903,6 +1909,9 @@ sub getSystemHealthInfo {
 	my $SNMP = $S->snmp;
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
+	
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -1942,7 +1951,7 @@ sub getSystemHealthInfo {
 				info("systemHealth: index_var=$index_var, index_snmp=$index_snmp");
 				my %healthIndexNum;
 				my $healthIndexTable;
-				if ($healthIndexTable = $SNMP->gettable($index_snmp)) {
+				if ($healthIndexTable = $SNMP->gettable($index_snmp,$max_repetitions)) {
 					# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
 					foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable})) {
 						my $index = $oid;
