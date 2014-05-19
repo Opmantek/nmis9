@@ -100,7 +100,7 @@ sub processNode {
 				$intfTotal++;				
 				my $ifDescr = "Port $index Gigabit Ethernet";
 				
-				$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
+				#$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
 				
 				#my $prefix = "1.3.6.1.2.1.10.7.10.1.2";
 				my $prefix = "1.3.6.1.2.1.10.7.2.1.3";
@@ -150,12 +150,33 @@ sub processNode {
 					$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$node}{$ifDescr}{Description};
 					dbg("Manual update of Description by nodeConf");
 				}
+				
 				if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
 					$S->{info}{interface}{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$node}{$ifDescr}{ifSpeed};
 					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 					$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
-					dbg("Manual update of ifSpeed by nodeConf");
+					info("Manual update of ifSpeed by nodeConf");
+				}
+	
+				if ($NCT->{$node}{$ifDescr}{ifSpeedIn} ne '') {
+					$S->{info}{interface}{$index}{nc_ifSpeedIn} = $S->{info}{interface}{$index}{ifSpeed}; # save
+					$S->{info}{interface}{$index}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeedIn};
+	
+					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{nc_ifSpeedIn};
+					$S->{info}{interface}{$index}{ifSpeed} = $S->{info}{interface}{$index}{ifSpeedIn};
+	
+					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+					$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeedIn});
+					info("Manual update of ifSpeedIn by nodeConf");
+				}
+	
+				if ($NCT->{$node}{$ifDescr}{ifSpeedOut} ne '') {
+					$S->{info}{interface}{$index}{nc_ifSpeedOut} = $S->{info}{interface}{$index}{ifSpeed}; # save
+					$S->{info}{interface}{$index}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeedOut};
+					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+					$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeedOut});
+					info("Manual update of ifSpeedOut by nodeConf");
 				}
 				
 				# convert interface name

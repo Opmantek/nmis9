@@ -171,7 +171,7 @@ sub processNode {
 				my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
 				my $Description = getDescription(version => $version, ifIndex => $index);
 				
-				$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
+				#$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
 
 				my $offset = 12288;
 				if ( $version eq "4.2" )  {
@@ -355,7 +355,7 @@ sub processNode {
 
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.nmis
 			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.nmis			
-			writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
+			#writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
 		}
 	}
 }

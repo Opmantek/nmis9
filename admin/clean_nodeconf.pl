@@ -83,16 +83,52 @@ sub cleanNodeConf {
 				delete $NCT->{$node};
 			}
 		}
-		
+		# check interface entries.
+		else {
+			foreach my $ifDescr (keys %{$NCT->{$node}}) {
+				if ( ref($NCT->{$node}{$ifDescr}) eq "HASH" ) {
+					my $noDescr = 1;
+					my $noSpeedIn = 1;
+					my $noSpeedOut = 1;
+					my $noCollect = 1;
+					my $noEvent = 1;
+					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{Description} ne "" ) {
+						$noDescr = 0;
+					}
+	
+					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{collect} ne "" ) {
+						$noCollect = 0;
+					}
+	
+					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{event} ne "" ) {
+						$noEvent = 0;
+					}
+	
+					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{ifSpeedIn} ne "" ) {
+						$noSpeedIn = 0;
+					}
+	
+					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{ifSpeedOut} ne "" ) {
+						$noSpeedOut = 0;
+					}
+	
+					# if this interface has no other properties, then get rid of it.
+					if ( $noDescr and $noCollect and $noEvent and $noSpeedIn and $noSpeedOut ) {
+						print "Deleting redundant entry for $NCT->{$node}{$ifDescr}{ifDescr}\n";
+						delete $NCT->{$node}->{$ifDescr};
+					}
+				}
+			}
+		}
 	}
 
 	my $nct_file = getFileName(file => "nodeConf");
 	$nct_file = "$C->{'<nmis_conf>'}/$nct_file";
 	my $nct_backup = $nct_file .".". getDateThingy();
-	print "NCT=$nct_file backup=$nct_backup\n";
+	#print "NCT=$nct_file backup=$nct_backup\n";
 
 	if ( $arg{clean} eq "true" ) {
-		print "backing up $nct_file to $nct_file.backup\n";
+		print "backing up $nct_file to $nct_backup\n";
 		my $backup = backupFile(file => $nct_file, backup => $nct_backup);
 		if ( $backup ) {
 			writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
@@ -145,5 +181,5 @@ sub getDateThingy {
 	if ($min<10) {$min = "0$min";}
 	if ($sec<10) {$sec = "0$sec";}
 	# Do some sums to calculate the time date etc 2 days ago
-	return "$year-$mon-$mday-$hour:$min:$sec";
+	return "$year-$mon-$mday-$hour$min$sec";
 }
