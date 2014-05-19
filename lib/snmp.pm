@@ -249,12 +249,16 @@ sub getarray {
 sub gettable {
 	my $self = shift;
 	my @vars = shift;
+	my $max_repetitions = shift;
 	my $oid;
 	my $msg;
 	my $result;
 
 	$self->{vars} = \@vars;
-
+	
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	my $maxrepetitions = $max_repetitions || 50;
+	
 	if ($vars[0] !~ /^(\.?\d+)+$/ ) {
 		### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 		if ( not scalar(($oid) = $self->nameTOoid(0,@vars)) ) {
@@ -265,7 +269,7 @@ sub gettable {
 	}
 
 	# get it
-	$result = $self->{session}->get_table( -baseoid => $oid );
+	$result = $self->{session}->get_table( -baseoid => $oid, -maxrepetitions => $maxrepetitions );
 	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 	if ( not $self->checkResult($result) ) {
 		return undef; 

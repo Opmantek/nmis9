@@ -46,6 +46,8 @@ use Fcntl qw(:DEFAULT :flock);
 use File::Find;
 use File::Basename;
 use Cwd;
+use POSIX qw(:sys_wait_h);
+
 
 ## Setting Default Install Options.
 my $defaultSite = "/usr/local/nmis8";
@@ -446,14 +448,21 @@ EOF
 	logInstall("\n\n###+++\n$string\n###+++\n");
 }
 
+
+# run external program/command via a shell
+# returns the command's exit code or -1 for signal/didn't start/non-standard termination
 sub execPrint {
 	my $exec = shift;	
 	my $out = `$exec 2>&1`;
+	my $rawstatus = $?;
+	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
 	print $out;
 	logInstall("\n\n###+++\nEXEC: $exec\n");
 	logInstall($out);
-	logInstall("###+++\n\n");
+	logInstall("###". ($res? " Exit Code: $res ":''). "+++\n\n");
+	return $res;
 }
+
 
 sub logInstall {
 	my $string = shift;
