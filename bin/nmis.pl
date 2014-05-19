@@ -1105,8 +1105,10 @@ sub getIntfInfo {
 	my $NC = $S->ndcfg; # node config table
 
 	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
+	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
 
+	#print "DEBUG: max_repetitions=$max_repetitions system_max_repetitions=$NI->{system}{max_repetitions}\n";
+	
 	my $C = loadConfTable();
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
@@ -1653,7 +1655,7 @@ sub getEnvInfo {
 	my $C = loadConfTable();
 
 	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
+	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
 
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -1911,7 +1913,7 @@ sub getSystemHealthInfo {
 	my $C = loadConfTable();
 	
 	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 50;
+	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
