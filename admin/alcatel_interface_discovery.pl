@@ -228,15 +228,35 @@ sub processNode {
 				else {
 					$V->{interface}{"${index}_Description_value"} = $S->{info}{interface}{$index}{Description};
 				}
-				
+
 				if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
 					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
-					$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$node}{$ifDescr}{ifSpeed};
-					dbg("Manual update of ifSpeed by nodeConf");
+					$S->{info}{interface}{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$node}{$ifDescr}{ifSpeed};
+					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+					$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
+					info("Manual update of ifSpeed by nodeConf");
 				}
-				
-				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeed});
-				
+	
+				if ($NCT->{$node}{$ifDescr}{ifSpeedIn} ne '') {
+					$S->{info}{interface}{$index}{nc_ifSpeedIn} = $S->{info}{interface}{$index}{ifSpeed}; # save
+					$S->{info}{interface}{$index}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeedIn};
+	
+					$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{nc_ifSpeedIn};
+					$S->{info}{interface}{$index}{ifSpeed} = $S->{info}{interface}{$index}{ifSpeedIn};
+	
+					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+					$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeedIn});
+					info("Manual update of ifSpeedIn by nodeConf");
+				}
+	
+				if ($NCT->{$node}{$ifDescr}{ifSpeedOut} ne '') {
+					$S->{info}{interface}{$index}{nc_ifSpeedOut} = $S->{info}{interface}{$index}{ifSpeed}; # save
+					$S->{info}{interface}{$index}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeedOut};
+					### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+					$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($S->{info}{interface}{$index}{ifSpeedOut});
+					info("Manual update of ifSpeedOut by nodeConf");
+				}
+								
 				# convert interface name
 				$S->{info}{interface}{$index}{interface} = convertIfName($S->{info}{interface}{$index}{ifDescr});
 				$S->{info}{interface}{$index}{ifIndex} = $index;
