@@ -296,89 +296,144 @@
         },
       },      
       'cps6000Grp' => {        
-        'indexed' => 'cps6000GrpEntryIndex',
+        'indexed' => 'cpsGrpEntryIndex',
         'index_oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',    
-        'headers' => 'cps6000GrpEntryIndex,cps6000GrpEntryIde,cps6000GrpEntryDes,cps6000GrpEntryCct,cps6000GrpEntryTadc,cps6000GrpEntryAadc,cps6000GrpEntryCap,cps6000GrpEntryLrs,cps6000GrpEntryOlcap',
+        'headers' => 'cpsGrpEntryIndex,cpsGrpEntryIde,cpsGrpEntryDes,cpsGrpEntryCct,cpsGrpEntryTadc,cpsGrpEntryAadc,cpsGrpEntryCap,cpsGrpEntryLrs,cpsGrpEntryOlcap',
         'snmp' => {
-          'cps6000GrpEntryIndex' => {
+          'cpsGrpEntryIndex' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',
             'title' => 'Group Index'
           },
-          'cps6000GrpEntryIde' => {
+          'cpsGrpEntryIde' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.2',
             'title' => 'Group ID'
           },
-          'cps6000GrpEntryDes' => {
+          'cpsGrpEntryDes' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.3',
             'title' => 'Group Description'
           },
-
-          'cps6000GrpEntryCct' => {
+          'cpsGrpEntryCct' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.4',
             'title' => 'Circuits'
           },
-          'cps6000GrpEntryTadc' => {
+          'cpsGrpEntryTadc' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.5',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
             'title' => 'Total Current (mA)'
           },
-          'cps6000GrpEntryAadc' => {
+          'cpsGrpEntryAadc' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.6',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
             'title' => 'Average Current (mA)'
           },
-          'cps6000GrpEntryCap' => {
+          'cpsGrpEntryCap' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.7',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
             'title' => 'Capacity (mA)'
           },
-
-          'cps6000GrpEntryLrs' => {
+          'cpsGrpEntryLrs' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.8',
             'title' => 'Loss of Redundancy Status'
           },
-          'cps6000GrpEntryOlcap' => {
+          'cpsGrpEntryOlcap' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.9',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
             'title' => 'Online Capacity (mA)'
           },
         },
       },      
       'cps6000Cct' => {        
-        'indexed' => 'cps6000CctEntryIndex',
+        'control' => 'CVAR=cpsCctEntryAdc;$CVAR > 2',
+        'indexed' => 'cpsCctEntryIndex',
         'index_oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.1',    
-        'headers' => 'cps6000CctEntryIndex,cps6000CctEntryIde,cps6000CctEntryDes,cps6000CctEntryVdc,cps6000CctEntryAdc,cps6000CctEntryStt,cps6000CctEntryTmp,cps6000CctEntryCap',
+        'headers' => 'cpsCctEntryIndex,cpsCctEntryIde,cpsCctEntryDes,cpsCctEntryGrp,cpsCctEntryVdc,cpsCctEntryAdc,cpsCctEntryStt,cpsCctEntryTmp,cpsCctEntryCap',
         'snmp' => {
-          'cps6000CctEntryIndex' => {
+          'cpsCctEntryIndex' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.1',
             'title' => 'Circuit Index'
           },
-          'cps6000CctEntryIde' => {
+          'cpsCctEntryIde' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.2',
             'title' => 'Circuit ID'
           },
-          'cps6000CctEntryDes' => {
+          'cpsCctEntryDes' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.3',
             'title' => 'Circuit Description'
           },
 
-          'cps6000CctEntryVdc' => {
+          'cpsCctEntryVdc' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.4',
+            'calculate' => '$r =~ /(\d+) V/; $r = $1',
             'title' => 'Voltage (Volts)'
           },
-          'cps6000CctEntryAdc' => {
+          'cpsCctEntryAdc' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.5',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
             'title' => 'Current (mA)'
           },
 
-          'cps6000CctEntryStt' => {
+          'cpsCctEntryStt' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.6',
             'title' => 'State'
           },
-          'cps6000CctEntryTmp' => {
+          'cpsCctEntryTmp' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.7',
+            'calculate' => '$r =~ /(\d+) C/; $r = $1',
             'title' => 'Temperature (C)'
           },
-          'cps6000CctEntryCap' => {
+          'cpsCctEntryCap' => {
             'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.8',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
             'title' => 'Capacity (mA)'
           },
+
+          'cpsCctEntryCfl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.13',
+            'title' => 'Fail Alarm'
+          },
+          'cpsCctEntryOv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.14',
+            'title' => 'Over Volgate Alarm'
+          },
+          'cpsCctEntryCl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.15',
+            'title' => 'Current Limit Alarm'
+          },
+          'cpsCctEntryGf' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.16',
+            'title' => 'Ground Fault Alarm'
+          },
+          'cpsCctEntryUv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.17',
+            'title' => 'Under Voltage Alarm'
+          },
+          'cpsCctEntryOt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.18',
+            'title' => 'Over Temperature Alarm'
+          },
+          'cpsCctEntryLds' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.19',
+            'title' => 'Load Drop Status Alarm'
+          },
+          'cpsCctEntryLss' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.20',
+            'title' => 'Load Share Status Alarm'
+          },
+          'cpsCctEntryLts' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.21',
+            'title' => 'Line Test Status Alarm'
+          },
+          'cpsCctEntryIlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.22',
+            'calculate' => '$r =~ /(\d+) ohms/; $r = $1',            
+            'title' => 'Initial Line Resistance (Ohms)'
+          },
+          'cpsCctEntryAlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.23',
+            'calculate' => '$r =~ /(\d+) ohms/; $r = $1',            
+            'title' => 'Actual Line Resistance (Ohms)'
+          },
+
         },
       },      
     },
@@ -393,163 +448,98 @@
           },
         },
       },
+      'cps6000Grp' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Grp',
+        'snmp' => {
+          'cpsGrpEntryTadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.5',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryAadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.6',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.7',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryLrs' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.8',
+          },
+          'cpsGrpEntryOlcap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.9',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+        },
+      },
+      'cps6000Cct' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Cct',
+        'snmp' => {
+          'cpsCctEntryVdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.4',
+            'calculate' => '$r =~ /(\d+) V/; $r = $1',
+          },
+          'cpsCctEntryAdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.5',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
+          },
+
+          'cpsCctEntryStt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.6',
+            'replace' => {
+              'ON' => '100',
+              'STANDBY' => '80',
+              'MISSING' => '20',
+              'VACANT' => '0',
+            },
+          },
+          'cpsCctEntryTmp' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.7',
+            'calculate' => '$r =~ /(\d+) C/; $r = $1',
+          },
+          'cpsCctEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.8',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+
+          'cpsCctEntryCfl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.13',
+          },
+          'cpsCctEntryOv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.14',
+          },
+          'cpsCctEntryCl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.15',
+          },
+          'cpsCctEntryGf' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.16',
+          },
+          'cpsCctEntryUv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.17',
+          },
+          'cpsCctEntryOt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.18',
+          },
+          'cpsCctEntryLds' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.19',
+          },
+          'cpsCctEntryLss' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.20',
+          },
+          'cpsCctEntryLts' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.21',
+          },
+          'cpsCctEntryIlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.22',
+          },
+          'cpsCctEntryAlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.23',
+          },
+        },
+      },
     }
   },
-  #'interface' => {
-  #  'sys' => {
-  #    'standard' => {
-  #      'indexed' => 'true',
-  #      'snmp' => {
-  #        'ifOperStatus' => {
-  #          'replace' => {
-  #            '6' => 'notPresent',
-  #            '1' => 'up',
-  #            '4' => 'unknown',
-  #            '3' => 'testing',
-  #            '7' => 'lowerLayerDown',
-  #            '2' => 'down',
-  #            '5' => 'dormant'
-  #          },
-  #          'oid' => 'ifOperStatus',
-  #          'title' => 'Oper Status'
-  #        },
-  #        'ifDescr' => {
-  #          'oid' => 'ifDescr',
-  #          'title' => 'Name'
-  #        },
-  #        'ifSpeed' => {
-  #          'oid' => 'ifSpeed',
-  #          'title' => 'Bandwidth'
-  #        },
-  #        'ifAdminStatus' => {
-  #          'replace' => {
-  #            '6' => 'notPresent',
-  #            '1' => 'up',
-  #            '4' => 'unknown',
-  #            '3' => 'testing',
-  #            '7' => 'lowerLayerDown',
-  #            '2' => 'down',
-  #            '5' => 'dormant'
-  #          },
-  #          'oid' => 'ifAdminStatus',
-  #          'title' => 'Admin Status'
-  #        },
-  #        'ifType' => {
-  #          'oid' => 'ifType',
-  #          'title' => 'Type'
-  #        },
-  #        'ifLastChange' => {
-  #          'oid' => 'ifLastChange',
-  #          'title' => 'Last Change'
-  #        }
-  #      }
-  #    },
-  #  },
-  #  'rrd' => {
-  #    'interface' => {
-  #      'indexed' => 'true',
-  #      'snmp' => {
-  #        'ifOperStatus' => {
-  #          'replace' => {
-  #            '6' => 'notPresent',
-  #            '1' => 'up',
-  #            '4' => 'unknown',
-  #            '3' => 'testing',
-  #            '7' => 'lowerLayerDown',
-  #            '2' => 'down',
-  #            '5' => 'dormant'
-  #          },
-  #          'oid' => 'ifOperStatus',
-  #          'option' => 'gauge,0:100'
-  #        },
-  #        'ifDescr' => {
-  #          'oid' => 'ifDescr'
-  #        },
-  #        'ifInOctets' => {
-  #          'oid' => 'ifInOctets',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifAdminStatus' => {
-  #          'replace' => {
-  #            '6' => 'notPresent',
-  #            '1' => 'up',
-  #            '4' => 'unknown',
-  #            '3' => 'testing',
-  #            '7' => 'lowerLayerDown',
-  #            '2' => 'down',
-  #            '5' => 'dormant'
-  #          },
-  #          'oid' => 'ifAdminStatus'
-  #        },
-  #        'ifOutOctets' => {
-  #          'oid' => 'ifOutOctets',
-  #          'option' => 'counter,0:U'
-  #        },
-  #      },
-  #      'threshold' => 'util_in,util_out',
-  #      'graphtype' => 'bits,abits,maxbits,util,autil'
-  #    },
-  #    'pkts' => {
-  #      'indexed' => 'true',
-  #      'snmp' => {
-  #        'ifInUcastPkts' => {
-  #          'oid' => 'ifInUcastPkts',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifInDiscards' => {
-  #          'oid' => 'ifInDiscards',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifOutErrors' => {
-  #          'oid' => 'ifOutErrors',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifInNUcastPkts' => {
-  #          'oid' => 'ifInNUcastPkts',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifOutDiscards' => {
-  #          'oid' => 'ifOutDiscards',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifInErrors' => {
-  #          'oid' => 'ifInErrors',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifOutNUcastPkts' => {
-  #          'oid' => 'ifOutNUcastPkts',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifOutUcastPkts' => {
-  #          'oid' => 'ifOutUcastPkts',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifInOctets' => {
-  #          'oid' => 'ifInOctets',
-  #          'option' => 'counter,0:U'
-  #        },
-  #        'ifOutOctets' => {
-  #          'oid' => 'ifOutOctets',
-  #          'option' => 'counter,0:U'
-  #        },
-  #      },
-  #      'graphtype' => 'pkts,errpkts'
-  #    }
-  #  },
-  #  'collect' => {
-  #    'Description' => '(CNOC|Collection)',
-  #  },
-  #  'nocollect' => {
-  #    'ifOperStatus' => 'other',
-  #    'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
-  #    'Description' => '^#',
-  #    'noDescription' => 'true',
-  #    'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
-  #  },
-  #  'noevent' => {
-  #    'Description' => '^!',
-  #    'ifDescr' => 'null',
-  #    'ifType' => 'other'
-	#  }
-  #}
+
 );

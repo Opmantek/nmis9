@@ -408,13 +408,16 @@ sub loadNodeInfo {
 	my $self = shift;
 	my %args = @_;
 
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	my $max_repetitions = $self->{info}{system}{max_repetitions} || 40;
+
 	my $exit = $self->loadInfo(class=>'system');
 
 	# check if nbarpd is possible
 	if ($self->{mdl}{system}{nbarpd_check} eq "true" and $args{section} eq "") {
-		my %tmptable = $self->{snmp}->gettable('cnpdStatusTable');
+		my %tmptable = $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions);
 		#2011-11-14 Integrating changes from Till Dierkesmann
-		$self->{info}{system}{nbarpd} = (defined $self->{snmp}->gettable('cnpdStatusTable')) ? "true" : "false" ;
+		$self->{info}{system}{nbarpd} = (defined $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions)) ? "true" : "false" ;
 		dbg("NBARPD is $self->{info}{system}{nbarpd} on this node");
 	}
 	return $exit;
