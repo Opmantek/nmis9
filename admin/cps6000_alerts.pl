@@ -42,6 +42,8 @@ my $syslog_server = 'localhost:udp:514';
 
 my $defaultLevel = "Major";
 
+my $circuitAlerts = 0;
+
 my $threshold_period = "-5 minutes";
 my $thresholds = {
               'fatal' => '90',
@@ -87,12 +89,13 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
 my $LNT = loadLocalNodeTable();
 
 my %groupIdx;
+my %groupList;
 
 foreach my $node (sort keys %{$LNT}) {
 	
 	# Is the node active and are we doing stats on it.
 	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
-		print "Processing $node\n" if $info or $debug;
+		print "Processing $node\n" if $debug;
 		my $S = Sys::->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
@@ -100,9 +103,19 @@ foreach my $node (sort keys %{$LNT}) {
 		my $V = $S->view;
 
 		if ( $NI->{system}{nodeModel} eq "GE-QS941" ) {
-
+			print "Processing $node\n" if $info;
 			if ( exists $NI->{cps6000Grp}) {
+				
+				#initialise the unknown group for the SNMP bug in QS941
+				$groupList{"Unknown"}{desc} = "Unknown";
+				$groupList{"Unknown"}{circuits} = 0;
+				$groupList{"Unknown"}{faulty} = 0;
+				
 				for my $index (sort {$a <=> $b} keys %{$NI->{cps6000Grp}}) {
+					my $groupId = $NI->{cps6000Grp}{$index}{cpsGrpEntryIde};
+					$groupList{$groupId}{desc} = $NI->{cps6000Grp}{$index}{cpsGrpEntryDes};				
+					$groupList{$groupId}{circuits} = 0;				
+					$groupList{$groupId}{faulty} = 0;				
 					my @circuits = split(",",$NI->{cps6000Grp}{$index}{cpsGrpEntryCct});
 					foreach my $circuit (@circuits) {
 						# get the index loaded
@@ -113,6 +126,7 @@ foreach my $node (sort keys %{$LNT}) {
 			}
 			
 			if ( exists $NI->{cps6000Cct}) {
+				my $circuitFaulty = 0;
 				for my $index (sort {$a <=> $b} keys %{$NI->{cps6000Cct}}) {
 					my $circuitId = $NI->{cps6000Cct}{$index}{cpsCctEntryIde};
 
@@ -125,6 +139,9 @@ foreach my $node (sort keys %{$LNT}) {
 					else {
 						$groupIdx{$circuitId} = "Unknown";
 					}
+					
+					++$groupList{$groupId}{circuits};
+					
 					$NI->{cps6000Cct}{$index}{cpsCctEntryGrp}	= $groupDesc;				
 					$V->{cps6000Cct}{"${index}_cpsCctEntryGrp_value"} = $groupDesc;
 					$V->{cps6000Cct}{"${index}_cpsCctEntryGrp_title"} = 'Circuit Group';
@@ -146,8 +163,9 @@ foreach my $node (sort keys %{$LNT}) {
 					# Does the condition exist now?
 					if ( $NI->{cps6000Cct}{$index}{cpsCctEntryStt} =~ /80|20/ ) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Circuitos Sin Comunicación (Falla desconocida) - No Communication Circuits (unknown failure):
 					#  All Variables set to 0
@@ -158,9 +176,10 @@ foreach my $node (sort keys %{$LNT}) {
 					# can this ever happen?
 					if ( 0 ) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
 					# set the event properties and process the condition (state)
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Pares Abiertos - Open couple:
 					#  if (ADC in range(1,5)) and (VDC>=370)
@@ -174,8 +193,9 @@ foreach my $node (sort keys %{$LNT}) {
 						and $NI->{cps6000Cct}{$index}{cpsCctEntryVdc} >= 370
 					) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Pares Averiados - couple damaged
 					#  if ( (ADC in range(0,8)) or (VDC in range(30,300)) ) and ( (LDS==1) or (CFL==1) )
@@ -193,8 +213,9 @@ foreach my $node (sort keys %{$LNT}) {
 						or  $NI->{cps6000Cct}{$index}{cpsCctEntryLds} == 1 )
 					) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Tarjeta Desconectada - Card Offline
 					#  if ((ADC in range(0,5)) and (VDC>=370)) and CFL==0:
@@ -209,8 +230,9 @@ foreach my $node (sort keys %{$LNT}) {
 						and $NI->{cps6000Cct}{$index}{cpsCctEntryCfl} == 0
 					) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Carga en Descenso - Loading Up
 					#  if ( (ADC in range(8,38)) and (VDC>=370) and (LDS==1) ):
@@ -225,8 +247,9 @@ foreach my $node (sort keys %{$LNT}) {
 						and $NI->{cps6000Cct}{$index}{cpsCctEntryLds} == 1
 					) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
 
 					#Corto en Central - Short on Central
 					#  if ( (ADC<=3) and (VDC<=30) and (CFL==1) ):
@@ -240,10 +263,52 @@ foreach my $node (sort keys %{$LNT}) {
 						and $NI->{cps6000Cct}{$index}{cpsCctEntryCfl} == 1
 					) {						
 						$level = $defaultLevel;
+						++$circuitFaulty;
 					}
-					processCondition($S,$node,$event,$element,$details,$level);
+					processCondition($S,$node,$event,$element,$details,$level) if $circuitAlerts;
+					
+					# if any of the conditions apply the circuit is faulty, but only once.
+					if ( $circuitFaulty ) {
+						++$groupList{$groupId}{faulty};
+					}
 				}
 			}
+			
+			# 10 circuits, 1 faulty circuit = 10% power loss, fault/circuits * 100
+			foreach my $groupId ( keys %groupList ) {				
+				my $potency = $groupList{$groupId}{circuits} * 65;
+				my $potencyLoss = $groupList{$groupId}{faulty} * 65;
+				my $powerLoss = sprintf("%.2f",($potencyLoss / $potency) * 100);
+
+				#NORMAL, 0%
+				my $level = "Normal";
+				
+				#FATAL, Power Lost > 90%
+				if ( $powerLoss > 90 ) {
+					$level = "Fatal";
+				}
+				#CRITICAL, Power lost > 50 %
+				elsif ( $powerLoss > 50 ) {
+					$level = "Critical";
+				}
+				#MAJOR, Power Lost = > 30 % & < = 50 %
+				elsif ( $powerLoss >= 30 and $powerLoss <= 50) {
+					$level = "Major";
+				}
+				#MINOR, Power Lost <30 %
+				elsif ( $powerLoss < 30 and $powerLoss > 0  ) {
+					$level = "Minor";
+				}
+
+				my $groupDesc = $groupList{$groupId}{desc};
+				my $event = "Alert: DSLAM Power Loss";
+				my $element = $groupId;
+				my $details = "$groupDesc: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
+				
+				print "node=$node, groupId=$groupId, groupDesc=$groupDesc, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
+				processCondition($S,$node,$event,$element,$details,$level);
+			}	
+			
 			$S->writeNodeView;  # save node view info in file var/$NI->{name}-view
 			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node	
 		}
@@ -266,7 +331,7 @@ sub processCondition {
 	if ( $eventExists and $level =~ /Normal/i) {
 		# Proactive Closed.
 		$condition = 1;
-		deleteEvent($node,$event,$element);
+		checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>$element,details=>$details);
 		$event = "$event Closed" if $event !~ /Closed/;
 	}
 	elsif ( not $eventExists and $level =~ /Normal/i) {
@@ -339,7 +404,7 @@ sub cleanEvents {
 			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
 			delete($ET->{$key});
 		}
-		if ( $ET->{$key}{event} =~ /^Tarjeta|^Pares/ ) {
+		if ( not $circuitAlerts and $ET->{$key}{event} =~ /^Alert: Tarjeta|^Alert: Corto|^Alert: Pares|^Alert: Circuitos/ ) {
 			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
 			delete($ET->{$key});
 		}
