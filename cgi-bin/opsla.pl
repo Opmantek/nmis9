@@ -604,7 +604,7 @@ sub displayIPSLAmenu {
 				}
 				$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 				$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
-				return td({class=>$class,colspan=>"2", nowrap=>"nowrap", width=>"50%"},"$message");
+				return td({class=>"$class wrap",colspan=>"2", width=>"50%"},"$message");
 			}
 		);
 	}
@@ -1123,11 +1123,13 @@ sub displayRTTgraph {
 	my $nno = shift;
 
 	my $probe = $IPSLA->getProbe(probe => $nno);
+	#$item = $probe->{items} if $item eq ""; 
 
 	my $color;
 	my @items = split(/\:/,$item);
 	my $database = $probe->{database};
 	
+	#print STDERR "DEBUG: nno=$nno item=$item\n";
 	#print STDERR "DEBUG: displayRTTgraph database=$database\n";
 
 	my @colors = ("880088","00CC00","0000CC","CC00CC","FFCC00","00CCCC",
@@ -1148,6 +1150,7 @@ sub displayRTTgraph {
 		$vlabel = "Hourly Impairment/Calculated Imp. Planning Factor" if $1 == 8;
 		$vlabel = "Hourly Mean opinion scores" if $1 == 9;
 	}
+	#print STDERR "DEBUG: $vlabel, @items codec=$probe->{codec}\n";
 	
 	my @options = (
 			"--title", "$probe->{select} from $datestamp_start to $datestamp_end",
@@ -1161,15 +1164,14 @@ sub displayRTTgraph {
 
 	my $cnt = 0;
 	my @p_options = ();
-	my $times = 0;
+	my $ltimes = 0;
+	my $ptimes = 0;
 	foreach (@items) {
-		if ( /^\d+([A-Z])(\d+)_(.*)/ ) {
-			++$times;
+		if ( /^\d+([A-Z])(\d+)_(.*)/ ) {			
 			my $az = $1;
 			my $gp = $2;
 			my $ds = $3;
 			my $spc = "";
-			$spc = "\\n" if $times % 4 == 0;
 						
 			$color = shift @colors if $cnt++ < 10;
 			push @options,"DEF:avg$cnt=$database:${ds}:AVERAGE" if $az =~ /[LP]/ ;
@@ -1183,20 +1185,27 @@ sub displayRTTgraph {
 			if ( $probe->{optype} eq "dns" ) {
 				$ds = $probe->{tas};
 			}
+			print STDERR "DEBUG: az=$az gp=$gp ds=$ds spc=$spc\n";
 			if ($az eq "L") {
+				++$ltimes;
+				$spc = "\\n" if $ltimes % 4 == 0;
 				push @options,"LINE1:$field#$color:${ds}";
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf msec.$spc" if $gp == 1;
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "P") {
+				++$ptimes;
+				$spc = "\\n" if $ptimes % 4 == 0;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf msec.$spc" if $gp == 1 ;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "M") {
+				++$ptimes;				
+				$spc = "\\n" if $ptimes % 4 == 0;
 				push @p_options,"GPRINT:max$cnt:MAX:$ds %0.1lf msec.$spc" if $gp == 1 ;
 			}
 		}
 	}
 
-	@options = (@options,@p_options);
+	@options = (@options,"COMMENT:\\n",@p_options,"COMMENT:\\n");
 
 	# buffer stdout to avoid Apache timing out on the header tag while waiting for the PNG image stream from RRDs
 	select((select(STDOUT), $| = 1)[0]);

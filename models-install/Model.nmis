@@ -344,28 +344,35 @@
         }
       }
     },
-		"Rad Data Communications Ltd." => {
-				'order' => {
-						'10' => {
-								'RadOptimux' => "OP-155[13]",
-						},
-				},
-		},
-		"ELTEK Energy AS" => {
-				'order' => {
-						"10" => {
-								"Eltek" => "WebPower",
-						},
-				},
-		},
-	  'QNAP SYSTEMS, INC' => {
+    'Rad Data Communications Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadOptimux' => 'OP-155[13]',
+        },
+      },
+    },
+    'ELTEK Energy AS' => {
+      'order' => {
+        '10' => {
+          'Eltek' => 'WebPower',
+        },
+      },
+    },
+    'QNAP SYSTEMS, INC' => {
       'order' => {
         '10' => {
           'QNAP' => 'Linux TS'
         }
       }
     },
-	
+    'Tyco Electronics Power Systems' => {
+      'order' => {
+        '10' => {
+          'GE-QS941' => 'QS941A'
+        }
+      }
+    },
+  
   },
   'system' => {
     'nodeModel' => 'Default',

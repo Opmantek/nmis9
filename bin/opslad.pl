@@ -766,6 +766,8 @@ sub runRTTcollect {
 	my $entry = $probe->{entry};
 
 	my $NT = loadLocalNodeTable();
+	
+	my $useSnmpEngineTime = 0;
 
 	logIpsla("opSLAD: RTTcollect of probe $nno with entry $entry") if $debug;
  
@@ -783,8 +785,16 @@ sub runRTTcollect {
 	# system uptime
 	#($sysuptime) = snmpget($hoststr,"sysUpTime");
 	### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
-	($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");
+	if ( $useSnmpEngineTime ) {
+		($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");
 
+	}
+	else {
+		($sysuptime) = snmpget($hoststr,"sysUpTime");
+	}
+	logIpsla("opSLAD: TIME $nno; sysuptime=$sysuptime useSnmpEngineTime=$useSnmpEngineTime") if $debug;
+	$sysuptime = convertUpTime($sysuptime) if ($sysuptime !~ /^\d+$/) ;
+	
 	if (!$sysuptime) {
 		my $message = "node $probe->{pnode} does not respond";
 		logIpsla("opSLAD: RTTcollect, $message");
@@ -796,9 +806,9 @@ sub runRTTcollect {
 		$IPSLA->updateMessage(probe => $nno, message => "NULL" );
 	}
 
-	$sysuptime = convertUpTime($sysuptime) if ($sysuptime !~ /^\d+$/) ;
 
 	$nmistime = time();
+	#logIpsla("opSLAD: TIME CHECK; nmistime=$nmistime, sysuptime=$sysuptime") if $debug;
 
 	# check if database exists
 	my $database = $probe->{database};
@@ -845,7 +855,12 @@ sub runRTTcollect {
 			# Is SNMP working at all?  Check with system uptime.
 			#($sysuptime) = snmpget($hoststr,"sysUpTime");
 			### 2013-02-14 keiths, using snmpEngineTime as it is a better reflection of current processor uptime.
-			($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");			
+			if ( $useSnmpEngineTime ) {
+				($sysuptime) = snmpget($hoststr,"snmpEngineTime.0");
+			}
+			else {
+				($sysuptime) = snmpget($hoststr,"sysUpTime");
+			}
 			
 			if ($sysuptime) {
 				my $message = "error on reconfiguration of probe, entry=$entry";
@@ -869,9 +884,13 @@ sub runRTTcollect {
 	if ($probe->{optype} =~ /echo|tcpConnect|dns|dhcp/i) {
 		# get history values from probe node
 		if (!snmpmaptable($hoststr,
+			# runs this sub with the SNMP output each result.
 			sub () {
 				my ($index, $time, $rtt, $sense, $addr) = @_;
-				my $stime = convertUpTime($time) * 100;
+				# $time is the sysUptime of the bucket of data a
+				my $stime = convertUpTime($time);
+				#logIpsla("opSLAD: TIME $nno; stime=$stime time=$time") if $debug;
+
 				my ($a0,$a1,$a2,$a3) = unpack ("CCCC", $addr);
 				my ($k0,$k1,$k2) = split /\./,$index,3;
 				my $target = "$a0.$a1.$a2.$a3";
@@ -884,7 +903,7 @@ sub runRTTcollect {
 				
 				if ($stime > $lastupdate) { 
 					$values{$k1}{$k2}{index} = $index;
-					#$values{$k1}{$k2}{delta} = $sysuptime - $stime;
+					$values{$k1}{$k2}{delta} = $sysuptime - $stime;
 					$values{$k1}{$k2}{stime} = $stime;
 					$values{$k1}{$k2}{rtt} = $rtt;
 					$values{$k1}{$k2}{addr} = $target;
@@ -927,8 +946,19 @@ sub runRTTcollect {
 		foreach my $k1 (sort {$a <=> $b} keys %values) { # bucket number
 			next if not exists $values{$k1}{'1'}{stime};
 			# calculate time
-			my $stime = $nmistime - $sysuptime + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
+			
+			# New $stime.
+			# $sysuptime and $nmistime are sync'd, it is the sysUpTime at that point in time.
+			# so the $stime of a bucket is $sysuptime - $stime (msecs)
+
+			#my $stime = $nmistime - $sysuptime + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
 			#my $stime = $nmistime - $values{$k1}{'1'}{delta} + $values{$k1}{'1'}{stime}; # using timestamp of first bucket
+			# delta time is the time between this bucket and the sysUpTime
+			# sysuptime is sync'd with nmistime, so subtracting the seconds off 
+			# the nmistime gives us the time the sample was collected.
+			my $stime = $nmistime - $values{$k1}{'1'}{delta};
+			logIpsla("opSLAD: TIME $nno; newstime=$stime nmistime=$nmistime delta=$values{$k1}{'1'}{delta} stime=$values{$k1}{'1'}{stime} sysuptime=$sysuptime") if $debug;
+			
 			my $val = "$stime:$values{$k1}{'1'}{sense}";
 			my $tmp = "sense"; # dummy
 			my $error = 0;
@@ -996,8 +1026,11 @@ sub runRTTcollect {
 			my $stime = time();
 			my $pkterr = $lossSD + $lossDS + $OoS + $MIA + $late ;
 			$timeout_cnt++ if $sense == 4; # timeout
-			my $tmpcodec = $probe->{codec} ne "" and $probe->{codec} ? ":3L2_mos:2L2_icpif" : "";
-			my $valcodec = $probe->{codec} ne "" and $probe->{codec} ? ":$mos:$icpif" : "";
+			my $tmpcodec = ( $probe->{codec} ne "" and $probe->{codec} ) ? ":3L2_mos:2L2_icpif" : "";
+			my $valcodec = ( $probe->{codec} ne "" and $probe->{codec} ) ? ":$mos:$icpif" : "";
+			
+			logIpsla("opSLAD: RTTcollect, tmpcodec=$tmpcodec valcodec=$valcodec") if $debug;
+			
 			$negSD *= -1;
 			$negDS *= -1;
 			my $tmp = "sense:4L2_positivesSD:4L2_negativesSD:4L2_positivesDS:4L2_negativesDS".$tmpcodec.":0P2_packetLossSD:0P2_packetLossDS:0P2_packetError";
@@ -1032,6 +1065,7 @@ sub runRRDupdate {
 		$probe->{items} = join(':',(split(/:/,$probe->{items}),@dsnm)); # append new items
 		$IPSLA->updateProbe(probe => $nno, items => $probe->{items});
 	}
+	logIpsla("opSLAD: runRRDupdate, tmp=$tmp dsnm=@dsnm") if $debug;
 
 	my @dsnames = map { /^\d+[A-Z]\d+_(.*)/ ? $1 : $_ ;} @names ; # remove leading info for web display
 	my $dsnames = join':',@dsnames; # clean concatenated DS names

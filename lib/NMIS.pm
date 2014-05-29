@@ -2735,9 +2735,11 @@ sub createHrButtons {
 
 	if ($NI->{system}{collect} eq 'true') {
 		push @out, td({class=>'header litehead'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"));
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+				if defined $S->{mdl}{interface};
 		push @out, td({class=>'header litehead'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$node&refresh=$refresh&widget=$widget&server=$server"},"active intf"));
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$node&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+				if defined $S->{mdl}{interface};
 		if ($NI->{system}{nodeType} =~ /router|switch/) {
 			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ports"));
