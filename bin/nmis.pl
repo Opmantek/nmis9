@@ -230,7 +230,7 @@ sub	runThreads {
 			$pid = <F>;
 			close(F);
 			chomp $pid;
-			if ($pid != $$) {
+			if ($pid and $pid != $$) {
 				print "Error: nmis.pl, previous pidfile exists, killing the process $pid check your process run-time\n";
 				logMsg("ERROR previous pidfile exists, killing the process $pid check your process run-time");
 				kill 15, $pid;

@@ -235,6 +235,15 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			position : [ 230, 380 ]
 			});
 
+		if ( displayCommunityWidget ) {
+			createDialog({
+				id       : 'ntw_rss',
+ 				url      : 'community_rss.pl?widget=true',
+				title    : 'NMIS Community',
+				width    : rssWidgetWidth,
+				position : [ 10, 750 ]
+				});
+		}
 		if ( modules.search("opMaps") > -1 && displayopMapsWidget ) {
 			createDialog({
 				id       : 'ntw_map',
@@ -512,10 +521,15 @@ function	createDialog(opt) {
 	
 	// insert + dialogNewPage + '&nbsp;' in below to get newPageButton
 	var insertNewPage = dialogNewPage + '&nbsp;';
+	var insertDate = '&nbsp;' + pDate;
 	if ( opt.title == 'Quick Search' ) {
 		insertNewPage = '';
 	}
-	newTitle = '<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;width:auto">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + '&nbsp;' + pDate + '</span>';	
+	if ( opt.title == 'NMIS Community' ) {
+		insertNewPage = '';
+		insertDate = '';
+	}
+	newTitle = '<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;width:auto">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + insertDate + '</span>';	
 	$(newTitle)
     .appendTo(titleBar);
 

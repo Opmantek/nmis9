@@ -67,6 +67,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 if ( $arg{ifIndex} ne "" ) {
 	decode_interface_index_41(oid_value => $arg{ifIndex});
+	decode_interface_index_41(oid_value => $arg{ifIndex}, aram => "ARAM-E");
 	decode_interface_index_42(oid_value => $arg{ifIndex});
 }
 else {
@@ -634,14 +635,28 @@ sub decode_interface_index_41 {
 	my $slot_mask 		= 0x00FF0000;
 	my $level_mask 		= 0x0000F000;
 	my $circuit_mask 	= 0x00000FFF;
+	
+	my $slot_bitshift = 16;
+
+	print "4.1 Oid value=$oid_value\n";
+
+	if( defined $args{aram} and $args{aram} eq "ARAM-E") {
+		print "    Decoding for ARAM-E\n";
+		$slot_mask 		= 0x01FF0000;
+		$slot_bitshift = 17;
+	}
+	else {
+		print "    Decoding for ARAM-D\n";
+	}
+
+
 
 	my $rack 		= ($oid_value & $rack_mask) 		>> 28;
 	my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
-	my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+	my $slot 		= ($oid_value & $slot_mask) 		>> $slot_bitshift;
 	my $level 	= ($oid_value & $level_mask) 		>> 12;
 	my $circuit = ($oid_value & $circuit_mask);
 
-	print "4.1 Oid value=$oid_value\n";
 	printf( "\t rack=0x%x, %d\n", $rack, $rack);
 	printf( "\t shelf=0x%x, %d\n", $shelf, $shelf);
 	printf( "\t slot=0x%x, %d\n", $slot, $slot);

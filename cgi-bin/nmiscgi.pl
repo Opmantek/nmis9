@@ -266,9 +266,13 @@ foreach my $node (@valNode) {
 # write to browser
 print script( "nodeInfo = " . encode_json($nodeInfo) );
 
+$C->{'display_community_rss_widget'} = "true" if $C->{'display_community_rss_widget'} eq "";
 $C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
 $C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";
         
+$C->{'rss_widget_width'} = 210 if $C->{'rss_widget_width'} eq "";
+$C->{'rss_widget_height'} = 240 if $C->{'rss_widget_height'} eq ""; 
+
 $C->{'opmaps_widget_width'} = 750 if $C->{'opmaps_widget_width'} eq "";
 $C->{'opmaps_widget_height'} = 450 if $C->{'opmaps_widget_height'} eq ""; 
 $C->{'opflow_widget_width'} = 750 if $C->{'opflow_widget_width'} eq "";
@@ -286,9 +290,12 @@ if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user}
 ### 2012-02-22 keiths, added widget_refresh timer, and passing through to jQuery
 print <<EOF;
 <script>
+var displayCommunityWidget = $C->{'display_community_rss_widget'};
 var displayopMapsWidget = $C->{'display_opmaps_widget'};
 var displayopFlowWidget = $C->{'display_opflow_widget'};
 
+var rssWidgetWidth = $C->{'rss_widget_width'};
+var rssWidgetHeight = $C->{'rss_widget_height'};
 var opMapsWidgetWidth = $C->{'opmaps_widget_width'};
 var opMapsWidgetHeight = $C->{'opmaps_widget_height'};
 var opFlowWidgetWidth = $C->{'opflow_widget_width'};

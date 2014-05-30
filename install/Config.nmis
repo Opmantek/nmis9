@@ -1,13 +1,16 @@
 %hash = (
   'modules' => {
     '<opmantek_base>' => '/usr/local/opmantek',
+    'display_opcharts' => 'false',
+    'display_community_rss_widget' => 'true',
     'display_opmaps_widget' => 'true',
     'display_opflow_widget' => 'false',
-    'display_opcharts' => 'false',
     'opmaps_widget_width' => '750',
     'opmaps_widget_height' => '450',
     'opflow_widget_width' => '750',
-    'opflow_widget_height' => '460'
+    'opflow_widget_height' => '460',
+    'rss_widget_width' => '210',
+    'rss_widget_height' => '460'
   },
   'online' => {
     'nmis_docs_online' => 'https://community.opmantek.com/'
@@ -136,6 +139,7 @@
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
+    'auto_expand_more_graphs' => 'true',
   },
   'url' => {
     '<url_base>' => '/nmis8',
