@@ -3459,15 +3459,10 @@ sub runServices {
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
-	my %snmpTable;
-	my %Val;
 	my $service;
-	my $ret;
 	my $cpu;
 	my $memory;
-	my $gotMemCpu = 0;
 	my $msg;
-	my $servicePoll = 0;
 	my %services;		# hash to hold snmp gathered service status.
 	my %status;			# hash to hold generic/non-snmp service status
 
@@ -3476,6 +3471,12 @@ sub runServices {
 
 	# services to be polled are saved in a list
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
+	
+		# make sure this gets reinitialized for every service!	
+  	my $gotMemCpu = 0;
+		my $servicePoll = 0;
+		my %Val;
+
 		# check for invalid service table
 		next if $service =~ /n\/a/i;
 		next if $ST->{$service}{Service_Type} =~ /n\/a/i;
@@ -3483,8 +3484,8 @@ sub runServices {
 		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
 
 		# clear global hash each time around as this is used to pass results to rrd update
-		undef %snmpTable;
-		$ret = 0;
+		my %snmpTable;
+		my $ret = 0;
 		my $snmpdown = 0;
 
 		# record the service response time, more precisely the time it takes us testing the service
@@ -3790,6 +3791,7 @@ sub runServices {
 			$Val{memory}{value} = $memory;
 			$Val{memory}{option} = "GAUGE,U:U";
 		}
+
 		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
 			$NI->{database}{service}{$service} = $db;
 			$NI->{graphtype}{$service}{service} = 'service,service-response';

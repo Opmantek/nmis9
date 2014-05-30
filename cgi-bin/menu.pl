@@ -494,18 +494,24 @@ Copyright (C) <a href="http://www.opmantek.com">Opmantek Limited (www.opmantek.c
 This program comes with ABSOLUTELY NO WARRANTY;<br/>
 This is free software licensed under GNU GPL, and you are welcome to<br/>
 redistribute it under certain conditions; see <a href="http://www.opmantek.com">www.opmantek.com</a> or email<br/>
- <a href="mailto://contact@opmantek.com">contact\@opmantek.com<br/>
+ <a href="mailto://contact\@opmantek.com">contact\@opmantek.com<br/>
 
 EO_TEXT
 
 }
 
+# read table of window states, update this user's entry, then write it 
+# out again
 sub save_window_state {
 	my $data = $Q->{POSTDATA};	
-	my $windowData = decode_json($data);	
-	my $userWindowData = { $user => $windowData->{windowData} };
-	
-	writeTable(dir=>'conf',name=>"WindowState",data=>$userWindowData);
+	my $windowData = decode_json($data);
+	my ($allWindowData, $handle) = loadTable(dir => 'conf', 
+																					 name => "WindowState",
+																					 lock =>  'true');
+	$allWindowData->{$user} = $windowData->{windowData};
+		
+	writeTable(dir=>'conf', name=>"WindowState", data=>$allWindowData,
+			handle => $handle);
 
 	print header({-type=>"text/html",-expires=>'now'});
 	print table(Tr(td({class=>'info'},<<EO_TEXT)));
