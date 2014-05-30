@@ -524,6 +524,7 @@ function	createDialog(opt) {
 	var insertDate = '&nbsp;' + pDate;
 	if ( opt.title == 'Quick Search' ) {
 		insertNewPage = '';
+		insertDate = '';
 	}
 	if ( opt.title == 'NMIS Community' ) {
 		insertNewPage = '';
