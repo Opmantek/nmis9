@@ -46,6 +46,7 @@ use lib "../../lib";
 
 #
 use func; # common functions
+use rrdfunc; # for getFileName
 use snmp;
 
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
@@ -333,7 +334,8 @@ sub copyModelCfgInfo
 
 #===================================================================
 
-# get info by snmp, oid's are defined in Model. Values are stored in table {info}
+# get info by snmp, oid's are defined in Model. Values are then stored in table {info}
+# returns 0 if snmp retrieval was a total failure, 1 if it worked (at least somewhat)
 sub loadInfo {
 	my $self = shift;
 	my %args = @_;
@@ -346,8 +348,11 @@ sub loadInfo {
 	my (@val,@ans,@oid);
 	my $result;
 	
-	if (($result = $self->getValues(class=>$self->{mdl}{$class}{sys},section=>$section,index=>$index,port=>$port))) {
-		if ( $result->{error} eq "" ) {
+	
+	if (($result = $self->getValues(class=>$self->{mdl}{$class}{sys},section=>$section,index=>$index,port=>$port))) 
+	{
+		if ( $result->{error} eq "" ) 
+		{
 			### 2012-12-03 keiths, adding some model testing and debugging options.
 			print "MODEL loadInfo $self->{name} class=$class:\n" if $dmodel;
 
@@ -390,26 +395,38 @@ sub loadInfo {
 				}
 			}
 		}
-		else {
+		elsif ($result->{skipped})	# nothing to report because model said skip these items
+		{
+				dbg("no results, skipped because of control expression");
+		}
+		else 												
+		{
 			### 2012-03-29 keiths, SNMP is OK, some other error happened.
 			dbg("ERROR ($self->{info}{system}{name}) on loadInfo, $result->{error}");
 			print "MODEL ERROR: ($self->{info}{system}{name}) on loadInfo, $result->{error}\n" if $dmodel;
+			# fixme shouldn't this return 0?
 		}
-	} else {
+
+		return 1;										# we're happy(ish) - snmp get worked
+	} 
+	else 													# no result from getvalues
+	{
 		return 0;
 	}
-	return 1;
 }
 
 #===================================================================
 
 # get node info by snmp, oid's are defined in Model. Values are stored in table {info}
+# argument config is the gobal config hash, for finding the snmp_max_repetitions default
 sub loadNodeInfo {
 	my $self = shift;
 	my %args = @_;
+	my $C = $args{config};
 
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $self->{info}{system}{max_repetitions} || 40;
+	# find a value for max-repetitions: this controls how many OID's will be in a single request.
+	# note: no last-ditch default; if not set we let the snmp module do its thing
+	my $max_repetitions = $self->{info}{system}{max_repetitions} || $C->{snmp_max_repetitions};
 
 	my $exit = $self->loadInfo(class=>'system');
 
@@ -478,6 +495,10 @@ sub getData {
 			}
 		}
 	}
+	elsif ($result->{skipped})
+	{
+			dbg("getValues skipped collection, no results",3);
+	}
 	elsif ( $dmodel and $result->{error} ne "") {
 		print "MODEL ERROR: $result->{error}\n";
 	}
@@ -512,8 +533,8 @@ sub getValues {
 	### 2013-03-06 keiths, check for valid graphtype before complaining about no OID's!
 	my $gotGraphType = 0;
 	my $noGraphs = 0;
-	my $sectionMatch = 1;
-
+	my $skipped;					# did control expression or some other normal reason cause us to skip?
+	
 	my $result;
 	# index or port for interfaces
 	my $indx = $index ne "" ? ".$index" : "";
@@ -527,10 +548,12 @@ sub getValues {
 		next if $section ne ''  and $section ne $sect;
 		if ($index ne '' and $class->{$sect}{indexed} eq '') {
 			dbg("collect of type $sect skipped by NON indexed section, check this Model");
+			# we don't mark this as intentional skip, so the no oid error shows up
 			next;
 		}
 		if ($index eq '' and $class->{$sect}{indexed} ne '') {
 			dbg("collect of section $sect skipped by indexed section");
+			$skipped = 1;
 			next;
 		}
 		# check control string for (no) collecting
@@ -538,6 +561,7 @@ sub getValues {
 			dbg("control $class->{$sect}{control} found for section=$sect",2);
 			if ($self->parseString(string=>"($class->{$sect}{control}) ? 1:0",sys=>$self,index=>$index,type=>$sect,sect=>$sect) ne "1") {
 				dbg("collect of section $sect with index=$index skipped by control $class->{$sect}{control}",2);
+				$skipped = 1;
 				next;
 			}
 		}
@@ -696,13 +720,16 @@ sub getValues {
 	elsif ( $noGraphs ) {
 		dbg("no graphs intentionally defined for section=$section sect=@sect");		
 	}
-	# fixme: if a section is skipped b/c of control saying no, then we reach here but 
-	# it's a false positive
+	# if a section is skipped b/c of control or other rule saying no it's not an error
+	elsif ($skipped)
+	{
+			$result->{skipped} = 1;
+			$result->{error} = "skipped because of control expression";
+	}
 	else {
 		my @sect = keys %{$class};
 		dbg("no oid loaded for section=@sect");
 		$result->{error} = "no oid loaded for section=@sect";
-		return $result;
 	}
 	return $result;
 }
@@ -969,6 +996,10 @@ sub loadGraphTypeTable {
 #===================================================================
 
 # get type name based on graphtype name or type name (checked)
+# it's either nodefile -> graphtype ->WANTTHIS -> INPUT,INPUT...
+# or nodefile -> graphtype -> WANTTHIS (if the INPUT is not present but the model has
+# an rrd section named WANTTHIS)
+# optional check = true means suppress error messages (default no suppression)
 sub getTypeName {
 	my $self = shift;
 	my %args = @_;
@@ -977,50 +1008,109 @@ sub getTypeName {
 	my $check = $args{check};
 
 	my $h = $self->loadGraphTypeTable(index=>$index);
-
 	return $h->{$graphtype} if ($h->{$graphtype} ne "");
 
-	return $graphtype if $self->{info}{database}{$graphtype} ne "";
+	# fall back to rrd section named the same as the graphtype
+	return $graphtype if ($self->{mdl}{database}{type}{$graphtype});
 
-	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype not found in graphtype table") if $check ne 'true';
-	return 0; # not found
+	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table") if $check ne 'true';
+	return undef; # not found
 }
+
+
+# find instances of a particular graphtype
+# this function returns the indices (and thus the list) of instances/things for a
+# particular graphtype, eg. all the known disk indices when asked for graphtype=hrdisk, 
+# or all interface indices when asked for section=interface.
+#
+# this replaces the old way of directly accessing the no longer existent database file cache.
+#
+# arguments: graphtype or section; if both are given then either matching section or 
+# matching graphtype will cause an instance to match.
+# returns: list of matching indices
+sub getTypeInstances
+{
+		my ($self,%args) = @_;
+		my $graphtype = $args{graphtype};
+		my $section = $args{section};
+		my @instances;
+
+		my $gtt = $self->{info}{graphtype};
+		for my $maybe (keys %{$gtt})
+		{
+				# graphtype element can be flat, ie. health => health,response,numintf
+				# in which case we ignore it - there are no instances
+				next if (ref($gtt->{$maybe}) ne "HASH");
+
+				# otherwise it's expected to be dbtype => sometype,othertype; one or more of these
+				# first see if we have a section match, e.g. interface
+				if (defined $section && $section ne '' && defined $gtt->{$maybe}->{$section})
+				{
+						push @instances, $maybe;
+						next;
+				}
+
+				# otherwise collect all the sometype,othertype,anothertype  values and look 
+				# for a match. this is for finding the parent of 
+				# interface => 'autil,util,abits,bits,maxbits via maxbits for example.
+				if (defined $graphtype && $graphtype ne '')
+				{
+						for my $subsection ( keys %{$gtt->{$maybe}} ) 
+						{
+								if (grep($graphtype eq $_, split(/,/, $gtt->{$maybe}->{$subsection})))
+								{
+										push @instances, $maybe;
+										last;				# done with this index
+								}
+						}
+				}
+		}
+		return @instances;
+}
+
 
 #===================================================================
 
-# get rrd filename from node info based on type, index and item.
+# ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type, 
+# index and item; and the information in the node's model and common-database.
+# this does NO LONGER use the node info cache!
+# optional argument suppress_errors makes getdbname not print error messages
 sub getDBName {
 	my $self = shift;
 	my %args = @_;
 	my $graphtype = $args{graphtype} || $args{type};
 	my $index = $args{index};
 	my $item = $args{item};
-	my $check = $args{check};
-	my $db;
-	my $sect;
+	my $suppress = getbool($args{suppress_errors});
+	my ($sect, $db);
 
-	if (($sect = $self->getTypeName(graphtype=>$graphtype,index=>$index,check=>$check))) { 
-		if (exists $self->{info}{database}{$sect}) {
-			if (ref $self->{info}{database}{$sect} ne "HASH") {
-				$db = $self->{info}{database}{$sect};
-			} elsif ($index ne "" and $item eq "" and exists $self->{info}{database}{$sect}{$index}) {
-				$db = $self->{info}{database}{$sect}{$index};
-			} elsif ($index ne "" and $item ne "" and exists $self->{info}{database}{$sect}{$index}{$item}) {
-				$db = $self->{info}{database}{$sect}{$index}{$item};
-			} elsif ($index eq "" and $item ne "" and exists $self->{info}{database}{$sect}{$item}) {
-				$db = $self->{info}{database}{$sect}{$item};
-			} elsif ($index ne "" and exists $self->{info}{database}{$sect}{$index}) {
-				$db = $self->{info}{database}{$sect}{$index};
-			} elsif ($item ne "" and exists $self->{info}{database}{$sect}{$item}) {
-				$db = $self->{info}{database}{$sect}{$item};
-			}
-		}
+	# if we have no index but item: fall back to that, and vice versa
+	if (defined $item && (!defined $index || $index eq ''))
+	{
+			dbg("synthetic index from item for graphtype=$graphtype, item=$item",2);
+			$index=$item;
 	}
-	if ($db eq "" or ref($db) eq "HASH") {
-		logMsg("ERROR ($self->{info}{system}{name}) database name not found graphtype=$graphtype (section=$sect), index=$index, item=$item") if $check ne 'true';
-		return 0;
+	elsif (defined $index && (!defined $item || $item eq ''))
+	{
+			dbg("synthetic item from index for graphtype=$graphtype, index=$index",2);
+			$item=$index;
 	}
-	dbg("database name=$db");
+
+	# first do the 'reverse lookup' from graph name to rrd section name
+	if (defined ($sect = $self->getTypeName(graphtype=>$graphtype, index=>$index)))
+	{
+
+			$db = rrdfunc::getFileName(sys => $self, type => $sect,
+																 index => $index, item => $item);
+	}
+						
+	if (!defined $db) 
+	{
+			logMsg("ERROR ($self->{info}{system}{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, sect=$sect") if (!$suppress);
+			return undef;
+	}
+
+	dbg("returning database name=$db for $sect=$sect, index=$index, item=$item");
 	return $db;
 }
 

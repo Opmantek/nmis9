@@ -89,7 +89,7 @@ sub getRRDasHash {
 	my $index = $args{index};
 	my $item = $args{item};
 
-	my $db = $S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item);
+	my $db = getFileName(sys=>$S, type=>$graphtype, index=>$index, item=>$item);
 
 	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
@@ -136,7 +136,7 @@ sub getRRDStats {
 	
 	my $invertperiod = $minhr > $maxhr;
 
-	my $db = $S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item);
+	my $db = getFileName(sys=> $S, type=>$graphtype, index=>$index, item=>$item);
 
 	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
 	if ( -r $db ) {
@@ -333,6 +333,9 @@ sub addDStoRRD {
 
 }
 
+# determine the rrd file name from the node's model, the common-database
+# and the input parameters like name/type/item/index
+# this does NOT use the node info cache!
 sub getFileName {
 	my %args = @_;
 	my $S = $args{sys};

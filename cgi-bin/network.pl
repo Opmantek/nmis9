@@ -1276,7 +1276,7 @@ EO_HTML
 			$cnt++;
 			# proces multi graphs
 			if ($graph eq 'hrsmpcpu') {
-				foreach my $index ( keys %{$NI->{database}{hrsmpcpu}}) {
+				foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
 					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ];
 				}
 			} else {
@@ -1376,7 +1376,7 @@ sub viewInterface {
 		Tr(td({class=>'header'},"Bits per second")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>"abits",node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
-	if (exists $NI->{database}{'pkts_hc'}{$intf}) {
+	if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'pkts_hc'))) {
 		print Tr(td({class=>'header'},"Packets per second")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
@@ -1653,7 +1653,8 @@ sub viewActivePort {
 					return $line;
 				});
 			}
-			if ( ($S->getDBName(graphtype=>$graphtype,index=>$intf,check=>'true') or $graphtype =~ /cbqos/)) {
+			if ( ($S->getDBName(graphtype=>$graphtype,index=>$intf,
+													suppress_errors=>'true') or $graphtype =~ /cbqos/)) {
 				push @out,td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight));
 			} else {
 				push @out,'no data available';
@@ -1747,13 +1748,13 @@ sub viewService {
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
 	
-	if (defined $NI->{database}{service}) {
+	if (my @serviceinstances = $S->getTypeInstances(section => "service")) {
 		print Tr(
 			td({class=>'header'},"Service"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"History")
 		);	
-		foreach my $service (sort keys %{$NI->{database}{service}} ) {
+		foreach my $service (sort @serviceinstances ) {
 			my $color = $V->{system}{"${service}_color"};
 			$color = colorPercentHi(100) if $V->{system}{"${service}_value"} eq "running";
 			$color = colorPercentHi(0) if $color eq "red";

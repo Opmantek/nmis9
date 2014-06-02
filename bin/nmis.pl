@@ -373,14 +373,13 @@ sub	runThreads {
 		$S->init();
 		my $NI = $S->ndinfo;
 		delete $NI->{graphtype}; # rebuild at node nmis-system
-		delete $NI->{database};
+		delete $NI->{database};	 # no longer used at all
 
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
 		if ( $C->{'nmis_master_poll_cycle'} eq "true" or $C->{'nmis_master_poll_cycle'} ne "false" ) {
 			dbg("Starting nmisMaster");
 			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
-		}
-		else {
+		}		else {
 			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
 		}
 
@@ -422,7 +421,6 @@ sub	runThreads {
 		$D->{total}{value} = time() - $C->{starttime};
 		$D->{total}{option} = 'gauge,0:1200';
 		if (( my $db = updateRRD(data=>$D,sys=>$S,type=>"nmis"))) {
-			$NI->{database}{nmis} = $db;
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
@@ -777,7 +775,7 @@ sub getNodeInfo {
 		$SNMP->logFilterOut("no response from") if $S->{snmpdown_org} eq 'true';
 
 		# get node info by snmp: sysDescr, sysObjectID, sysUpTime etc. and store in $NI table
-		if ($S->loadNodeInfo()) {
+		if ($S->loadNodeInfo(config=>$C)) {
 
 			my $enterpriseTable = loadEnterpriseTable(); # table is already cached
 
@@ -839,7 +837,7 @@ sub getNodeInfo {
 				$V->{system}{notes_title} = 'Notes';
 
 				# update node info table with this new model
-				if ($S->loadNodeInfo()) {
+				if ($S->loadNodeInfo(config=>$C)) {
 
 					$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec} = (int($NI->{system}{sysUpTime}/100)));
 					$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
@@ -1104,12 +1102,15 @@ sub getIntfInfo {
 	my $IF = $S->ifinfo; # interface info table
 	my $NC = $S->ndcfg; # node config table
 
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
-
 	#print "DEBUG: max_repetitions=$max_repetitions system_max_repetitions=$NI->{system}{max_repetitions}\n";
 	
 	my $C = loadConfTable();
+
+	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
+
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
 		info("Starting");
@@ -1144,8 +1145,6 @@ sub getIntfInfo {
 				if ( (not grep { $i eq $_ } @ifIndexNum) ) {
 					delete $IF->{$i};
 					delete $NI->{graphtype}{$i};
-					delete $NI->{database}{interface}{$i};
-					delete $NI->{database}{pkts}{$i} if $NI->{database}{pkts}{$i} ne '';
 					dbg("Interface ifIndex=$i removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table"); # test info
 				}
@@ -1654,8 +1653,9 @@ sub getEnvInfo {
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
+	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
 
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -1809,9 +1809,7 @@ sub getEnvData {
 								my $D = $rrdData->{$sect}{$index};
 
 								# RRD Database update and remember filename
-								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-									$NI->{database}{$sect}{$index} = $db;
-								}
+								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 							}
 						}
 						else {
@@ -1843,9 +1841,7 @@ sub getEnvData {
 
 
 								# RRD Database update and remember filename
-								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-									$NI->{database}{$sect}{$index} = $db;
-								}
+								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 							}
 						}
 						else {
@@ -1876,9 +1872,7 @@ sub getEnvData {
 								my $D = $rrdData->{$sect}{$index};
 
 								# RRD Database update and remember filename
-								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-									$NI->{database}{$sect}{$index} = $db;
-								}
+								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 							}
 						}
 						else {
@@ -1912,8 +1906,9 @@ sub getSystemHealthInfo {
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 	
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $max_repetitions = $NI->{system}{max_repetitions} || 40;
+	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -2031,14 +2026,14 @@ sub getSystemHealthData {
 								}
 
 								# RRD Database update and remember filename
-								if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-									$NI->{database}{$sect}{$index} = $db;
-								}
+								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 							}
 						}
+						elsif ($rrdData->{skipped})
+						{
+								dbg("($NI->{system}{name}) skipped data collection");
+						}
 						else {
-								# fixme: known problem in sys.pm: reports elements that are skipped because
-								# of control saying so as 'no oid loaded' in the rror msg, which we should ignore but don't.
 								dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
 						}
 					}
@@ -2152,7 +2147,7 @@ sub updateNodeInfo {
 
 		###
 		delete $NI->{graphtype}; # let new build of graphtype list
-		delete $NI->{database};
+		delete $NI->{database};	 # no longer used at all
 
 		$RI->{snmpresult} = 100; # oke, health info
 
@@ -2237,9 +2232,7 @@ sub getNodeData {
 				foreach my $ds (keys %{$D}) {
 					dbg("rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
 				}
-				if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect)) ne "") {
-					$NI->{database}{$sect}= $db;
-				}
+				my $db = updateRRD(sys=>$S,data=>$D,type=>$sect);
 			}
 		}
 		else {
@@ -2497,9 +2490,7 @@ sub getIntfData {
 
 							# RRD Database update and remember filename
 							info("updateRRD type$sect index=$index",2);
-							if ((my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index)) ne "") {
-								$NI->{database}{$sect}{$index} = $db;
-							}
+							my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 						}
 						# calculate summary statistics of this interface only if intf up
 						my $period = $C->{interface_util_period} || "-6 hours"; # bsts plus backwards compat
@@ -2578,7 +2569,6 @@ sub getCBQoS {
 
 	if ($NC->{node}{cbqos} !~ /true|input|output|both/) {
 		info("no collecting ($NC->{node}{cbqos}) for node $NI->{system}{name}");
-		delete $NI->{database}{cbqos}; # cleanup
 		return;
 	}
 
@@ -2642,9 +2632,7 @@ sub getCBQoS {
 										dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 										#
 										# update RRD
-										if ((my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName))) {
-											$NI->{database}{"cbqos-$direction"}{$intf}{$CMName} = $db;
-										}
+										my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName);
 									}
 									else {
 										### 2012-03-29 keiths, SNMP is OK, some other error happened.
@@ -2909,7 +2897,6 @@ sub getCalls {
 
 	if ($NC->{node}{calls} ne 'true') {
 		dbg("no collecting for node $NI->{system}{name}");
-		delete $NI->{database}{calls}; # cleanup
 		return;
 	}
 
@@ -3039,9 +3026,7 @@ sub getCalls {
 
 				#
 				# Store data
-				if (( my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex)) ne "") {
-					$NI->{database}{calls}{$intfindex} = $db;
-				}
+				my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex);
 			}
 		return 1;
 		}
@@ -3219,7 +3204,6 @@ sub getPVC {
 
 		# we now have a hash of port:pvc:mibname=value - or an empty hash if no reply....
 		# put away to a rrd.
-		delete 	$NI->{database}{pvc}; # cleanup first
 		foreach $port ( keys %pvcStats ) {
 
 			# check if parent port was seen before and OK to collect on.
@@ -3248,7 +3232,6 @@ sub getPVC {
 				$snmpTable{$port}{$pvc}{State}{option} = "gauge,0:U";
 				my $key = "${port}-${pvc}";
 				if ((my $db = updateRRD(data=>\%{$snmpTable{$port}{$pvc}},sys=>$S,type=>"pvc",item=>$key)) ne "") {
-					$NI->{database}{pvc}{$key} = $db;
 					$NI->{graphtype}{$key}{pvc} = 'pvc';
 				}
 			}
@@ -3320,7 +3303,6 @@ sub runServer {
 					undef %Val;
 					$Val{hrCpuLoad}{value} = $NI->{device}{$index}{hrCpuLoad} || 0;
 					if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrsmpcpu",index=>$index))) {
-						$NI->{database}{hrsmpcpu}{$index} = $db;
 						$NI->{graphtype}{$index}{hrsmpcpu} = "hrsmpcpu";
 					}
 				} else {
@@ -3360,7 +3342,6 @@ sub runServer {
 
 						$D->{hrStorageDescr} =~ s/,/ /g;	# lose any commas.
 						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrdisk",index=>$index))) {
-							$NI->{database}{hrdisk}{$index} = $db;
 							$NI->{graphtype}{$index}{hrdisk} = "hrdisk";
 							$D->{hrStorageType} = 'Fixed Disk';
 							$D->{hrStorageIndex} = $index;
@@ -3377,7 +3358,6 @@ sub runServer {
 						$S->{reach}{memused} = $Val{hrMemUsed}{value};
 
 						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrmem"))) {
-							$NI->{database}{hrmem} = $db;
 							$NI->{graphtype}{hrmem} = "hrmem";
 							$D->{hrStorageType} = 'Memory';
 							$D->{hrStorageGraph} = "hrmem";
@@ -3395,7 +3375,6 @@ sub runServer {
 
 						if (my $db = updateRRD(sys=>$S, data=>\%Val, type=>$typename))
 						{
-							$NI->{database}{$typename} = $db;
 							$NI->{graphtype}{$typename} = $typename;
 							$D->{hrStorageType} = $D->{hrStorageDescr}; # i.e. virtual memory or swap space
 							$D->{hrStorageGraph} = $typename;
@@ -3417,7 +3396,6 @@ sub runServer {
 
 							if (my $db = updateRRD(sys=>$S, data=>\%Val, type=>$typename))
 							{
-									$NI->{database}{$typename} = $db;
 									$NI->{graphtype}{$typename} = $typename;
 									$D->{hrStorageType} = 'Other Memory';
 									$D->{hrStorageGraph} = $typename;
@@ -3793,7 +3771,6 @@ sub runServices {
 		}
 
 		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
-			$NI->{database}{service}{$service} = $db;
 			$NI->{graphtype}{$service}{service} = 'service,service-response';
 			if ($gotMemCpu) {
 				$NI->{graphtype}{$service}{service} = 'service,service-response,service-cpumem';
@@ -4304,9 +4281,7 @@ sub runReach {
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option} = "gauge,0:U";
 
-	if ((my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"))) {	# database name is 'reach'
-		$NI->{database}{health} = $db;
-	}
+	my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"); # database name is 'reach'
 	$NI->{graphtype}{health} = $NI->{system}{nodeModel} eq 'PingOnly' ? "health-ping,response" : "health,response,numintf";
 
 END_runReach:
@@ -5465,10 +5440,7 @@ sub runMetrics {
 
 	dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
 	#
-	if ((my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network'))) {
-		$NI->{database}{metrics}{network} = $db;
-		$NI->{graphtype}{metrics} = "metrics";
-	}
+	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
 	#
 	foreach $group (sort keys %{$GT}) {
 		$groupSummary = getGroupSummary(group=>$group);
@@ -5486,7 +5458,6 @@ sub runMetrics {
 		dbg("Doing group=$group Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
 		#
 		if (( my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group))) {
-			$NI->{database}{metrics}{$group} = $db;
 			$NI->{graphtype}{metrics} = "metrics";
 		}
 		#
@@ -6146,9 +6117,12 @@ sub doSummaryBuild {
 						$threshold_period = $C->{"threshold_period-$tp"};
 						dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
 					}
-					# check for indexed
-					if (ref $NI->{database}{$tp} eq "HASH") {
-						foreach my $i (keys %{$NI->{database}{$tp}}) {
+					# check whether this is an indexed section, ie. whether there are multiple instances with
+					# their own indices
+					my @instances = $S->getTypeInstances(graphtype => $tp, section => $tp);
+					if (@instances)
+					{
+						foreach my $i (@instances) {
 							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now',index=>$i);
 							# save all info in %sts for threshold run
 							foreach (keys %{$sts->{$i}}) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
@@ -6167,8 +6141,12 @@ sub doSummaryBuild {
 								}
 							}
 						}
-					} else {
-						if (exists $NI->{database}{$tp}) {
+					} 
+					else 
+					{
+						my $dbname = $S->getDBName(graphtype => $tp);
+						if ($dbname)
+						{
 							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now');
 							# save all info in %sts for threshold run
 							foreach (keys %{$sts}) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
@@ -6277,7 +6255,9 @@ sub doThreshold {
 									dbg("threshold=$thrname found in type=$type");
 									# thresholds found in this section
 									if ($M->{$s}{$ts}{$type}{indexed} eq 'true') {	# if indexed then all checked
-										foreach my $index (keys %{$NI->{database}{$type}}) { # there must be a rrd file
+
+										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
+										for my $index (@instances) {
 											my $details = undef;
 											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
 											{
