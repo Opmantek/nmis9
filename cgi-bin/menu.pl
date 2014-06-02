@@ -304,9 +304,19 @@ sub menu_bar_site {
 								
 		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 
-		my @tableMenu;		 
-
 		my $Tables = loadGenericTable('Tables');
+
+		my @setupMenu;		 
+		push @setupMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add Nodes and Devices</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));
+
+		push @setupMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">Main Configuration</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @setupMenu, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">$Tables->{'Escalations'}{DisplayName}</a>| if ($AU->CheckAccess("Table_Escalations_view","check"));
+
+
+		my @tableMenu;		 
 			
 		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
@@ -326,7 +336,10 @@ sub menu_bar_site {
 			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if ($table ne "Nodes" and $AU->CheckAccess("Table_${table}_view","check"));
 		}
 
+		## a setup/wizard menu
+
 		my @systemitems;
+		push @systemitems, qq|Setup Wizard|, \@setupMenu if (@setupMenu);
 		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
 		push @systemitems, qq|Configuration Check|,
 		[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,

@@ -1266,7 +1266,9 @@ EO_HTML
 			next unless $GTT->{$graph} ne '';
 			next if $graph eq 'response' and $NI->{system}{ping} eq 'false'; # no ping done
 			# first two or all graphs
-			if ($cnt == 2 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true') {
+			
+			## display more graphs by default
+			if ($cnt == 2 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
 				if ($#graphs > 1) {
 					# signal there are more graphs
 					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node&expand=true"},"More graphs")));
