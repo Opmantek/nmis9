@@ -604,9 +604,12 @@ sub rrdDraw {
 		my $totalV120 = "CDEF:totalV120=0";
 		my $totalVoice = "CDEF:totalVoice=0";
 
-		foreach my $i (keys %{$NI->{database}{calls}}) {
+
+		foreach my $i ($S->getTypeInstances(section => 'calls')) {
 			next unless $intf eq "" or $intf eq $i;
-			$database = $NI->{database}{calls}{$i};
+			$database = $S->getDBName(graphtype => 'calls', 
+																index => $i);
+			next if (!$database);
 
 			push(@opt,"DEF:CallCount$i=$database:CallCount:MAX");
 			push(@opt,"DEF:AvailableCallCount$i=$database:AvailableCallCount:MAX");
@@ -652,8 +655,6 @@ sub rrdDraw {
 		push(@opt,"GPRINT:AvailableCallCount:MAX:Available Call Count %1.2lf");
 		push(@opt,"GPRINT:CallCount:MAX:Total Call Count %1.0lf");
 
-		# reset $database so any errors gives information
-###		$database = getRRDFileName(graphtype => $graphtype, node => $node, group => $group, nodeType => $NMIS::systemTable{nodeType}, extName => "dummy");
 		return @opt;
 	}
 

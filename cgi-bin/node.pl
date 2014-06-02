@@ -328,8 +328,7 @@ sub typeGraph {
 					else {
 						$systemHealthTitle = $systemHealthHeader;
 					}
-					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{database}{$systemHealthSection}};
-					
+					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{$systemHealthSection}};
 				}
 			}
 		}
@@ -382,63 +381,67 @@ sub typeGraph {
 						} 
 						elsif ($Q->{graphtype} eq "hrsmpcpu") {
 							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{hrsmpcpu}}],
+										-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
 							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{service}}],
+										-values=>['',sort $S->getTypeInstances(section => "service")],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($Q->{graphtype} eq "hrdisk") {
+							my @disks = $S->getTypeInstances(graphtype =>  "hrdisk");
 							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{hrdisk}}],
+										-values=>['',sort @disks],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort keys %{$NI->{database}{hrdisk}} },
+										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "cpu_cpm") {
+							my @cpus = $S->getTypeInstances(graphtype => "cpu_cpm");
 							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{cpu_cpm}}],
+										-values=>['',sort @cpus],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{entityMib}{$NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex}}{entPhysicalName})} sort keys %{$NI->{database}{cpu_cpm}} },
-										#-labels=>{ map{($_ => $NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex})} sort keys %{$NI->{database}{cpu_cpm}} },
+										-labels=>{ map{($_ => $NI->{entityMib}{$NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex}}{entPhysicalName})} sort @cpus },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "env_temp") {
+							my @sensors = $S->getTypeInstances(graphtype => "env_temp");
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{env_temp}}],
+										-values=>['',sort @sensors],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort keys %{$NI->{database}{env_temp}} },
+										-labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "akcp_temp") {
+							my @sensors = $S->getTypeInstances(graphtype => "akcp_temp");
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{akcp_temp}}],
+										-values=>['',sort @sensors],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort keys %{$NI->{database}{akcp_temp}} },
+										-labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "akcp_hum") {
+							my @sensors = $S->getTypeInstances(graphtype => "akcp_hum");
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{akcp_hum}}],
+										-values=>['',sort @sensors],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort keys %{$NI->{database}{akcp_hum}} },
+										-labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "cssgroup") {
-							#2011-11-11 Integrating changes from Kai-Uwe Poenisch				
+							my @cssgroup = $S->getTypeInstances(graphtype => "cssgroup");
 							return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{cssgroup}}],
+										-values=>['',sort @cssgroup],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort keys %{$NI->{database}{cssgroup}} },
+										-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort @cssgroup },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "csscontent") {
-							#2011-11-11 Integrating changes from Kai-Uwe Poenisch				
+							my @csscont = $S->getTypeInstances(graphtype => "csscontent");
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{csscontent}}],
+										-values=>['',sort @csscont],
 										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort keys %{$NI->{database}{csscontent}} },
+										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
 										-onChange=>'JavaScript:this.form.submit()');
 						} 
 						elsif ($systemHealth) {
 							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{database}{$systemHealthSection}}],
+										-values=>['',sort keys %{$NI->{$systemHealthSection}}],
 										-default=>"$index",
 										-labels=>{ @systemHealthLabels },
 										-onChange=>'JavaScript:this.form.submit()');
@@ -511,7 +514,9 @@ sub typeGraph {
 
 	my @output;
 	# check if database selectable with this info
-	if ( ($S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item,check=>'true')) or $Q->{graphtype} =~ /calls|cbqos/) {
+	if ( ($S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item,
+											suppress_errors=>'true')) 
+			 or $Q->{graphtype} =~ /calls|cbqos/) {
 
 		my %buttons;
 		my $htitle;
@@ -534,8 +539,8 @@ sub typeGraph {
 		}
 	
 		# display Call buttons if there is more then one call port for this node
-		if ( $Q->{graphtype} eq "calls" and (scalar keys %{$NI->{database}{calls}}) > 1) {
-			for my $i (keys %{$NI->{database}{calls}} ) {
+		if ( $Q->{graphtype} eq "calls" ) {
+			for my $i ($S->getTypeInstances(section => "calls")) {
 				$buttons{$i}{name} = $IF->{$i}{ifDescr};
 				$buttons{$i}{intf} = $i;
 				$buttons{$i}{item} = '';

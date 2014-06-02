@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.4.10G";
+$VERSION = "8.5A";
 
 @ISA = qw(Exporter);
 
@@ -2748,7 +2748,8 @@ sub createHrButtons {
 			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
-		if (defined $NI->{database}{service}) {
+
+		if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"services"));
 		}

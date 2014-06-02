@@ -246,20 +246,20 @@ sub getarray {
 	return @retvals;
 }
 
+# argument max repetitions: if given and numeric, controls how many 
+# ID/PDUs will be in a single request
 sub gettable {
 	my $self = shift;
 	my @vars = shift;
-	my $max_repetitions = shift;
+	my $maxrepetitions = shift;		
 	my $oid;
 	my $msg;
 	my $result;
 
 	$self->{vars} = \@vars;
 	
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	my $maxrepetitions = $max_repetitions || 40;
-	
-	#print ("DEBUG: max_repetitions=$max_repetitions maxrepetitions=$maxrepetitions\n");
+
+	#print ("DEBUG: maxrepetitions=$maxrepetitions\n");
 	
 	if ($vars[0] !~ /^(\.?\d+)+$/ ) {
 		### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
