@@ -204,7 +204,6 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 	}
 
 	// launch the select node dialog
-	selectNodeOpen();
 	if( savedWindowState === true ) {
 		loadWindowState();
 	}
@@ -274,10 +273,10 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			width	   : 420,
 			position : [ 1000, 70 ]
 			});
-}
+	}
 	
-
-	
+	// draw the quick search widget after the others.
+	selectNodeOpen();	
 
 };		// end init	
 	
