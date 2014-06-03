@@ -851,7 +851,7 @@ sub mtimeFile {
 #	loadTable(dir=>'xx',name=>'yy',check=>'true') returns 1 if cache and file are valid else 0
 #	loadTable(dir=>'xx',name=>'yy',mtime=>'true') returns pointer of table and mtime of file
 #	loadTable(dir=>'xx',name=>'yy',lock=>'true') returns pointer of table and handle without caching
-
+# extra argument: suppress_errors, if set loadTable will not log errors but just return
 sub loadTable {
 	my %args = @_;
 	my $dir = lc $args{dir}; # name of directory
@@ -897,7 +897,7 @@ sub loadTable {
 				}
 			} else {
 				### 2013-08-13 keiths, enhancement submitted by Mateusz Kwiatkowski <mateuszk870@gmail.com>
-				logMsg("ERROR file does not exist or has bad permissions dir=$dir name=$name, nmis_var=$nmis_var nmis_conf=$nmis_conf");
+				logMsg("ERROR file does not exist or has bad permissions dir=$dir name=$name, nmis_var=$nmis_var nmis_conf=$nmis_conf") if (!$args{suppress_errors});
 			}
 		} else {
 			logMsg("ERROR unknown dir=$dir specified with name=$name");

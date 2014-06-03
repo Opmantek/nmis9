@@ -927,19 +927,7 @@ sub viewPollingSummary {
 			++$sum->{netType}{$NI->{system}{netType}};
 			++$sum->{roleType}{$NI->{system}{roleType}};
 			++$sum->{nodeModel}{$NI->{system}{nodeModel}};
-			
-			my @cbqosdb = qw(cbqos-in cbqos-out);
-			foreach my $cbqos (@cbqosdb) {
-				if (defined $NI->{database}{$cbqos}) {
-					++$sum->{count}{$cbqos};
-					foreach my $idx (keys %{$NI->{database}{$cbqos}}) {
-						++$qossum->{$cbqos}{interface};
-						foreach my $db (keys %{$NI->{database}{$cbqos}{$idx}}) {
-							++$qossum->{$cbqos}{classes};
-						}
-					}
-				}
-			}
+
 			### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
 			my $S = Sys::->new;
 			if ($S->init(name=>$node,snmp=>'false')) { 
@@ -951,7 +939,31 @@ sub viewPollingSummary {
 						++$sum->{count}{interface_collect};
 					}
 				}
-			}		
+			}
+			
+			my @cbqosdb = qw(cbqos-in cbqos-out);
+			foreach my $cbqos (@cbqosdb) 
+			{
+				my @instances = $S->getTypeInstances(graphtype => $cbqos);
+				if (@instances) 
+				{
+					++$sum->{count}{$cbqos};
+					foreach my $idx (@instances) 
+					{
+						++$qossum->{$cbqos}{interface};
+						# node info has cbqos -> {<ifindex>} -> {"in" or "out"}->{"ClassMap"}-> ... class details,
+						# and we want to count those classes
+						my $direction = ($cbqos eq "cbqos-in"? 'in' : 'out');
+						my $count;
+						
+						$count = scalar keys %{$NI->{cbqos}->{$idx}->{$direction}->{ClassMap}} 
+						if (exists $NI->{cbqos}->{$idx}->{$direction} 
+								&& ref($NI->{cbqos}->{$idx}->{$direction}->{ClassMap}) eq "HASH");
+						
+						$qossum->{$cbqos}{classes} += $count;
+					}
+				}
+			}
 		}
 		if ( getbool($LNT->{$node}{collect}) ) {
 			++$sum->{count}{collect};
@@ -1372,7 +1384,12 @@ sub viewInterface {
 	# second column
 	print start_td({valign=>'top',width=>'500px'}),start_table;
 	
-	if ($V->{interface}{"${intf}_collect_value"} eq 'true') {
+	# we show *all* interfaces where the standard autil/abits graphs exist,
+	# regardless of current collection status.
+	my $dbname;
+	if (exists $V->{interface}{"${intf}_collect_value"}
+			&& -f ($dbname = $S->getDBName(graphtype => "autil", index => $intf, suppress_errors => 1)))
+	{
 		print	Tr(td({class=>'header'},"Utilization")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>"autil",node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) )),
 		Tr(td({class=>'header'},"Bits per second")),
@@ -1383,12 +1400,12 @@ sub viewInterface {
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
-	if (exists $NI->{database}{'cbqos-in'}{$intf}) {
+	if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'cbqos-in'))) {
 		print Tr(td({class=>'header'},"CBQoS in")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-in',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
-	if (exists $NI->{database}{'cbqos-out'}{$intf} ) {
+	if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'cbqos-out'))) {
 		print Tr(td({class=>'header'},"CBQoS out")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-out',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
@@ -1620,12 +1637,12 @@ sub viewActivePort {
 			$hdr[0]));
 		}
 		push @out,td({class=>'header',align=>'center'},'Graph');
-	if ($NI->{database}{'cbqos-in'} ne '') {
+	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-in')) {
 		push @out,td({class=>'header',align=>'center'},
 		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&graphtype=cbqos-in"},'CBQoS in'));
 		$colspan++;
 	}
-	if ($NI->{database}{'cbqos-out'} ne '') {
+	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-out')) {
 		push @out,td({class=>'header',align=>'center'},
 		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&graphtype=cbqos-out"},'CBQoS out'));
 		$colspan++;
@@ -1638,7 +1655,8 @@ sub viewActivePort {
 	# print data
 	foreach my $intf ( sorthash(\%view,[${sort},"value"], $dir)) {
 		next if $active eq 'true' and $view{$intf}{collect}{value} ne 'true';
-		next if $graphtype =~ /cbqos/ and $NI->{database}{$graphtype}{$intf} eq '';
+		next if ($graphtype =~ /cbqos/ and !grep($intf eq $_, $S->getTypeInstances(graphtype => $graphtype)));
+		
 		print Tr(
 		eval { my @out;
 			foreach my $k (@hd){

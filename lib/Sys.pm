@@ -1023,10 +1023,11 @@ sub getTypeName {
 # particular graphtype, eg. all the known disk indices when asked for graphtype=hrdisk, 
 # or all interface indices when asked for section=interface.
 #
-# this replaces the old way of directly accessing the no longer existent database file cache.
-#
 # arguments: graphtype or section; if both are given then either matching section or 
 # matching graphtype will cause an instance to match.
+#
+# a plain section will NOT match without the section argument.
+#
 # returns: list of matching indices
 sub getTypeInstances
 {

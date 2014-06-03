@@ -101,10 +101,11 @@ foreach my $node (sort keys %{$LNT}) {
 		
 		#Are there any interface RRDs?
 		print "  ". $t->elapTime(). " Looking for interface databases\n";
-		if (defined $NI->{database}{interface}) {
-			foreach my $intf (keys %{$NI->{database}{interface}}) {
+		my @instances = $S->getTypeInstances(section => "interface");
+		foreach my $intf (@instances) 
+		{
 				++$sum->{count}{interface};
-				my $rrd = $NI->{database}{interface}{$intf};
+				my $rrd = $S->getDBName(graphtype => "interface" , index => $intf);
 				print "    ". $t->elapTime(). " Found $rrd\n";
 
 				# Get the ifSpeed
@@ -171,15 +172,16 @@ foreach my $node (sort keys %{$LNT}) {
 				else {
 					print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
 				}
-			}
 		}
+
 
 		#Are there any packet RRDs?
 		print "  ". $t->elapTime(). " Looking for pkts databases\n";
-		if (defined $NI->{database}{pkts}) {
-			foreach my $intf (keys %{$NI->{database}{pkts}}) {
+		my @pktinstances = $S->getTypeInstances(section => "pkts");
+		foreach my $intf (@pktinstances) 
+		{
 				++$sum->{count}{pkts};
-				my $rrd = $NI->{database}{pkts}{$intf};
+				my $rrd = $S->getDBName(graphtype => "pkts", index => $intf);
 				print "    ". $t->elapTime(). " Found $rrd\n";
 
 				# Get the ifSpeed
@@ -254,17 +256,18 @@ foreach my $node (sort keys %{$LNT}) {
 				else {
 					print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
 				}
-			}
 		}
+
 
 		#Are there any CBQoS RRDs?
 		print "  ". $t->elapTime(). " Looking for CBQoS databases\n";
 		my @cbqosdb = qw(cbqos-in cbqos-out);
 		
 		foreach my $cbqos (@cbqosdb) {
-			if (defined $NI->{database}{$cbqos}) {
+			my @instances = $S->getTypeInstances(graphtype => $cbqos);
+			if (@instances) {
 				++$sum->{count}{$cbqos};
-				foreach my $intf (keys %{$NI->{database}{$cbqos}}) {
+				foreach my $intf (@instances) {
 					++$sum->{count}{"$cbqos-interface"};
 
 					# Get the ifSpeed
@@ -276,9 +279,12 @@ foreach my $node (sort keys %{$LNT}) {
 						my $maxBytes = int($ifSpeed/4);
 						my $maxPackets = int($maxBytes/50);
 
-						foreach my $class (keys %{$NI->{database}{$cbqos}{$intf}}) {
+						my $dir = ($cbqos eq 'cbqos-in' ? 'in' : 'out');
+						foreach my $class (keys %{$NI->{cbqos}{$intf}{$dir}{ClassMap}}) {
 							++$sum->{count}{"$cbqos-classes"};
-							my $rrd = $NI->{database}{$cbqos}{$intf}{$class};
+							my $rrd = $S->getDBName(graphtype => $cbqos, 
+																			index => $intf, 
+																			item => $NI->{cbqos}{$intf}{$dir}{ClassMap}{$class}{Name});
 							print "    ". $t->elapTime(). " Found $rrd\n";
 		
 							# Get the RRD info on the Interface

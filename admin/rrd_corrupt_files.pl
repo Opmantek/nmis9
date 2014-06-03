@@ -99,35 +99,38 @@ foreach my $node (sort keys %{$LNT}) {
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		my $NI = $S->ndinfo;
 		
-		#Are there any interface RRDs?
+		#Are there any RRDs?
+		# walk graphtype keys, if hash value: key is index, go one level deeper;
+		# otherwise key of graphtype is all getDBName needs
 		print "  ". $t->elapTime(). " Looking for RRD databases\n";
-		if (defined $NI->{database}) {
-			foreach my $section (keys %{$NI->{database}}) {
-				
-				if ( ref($NI->{database}{$section}) eq "HASH" ) {
-					foreach my $index (keys %{$NI->{database}{$section}}) {
-						
-						if ( ref($NI->{database}{$section}{$index}) eq "HASH" ) {
-							foreach my $name (keys %{$NI->{database}{$section}{$index}}) {
-								
-								if ( ref($NI->{database}{$section}{$index}{$name}) eq "HASH" ) {
-									print "ERROR: You should never get this message, $section, $index, $name\n";
-								}
-								else {
-									checkRRD($NI->{database}{$section}{$index}{$name});
-								}
-								
-							}
+		for my $section (keys %{$NI->{graphtype}})
+		{
+			if (ref($NI->{graphtype}->{$section}) eq "HASH")
+			{
+				my $index = $section;
+				for my $subsection (keys %{$NI->{graphtype}->{$section}})
+				{
+					if ($subsection =~ /^cbqos-(in|out)$/)
+					{
+						my $dir = $1;
+						# need to find the qos classes and hand them to getdbname as item
+						for my $classid (keys %{$NI->{cbqos}->{$index}->{$dir}->{ClassMap}})
+						{
+							my $item = $NI->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
+							checkRRD($S->getDBName(graphtype => $subsection,
+																		 index => $index,
+																		 item => $item));
 						}
-						else {
-							checkRRD($NI->{database}{$section}{$index});
-						}
-						
+					}
+					else
+					{
+						checkRRD($S->getDBName(graphtype => $subsection, index => $index));
 					}
 				}
-				else {
-					checkRRD($NI->{database}{$section});
-				}
+			}
+			else
+			{
+				checkRRD($S->getDBName(graphtype => $section));
 			}
 		}
 
@@ -138,8 +141,23 @@ foreach my $node (sort keys %{$LNT}) {
 	}
 }
 
+# quick and dirty memorizer so that we don't recheck nmis-system.rrd over and over again...
+my %alreadyseen;
+
 sub checkRRD {
 	my $rrd = shift;
+
+	die "no rrd file given!\n" if (!$rrd);
+
+	return if $alreadyseen{$rrd};
+	$alreadyseen{$rrd}=1;
+
+	if (!-f $rrd)
+	{
+		print $t->elapTime(). " Skipping nonexistent $rrd\n";
+		return;
+	}
+
 
 	print "    ". $t->elapTime(). " Found $rrd\n";
 	
@@ -187,7 +205,6 @@ $sum->{count}{node} nodes processed, $sum->{count}{active} nodes active
 $sum->{count}{'total-rrd'}\ttotal RRDs
 $sum->{count}{'good-rrd'}\tgood RRDs
 $sum->{count}{'error-rrd'}\terrored RRDs
-
 $sum->{count}{'remove-rrd'}\tRRDs removed
 
 |;

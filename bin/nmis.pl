@@ -372,7 +372,6 @@ sub	runThreads {
 		my $S = Sys::->new; # object nmis-system
 		$S->init();
 		my $NI = $S->ndinfo;
-		delete $NI->{graphtype}; # rebuild at node nmis-system
 		delete $NI->{database};	 # no longer used at all
 
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
@@ -613,6 +612,7 @@ sub doCollect {
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
 	$S->writeNodeView;
+
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 	$S->close;
 	info("Finished");
@@ -2145,10 +2145,7 @@ sub updateNodeInfo {
 
 		checkPIX(sys=>$S); # check firewall if needed
 
-		###
-		delete $NI->{graphtype}; # let new build of graphtype list
 		delete $NI->{database};	 # no longer used at all
-
 		$RI->{snmpresult} = 100; # oke, health info
 
 		# view on page
@@ -4898,7 +4895,7 @@ LABEL_ESC:
 		# core, distrib and access could escalate at different rates.
 
 		# note - all sent to lowercase here to get a match
-		my $NI = loadNodeInfoTable($ET->{$event_hash}{node});
+		my $NI = loadNodeInfoTable($ET->{$event_hash}{node}, suppress_errors => 1);
 		$group = lc($NI->{system}{group});
 		$role = lc($NI->{system}{roleType});
 		$type = lc($NI->{system}{nodeType});
@@ -5439,9 +5436,9 @@ sub runMetrics {
 	$data->{intfAvail}{option} = "gauge,0:U";
 
 	dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
-	#
+	
 	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
-	#
+
 	foreach $group (sort keys %{$GT}) {
 		$groupSummary = getGroupSummary(group=>$group);
 		$status = overallNodeStatus(group=>$group);
@@ -5457,10 +5454,7 @@ sub runMetrics {
 
 		dbg("Doing group=$group Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
 		#
-		if (( my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group))) {
-			$NI->{graphtype}{metrics} = "metrics";
-		}
-		#
+		$db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group);
 	}
 	dbg("Finished");
 } # end runMetrics
@@ -6145,7 +6139,7 @@ sub doSummaryBuild {
 					else 
 					{
 						my $dbname = $S->getDBName(graphtype => $tp);
-						if ($dbname)
+						if ($dbname && -r $dbname)
 						{
 							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now');
 							# save all info in %sts for threshold run

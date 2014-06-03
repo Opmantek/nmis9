@@ -188,10 +188,6 @@ sub processNodeInfo {
 						
 					}
 				}
-				#if (defined $NI->{database}{interface}) {
-				#	foreach my $intf (keys %{$NI->{database}{interface}}) {			
-				#	}
-				#}
 			}
 			print "  done in ".$t->deltaTime() ."\n";		
 		}
