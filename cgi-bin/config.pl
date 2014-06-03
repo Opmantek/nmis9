@@ -118,7 +118,7 @@ sub displayConfig{
 	# start of form
 	print start_form(-id=>"nmisconfig",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_nmis_menu");
 
-	print start_table() ; # first table level
+	print start_table({width=>"400px"}) ; # first table level
 	print Tr(td({class=>'header',align=>'center'},"NMIS Configuration - $C->{conf} loaded"));
 
 	my @sections = ('',sort keys %{$CC});
@@ -240,7 +240,13 @@ sub editConfig{
 				popup_menu(-name=>"value", -style=>'width:100%;font-size:12px;',
 								-values=>$ref->{value},
 								-default=>$value)));
-	} else {
+	} 
+	elsif ($item =~ /group_list/) {
+		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
+				textarea(-name=>"value", -value=>$value, -style=>"width: 260px; height: 100px; font-size:14px;", -size=>'35')
+				));
+	} 
+	else {
 		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
 				textfield(-name=>"value",-size=>((length $value) * 1.3),-value=>"$value",-style=>'font-size:14px;')));
 	}
