@@ -104,11 +104,12 @@ foreach my $node (sort keys %{$LNT}) {
 		
 		#Are there any interface RRDs?
 		print "  ". $t->elapTime(). " Looking for mib2ip databases\n";
-		my $rrd = $NI->{database}{mib2ip};
+		my $rrd = $S->getDBName(graphtype => "mib2ip");
 		print "    ". $t->elapTime(). " Found $rrd\n";
 
 		# Get the RRD info on the Interface
 		my $hash = RRDs::info($rrd);
+		++$sum->{count}->{interface};
 					
 		# Recurse over the hash to see what you can find.
 		foreach my $key (sort keys %$hash){

@@ -105,8 +105,9 @@ foreach my $node (sort keys %{$LNT}) {
 		
 		#Are there any interface RRDs?
 		print "  ". $t->elapTime(). " Looking for health databases\n";
-		my $rrd = $NI->{database}{health};
+		my $rrd = $S->getDBName(graphtype => "health");
 		print "    ". $t->elapTime(). " Found $rrd\n";
+		++$sum->{count}{health};
 
 		# Get the RRD info on the Interface
 		my $hash = RRDs::info($rrd);
@@ -180,7 +181,8 @@ foreach my $node (sort keys %{$LNT}) {
 	
 print qq|
 $sum->{count}{node} nodes processed, $sum->{count}{active} nodes active
-$sum->{count}{'tune-reach'}\treach RRDs tuned
+$sum->{count}{health} reach RRDs found
+$sum->{count}{'tune-reach'} reach RRDs tuned
 |;
 
 

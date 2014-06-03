@@ -447,10 +447,14 @@ sub typeGraph {
 										-onChange=>'JavaScript:this.form.submit()');
 						} 
 						else {
+							# all interfaces have an ifindex
+							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } 
+							grep( exists $IF->{$_}{ifIndex}, keys %{$IF});
+
 							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',grep $IF->{$_}{collect} eq 'true', sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } keys %{$IF}],
+										-values=>['',  @wantedifs],
 										-default=>"$index",
-										-labels=>{ map{($_ => $IF->{$_}{ifDescr})} grep $IF->{$_}{collect} eq 'true',keys %{$IF} },
+										-labels=>{ map{($_ => $IF->{$_}{ifDescr})} @wantedifs },
 										-onChange=>'JavaScript:this.form.submit()');
 						}
 					}),

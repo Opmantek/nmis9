@@ -2447,14 +2447,13 @@ sub logMessage {
 } # end logMessage
 
 # load the info of a node
-sub loadNodeInfoTable {
+# if optional arg suppress_errors is given, then no errors are logged
+sub loadNodeInfoTable 
+{
 	my $node = lc shift;
-	my $C = loadConfTable();
-	if (getbool($C->{cache_var_files})) {
-		return loadTable(dir=>'var',name=>"$node-node"); # cached
-	} else {
-		return loadTable(dir=>'var',name=>"$node-node");
-	}
+	my %args = @_;
+	
+	return loadTable(dir=>'var', name=>"$node-node",  suppress_errors => $args{suppress_errors});
 }
 
 # load info of all interfaces
