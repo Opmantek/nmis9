@@ -63,7 +63,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 ERROR: $0 will total up the size of all RRD database files in use.
-usage: $0 run=(true|false) change=(true|false)
+usage: $0 run=(true|false)
 eg: $0 run=true (will run in test mode)
 
 EO_TEXT
@@ -73,9 +73,6 @@ EO_TEXT
 if ( $arg{run} ne "true" ) {
 	print "$0 you don't want me to run!\n";
 	exit 1;
-}
-if ( $arg{run} eq "true" and $arg{change} ne "true" ) {
-	print "$0 running in test mode, no changes will be made!\n";
 }
 
 #--data-source-type|-d ds-name:DST
@@ -101,46 +98,40 @@ foreach my $node (sort keys %{$LNT}) {
 		my $NI = $S->ndinfo;
 		
 		# Recurse over the hash to see what you can find.
-		foreach my $type (sort keys %{$NI->{database}}){
-		#Are there any interface RRDs?
-			if ( ref($NI->{database}{$type}) eq "HASH" ) {
-				foreach my $index (sort keys %{$NI->{database}{$type}}){
-					if ( ref($NI->{database}{$type}{$index}) eq "HASH" ) {
-						foreach my $key (sort keys %{$NI->{database}{$type}{$index}}){
-							my $rrd = $NI->{database}{$type}{$index}{$key};
-							if ( $type !~ /metrics/ ) {
-								my $size = fileSize($rrd);
-								++$sum->{count}{$type};
-								$sum->{type}{$type}{size} += $size;
-								$sum->{node}{$node}{size} += $size;
-								$sum->{total}{size} += $size;
-								print "    ". $t->elapTime(). " Found $rrd is $size\n";			
-							}							
+		for my $section (keys %{$NI->{graphtype}})
+		{
+			next if ($section eq "metrics");
+			if (ref($NI->{graphtype}->{$section}) eq "HASH")
+			{
+				my $index = $section;
+				for my $subsection (keys %{$NI->{graphtype}->{$section}})
+				{
+					next if ($subsection eq "metrics");
+					if ($subsection =~ /^cbqos-(in|out)$/)
+					{
+						my $dir = $1;
+						# need to find the qos classes and hand them to getdbname as item
+						for my $classid (keys %{$NI->{cbqos}->{$index}->{$dir}->{ClassMap}})
+						{
+							my $item = $NI->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
+
+							checkRRD(db => $S->getDBName(graphtype => $subsection,
+																					 index => $index,
+																					 item => $item),
+											 node => $node, type => $subsection);
 						}
 					}
-					else {
-						my $rrd = $NI->{database}{$type}{$index};
-						if ( $type !~ /metrics/ ) {
-							my $size = fileSize($rrd);
-							++$sum->{count}{$type};
-							$sum->{type}{$type}{size} += $size;
-							$sum->{node}{$node}{size} += $size;
-							$sum->{total}{size} += $size;
-							print "    ". $t->elapTime(). " Found $rrd is $size\n";			
-						}
+					else
+					{
+						checkRRD(db => $S->getDBName(graphtype => $subsection, index => $index),
+										 node => $node, type => $subsection);
 					}
 				}
 			}
-			else {
-				my $rrd = $NI->{database}{$type};
-				if ( $type !~ /metrics/ ) {
-					my $size = fileSize($rrd);
-					++$sum->{count}{$type};
-					$sum->{type}{$type}{size} += $size;
-					$sum->{node}{$node}{size} += $size;
-					$sum->{total}{size} += $size;
-					print "    ". $t->elapTime(). " Found $rrd is $size\n";
-				}
+			else
+			{
+				checkRRD(db => $S->getDBName(graphtype => $section),
+						node => $node, type => $section);
 			}
 		}
 		print "  done in ".$t->deltaTime() ."\n";		
@@ -156,17 +147,17 @@ Total RRD Size is $sum->{total}{size} bytes.
 
 |;
 
-print qq|A Summary of Node RRD Size\n|;
+print qq|\nA Summary of Node RRD Size\n|;
 foreach my $node (sort keys %{$sum->{node}}) {
 	print "Size of $node (bytes): $sum->{node}{$node}{size}\n";
 }
 
-print qq|A Summary of Counts\n|;
+print qq|\nA Summary of Counts\n|;
 foreach my $count (sort keys %{$sum->{count}}) {
 	print "Count of $count: $sum->{count}{$count}\n";
 }
 
-print qq|A Summary of Types and Bytes\n|;
+print qq|\nA Summary of Types and Bytes\n|;
 foreach my $type (sort keys %{$sum->{type}}) {
 	print "Size of $type (bytes): $sum->{type}{$type}{size}\n";
 }
@@ -180,13 +171,16 @@ sub initSummary {
 	return $sum;
 }
 
-sub fileSize {
-	my $file = shift;
-	if ( -r $file ) {
-		my $fstat = stat($file);
-		return $fstat->size;
-	}
-	else {
-		return 0;
-	}
+
+sub checkRRD
+{
+	my (%args) = @_;
+
+	my $size = -s $args{db};
+	++$sum->{count}{$args{type}};
+	$sum->{type}{$args{type}}{size} += $size;
+	$sum->{node}{$args{node}}{size} += $size;
+	$sum->{total}{size} += $size;
+	print "    ". $t->elapTime(). " Found $args{db}, $size bytes\n";
 }
+
