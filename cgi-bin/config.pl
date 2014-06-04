@@ -54,6 +54,9 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
+my $wantwidget = exists $Q->{widget}? $Q->{widget} ne "false" : 1;
+my $widget = $wantwidget ? "true" : "false";
+
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
@@ -93,8 +96,11 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 
 sub notfound {
 	print header($headeropts);
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
+	pageEnd if (!$wantwidget);
 }
 
 exit 1;
@@ -110,13 +116,19 @@ sub displayConfig{
 
 	#start of page
 	print header($headeropts);
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $CT = loadCfgTable(); # load configuration of table
 
 	my ($CC,undef) = readConfData(conf=>$C->{conf});
 
 	# start of form
-	print start_form(-id=>"nmisconfig",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_nmis_menu");
+  # the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nmis_menu")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table({width=>"400px"}) ; # first table level
 	print Tr(td({class=>'header',align=>'center'},"NMIS Configuration - $C->{conf} loaded"));
@@ -128,8 +140,7 @@ sub displayConfig{
 				popup_menu(-name=>'section', -override=>'1',
 					-values=>\@sections,
 					-default=>$section,
-					-onChange=>"javascript:get('nmisconfig');"));
-
+									 -onChange=> ($wantwidget? "get('nmisconfig');" : "submit()" )));
 	print end_Tr;
 	print end_table;
 
@@ -144,6 +155,7 @@ sub displayConfig{
 
 End_page:
 	print end_table();
+	pageEnd if (!$wantwidget);
 
 }
 
@@ -172,7 +184,7 @@ sub typeSect {
 	push @out,Tr(td({class=>"header"},$section),td({class=>'info Plain',colspan=>'2'},"&nbsp;"),td({class=>'info Plain'},
 			eval {
 				if ($AU->CheckAccess("Table_Config_rw","check")) {
-					return a({ href=>"$ref&act=config_nmis_add&section=$section"},'add&nbsp;');
+					return a({ href=>"$ref&act=config_nmis_add&section=$section&widget=$widget"},'add&nbsp;');
 				} else { return ""; }
 			}
 		));
@@ -182,9 +194,9 @@ sub typeSect {
 				eval {
 					if ($AU->CheckAccess("Table_Config_rw","check")) {
 						return td({class=>'info Plain'},
-							a({ href=>"$ref&act=config_nmis_edit&section=$section&item=$k"},'edit&nbsp;'),
+							a({ href=>"$ref&act=config_nmis_edit&section=$section&item=$k&widget=$widget"},'edit&nbsp;'),
 							eval { my $line;
-								$line = a({ href=>"$ref&act=config_nmis_delete&section=$section&item=$k"},'delete&nbsp;') unless
+								$line = a({ href=>"$ref&act=config_nmis_delete&section=$section&item=$k&widget=$widget"},'delete&nbsp;') unless
 									grep { $_ eq $k } @items;
 								return $line;
 							});
@@ -205,18 +217,22 @@ sub editConfig{
 
 	#start of page
 	print header($headeropts);
-
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $CT = loadCfgTable(); # load configuration of table
 
 	my ($CC,undef) = readConfData(conf=>$C->{conf});
 
-	# start of form
-
-	print start_form(-id=>"nmisconfig", -action=>"javascript:get('nmisconfig');",
-				-href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_nmis_doedit");
-
+	# start of form, see comment for first start_form
+	# except that this one also needs the cancel case covered
+	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nmis_doedit")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
+		
 	print start_table() ; # first table level
 
 	print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config - $Q->{conf}"));
@@ -251,8 +267,13 @@ sub editConfig{
 				textfield(-name=>"value",-size=>((length $value) * 1.3),-value=>"$value",-style=>'font-size:14px;')));
 	}
 
-	print Tr(td({colspan=>'2'},'&nbsp;'),td(button(-name=>"button",onclick=>"get('nmisconfig');", -value=>"Edit"),
-				button(-name=>"button",onclick=>"get('nmisconfig','cancel');", -value=>"Cancel")));
+	print Tr(td({colspan=>'2'},'&nbsp;'),
+					 td(button(-name=>"button", 
+										 onclick=> ($wantwidget? "get('nmisconfig');" : "submit()" ) , 
+										 -value=>"Edit"),
+							button(-name=>"button",
+										 onclick => '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+										 -value=>"Cancel")));
 
 	my $info = getHelp($Q->{item});
 	print Tr(td({class=>'info Plain',colspan=>'3'},$info)) if $info ne "";
@@ -263,6 +284,7 @@ sub editConfig{
 
 	print end_table();
 	print end_form;
+	pageEnd if (!$wantwidget);
 }
 
 sub doEditConfig {
@@ -298,6 +320,7 @@ sub deleteConfig{
 
 	#start of page
 	print header($headeropts);
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -305,8 +328,12 @@ sub deleteConfig{
 
 	my $value = $CC->{$section}{$item};
 
-	# start of form
-	print start_form( -name=>"nmisconfig", -id=>"nmisconfig", -href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_nmis_dodelete");
+	# start of form, see comment for first two start_forms
+	print start_form( -name=>"nmisconfig", -id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nmis_dodelete")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
 	print start_table() ; # first table level
 
@@ -319,8 +346,12 @@ sub deleteConfig{
 			td({class=>'info Plain'},escape($value)));
 
 	print Tr(td({colspan=>'2'}), td(
-					button(-name=>'button',onclick=>"get('nmisconfig');", -value=>'DELETE'),b('Are your sure ?'),
-						button(-name=>'button',onclick=>"get('nmisconfig','cancel');", -value=>'Cancel')));
+						 button(-name=>'button',
+										onclick=> ($wantwidget? "get('nmisconfig');" : "submit()" ), 
+										-value=>'DELETE'),b('Are you sure ?'),
+						button(-name=>'button',
+									 onclick=> '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+									 -value=>'Cancel')));
 
 	# background values
 	print hidden(-name=>'section', -default=>$section,-override=>'1');
@@ -329,6 +360,7 @@ sub deleteConfig{
 
 End_deleteConfig:
 	print end_table;
+	pageEnd if (!$wantwidget);
 
 }
 
@@ -359,11 +391,16 @@ sub addConfig{
 
 	#start of page
 	print header($headeropts);
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	# start of form
-	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?conf=$C->{conf}&act=config_nmis_doadd");
+	# start of form, see comment for first two start_forms
+	print start_form(-id=>"nmisconfig", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nmis_doadd")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
 	print start_table() ; # first table level
 
@@ -374,8 +411,13 @@ sub addConfig{
 	print Tr(td({class=>"header"},"&nbsp;"),td({class=>"header"},'value'),
 				td({class=>'info Plain'},textfield(-name=>"value",size=>'50')));
 
-	print Tr(td({colspan=>"2"}), td(button(-name=>"button",onclick=>"get('nmisconfig');",-value=>"Add"),
-					button(-name=>"button",onclick=>"get('nmisconfig','cancel');",-value=>"Cancel")));
+	print Tr(td({colspan=>"2"}), td(button(-name=>"button",
+																				 onclick=> ($wantwidget? "get('nmisconfig');" : "submit()" ),
+																				 -value=>"Add"),
+																	button(-name=>"button",
+																				 onclick=> '$("#cancelinput").val("true");' 
+																				 . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+																				 -value=>"Cancel")));
 
 	my $info = getHelp('id');
 	print Tr(td({class=>'info Plain',colspan=>'3'},$info)) if $info ne "";
@@ -385,6 +427,7 @@ sub addConfig{
 	print end_form;
 
 	print end_table();
+	pageEnd if (!$wantwidget);
 
 }
 
@@ -434,6 +477,7 @@ sub storeTable {
 
 	#start of page
 	print header($headeropts);
+	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	if (!($table = $tables{$item})) {
 		print Tr(td({class=>'error'},"ERROR, table does not exist"));
@@ -447,10 +491,18 @@ sub storeTable {
 		return;
 	}
 
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=config_nmis_dostore&table=$table&section=$section&item=$item&value=$value";
-
-	# start of form
-	print start_form(-name=>"nmisconfig",-id=>"nmisconfig",-href=>"$url");
+	# start of form, see comment for first two start_forms
+	print start_form(-name=>"nmisconfig",-id=>"nmisconfig",-href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "config_nmis_dostore")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "table", -value => $table)
+			. hidden(-override => 1, -name => "section", -value => $section)
+			. hidden(-override => 1, -name => "item", -value => $item)
+			. hidden(-override => 1, -name => "value", -value => $value)
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
+			. hidden(-override => 1, -name => "file", -value => '', -id=> "fileinput")
+			. hidden(-override => 1, -name => "db", -value => '', -id=> "dbinput");
 
 	print start_table;
 
@@ -466,15 +518,22 @@ sub storeTable {
 	print Tr(td(
 				eval {
 					if ($value eq 'true') {
-						return button(-name=>"button",onclick=>"get('nmisconfig','db');", -value=>'Transfer from file to DB');
+						return button(-name=>"button",
+													onclick=> '$("#dbinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+													-value=>'Transfer from file to DB');
 					} else {
-						return button(-name=>"button",onclick=>"get('nmisconfig','file');", -value=>'Transfer from DB to file');
+						return button(-name=>"button",
+													onclick=> '$("#fileinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+													-value=>'Transfer from DB to file');
 					}
 				},
-				button(-name=>'button',onclick=>"get('nmisconfig','cancel');",-value=>"Cancel")));
+				button(-name=>'button',
+							 onclick=> '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
+							 -value=>"Cancel")));
 
 	print end_table;
 	print end_form;
+	pageEnd if (!$wantwidget);
 
 }
 
@@ -498,8 +557,11 @@ sub doStoreTable {
 					$T->{$k}{index} = $k; # 
 					if ( ! DBfunc::->insert(table=>$table,data=>$T->{$k})) {
 						print header($headeropts);
+						pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
+						
 						print "\n</pre>\n";
 						print DBfunc->error."<br>\n";
+						pageEnd if (!$wantwidget);
 						last;
 					}
 				}

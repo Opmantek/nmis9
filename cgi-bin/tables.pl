@@ -572,6 +572,12 @@ sub dodeleteTable {
 	
 		writeTable(dir=>'conf',name=>$table,data=>$TT);
 	}
+
+	# make sure to remove events for deleted nodes
+	if ($table eq "Nodes")
+	{
+		cleanEvent($key,"tables.pl.editNodeTable");
+	}
 }
 
 sub doNodeUpdate {

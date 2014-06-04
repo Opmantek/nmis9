@@ -4808,7 +4808,7 @@ LABEL_ESC:
 		dbg("process event with event_hash=$event_hash");
 		my $nd = $ET->{$event_hash}{node};
 		# lets start with checking that we have a valid node -the node may have been deleted.
-		if ( $ET->{$event_hash}{current} eq 'true' and $NT->{$nd}{active} eq 'false') {
+		if ( $ET->{$event_hash}{current} eq 'true' and ( !$NT->{$nd} or $NT->{$nd}{active} eq 'false')) {
 			logEvent(node => $nd, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
 			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
 
