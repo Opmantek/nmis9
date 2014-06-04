@@ -67,7 +67,6 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 if ( $arg{ifIndex} ne "" ) {
 	decode_interface_index_41(oid_value => $arg{ifIndex});
-	decode_interface_index_41(oid_value => $arg{ifIndex}, aram => "ARAM-E");
 	decode_interface_index_42(oid_value => $arg{ifIndex});
 }
 else {
@@ -90,6 +89,10 @@ sub processNode {
 		my $NCT = loadNodeConfTable();
 		my $NC = $S->ndcfg;
 		my $V = $S->view;
+		
+		# remove any old redundant useless and otherwise annoying entries.
+		delete $S->{info}{interface};
+		delete $V->{interface};
 
 		# Get the SNMP Session going.
 		my $port = $LNT->{$node}{port};
@@ -141,14 +144,8 @@ sub processNode {
 				# How to identify it is an ARAM-D?
 				#"For ARAM-D with extensions "
 				$version = 4.1;
-				if( 0 ) {
-					my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
-					@ifIndexNum = @{$indexes};
-				}
-				else {
-					my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
-					@ifIndexNum = @{$indexes};
-				}
+				my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
+				@ifIndexNum = @{$indexes};
 				
 			}
 			#" release 4.2  ( ISAM FD y  ISAM-V) "
@@ -383,7 +380,7 @@ sub getRackShelfMatrix {
 			}
 			elsif ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$shelfMatch/ ) {
 				++$shelf;
-				$config{$rack}{$shelf} = 1;
+				$config{$rack}{$shelf} = $eqptHolder->{$eqpt}{eqptHolderPlannedType};
 				if ( $gotOneRack ) {
 					$gotOneRack = 0;
 				}
@@ -518,10 +515,9 @@ sub build_41_interface_indexes {
 	# such that the first port of the first card of the first extension would be:
 	my $level = 3;
 
-	# This represents slots 1 to 4, a maximum of 4 slots per Shelf.
 	my @slots = (3..6);
 	my @circuits = (0..47);
-	
+		
 	my @interfaces = ();
 	
 	my $gotSysConfig = 0;
@@ -529,9 +525,19 @@ sub build_41_interface_indexes {
 		$gotSysConfig = 1;
 		++$rack_count;
 		print "  rack=$rack\n" if $debug;
+
 		foreach my $shelf (sort {$a <=> $b} keys %{$systemConfig->{$rack}} ) {
 			++$shelf_count;
-			print "    shelf=$shelf\n" if $debug;
+
+			# This represents slots 1 to 4, a maximum of 4 slots per Shelf.
+			@slots = (3..6);
+			
+			if ( $systemConfig->{$rack}{$shelf} eq "ARAM-E" ) {
+				# If this is ARAM-E the slots are not sequential, but oddly numbered and there are 9 slots per shelf
+				@slots = (3,5,7,9,11,13,15,17,19);
+			}
+			
+			print "    shelf=$shelf type=$systemConfig->{$rack}{$shelf} slots=@slots\n" if $debug;
 			foreach my $slot (@slots) {
 				foreach my $circuit (@circuits) {
 					my $index = generate_interface_index_41 ( rack => $rack, shelf => $shelf, slot => $slot, level => $level, circuit => $circuit);
@@ -639,17 +645,6 @@ sub decode_interface_index_41 {
 	my $slot_bitshift = 16;
 
 	print "4.1 Oid value=$oid_value\n";
-
-	if( defined $args{aram} and $args{aram} eq "ARAM-E") {
-		print "    Decoding for ARAM-E\n";
-		$slot_mask 		= 0x01FF0000;
-		$slot_bitshift = 17;
-	}
-	else {
-		print "    Decoding for ARAM-D\n";
-	}
-
-
 
 	my $rack 		= ($oid_value & $rack_mask) 		>> 28;
 	my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;

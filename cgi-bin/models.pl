@@ -270,7 +270,7 @@ sub displayModel{
 					-default=>$model,
 					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
-	if ($model ne $pmodel) { $section = ""; }
+	#if ($model ne $pmodel) { $section = ""; }
 	my @sections = ('',sort keys %{$M});
 	# and with section names to select
 	print td({class=>'header', colspan=>'1'},

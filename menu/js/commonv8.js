@@ -240,7 +240,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
  				url      : 'community_rss.pl?widget=true',
 				title    : 'NMIS Community',
 				width    : rssWidgetWidth,
-				position : [ 10, 750 ]
+				position : [ 10, 725 ]
 				});
 		}
 		if ( modules.search("opMaps") > -1 && displayopMapsWidget ) {
@@ -897,7 +897,7 @@ function selectNodeOpen() {
 										title	:	'Quick Search',
 										url		:	'',
 										width	:	210,
-										position : [ 10, 375 ]
+										position : [ 10, 355 ]
 										});
 	
 	// define some additional content
