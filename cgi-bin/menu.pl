@@ -306,16 +306,6 @@ sub menu_bar_site {
 
 		my $Tables = loadGenericTable('Tables');
 
-		my @setupMenu;		 
-		push @setupMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add Nodes and Devices</a>|
-				if ($AU->CheckAccess("Table_Nodes_view","check"));
-
-		push @setupMenu, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu">Main Configuration</a>|
-				if ($AU->CheckAccess("table_config_view","check"));
-
-		push @setupMenu, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">$Tables->{'Escalations'}{DisplayName}</a>| if ($AU->CheckAccess("Table_Escalations_view","check"));
-
-
 		my @tableMenu;		 
 			
 		push @tableMenu, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Nodes">NMIS Nodes (devices)</a>|
@@ -339,7 +329,24 @@ sub menu_bar_site {
 		## a setup/wizard menu
 
 		my @systemitems;
-		push @systemitems, qq|Setup Wizard|, \@setupMenu if (@setupMenu);
+		
+		push @systemitems, qq|<a id='cfg_nodes' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));
+
+		push @systemitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));
+
+		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
+				if ($AU->CheckAccess("table_nodeconf_view","check"));
+
+		push @systemitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu&amp;section=system">System Configuration</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @systemitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">$Tables->{'Escalations'}{DisplayName}</a>| 
+				if ($AU->CheckAccess("Table_Escalations_view","check"));
+
+		push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
+
 		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
 		push @systemitems, qq|Configuration Check|,
 		[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
