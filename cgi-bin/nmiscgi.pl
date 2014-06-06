@@ -293,6 +293,7 @@ print <<EOF;
 var displayCommunityWidget = $C->{'display_community_rss_widget'};
 var displayopMapsWidget = $C->{'display_opmaps_widget'};
 var displayopFlowWidget = $C->{'display_opflow_widget'};
+var useNewNetworkView = $C->{'display_network_view'};
 
 var rssWidgetWidth = $C->{'rss_widget_width'};
 var rssWidgetHeight = $C->{'rss_widget_height'};

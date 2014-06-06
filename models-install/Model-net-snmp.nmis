@@ -382,11 +382,11 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '99',
+          'Normal' => '99.3',
           'Warning' => '0',
           'Minor' => '0',
-          'Major' => '0',
-          'Critical' => '0',
+          'Major' => '99.4',
+          'Critical' => '99.6',
           'Fatal' => '100',
         },
         'test' => '',
@@ -400,7 +400,7 @@
 			'HighSwapUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '10',
+          'Normal' => '11',
           'Warning' => '15',
           'Minor' => '20',
           'Major' => '30',

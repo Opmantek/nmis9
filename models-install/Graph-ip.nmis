@@ -47,7 +47,7 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
-			'AREA:ipForwDatagrams#00ff00:IP Packets Forwarded',
+			'AREA:ipForwDatagrams#00FF7F:IP Packets Forwarded',
 			'GPRINT:ipForwDatagrams:AVERAGE:Avg %1.0lf',
 			'GPRINT:ipForwDatagrams:MAX:Max %1.0lf\\n',
 
@@ -67,7 +67,7 @@
 			'CDEF:ipInReceivesSplit=ipInReceives,-1,*',
 			'CDEF:ipInDeliversSplit=ipInDelivers,-1,*',
 
-			'AREA:ipForwDatagrams#00ff00:IP Forwarded',
+			'AREA:ipForwDatagrams#00FF7F:IP Forwarded',
 			'GPRINT:ipForwDatagrams:AVERAGE:Avg %1.0lf',
 			'AREA:ipInReceivesSplit#4daef6:IP Received',
 			'GPRINT:ipInReceives:AVERAGE:Avg %1.0lf',

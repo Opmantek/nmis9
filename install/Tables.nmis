@@ -23,12 +23,6 @@
     'DisplayName' => 'Escalation Policy',
     'Table' => 'Escalations'
   },
-  'Groups' => {
-    'CaseSensitiveKey' => 'true',
-    'Description' => 'A list of groups, used to associate locations to.',
-    'DisplayName' => 'Groups',
-    'Table' => 'Groups'
-  },
   'Links' => {
     'CaseSensitiveKey' => 'false',
     'Description' => 'Links between nodes',

@@ -208,14 +208,29 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		loadWindowState();
 	}
 	else {
-		createDialog({
-			id		: 'ntw_health',
-			url		: 'network.pl?conf=' + config + '&act=network_summary_health&refresh=' + widget_refresh,
-			title	: 'Network Status and Health',
-			width : 850,
-			height: 300,
-			position : [ 230, 70 ]
-			});	
+		
+		var logStart = 380;
+		if ( useNewNetworkView ) {
+			logStart = 400;
+			createDialog({
+				id		: 'ntw_view',
+				url		: 'network.pl?conf=' + config + '&act=network_summary_view&refresh=' + widget_refresh,
+				title	: 'Network Metrics and Health',
+				width : 720,
+				height: 320,
+				position : [ 230, 70 ]
+				});	
+		}
+		else {
+			createDialog({
+				id		: 'ntw_health',
+				url		: 'network.pl?conf=' + config + '&act=network_summary_health&refresh=' + widget_refresh,
+				title	: 'Network Status and Health',
+				width : 850,
+				height: 300,
+				position : [ 230, 70 ]
+				});	
+		}
 
 		createDialog({
 			id		: 'ntw_metrics',
@@ -231,7 +246,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			title	: 'Log of Network Events',
 			width : 950,
 			height: 380,
-			position : [ 230, 380 ]
+			position : [ 230, logStart ]
 			});
 
 		if ( displayCommunityWidget ) {

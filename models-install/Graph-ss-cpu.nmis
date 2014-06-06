@@ -61,7 +61,7 @@
 			'CDEF:ssCpuRawInterruptP=ssCpuRawInterrupt,ssCpuTotal,/,100,*',
 			'CDEF:ssCpuRawSoftIRQP=ssCpuRawSoftIRQ,ssCpuTotal,/,100,*',
 
-			'AREA:ssCpuRawUserP#ff0000:User\\t\\t',
+			'AREA:ssCpuRawUserP#CD5C5C:User\\t\\t',
 			'GPRINT:ssCpuRawUserP:AVERAGE:Avg %5.2lf%%\\t',
 			'STACK:ssCpuRawSystemP#ffa500:System\\t',
 			'GPRINT:ssCpuRawSystemP:AVERAGE:Avg %5.2lf%%\\t',
@@ -75,7 +75,7 @@
 			'GPRINT:ssCpuRawInterruptP:AVERAGE:Avg %5.2lf%%\\n',
 			'STACK:ssCpuRawSoftIRQP#00a5ff:SoftIRQ\\t',
 			'GPRINT:ssCpuRawSoftIRQP:AVERAGE:Avg %5.2lf%%\\t',
-			'STACK:ssCpuRawIdleP#00ff00:Idle\\t\\t',
+			'STACK:ssCpuRawIdleP#00FF7F:Idle\\t\\t',
 			'GPRINT:ssCpuRawIdleP:AVERAGE:Avg %5.2lf%%\\n',
 		],
 		'small' => [
@@ -101,7 +101,7 @@
 			'CDEF:ssCpuRawInterruptP=ssCpuRawInterrupt,ssCpuTotal,/,100,*',
 			'CDEF:ssCpuRawSoftIRQP=ssCpuRawSoftIRQ,ssCpuTotal,/,100,*',
 
-			'AREA:ssCpuRawUserP#ff0000:User',
+			'AREA:ssCpuRawUserP#CD5C5C:User',
 			'GPRINT:ssCpuRawUserP:AVERAGE:%5.2lf%%',
 			'STACK:ssCpuRawSystemP#ffa500:System',
 			'GPRINT:ssCpuRawSystemP:AVERAGE:%5.2lf%%',
@@ -111,7 +111,7 @@
 			'STACK:ssCpuRawNiceP#ff00ff:Nice',
 			'STACK:ssCpuRawInterruptP#0000ff:Interupt',
 			'STACK:ssCpuRawSoftIRQP#00a5ff:SoftIRQ',
-			'STACK:ssCpuRawIdleP#00ff00:Idle',
+			'STACK:ssCpuRawIdleP#00FF7F:Idle',
 			'GPRINT:ssCpuRawIdleP:AVERAGE:%5.2lf%%\\n',
 		]
 	}

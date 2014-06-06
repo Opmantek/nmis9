@@ -113,6 +113,7 @@ logMsg("TIMING: ".$t->elapTime()." Begin act=$Q->{act}") if $timing;
 my $select;
 
 if ($Q->{act} eq 'network_summary_health') {	$select = 'health'; 
+} elsif ($Q->{act} eq 'network_summary_view') {	$select = 'view'; 
 } elsif ($Q->{act} eq 'network_summary_small') {	$select = 'small'; 
 } elsif ($Q->{act} eq 'network_summary_large') {	$select = 'large';
 } elsif ($Q->{act} eq 'network_summary_allgroups') {	$select = 'allgroups';
@@ -201,6 +202,7 @@ print "<!-- typeSummary select=$select start -->\n";
 
 if ( $select eq 'metrics' ) { selectMetrics(); }
 elsif ( $select eq 'health' ) { selectNetworkHealth(); }
+elsif ( $select eq 'view' ) { selectNetworkView(); }
 elsif ( $select eq 'small' ) { selectSmall(); }
 elsif ( $select eq 'large' ) { selectLarge(); }
 elsif ( $select eq 'group' ) { selectLarge(group => $group); }
@@ -362,6 +364,7 @@ sub selectMetrics {
 		print	end_table;
 	}
 } # end sub selectMetrics
+
 
 #============================
 # Desc: network status summarised to one line, with all groups summarised underneath
@@ -621,6 +624,147 @@ sub printGroup {
 	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
 
 	my @h = qw/metric reachable available health response/;
+	foreach my $t (@h) {
+
+		my $units = $t eq 'response' ? 'ms' : '%' ;
+		my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
+		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
+		if ( $value == 100 ) { $value = 100 }
+		my $bg = "background-color:".colorPercentHi($groupSummary->{average}{$t}).';';
+		$bg = "background-color:".colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}).';' if $t eq 'response';
+
+		$groupSummary->{average}{$t} = int($groupSummary->{average}{$t});
+		print
+		start_td({class=>'info Plain',style=>"$bg"}),
+		img({src=>$C->{$icon{${t}}}}),
+		$value,
+		"$units".
+		end_td;
+	}
+	print end_Tr;
+}	# end sub printGroup
+
+#============================
+# Desc: network status summarised to one line, with all groups summarised underneath
+# Menu: Small Network Status and Health
+# url: network_summary_view -> select=view
+# Title: Current Network Status
+# subtitle: All Groups Status
+#============================
+
+sub selectNetworkView {
+	my %args = @_;
+	my $type = $args{type};
+	my $customer = $args{customer};
+	my $business = $args{business};
+	
+	#my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+	my @h=qw(Group NodeDn Metric Reach Health);
+	my $healthTitle = "All Groups Status";
+	my $healthType = "group";
+	
+	logMsg("TIMING: ".$t->elapTime()." selectNetworkView healthTitle=$healthTitle healthType=$healthType") if $timing;
+	
+	my $graphGroup = $group;
+	if ( $group eq "" ) { $graphGroup = "network"; }
+	my $colspan = @h;
+
+	print
+	start_table( {class=>"noborder" }),
+
+	Tr(td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>"metrics", group=>"$graphGroup", node=>"", intf=>"", width=>"600", height=>"75") )),
+
+	#Tr(th({class=>"title",colspan=>'10'},"Current Network Status")),
+	# Use a subtitle when using multiple servers
+	#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
+	#Tr(th({class=>"header"},\@h));
+	Tr(
+		th({class=>"header",title=>"A group of nodes, and the status"},"Group"),
+		th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Down"),
+		th({class=>"header",title=>"A single metric for the group of nodes"},"Metric"),
+		th({class=>"header",title=>"Group reachability (pingability) of the nodes"},"Reachability"),
+		th({class=>"header",title=>"The health of the group"},"Health")
+	);
+
+	if ($AU->InGroup("network") and $group eq ''){
+		# get all the stats and stuff the hashs
+		getSummaryStatsbyGroup(group => $group);
+
+		my $percentDown = 0;
+		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+		}
+		print
+		start_Tr,
+		td(
+			{class=>"infolft $overallStatus"},
+			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
+		),
+		#td({class=>"info $overallStatus"},"$overallStatus"),
+		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
+		#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
+		td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
+
+		#my @h = qw/metric reachable available health response/;
+		my @h = qw/metric reachable health/;
+		foreach my $t (@h) {
+			my $units = $t eq 'response' ? 'ms' : '%' ;
+			my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
+			if ( $value == 100 ) { $value = 100 }
+			my $bg = "background-color:" . colorPercentHi($groupSummary->{average}{$t});
+			$bg = "background-color:" . colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}) if $t eq 'response';
+			print
+			start_td({class=>'info Plain',style=>"$bg"}),
+			img({src=>$C->{$icon{${t}}}}),
+			$value,
+			"$units",
+			end_td;
+		}
+		print end_Tr;
+		
+	}
+	
+	foreach $group (sort keys %{$GT} ) {
+		next unless $AU->InGroup($group);
+		# get all the stats and stuff the hashs
+		getSummaryStatsbyGroup(group => $group);
+		printGroupView($group);
+	}	# end foreach
+	print end_table;
+
+} # end sub selectNetworkView
+
+sub printGroupView {
+
+	my $group = shift;
+	my $icon;
+
+	print
+	start_Tr,
+	start_td({class=>"infolft $overallStatus"});
+
+	if ($AU->InGroup($group)) {
+	# force a new window if clicked
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$group"},"$group");
+	}
+	else {
+		print "$group";
+	}
+	print end_td;
+	# calc node down cell color as a % of node total
+	my $percentDown = 0;
+	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
+	}
+	print
+	#td({class=>"info $overallStatus"},$overallStatus),
+	#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
+	#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
+	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+
+	#my @h = qw/metric reachable available health response/;
+	my @h = qw/metric reachable health/;
 	foreach my $t (@h) {
 
 		my $units = $t eq 'response' ? 'ms' : '%' ;

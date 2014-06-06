@@ -389,56 +389,73 @@ sub editTable {
  			. hidden(-override => 1, -name => "update", -value => '', -id=> "updateinput");
 
 	
+	my $anyMandatory = 0;
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
 
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref}) {
-			print Tr(td({class=>'header',align=>'center'},$ref->{$item}{header}),
-				eval { my $line;
-					if ($ref->{$item}{display} =~ /key/) {
-						push @hash,$item;
-					}
-					if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
-						$line .= td({class=>'header'},$T->{$key}{$item});
-						$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
-					} 
-					elsif ($ref->{$item}{display} =~ /textbox/) {
-						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-						$line .= td(textarea(-name=> $item, -value=>$value, -style=>"width: 260px; height: 60px;", -size=>'35'));
-					} 
-					elsif ($ref->{$item}{display} =~ /text/) {
-						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-						#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-						$line .= td(textfield(-name=>$item, -value=>$value, -style=>"width: 260px;", -size=>'35'));
-					} 
-					elsif ($ref->{$item}{display} =~ /readonly/) {
-						my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-						$line .= td($value);
-						$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
-					} 
-					elsif ($ref->{$item}{display} =~ /pop/) {
-						#print STDERR "DEBUG editTable: popup -- item=$item\n";
-						$line .= td(popup_menu(
-								-name=>"$item", 
-								-values=>$ref->{$item}{value},
-								-style=>'width:100%;',
-								-default=>$T->{$key}{$item}));
-					} 
-					elsif ($ref->{$item}{display} =~ /scrol/) {
-						my @items = split(/,/,$T->{$key}{$item});
-						$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
-								-style=>'width:100%;',
-								-size=>'6',
-								-values=>$ref->{$item}{value},
-								-default=>\@items));
-					} 
-					return $line;
-				});
+			my $mandatory = "";
+			my $headerclass = "header";
+			my $headspan = 1;
+			if ( exists $ref->{$item}{mandatory} and $ref->{$item}{mandatory} eq "true" ) { 
+				$mandatory = " <span style='color:#FF0000'>*</span>";
+				$anyMandatory = 1;
+			}
+
+			if ( exists $ref->{$item}{special} and $ref->{$item}{special} eq "separator" ) { 
+				$headerclass = "heading4";
+				$headspan = 2;
+				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},"$ref->{$item}{header}$mandatory"));
+			}
+			else {
+				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},"$ref->{$item}{header}$mandatory"),
+					eval { my $line;
+						if ($ref->{$item}{display} =~ /key/) {
+							push @hash,$item;
+						}
+						if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
+							$line .= td({class=>'header'},$T->{$key}{$item});
+							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
+						} 
+						elsif ($ref->{$item}{display} =~ /textbox/) {
+							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+							$line .= td(textarea(-name=> $item, -value=>$value, -style=>"width: 260px; height: 60px;", -size=>'35'));
+						} 
+						elsif ($ref->{$item}{display} =~ /text/) {
+							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+							#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
+							$line .= td(textfield(-name=>$item, -value=>$value, -style=>"width: 260px;", -size=>'35'));
+						} 
+						elsif ($ref->{$item}{display} =~ /readonly/) {
+							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+							$line .= td($value);
+							$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
+						} 
+						elsif ($ref->{$item}{display} =~ /pop/) {
+							#print STDERR "DEBUG editTable: popup -- item=$item\n";
+							$line .= td(popup_menu(
+									-name=>"$item", 
+									-values=>$ref->{$item}{value},
+									-style=>'width:100%;',
+									-default=>$T->{$key}{$item}));
+						} 
+						elsif ($ref->{$item}{display} =~ /scrol/) {
+							my @items = split(/,/,$T->{$key}{$item});
+							$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
+									-style=>'width:100%;',
+									-size=>'6',
+									-values=>$ref->{$item}{value},
+									-default=>\@items));
+						} 
+						return $line;
+					});
+			}	
 		}
 	}
 
 	print hidden(-name=>'hash', -default=>join(',',@hash),-override=>'1');
+	print Tr(td({class=>'',align=>'center',colspan=>'2'},"<span style='color:#FF0000'>*</span> mandatory fields."));
 	print Tr(td('&nbsp;'),
 					 td( 
 							 ($table eq 'Nodes' ? 

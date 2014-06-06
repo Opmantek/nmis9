@@ -291,6 +291,13 @@ th.info {
 	  border: 1px solid #999999;
 }
 
+.heading4 {
+		/* SKIN: This is the "Widget Headings 4". */
+	  color: white;
+	  background-color: #aaaaaa;
+	  border: 1px solid #999999;
+}
+
 td.litehead {
 	  color: black;
 	  background-color: #a3a3a3;
@@ -347,7 +354,7 @@ ul.jd_menu_vertical,
 ul.jd_menu_vertical ul {
 	  color: white;
 	  background-color: #518C1E;
-	  border: 1px solid #518C1E;
+	  border: 0px solid #518C1E;
 	  letter-spacing: 1px;
 }
 /* these make the vertical a bit smaller */

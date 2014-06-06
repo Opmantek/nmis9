@@ -43,24 +43,24 @@
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:reach=$database:reachability:AVERAGE',
 			'DEF:status=$database:status:AVERAGE',
-			'LINE3:avail#00ff00:Availability',
-			'LINE3:health#ff9900:Health',
 			'LINE2:reach#0000ff:Reachability',
+			'GPRINT:reach:AVERAGE:Avg %1.2lf',
+			'LINE3:health#ff9900:Health',
+			'GPRINT:health:AVERAGE:Avg %1.2lf',
 			'LINE2:status#ff0000:Status',
-			'GPRINT:avail:AVERAGE:Avg Available %1.2lf',
-			'GPRINT:health:AVERAGE:Avg Health %1.2lf',
-			'GPRINT:reach:AVERAGE:Avg Reachable %1.2lf',
-			'GPRINT:status:AVERAGE:Avg Status %1.2lf'
+			'GPRINT:status:AVERAGE:Avg %1.2lf',
+			'LINE3:avail#00ff00:Availability',
+			'GPRINT:avail:AVERAGE:Avg %1.2lf',
 		],
 		'small' => [
 			'DEF:avail=$database:availability:AVERAGE',
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:reach=$database:reachability:AVERAGE',
 			'DEF:status=$database:status:AVERAGE',
-			'LINE3:avail#00ff00:Availability',
-			'LINE3:health#ff9900:Health',
 			'LINE2:reach#0000ff:Reachability',
-			'LINE2:status#ff0000:Status'
+			'LINE3:health#ff9900:Health',
+			'LINE2:status#ff0000:Status',
+			'LINE3:avail#00ff00:Availability',
 		]
 	}
 );

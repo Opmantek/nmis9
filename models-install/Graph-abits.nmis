@@ -46,10 +46,10 @@
 			'CDEF:inputBits=input,8,*',
 			'CDEF:inputSplitBits=input,8,*,$split,*',
 			'CDEF:outputBits=output,8,*',
-			'$GLINE:inputSplitBits#0000ff:In',
+			'$GLINE:inputSplitBits#00BFFF:In',
 			'GPRINT:inputBits:AVERAGE:Avg %1.0lf bits/sec',
 			'GPRINT:inputBits:MAX:Max %1.0lf bits/sec\\n',
-			'$GLINE:outputBits#00ff00:Out',
+			'$GLINE:outputBits#00FF7F:Out',
 			'GPRINT:outputBits:AVERAGE:Avg Out %1.0lf bits/sec',
 			'GPRINT:outputBits:MAX:Max Out %1.0lf bits/sec\\n',
 			'HRULE:$ifSpeedIn#ff0000',
@@ -64,8 +64,8 @@
 			'CDEF:inputBits=input,8,*',
 			'CDEF:inputSplitBits=input,8,*,$split,*',
 			'CDEF:outputBits=output,8,*',
-			'$GLINE:inputSplitBits#0000ff:In bits/sec',
-			'$GLINE:outputBits#00ff00:Out bits/sec',
+			'$GLINE:inputSplitBits#00BFFF:In bits/sec',
+			'$GLINE:outputBits#00FF7F:Out bits/sec',
 			'COMMENT:Interface Speed $speed'
 		]
 	}

@@ -52,7 +52,7 @@
 			'CDEF:tcpInSegsSplit=tcpInSegs,-1,*',
 			'CDEF:tcpInErrsSplit=tcpInErrs,-1,*',
 
-			'AREA:tcpOutSegs#00ff00:Output Segments',
+			'AREA:tcpOutSegs#00FF7F:Output Segments',
 			'GPRINT:tcpOutSegs:AVERAGE:Avg %1.2lf',
 			'GPRINT:tcpOutSegs:MAX:Max %1.2lf\\n',
 
@@ -64,7 +64,7 @@
 			'GPRINT:tcpRetransSegs:AVERAGE:Avg %1.2lf',
 			'GPRINT:tcpRetransSegs:MAX:Max %1.2lf\\n',
 
-			'AREA:tcpInSegsSplit#0000ff:Input Segments',
+			'AREA:tcpInSegsSplit#00BFFF:Input Segments',
 			'GPRINT:tcpInSegs:AVERAGE:Avg %1.2lf',
 			'GPRINT:tcpInSegs:MAX:Max %1.2lf\\n',
 
@@ -84,12 +84,12 @@
 			'CDEF:tcpInSegsSplit=tcpInSegs,-1,*',
 			'CDEF:tcpInErrsSplit=tcpInErrs,-1,*',
 
-			'AREA:tcpOutSegs#00ff00:Output Segments',
+			'AREA:tcpOutSegs#00FF7F:Output Segments',
 			'STACK:tcpOutRsts#000000:Output Resets',			
 			'STACK:tcpRetransSegs#ff0000:Retransmitted',
 			'GPRINT:tcpRetransSegs:AVERAGE:Avg %1.2lf\\n',
 
-			'AREA:tcpInSegsSplit#0000ff:Input Segments',
+			'AREA:tcpInSegsSplit#00BFFF:Input Segments',
 			'STACK:tcpInErrsSplit#ffff00:Input Errors\\n',
 		]
 	}

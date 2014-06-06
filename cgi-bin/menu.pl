@@ -176,6 +176,7 @@ sub menu_bar_site {
 		my @netstatus;		 
 		push @netstatus, qq|<a id='ntw_metrics' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_metrics">Metrics</a>|;
 		push @netstatus, qq|<a id='ntw_graph' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_metrics_graph">Network Metric Graphs</a>|;
+		push @netstatus, qq|<a id='ntw_view' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_view">Network Metrics and Health</a>|;
 		push @netstatus, qq|<a id='ntw_health' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
 		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
 		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
@@ -345,7 +346,10 @@ sub menu_bar_site {
 		push @systemitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 				
-		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_edit&amp;model=CiscoRouter&amp;section=event">Event Logging and Syslog</a>| 
+		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=CiscoRouter&amp;section=threshold">Thresholding Alerts</a>| 
+				if ($AU->CheckAccess("table_models_view","check"));				
+
+		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=CiscoRouter&amp;section=event">Event Logging and Syslog</a>| 
 				if ($AU->CheckAccess("table_models_view","check"));				
 
 		push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
