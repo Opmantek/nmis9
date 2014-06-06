@@ -269,6 +269,7 @@ print script( "nodeInfo = " . encode_json($nodeInfo) );
 $C->{'display_community_rss_widget'} = "true" if $C->{'display_community_rss_widget'} eq "";
 $C->{'display_opmaps_widget'} = "true" if $C->{'display_opmaps_widget'} eq "";
 $C->{'display_opflow_widget'} = "true" if $C->{'display_opflow_widget'} eq "";
+$C->{'display_network_view'} = "true" if $C->{'display_network_view'} eq "";
         
 $C->{'rss_widget_width'} = 210 if $C->{'rss_widget_width'} eq "";
 $C->{'rss_widget_height'} = 240 if $C->{'rss_widget_height'} eq ""; 

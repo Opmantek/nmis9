@@ -69,6 +69,7 @@
     'nodegraph' => 'health,response,hrsmpcpu',
     'nodeType' => 'server',
     'nodeModel' => 'ESXi',
+    'nodeVendor' => 'VMware Inc.',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -105,9 +106,37 @@
             'title' => 'Contact'
           }
         }
-      }
+      },
+#VMWARE-SYSTEM-MIB::vmwProdName.0 = STRING: VMware ESXi
+#VMWARE-SYSTEM-MIB::vmwProdVersion.0 = STRING: 5.1.0
+#VMWARE-SYSTEM-MIB::vmwProdBuild.0 = STRING: 1065491
+#VMWARE-SYSTEM-MIB::vmwProdUpdate.0 = STRING: 1
+#VMWARE-SYSTEM-MIB::vmwProdPatch.0 = STRING: 12
+      'extra' => {
+        'snmp' => {
+          'vmwProdName' => {
+            'oid' => 'vmwProdName',
+            'title' => 'VMware Product Name'
+          },
+          'vmwProdVersion' => {
+            'oid' => 'vmwProdVersion',
+            'title' => 'VMware Release'
+          },
+          'vmwProdBuild' => {
+            'oid' => 'vmwProdBuild',
+            'title' => 'VMware Build Number'
+          },
+          'vmwProdUpdate' => {
+            'oid' => 'vmwProdUpdate',
+            'title' => 'VMware Update Level'
+          },
+          'vmwProdPatch' => {
+            'oid' => 'vmwProdPatch',
+            'title' => 'VMware Patch Level'
+          },
+        }
+      },    
     },
-    'nodeVendor' => 'VMware Inc.'
   },
   'device' => {
     'sys' => {
@@ -228,7 +257,7 @@
             'title' => 'Type'
           }
         }
-      }
+      },
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
@@ -241,7 +270,7 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
-	}
+	  }
   },
   'storage' => {
     'sys' => {
@@ -289,20 +318,20 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
           },
 					# ditto
-          'vmwVmGuestState' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-					},
-          'vmwVmGuestStateNum' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-            'replace' => {
-              'unknown' => '0',
-              'notrunning' => '20',
-              'standby' => '40',
-              'resetting' => '60',
-              'shuttingdown' => '80',
-              'running' => '100',
-            },
-          },
+          #'vmwVmGuestState' => {
+          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+					#},
+          #'vmwVmGuestStateNum' => {
+          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+          #  'replace' => {
+          #    'unknown' => '0',
+          #    'notrunning' => '20',
+          #    'standby' => '40',
+          #    'resetting' => '60',
+          #    'shuttingdown' => '80',
+          #    'running' => '100',
+          #  },
+          #},
           'vmwVmMemSize' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
           },
@@ -317,7 +346,7 @@
         'indexed' => 'vmwVmDisplayName',
         'index_oid' => '1.3.6.1.4.1.6876.2.1.1.2',        
         'index_regex' => '\.(\d+)$',        
-        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmGuestOS,vmwVmUUID,vmwVmState,vmwVmGuestState,vmwVmMemSize,vmwVmCpus',
+        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmUUID,vmwVmState,vmwVmMemSize,vmwVmCpus',
         'snmp' => {
           'vmwVmDisplayName' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.2',
@@ -327,10 +356,11 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.3',
             'title' => 'Config File'
           },
-          'vmwVmGuestOS' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
-            'title' => 'Guest OS'
-          },
+          # This does not produce reliable results
+          #'vmwVmGuestOS' => {
+          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
+          #  'title' => 'Guest OS'
+          #},
           'vmwVmMemSize' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
             'title' => 'Memory Size'
@@ -343,10 +373,11 @@
             'oid' => '1.3.6.1.4.1.6876.2.1.1.10',
             'title' => 'VMID'
           },
-          'vmwVmGuestState' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-            'title' => 'Guest State'
-          },
+          # This does not produce reliable results
+          #'vmwVmGuestState' => {
+          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+          #  'title' => 'Guest State'
+          #},
           'vmwVmCpus' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
             'title' => 'CPUs'
