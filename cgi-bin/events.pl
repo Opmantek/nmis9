@@ -36,6 +36,7 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use NMIS;
+use Sys;
 use func;
 
 use Data::Dumper;
@@ -112,7 +113,10 @@ sub viewEvent {
 
 	my $ET = loadEventStateNoLock();
 
-	print createHrButtons(node=>$node,refresh=>$Q->{refresh},widget=>$widget);
+	my $S = Sys::->new;
+	$S->init(name=>$node,snmp=>'false');
+
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget);
 
 	print start_table;
 

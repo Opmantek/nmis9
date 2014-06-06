@@ -36,6 +36,7 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use NMIS;
+use Sys;
 use func;
 use csv;
 use Net::hostent;
@@ -320,7 +321,10 @@ sub showTable {
 
 	my $CT = loadCfgTable(table=>$table); # load table configuration
 
-	print createHrButtons(node=>$node, refresh=>$Q->{refresh}, widget=>$widget);
+	my $S = Sys::->new;
+	$S->init(name=>$node,snmp=>'false');
+
+	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh}, widget=>$widget);
 
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));

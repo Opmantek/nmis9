@@ -37,6 +37,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use Time::ParseDate;
 use NMIS;
+use Sys;
 use func;
 
 use Data::Dumper;
@@ -110,13 +111,16 @@ sub viewOutage {
 	my $OT = loadOutageTable();
 	my $NT = loadNodeTable();
 
+	my $S = Sys::->new;
+	$S->init(name=>$node,snmp=>'false');
+
 	# start of form
 	print start_form(-id=>"nmisOutages", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
-	print createHrButtons(node=>$node,refresh=>$Q->{refresh},widget=>$widget);
+	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget);
 
 	print start_table;
 
