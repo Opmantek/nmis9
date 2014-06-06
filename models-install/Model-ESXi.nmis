@@ -52,6 +52,20 @@
       }
     }
   },
+  'alerts' => {
+    'VirtMachines' => {
+      'VirtMachinesRunning' => {
+        'element' => 'vmwVmDisplayName',
+        'event' => 'Virtual Machine not Running',
+        'level' => 'Warning',
+				# az: test is disabled, data is unreliable and stale
+        'test' => 'CVAR1=vmwVmGuestState;"$CVAR1" ne "running" && 0',
+        'type' => 'test',
+        'unit' => 'state',
+        'value' => 'CVAR1=vmwVmGuestState;return "$CVAR1"'
+      },
+    },
+  },
   'system' => {
     'nodegraph' => 'health,response,hrsmpcpu',
     'nodeType' => 'server',
@@ -255,6 +269,91 @@
     },
     'nocollect' => {
       'Description' => '/mnt/cdrom|boot'
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'VirtMachines',
+    'rrd' => {
+      'VirtMachines' => {        
+        'indexed' => 'true',
+        'graphtype' => 'vmwVmState',
+        'snmp' => {
+          'vmwVmStateNum' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
+            'replace' => {
+              'powered off' => '0',
+              'powered on' => '100',
+            },
+          },
+					# raw string state for xxx-node.nmis, should be named same as var in sys section
+          'vmwVmState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
+          },
+					# ditto
+          'vmwVmGuestState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+					},
+          'vmwVmGuestStateNum' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+            'replace' => {
+              'unknown' => '0',
+              'notrunning' => '20',
+              'standby' => '40',
+              'resetting' => '60',
+              'shuttingdown' => '80',
+              'running' => '100',
+            },
+          },
+          'vmwVmMemSize' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
+          },
+          'vmwVmCpus' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
+          },
+        },
+      },      
+    },
+    'sys' => {
+      'VirtMachines' => {        
+        'indexed' => 'vmwVmDisplayName',
+        'index_oid' => '1.3.6.1.4.1.6876.2.1.1.2',        
+        'index_regex' => '\.(\d+)$',        
+        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmGuestOS,vmwVmUUID,vmwVmState,vmwVmGuestState,vmwVmMemSize,vmwVmCpus',
+        'snmp' => {
+          'vmwVmDisplayName' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.2',
+            'title' => 'Display Name'
+          },
+          'vmwVmConfigFile' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.3',
+            'title' => 'Config File'
+          },
+          'vmwVmGuestOS' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
+            'title' => 'Guest OS'
+          },
+          'vmwVmMemSize' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
+            'title' => 'Memory Size'
+          },
+          'vmwVmState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
+            'title' => 'State'
+          },
+          'vmwVmUUID' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.10',
+            'title' => 'VMID'
+          },
+          'vmwVmGuestState' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
+            'title' => 'Guest State'
+          },
+          'vmwVmCpus' => {
+            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
+            'title' => 'CPUs'
+          },
+        },
+      },      
     }
   }
 );

@@ -141,6 +141,7 @@
       'EltekTempAlarms' => "Temperature Alarms",
       'cps6000Grp' => "Group Power and Status",
       'cps6000Cct' => "Circuit Power and Status",
+			'vmwVmState' => "Virtual Machine Status",
     }
   }
 );
