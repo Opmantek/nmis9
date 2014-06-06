@@ -132,6 +132,10 @@ if ( $#ARGV > 0 ) {
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
+my $wantwidget = exists $Q->{widget}? $Q->{widget} ne "false" : 1;
+my $widget = $wantwidget ? "true" : "false";
+
+
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
@@ -174,9 +178,15 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 } else { notfound(); }
 
 sub notfound {
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
+
 	print "Reports: ERROR, act=$Q->{act}\n";
 	print "Request not found\n";
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
 	
 exit;
@@ -190,8 +200,11 @@ sub healthReport {
 	my %summaryTable;
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
-
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my $NT = loadLocalNodeTable();
@@ -271,7 +284,11 @@ sub healthReport {
 	my $dec_format = "%.".$decimals."f";
 
 	# start of form
-	print start_form(-id=>"nmis",-href=>"reports.pl?conf=$Q->{conf}&act=report_dynamic_health") if not $Q->{print};
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_health")
+			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			if (not $Q->{print});
 	print start_table;
 
 	# header with time info
@@ -281,7 +298,8 @@ sub healthReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_health&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_health&sortdir=$sortdir&"
+			."time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	# header and data summary
 	print start_Tr,start_td({width=>'100%',colspan=>'2'}),start_table;
@@ -302,7 +320,8 @@ sub healthReport {
 			$summaryTable{$group}{net} = uc($summaryTable{$group}{net});
 			$aline = "$summaryTable{$group}{net} $summaryTable{$group}{role}";
 		} else {
-			$aline = a({href=>"#$group"},"$summaryTable{$group}{net} $summaryTable{$group}{role}");
+			$aline = $wantwidget? "$summaryTable{$group}{net} $summaryTable{$group}{role}" :
+								a({href=>"#$group"},"$summaryTable{$group}{net} $summaryTable{$group}{role}");
 		}
 		if ( $summaryTable{$group}{reachable} > 0 ) {
 			$summaryTable{$group}{avgreachable} = sprintf($dec_format,$summaryTable{$group}{reachable} / $summaryTable{$group}{count});
@@ -331,20 +350,22 @@ sub healthReport {
 
 	print start_Tr,start_td({colspan=>'2'}),start_table;
 	foreach my $group ( sort keys %{$GT}) {
-		print Tr(th({class=>'title',align=>'center',colspan=>'10'},'Group&nbsp;',a({name=>"$group", href=>"#top"},$group))); 
+		print Tr(th({class=>'title',align=>'center',colspan=>'10'},'Group&nbsp;',
+								($wantwidget? $group : a({name=>"$group", href=>"#top"},$group)))
+				); 
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=node"},'Node')),
 			td({class=>'header'},'Device Type'),
 			td({class=>'header'},'Role Type'),
 			td({class=>'header'},'Net Type'),
-			td({class=>'header'},a({href=>"$url&sort=reachability"},'Reachability')),
-			td({class=>'header'},a({href=>"$url&sort=availability"},'Interface Avail.')),
+			td({class=>'header'},a({href=>"$url&sort=reachable"},'Reachability')),
+			td({class=>'header'},a({href=>"$url&sort=available"},'Interface Avail.')),
 			td({class=>'header'},a({href=>"$url&sort=health"},'&nbsp;Health&nbsp;')),
 			td({class=>'header'},a({href=>"$url&sort=response"},'Response Time'))
 			);
 
 		$Q->{sort} = 'node' if $Q->{sort} eq '';
-		for my $reportnode (sortall(\%reportTable,"$Q->{sort}", $sortdir)) {
+		for my $reportnode (sortall(\%reportTable, $Q->{sort}, $sortdir)) {
 			if ($reportTable{$reportnode}{group} eq $group) {
 				print Tr(
 					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportTable{$reportnode}{node})),
@@ -366,6 +387,8 @@ sub healthReport {
 	print end_table,end_td,end_Tr;
 	print end_table;
 	print end_form if not $Q->{print};
+
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
 
 #===============
@@ -384,11 +407,19 @@ sub availReport {
 	my $NI;
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	print start_form(-id=>"nmis",-href=>"reports.pl?conf=$Q->{conf}&act=report_dynamic_avail") if not $Q->{print};
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_avail")
+			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			if (not $Q->{print});
 
 	print start_table;
 
@@ -436,7 +467,8 @@ sub availReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_avail&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_avail&sortdir=$sortdir"
+			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	print Tr(th({class=>'title',align=>'center',colspan=>'3'},"% Availability ( Reachability) for all Devices"));
 	print Tr(
@@ -462,6 +494,7 @@ sub availReport {
 	print end_form if not $Q->{print};
 
 	purge_files('avail') if $Q->{print};
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -479,7 +512,11 @@ sub portReport{
 	my %interfaceInfo;
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
@@ -626,6 +663,7 @@ sub portReport{
 	print end_table;
 
 	purge_files('port') if $Q->{print};
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -636,7 +674,11 @@ sub responseReport {
 	my %reportTable;
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
@@ -680,7 +722,12 @@ sub responseReport {
 	my $dec_format = "%.".$decimals."f";
 
 	# start of form
-	print start_form(-id=>"nmis",-href=>"reports.pl?conf=$Q->{conf}&act=report_dynamic_response") if not $Q->{print};
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_response")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			if (not $Q->{print});
+
 
 	print start_table;
 
@@ -694,7 +741,8 @@ sub responseReport {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir"
+			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 
 	print Tr(th({class=>'title',align=>'center',colspan=>'3'},"Average Response Time for All Devices"));
@@ -725,6 +773,7 @@ sub responseReport {
 	print end_form if not $Q->{print};
 
 	purge_files('response') if $Q->{print};
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -735,7 +784,12 @@ sub top10Report {
 	my %reportTable;
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
+
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
@@ -894,7 +948,12 @@ sub top10Report {
 	}
 
 	# start of form
-	print start_form(-id=>"nmis",-href=>"reports.pl?conf=$Q->{conf}&act=report_dynamic_top10") if not $Q->{print};
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_top10")
+			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			if (not $Q->{print});
+
 
 	print start_table({width=>'65%'});
 
@@ -905,7 +964,8 @@ sub top10Report {
 
 	$Q->{sort} = 'node' if $Q->{sort} eq '';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}";
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_response&sortdir=$sortdir"
+			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
 	print start_Tr,start_td({colspan=>'2'}),start_table;
 
@@ -1183,6 +1243,7 @@ sub top10Report {
 	print end_form if not $Q->{print};
 
 	purge_files('top10') if $Q->{print};
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -1191,7 +1252,11 @@ sub top10Report {
 sub outageReport {
 
 	#start of page
-	print header($headeropts) if not $Q->{print};
+	if (not $Q->{print})
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
@@ -1218,7 +1283,12 @@ sub outageReport {
 	my $outime;
 
 	# start of form
-	print start_form(-id=>"nmis",-href=>"reports.pl?conf=$Q->{conf}&act=report_dynamic_outage") if not $Q->{print};
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_outage")
+			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			if (not $Q->{print});
+
 
 	print start_table();
 
@@ -1317,7 +1387,8 @@ sub outageReport {
 			"Outage Report, $datestamp_start to $datestamp_end"));
 
 	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_outage&level=$Q->{level}"
-					."&time_start=$Q->{time_start}&time_end=$Q->{time_end}&sortdir=$Q->{sortdir}&period=$Q->{period}";
+					."&time_start=$Q->{time_start}&time_end=$Q->{time_end}&widget=$widget"
+					."&sortdir=$Q->{sortdir}&period=$Q->{period}";
 
 	print Tr(
 		td({class=>'header'},a({href=>"$url&sort=time"},'Time' )),
@@ -1357,6 +1428,7 @@ sub outageReport {
 
 
 	purge_files('outage') if $Q->{print};
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 } # end of report = outage
 
@@ -1365,9 +1437,12 @@ sub outageReport {
 
 sub nodedetailsReport {
 
-	if (not $AU->CheckAccess('rpt_dynamic','check')) { # same as menu
+	if (not $AU->CheckAccess('rpt_dynamic','check')) 
+	{ 
 		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 		$AU->CheckAccess('rpt_nodedetails');
+		print pageEnd if (not $Q->{print} and not $wantwidget);
 		return;
 	}
 
@@ -1444,6 +1519,7 @@ sub storedReport {
 
 	#start of page
 	print header($headeropts);
+	pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
@@ -1516,6 +1592,7 @@ sub storedReport {
 	}
 
 	print end_table;
+	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 	sub printa {
 		my $index = shift;
@@ -1526,7 +1603,6 @@ sub storedReport {
 	sub printe {
 		print td({class=>'info Plain'},'&nbsp;');
 	}
-
 }
 
 #===============
@@ -1599,6 +1675,7 @@ sub purge_files {
 sub fileReport {
 
 	print header($headeropts);
+	pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
@@ -1608,9 +1685,11 @@ sub fileReport {
 			$line =~ s/<a.*>(.*)(<\/a>)/$1/; # remove anchors
 			print $line;
 		}
+		print pageEnd if (not $Q->{print} and not $wantwidget);
 		close HTML;
 	} else {
 		print Tr(td({class=>'error'},"Cannot read report file $C->{report_root}/$Q->{file}"));
+		print pageEnd if (not $Q->{print} and not $wantwidget);
 	}
 }
 
@@ -1646,14 +1725,18 @@ sub getPeriod {
 
 	$elements .= Tr(
 			td({class=>'info Plain'},'Select Period',
-				popup_menu(-name=>'period',-onchange=>"javascript:get('nmis');",override=>'1',
+				popup_menu(-name=>'period',
+									 -onchange => ($wantwidget? "get('nmis');" : "submit()" ),
+									 override=>'1',
 								-values=>['',$permin,'day','week','month'],-default=>"$Q->{period}"),'&nbsp;&nbsp;or'),
 				td({class=>'info Plain'},'&nbsp;Start&nbsp;',
 				textfield(-name=>"time_start",size=>'23',value=>$datestamp_start,override=>'1'),
 				'&nbsp;End&nbsp;',
 				textfield(-name=>"time_end",size=>'23',value=>$datestamp_end,override=>'1'),
 				'&nbsp;',
-				button(-name=>"button",onclick=>"get('nmis');", -value=>"Go")));
+				button(-name=>"button", 
+							 onclick => ($wantwidget? "get('nmis');" : "submit()" ),
+							 -value=>"Go")));
 
 	return $elements,$start,$end;	
 }
@@ -1667,8 +1750,8 @@ sub getLevel {
 
 	$elements = Tr(
 			td({class=>'info Plain',colspan=>'2'},'Based on ',
-				radio_group(-name=>'level',-values=>['node','interface'],-default=>$level,onchange=>"get('nmis');"))
-		);
+				radio_group(-name=>'level',-values=>['node','interface'],-default=>$level,
+										-onchange=> ($wantwidget? "get('nmis');" : "submit()" ))));
 
 	return $elements,$level;
 }
