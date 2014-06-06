@@ -54,14 +54,14 @@
   },
   'alerts' => {
     'VirtMachines' => {
-      'VirtMachinesRunning' => {
+      'VirtMachinesPowered' => {
         'element' => 'vmwVmDisplayName',
-        'event' => 'Virtual Machine not Running',
+        'event' => 'Virtual Machine not Powered On',
         'level' => 'Warning',
-        'test' => 'CVAR1=vmwVmGuestState;"$CVAR1" ne "running"',
+        'test' => 'CVAR1=vmwVmState;"$CVAR1" ne "powered on"',
         'type' => 'test',
         'unit' => 'state',
-        'value' => 'CVAR1=vmwVmGuestState;return "$CVAR1"'
+        'value' => 'CVAR1=vmwVmState;return "$CVAR1"'
       },
     },
   },
@@ -317,7 +317,7 @@
           'vmwVmState' => {
             'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
           },
-					# ditto
+					# This does not produce reliable results
           #'vmwVmGuestState' => {
           #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
 					#},

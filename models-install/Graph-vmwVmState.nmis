@@ -44,15 +44,22 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:vmwVmState=$database:vmwVmStateNum:AVERAGE',
-			'LINE2:vmwVmState#0000ff: VM Power State',
+			#'DEF:vmwVmGuestState=$database:vmwVmGuestStateNum:AVERAGE',
+			#'LINE2:vmwVmGuestState#00ff00: Virtual Machine Run State',
+			#'GPRINT:vmwVmGuestState:AVERAGE:Avg. %1.0lf%%\\n',
+			'LINE2:vmwVmState#00BFFF: Virtual Machine Power State',
 			'GPRINT:vmwVmState:AVERAGE:Avg. %1.0lf%%\\n',
+			#'COMMENT:100%=running, 80%=shuttingdown, 60%=resetting, 40%=standby, 20%=notrunning, 0%=unknown\\n'
 		],
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:vmwVmState=$database:vmwVmStateNum:AVERAGE',
-			'LINE2:vmwVmState#0000ff: VM Power State',
+			#'DEF:vmwVmGuestState=$database:vmwVmGuestStateNum:AVERAGE',
+			#'LINE2:vmwVmGuestState#00ff00: Virtual Machine Run State',
+			#'GPRINT:vmwVmGuestState:AVERAGE:Avg. %1.0lf%%\\n',
+			'LINE2:vmwVmState#00BFFF: VM Power State',
 			'GPRINT:vmwVmState:AVERAGE:Avg. %1.0lf%%\\n',
 		]
 	}

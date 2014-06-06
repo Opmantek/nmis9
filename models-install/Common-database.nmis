@@ -134,7 +134,7 @@
       'cps6000Grp' => '/health/$nodeType/$node-cps6000Grp-$index.rrd',
       'cps6000Cct' => '/health/$nodeType/$node-cps6000Cct-$index.rrd',
       'power' => '/health/$nodeType/$node-power.rrd',
-			'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
+      'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
     }
   }
 );
