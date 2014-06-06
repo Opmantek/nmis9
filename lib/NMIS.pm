@@ -2752,8 +2752,8 @@ sub createHrButtons {
 			push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"services"));
 		}
-		### 2012-12-20 keiths, adding services list support
-		if (defined $NI->{services}) {
+		# adding services list support, but hide the tab if the snmp service collection isn't working
+		if (defined $NI->{services} && keys %{$NI->{services}}) {
 					push @out, td({class=>'header litehead'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	

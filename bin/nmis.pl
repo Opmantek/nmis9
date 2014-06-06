@@ -3444,12 +3444,48 @@ sub runServices {
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
 
-	# services to be polled are saved in a list
+	# do an snmp service poll first, regardless of specific services being enabled or not
+	my %snmpTable;
+	my $timeout = 3;
+	my ($snmpcmd,@ret, $var, $i, $key);
+	my $write=0;
+
+	dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+	my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+	my $hrIndextable;
+	foreach my $var ( @snmpvars ) {
+		if ( $hrIndextable = $SNMP->getindex($var)) {
+			foreach my $inst (keys %{$hrIndextable}) {
+				my $value = $hrIndextable->{$inst};
+				my $textoid = oid2name(name2oid($var).".".$inst);
+				if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+				( $textoid, $inst ) = split /\./, $textoid, 2;
+				$snmpTable{$textoid}{$inst} = $value;
+				dbg("Indextable=$inst textoid=$textoid value=$value",2);
+			}
+		}
+	}
+	
+	# prepare service list for all observed services
+	foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+		# key services by name_pid
+		$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+		$services{$key}{hrSWRunName} = $key;
+		$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+		$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+		$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+		$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+		
+		dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
+	}
+	# keep all services for display (not rrd!)
+	$NI->{services} = \%services;
+
+	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
 	
 		# make sure this gets reinitialized for every service!	
   	my $gotMemCpu = 0;
-		my $servicePoll = 0;
 		my %Val;
 
 		# check for invalid service table
@@ -3459,7 +3495,6 @@ sub runServices {
 		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
 
 		# clear global hash each time around as this is used to pass results to rrd update
-		my %snmpTable;
 		my $ret = 0;
 		my $snmpdown = 0;
 
@@ -3536,46 +3571,7 @@ sub runServices {
 					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
 					next;
 				}
-				if ( ! $servicePoll ) {
-					dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-					my $timeout = 3;
-					my $snmpcmd;
-					my @ret;
-					my $var;
-					my $i;
-					my $key;
-					my $write=0;
 
-					$servicePoll = 1;	# set flag so snmpwalk happens only once.
-
-					my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-					my $hrIndextable;
-					foreach my $var ( @snmpvars ) {
-						if ( $hrIndextable = $SNMP->getindex($var)) {
-							foreach my $inst (keys %{$hrIndextable}) {
-								my $value = $hrIndextable->{$inst};
-								my $textoid = oid2name(name2oid($var).".".$inst);
-								if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-								( $textoid, $inst ) = split /\./, $textoid, 2;
-								$snmpTable{$textoid}{$inst} = $value;
-								dbg("Indextable=$inst textoid=$textoid value=$value",2);
-							}
-						}
-					}
-
-					foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
-						# key services by name_pid
-						$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-						$services{$key}{hrSWRunName} = $key;
-						$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-						$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-						$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-						$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-
-						dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
-					}
-
-				} #servicePoll
 
 				# lets check the service status
 				# NB - may have multiple services with same name on box.
@@ -3602,9 +3598,6 @@ sub runServices {
 						}
 					}
 				}
-
-				### 2012-12-20 keiths, keep the services for display later.
-				$NI->{services} = \%services;
 			}
 			else {
 				# is the service already down?

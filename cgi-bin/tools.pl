@@ -39,6 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use NMIS;
+use Sys;
 
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
@@ -108,6 +109,9 @@ sub typeTool {
 	my $NT = loadNodeTable();
 	my $host = $NT->{$node}{host};
 
+	my $S = Sys::->new;
+	$S->init(name=>$node,snmp=>'false');
+
 	my $title = "Command $tool for node $NT->{$node}{name} ($host)";
 	$title = "Command $tool" if $node eq '';
 	
@@ -125,7 +129,7 @@ sub typeTool {
 	my $ctool;
 	my $wid = "580px";
 
-	print createHrButtons(node=>$node,widget=>$widget);
+	print createHrButtons(node=>$node, system=>$S, widget=>$widget);
 
 	#certain outputs will have their own layout
 	if ($tool eq "hostinfo") { 
