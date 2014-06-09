@@ -283,6 +283,7 @@ sub gettable {
 }
 
 # get hash with key containing only indexes of oid
+# returns undef in case of error
 sub getindex {
 	my $self = shift;
 	my @vars = shift;
@@ -293,6 +294,8 @@ sub getindex {
 	my $result2;
 
 	$self->{vars} = \@vars;
+
+	return undef if (!defined $self->{session});
 	
 	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 	if ( not scalar(($oid) = $self->nameTOoid(0,@vars)) ) {
