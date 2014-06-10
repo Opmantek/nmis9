@@ -65,28 +65,36 @@ if ($Q->{act} eq '' ) {
 
 sub printFeed {
 	print header($headeropts);
+	pageStartJscript(title => "NMIS Community News") if ($Q->{widget} ne "true");
 
-  my $tfs = 30;
-#	print qq|
-#<script>
-#var FEED_URL = "https://community.opmantek.com/createrssfeed.action?types=page&types=blogpost&spaces=NMIS&title=Recent+Contributors&labelString%3D&excludedSpaceKeys%3D&sort=modified&maxResults=3&timeSpan=365&showContent=false&confirm=Create+RSS+Feed";
-#$.get(FEED_URL, function (data) {
-#    $(data).find("entry").each(function () { 
-#    	// or "item" or whatever suits your feed
-#        var el = $(this);
-#        console.log("------------------------");
-#        console.log("title      : " + el.find("title").text());
-#        console.log("author     : " + el.find("author").text());
-#        console.log("description: " + el.find("description").text());
-#    });
-#});
-#</script>
-#|;
-	
-	print start_table({width=>"100%"});
-	print Tr(td({class=>'infolft Plain'},a({href=>"https://community.opmantek.com/display/NMIS/Device+Modelling+Checklist"},"Device Modelling Checklist, Keith Sinclair, 26 May 2014")));
-	print Tr(td({class=>'infolft Plain'},a({href=>"https://community.opmantek.com/display/NMIS/Amount+of+Performance+Data+Storage+NMIS8+Stores"},"Amount of Performance Data Storage NMIS8 Stores, Keith Sinclair, 13 May 2014")));
-	print Tr(td({class=>'infolft Plain'},a({href=>"https://community.opmantek.com/display/NMIS/Logs%2C+debugs+and+files+which+are+useful+when+troubleshooting+and+resolving+issues+in+NMIS"},"Logs, debugs and files which are useful when troubleshooting and resolving issues in NMIS, Alex Zangerl, 5 May 2014")));
+	print q|
+<script>
+		var FEED_URL = "https://community.opmantek.com/rss/NMIS.xml";
+
+		$.get(FEED_URL, function (data) {
+				$(data).find("entry").each(function () { 
+						var el = $(this);
+
+						var td = $("<td>").addClass("infolft Plain");
+						var entrydate = el.children("published").text();
+						// iso8601 time but we don't want the full timestamp, 
+						// just the date part
+						entrydate = entrydate.substring(0, entrydate.indexOf("T"));
+						
+						var a = $("<a>").attr("href",el.children("link").attr("href"));
+						a.append(el.children("title").text());
+						td.append(a,", ",el.children("author").children("name").text(),															 ", ", entrydate);
+
+						var tr = $("<tr>").append(td);
+						$("#feedtable").append(tr);
+				});
+				$("#feedtable").append('<tr><td class="infolft Plain"><a href="https://community.opmantek.com/">More News</a></td></tr>');
+		});
+</script>
+|.  start_table({width => "100%", id => "feedtable"});
+
 	print end_table;
+
+	pageEnd if ($Q->{widget} ne "true");
 
 }
