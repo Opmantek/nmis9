@@ -3291,6 +3291,7 @@ sub runServer {
 				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ($D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3') { # hrDeviceProcessor
 					($hrCpuLoad,$D->{hrDeviceDescr}) = $SNMP->getarray("hrProcessorLoad.${index}","hrDeviceDescr.${index}");
+					dbg("CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}");
 
 					### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
 					push(@{$S->{reach}{cpuList}},$hrCpuLoad);

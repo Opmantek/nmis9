@@ -107,6 +107,10 @@
           }
         }
       },
+#VMWARE-RESOURCES-MIB::vmwNumCPUs.0 = Gauge32: 1
+#VMWARE-RESOURCES-MIB::vmwMemSize.0 = Gauge32: 16652144 kilobytes
+#VMWARE-RESOURCES-MIB::vmwMemCOS.0 = Gauge32: 0 kilobytes
+#VMWARE-RESOURCES-MIB::vmwMemAvail.0 = Gauge32: 16652144 kilobytes
 #VMWARE-SYSTEM-MIB::vmwProdName.0 = STRING: VMware ESXi
 #VMWARE-SYSTEM-MIB::vmwProdVersion.0 = STRING: 5.1.0
 #VMWARE-SYSTEM-MIB::vmwProdBuild.0 = STRING: 1065491
@@ -133,6 +137,14 @@
           'vmwProdPatch' => {
             'oid' => 'vmwProdPatch',
             'title' => 'VMware Patch Level'
+          },
+          'vmwNumCPUs' => {
+            'oid' => 'vmwNumCPUs',
+            'title' => 'VMware Number CPUs'
+          },
+          'vmwMemSize' => {
+            'oid' => 'vmwMemSize',
+            'title' => 'VMware Memory Size'
           },
         }
       },    

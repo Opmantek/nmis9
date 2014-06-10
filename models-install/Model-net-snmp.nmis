@@ -120,7 +120,7 @@
             'oid' => 'hrSystemProcesses',
             'title' => 'System Processes',
             'alert' => {
-              'test' => '$r > 125',
+              'test' => '$r > 150',
               'event' => 'High Number of System Processes',
               'unit' => 'processes',
               'level' => 'Warning'
@@ -376,9 +376,6 @@
         'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
       },
-			# fixme: ideally this should calculate
-			# phys mem used mem minus cache and buffers
-			# at least on linux 100% used is common with lots of buffers/cache
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
@@ -397,7 +394,7 @@
         'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /^(Virtual )?Memory/',
       },
-			'HighSwapUsage' => {
+      'HighSwapUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
           'Normal' => '11',

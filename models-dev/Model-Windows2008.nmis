@@ -86,12 +86,12 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '85',
+        	'Normal' => '94',
         	'Warning' => '0',
-        	'Minor' => '0',
-        	'Major' => '90',
-        	'Critical' => '95',
-        	'Fatal' => '98',
+        	'Minor' => '94',
+        	'Major' => '96',
+        	'Critical' => '98',
+        	'Fatal' => '100',
         },
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
