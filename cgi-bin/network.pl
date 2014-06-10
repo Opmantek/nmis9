@@ -1996,21 +1996,24 @@ sub viewServiceList {
 			td({class=>'header'},"Type"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"PID"),
-			td({class=>'header'},"CPU"),
-			td({class=>'header'},"Memory")
+			td({class=>'header'},"Total CPU Time"),
+			td({class=>'header'},"Allocated Memory")
 		);	
 		foreach my $service (sort keys %{$NI->{services}} ) {
 			my $color;
 			$color = colorPercentHi(100) if $NI->{services}{$service}{hrSWRunStatus} =~ /running|runnable/;
 			$color = colorPercentHi(0) if $color eq "red";
 			my ($prog,$pid) = split(":",$NI->{services}{$service}{hrSWRunName});
+
+			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
+			my $cpusecs = $NI->{services}{$service}{hrSWRunPerfCPU} / 100;
 			
 			print Tr(
 				td({class=>'info Plain'},$prog),
 				td({class=>'info Plain'},$NI->{services}{$service}{hrSWRunType}),
 				td({class=>'info Plain',style=>"background-color:".$color},$NI->{services}{$service}{hrSWRunStatus}),
 				td({class=>'info Plain'},$pid),
-				td({class=>'info Plain'},$NI->{services}{$service}{hrSWRunPerfCPU}),
+				td({class=>'info Plain'}, sprintf("%.3f s", $cpusecs)),
 				td({class=>'info Plain'},$NI->{services}{$service}{hrSWRunPerfMem} . " KBytes")
 			);	
 		}

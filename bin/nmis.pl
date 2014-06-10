@@ -3482,6 +3482,25 @@ sub runServices {
 	# keep all services for display (not rrd!)
 	$NI->{services} = \%services;
 
+	# now clear events that applied to processes that no longer exist
+	$S->{ET} ||= loadEventStateNoLock();
+	for my $eventkey (keys %{$S->{ET}})
+	{
+		my $event = $S->{ET}->{$eventkey};
+		next if ($event->{node} ne $NI->{system}{name});
+		# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
+		# until then we trigger on the element format plus event name
+		if ($event->{element} =~ /^\S+:\d+$/ 
+				&& $event->{event} =~ /process memory/i
+				&& !exists $services{$event->{element}})
+		{
+			dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
+			checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
+								 element=>$event->{element}, details=>$event->{details});		
+		}
+	}
+	
+
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
 	
