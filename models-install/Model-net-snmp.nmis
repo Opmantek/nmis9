@@ -120,7 +120,7 @@
             'oid' => 'hrSystemProcesses',
             'title' => 'System Processes',
             'alert' => {
-              'test' => '$r > 125',
+              'test' => '$r > 150',
               'event' => 'High Number of System Processes',
               'unit' => 'processes',
               'level' => 'Warning'
