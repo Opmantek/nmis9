@@ -39,6 +39,9 @@
 	},
 	'option' => {
 		'standard' => [
+			'--upper-limit',100,
+			'--lower-limit',0,
+			'--rigid',
 			'DEF:avail=$database:availability:AVERAGE',
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:reach=$database:reachability:AVERAGE',
@@ -53,6 +56,9 @@
 			'GPRINT:avail:AVERAGE:Avg %1.2lf',
 		],
 		'small' => [
+			'--upper-limit',100,
+			'--lower-limit',0,
+			'--rigid',
 			'DEF:avail=$database:availability:AVERAGE',
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:reach=$database:reachability:AVERAGE',
