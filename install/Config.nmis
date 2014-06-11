@@ -14,7 +14,7 @@
     'rss_widget_height' => '460'
   },
   'online' => {
-    'nmis_docs_online' => 'https://community.opmantek.com/'
+    'nmis_docs_online' => 'https://community.opmantek.com/',
     'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
   'directories' => {
