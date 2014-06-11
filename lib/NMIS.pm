@@ -363,7 +363,7 @@ sub loadEscalationsTable {
 }
 
 sub loadWindowStateTable {
-	return loadFileOrDBTable(dir=>'var',name=>'nmis-windowstate');
+	return loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 
 # check node name case insentive, return good one
