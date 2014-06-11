@@ -392,6 +392,10 @@ You will need to investigate and possibly install modules indicated with MODULE 
 
 The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, Authen::TacacsPlus, Authen::Simple::RADIUS are optionally required by the NMIS AAA system.
 
+The modules SNMP_util and SNMP_Session are optional (needed only for the ipsla 
+subsystem and can be installed either with yum install perl-SNMP_Session or 
+from the provided tar file in install/SNMP_Session-1.12.tar.gz).
+
 The missing modules are: |. join(" ",@missing)."\n\n";
 
   logInstall("Missing modules: ".join(" ",@missing)."\n");
