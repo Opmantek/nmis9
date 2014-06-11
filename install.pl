@@ -176,6 +176,13 @@ else
 		
 # update default config options that have been changed:
 		execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
+
+		# move config/cache files to new locations where necessary
+		if (-f "$site/config/WindowState.nmis")
+		{
+			printBanner("Moving old WindowState file to new location");
+			execPrint("mv $site/config/WindowState.nmis $site/var/nmis-windowstate.nmis");
+		}
 }
 
 ###************************************************************************###
