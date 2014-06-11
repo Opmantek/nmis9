@@ -178,10 +178,10 @@ else
 		execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
 
 		# move config/cache files to new locations where necessary
-		if (-f "$site/config/WindowState.nmis")
+		if (-f "$site/conf/WindowState.nmis")
 		{
 			printBanner("Moving old WindowState file to new location");
-			execPrint("mv $site/config/WindowState.nmis $site/var/nmis-windowstate.nmis");
+			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
 		}
 }
 
