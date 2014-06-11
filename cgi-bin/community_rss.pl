@@ -64,13 +64,16 @@ if ($Q->{act} eq '' ) {
 } 
 
 sub printFeed {
+	
+	my $feedurl = $C->{community_rss_url} "https://community.opmantek.com/rss/NMIS.xml";
+
 	print header($headeropts);
 	pageStartJscript(title => "NMIS Community News") if ($Q->{widget} ne "true");
 
-	print q|
+	print qq|
 <script>
-		var FEED_URL = "https://community.opmantek.com/rss/NMIS.xml";
-
+		var FEED_URL = "$feedurl";
+|.q|
 		$.ajax(FEED_URL, { ifModified: true, cache: true}).done(function (data) {
 				$(data).find("entry").each(function () { 
 						var el = $(this);

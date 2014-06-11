@@ -15,6 +15,7 @@
   },
   'online' => {
     'nmis_docs_online' => 'https://community.opmantek.com/'
+    'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
   'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',

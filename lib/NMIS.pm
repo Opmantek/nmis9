@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5A";
+$VERSION = "8.5G";
 
 @ISA = qw(Exporter);
 
@@ -363,7 +363,7 @@ sub loadEscalationsTable {
 }
 
 sub loadWindowStateTable {
-	return loadFileOrDBTable('WindowState');
+	return loadFileOrDBTable(dir=>'var',name=>'nmis-windowstate');
 }
 
 # check node name case insentive, return good one

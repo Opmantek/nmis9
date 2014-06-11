@@ -620,6 +620,8 @@ function	createDialog(opt) {
 		dialogHandle.dialog( 'moveToTop' );
 	};
 
+	// ensure that the title is saved for refreshed requests, some of the logic above depends on its presence
+	objData.options.title = opt.title;
 	return dialogHandle;
 };		// end createDialog
 
@@ -650,7 +652,8 @@ function dialogRefreshClick(rfID) {
 				}
 			 createDialog({
 			 	id : rfID,
-			 	url: objData.options.url
+	 			url: objData.options.url,
+				title: objData.options.title,
 			} );
 
 };
