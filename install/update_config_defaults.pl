@@ -89,6 +89,13 @@ $conf->{'javascript'}{'jquery_ui'} = "<menu_url_base>/js/jquery-ui-1.9.2.custom.
     
 $conf->{'css'}{'jquery_ui_css'} = "<menu_url_base>/css/smoothness/jquery-ui-1.9.2.custom.css";
 
+$conf->{'metrics'}{'weight_availability'} = "0.1";
+$conf->{'metrics'}{'weight_cpu'} = "0.2";
+$conf->{'metrics'}{'weight_int'} = "0.3";
+$conf->{'metrics'}{'weight_mem'} = "0.1";
+$conf->{'metrics'}{'weight_reachability'} = "0.1";
+$conf->{'metrics'}{'weight_response'} = "0.2";
+
 writeHashtoFile(file=>$ARGV[0],data=>$conf);
 
 print "Done updating $ARGV[0]\n";

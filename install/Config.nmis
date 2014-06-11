@@ -303,12 +303,12 @@
     'menu_suspend_link' => 'true'
   },
   'metrics' => {
-    'weight_reachability' => '0.3',
     'weight_availability' => '0.1',
-    'weight_response' => '0.2',
-    'weight_cpu' => '0.1',
+    'weight_cpu' => '0.2',
+    'weight_int' => '0.3',
     'weight_mem' => '0.1',
-    'weight_int' => '0.2',
+    'weight_reachability' => '0.1',
+    'weight_response' => '0.2',
     'metric_reachability' => '0.4',
     'metric_availability' => '0.2',
     'metric_health' => '0.4',
