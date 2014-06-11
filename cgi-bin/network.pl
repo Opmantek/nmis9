@@ -604,9 +604,12 @@ sub printGroup {
 	start_Tr,
 	start_td({class=>'infolft Plain'});
 
+	my $idsafegroup = $group;
+	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
+
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$group"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -740,13 +743,16 @@ sub printGroupView {
 	my $group = shift;
 	my $icon;
 
+	my $idsafegroup = $group;
+	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
+
 	print
 	start_Tr,
 	start_td({class=>"infolft $overallStatus"});
 
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$group"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -790,19 +796,26 @@ sub printHealth {
 	my $customer = $args{customer};
 	my $business = $args{business};
 
+	my $idsafecustomer = $customer;
+	$idsafecustomer =~ s/ /_/g;		# spaces aren't allowed in id attributes!
+	my $idsafebusiness = $business;
+	$idsafebusiness =~ s/ /_/g;		# spaces aren't allowed in id attributes!
+
 	my $icon;
 
 	print
 	start_Tr,
 	start_td({class=>'infolft Plain'});
 
+
+
 	#if ($AU->InGroup($group)) {
 	# force a new window if clicked
 	if ( $customer ne "" ) {
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer", id=>"network_summary_$customer"},"$customer");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_customer&refresh=$Q->{refresh}&widget=$widget&customer=$customer", id=>"network_summary_$idsafecustomer"},"$customer");
 	}
 	elsif ( $business ne "" ) {
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business", id=>"network_summary_$business"},"$business");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_business&refresh=$Q->{refresh}&widget=$widget&business=$business", id=>"network_summary_$idsafebusiness"},"$business");
 	}
 	#}
 	#else {
