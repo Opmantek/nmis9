@@ -189,6 +189,7 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if tableExists('BusinessServices');
 		push @netstatus, qq|<a id='ntw_map' href="$modules->{opMaps}{link}?widget=true">Network Maps</a>| if $M->moduleInstalled(module => "opMaps");
 		push @netstatus, qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|;
+		push @netstatus, qq|<a id='ntw_rss' href="community_rss.pl?widget=true">NMIS Community</a>|;
 		
 		push @menu_site,(qq|Network Status|,[ @netstatus ]);		
 
