@@ -236,9 +236,25 @@ if ($isnewinstall)
 printBanner("Fixing file permissions...");
 execPrint("$site/admin/fixperms.pl");
 
+if ($isnewinstall)
+{
+	printBanner("NMIS State Initialisation");
+
+	# now offer to run an initial update to get nmis' state initialised
+	if ( input_yn("Ok to run an NMIS type=update action"))
+	{
+		print "This may take up to 30 seconds...\n";
+		execPrint("$site/bin/nmis.pl type=update");
+	}
+	else
+	{
+		print "ok, continuing without the update run.\nIt's recommended to run nmis.pl type=update once initially - you should do this manually.\n";
+		logInstall("continuing without the update run.\nIt's recommended to run nmis.pl type=update once initially - you should do this manually.");
+	}
+}
 
 ###************************************************************************###
-printBanner("NMIS Should be Ready to Poll!");
+printBanner("Installation Complete. NMIS Should be Ready to Poll!");
 
 
 exit 0;
