@@ -71,7 +71,7 @@ sub printFeed {
 <script>
 		var FEED_URL = "https://community.opmantek.com/rss/NMIS.xml";
 
-		$.get(FEED_URL, function (data) {
+		$.ajax(FEED_URL, { ifModified: true, cache: true}).done(function (data) {
 				$(data).find("entry").each(function () { 
 						var el = $(this);
 
