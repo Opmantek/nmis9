@@ -65,7 +65,7 @@ if ($Q->{act} eq '' ) {
 
 sub printFeed {
 	
-	my $feedurl = $C->{community_rss_url} "https://community.opmantek.com/rss/NMIS.xml";
+	my $feedurl = $C->{community_rss_url} || "https://community.opmantek.com/rss/NMIS.xml";
 
 	print header($headeropts);
 	pageStartJscript(title => "NMIS Community News") if ($Q->{widget} ne "true");
