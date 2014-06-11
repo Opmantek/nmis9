@@ -532,12 +532,12 @@ EO_TEXT
 sub save_window_state {
 	my $data = $Q->{POSTDATA};	
 	my $windowData = decode_json($data);
-	my ($allWindowData, $handle) = loadTable(dir => 'conf', 
-																					 name => "WindowState",
+	my ($allWindowData, $handle) = loadTable(dir => 'var', 
+																					 name => "nmis-windowstate",
 																					 lock =>  'true');
 	$allWindowData->{$user} = $windowData->{windowData};
 		
-	writeTable(dir=>'conf', name=>"WindowState", data=>$allWindowData,
+	writeTable(dir=>'var', name=>"nmis-windowstate", data=>$allWindowData,
 			handle => $handle);
 
 	print header({-type=>"text/html",-expires=>'now'});
