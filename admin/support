@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.0";
+my $VERSION = "1.1";
 
 my $usage = "Opmantek Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -134,9 +134,19 @@ sub collect_evidence
 		my $basedir = $globalconf->{'<nmis_base>'};
 
 		mkdir("$targetdir/system_status");
-		# dump an ls -laR
-		system("ls -laR $basedir > $targetdir/system_status/filelist.txt") == 0
+		# dump an ls -laRH, H for follow symlinks
+		system("ls -laRH $basedir > $targetdir/system_status/filelist.txt") == 0
 				or return "can't list nmis dir: $!";
+		
+		# get md5 sums of the relevant installation files
+		print "please wait while we collect file status information...\n";
+		system("find -L $basedir -type f|grep -v -e /database/ -e /logs/|xargs md5sum >$targetdir/system_status/md5sum 2>&1");
+		
+		# verify the relevant users and groups, dump groups and passwd (not shadow)
+		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
+		system("id nmis >$targetdir/system_status/nmis_userinfo 2>&1");
+		system("id apache >$targetdir/system_status/web_userinfo 2>&1");
+		system("id www-data >>$targetdir/system_status/web_userinfo 2>&1");
 		# dump the process table
 		system("ps ax >$targetdir/system_status/processlist.txt") == 0 
 				or return  "can't list processes: $!";

@@ -90,7 +90,8 @@ $src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
 $src = input_str("Full path to distribution folder:", $src);
 
 $installLog = "$src/install.log";
-logInstall("Source is $src");
+logInstall("Installation started at ".scalar localtime);
+logInstall("Installation source is $src");
 
 
 ###************************************************************************###
@@ -122,6 +123,7 @@ if ( $cpan || $listdeps) {
 ###************************************************************************###
 printBanner("Configuring installation path...");
 $site = input_str("Folder to install NMIS in", $defaultSite);
+logInstall("Installation destination is $site");
 
 
 ###************************************************************************###
@@ -255,7 +257,7 @@ if ($isnewinstall)
 
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
-
+logInstall("Installation finished at ".scalar localtime);
 
 exit 0;
 
