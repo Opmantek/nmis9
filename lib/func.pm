@@ -928,6 +928,7 @@ sub writeTable {
 	return;
 }
 
+# attention: this function name clashes with a function in rrdfunc.pm!
 sub getFileName {
 	my %args = @_;
 	my $json = $args{json};
