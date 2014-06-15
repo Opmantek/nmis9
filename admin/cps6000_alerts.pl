@@ -112,14 +112,24 @@ sub updateCircuitGroups {
 			if ( $NI->{system}{nodeModel} eq "GE-QS941" ) {
 				if ( exists $NI->{cps6000Grp} ) {
 					foreach my $groupId ( keys %{$NI->{cps6000Grp}}) {
-						if ( $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} ne "GR000" and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes} and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i ) {
+						if ( $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} 
+							and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} ne "GR000" 
+							and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes} 
+							and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes} !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+						) {
 							#push(@circuits,$NI->{cps6000Cct}{$_}{cpsCctEntryIde});
 							my $circuitGroup = $NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes};
+							my $dslamNode = undef;
+							if ( $circuitGroup ) {
+								my @tmp = split(" ",$circuitGroup);
+								$dslamNode = $tmp[0];
+							}
 
 							$CG->{$circuitGroup} = {
 						    'circuitGroup' => $circuitGroup,
 						    'circuits' => $NI->{cps6000Grp}{$groupId}{cpsGrpEntryCct},
 						    'geNode' => $node,
+						    'dslamNode' => $dslamNode,
 						    'groupId' => $groupId,
 						  };
 						}
@@ -370,7 +380,7 @@ sub processNodes {
 								and $NI->{cps6000Cct}{$index}{cpsCctEntryVdc}
 								and $NI->{cps6000Cct}{$index}{cpsCctEntryLds}
 						) {
-							$event = "Alert: Tarjeta Desconectada";
+							$event = "Alert: Carga en Descenso";
 							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} LDS=$NI->{cps6000Cct}{$index}{cpsCctEntryLds}";
 							$level = "Normal";
 							# Does the condition exist now?
@@ -417,7 +427,12 @@ sub processNodes {
 				# 10 circuits, 1 faulty circuit = 10% power loss, fault/circuits * 100
 				foreach my $groupId ( keys %groupList ) {
 					## do not create alerts on the default group
-					if ( $groupId and $groupId ne "GR000" ) {
+					my $groupDesc = $groupList{$groupId}{desc};
+					if ( $groupId 
+						and $groupId ne "GR000" 
+						and $groupDesc 
+						and $groupDesc !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+					) {
 						my $potency = $groupList{$groupId}{circuits} * 65;
 						my $potencyLoss = $groupList{$groupId}{faulty} * 65;
 						my $powerLoss = "0";
@@ -445,13 +460,15 @@ sub processNodes {
 							$level = "Minor";
 						}
 		
-						my $groupDesc = $groupList{$groupId}{desc};
 						my $event = "Alert: DSLAM Power Loss";
 						my $element = $groupId;
 						my $details = "$groupDesc: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
 						
 						print "node=$node, groupId=$groupId, groupDesc=$groupDesc, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
 						processCondition($S,$node,$event,$element,$details,$level);
+					}
+					elsif (not $groupDesc) {
+						print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n" if $info or $debug;						
 					}
 				}	
 				
