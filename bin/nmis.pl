@@ -5965,7 +5965,7 @@ sub printApache {
 # NMIS Aliases
 
 Alias $C->{'<url_base>'}/ "$C->{web_root}/"
-<Directory "$C->{view_root}">
+<Directory "$C->{web_root}">
 		Options Indexes FollowSymLinks MultiViews
 		AllowOverride None
 		Order allow,deny
@@ -5973,7 +5973,7 @@ Alias $C->{'<url_base>'}/ "$C->{web_root}/"
 </Directory>
 
 Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
-<Directory "$C->{'<menu_url_base>'}">
+<Directory "$C->{'<nmis_menu>'}">
 		Options Indexes FollowSymLinks MultiViews
 		AllowOverride None
 		Order allow,deny

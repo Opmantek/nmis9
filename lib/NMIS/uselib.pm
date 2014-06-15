@@ -29,33 +29,25 @@
 #  
 # *****************************************************************************
 
+# this module provides a custom rrdtool path, based on checking some common locations
 package NMIS::uselib;
+use strict;
+use base qw(Exporter);
 
-my $VERSION = "1.00";
+our $VERSION = "1.01";
+our $rrdtool_lib;
+our @EXPORT_OK = qw($rrdtool_lib);
 
-require 5;
-
-require Exporter;
-
-@EXPORT_OK = qw($rrdtool_lib);
-
-
-my $default_rrd = "/usr/local/rrdtool/lib/perl";
-
-# Modify this line to suit your RRD Setup, if not in the above location.
-my $alternate_rrd = "/usr/rrdtool/lib/perl";
-
-# my $default_rrd = "/opt/rrdtool-1.4.7/lib/perl";
-
-# # Modify this line to suit your RRD Setup, if not in the above location.
-# my $alternate_rrd = "/usr/rrdtool/lib/perl/dasdfadsf";
-
-$rrdtool_lib = $default_rrd if -d $default_rrd;
-
-$rrdtool_lib = $alternate_rrd if -d $alternate_rrd;
-
-if ( $rrdtool_lib eq "" ) {
-	print STDERR "NMIS::uselib was unable to locate RRDTool at $default_rrd or $alternate_rrd\n";	
+# the last is really just a fallback to silence the 'empty compile time value' warning
+# that use lib emits with rrdtool_lib being undef, and in that case we simply let
+# perl look for the rrd modules in the standard include path
+for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl /usr/lib/perl5/))
+{
+	if (-d $knownloc)
+	{
+		$rrdtool_lib = $knownloc;
+		last;
+	}
 }
 
 1;

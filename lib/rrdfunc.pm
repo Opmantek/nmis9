@@ -82,6 +82,8 @@ sub getUpdateStats {
 	return \%stats;
 }
 
+# returns the rrd data for a given rrd type as a hash
+# this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
 sub getRRDasHash {
 	my %args = @_;
 	my $S = $args{sys};
@@ -89,7 +91,14 @@ sub getRRDasHash {
 	my $index = $args{index};
 	my $item = $args{item};
 
-	my $db = getFileName(sys=>$S, type=>$graphtype, index=>$index, item=>$item);
+	if (!$S) {
+		$S = Sys::->new(); # get base Model containing database info
+		$S->init;
+	}
+
+	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
+	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
+	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
 
 	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
@@ -121,6 +130,7 @@ sub getRRDasHash {
 }
 
 # retrieves rrd data and computes a number of descriptive stats 
+# this uses the sys object to translate from graphtype to section (Sys::getTypeName)
 # args: hour_from hour_to define the daily period [from,to].
 # if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
 # for midnight use either 0 or 24, depending on whether you want the inside or outside interval
@@ -136,7 +146,14 @@ sub getRRDStats {
 	
 	my $invertperiod = $minhr > $maxhr;
 
-	my $db = getFileName(sys=> $S, type=>$graphtype, index=>$index, item=>$item);
+	if (!$S) {
+		$S = Sys::->new(); # get base Model containing database info
+		$S->init;
+	}
+	
+	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
+	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
+	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
 
 	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
 	if ( -r $db ) {
@@ -335,7 +352,14 @@ sub addDStoRRD {
 
 # determine the rrd file name from the node's model, the common-database
 # and the input parameters like name/type/item/index
-# this does NOT use the node info cache!
+#
+# attention: this low-level function does NOT translate from graphtype instances to 
+# sections (e.g. graphtype cpu and many others is covered by nodehealth section),
+# the caller must have made that translation (using Sys::getTypeName) already!
+# therefore the argument name is type (meaning rrd section) and NOT graphtype.
+#
+# attention: this function name clashes with the function from func.pm, and is therefore 
+# not exported
 sub getFileName {
 	my %args = @_;
 	my $S = $args{sys};
