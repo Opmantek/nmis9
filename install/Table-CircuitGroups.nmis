@@ -1,0 +1,63 @@
+# Screen 1, create a name and select a GE Node this belongs to
+# Screen 2, select the node and load the circuits, and let the user select the circuits
+
+use NMIS;
+use Auth;
+use Data::Dumper;
+
+use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
+
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+
+my $C = loadConfTable();
+# variables used for the security mods
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+
+# Calling program needs to do auth, then set the ENVIRONMENT before this is called.
+$AU->SetUser($ENV{'NMIS_USER'});
+
+my @geNodes = ();
+my @nodes = ();
+my @circuits = ();
+
+my $NS = loadNodeSummary();
+my $LNT = loadLocalNodeTable(); # load from file or db
+
+foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { 
+	if ($AU->InGroup($LNT->{$_}{group})) {
+		push(@nodes,$_);
+		push(@geNodes,$_) if $NS->{$_}{nodeModel} =~ /GE-QS941|CiscoRouter/; 
+	}
+}
+
+# If the CGI has a key value, then we can load more details and complete the circuits
+if ( $Q->{key} ne "" ) {
+	my $key = $Q->{key};
+	my $CG = loadTable(dir=>'conf',name=>'CircuitGroups');
+	#print STDERR "key=$key geNode=$CG->{$key}{geNode}\n";
+
+	my $S = Sys::->new;
+	$S->init(name=>$CG->{$key}{geNode},snmp=>'false');
+	my $NI = $S->ndinfo;
+	if ( exists $NI->{cps6000Cct} ) {
+		foreach (sort {$NI->{cps6000Cct}{$a}{cpsCctEntryIde} cmp $NI->{cps6000Cct}{$b}{cpsCctEntryIde}} keys %{$NI->{cps6000Cct}}) { 
+			push(@circuits,$NI->{cps6000Cct}{$_}{cpsCctEntryIde});
+		}
+	}
+}
+
+%hash = (
+			CircuitGroups => [
+				{ circuitGroup => { header => 'Circuit Group',display => 'key,header,text', value => [""] }},
+				{ dslamNode => { header => 'DSLAM Node', display => 'popup,header', value => [ "N/A", @nodes ] }},
+				{ geNode => { header => 'GE Node', display => 'popup,header', value => [ "N/A", @geNodes ] }},
+				{ circuits => { header => 'Circuits', display => 'scrolling,header', value => [ "N/A", @circuits ] }},
+				{ groupId => { header => 'Group ID', display => 'text,header', value => [""] }},
+				{ shelf => { header => 'Shelf', display => 'text,header', value => [""] }},
+				{ cable => { header => 'Cable', display => 'text,header', value => [""] }},
+				{ cuenta => { header => 'Cuenta', display => 'text,header', value => [""] }},
+				{ direccion => { header => 'Direccion', display => 'text,header', value => [""] }},
+			]
+);
+

@@ -338,7 +338,7 @@ sub menu_bar_site {
 		push @systemitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
 
-		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
+		push @systemitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
 
 		push @systemitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu&amp;section=system">System Configuration</a>|
