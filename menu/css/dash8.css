@@ -510,3 +510,16 @@ plaintext {
 .notwide {
 	width: auto;
 }
+
+a:link.wht {
+	color: white;
+}
+a:visited.wht {
+	color: white;
+}
+a:hover.wht {
+	color: white;
+}
+a:active.wht {
+	color: white;
+}
