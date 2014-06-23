@@ -71,7 +71,8 @@ my $site;
 
 my $install = 0;
 my $debug = 0;
-my $GML = 0;
+my $GML = 1;
+my $CSV = 1;
 
 
 print qx|clear|;
@@ -156,6 +157,7 @@ if ( input_yn("Check for NMIS required modules:") ) {
 
 	listModules();
 	
+	saveDependancyCSV() if $CSV;
 	saveDependancyGml() if $GML;
 }
 
@@ -284,6 +286,31 @@ sub input_str {
 	}}
 }
 
+sub saveDependancyCSV {	
+	my $csv;
+
+	my $f1;
+	my $f2;
+	my $f3;
+		
+	my $nmisBase = "/usr/local/nmis8";
+
+	$csv .= "Module\tFile\tVersion\n";
+
+	foreach my $k (sort {$nmisModules{$a}{file} cmp $nmisModules{$b}{file} } keys %nmisModules) {
+		$f1 = $k;
+		( $f2 , $f3) = split /\s+/, $nmisModules{$k}{file}, 2;
+		$f3 = ' ' if !$f3;
+		$csv .= "$f1\t$f2\t$f3\n";
+	}
+
+	my $file = "NMIS-Dependancies.csv";
+	open(CSV,">$file") or die "Problem with $file: $!\n";
+	print CSV $csv;
+	close(CSV);
+	print "NMIS Depenancy Graph saved to $file\n";
+	
+}
 
 sub saveDependancyGml {	
 	my $gml;
