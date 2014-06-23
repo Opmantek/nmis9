@@ -964,6 +964,13 @@ sub parseString {
 
 #===================================================================
 
+# returns a hash of graphtype -> rrd section name for this node
+# this hash is inverted compared to the raw grapthype data in the node info,
+# and it doesn't report indices.
+# keys are clearly unique, values are not: often multiple graphs are sourced 
+# from one rrd section.
+# 
+# fixme: the index argument is ignored, all graphs are listed.
 sub loadGraphTypeTable {
 	my $self = shift;
 	my %args = @_;
@@ -1000,6 +1007,7 @@ sub loadGraphTypeTable {
 # or nodefile -> graphtype -> WANTTHIS (if the INPUT is not present but the model has
 # an rrd section named WANTTHIS)
 # optional check = true means suppress error messages (default no suppression)
+# fixme: index argument is ignored by loadGraphTypeTable and unnecessary here as well
 sub getTypeName {
 	my $self = shift;
 	my %args = @_;
