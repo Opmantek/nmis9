@@ -50,6 +50,31 @@ EO_TEXT
 
 exit unless input_yn("OK to proceed adding CircuitGroups for GE QS941's to NMIS");
 
+my $modelFile = "$C->{'<nmis_models>'}/Model.nmis";
+print "Adding new Model Definition to $modelFile\n";
+
+backupFile(file => $modelFile, backup => "$modelFile.backup");
+
+my $MODEL = loadTable(dir=>'models',name=>'Model');
+
+$MODEL->{'CircuitGroups'} = {
+  'CaseSensitiveKey' => 'true',
+  'Description' => 'The definition of Circuit Groups, use for GE QS941 Devices.',
+  'DisplayName' => 'Circuit Groups',
+  'Table' => 'CircuitGroups'
+};
+
+$MODEL->{'Tyco Electronics Power Systems'} = {
+      'order' => {
+        '10' => {
+          'GE-QS941' => 'QS941A'
+        }
+      }
+    };
+
+writeTable(dir=>'models',name=>'Model',data=>$MODEL);
+
+
 my $tableFile = "$C->{'<nmis_conf>'}/Tables.nmis";
 print "Adding new Table Definition to $tableFile\n";
 
