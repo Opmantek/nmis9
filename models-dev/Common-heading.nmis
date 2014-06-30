@@ -144,7 +144,9 @@
       'vmwVmState' => "Virtual Machine Status",
       'bgpPeer' => 'BGP Peer Status',
       'bgpPeerStats' => 'BGP Peer Stats',
-      'rttMonLatestRtt' => 'RTT Monitor Stats'
+      'rttMonLatestRtt' => 'RTT Monitor Stats',
+      'fan-status' => 'Fan Status',
+      'temp-status' => 'Temp Status',
     }
   }
 );
