@@ -62,6 +62,7 @@
       'a3errors' => 'System Errors',
       'mem-router' => 'Router Memory Utilisation',
       'service' => 'Service',
+      'service-response' => 'Service Response Time',
       'service-cpumem' => 'Service CPU and Memory',
       'hrwincpu' => 'CPU Utilisation',
       'upsbatremtim' => 'UPS Battery Remaining Time',
@@ -138,6 +139,9 @@
       'EltekBreakerAlarms' => "Breaker Alarms",
       'EltekVoltageAlarms' => "Voltage Alarms",
       'EltekTempAlarms' => "Temperature Alarms",
+      'cps6000Grp' => "Group Power and Status",
+      'cps6000Cct' => "Circuit Power and Status",
+      'vmwVmState' => "Virtual Machine Status",
       'bgpPeer' => 'BGP Peer Status',
       'bgpPeerStats' => 'BGP Peer Stats',
       'rttMonLatestRtt' => 'RTT Monitor Stats'
