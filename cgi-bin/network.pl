@@ -1965,6 +1965,12 @@ sub viewService {
 }
 
 sub viewServiceList {
+	
+	my $sort = $Q->{sort} ? $Q->{sort} : "Service";
+	
+	my $sortField = "hrSWRunName";
+	$sortField = "hrSWRunPerfCPU" if $sort eq "CPU";
+	$sortField = "hrSWRunPerfMem" if $sort eq "Memory";
 
 	my $node = $Q->{node};
 
@@ -2002,17 +2008,17 @@ sub viewServiceList {
     #  'hrSWRunPerfCPU' => 7301,
     #  'hrSWRunName' => 'AppleMobileDeviceService.exe:1756'
     #},
-    
+  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$Q->{refresh}&widget=$widget";
 	if (defined $NI->{services}) {
 		print Tr(
-			td({class=>'header'},"Service"),
+			td({class=>'header'},a({href=>"$url&sort=Service",class=>"wht"},"Service")),
 			td({class=>'header'},"Type"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"PID"),
-			td({class=>'header'},"Total CPU Time"),
-			td({class=>'header'},"Allocated Memory")
+			td({class=>'header'},a({href=>"$url&sort=CPU",class=>"wht"},"Total CPU Time")),
+			td({class=>'header'},a({href=>"$url&sort=Memory",class=>"wht"},"Allocated Memory"))
 		);	
-		foreach my $service (sort keys %{$NI->{services}} ) {
+		foreach my $service (sort { sortServiceList($sort,$a,$b) } keys %{$NI->{services}} ) {
 			my $color;
 			$color = colorPercentHi(100) if $NI->{services}{$service}{hrSWRunStatus} =~ /running|runnable/;
 			$color = colorPercentHi(0) if $color eq "red";
@@ -2036,6 +2042,19 @@ sub viewServiceList {
 	}
 	print end_table;
 	pageEnd() if ($widget eq "false");
+
+	sub sortServiceList {
+		my $sort = shift;
+		my $a = shift;
+		my $b = shift;
+		
+		if ( $sort eq "Service" ) {
+			return $NI->{services}{$a}{$sortField} cmp $NI->{services}{$b}{$sortField};
+		}
+		else {
+			return $NI->{services}{$b}{$sortField} <=> $NI->{services}{$a}{$sortField};		
+		}
+	}	
 }
 
 sub viewEnvironment {

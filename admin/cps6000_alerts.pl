@@ -86,12 +86,13 @@ my $info = setDebug($arg{info});
 
 my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
 
-processNodes(); 
-
 if ( $arg{groups} and $arg{groups} eq "true" ) {
 	updateCircuitGroups();
 }
 
+processNodes();
+
+exit 0;
 
 #For the circuit groups which have worked, get them from the MIB
 sub updateCircuitGroups {    
@@ -111,6 +112,18 @@ sub updateCircuitGroups {
 
 			if ( $NI->{system}{nodeModel} eq "GE-QS941" ) {
 				if ( exists $NI->{cps6000Grp} ) {
+					# seed some information back into the other model.
+					foreach my $groupId ( keys %{$NI->{cps6000Groups}}) {
+						if ( $NI->{cps6000Groups}{$groupId}{cpsGrpEntryDes} 
+							and $NI->{cps6000Groups}{$groupId}{cpsGrpEntryIde} 
+						) {
+							$NI->{cps6000Grp}{$groupId}{index} = $NI->{cps6000Groups}{$groupId}{index};
+							$NI->{cps6000Grp}{$groupId}{cpsGrpEntryIndex} = $NI->{cps6000Groups}{$groupId}{cpsGrpEntryIndex};
+							$NI->{cps6000Grp}{$groupId}{cpsGrpEntryDes} = $NI->{cps6000Groups}{$groupId}{cpsGrpEntryDes};
+							$NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} = $NI->{cps6000Groups}{$groupId}{cpsGrpEntryIde};
+						}
+					}
+
 					foreach my $groupId ( keys %{$NI->{cps6000Grp}}) {
 						if ( $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} 
 							and $NI->{cps6000Grp}{$groupId}{cpsGrpEntryIde} ne "GR000" 
@@ -124,6 +137,12 @@ sub updateCircuitGroups {
 								my @tmp = split(" ",$circuitGroup);
 								$dslamNode = $tmp[0];
 							}
+							
+							$dslamNode = $dslamNode ? $dslamNode : $CG->{$circuitGroup}{dslamNode};
+							my $shelf = $CG->{$circuitGroup}{shelf} ? $CG->{$circuitGroup}{shelf} : undef;
+							my $cable = $CG->{$circuitGroup}{cable} ? $CG->{$circuitGroup}{cable} : undef;
+							my $cuenta = $CG->{$circuitGroup}{cuenta} ? $CG->{$circuitGroup}{cuenta} : undef;
+							my $direccion = $CG->{$circuitGroup}{direccion} ? $CG->{$circuitGroup}{direccion} : undef;
 
 							$CG->{$circuitGroup} = {
 						    'circuitGroup' => $circuitGroup,
@@ -131,9 +150,14 @@ sub updateCircuitGroups {
 						    'geNode' => $node,
 						    'dslamNode' => $dslamNode,
 						    'groupId' => $groupId,
+						    'shelf' => $shelf,
+						    'cable' => $cable,
+						    'cuenta' => $cuenta,
+						    'direccion' => $direccion,
 						  };
 						}
 					}
+					$S->writeNodeInfo; # save node info in file var/$NI->{name}-node	
 				}
 			}
 		}
@@ -175,7 +199,7 @@ sub processNodes {
 	foreach my $node (sort keys %{$LNT}) {
 		
 		# Is the node active and are we doing stats on it.
-		if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+		if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) and ( $arg{node} eq "" or $arg{node} eq $node) ) {
 			print "Processing $node\n" if $debug;
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
@@ -230,9 +254,14 @@ sub processNodes {
 							# get the index loaded
 							$groupIdx{$circuit} = $cg;
 						}
-						print "$node Group: $cg DSLAM=$CG->{$cg}{geNode}\n" if $info or $debug;
+						print "$node Group: $cg DSLAM=$CG->{$cg}{dslamNode}\n" if $info or $debug;
 					}
 				}
+				print "DEBUG: groupList\n";
+				print Dumper \%groupList if $debug;
+
+				print "DEBUG: groupIdx\n";
+				print Dumper \%groupIdx if $debug;
 				
 				if ( exists $NI->{cps6000Cct}) {
 					my $circuitFaulty = 0;
@@ -241,6 +270,8 @@ sub processNodes {
 	
 						my $groupId = "$node Unknown";
 						my $groupDesc = "$node Unknown";
+						my $dslamNode = undef;
+						my $infoForDetails = undef;
 						#if ( defined $groupIdx{$circuitId} and $groupIdx{$circuitId} ne "" ) {
 						#	$groupId = $NI->{cps6000Grp}{$groupIdx{$circuitId}}{cpsGrpEntryIde};
 						#	$groupDesc = $NI->{cps6000Grp}{$groupIdx{$circuitId}}{cpsGrpEntryDes};
@@ -251,6 +282,7 @@ sub processNodes {
 						if ( exists $groupIdx{$circuitId} and $groupIdx{$circuitId} ne "" ) {
 							$groupId = $CG->{$groupIdx{$circuitId}}{groupId};
 							$groupDesc = $CG->{$groupIdx{$circuitId}}{circuitGroup};
+							$dslamNode = $CG->{$groupIdx{$circuitId}}{dslamNode};				
 						}
 						else {
 							$groupIdx{$circuitId} = "$node Unknown";
@@ -269,8 +301,15 @@ sub processNodes {
 						$NI->{cps6000Cct}{$index}{cpsCctEntryGrp}	= $groupDesc;				
 						$V->{cps6000Cct}{"${index}_cpsCctEntryGrp_value"} = $groupDesc;
 						$V->{cps6000Cct}{"${index}_cpsCctEntryGrp_title"} = 'Circuit Group';
-	
-						print "$node Circuit: $NI->{cps6000Cct}{$index}{cpsCctEntryDes} $groupId $groupDesc\n" if $info or $debug;
+						
+						if ( $dslamNode and exists $groupIdx{$circuitId} ) {
+							$infoForDetails = "$dslamNode $CG->{$groupIdx{$circuitId}}{shelf} $CG->{$groupIdx{$circuitId}}{cable} $CG->{$groupIdx{$circuitId}}{cuenta} $CG->{$groupIdx{$circuitId}}{direccion}";
+						}
+						else {
+							$infoForDetails = "No circuit details available";
+						}
+						
+						print "$node Circuit: $NI->{cps6000Cct}{$index}{cpsCctEntryDes} $groupId $infoForDetails\n" if $info or $debug;
 						
 						## detect condition
 						my $element = "Circuit $NI->{cps6000Cct}{$index}{cpsCctEntryIde}";
@@ -282,7 +321,7 @@ sub processNodes {
 						#  if STT in ['MISSING','STANDBY(USER)']:
 						if ( $NI->{cps6000Cct}{$index}{cpsCctEntryStt} ) {
 							$event = "Alert: Circuitos Sin Comunicación";
-							$details = "$groupDesc: STT=$NI->{cps6000Cct}{$index}{cpsCctEntryStt}";
+							$details = "$infoForDetails: STT=$NI->{cps6000Cct}{$index}{cpsCctEntryStt}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if ( $NI->{cps6000Cct}{$index}{cpsCctEntryStt} =~ /80|20/ ) {						
@@ -295,7 +334,7 @@ sub processNodes {
 						#Circuitos Sin Comunicación (Falla desconocida) - No Communication Circuits (unknown failure):
 						#  All Variables set to 0
 						$event = "Alert: Circuitos Sin Comunicación (Falla desconocida)";
-						$details = "$groupDesc: STT=$NI->{cps6000Cct}{$index}{cpsCctEntryStt}";
+						$details = "$infoForDetails: STT=$NI->{cps6000Cct}{$index}{cpsCctEntryStt}";
 						$level = "Normal";
 						# Does the condition exist now?
 						# can this ever happen?
@@ -312,7 +351,7 @@ sub processNodes {
 							and $NI->{cps6000Cct}{$index}{cpsCctEntryVdc}
 						) {
 							$event = "Alert: Pares Abiertos";
-							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc}";
+							$details = "$infoForDetails: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if ( 
@@ -334,7 +373,7 @@ sub processNodes {
 							and $NI->{cps6000Cct}{$index}{cpsCctEntryLds}
 						) {
 							$event = "Alert: Pares Averiados";
-							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} LDS=$NI->{cps6000Cct}{$index}{cpsCctEntryLds} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
+							$details = "$infoForDetails: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} LDS=$NI->{cps6000Cct}{$index}{cpsCctEntryLds} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if (
@@ -359,7 +398,7 @@ sub processNodes {
 							and $NI->{cps6000Cct}{$index}{cpsCctEntryCfl}
 						) {							
 							$event = "Alert: Tarjeta Desconectada";
-							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
+							$details = "$infoForDetails: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if ( 
@@ -381,7 +420,7 @@ sub processNodes {
 								and $NI->{cps6000Cct}{$index}{cpsCctEntryLds}
 						) {
 							$event = "Alert: Carga en Descenso";
-							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} LDS=$NI->{cps6000Cct}{$index}{cpsCctEntryLds}";
+							$details = "$infoForDetails: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} LDS=$NI->{cps6000Cct}{$index}{cpsCctEntryLds}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if ( 
@@ -403,7 +442,7 @@ sub processNodes {
 							and $NI->{cps6000Cct}{$index}{cpsCctEntryCfl}
 						) {
 							$event = "Alert: Corto en Central";
-							$details = "$groupDesc: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
+							$details = "$infoForDetails: ADC=$NI->{cps6000Cct}{$index}{cpsCctEntryAdc} VDC=$NI->{cps6000Cct}{$index}{cpsCctEntryVdc} CFL=$NI->{cps6000Cct}{$index}{cpsCctEntryCfl}";
 							$level = "Normal";
 							# Does the condition exist now?
 							if ( 
@@ -432,12 +471,22 @@ sub processNodes {
 						and $groupId ne "GR000" 
 						and $groupDesc 
 						and $groupDesc !~ /FTTN DEFAULT GROUP|noSuchInstance/i 
+						and exists $CG->{$groupId}{circuits}
+						and $CG->{$groupId}{circuits} ne ""
 					) {
 						my $potency = $groupList{$groupId}{circuits} * 65;
 						my $potencyLoss = $groupList{$groupId}{faulty} * 65;
 						my $powerLoss = "0";
 						if ( $potencyLoss > 0 and $potency > 0 ) {
 							$powerLoss = sprintf("%.2f",($potencyLoss / $potency) * 100);
+						}
+						
+						my $infoForDetails = undef;
+						if ( exists $CG->{$groupId}{dslamNode} ) {
+							$infoForDetails = "$CG->{$groupId}{dslamNode} $CG->{$groupId}{shelf} $CG->{$groupId}{cable} $CG->{$groupId}{cuenta} $CG->{$groupId}{direccion}";
+						}
+						else {
+							$infoForDetails = "No circuit group details available";
 						}
 		
 						#NORMAL, 0%
@@ -462,9 +511,9 @@ sub processNodes {
 		
 						my $event = "Alert: DSLAM Power Loss";
 						my $element = $groupId;
-						my $details = "$groupDesc: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
+						my $details = "$infoForDetails: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
 						
-						print "node=$node, groupId=$groupId, groupDesc=$groupDesc, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
+						print "node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
 						processCondition($S,$node,$event,$element,$details,$level);
 					}
 					elsif (not $groupDesc) {
@@ -575,6 +624,11 @@ sub cleanEvents {
 		}
 
 		if ( $ET->{$key}{element} eq "GR000" or $ET->{$key}{element} eq "Unknown" ) {
+			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event} $ET->{$key}{details}\n";
+			delete($ET->{$key});
+		}
+
+		if ( $ET->{$key}{details} =~ /Unknown|^:/ ) {
 			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event} $ET->{$key}{details}\n";
 			delete($ET->{$key});
 		}

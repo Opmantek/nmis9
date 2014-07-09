@@ -50,7 +50,7 @@ if ( $Q->{key} ne "" ) {
 %hash = (
 			CircuitGroups => [
 				{ circuitGroup => { header => 'Circuit Group',display => 'key,header,text', value => [""] }},
-				{ dslamNode => { header => 'DSLAM Node', display => 'popup,header', value => [ "N/A", @nodes ] }},
+				{ dslamNode => { header => 'DSLAM Node', display => 'text,header', value => [ "" ] }},
 				{ geNode => { header => 'GE Node', display => 'popup,header', value => [ "N/A", @geNodes ] }},
 				{ circuits => { header => 'Circuits', display => 'scrolling,header', value => [ "N/A", @circuits ] }},
 				{ groupId => { header => 'Group ID', display => 'text,header', value => [""] }},
