@@ -39,11 +39,11 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.1";
+my $VERSION = "1.2";
 
 my $usage = "Opmantek Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
-action=collect: collect general support info in a zip file
+action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info 
  if nodename='*' then ALL nodes' info will be collected (MIGHT BE HUGE!)\n\n";
 my %args = getArguements(@ARGV);
@@ -70,7 +70,12 @@ if ($args{action} eq "collect")
 		die "failed to collect evidence: $status\n" if ($status);
 		print "\nevidence collection complete, zipping things up...\n";
 
-		my $zfn = "/tmp/support-$timelabel.zip";
+		# do we have zip? or only tar+gz?
+		my $canzip=0;
+		$status = system("zip --version >/dev/null 2>&1");
+		$canzip=1 if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status));
+		
+		my $zfn = "/tmp/support-$timelabel.".($canzip?"zip":"tgz");
 		
 		# zip mustn't become too large, hence we possibly tail/truncate some or all log files
 		opendir(D,"$targetdir/logs") or return "can't read $targetdir/logs dir: $!";
@@ -81,10 +86,18 @@ if ($args{action} eq "collect")
 				# test zip, shrink logfiles, repeat until small enough or out of shrinkables
 				my $curdir = getcwd;
 				chdir($td);							# so that the zip file doesn't have to whole /tmp/this/n/that/ path in it
-				system("zip","-q","-r",$zfn, "collect.$timelabel") == 0 
-						or die "cannot create support zip file $zfn: $!\n";
+				if ($canzip)
+				{
+					$status = system("zip","-q","-r",$zfn, "collect.$timelabel");
+				}
+				else
+				{
+					$status = system("tar","-czf",$zfn,"collect.$timelabel");
+				}
 				chdir($curdir);
-				
+
+				die "cannot create support zip file $zfn: $!\n"
+						if (POSIX::WEXITSTATUS($status));
 				last if (-s $zfn < $maxzip);
 
 				# hmm, too big: shrink the log files one by one until the size works out
@@ -102,11 +115,13 @@ if ($args{action} eq "collect")
 				}
 		}
 		print "\nall done.\n",
-		"Collected system information is in $zfn\nPlease include this zip file when you contact the NMIS Community or the Opmantek Team.\n\n";
+		"Collected system information is in $zfn\nPlease include this zip file when you contact 
+the NMIS Community or the Opmantek Team.\n\n";
 }
 
 # remove tempdir (done automatically on exit)
 exit 0;
+
 
 # shrinks given file to the last maxlines lines
 # returns undef if ok, error message otherwise
@@ -227,7 +242,7 @@ sub collect_evidence
 						{
 								my $fileprefix = "$basedir/var/".lc($nextnode);
 								system("cp","$fileprefix-node.nmis","$fileprefix-view.nmis","$targetdir/var/") == 0
-										or return "can't copy node $nextnode's node files: $!";
+										or return "can't copy node ${nextnode}'s node files: $!";
 						}
 						else
 						{
