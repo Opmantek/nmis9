@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.2";
+my $VERSION = "1.2.1";
 
 my $usage = "Opmantek Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -155,7 +155,7 @@ sub collect_evidence
 		
 		# get md5 sums of the relevant installation files
 		print "please wait while we collect file status information...\n";
-		system("find -L $basedir -type f|grep -v -e /database/ -e /logs/|xargs md5sum >$targetdir/system_status/md5sum 2>&1");
+		system("find -L $basedir -type f|grep -v -e /database/ -e /logs/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
 		
 		# verify the relevant users and groups, dump groups and passwd (not shadow)
 		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
