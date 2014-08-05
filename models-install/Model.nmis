@@ -57,15 +57,15 @@
   'models' => {
     'Microsoft' => {
       'order' => {
-        '30' => {
-          'Windows2000' => 'Windows 2000 Version 5.0'
-        },
         '10' => {
           'Windows2003' => 'Windows Version 5.2'
         },
         '20' => {
           'Windows2008' => 'Windows Version 6.1'
-        }
+        },
+        '30' => {
+          'Windows2000' => 'Windows 2000 Version 5.0'
+        },
       }
     },
     '3COM Enterprise' => {
@@ -146,13 +146,13 @@
         '75' => {
           'CiscoASA' => 'Cisco Adaptive Security Appliance'
         },
-        '100' => {
+        '90' => {
           'CiscoRouter' => 'IOS'
         },
-        '300' => {
+        '95' => {
           'CiscoCSS' => 'Content'
         },
-        '999' => {
+        '99' => {
           'CiscoDefault' => '.'
         }
       }
@@ -231,6 +231,9 @@
       'order' => {
         '10' => {
           'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
+        },
+        '20' => {
+          'net-snmp' => '.'
         }
       }
     },
