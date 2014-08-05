@@ -60,14 +60,12 @@
 #					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 #
 
-
 package Auth;
-
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION );
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 
-$VERSION = "1.0.0";
+our $VERSION = "1.0.1";
 
 @ISA = qw(Exporter);
 
@@ -99,12 +97,13 @@ use NMIS;
 use func;
 
 use Data::Dumper; 
-Data::Dumper->import();
 $Data::Dumper::Indent = 1;
 
 # import additional modules
 use Time::ParseDate;
 use File::Basename;
+
+use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavou
 
 # I prefer the use of the library when debugging the resulting HTML script
 # either one will work
@@ -469,66 +468,52 @@ sub user_verify {
 #----------------------------------
 
 # verify against a password file:   username:password
+# both unix-std crypt and apache-specific md5 password hashing are tried.
+# encmode == plaintext means plaintext passwords are also allowed
 sub _file_verify {
 	my $self = shift;
 	my($pwfile,$u,$p,$encmode) = @_;
-	my($fp,$salt,$cp);
 
-	my $crypthack;
+	logAuth("DEBUG: _file_verify($pwfile,$u,$p,$encmode)") if $debug;
 
+	my $allowplaintext = ($encmode eq "plaintext");
+	# the other encmode parameters are ignored.
 
-	my $debugmessage = "DEBUG: _file_verify($pwfile,$u,$p,$encmode)\n";
-	logAuth("$debugmessage") if $debug;
+	my $havematch=-1;
+	if (!open(PW,"<$pwfile"))
+	{
+		logAuth("ERROR: Cannot open password file $pwfile: $!");
+		return 0;
+	}
+	
+	while(<PW>)
+	{
+		chomp;
+		my ($user,$crypted) = split(/:/,$_,2);
+		next if ($user ne $u or $crypted eq '');
 
-	$encmode = 0 if $encmode eq "plaintext";
-	$encmode = 1 if $encmode eq "crypt";
-	$encmode = 2 if $encmode eq "md5";
-
-	open PW, "<$pwfile" or return 0;
-	while( <PW> ) {
-		if( /([^\s:]+):([^:]+)/ ) {
-			if($1 eq $u) {
-				$fp = $2;
-				chomp $fp;
-				#close PW; # we are returning whatever
-				if($encmode == 0) { # unencrypted. eek!
-					return 1 if($p eq $fp); 
-				} elsif ($encmode == 1) { # htpasswd (unix crypt)
-					if($crypthack) {
-					 require Crypt::UnixCrypt;
-					 $Crypt::UnixCrypt::OVERRIDE_BUILTIN = 1;
-					}
-					$salt = substr($fp,0,2);
-					$cp = crypt($p,$salt); 
-					return 1 if($fp eq $cp); 
-				} elsif ($encmode == 2) { # md5 digest
-					require Digest::MD5;
-					return 1 if($fp eq Digest::MD5::md5($p));
-				} elsif ($encmode == 3) { # unix crypt
-					if($crypthack) {
-					 require Crypt::UnixCrypt;
-					 $Crypt::UnixCrypt::OVERRIDE_BUILTIN = 1;
-					}
-					$salt = substr($fp,0,2);
-					$cp = crypt($p,$salt); 
-					return 1 if($fp eq $cp); 
-				} # add new ones here...
-				if( $C->{'auth_debug'} ) {
-					$debugmessage .= "Mismatch password [$u][$p]:[$fp]!=[$cp]\n";
-				}
-				return 0;
-			} elsif( $C->{'auth_debug'} ) {
-				$debugmessage .= "Mismatch user [$1][$u]\n";
-			}
-		} elsif( $C->{'auth_debug'} ) {
-			$debugmessage .= "Bad format line $_";
-		}
+		# try all types in sequence: crypt first, apache-md5 second
+		# plaintext if and only if explicitely enabled
+		$havematch = (crypt($p,$crypted) eq $crypted
+									or apache_md5_crypt($p,$crypted) eq $crypted
+									or ($allowplaintext && $p eq $crypted));
+		last;
 	}
 	close PW;
-	
-	logAuth("$debugmessage") if $debug;
-
-	return 0; # not found
+	if ($havematch == 1)					# matched, all good.
+	{
+		return 1
+	}
+	elsif ($havematch == -1)					# no user
+	{
+		logAuth("User $u not found in $pwfile.") if $debug;
+		return 0;
+	}
+	elsif (!$havematch)
+	{
+		logAuth("Password mismatch for user $u.") if $debug;
+		return 0;
+	}
 }
 
 #----------------------------------
