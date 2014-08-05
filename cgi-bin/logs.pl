@@ -187,6 +187,15 @@ my $logRefresh = defined $Q->{refresh} ? $Q->{refresh} : '';
 # keep the requested value for filtering
 my $logLevelRequest = $logLevel;
 
+my $logLevelSummary = {
+	fatal => 0,	
+	critical => 0,	
+	major => 0,	
+	minor => 0,	
+	warning => 0,	
+	normal => 0,	
+};
+
 # read contents of conf/Logs.xxxx configuration files
 # file is a hash of log names.
 # numeric index so hash is auto sorted by userconfiguation
@@ -455,6 +464,24 @@ sub displayLogFile {
 		}
 	}
 	print end_table;
+	
+	## check the criticality summary and decide which audio to play
+	my $sound = undef;
+	my @sound_levels = split(",",$C->{sound_levels});
+	foreach my $level (@sound_levels) {
+		print STDERR "DEBUG SOUND: $level logLevelSummary=$logLevelSummary->{$level}\n";
+		if ( $C->{"sound_$level"} and $logLevelSummary->{$level} ) {
+			$sound = $C->{"sound_$level"};
+			last;
+		}
+	}
+	
+	print qq|
+<audio autoplay>
+  <source src="$sound" type="$C->{sound_type}">
+  Your browser does not support the audio element.
+</audio>
+| if $sound;
 }
 
 # --------------------------------------------
@@ -533,6 +560,8 @@ sub outputLine {
 				}
 			}
 		}
+
+		++$logLevelSummary->{lc($logLevelText)};
 				
 		#if ( $logEvent =~ m/-(\d+)-/ ) {
 		if ( $gotEvent ) {
@@ -682,6 +711,8 @@ sub outputLine {
 		# use the node name hash we setup to find the node record.
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
 		$logLevelText = eventLevelSet($logLevel);
+		
+		++$logLevelSummary->{lc($logLevel)};
 		
 		if ( $logServer ) {
 			$logServer = " :: $logServer";

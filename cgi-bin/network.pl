@@ -1928,7 +1928,6 @@ sub viewService {
 	my $LNT = loadLocalNodeTable();
 	
 	if (my @servicelist = split(",",$LNT->{$node}{services})) {
-		my @serviceinstances = $S->getTypeInstances(section => "service");
 		print Tr(
 			td({class=>'header'},"Service"),
 			td({class=>'header'},"Status"),
@@ -1938,17 +1937,22 @@ sub viewService {
 			my $color = $V->{system}{"${service}_color"};
 			$color = colorPercentHi(100) if $V->{system}{"${service}_value"} eq "running";
 			$color = colorPercentHi(0) if $color eq "red";
+			
+			#print STDERR "DEBUG SERVICE: $service ". $V->{system}{"${service}_cpumem"} .",". $V->{system}{"${service}_value"} .",". $V->{system}{"${service}_color"} ."\n";
+			
+			# use 2/3 width so fits a little better.
+			my $thiswidth = int(2/3*$smallGraphWidth);
 
-			#only show response time for polled services, when getting http connect time.
+			#only show response time for polled services, when getting http connect time
 			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,
-																		width=>$smallGraphWidth, height=>$smallGraphHeight);
+																		width=>$thiswidth, height=>$smallGraphHeight);
 			if ( $V->{system}{"${service}_cpumem"} eq "true" ) {
 				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,
-																		width=>$smallGraphWidth,height=>$smallGraphHeight);
+																		width=>$thiswidth,height=>$smallGraphHeight);
 			}
 			else {
 				$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,
-																	intf=>$service,width=>$smallGraphWidth, height=>$smallGraphHeight);
+																	intf=>$service,width=>$thiswidth, height=>$smallGraphHeight);
 			}
 																			
 			print Tr(

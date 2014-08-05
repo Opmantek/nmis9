@@ -420,7 +420,7 @@
       },
       #'pkts' => {
       #  'indexed' => 'true',
-      #  'threshold' => 'pkt_errors_in,pkt_errors_out',
+      #  'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out',
       #  'graphtype' => 'pkts,errpkts',
       #  'control' => '$sysObjectName !~ /748|499/',
       #  'snmp' => {
@@ -484,7 +484,7 @@
       #},
 			'pkts_hc' => {
 				'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out',
         'graphtype' => 'pkts_hc,errpkts_hc',
 				'snmp' => {
 					'ifInOctets' => {

@@ -3433,9 +3433,12 @@ sub runServices {
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
 
+	my $node = $NI->{system}{name};
+
 	my $NT = loadLocalNodeTable();
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
+	logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	my $service;
 	my $cpu;
@@ -3456,6 +3459,7 @@ sub runServices {
 	# Only do SNMP servics if collect is true
 	if ($NT->{$node}{active} eq 'true' and $NT->{$node}{collect} eq 'true') {
 		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+		logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
 		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
 		foreach my $var ( @snmpvars ) {
@@ -3741,6 +3745,7 @@ sub runServices {
 		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
 		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
+		logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
 		$V->{system}{"${service}_responsetime"} = $responsetime;
