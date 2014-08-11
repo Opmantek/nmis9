@@ -271,7 +271,12 @@ sub gettable {
 	}
 
 	# get it
-	$result = $self->{session}->get_table( -baseoid => $oid, -maxrepetitions => $maxrepetitions );
+	if ( $maxrepetitions ) {
+		$result = $self->{session}->get_table( -baseoid => $oid, -maxrepetitions => $maxrepetitions );
+	}
+	else {
+		$result = $self->{session}->get_table( -baseoid => $oid );
+	}
 	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 	if ( not $self->checkResult($result) ) {
 		return undef; 

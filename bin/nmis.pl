@@ -1109,7 +1109,7 @@ sub getIntfInfo {
 	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
