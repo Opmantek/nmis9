@@ -104,7 +104,7 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,kpi,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008',
     'rrd' => {
@@ -432,81 +432,81 @@
       'ifType' => 'other'
 	  }
   },
-  'systemHealth' => {    
-    'sections' => 'tcpConn,tcpConnection',
-    'sys' => {
-      'tcpConn' => {        
-        'indexed' => 'tcpConnState',
-        #'control' => 'CVAR=tcpConnState;$CVAR =~ /2/',
-        'index_oid' => '1.3.6.1.2.1.6.13.1.1',        
-        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',        
-        'headers' => 'tcpConnState,tcpConnLocalAddress,tcpConnLocalPort,tcpConnRemAddress,tcpConnRemPort',
-        'snmp' => {
-          'tcpConnState' => {
-            'replace' => {
-              '1' => 'closed',
-              '2' => 'listen',
-              '3' => 'synSent',
-              '4' => 'synReceived',
-              '5' => 'established',
-              '6' => 'finWait1',
-              '7' => 'finWait2',
-              '8' => 'closeWait',
-              '9' => 'lastAck',
-              '10' => 'closing',
-              '11' => 'timeWait',
-              '12' => 'deleteTCB',
-            },
-            'oid' => 'tcpConnState',
-            'title' => 'TCP Connection State'
-          },
-          'tcpConnLocalAddress' => {
-            'oid' => 'tcpConnLocalAddress',
-            'title' => 'TCP Local Address'
-          },
-          'tcpConnLocalPort' => {
-            'oid' => 'tcpConnLocalPort',
-            'title' => 'TCP Local Port'
-          },
-          'tcpConnRemAddress' => {
-            'oid' => 'tcpConnRemAddress',
-            'title' => 'TCP Remote Address'
-          },
-          'tcpConnRemPort' => {
-            'oid' => 'tcpConnRemPort',
-            'title' => 'TCP Remote Port'
-          },
-        },
-      },      
-      'tcpConnection' => {        
-        'indexed' => 'tcpConnectionState',        
-        'index_oid' => '1.3.6.1.2.1.6.19.1.7',
-        #ipv4."0.0.0.0".135.ipv4."0.0.0.0".0        
-        'index_regex' => '\.(1\.4\.\d+\.\d+\.\d+\.\d+\.\d+\.1\.4\.\d+\.\d+\.\d+\.\d+\.\d+|2\.16\.[\.\d]+\.2\.16\.[\.\d]+)$',        
-        'headers' => 'index,tcpConnectionState',
-        #'control' => 'CVAR=tcpConnectionState;$CVAR =~ /2/',
-        'snmp' => {
-          'tcpConnectionState' => {
-            'replace' => {
-              '1' => 'closed',
-              '2' => 'listen',
-              '3' => 'synSent',
-              '4' => 'synReceived',
-              '5' => 'established',
-              '6' => 'finWait1',
-              '7' => 'finWait2',
-              '8' => 'closeWait',
-              '9' => 'lastAck',
-              '10' => 'closing',
-              '11' => 'timeWait',
-              '12' => 'deleteTCB',
-            },
-            'oid' => '1.3.6.1.2.1.6.19.1.7',
-            'title' => 'TCP Connection State'
-          },
-        },
-      },      
-    },
+  #'systemHealth' => {    
+  #  'sections' => 'tcpConn,tcpConnection',
+  #  'sys' => {
+  #    'tcpConn' => {        
+  #      'indexed' => 'tcpConnState',
+  #      #'control' => 'CVAR=tcpConnState;$CVAR =~ /2/',
+  #      'index_oid' => '1.3.6.1.2.1.6.13.1.1',        
+  #      'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',        
+  #      'headers' => 'tcpConnState,tcpConnLocalAddress,tcpConnLocalPort,tcpConnRemAddress,tcpConnRemPort',
+  #      'snmp' => {
+  #        'tcpConnState' => {
+  #          'replace' => {
+  #            '1' => 'closed',
+  #            '2' => 'listen',
+  #            '3' => 'synSent',
+  #            '4' => 'synReceived',
+  #            '5' => 'established',
+  #            '6' => 'finWait1',
+  #            '7' => 'finWait2',
+  #            '8' => 'closeWait',
+  #            '9' => 'lastAck',
+  #            '10' => 'closing',
+  #            '11' => 'timeWait',
+  #            '12' => 'deleteTCB',
+  #          },
+  #          'oid' => 'tcpConnState',
+  #          'title' => 'TCP Connection State'
+  #        },
+  #        'tcpConnLocalAddress' => {
+  #          'oid' => 'tcpConnLocalAddress',
+  #          'title' => 'TCP Local Address'
+  #        },
+  #        'tcpConnLocalPort' => {
+  #          'oid' => 'tcpConnLocalPort',
+  #          'title' => 'TCP Local Port'
+  #        },
+  #        'tcpConnRemAddress' => {
+  #          'oid' => 'tcpConnRemAddress',
+  #          'title' => 'TCP Remote Address'
+  #        },
+  #        'tcpConnRemPort' => {
+  #          'oid' => 'tcpConnRemPort',
+  #          'title' => 'TCP Remote Port'
+  #        },
+  #      },
+  #    },      
+  #    'tcpConnection' => {        
+  #      'indexed' => 'tcpConnectionState',        
+  #      'index_oid' => '1.3.6.1.2.1.6.19.1.7',
+  #      #ipv4."0.0.0.0".135.ipv4."0.0.0.0".0        
+  #      'index_regex' => '\.(1\.4\.\d+\.\d+\.\d+\.\d+\.\d+\.1\.4\.\d+\.\d+\.\d+\.\d+\.\d+|2\.16\.[\.\d]+\.2\.16\.[\.\d]+)$',        
+  #      'headers' => 'index,tcpConnectionState',
+  #      #'control' => 'CVAR=tcpConnectionState;$CVAR =~ /2/',
+  #      'snmp' => {
+  #        'tcpConnectionState' => {
+  #          'replace' => {
+  #            '1' => 'closed',
+  #            '2' => 'listen',
+  #            '3' => 'synSent',
+  #            '4' => 'synReceived',
+  #            '5' => 'established',
+  #            '6' => 'finWait1',
+  #            '7' => 'finWait2',
+  #            '8' => 'closeWait',
+  #            '9' => 'lastAck',
+  #            '10' => 'closing',
+  #            '11' => 'timeWait',
+  #            '12' => 'deleteTCB',
+  #          },
+  #          'oid' => '1.3.6.1.2.1.6.19.1.7',
+  #          'title' => 'TCP Connection State'
+  #        },
+  #      },
+  #    },      
+  #  },
     #'rrd' => {
     #  'diskIOTable' => {
     #    'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\-/',
@@ -536,7 +536,7 @@
     #    },
     #  },
     #}
-  },
+  #},
   'storage' => {
     'sys' => {
       'storage' => {

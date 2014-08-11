@@ -292,7 +292,7 @@
     'nodeModel' => 'CiscoRouter',
     'nodeType' => 'router',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'nodegraph' => 'health,kpi,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',

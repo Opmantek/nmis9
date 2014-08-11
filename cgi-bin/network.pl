@@ -1428,6 +1428,8 @@ EO_HTML
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
 		my @graphs = split /,/,$M->{system}{nodegraph};
+		
+		print STDERR "DEBUG nodegraph $M->{system}{nodegraph}\n";
 	
 		foreach my $graph (@graphs) {
 			my @pr;
@@ -1437,7 +1439,7 @@ EO_HTML
 			# first two or all graphs
 			
 			## display more graphs by default
-			if ($cnt == 2 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
+			if ($cnt == 3 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
 				if ($#graphs > 1) {
 					# signal there are more graphs
 					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node&expand=true"},"More graphs")));

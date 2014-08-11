@@ -36,6 +36,8 @@ use strict;
 #use warnings;
 
 # *****************************************************************************
+my $debugLogging = 0;
+my $debugLog = "/usr/local/nmis8/logs/cps6000.log";
 
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
@@ -64,6 +66,7 @@ my $detailSep = "-- ";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
  
+use Fcntl qw(:DEFAULT :flock);
 use func;
 use NMIS;
 use Data::Dumper;
@@ -259,10 +262,10 @@ sub processNodes {
 						print "$node Group: $cg DSLAM=$CG->{$cg}{dslamNode}\n" if $info or $debug;
 					}
 				}
-				print "DEBUG: groupList\n";
+				print "DEBUG: groupList\n" if $debug > 2;
 				print Dumper \%groupList if $debug > 2;
 
-				print "DEBUG: groupIdx\n";
+				print "DEBUG: groupIdx\n" if $debug > 2;
 				print Dumper \%groupIdx if $debug > 2;
 				
 				if ( exists $NI->{cps6000Cct}) {
@@ -312,6 +315,7 @@ sub processNodes {
 						}
 						
 						print "$node Circuit: $NI->{cps6000Cct}{$index}{cpsCctEntryDes} $groupId $infoForDetails\n" if $info or $debug;
+						logit("$node Circuit: $NI->{cps6000Cct}{$index}{cpsCctEntryDes} $groupId $infoForDetails") if $debugLogging;
 						
 						## detect condition
 						my $element = "Circuit $NI->{cps6000Cct}{$index}{cpsCctEntryIde}";
@@ -516,6 +520,7 @@ sub processNodes {
 						my $details = "$infoForDetails: potency=$potency potencyLoss=$potencyLoss powerLoss=$powerLoss";
 						
 						print "node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level\n" if $info or $debug;
+						logit("node=$node, groupId=$groupId, infoForDetails=$infoForDetails, potency=$potency, potencyLoss=$potencyLoss, powerLoss=$powerLoss level=$level") if $debugLogging;
 						processCondition($S,$node,$event,$element,$details,$level);
 					}
 					elsif (not $groupDesc) {
@@ -540,6 +545,8 @@ sub processCondition {
 	my $level = shift;
 
 	my $condition = 0;
+
+	logit("processCondition: $node, $event, $level, $element, $details") if $debugLogging;
 
 	# Did the condition exist previously?
 	my $eventExists = eventExist($node, $event, $element);
@@ -640,4 +647,14 @@ sub cleanEvents {
 		writeEventStateLock(table=>$ET,handle=>$handle);
 	}
 
+}
+
+# message with (class::)method names and line number
+sub logit {
+	my $msg = shift;
+	my $handle;
+	open($handle,">>$debugLog") or warn returnTime." log, Couldn't open log file $debugLog. $!\n";
+	flock($handle, LOCK_EX)  or warn "log, can't lock $debugLog: $!";
+	print $handle returnDateStamp().",$msg\n" or warn returnTime." log, can't write file $debugLog. $!\n";
+	close $handle or warn "log, can't close $debugLog: $!";
 }
