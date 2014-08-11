@@ -50,21 +50,16 @@ EO_TEXT
 
 exit unless input_yn("OK to proceed adding CircuitGroups for GE QS941's to NMIS");
 
-my $modelFile = "$C->{'<nmis_models>'}/Model.nmis";
-print "Adding new Model Definition to $modelFile\n";
+#######################################################
+my $modelName = "Model";
+my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+print "Adding new $modelName Definition to $modelFile\n";
 
 backupFile(file => $modelFile, backup => "$modelFile.backup");
 
-my $MODEL = loadTable(dir=>'models',name=>'Model');
+my $MODEL = loadTable(dir=>'models',name=>$modelName);
 
-$MODEL->{'CircuitGroups'} = {
-  'CaseSensitiveKey' => 'true',
-  'Description' => 'The definition of Circuit Groups, use for GE QS941 Devices.',
-  'DisplayName' => 'Circuit Groups',
-  'Table' => 'CircuitGroups'
-};
-
-$MODEL->{'Tyco Electronics Power Systems'} = {
+$MODEL->{'models'}{'Tyco Electronics Power Systems'} = {
       'order' => {
         '10' => {
           'GE-QS941' => 'QS941A'
@@ -72,9 +67,39 @@ $MODEL->{'Tyco Electronics Power Systems'} = {
       }
     };
 
-writeTable(dir=>'models',name=>'Model',data=>$MODEL);
+writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
 
+#######################################################
+my $modelName = "Common-database";
+my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+print "Adding new $modelName Definition to $modelFile\n";
 
+backupFile(file => $modelFile, backup => "$modelFile.backup");
+
+my $MODEL = loadTable(dir=>'models',name=>$modelName);
+
+$MODEL->{'database'}{'type'}{'cps6000Alarm'} = '/health/$nodeType/$node-cps6000Alarm-$index.rrd';
+$MODEL->{'database'}{'type'}{'cps6000Grp'} = '/health/$nodeType/$node-cps6000Grp-$index.rrd';
+$MODEL->{'database'}{'type'}{'cps6000Cct'} = '/health/$nodeType/$node-cps6000Cct-$index.rrd';
+
+writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
+
+#######################################################
+my $modelName = "Common-heading";
+my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+print "Adding new $modelName Definition to $modelFile\n";
+
+backupFile(file => $modelFile, backup => "$modelFile.backup");
+
+my $MODEL = loadTable(dir=>'models',name=>$modelName);
+
+$MODEL->{'heading'}{'graphtype'}{'cps6000Alarm'} = 'CPS 6000 Alarm Status';
+$MODEL->{'heading'}{'graphtype'}{'cps6000Grp'} = 'Group Power and Status';
+$MODEL->{'heading'}{'graphtype'}{'cps6000Cct'} = 'Circuit Power and Status';
+
+writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
+
+#######################################################
 my $tableFile = "$C->{'<nmis_conf>'}/Tables.nmis";
 print "Adding new Table Definition to $tableFile\n";
 
@@ -91,7 +116,7 @@ $TABLES->{'CircuitGroups'} = {
 
 writeTable(dir=>'conf',name=>'Tables',data=>$TABLES);
 
-
+#######################################################
 my $accessFile = "$C->{'<nmis_conf>'}/Access.nmis";
 print "Adding new Access Definition to $accessFile\n";
 
@@ -125,6 +150,7 @@ $ACCESS->{'table_circuitgroups_view'} = {
 
 writeTable(dir=>'conf',name=>'Access',data=>$ACCESS);
 
+#######################################################
 my $circuitFile = "$C->{'<nmis_conf>'}/CircuitGroups.nmis";
 if ( not -f $circuitFile )  {
 	print "Adding empty Definition to $circuitFile\n";
@@ -135,6 +161,9 @@ if ( not -f $circuitFile )  {
 print "Done installing support for CircuitGroups\n";
 
 
+
+#######################################################
+#######################################################
 # question , return true if y, else 0 if no, default is yes.
 sub input_yn {
 

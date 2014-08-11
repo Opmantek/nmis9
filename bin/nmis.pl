@@ -3433,7 +3433,12 @@ sub runServices {
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
 
+	my $node = $NI->{system}{name};
+
+	my $NT = loadLocalNodeTable();
+
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
+	logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	my $service;
 	my $cpu;
@@ -3451,55 +3456,58 @@ sub runServices {
 	my ($snmpcmd,@ret, $var, $i, $key);
 	my $write=0;
 
-	dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-	my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-	my $hrIndextable;
-	foreach my $var ( @snmpvars ) {
-		if ( $hrIndextable = $SNMP->getindex($var)) {
-			foreach my $inst (keys %{$hrIndextable}) {
-				my $value = $hrIndextable->{$inst};
-				my $textoid = oid2name(name2oid($var).".".$inst);
-				if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-				( $textoid, $inst ) = split /\./, $textoid, 2;
-				$snmpTable{$textoid}{$inst} = $value;
-				dbg("Indextable=$inst textoid=$textoid value=$value",2);
+	# Only do SNMP servics if collect is true
+	if ($NT->{$node}{active} eq 'true' and $NT->{$node}{collect} eq 'true') {
+		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+		logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
+		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		my $hrIndextable;
+		foreach my $var ( @snmpvars ) {
+			if ( $hrIndextable = $SNMP->getindex($var)) {
+				foreach my $inst (keys %{$hrIndextable}) {
+					my $value = $hrIndextable->{$inst};
+					my $textoid = oid2name(name2oid($var).".".$inst);
+					if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+					( $textoid, $inst ) = split /\./, $textoid, 2;
+					$snmpTable{$textoid}{$inst} = $value;
+					dbg("Indextable=$inst textoid=$textoid value=$value",2);
+				}
+			}
+		}
+		
+		# prepare service list for all observed services
+		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+			# key services by name_pid
+			$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+			$services{$key}{hrSWRunName} = $key;
+			$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+			$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+			$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+			$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+			
+			dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
+		}
+		# keep all services for display (not rrd!)
+		$NI->{services} = \%services;
+	
+		# now clear events that applied to processes that no longer exist
+		$S->{ET} ||= loadEventStateNoLock();
+		for my $eventkey (keys %{$S->{ET}})
+		{
+			my $event = $S->{ET}->{$eventkey};
+			next if ($event->{node} ne $NI->{system}{name});
+			# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
+			# until then we trigger on the element format plus event name
+			if ($event->{element} =~ /^\S+:\d+$/ 
+					&& $event->{event} =~ /process memory/i
+					&& !exists $services{$event->{element}})
+			{
+				dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
+				checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
+									 element=>$event->{element}, details=>$event->{details});		
 			}
 		}
 	}
-	
-	# prepare service list for all observed services
-	foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
-		# key services by name_pid
-		$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-		$services{$key}{hrSWRunName} = $key;
-		$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-		$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-		$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-		$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-		
-		dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
-	}
-	# keep all services for display (not rrd!)
-	$NI->{services} = \%services;
-
-	# now clear events that applied to processes that no longer exist
-	$S->{ET} ||= loadEventStateNoLock();
-	for my $eventkey (keys %{$S->{ET}})
-	{
-		my $event = $S->{ET}->{$eventkey};
-		next if ($event->{node} ne $NI->{system}{name});
-		# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
-		# until then we trigger on the element format plus event name
-		if ($event->{element} =~ /^\S+:\d+$/ 
-				&& $event->{event} =~ /process memory/i
-				&& !exists $services{$event->{element}})
-		{
-			dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
-			checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
-								 element=>$event->{element}, details=>$event->{details});		
-		}
-	}
-	
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
@@ -3582,7 +3590,7 @@ sub runServices {
 			}
 		}
 		# now the services !
-		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server') {
+		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server' and $NT->{$node}{collect} eq 'true') {
 			# only do the SNMP checking if you are supposed to!
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
 			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true" and $NI->{system}{nodedown} ne "true") ) {
@@ -3737,6 +3745,7 @@ sub runServices {
 		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
 		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
+		logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
 		$V->{system}{"${service}_responsetime"} = $responsetime;
@@ -6292,6 +6301,28 @@ sub doThreshold {
 							}
 						}
 					}
+				}
+				
+				## process each status and have it decay the overall node status......
+				#$S->{info}{status}{$statusKey} = {       "util_in--4" : {               
+				#	property => $args{thrname},                "level" : "Normal",         
+				#	index => $args{index},                     "index" : "4",              
+				#	level => $args{level},                     "value" : "0.00",           
+				#	status => $statusResult,                   "status" : "ok",            
+				#	element => $args{element},                 "element" : "FastEthernet2",
+				#	value => $args{value}                      "property" : "util_in"      
+				#}                                        },                             
+				my $count = 0;
+				my $countOk = 0;
+				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
+					++$count;
+					if ( $S->{info}{status}{$statusKey}{status} ) {
+						++$countOk;
+					}
+				}
+				if ( $count and $countOk ) {
+					my $perOk = sprintf("%.2f",$countOk/$count * 100);
+					info("Status Summary = $perOk, $count, $countOk\n");
 				}
 
 				#print Dumper $S;

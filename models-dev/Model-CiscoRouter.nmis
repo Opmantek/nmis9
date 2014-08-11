@@ -132,7 +132,7 @@
             'option' => 'counter,0:$ifSpeed'
           }
         },
-        'threshold' => 'util_in,util_out,util_out_low,util_in_low'
+        'threshold' => 'util_in,util_out'
       },
       'pkts_hc' => {
         'graphtype' => 'pkts_hc,errpkts_hc',

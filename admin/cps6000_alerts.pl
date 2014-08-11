@@ -33,7 +33,7 @@
 
 # The average utilisation will be calculated for each interface for the last X minutes
 use strict;
-use warnings;
+#use warnings;
 
 # *****************************************************************************
 
@@ -88,6 +88,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
 
 if ( $arg{groups} and $arg{groups} eq "true" ) {
 	updateCircuitGroups();
+	exit 0;
 }
 
 processNodes();
@@ -203,6 +204,7 @@ sub processNodes {
 			print "Processing $node\n" if $debug;
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			$S->readNodeView;
 	
 			my $NI = $S->ndinfo;
 			my $V = $S->view;
@@ -258,10 +260,10 @@ sub processNodes {
 					}
 				}
 				print "DEBUG: groupList\n";
-				print Dumper \%groupList if $debug;
+				print Dumper \%groupList if $debug > 2;
 
 				print "DEBUG: groupIdx\n";
-				print Dumper \%groupIdx if $debug;
+				print Dumper \%groupIdx if $debug > 2;
 				
 				if ( exists $NI->{cps6000Cct}) {
 					my $circuitFaulty = 0;
@@ -520,7 +522,7 @@ sub processNodes {
 						print "WARNING node=$node, groupId=$groupId Group Description is empty in circuit group\n" if $info or $debug;						
 					}
 				}	
-				
+
 				$S->writeNodeView;  # save node view info in file var/$NI->{name}-view
 				$S->writeNodeInfo; # save node info in file var/$NI->{name}-node	
 			}

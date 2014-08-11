@@ -360,6 +360,16 @@
   'mibs' => {
     'full_mib' =>'nmis_mibs.oid,a3com.oid,dell.oid,ups.oid,akcp.oid'
   },
+  'sound' => {
+    'sound_levels' => 'fatal,critical,major,minor,warning,normal',
+    'sound_type' => 'audio/wav',
+    'sound_fatal' => '/nmis8/events/critical.wav',
+    'sound_critical' => '/nmis8/events/critical.wav',
+    'sound_major' => '/nmis8/events/major.wav',
+    'sound_minor' => undef,
+    'sound_warning' => undef,
+    'sound_normal' => undef,
+  },
   'icons' => {
     'normal_net_icon' => '<menu_url_base>/img/network-green.gif',
     'mtr_icon' => '<menu_url_base>/img/mtr.jpg',
