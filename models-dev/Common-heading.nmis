@@ -44,6 +44,7 @@
       'gsm_status_2g' => '2G GSM Status',
       'gsm_status_3g' => '3G GSM Status',
       'health' => 'Overall Reachability, Availability and Health',
+      'kpi' => 'Key Performance Indicators',
       'health-ping' => 'Overall Reachability, Availability and Health',
       'hrbufmem' => 'Memory Buffers Stats',
       'hrcachemem' => 'Cached Memory Stats',

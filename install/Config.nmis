@@ -136,6 +136,7 @@
     'snmp_max_msg_size' => 1472,
     'snmp_max_repetitions' => '',
     'snmp_stop_polling_on_error' => 'true',
+    'log_node_configuration_events' => 'false',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
     'non_stateful_events' => 'Node Configuration Change, Node Reset',
     'upnotify_stateful_events' => 'down|proactive|alert',

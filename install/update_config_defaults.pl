@@ -81,6 +81,8 @@ $conf->{'system'}{'threshold_period-pkts'} = "-5 minutes";
 $conf->{'system'}{'threshold_period-pkts_hc'} = "-5 minutes";
 $conf->{'system'}{'threshold_period-interface'} = "-5 minutes";
 
+$conf->{'system'}{'log_node_configuration_events'} = "false";
+
 $conf->{'javascript'}{'chart'} = "";
 $conf->{'javascript'}{'highcharts'} = "";
 $conf->{'javascript'}{'highstock'} = "";

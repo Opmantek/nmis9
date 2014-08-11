@@ -1072,7 +1072,7 @@ sub notify {
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
 		
-		if ($C->{node_configuration_events} =~ /$event/ ) {
+		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/) {
 			# Push the event onto the event table.
 			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
 		}
