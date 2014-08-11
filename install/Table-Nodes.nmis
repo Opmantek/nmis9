@@ -78,7 +78,7 @@ closedir(MDL);
 		{ timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
 		{ version => { header => 'SNMP Version',display => 'header,popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
 		{ max_msg_size => { header => "SNMP Max Message Size", display => 'text', value => ["$C->{snmp_max_msg_size}"] }},
-    { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["$C->{snmp_max_repetitions}"] }},
+    { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["0"] }},
 		{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
 		{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
 		{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},

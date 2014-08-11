@@ -134,7 +134,6 @@
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
     'snmp_max_msg_size' => 1472,
-    'snmp_max_repetitions' => '',
     'snmp_stop_polling_on_error' => 'true',
     'log_node_configuration_events' => 'false',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',

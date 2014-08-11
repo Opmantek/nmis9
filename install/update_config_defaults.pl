@@ -83,6 +83,8 @@ $conf->{'system'}{'threshold_period-interface'} = "-5 minutes";
 
 $conf->{'system'}{'log_node_configuration_events'} = "false";
 
+delete $conf->{'system'}{'snmp_max_repetitions'};
+
 $conf->{'javascript'}{'chart'} = "";
 $conf->{'javascript'}{'highcharts'} = "";
 $conf->{'javascript'}{'highstock'} = "";
