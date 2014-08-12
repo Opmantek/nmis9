@@ -1109,7 +1109,7 @@ sub getIntfInfo {
 	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
@@ -1655,7 +1655,7 @@ sub getEnvInfo {
 
 	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -1908,7 +1908,7 @@ sub getSystemHealthInfo {
 	
 	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -3371,6 +3371,12 @@ sub runServer {
 						$Val{$itemname."Size"}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{$itemname."Used"}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
+						### 2014-08-07 keiths, adding Other Memory to Health Calculations.
+						$S->{reach}{$itemname."Free"} = $Val{$itemname."Size"}{value} - $Val{$itemname."Used"}{value};
+						$S->{reach}{$itemname."Used"} = $Val{$itemname."Used"}{value};
+						
+						#print Dumper $S->{reach};
+
 						if (my $db = updateRRD(sys=>$S, data=>\%Val, type=>$typename))
 						{
 							$NI->{graphtype}{$typename} = $typename;
@@ -3433,7 +3439,12 @@ sub runServices {
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
 
+	my $node = $NI->{system}{name};
+
+	my $NT = loadLocalNodeTable();
+
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
+	#logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	my $service;
 	my $cpu;
@@ -3450,56 +3461,67 @@ sub runServices {
 	my $timeout = 3;
 	my ($snmpcmd,@ret, $var, $i, $key);
 	my $write=0;
+	
+	my $nodeCheckSnmpServices = 0;
+	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
+		if ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server' ) {		
+			info("node has SNMP services to check");
+			$nodeCheckSnmpServices = 1;
+		}
+	}
 
-	dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-	my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-	my $hrIndextable;
-	foreach my $var ( @snmpvars ) {
-		if ( $hrIndextable = $SNMP->getindex($var)) {
-			foreach my $inst (keys %{$hrIndextable}) {
-				my $value = $hrIndextable->{$inst};
-				my $textoid = oid2name(name2oid($var).".".$inst);
-				if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-				( $textoid, $inst ) = split /\./, $textoid, 2;
-				$snmpTable{$textoid}{$inst} = $value;
-				dbg("Indextable=$inst textoid=$textoid value=$value",2);
+	# Only do SNMP servics if collect is true
+	if ($nodeCheckSnmpServices and $NT->{$node}{active} eq 'true' and $NT->{$node}{collect} eq 'true') {
+		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
+		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		my $hrIndextable;
+		foreach my $var ( @snmpvars ) {
+			if ( $hrIndextable = $SNMP->getindex($var)) {
+				foreach my $inst (keys %{$hrIndextable}) {
+					my $value = $hrIndextable->{$inst};
+					my $textoid = oid2name(name2oid($var).".".$inst);
+					if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+					( $textoid, $inst ) = split /\./, $textoid, 2;
+					$snmpTable{$textoid}{$inst} = $value;
+					dbg("Indextable=$inst textoid=$textoid value=$value",2);
+				}
+			}
+		}
+		
+		# prepare service list for all observed services
+		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+			# key services by name_pid
+			$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+			$services{$key}{hrSWRunName} = $key;
+			$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+			$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+			$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+			$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+			
+			dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
+		}
+		# keep all services for display (not rrd!)
+		$NI->{services} = \%services;
+	
+		# now clear events that applied to processes that no longer exist
+		$S->{ET} ||= loadEventStateNoLock();
+		for my $eventkey (keys %{$S->{ET}})
+		{
+			my $event = $S->{ET}->{$eventkey};
+			next if ($event->{node} ne $NI->{system}{name});
+			# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
+			# until then we trigger on the element format plus event name
+			if ($event->{element} =~ /^\S+:\d+$/ 
+					&& $event->{event} =~ /process memory/i
+					&& !exists $services{$event->{element}})
+			{
+				dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
+				checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
+									 element=>$event->{element}, details=>$event->{details});		
 			}
 		}
 	}
-	
-	# prepare service list for all observed services
-	foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
-		# key services by name_pid
-		$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-		$services{$key}{hrSWRunName} = $key;
-		$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-		$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-		$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-		$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-		
-		dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
-	}
-	# keep all services for display (not rrd!)
-	$NI->{services} = \%services;
-
-	# now clear events that applied to processes that no longer exist
-	$S->{ET} ||= loadEventStateNoLock();
-	for my $eventkey (keys %{$S->{ET}})
-	{
-		my $event = $S->{ET}->{$eventkey};
-		next if ($event->{node} ne $NI->{system}{name});
-		# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
-		# until then we trigger on the element format plus event name
-		if ($event->{element} =~ /^\S+:\d+$/ 
-				&& $event->{event} =~ /process memory/i
-				&& !exists $services{$event->{element}})
-		{
-			dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
-			checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
-								 element=>$event->{element}, details=>$event->{details});		
-		}
-	}
-	
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
@@ -3582,7 +3604,7 @@ sub runServices {
 			}
 		}
 		# now the services !
-		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server') {
+		elsif ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server' and $NT->{$node}{collect} eq 'true') {
 			# only do the SNMP checking if you are supposed to!
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
 			if ( $C->{snmp_stop_polling_on_error} eq "false" or ( $C->{snmp_stop_polling_on_error} eq "true" and $NI->{system}{snmpdown} ne "true" and $NI->{system}{nodedown} ne "true") ) {
@@ -3737,6 +3759,7 @@ sub runServices {
 		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
 		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
+		logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
 		$V->{system}{"${service}_responsetime"} = $responsetime;
@@ -4006,6 +4029,7 @@ sub runReach {
 	my $cpuWeight;
 	my $diskWeight;
 	my $memWeight;
+	my $swapWeight = 0;
 	my $responseWeight;
 	my $interfaceWeight;
 	my $intf;
@@ -4020,6 +4044,26 @@ sub runReach {
 	my $intsummary;
 	my $intWeight;
 	my $index;
+
+	my $reachabilityHealth = 0;
+	my $availabilityHealth = 0;
+	my $responseHealth = 0;
+	my $cpuHealth = 0;
+
+	my $memHealth = 0;
+	my $intHealth = 0;
+	my $swapHealth = 0;
+	my $diskHealth = 0;
+
+	my $reachabilityMax = 100 * $C->{weight_reachability};
+	my $availabilityMax = 100 * $C->{weight_availability};
+	my $responseMax = 100 * $C->{weight_response};
+	my $cpuMax = 100 * $C->{weight_cpu};
+	my $memMax = 100 * $C->{weight_mem};
+	my $intMax = 100 * $C->{weight_int};
+	
+	my $swapMax = 0;
+	my $diskMax = 0;
 
 	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
 
@@ -4036,9 +4080,21 @@ sub runReach {
 	if ( $RI->{memfree} == 0 or $RI->{memused} == 0 ) {
 		$RI->{mem} = 100;
 	} else {
+		#'hrSwapMemFree' => 4074844160,
+  	#'hrSwapMemUsed' => 220114944,
+  	my $mainMemWeight = 1;
+  	my $extraMem = 0;
+  	
+  	if ( defined $RI->{hrSwapMemFree} and defined $RI->{hrSwapMemUsed} and $RI->{hrSwapMemFree} and $RI->{hrSwapMemUsed} ) {
+			$RI->{swap} = ( $RI->{hrSwapMemFree} * 100 ) / ($RI->{hrSwapMemUsed} + $RI->{hrSwapMemFree});  		
+  	}
+		else {
+			$RI->{swap} = 0;
+		}
+
 		# calculate mem
 		if ( $RI->{memfree} > 0 and $RI->{memused} > 0 ) {
-			$RI->{mem} = ( $RI->{memfree} * 100 ) / ($RI->{memused} + $RI->{memfree}) ;
+			$RI->{mem} = ( $RI->{memfree} * 100 ) / ($RI->{memused} + $RI->{memfree});
 		}
 		else {
 			$RI->{mem} = "U";
@@ -4052,6 +4108,9 @@ sub runReach {
 	my %reach;		# copy in local table
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
+	if ( $RI->{swap} ) {
+		$reach{swap} = $RI->{swap};
+	}
 	$reach{disk} = 0;
 	if ( defined $RI->{disk} and $RI->{disk} > 0 ) {
 		$reach{disk} = $RI->{disk};
@@ -4094,10 +4153,10 @@ sub runReach {
 			elsif ( $reach{cpu} <= 40 ) { $cpuWeight = 70; }
 			elsif ( $reach{cpu} <= 50 ) { $cpuWeight = 60; }
 			elsif ( $reach{cpu} <= 60 ) { $cpuWeight = 50; }
-			elsif ( $reach{cpu} <= 70 ) { $cpuWeight = 40; }
-			elsif ( $reach{cpu} <= 80 ) { $cpuWeight = 30; }
-			elsif ( $reach{cpu} <= 90 ) { $cpuWeight = 20; }
-			elsif ( $reach{cpu} <= 100 ) { $cpuWeight = 10; }
+			elsif ( $reach{cpu} <= 70 ) { $cpuWeight = 35; }
+			elsif ( $reach{cpu} <= 80 ) { $cpuWeight = 20; }
+			elsif ( $reach{cpu} <= 90 ) { $cpuWeight = 10; }
+			elsif ( $reach{cpu} <= 100 ) { $cpuWeight = 1; }
 
 			if ( $reach{disk} ) {
 				if    ( $reach{disk} <= 10 ) { $diskWeight = 100; }
@@ -4106,12 +4165,25 @@ sub runReach {
 				elsif ( $reach{disk} <= 40 ) { $diskWeight = 70; }
 				elsif ( $reach{disk} <= 50 ) { $diskWeight = 60; }
 				elsif ( $reach{disk} <= 60 ) { $diskWeight = 50; }
-				elsif ( $reach{disk} <= 70 ) { $diskWeight = 40; }
-				elsif ( $reach{disk} <= 80 ) { $diskWeight = 30; }
-				elsif ( $reach{disk} <= 90 ) { $diskWeight = 20; }
-				elsif ( $reach{disk} <= 100 ) { $diskWeight = 10; }
+				elsif ( $reach{disk} <= 70 ) { $diskWeight = 35; }
+				elsif ( $reach{disk} <= 80 ) { $diskWeight = 20; }
+				elsif ( $reach{disk} <= 90 ) { $diskWeight = 10; }
+				elsif ( $reach{disk} <= 100 ) { $diskWeight = 1; }
 
 				dbg("Reach for Disk disk=$reach{disk} diskWeight=$diskWeight");
+			}
+
+			# Very aggressive swap weighting, 11% swap is pretty healthy.
+			if ( $reach{swap} ) {
+				if    ( $reach{swap} >= 95 ) { $swapWeight = 100; }
+				elsif ( $reach{swap} >= 89 ) { $swapWeight = 95; }
+				elsif ( $reach{swap} >= 70 ) { $swapWeight = 90; }
+				elsif ( $reach{swap} >= 50 ) { $swapWeight = 70; }
+				elsif ( $reach{swap} >= 30 ) { $swapWeight = 50; }
+				elsif ( $reach{swap} >= 10 ) { $swapWeight = 30; }
+				elsif ( $reach{swap} >= 0 ) { $swapWeight = 1; }
+
+				dbg("Reach for Swap swap=$reach{swap} swapWeight=$swapWeight");
 			}
 
 			if    ( $reach{mem} >= 40 ) { $memWeight = 100; }
@@ -4122,7 +4194,7 @@ sub runReach {
 			elsif ( $reach{mem} >= 15 ) { $memWeight = 50; }
 			elsif ( $reach{mem} >= 10 ) { $memWeight = 40; }
 			elsif ( $reach{mem} >= 5 )  { $memWeight = 25; }
-			elsif ( $reach{mem} >= 0 )  { $memWeight = 0; }
+			elsif ( $reach{mem} >= 0 )  { $memWeight = 1; }
 		}
 		elsif ( $NI->{system}{collect} eq 'true' and $NI->{system}{nodeModel} eq "Generic" ) {
 			$cpuWeight = 100;
@@ -4192,28 +4264,58 @@ sub runReach {
 		# Maybe thresholds are the best way to handle that though.  That
 		# would pickup the peaks better.
 
+		# keeping the health values for storing in the RRD		
+		$reachabilityHealth = ($reach{reachability} * $C->{weight_reachability});
+		$availabilityHealth = ($reach{availability} * $C->{weight_availability});
+		$responseHealth = ($responseWeight * $C->{weight_response});
+		$cpuHealth = ($cpuWeight * $C->{weight_cpu});
+		$memHealth = ($memWeight * $C->{weight_mem});
+		$intHealth = ($intWeight * $C->{weight_int});
+		$swapHealth = 0;
+		$diskHealth = 0;
+		
+		# the minimum value for health should always be 1
+		$reachabilityHealth = 1 if $reachabilityHealth < 1;
+		$availabilityHealth = 1 if $availabilityHealth < 1;
+		$responseHealth = 1 if $responseHealth < 1;
+		$cpuHealth = 1 if $cpuHealth < 1;
+
+		# overload the int and mem with swap and disk 
+		if ( $reach{swap} ) {
+			$memHealth = ($memWeight * $C->{weight_mem}) / 2;
+			$swapHealth =  ($swapWeight * $C->{weight_mem}) / 2;
+			$memMax = 100 * $C->{weight_mem} / 2;
+			$swapMax = 100 * $C->{weight_mem} / 2;;
+
+			# the minimum value for health should always be 1
+			$memHealth = 1 if $memHealth < 1;
+			$swapHealth = 1 if $swapHealth < 1;
+		}
+
+		if ( $reach{disk} ) {
+			$intHealth = ($intWeight * ($C->{weight_int} / 2));
+			$diskHealth = ($diskWeight * ($C->{weight_int} / 2));
+			$intMax = 100 * $C->{weight_int} / 2;	
+			$diskMax = 100 * $C->{weight_int} / 2;
+			
+			# the minimum value for health should always be 1
+			$intHealth = 1 if $intHealth < 1;
+			$diskHealth = 1 if $diskHealth < 1;
+		}
+
 		# Health is made up of a weighted values:
 		### AS 16 Mar 02, implemented weights in nmis.conf
-		if ( $reach{disk} ) {
-			# use half of the weight allocation for interfaces
-			$reach{health} = 	($reach{reachability} * $C->{weight_reachability}) +
-							($intWeight * ($C->{weight_int} / 2)) +
-							($diskWeight * ($C->{weight_int} / 2)) +
-							($responseWeight * $C->{weight_response}) +
-							($reach{availability} * $C->{weight_availability}) +
-							($cpuWeight * $C->{weight_cpu}) +
-							($memWeight * $C->{weight_mem})
-							;
-		}
-		else {
-			$reach{health} = 	($reach{reachability} * $C->{weight_reachability}) +
-							($intWeight * $C->{weight_int}) +
-							($responseWeight * $C->{weight_response}) +
-							($reach{availability} * $C->{weight_availability}) +
-							($cpuWeight * $C->{weight_cpu}) +
-							($memWeight * $C->{weight_mem})
-							;
-		}
+		$reach{health} = 	(
+						$reachabilityHealth +
+						$availabilityHealth + 
+						$responseHealth +
+						$cpuHealth +
+						$memHealth +
+						$intHealth +
+						$diskHealth +
+						$swapHealth
+					);
+		
 		info("Calculation of health=$reach{health}");
 		if (lc $reach{health} eq 'nan') {
 			dbg("Values Calc. reachability=$reach{reachability} * $C->{weight_reachability}");
@@ -4222,6 +4324,7 @@ sub runReach {
 			dbg("Values Calc. availability=$reach{availability} * $C->{weight_availability}");
 			dbg("Values Calc. cpuWeight=$cpuWeight * $C->{weight_cpu}");
 			dbg("Values Calc. memWeight=$memWeight * $C->{weight_mem}");
+			dbg("Values Calc. swapWeight=$swapWeight * $C->{weight_mem}");
 		}
 	}
 	elsif ( $NI->{system}{collect} ne 'true' and $pingresult == 100 ) {
@@ -4258,8 +4361,20 @@ sub runReach {
 	dbg("ping=$pingresult (normalised)");
 	dbg("cpuWeight=$cpuWeight (normalised)");
 	dbg("memWeight=$memWeight (normalised)");
+	dbg("swapWeight=$swapWeight (normalised)") if $swapWeight;
 	dbg("intWeight=$intWeight (100 less the actual total interface utilisation)");
+	dbg("diskWeight=$diskWeight");
 	dbg("responseWeight=$responseWeight (normalised)");
+
+	info("Reachability KPI=$reachabilityHealth/$reachabilityMax");
+	info("Availability KPI=$availabilityHealth/$availabilityMax");
+	info("Response KPI=$responseHealth/$responseMax");
+	info("CPU KPI=$cpuHealth/$cpuMax");
+	info("MEM KPI=$memHealth/$memMax");
+	info("Int KPI=$intHealth/$intMax");
+	info("Disk KPI=$diskHealth/$diskMax") if $diskHealth;
+	info("SWAP KPI=$swapHealth/$swapMax") if $swapHealth;
+
 	info("total number of interfaces=$reach{intfTotal}");
 	info("total number of interfaces up=$reach{intfUp}");
 	info("total number of interfaces collected=$reach{intfCollect}");
@@ -4275,6 +4390,16 @@ sub runReach {
 	$reachVal{availability}{value} = $reach{availability};
 	$reachVal{responsetime}{value} = $reach{responsetime};
 	$reachVal{health}{value} = $reach{health};
+
+	$reachVal{reachabilityHealth}{value} = $reachabilityHealth;
+	$reachVal{availabilityHealth}{value} = $availabilityHealth;
+	$reachVal{responseHealth}{value} = $responseHealth;
+	$reachVal{cpuHealth}{value} = $cpuHealth;
+	$reachVal{memHealth}{value} = $memHealth;
+	$reachVal{intHealth}{value} = $intHealth;
+	$reachVal{diskHealth}{value} = $diskHealth;
+	$reachVal{swapHealth}{value} = $swapHealth;
+
 	$reachVal{loss}{value} = $reach{loss};
 	$reachVal{intfTotal}{value} = $reach{intfTotal};
 	$reachVal{intfUp}{value} = $reach{intfTotal} eq 'U' ? 'U' : $reach{intfUp};
@@ -4285,6 +4410,16 @@ sub runReach {
 	### 2014-03-18 keiths, setting maximum responsetime to 30 seconds.
 	$reachVal{responsetime}{option} = "gauge,0:30000";
 	$reachVal{health}{option} = "gauge,0:100";
+
+	$reachVal{reachabilityHealth}{option} = "gauge,0:100";
+	$reachVal{availabilityHealth}{option} = "gauge,0:100";
+	$reachVal{responseHealth}{option} = "gauge,0:100";
+	$reachVal{cpuHealth}{option} = "gauge,0:100";
+	$reachVal{memHealth}{option} = "gauge,0:100";
+	$reachVal{intHealth}{option} = "gauge,0:100";
+	$reachVal{diskHealth}{option} = "gauge,0:100";
+	$reachVal{swapHealth}{option} = "gauge,0:100";
+
 	$reachVal{loss}{option} = "gauge,0:100";
 	$reachVal{intfTotal}{option} = "gauge,0:U";
 	$reachVal{intfUp}{option} = "gauge,0:U";
@@ -4292,7 +4427,7 @@ sub runReach {
 	$reachVal{intfColUp}{option} = "gauge,0:U";
 
 	my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"); # database name is 'reach'
-	$NI->{graphtype}{health} = $NI->{system}{nodeModel} eq 'PingOnly' ? "health-ping,response" : "health,response,numintf";
+	$NI->{graphtype}{health} = $NI->{system}{nodeModel} eq 'PingOnly' ? "health-ping,response" : "health,kpi,response,numintf";
 
 END_runReach:
 	info("Finished");
@@ -6292,6 +6427,28 @@ sub doThreshold {
 							}
 						}
 					}
+				}
+				
+				## process each status and have it decay the overall node status......
+				#$S->{info}{status}{$statusKey} = {       "util_in--4" : {               
+				#	property => $args{thrname},                "level" : "Normal",         
+				#	index => $args{index},                     "index" : "4",              
+				#	level => $args{level},                     "value" : "0.00",           
+				#	status => $statusResult,                   "status" : "ok",            
+				#	element => $args{element},                 "element" : "FastEthernet2",
+				#	value => $args{value}                      "property" : "util_in"      
+				#}                                        },                             
+				my $count = 0;
+				my $countOk = 0;
+				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
+					++$count;
+					if ( $S->{info}{status}{$statusKey}{status} ) {
+						++$countOk;
+					}
+				}
+				if ( $count and $countOk ) {
+					my $perOk = sprintf("%.2f",$countOk/$count * 100);
+					info("Status Summary = $perOk, $count, $countOk\n");
 				}
 
 				#print Dumper $S;

@@ -132,7 +132,7 @@
             'option' => 'counter,0:$ifSpeed'
           }
         },
-        'threshold' => 'util_in,util_out,util_out_low,util_in_low'
+        'threshold' => 'util_in,util_out'
       },
       'pkts_hc' => {
         'graphtype' => 'pkts_hc,errpkts_hc',
@@ -292,7 +292,7 @@
     'nodeModel' => 'CiscoRouter',
     'nodeType' => 'router',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'nodegraph' => 'health,kpi,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',

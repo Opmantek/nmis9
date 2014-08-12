@@ -1428,6 +1428,8 @@ EO_HTML
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
 		my @graphs = split /,/,$M->{system}{nodegraph};
+		
+		print STDERR "DEBUG nodegraph $M->{system}{nodegraph}\n";
 	
 		foreach my $graph (@graphs) {
 			my @pr;
@@ -1437,7 +1439,7 @@ EO_HTML
 			# first two or all graphs
 			
 			## display more graphs by default
-			if ($cnt == 2 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
+			if ($cnt == 3 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
 				if ($#graphs > 1) {
 					# signal there are more graphs
 					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node&expand=true"},"More graphs")));
@@ -1925,31 +1927,36 @@ sub viewService {
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
 	
-	if (my @serviceinstances = $S->getTypeInstances(section => "service")) {
+	my $LNT = loadLocalNodeTable();
+	
+	if (my @servicelist = split(",",$LNT->{$node}{services})) {
 		print Tr(
 			td({class=>'header'},"Service"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"History")
 		);	
-		foreach my $service (sort @serviceinstances ) {
+		foreach my $service (sort @servicelist ) {
 			my $color = $V->{system}{"${service}_color"};
 			$color = colorPercentHi(100) if $V->{system}{"${service}_value"} eq "running";
 			$color = colorPercentHi(0) if $color eq "red";
+			
+			#print STDERR "DEBUG SERVICE: $service ". $V->{system}{"${service}_cpumem"} .",". $V->{system}{"${service}_value"} .",". $V->{system}{"${service}_color"} ."\n";
+			
+			# use 2/3 width so fits a little better.
+			my $thiswidth = int(2/3*$smallGraphWidth);
 
-			# make two or three graphs fit; smallgraphwidth is supposed to allow for two columns,
-			# so 2/3 will do for three cols.
-			my $thiswidth = ( $V->{system}{"${service}_cpumem"} eq "true")?  int(2/3*$smallGraphWidth) 
-					: $smallGraphWidth;
-
+			#only show response time for polled services, when getting http connect time
 			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,
 																		width=>$thiswidth, height=>$smallGraphHeight);
-			$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,
-																	intf=>$service,width=>$thiswidth, height=>$smallGraphHeight);
-																	
 			if ( $V->{system}{"${service}_cpumem"} eq "true" ) {
 				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,
 																		width=>$thiswidth,height=>$smallGraphHeight);
 			}
+			else {
+				$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,
+																	intf=>$service,width=>$thiswidth, height=>$smallGraphHeight);
+			}
+																			
 			print Tr(
 				td({class=>'info Plain'},$service),
 				td({class=>'info Plain',style=>"background-color:".$color},$V->{system}{"${service}_value"}),

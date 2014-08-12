@@ -129,6 +129,71 @@ sub getRRDasHash {
 	return (\%s,\@h);
 }
 
+sub getRRDasHashTesting {
+	my %args = @_;
+	my $S = $args{sys};
+	my $graphtype = $args{graphtype};
+	my $index = $args{index};
+	my $item = $args{item};
+
+	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
+	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
+	
+	my $invertperiod = $minhr > $maxhr;
+
+	if (!$S) {
+		$S = Sys::->new(); # get base Model containing database info
+		$S->init;
+	}
+
+	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
+	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
+	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
+
+	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
+	my %s;
+	my @h;
+	my $f = 1;
+	my $date;
+	my $d;
+	my $time = $begin;
+	for(my $a = 0; $a <= $#{$data}; ++$a) {
+		$d = 0;
+
+		my $date = returnDateStamp($time);
+		my $hour = $date;
+		$hour =~ s/\d+-[a-zA-Z]+-\d+ (\d+):\d+:\d+/$1/;		
+
+		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) {
+			if ($f) { push(@h,$name->[$b]) }
+			if ( defined $data->[$a][$b] 
+					 and 
+					 ( 
+						 # between from (incl) and to (excl) hour if not inverted 
+						 ( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+						 or
+						 # before to (excl) or after from (incl) hour if inverted,
+						 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
+			{
+				$s{$time}{$name->[$b]} = $data->[$a][$b];
+				if ( defined $data->[$a][$b] ) { $d = 1; }
+			}
+		}
+		if ($d) {
+			$date = returnDateStamp($time);
+			$s{$time}{time} = $time;
+			$s{$time}{date} = $date;
+		}
+		if ($f) { 
+			push(@h,"time");
+			push(@h,"date");
+		}
+		$f = 0;
+		$time = $time + $step;
+	}
+	return (\%s,\@h);
+}
+
 # retrieves rrd data and computes a number of descriptive stats 
 # this uses the sys object to translate from graphtype to section (Sys::getTypeName)
 # args: hour_from hour_to define the daily period [from,to].
