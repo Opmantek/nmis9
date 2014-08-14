@@ -47,6 +47,8 @@
       }
     },
     'type' => {
+
+			'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
       'akcp_hum' => '/misc/$nodeType/$node-akcp-hum-$index.rrd',
@@ -70,6 +72,7 @@
       'gsm_status_2g' => '/health/$nodeType/$node-gsm_status_2g.rrd',
       'gsm_status_3g' => '/health/$nodeType/$node-gsm_status_3g.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd',
+      'health' => '/health/$nodeType/$node-reach.rrd',
       'hr' => '/health/$nodeType/$node-hr.rrd',
       'hrbufmem' => '/health/$nodeType/$node-hrbufmem.rrd',
       'hrcachemem' => '/health/$nodeType/$node-hrcachemem.rrd',
@@ -83,7 +86,6 @@
       'interface' => '/interface/$nodeType/$node/$node-$ifDescr.rrd',
       'laload' => '/health/$nodeType/$node-laload.rrd',
       'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
-      'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'metrics' => '/metrics/$item.rrd',
       'mib2ip' => '/health/$nodeType/$node-mib2ip.rrd',
       'modem' => '/health/$nodeType/$node-modem.rrd',
@@ -97,6 +99,7 @@
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
       'service' => '/health/$nodeType/$node-$item.rrd',
       'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
+      'service-response' => '/health/$nodeType/$node-$item.rrd',
       'sessions' => '/misc/$nodeType/$node-sessions.rrd',
       'statistics' => '/health/$nodeType/$node-statistics.rrd',
       'systemStats' => '/health/$nodeType/$node-systemstats.rrd',
