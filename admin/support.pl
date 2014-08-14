@@ -39,9 +39,9 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.2.1";
+my $VERSION = "1.2.2";
 
-my $usage = "Opmantek Support Tool Version $VERSION\n
+my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info 
@@ -66,19 +66,43 @@ if ($args{action} eq "collect")
 		my $targetdir = "$td/collect.$timelabel";
 		mkdir($targetdir);
 		print "collecting support evidence...\n";
-		my $status = collect_evidence($targetdir, $args{node});
+		my $status = collect_evidence($targetdir, \%args);
 		die "failed to collect evidence: $status\n" if ($status);
-		print "\nevidence collection complete, zipping things up...\n";
+
+		my $omkzfn;
+		# if omk and its support tool found, run that as well if allowed to!
+		if (-d "/usr/local/omk" && -f "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
+		{
+			open(LF, ">$targetdir/omk-support.log");
+
+			print "\nFound local OMK installation with OMK support tool.
+Please wait while we collect OMK information as well.\n";
+			open(F, "/usr/local/omk/bin/support.pl action=collect no_system_stats=1 no_other_tools=1 2>&1 |")
+					or warn "cannot execute OMK support tool: $!\n";
+			while (my $line = <F>)
+			{
+				print LF $line;
+				if ($line =~ /information is in (\S+)/)
+				{
+					$omkzfn = $1;
+				}
+			}
+			close F;
+			close LF;
+		}
+
+		print "\nEvidence collection complete, zipping things up...\n";
 
 		# do we have zip? or only tar+gz?
 		my $canzip=0;
 		$status = system("zip --version >/dev/null 2>&1");
 		$canzip=1 if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status));
 		
-		my $zfn = "/tmp/support-$timelabel.".($canzip?"zip":"tgz");
+		my $zfn = "/tmp/nmis-support-$timelabel.".($canzip?"zip":"tgz");
 		
 		# zip mustn't become too large, hence we possibly tail/truncate some or all log files
-		opendir(D,"$targetdir/logs") or return "can't read $targetdir/logs dir: $!";
+		opendir(D,"$targetdir/logs") 
+				or warn "can't read $targetdir/logs dir: $!\n";
 		my @shrinkables = map { "$targetdir/logs/$_" } (grep($_ !~ /^\.{1,2}$/, readdir(D)));
 		closedir(D);
 		while (1)
@@ -114,8 +138,11 @@ if ($args{action} eq "collect")
 						die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
 				}
 		}
-		print "\nall done.\n",
-		"Collected system information is in $zfn\nPlease include this zip file when you contact 
+
+
+		print "\nAll done.\n\nCollected system information is in $zfn\n";
+		print "OMK information is in $omkzfn\n\n" if ($omkzfn);
+		print "Please include ".($omkzfn? "these zip files": "this zip file"). " when you contact 
 the NMIS Community or the Opmantek Team.\n\n";
 }
 
@@ -139,19 +166,25 @@ sub shrinkfile
 
 # collects logfiles, config, generic information from var
 # and parks all of that in/beneath target dir
-# if thisnode is given, then this node's var data is collected as well
 # the target dir must already exist
+#
+# args: node, no_system_stats
+# if node given, then this node's var data is collected as well
+# if no_system_stats is set then the time-consuming top, iostat etc are skipped
+
 #
 # returns nothing if ok, error message otherwise
 sub collect_evidence
 {
-		my ($targetdir,$thisnode) = @_;
+		my ($targetdir,$args) = @_;
 		my $basedir = $globalconf->{'<nmis_base>'};
+
+		my $thisnode = $args{node};
 
 		mkdir("$targetdir/system_status");
 		# dump an ls -laRH, H for follow symlinks
 		system("ls -laRH $basedir > $targetdir/system_status/filelist.txt") == 0
-				or return "can't list nmis dir: $!";
+				or warn "can't list nmis dir: $!\n";
 		
 		# get md5 sums of the relevant installation files
 		print "please wait while we collect file status information...\n";
@@ -164,33 +197,36 @@ sub collect_evidence
 		system("id www-data >>$targetdir/system_status/web_userinfo 2>&1");
 		# dump the process table
 		system("ps ax >$targetdir/system_status/processlist.txt") == 0 
-				or return  "can't list processes: $!";
+				or warn  "can't list processes: $!\n";
 		# dump the memory info, free
 		system("cp","/proc/meminfo","$targetdir/system_status/meminfo") == 0
-				or return "can't save memory information: $!";
+				or warn "can't save memory information: $!\n";
 		chmod(0644,"$targetdir/system_status/meminfo"); # /proc/meminfo isn't writable
 		system("free >> $targetdir/system_status/meminfo");
 
-		print "please wait while we gather statistics for about 15 seconds...\n";
-		# dump 5 seconds of vmstat, two runs of top, 5 seconds of iostat
-		# these tools aren't necessarily installed, so we ignore errors
-		system("vmstat 1 5 > $targetdir/system_status/vmstat");
-		system("top -b -n 2 > $targetdir/system_status/top");	
-		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
+		if (!$args->{no_system_stats})
+		{
+			print "please wait while we gather statistics for about 15 seconds...\n";
+			# dump 5 seconds of vmstat, two runs of top, 5 seconds of iostat
+			# these tools aren't necessarily installed, so we ignore errors
+			system("vmstat 1 5 > $targetdir/system_status/vmstat");
+			system("top -b -n 2 > $targetdir/system_status/top");	
+			system("iostat -kx 1 5 > $targetdir/system_status/iostat");
+		}
 
 		# copy /etc/hosts, /etc/resolv.conf, interface and route status
 		system("cp","/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf","$targetdir/system_status/") == 0
-				or return "can't save dns configuration files: $!";
+				or warn "can't save dns configuration files: $!\n";
 		system("/sbin/ifconfig -a > $targetdir/system_status/ifconfig") == 0
-				or return "can't save interface status: $!";
+				or warn "can't save interface status: $!\n";
 		system("/sbin/route -n > $targetdir/system_status/route") == 0
-				or return "can't save routing table: $!";
+				or warn "can't save routing table: $!\n";
 
 		# copy the install log if there is one
 		if (-f "$basedir/install.log")
 		{
 				system("cp","$basedir/install.log",$targetdir) == 0
-						or return "can't copy install.log: $!";
+						or warn "can't copy install.log: $!\n";
 		}
 
 		# collect all defined log files
@@ -216,22 +252,22 @@ sub collect_evidence
 		
 		# copy all of conf/ and models/
 		system("cp","-r","$basedir/models","$basedir/conf",$targetdir) == 0
-				or return "can't copy models and conf to $targetdir: $!";
+				or warn "can't copy models and conf to $targetdir: $!\n";
 
 		# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
-		opendir(D,"$basedir/var") or return "can't read var dir: $!";
+		opendir(D,"$basedir/var") or warn "can't read var dir: $!\n";
 		my @generics = grep(/^nmis-/, readdir(D));
 		closedir(D);
 		system("cp", (map { "$basedir/var/$_" } (@generics)), 
-					 "$targetdir/var") == 0 or return "can't copy var files: $!";
+					 "$targetdir/var") == 0 or warn "can't copy var files: $!\n";
 
 		# if node info requested copy those files as well
 		# special case: want ALL nodes
 		if ($thisnode eq "*")
 		{
 				system("cp $basedir/var/* $targetdir/var/") == 0 
-						or return "can't copy all nodes' files: $!\n";
+						or warn "can't copy all nodes' files: $!\n";
 		}
 		elsif ($thisnode)
 		{
@@ -242,7 +278,7 @@ sub collect_evidence
 						{
 								my $fileprefix = "$basedir/var/".lc($nextnode);
 								system("cp","$fileprefix-node.nmis","$fileprefix-view.nmis","$targetdir/var/") == 0
-										or return "can't copy node ${nextnode}'s node files: $!";
+										or warn "can't copy node ${nextnode}'s node files: $!\n";
 						}
 						else
 						{
