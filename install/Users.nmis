@@ -1,3 +1,4 @@
+
 %hash = (
   'anonymous' => {
     'user' => 'anonymous',
@@ -53,5 +54,10 @@
     'user' => 'Ke\'Xthsa-Tse@testing.com',
     'groups' => 'NMIS8',
     'privilege' => 'guest'
+  },
+  'omkapi' => {
+    'user' => 'omkapi',
+    'groups' => 'all',
+    'privilege' => 'operator'
   },
 );
