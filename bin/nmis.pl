@@ -3759,7 +3759,7 @@ sub runServices {
 		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
 		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
 
-		logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
+		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
 		$V->{system}{"${service}_responsetime"} = $responsetime;
@@ -4790,6 +4790,7 @@ sub runEscalate {
 			$target = "";
 			my @x = split /:/ , $field;
 			my $type = shift @x;			# netsend, email, or pager ?
+			dbg("Escalation type=$type contact=$contact");
 			if ( $type =~ /email|ccopy|pager/ ) {
 				foreach $contact (@x) {
 					if ( exists $CT->{$contact} ) {
@@ -4905,6 +4906,8 @@ sub runEscalate {
 			} # end json
 			else {
 				if ( checkPerlLib("Notify::$type") ) {
+					dbg("Notify::$type $contact");
+
 					my $timenow = time();
 					my $datenow = returnDateStamp();
 					my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
@@ -5144,6 +5147,9 @@ LABEL_ESC:
 							$target = "";
 							@x = split /:/ , lc $field;
 							$type = shift @x;			# first entry is email, ccopy, netsend or pager
+							
+							dbg("Escalation type=$type");
+
 							if ( $type =~ /email|ccopy|pager/ ) {
 								foreach $contact (@x) {
 									my $contactLevelSend = 0;
@@ -5351,6 +5357,7 @@ LABEL_ESC:
 							} # end json
 							else {
 								if ( checkPerlLib("Notify::$type") ) {
+									dbg("Notify::$type $contact");
 									my $timenow = time();
 									my $datenow = returnDateStamp();
 									my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
@@ -5423,6 +5430,7 @@ sub sendMSG {
 	dbg("Starting");
 
 	foreach my $method (keys %$msgTable) {
+		dbg("Method $method");
 		if ($method eq "email") {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
@@ -5471,6 +5479,7 @@ sub sendMSG {
 		elsif ( $method eq "netsend" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					dbg("netsend $$msgTable{$method}{$target}{$serial}{message} to $target");
 					# read any stdout messages and throw them away
 					if ($^O =~ /win32/i) {
 						# win32 platform
@@ -5480,7 +5489,6 @@ sub sendMSG {
 						# Linux box
 						my $dump=`echo $$msgTable{$method}{$target}{$serial}{message}|smbclient -M $target`;
 					}
-					dbg("netsend $$msgTable{$method}{$target}{$serial}{message} to $target");
 				} # end netsend
 			}
 		}
@@ -5489,6 +5497,7 @@ sub sendMSG {
 		elsif ( $method eq "syslog" ) {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					dbg(" sendSyslog to $target");
 					sendSyslog(
 						server_string => $C->{syslog_server},
 						facility => $C->{syslog_facility},
@@ -5503,12 +5512,12 @@ sub sendMSG {
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{snpp_server} eq '';
+					dbg(" SendSNPP to $target");
 					sendSNPP(
 						server => $C->{snpp_server},
 						pagerno => $target,
 						message => $$msgTable{$method}{$target}{$serial}{message}
 					);
-					dbg(" SendSNPP to $target");
 				}
 			} # end pager
 		}
@@ -5520,9 +5529,12 @@ sub sendMSG {
 			if ( checkPerlLib($class) ) {
 				eval "require $class";
 				logMsg($@) if $@;
+				dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+						logMsg("method=$method, target=$target, serial=$serial");
+						logMsg("message=". $$msgTable{$method}{$target}{$serial}{message});
 						$function->(
 							message => $$msgTable{$method}{$target}{$serial}{message},
 							event => $$msgTable{$method}{$target}{$serial}{event},
@@ -5530,7 +5542,6 @@ sub sendMSG {
 							priority => $$msgTable{$method}{$target}{$serial}{priority},
 							C => $C
 						);
-						dbg("Using $classMethod to send notification to $$msgTable{$method}{$target}{$serial}{contact}->{Contact}");
 					}
 				}
 			}

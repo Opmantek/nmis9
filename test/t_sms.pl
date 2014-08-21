@@ -60,6 +60,7 @@ nodeDown($node_dist);
 nodeDown($node_acc);
 runEscalate();
 
+sleep 20;
 print "\n############\n\n";
 
 nodeUp($node_core);

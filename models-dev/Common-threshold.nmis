@@ -560,9 +560,9 @@
             'value' => {
               'critical' => '90',
               'fatal' => '95',
-              'major' => '80',
-              'minor' => '70',
-              'warning' => '65'
+              'major' => '3',
+              'minor' => '2',
+              'warning' => '1'
             }
           },
           '10' => {
