@@ -1088,6 +1088,8 @@ sub notify {
 				} else {
 					my ($ETL,$handle) = loadEventStateLock();
 					$ETL->{$event_hash}{level} = $level;
+					### 2014-08-27 keiths, update the details as well when changing the level
+					$ETL->{$event_hash}{details} = $details;
 					writeEventStateLock(table=>$ETL,handle=>$handle);
 				}
 				my $tmplevel;
