@@ -35,9 +35,10 @@ use lib "$FindBin::Bin/../lib";
 
 use strict;
 use func;
-use csv;
 use NMIS;
 use NMIS::Timing;
+
+use Fcntl qw(:DEFAULT :flock);
 
 my $t = NMIS::Timing->new();
 
@@ -93,7 +94,7 @@ sub loadNodes {
 	print "  done in ".$t->deltaTime() ."\n";
 	
 	print $t->markTime(). " Loading the Import Nodes from $csvfile\n";
-	my %newNodes = &loadCSV($csvfile,"name",",");
+	my %newNodes = &myLoadCSV($csvfile,"name",",");
 	print "  done in ".$t->deltaTime() ."\n";
 	
 	print "\n";
@@ -217,4 +218,80 @@ sub backupFile {
 		print STDERR "ERROR: backup target $arg{backup} already exists.\n";
 		return 0;
 	}
+}
+
+sub myLoadCSV {
+	my $file = shift;
+	my $key = shift;
+	my $seperator = shift;
+	my $reckey;
+	my $line = 1;
+	
+	if ( $seperator eq "" ) { $seperator = "\t"; }
+
+	my $passCounter = 0;
+
+	my $i;
+	my @rowElements;
+	my @headers;
+	my %headersHash;
+	my @keylist;
+	my $row;
+	my $head;
+	
+	my %data;
+	
+	#open (DATAFILE, "$file")
+	if (sysopen(DATAFILE, "$file", O_RDONLY)) {
+		flock(DATAFILE, LOCK_SH) or warn "can't lock filename: $!";
+	
+		while (<DATAFILE>) {
+			s/[\r\n]*$//g;
+			#$_ =~ s/\n$//g;
+			# If it is the first pass load the column headers into an array and a hash.
+			if ( $_ !~ /^#|^;|^ |^\n|^\r/ and $_ ne "" and $passCounter == 0 ) {
+				++$passCounter;
+				$_ =~ s/\"//g;
+				@headers = split(/$seperator|\n/, $_);
+				for ( $i = 0; $i <= $#headers; ++$i ) {
+					$headersHash{$headers[$i]} = $i;
+				}
+			}
+			elsif ( $_ !~ /^#|^;|^ |^\n|^\r/ and $_ ne "" and $passCounter > 0 ) {
+				$_ =~ s/\"//g;
+				@rowElements = split(/$seperator|\n/, $_);
+				if ( $key =~ /:/ ) {
+					$reckey = "";
+					@keylist = split(":",$key);
+					for ($i = 0; $i <= $#keylist; ++$i) {
+						$reckey = $reckey.lc("$rowElements[$headersHash{$keylist[$i]}]");
+						if ( $i < $#keylist )  { $reckey = $reckey."_" }
+					}
+				}
+				else {
+					$reckey = lc("$rowElements[$headersHash{$key}]");
+				}
+				if ( $#headers > 0 and $#headers != $#rowElements ) {
+					$head = $#headers + 1;
+					$row = $#rowElements + 1;
+					print STDERR "ERROR: $0 in csv.pm: Invalid CSV data file $file; line $line; record \"$reckey\"; $head elements in header; $row elements in data.\n";
+				}
+				#What if $reckey is blank could form an alternate key?
+				if ( $reckey eq "" or $key eq "" ) {
+					$reckey = join("-", @rowElements);
+				}
+				
+				for ($i = 0; $i <= $#rowElements; ++$i) {
+					if ( $rowElements[$i] eq "null" ) { $rowElements[$i] = ""; }
+					$data{$reckey}{$headers[$i]} = $rowElements[$i];
+				}
+			}
+			++$line;
+		}
+		close (DATAFILE) or warn "can't close filename: $!";
+	} else {
+		logMsg("cannot open file $file, $!");
+	}
+	
+	return (%data);
 }

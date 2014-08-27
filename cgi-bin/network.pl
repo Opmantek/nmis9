@@ -2214,12 +2214,15 @@ sub viewSystemHealth {
 		}
 
 		if ( $graphtype ) {
+			# use 2/3 width so fits a little better.
+			my $thiswidth = int(2/3*$smallGraphWidth);
+
 			split /,/, $M->{system}{nodegraph};
 			my @graphtypes = split /,/, $graphtype;
 	
 			push(@cells, start_td);
 			foreach my $GT (@graphtypes) {
-				push(@cells,htmlGraph(graphtype=>$GT,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)) if $GT;
+				push(@cells,htmlGraph(graphtype=>$GT,node=>$node,intf=>$index,width=>$thiswidth,height=>$smallGraphHeight)) if $GT;
 			}
 			push(@cells, end_td);
 		}
