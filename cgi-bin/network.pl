@@ -1423,13 +1423,89 @@ EO_HTML
 
 	# second column
 	print start_td({valign=>'top'}),start_table;
+	
+	#Adding KPI Analysis
+	my $start_time;
+	my $end_time;
+	
+	if ( $start_time eq "" ) { $start_time = "-8 hours"; }
+	if ( $end_time eq "" ) { $end_time = time; }
+	my $stats;
+
+	if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start_time,end=>$end_time,index=>$node))) {
+		my $reachabilityMax = 100 * $C->{weight_reachability};
+		my $availabilityMax = 100 * $C->{weight_availability};
+		my $responseMax = 100 * $C->{weight_response};
+		my $cpuMax = 100 * $C->{weight_cpu};
+		my $memMax = 100 * $C->{weight_mem};
+		my $intMax = 100 * $C->{weight_int};
+		my $swapMax = 0;
+		my $diskMax = 0;
+		
+		$stats->{$node}{reachabilityHealth} =~ s/\.00//g;
+		$stats->{$node}{availabilityHealth} =~ s/\.00//g;
+		$stats->{$node}{responseHealth} =~ s/\.00//g;
+		$stats->{$node}{cpuHealth} =~ s/\.00//g;
+		$stats->{$node}{memHealth} =~ s/\.00//g;
+		$stats->{$node}{intHealth} =~ s/\.00//g;
+
+		my $swapCell = "";
+		my $diskCell = "";
+		if ( $stats->{$node}{diskHealth} > 0 ) {
+			$stats->{$node}{diskHealth} =~ s/\.00//g;
+			$intMax = 100 * $C->{weight_int} / 2;	
+			$diskMax = 100 * $C->{weight_int} / 2;
+			$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100))},"Disk $stats->{$node}{diskHealth}/$diskMax");
+		}
+
+		if ( $stats->{$node}{swapHealth} > 0 ) {
+			$stats->{$node}{swapHealth} =~ s/\.00//g;
+			$memMax = 100 * $C->{weight_mem} / 2;
+			$swapMax = 100 * $C->{weight_mem} / 2; 
+			$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100))},"SWAP $stats->{$node}{swapHealth}/$swapMax");
+		}
+
+		print start_Tr(),start_td(),start_table();
+
+		#info("Reachability KPI=$reachabilityHealth/$reachabilityMax");
+		#info("Availability KPI=$availabilityHealth/$availabilityMax");
+		#info("Response KPI=$responseHealth/$responseMax");
+		#info("CPU KPI=$cpuHealth/$cpuMax");
+		#info("MEM KPI=$memHealth/$memMax");
+		#info("Int KPI=$intHealth/$intMax");
+		#info("Disk KPI=$diskHealth/$diskMax") if $diskHealth;
+		#info("SWAP KPI=$swapHealth/$swapMax") if $swapHealth;
+		print Tr(
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100))},"Reachability $stats->{$node}{reachabilityHealth}/$reachabilityMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100))},"Availability $stats->{$node}{availabilityHealth}/$availabilityMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100))},"Response $stats->{$node}{responseHealth}/$responseMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100))},"CPU $stats->{$node}{cpuHealth}/$cpuMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100))},"MEM $stats->{$node}{memHealth}/$memMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100))},"Interface $stats->{$node}{intHealth}/$intMax"),
+			$diskCell,
+			$swapCell,
+		);
+		print end_table(),end_td(),end_Tr();
+
+	}
+
 
 	if ($NI->{system}{collect} eq 'true' or $NI->{system}{ping} eq 'true') {
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
 		my @graphs = split /,/,$M->{system}{nodegraph};
 		
-		print STDERR "DEBUG nodegraph $M->{system}{nodegraph}\n";
+		### 2014-08-27 keiths, insert the kpi graphtype if missing.
+		if ( not grep { "kpi" eq $_ } (@graphs) ) {
+			my @newgraphs;
+			foreach my $graph (@graphs) {
+				push(@newgraphs,$graph);
+				if ( $graph eq "health" ) {
+					push(@newgraphs,"kpi");
+				}
+			}
+			@graphs = @newgraphs;
+		}
 	
 		foreach my $graph (@graphs) {
 			my @pr;
