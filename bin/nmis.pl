@@ -6380,11 +6380,11 @@ sub doThreshold {
 
 				# skip if node down
 				if ( $NI->{system}{nodedown} eq 'true') {
-					dbg("Node down, skipping thresholding for $S->{name}");
+					info("Node down, skipping thresholding for $S->{name}");
 					next;
 				}
 
-				dbg("Starting Thresholding node=$S->{name}");
+				info("Starting Thresholding node=$S->{name}");
 
 				# first the standard thresholds
 				my $thrname = 'response,reachable,available';
@@ -6411,16 +6411,6 @@ sub doThreshold {
 
 										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
 										for my $index (@instances) {
-											my $details = undef;
-											if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
-											{
-												$details = $IF->{$index}{Description};
-												if ($C->{global_events_bandwidth} eq 'true')
-												{
-														$details .= " Bandwidth=".$IF->{$index}->{ifSpeed};
-												}
-
-											}
 											# thresholds can be selectively disabled for individual interfaces
 											if (defined $NI->{$type} and defined $NI->{$type}{$index}
 													and defined $NI->{$type}{$index}{threshold}
@@ -6429,7 +6419,7 @@ sub doThreshold {
 													dbg("skipping disabled threshold type $type for index $index");
 													next;
 											}
-											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,details=>$details);
+											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 										}
 									} else {
 										runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname); # single
@@ -6484,7 +6474,6 @@ sub runThrHld {
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $index = $args{index};
-	my $details = $args{details};
 	my $stats;
 	my $element;
 
@@ -6525,6 +6514,30 @@ sub runThrHld {
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
+
+		my $details = "";
+		my $spacer = "";
+		
+		if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
+		{
+			$details = $IF->{$index}{Description};
+			$spacer = " ";
+		}
+				
+		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
+		if ( $type =~ /interface|pkts/ and $C->{global_events_bandwidth} eq 'true')
+		{
+			my $ifSpeed = $IF->{$index}->{ifSpeed};
+																			
+			if ( $event =~ /Input/ and exists $IF->{$index}{ifSpeedIn} and $IF->{$index}{ifSpeedIn} ) {
+				$ifSpeed = $IF->{$index}->{ifSpeedIn};
+			}
+			elsif ( $event =~ /Output/ and exists $IF->{$index}{ifSpeedOut} and $IF->{$index}{ifSpeedOut} ) {
+				$ifSpeed = $IF->{$index}->{ifSpeedOut};
+			}			
+			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
+		}
+		
 		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
 	}
 
@@ -6634,7 +6647,7 @@ sub thresholdProcess {
 	my $S = $args{sys};
 
 	if ( $args{value} =~ /^\d+$|^\d+\.\d+$/ ) {
-		dbg("event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
+		info("$args{event}, $args{level}, $args{element}, value=$args{value} reset=$args{reset}");
 	###	logMsg("INFO ($S->{node}) event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
 		if ( $args{value} !~ /NaN/i ) {
 			my $details = "Value=$args{value} Threshold=$args{thrvalue}";
