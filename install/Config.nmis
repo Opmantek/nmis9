@@ -60,9 +60,13 @@
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
-		# if this option is present, then *only* properties listed here will be shown in the node view,
-		# and in precisely this order. custom properties are supported.
+    # if this option is present, then *only* properties listed here will be shown in the node view,
+    # and in precisely this order. custom properties are supported.
     'network_viewNode_field_list' => 'status,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
+		
+		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
+    'overall_node_status_coarse' => 'false',
+    'overall_node_status_level' => 'Critical',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -304,6 +308,10 @@
     'menu_suspend_link' => 'true'
   },
   'metrics' => {
+    # The start time of each of the periods for metrics
+    'metric_comparison_first_period' => '-8 hours',
+    'metric_comparison_second_period' => '-16 hours',
+
     'weight_availability' => '0.1',
     'weight_cpu' => '0.2',
     'weight_int' => '0.3',

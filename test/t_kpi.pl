@@ -39,7 +39,7 @@ use strict;
 use func;
 use NMIS;
 use NMIS::Timing;
-use NMIS::Connect;
+use Data::Dumper;
 
 my %nvp;
 
@@ -50,59 +50,24 @@ print $t->elapTime(). " Begin\n";
 print $t->elapTime(). " loadConfTable\n";
 my $C = loadConfTable(conf=>$nvp{conf},debug=>"true");
 
-# Code Node
-my $node_core = "bones";
-my $node_dist = "meatball";
-my $node_acc = "golden";
+my $node = "bones";
 
-nodeDown($node_core);
-nodeDown($node_dist);
-nodeDown($node_acc);
-runEscalate();
+my $start_time;
+my $end_time;
 
-sleep 20;
-print "\n############\n\n";
+if ( $start_time eq "" ) { $start_time = "-8 hours"; }
+if ( $end_time eq "" ) { $end_time = time; }
 
-nodeUp($node_core);
-nodeUp($node_dist);
-nodeUp($node_acc);
-runEscalate();
+my $S = Sys::->new;
 
-print $t->elapTime(). " End\n";
+$S->init(name=>$node,snmp=>'false'); # need this node info for summary
 
-sub nodeDown {
-	my $node = shift;
-		
-	print $t->markTime(). " nodeDown Create System $node\n";
-	my $S = Sys::->new; # create system object
-	$S->init(name=>$node,snmp=>'false');
-	print "  done in ".$t->deltaTime() ."\n";	
-	
-	print $t->elapTime(). " Load Some Data\n";
-	my $NI = $S->{info};
-	
-	notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed");
-		
-	print $t->elapTime(). " nodeDown done\n";
+my $stats;
+if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start_time,end=>$end_time,index=>$node))) {
+	print Dumper $stats;
 }
 
-sub nodeUp {
-	my $node = shift;
-		
-	print $t->markTime(). " nodeUp Create System $node\n";
-	my $S = Sys::->new; # create system object
-	$S->init(name=>$node,snmp=>'false');
-	print "  done in ".$t->deltaTime() ."\n";	
-	
-	print $t->elapTime(). " Load Some Data\n";
-	my $NI = $S->{info};
-		
-	checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-		
-	print $t->elapTime(). " nodeUp done\n";
-}
-
-sub runEscalate {
-	my $out = `/usr/local/nmis8/bin/nmis.pl type=escalate debug=true`;
-	print "$out\n";	
+my $stats;
+if (($stats = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start_time,end=>$end_time,index=>$node))) {
+	print Dumper $stats;
 }

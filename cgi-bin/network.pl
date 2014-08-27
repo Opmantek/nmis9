@@ -185,11 +185,17 @@ my $customer = $Q->{customer};
 my $business = $Q->{business};
 my @groups = grep { $AU->InGroup($_) } sort keys %{$GT};
 
+### 2014-08-28 keiths, configurable metric periods
+	#my $graphtype = ($Q->{graphtype} eq '') ? $C->{default_graphtype} : $Q->{graphtype};
+
+my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+
 # define global stats, and default stats period.
 my $groupSummary;
 my $oldGroupSummary;
-my $start = '-16 hours';
-my $end = '-8 hours';
+my $start = $metricsSecondPeriod;
+my $end = $metricsFirstPeriod;
 
 #===============================
 # All global hash, metrics, icons, etc, are now populated
@@ -229,8 +235,11 @@ sub getSummaryStatsbyGroup {
 
 	logMsg("TIMING: ".$t->elapTime()." getSummaryStatsbyGroup begin: $group$customer$business") if $timing;
 
-	$groupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-8 hours", end => "now");
-	$oldGroupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => "-16 hours", end => "-8 hours");
+	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+
+	$groupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => $metricsFirstPeriod, end => "now");
+	$oldGroupSummary = getGroupSummary(group => $group, customer => $customer, business => $business, start => $metricsSecondPeriod, end => $metricsFirstPeriod);
 
 	$overallStatus = overallNodeStatus(group => $group, customer => $customer, business => $business);
 	$overallColor = eventColor($overallStatus);
@@ -1423,13 +1432,107 @@ EO_HTML
 
 	# second column
 	print start_td({valign=>'top'}),start_table;
+	
+	#Adding KPI Analysis
+	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+	
+	logMsg("DEBUG: metricsFirstPeriod=$metricsFirstPeriod metric_comparison_first_period=$C->{'metric_comparison_first_period'}");
+	
+	if (my $stats = getSummaryStats(sys=>$S,type=>"health",start=>$metricsFirstPeriod,end=>time(),index=>$node)) {
+		
+		# now get previous period stats
+		my $statsPrev = getSummaryStats(sys=>$S,type=>"health",start=>$metricsSecondPeriod,end=>$metricsFirstPeriod,index=>$node);
+		
+		my $reachabilityMax = 100 * $C->{weight_reachability};
+		my $availabilityMax = 100 * $C->{weight_availability};
+		my $responseMax = 100 * $C->{weight_response};
+		my $cpuMax = 100 * $C->{weight_cpu};
+		my $memMax = 100 * $C->{weight_mem};
+		my $intMax = 100 * $C->{weight_int};
+		my $swapMax = 0;
+		my $diskMax = 0;
+		
+		$stats->{$node}{reachabilityHealth} =~ s/\.00//g;
+		$stats->{$node}{availabilityHealth} =~ s/\.00//g;
+		$stats->{$node}{responseHealth} =~ s/\.00//g;
+		$stats->{$node}{cpuHealth} =~ s/\.00//g;
+		$stats->{$node}{memHealth} =~ s/\.00//g;
+		$stats->{$node}{intHealth} =~ s/\.00//g;
+
+		# get some arrows for the metrics
+		my $reachabilityIcon = $stats->{$node}{reachabilityHealth} >= $statsPrev->{$node}{reachabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+		my $availabilityIcon = $stats->{$node}{availabilityHealth} >= $statsPrev->{$node}{availabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+		my $responseIcon = $stats->{$node}{responseHealth} >= $statsPrev->{$node}{responseHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+		my $cpuIcon = $stats->{$node}{cpuHealth} >= $statsPrev->{$node}{cpuHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+		my $memIcon = $stats->{$node}{memHealth} >= $statsPrev->{$node}{memHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+		my $intIcon = $stats->{$node}{intHealth} >= $statsPrev->{$node}{intHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				
+		my $swapCell = "";
+		my $diskCell = "";
+		if ( $stats->{$node}{diskHealth} > 0 ) {
+			my $diskIcon = $stats->{$node}{diskHealth} >= $statsPrev->{$node}{diskHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+			$stats->{$node}{diskHealth} =~ s/\.00//g;
+			$intMax = 100 * $C->{weight_int} / 2;	
+			$diskMax = 100 * $C->{weight_int} / 2;
+			$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100))},"Disk ",img({src=>"$C->{'<menu_url_base>'}/img/$diskIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{diskHealth}/$diskMax");
+		}
+
+		if ( $stats->{$node}{swapHealth} > 0 ) {
+			my $swapIcon = $stats->{$node}{swapHealth} >= $statsPrev->{$node}{swapHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+			$stats->{$node}{swapHealth} =~ s/\.00//g;
+			$memMax = 100 * $C->{weight_mem} / 2;
+			$swapMax = 100 * $C->{weight_mem} / 2; 
+			$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100))},"SWAP ",img({src=>"$C->{'<menu_url_base>'}/img/$swapIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{swapHealth}/$swapMax");
+		}
+
+		print start_Tr(),start_td(),start_table();
+
+		#info("Reachability KPI=$reachabilityHealth/$reachabilityMax");
+		#info("Availability KPI=$availabilityHealth/$availabilityMax");
+		#info("Response KPI=$responseHealth/$responseMax");
+		#info("CPU KPI=$cpuHealth/$cpuMax");
+		#info("MEM KPI=$memHealth/$memMax");
+		#info("Int KPI=$intHealth/$intMax");
+		#info("Disk KPI=$diskHealth/$diskMax") if $diskHealth;
+		#info("SWAP KPI=$swapHealth/$swapMax") if $swapHealth;
+
+		print Tr(td({class=>'header',colspan=>'4'},"KPI Scores"));
+
+		print Tr(
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100))},"Reachability ",img({src=>"$C->{'<menu_url_base>'}/img/$reachabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{reachabilityHealth}/$reachabilityMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100))},"Availability ",img({src=>"$C->{'<menu_url_base>'}/img/$availabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{availabilityHealth}/$availabilityMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100))},"Response ",img({src=>"$C->{'<menu_url_base>'}/img/$responseIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{responseHealth}/$responseMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100))},"CPU ",img({src=>"$C->{'<menu_url_base>'}/img/$cpuIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{cpuHealth}/$cpuMax"),
+		);
+
+		print Tr(
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100))},"MEM ",img({src=>"$C->{'<menu_url_base>'}/img/$memIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{memHealth}/$memMax"),
+			td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100))},"Interface ",img({src=>"$C->{'<menu_url_base>'}/img/$intIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{intHealth}/$intMax"),
+			$diskCell,
+			$swapCell,
+		);
+		print end_table(),end_td(),end_Tr();
+
+	}
+
 
 	if ($NI->{system}{collect} eq 'true' or $NI->{system}{ping} eq 'true') {
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
 		my @graphs = split /,/,$M->{system}{nodegraph};
 		
-		print STDERR "DEBUG nodegraph $M->{system}{nodegraph}\n";
+		### 2014-08-27 keiths, insert the kpi graphtype if missing.
+		if ( not grep { "kpi" eq $_ } (@graphs) ) {
+			my @newgraphs;
+			foreach my $graph (@graphs) {
+				push(@newgraphs,$graph);
+				if ( $graph eq "health" ) {
+					push(@newgraphs,"kpi");
+				}
+			}
+			@graphs = @newgraphs;
+		}
 	
 		foreach my $graph (@graphs) {
 			my @pr;

@@ -708,6 +708,19 @@ sub outputLine {
 		if ( $logDetails =~ /\s+tics=(\d+:\d+:\d+)/i  ) {
 			$tics = "Planned Outage TICS=$1";
 		}
+
+		### 2014-08-27 keiths, do the log Details include a URL to convert into a hyperlink.
+		if ( $logDetails =~ /(http:\/\/|https:\/\/)/  ) {
+			my @bits = split(" ",$logDetails);
+			my @newBits;
+			for (my $b = 0; $b <= $#bits; ++$b) {
+				if ( $bits[$b] =~ /(^http:\/\/|^https:\/\/)/ ) {
+					$bits[$b] = "<a href=\"$bits[$b]\">$bits[$b]</a>";
+				}
+			}
+			$logDetails = join(" ",@bits);
+		}
+
 		# use the node name hash we setup to find the node record.
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
 		$logLevelText = eventLevelSet($logLevel);

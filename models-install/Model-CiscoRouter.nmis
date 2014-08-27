@@ -644,7 +644,7 @@
       'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
       'noDescription' => 'false',
       'Description' => '^#',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|tunnel|adsl|^atm'
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm'
     }
   }
 );
