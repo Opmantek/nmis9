@@ -1572,14 +1572,18 @@ sub getGroupSummary {
 	my $S = Sys::->new;
 	my $NT = loadNodeTable(); # local + nodes of remote servers
 	my $C = loadConfTable();
+
+	### 2014-08-28 keiths, configurable metric periods
+	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
 	
-	if ( $start_time eq "" ) { $start_time = "-8 hours"; }
+	if ( $start_time eq "" ) { $start_time = $metricsFirstPeriod; }
 	if ( $end_time eq "" ) { $end_time = time; }
 
-	if ( $start_time eq '-8 hours' ) {
+	if ( $start_time eq $metricsFirstPeriod ) {
 		$filename = "summary8h";
 	}
-	if ( $start_time eq '-16 hours' ) {
+	if ( $start_time eq $metricsSecondPeriod ) {
 		$filename = "summary16h";
 	}
 

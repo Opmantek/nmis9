@@ -4648,8 +4648,12 @@ sub nmisSummary {
 
 	my $S = Sys::->new;
 
-	summaryCache(sys=>$S,file=>'nmis-summary8h',start=>'-8 hours',end=>time() );
-	my $k = summaryCache(sys=>$S,file=>'nmis-summary16h', start=>'-16 hours', end=>'-8 hours' );
+	### 2014-08-28 keiths, configurable metric periods
+	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+
+	summaryCache(sys=>$S,file=>'nmis-summary8h',start=>$metricsFirstPeriod,end=>time() );
+	my $k = summaryCache(sys=>$S,file=>'nmis-summary16h', start=>$metricsSecondPeriod, end=>$metricsFirstPeriod );
 
 	my $NS = getNodeSummary(C => $C);
 	my $file = "nmis-nodesum";

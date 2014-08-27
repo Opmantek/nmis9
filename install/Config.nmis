@@ -308,6 +308,10 @@
     'menu_suspend_link' => 'true'
   },
   'metrics' => {
+    # The start time of each of the periods for metrics
+    'metric_comparison_first_period' => '-8 hours',
+    'metric_comparison_second_period' => '-16 hours',
+
     'weight_availability' => '0.1',
     'weight_cpu' => '0.2',
     'weight_int' => '0.3',
