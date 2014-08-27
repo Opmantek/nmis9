@@ -2250,31 +2250,38 @@ sub overallNodeStatus {
 	}
 	#print STDERR "New CALC: status_number=$status_number count=$statusHash{count}\n";
 
-	### AS 11/4/01 - Fixed up status for single node groups.
-	# if the node count is one we do not require weighting.
-	if ( $statusHash{count} == 1 ) {
-		delete ($statusHash{count});
-		foreach $status (keys %statusHash) {
-			if ( $statusHash{$status} ne "" and $statusHash{$status} ne "count" ) {
-				$overall_status = $status;
-				#print STDERR returnDateStamp." overallNodeStatus netType=$netType status=$status hash=$statusHash{$status}\n";
+	### 2014-08-27 keiths, adding a more coarse any nodes down is red
+	if ( defined $C->{overall_node_status_coarse} and $C->{overall_node_status_coarse} eq "true" ) {
+		$C->{overall_node_status_level} = "Critical" if not defined $C->{overall_node_status_level};
+		if ( $status_number == 100 ) { $overall_status = "Normal"; }
+		else { $overall_status = $C->{overall_node_status_level}; }
+	}
+	else {	
+		### AS 11/4/01 - Fixed up status for single node groups.
+		# if the node count is one we do not require weighting.
+		if ( $statusHash{count} == 1 ) {
+			delete ($statusHash{count});
+			foreach $status (keys %statusHash) {
+				if ( $statusHash{$status} ne "" and $statusHash{$status} ne "count" ) {
+					$overall_status = $status;
+					#print STDERR returnDateStamp." overallNodeStatus netType=$netType status=$status hash=$statusHash{$status}\n";
+				}
 			}
 		}
+		elsif ( $status_number != 0  ) {
+			if ( $status_number == 100 ) { $overall_status = "Normal"; }
+			elsif ( $status_number >= 95 ) { $overall_status = "Warning"; }
+			elsif ( $status_number >= 90 ) { $overall_status = "Minor"; }
+			elsif ( $status_number >= 70 ) { $overall_status = "Major"; }
+			elsif ( $status_number >= 50 ) { $overall_status = "Critical"; }
+			elsif ( $status_number <= 40 ) { $overall_status = "Fatal"; }
+			elsif ( $status_number >= 30 ) { $overall_status = "Disaster"; }
+			elsif ( $status_number < 30 ) { $overall_status = "Catastrophic"; }
+		}
+		else {
+			$overall_status = "Unknown";
+		}
 	}
-	elsif ( $status_number != 0  ) {
-		if ( $status_number == 100 ) { $overall_status = "Normal"; }
-		elsif ( $status_number >= 95 ) { $overall_status = "Warning"; }
-		elsif ( $status_number >= 90 ) { $overall_status = "Minor"; }
-		elsif ( $status_number >= 70 ) { $overall_status = "Major"; }
-		elsif ( $status_number >= 50 ) { $overall_status = "Critical"; }
-		elsif ( $status_number <= 40 ) { $overall_status = "Fatal"; }
-		elsif ( $status_number >= 30 ) { $overall_status = "Disaster"; }
-		elsif ( $status_number < 30 ) { $overall_status = "Catastrophic"; }
-	}
-	else {
-		$overall_status = "Unknown";
-	}
-
 	return $overall_status;
 } # end overallNodeStatus
 
