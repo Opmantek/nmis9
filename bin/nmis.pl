@@ -5033,10 +5033,13 @@ LABEL_ESC:
 			foreach my $node_depend ( split /,/ , $NT->{$ET->{$event_hash}{node}}{depend} ) {
 				next if $node_depend eq "N/A" ;		# default setting
 				next if $node_depend eq $ET->{$event_hash}{node};	# remove the catch22 of self dependancy.
-				my $eh = eventHash($node_depend,"Node Down","");
-				if ( exists $ET->{$eh}{current} ) {
-					dbg("NOT escalating $ET->{$event_hash}{node} $ET->{$event_hash}{event} as dependant $node_depend is reported as down");
-					next LABEL_ESC;
+				#only do dependancy if node is active.
+				if (defined $NT->{$node_depend}{active} and $NT->{$node_depend}{active} eq 'true') {
+					my $eh = eventHash($node_depend,"Node Down","");
+					if ( exists $ET->{$eh}{current} ) {
+						dbg("NOT escalating $ET->{$event_hash}{node} $ET->{$event_hash}{event} as dependant $node_depend is reported as down");
+						next LABEL_ESC;
+					}
 				}
 			}
 		}
@@ -5539,15 +5542,16 @@ sub sendMSG {
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
-						logMsg("method=$method, target=$target, serial=$serial");
-						logMsg("message=". $$msgTable{$method}{$target}{$serial}{message});
-						$function->(
-							message => $$msgTable{$method}{$target}{$serial}{message},
-							event => $$msgTable{$method}{$target}{$serial}{event},
-							contact => $$msgTable{$method}{$target}{$serial}{contact},
-							priority => $$msgTable{$method}{$target}{$serial}{priority},
-							C => $C
-						);
+						dbg("Notify method=$method, target=$target, serial=$serial message=". $$msgTable{$method}{$target}{$serial}{message});
+						if ( $target and $$msgTable{$method}{$target}{$serial}{message} ) {
+							$function->(
+								message => $$msgTable{$method}{$target}{$serial}{message},
+								event => $$msgTable{$method}{$target}{$serial}{event},
+								contact => $$msgTable{$method}{$target}{$serial}{contact},
+								priority => $$msgTable{$method}{$target}{$serial}{priority},
+								C => $C
+							);
+						}
 					}
 				}
 			}
