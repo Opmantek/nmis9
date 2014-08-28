@@ -747,6 +747,8 @@ sub writeEventStateLock {
 sub loadEventStateNoLock {
 	my %args = @_;
 	my $type = $args{type};
+	
+	my $table = defined $args{table} ? $args{table} : "nmis-event";
 
 	my @eventdetails;
 	my $node;
@@ -767,11 +769,11 @@ sub loadEventStateNoLock {
 		}
 	} else {
 		# does the file exist
-		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/nmis-event") ) {
+		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) {
 			my %hash = ();
-			writeTable(dir=>'var',name=>"nmis-event",data=>\%hash); # create an empty file
+			writeTable(dir=>'var',name=>"$table",data=>\%hash); # create an empty file
 		}
-		my $ET = loadTable(dir=>'var',name=>'nmis-event');
+		my $ET = loadTable(dir=>'var',name=>"$table");
 		return $ET;
 	}
 }
