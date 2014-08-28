@@ -104,7 +104,7 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,kpi,response,ip,tcp-conn,tcp-segs,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008',
     'rrd' => {
