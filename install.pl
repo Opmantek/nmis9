@@ -185,6 +185,9 @@ else
 			printBanner("Moving old WindowState file to new location");
 			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
 		}
+
+		# that plugin does its own confirmation prompting
+		execPrint("$site/install/install_stats_update.pl");
 }
 
 ###************************************************************************###
