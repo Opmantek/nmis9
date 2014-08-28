@@ -56,7 +56,7 @@
     'nodeModel' => 'net-snmp',
     'nodeType' => 'server',
     'nodeVendor' => 'net-snmp',
-    'nodegraph' => 'health,kpi,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     'rrd' => {
       'laload' => {
         'graphtype' => 'laload',

@@ -3346,7 +3346,9 @@ sub runServer {
 							$D->{hrStorageGraph} = "hrdisk";
 							$disk_cnt++;
 						}
-					} elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2') { # Memory
+					}
+					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20 
+					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2' or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20') { # Memory
 						undef %Val;
 						$Val{hrMemSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrMemUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};

@@ -1527,10 +1527,10 @@ EO_HTML
 		if ( not grep { "kpi" eq $_ } (@graphs) ) {
 			my @newgraphs;
 			foreach my $graph (@graphs) {
-				push(@newgraphs,$graph);
 				if ( $graph eq "health" ) {
 					push(@newgraphs,"kpi");
 				}
+				push(@newgraphs,$graph);
 			}
 			@graphs = @newgraphs;
 		}
