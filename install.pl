@@ -172,12 +172,12 @@ else
 		printBanner("Update the config files with new options...");
 		
 		exit unless input_yn("OK to update the config files");
-# merge changes for new NMIS Config options. 
+		# merge changes for new NMIS Config options. 
 		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
 		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
 		
-# update default config options that have been changed:
-		execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
+		# update default config options that have been changed:
+		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
 		# move config/cache files to new locations where necessary
 		if (-f "$site/conf/WindowState.nmis")
