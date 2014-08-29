@@ -6047,7 +6047,7 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+#*/5 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day
 30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
@@ -6057,6 +6057,9 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 ##################################################
 # save this crontab every day
 0 8 * * * crontab -l > $C->{'<nmis_base>'}/conf/crontab.root
+##################################################
+# purge old files every week
+0 2 * * 0 $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
@@ -6511,9 +6514,12 @@ sub runThrHld {
 	elsif ($index ne '' and $thrname eq "env_temp" ) {
 		$element = $ET->{$index}{tempDescr};
 	}
-	else {
+	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}
+	#else {
+	#	$element = $IF->{$index}{ifDescr};
+	#}
 
 	# walk through threshold names
 	### 2012-04-25 keiths, fixing loop as not processing correctly.
@@ -6535,7 +6541,7 @@ sub runThrHld {
 		}
 				
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
-		if ( $type =~ /interface|pkts/ and $C->{global_events_bandwidth} eq 'true')
+		if ($C->{global_events_bandwidth} eq 'true' and $type =~ /interface|pkts/ and $IF->{$index}{ifSpeed} ne "")
 		{
 			my $ifSpeed = $IF->{$index}->{ifSpeed};
 																			

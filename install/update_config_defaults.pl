@@ -83,6 +83,9 @@ $conf->{'system'}{'threshold_period-interface'} = "-5 minutes";
 
 $conf->{'system'}{'log_node_configuration_events'} = "false";
 
+$conf->{'system'}{'os_execperm'} = "0770";
+$conf->{'system'}{'os_fileperm'} = "0660";
+
 delete $conf->{'system'}{'snmp_max_repetitions'};
 
 $conf->{'javascript'}{'chart'} = "";
@@ -99,6 +102,12 @@ $conf->{'metrics'}{'weight_int'} = "0.3";
 $conf->{'metrics'}{'weight_mem'} = "0.1";
 $conf->{'metrics'}{'weight_reachability'} = "0.1";
 $conf->{'metrics'}{'weight_response'} = "0.2";
+
+if ( $conf->{'authentication'}{'auth_method_1'} eq "apache" ) {
+	print "You are using Apache Authentication, please update your system to use htpasswd or other authentication\n";
+	print "Details @ https://community.opmantek.com/display/NMIS/Configuring+NMIS+to+use+Internal+Authentication\n";
+	
+}
 
 writeHashtoFile(file=>$ARGV[0],data=>$conf);
 

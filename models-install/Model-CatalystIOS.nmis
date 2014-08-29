@@ -185,6 +185,18 @@
           'chassisVer' => {
             'oid' => 'chassisVersion',
             'title' => 'Chassis Version'
+          },
+          'softwareImage' => {
+            'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
+            'snmpObjectName' => 'ciscoImageString',
+            'title' => 'Software Image'
+          },
+          'softwareVersion' => {
+            'calculate' => '$r =~ /CW_VERSION\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
+            'snmpObjectName' => 'ciscoVersionString',
+            'title' => 'Software Version'
           }
         }
       }

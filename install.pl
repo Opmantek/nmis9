@@ -188,6 +188,15 @@ else
 
 		# that plugin does its own confirmation prompting
 		execPrint("$site/install/install_stats_update.pl");
+
+		# Updating the mib2ip RRD Type
+		execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
+
+		# Updating the TopChanges RRD Type
+		execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
+
+		# Updating the TopChanges RRD Type
+		execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
 }
 
 ###************************************************************************###
