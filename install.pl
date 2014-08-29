@@ -212,8 +212,8 @@ execPrint("fc-cache -f -v");
 
 
 ###************************************************************************###
-printBanner("Checking configuration...");
-execPrint("$site/bin/nmis.pl type=config");
+printBanner("Checking configuration and fixing files and permissions...");
+execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)
 {
@@ -247,9 +247,6 @@ if ($isnewinstall)
 
 
 ###************************************************************************###
-printBanner("Fixing file permissions...");
-execPrint("$site/admin/fixperms.pl");
-
 if ($isnewinstall)
 {
 	printBanner("NMIS State Initialisation");
@@ -257,7 +254,7 @@ if ($isnewinstall)
 	# now offer to run an initial update to get nmis' state initialised
 	if ( input_yn("Ok to run an NMIS type=update action"))
 	{
-		print "This may take up to 30 seconds...\n";
+		print "This may take up to 30 seconds (or a very long time with MANY nodes)...\n";
 		execPrint("$site/bin/nmis.pl type=update");
 	}
 	else

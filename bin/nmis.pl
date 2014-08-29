@@ -4244,13 +4244,23 @@ sub runReach {
 						dbg("SummaryStats for interface=$index of node $NI->{system}{name} skipped because value is NaN");
 						next;
 					}
-					$intsummary = $intsummary + ( 100 - $util->{$index}{inputUtil} ) + ( 100 - $util->{$index}{outputUtil} );
-					++$intcount;
-					dbg("Intf Summary in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount");
+					
+					# lets make the interface metric the largest of input or output
+					my $intUtil = $util->{$index}{inputUtil};
+					if ( $intUtil < $util->{$index}{outputUtil} ) {
+						$intUtil = $util->{$index}{outputUtil};
+					}
+					
+					# only add interfaces with utilisation above metric_int_utilisation_above configuration option
+					if ( $intUtil > $C->{'metric_int_utilisation_above'} or $C->{'metric_int_utilisation_above'} eq "" ) {
+						$intsummary = $intsummary + ( 100 - $intUtil );
+						++$intcount;
+						info("Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount");
+					}
 				}
 			} # FOR LOOP
 			if ( $intsummary != 0 ) {
-				$intWeight = sprintf( "%.2f", $intsummary / ( $intcount * 2 ));
+				$intWeight = sprintf( "%.2f", $intsummary / $intcount);
 			} else {
 				$intWeight = "NaN"
 			}
@@ -5892,7 +5902,7 @@ EO_TEXT
 		print " NMIS config file $C->{configfile} updated\n\n";
 
 	} else {
-		print "\n Root directory of NMIS is $C->{'<nmis_base>'}\n\n";
+		info("\n Root directory of NMIS is $C->{'<nmis_base>'}\n");
 	}
 
 	# Do the var directories exist if not make them?
@@ -6022,7 +6032,7 @@ EO_TEXT
 	convertConfFiles();
 	#==
 
-	print " Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n\n";
+	info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
 }
 
 
