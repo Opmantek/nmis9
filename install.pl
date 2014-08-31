@@ -186,9 +186,11 @@ else
 			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
 		}
 
+		printBanner("Updating Model Update");
 		# that plugin does its own confirmation prompting
-		execPrint("$site/install/install_stats_update.pl");
+		execPrint("$site/install/install_stats_update.pl nike=true");
 
+		printBanner("Updating RRD Variables");
 		# Updating the mib2ip RRD Type
 		execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
 
@@ -212,7 +214,7 @@ execPrint("fc-cache -f -v");
 
 
 ###************************************************************************###
-printBanner("Checking configuration and fixing files and permissions...");
+printBanner("Checking configuration and fixing files and permissions (takes a few minutes) ...");
 execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)

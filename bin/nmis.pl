@@ -4142,7 +4142,7 @@ sub runReach {
 
 		$reach{reachability} = 100;
 		if ( $reach{operCount} > 0 ) {
-			$reach{availability} = $reach{operStatus} / $reach{operCount};
+			$reach{availability} =  sprintf("%.2f", $reach{operStatus} / $reach{operCount});
 		}
 
 		if ($reach{reachability} > 100) { $reach{reachability} = 100; }
@@ -4229,6 +4229,9 @@ sub runReach {
 		if ( $NI->{system}{nodeModel} =~ /CatalystIOS|Accelar|BayStack|Redback|FoundrySwitch|Riverstone/i ) {
 			$memWeight = 100;
 		}
+
+		info("REACH Values: reachability=$reach{reachability} availability=$reach{availability} responsetime=$reach{responsetime}");
+		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");	
 
 		if ( $NI->{system}{collect} eq 'true' and defined $S->{mdl}{interface}{nocollect}{ifDescr} ) {
 			dbg("Getting Interface Utilisation Health");
