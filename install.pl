@@ -214,7 +214,7 @@ execPrint("fc-cache -f -v");
 
 
 ###************************************************************************###
-printBanner("Checking configuration and fixing files and permissions (takes a few minutes) ...");
+printBanner("Checking configuration and fixing file permissions (takes a few minutes) ...");
 execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)
