@@ -172,12 +172,12 @@ else
 		printBanner("Update the config files with new options...");
 		
 		exit unless input_yn("OK to update the config files");
-# merge changes for new NMIS Config options. 
+		# merge changes for new NMIS Config options. 
 		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
 		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
 		
-# update default config options that have been changed:
-		execPrint("$site/install/update_config_defaults.pl $site/install/Config.nmis");
+		# update default config options that have been changed:
+		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
 		# move config/cache files to new locations where necessary
 		if (-f "$site/conf/WindowState.nmis")
@@ -186,8 +186,19 @@ else
 			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
 		}
 
+		printBanner("Updating Model Update");
 		# that plugin does its own confirmation prompting
-		execPrint("$site/install/install_stats_update.pl");
+		execPrint("$site/install/install_stats_update.pl nike=true");
+
+		printBanner("Updating RRD Variables");
+		# Updating the mib2ip RRD Type
+		execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
+
+		# Updating the TopChanges RRD Type
+		execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
+
+		# Updating the TopChanges RRD Type
+		execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
 }
 
 ###************************************************************************###
@@ -203,8 +214,8 @@ execPrint("fc-cache -f -v");
 
 
 ###************************************************************************###
-printBanner("Checking configuration...");
-execPrint("$site/bin/nmis.pl type=config");
+printBanner("Checking configuration and fixing file permissions (takes a few minutes) ...");
+execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)
 {
@@ -238,9 +249,6 @@ if ($isnewinstall)
 
 
 ###************************************************************************###
-printBanner("Fixing file permissions...");
-execPrint("$site/admin/fixperms.pl");
-
 if ($isnewinstall)
 {
 	printBanner("NMIS State Initialisation");
@@ -248,7 +256,7 @@ if ($isnewinstall)
 	# now offer to run an initial update to get nmis' state initialised
 	if ( input_yn("Ok to run an NMIS type=update action"))
 	{
-		print "This may take up to 30 seconds...\n";
+		print "This may take up to 30 seconds (or a very long time with MANY nodes)...\n";
 		execPrint("$site/bin/nmis.pl type=update");
 	}
 	else

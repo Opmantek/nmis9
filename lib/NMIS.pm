@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.1G";
+$VERSION = "8.5.2G";
 
 @ISA = qw(Exporter);
 
@@ -747,6 +747,8 @@ sub writeEventStateLock {
 sub loadEventStateNoLock {
 	my %args = @_;
 	my $type = $args{type};
+	
+	my $table = defined $args{table} ? $args{table} : "nmis-event";
 
 	my @eventdetails;
 	my $node;
@@ -767,11 +769,11 @@ sub loadEventStateNoLock {
 		}
 	} else {
 		# does the file exist
-		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/nmis-event") ) {
+		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) {
 			my %hash = ();
-			writeTable(dir=>'var',name=>"nmis-event",data=>\%hash); # create an empty file
+			writeTable(dir=>'var',name=>"$table",data=>\%hash); # create an empty file
 		}
-		my $ET = loadTable(dir=>'var',name=>'nmis-event');
+		my $ET = loadTable(dir=>'var',name=>"$table");
 		return $ET;
 	}
 }
@@ -884,11 +886,11 @@ sub eventExist {
 		$ET = loadEventStateNoLock();
 	}
 
-	if ( exists $ET->{$event_hash}{node} ) {
+	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq 'true' ) {
 		return 1;
 	}
 	else {
-		return; 
+		return 0; 
 	} 
 }
 
@@ -941,7 +943,7 @@ sub checkEvent {
 
 	my $outage;
 
-	if (exists $ET->{$event_hash}{current} and $ET->{$event_hash}{current} eq 'true') {
+	if (exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq 'true') {
 		# The opposite of this event exists log an UP and delete the event
 
 		# save some stuff, as we cant rely on the hash after the write 
@@ -962,11 +964,13 @@ sub checkEvent {
 		elsif ( $event =~ /Proactive/ ) {
 			# but only if we have cleared the threshold by 10%
 			# for thresholds where high = good (default 1.1)
-			if ( $args{value} >= $args{reset} ) {
-				return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
-			} else {
-			# for thresholds where low = good (default 0.9)
-				return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
+			if ( defined($args{value}) and defined($args{reset}) ) {
+				if ( $args{value} >= $args{reset} ) {
+					return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
+				} else {
+				# for thresholds where low = good (default 0.9)
+					return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
+				}
 			}
 			$event = "$event Closed";
 		}
@@ -1062,22 +1066,8 @@ sub notify {
 		}
 	}
 
-	if ( not exists $ET->{$event_hash}{current} ) {
-		# get level(if not defined) and log status from Model
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-
-		if ($C->{non_stateful_events} !~ /$event/ ) {
-			#$event ne non_stateful_events 'Node Reset' && $event ne 'Node Configuration Change'
-			# Push the event onto the event table.
-			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
-		}
-		
-		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/) {
-			# Push the event onto the event table.
-			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
-		}
-
-	} else {
+	### 2014-09-01 keiths, fixing up an autovification problem.
+	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
 		# event exists, maybe a level change of proactive threshold
 		if ($event =~ /Proactive|Alert\:/ ) {
 			if ($ET->{$event_hash}{level} ne $level) {
@@ -1098,6 +1088,20 @@ sub notify {
 			}
 		} else {
 			dbg("Event node=$node event=$event element=$element already in Event table");
+		}
+	} else {
+		# get level(if not defined) and log status from Model
+		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
+
+		if ($C->{non_stateful_events} !~ /$event/ ) {
+			#$event ne non_stateful_events 'Node Reset' && $event ne 'Node Configuration Change'
+			# Push the event onto the event table.
+			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
+		}
+		
+		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/) {
+			# Push the event onto the event table.
+			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
 		}
 	}
 	# log events
@@ -1290,7 +1294,12 @@ sub eventAdd {
 	}
 
 	# before we log check the state table if there is currently an event outstanding.
-	if (not exists $ET->{$event_hash}{current}) {
+	### 2014-09-01 keiths, fixing up an autovification problem.
+	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
+		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+	}
+	else {
 		$ET->{$event_hash}{current} = 'true';
 		$ET->{$event_hash}{startdate} = time();
 		$ET->{$event_hash}{node} = $node;
@@ -1303,10 +1312,7 @@ sub eventAdd {
 		$ET->{$event_hash}{notify} = "";
 		$new_event = 1;
 		dbg("event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-	##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-	} else {
-		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
-	##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+		##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
 	}
 
 	if ($C->{db_events_sql} eq 'true') {
@@ -1343,7 +1349,7 @@ sub eventAck {
 		($ET,$handle) = loadEventStateLock();
 	}
 	# make sure we still have a valid event
-	if ( exists $ET->{$event_hash}{current} ) {
+	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
 		if ( $ack eq "true" and $ET->{$event_hash}{ack} eq "false"  ) {
 			### if a TRAP type event, then trash when ack. event record will be in event log if required
 			if ( $ET->{$event_hash}{event} eq "TRAP" ) {
@@ -2102,7 +2108,7 @@ sub cleanEvent {
 	my ($ET,$handle) = loadEventStateLock();
 
 	foreach my $event_hash ( sort keys %{$ET})  {
-		if ( $ET->{$event_hash}{node} eq "$node" ) {
+		if ( exists $ET->{$event_hash} and $ET->{$event_hash}{node} eq "$node" ) {
 			logEvent(node => "$ET->{$event_hash}{node}", event => "$caller: deleted event: $ET->{$event_hash}{event}", level => "Normal", element => "$ET->{$event_hash}{element}", details => "$ET->{$event_hash}{details}");
 			delete $ET->{$event_hash};
 		}

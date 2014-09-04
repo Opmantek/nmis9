@@ -5,7 +5,7 @@ then
 	echo Please define the location of the NMIS8 installation, usually /usr/local/nmis8
 	echo e.g. $0 /usr/local/nmis8 30
 	echo For crontab use something like:
-	echo 30 0 * * * /usr/local/nmis8/admin/nmis_file_cleanup.sh /usr/local/nmis8 30
+	echo 30 0 \* \* \* /usr/local/nmis8/admin/nmis_file_cleanup.sh /usr/local/nmis8 30
 	exit
 else
 	DIR=$1
@@ -16,7 +16,7 @@ then
 	echo Please define number of days to cleanup e.g. 30
 	echo e.g. $0 /usr/local/nmis8 30
 	echo For crontab use something like:
-	echo 30 0 * * * /usr/local/nmis8/admin/nmis_file_cleanup.sh /usr/local/nmis8 30
+	echo 30 0 \* \* \* /usr/local/nmis8/admin/nmis_file_cleanup.sh /usr/local/nmis8 30
 	exit
 else
 	DAYS=$2

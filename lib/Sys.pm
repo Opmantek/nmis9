@@ -907,7 +907,8 @@ sub parseString {
 			$nodeVendor = $self->{info}{system}{nodeVendor};
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
-			if ($indx ne '') {
+			# fixing auto-vivification bug!
+			if ($indx ne '' and exists $self->{info}{interface}{$indx}) {
 				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
 				$ifAlias = $self->{info}{interface}{$indx}{Description};
 				$Description = $self->{info}{interface}{$indx}{Description};

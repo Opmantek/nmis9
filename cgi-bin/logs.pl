@@ -710,12 +710,20 @@ sub outputLine {
 		}
 
 		### 2014-08-27 keiths, do the log Details include a URL to convert into a hyperlink.
+		### setting the target to the URL so it goes to different windows depending on the link
 		if ( $logDetails =~ /(http:\/\/|https:\/\/)/  ) {
 			my @bits = split(" ",$logDetails);
 			my @newBits;
 			for (my $b = 0; $b <= $#bits; ++$b) {
 				if ( $bits[$b] =~ /(^http:\/\/|^https:\/\/)/ ) {
-					$bits[$b] = "<a href=\"$bits[$b]\">$bits[$b]</a>";
+					if ( $bits[$b] =~ /:$/ ) {
+						$bits[$b] =~ s/:$//; 
+					}
+					my $linkName = $bits[$b];
+					if ( $linkName =~ "/omk/opTrend" ) {
+						$linkName = "opTrend Exception Details";
+					}
+					$bits[$b] = "<a href=\'$bits[$b]\' target=\'$bits[$b]\'>$linkName</a>:";
 				}
 			}
 			$logDetails = join(" ",@bits);

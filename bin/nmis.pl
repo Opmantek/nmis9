@@ -4142,7 +4142,7 @@ sub runReach {
 
 		$reach{reachability} = 100;
 		if ( $reach{operCount} > 0 ) {
-			$reach{availability} = $reach{operStatus} / $reach{operCount};
+			$reach{availability} =  sprintf("%.2f", $reach{operStatus} / $reach{operCount});
 		}
 
 		if ($reach{reachability} > 100) { $reach{reachability} = 100; }
@@ -4230,6 +4230,9 @@ sub runReach {
 			$memWeight = 100;
 		}
 
+		info("REACH Values: reachability=$reach{reachability} availability=$reach{availability} responsetime=$reach{responsetime}");
+		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");	
+
 		if ( $NI->{system}{collect} eq 'true' and defined $S->{mdl}{interface}{nocollect}{ifDescr} ) {
 			dbg("Getting Interface Utilisation Health");
 			$intcount = 0;
@@ -4244,13 +4247,23 @@ sub runReach {
 						dbg("SummaryStats for interface=$index of node $NI->{system}{name} skipped because value is NaN");
 						next;
 					}
-					$intsummary = $intsummary + ( 100 - $util->{$index}{inputUtil} ) + ( 100 - $util->{$index}{outputUtil} );
-					++$intcount;
-					dbg("Intf Summary in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount");
+					
+					# lets make the interface metric the largest of input or output
+					my $intUtil = $util->{$index}{inputUtil};
+					if ( $intUtil < $util->{$index}{outputUtil} ) {
+						$intUtil = $util->{$index}{outputUtil};
+					}
+					
+					# only add interfaces with utilisation above metric_int_utilisation_above configuration option
+					if ( $intUtil > $C->{'metric_int_utilisation_above'} or $C->{'metric_int_utilisation_above'} eq "" ) {
+						$intsummary = $intsummary + ( 100 - $intUtil );
+						++$intcount;
+						info("Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount");
+					}
 				}
 			} # FOR LOOP
 			if ( $intsummary != 0 ) {
-				$intWeight = sprintf( "%.2f", $intsummary / ( $intcount * 2 ));
+				$intWeight = sprintf( "%.2f", $intsummary / $intcount);
 			} else {
 				$intWeight = "NaN"
 			}
@@ -5033,10 +5046,13 @@ LABEL_ESC:
 			foreach my $node_depend ( split /,/ , $NT->{$ET->{$event_hash}{node}}{depend} ) {
 				next if $node_depend eq "N/A" ;		# default setting
 				next if $node_depend eq $ET->{$event_hash}{node};	# remove the catch22 of self dependancy.
-				my $eh = eventHash($node_depend,"Node Down","");
-				if ( exists $ET->{$eh}{current} ) {
-					dbg("NOT escalating $ET->{$event_hash}{node} $ET->{$event_hash}{event} as dependant $node_depend is reported as down");
-					next LABEL_ESC;
+				#only do dependancy if node is active.
+				if (defined $NT->{$node_depend}{active} and $NT->{$node_depend}{active} eq 'true') {
+					my $eh = eventHash($node_depend,"Node Down","");
+					if ( exists $ET->{$eh}{current} ) {
+						dbg("NOT escalating $ET->{$event_hash}{node} $ET->{$event_hash}{event} as dependant $node_depend is reported as down");
+						next LABEL_ESC;
+					}
 				}
 			}
 		}
@@ -5539,15 +5555,16 @@ sub sendMSG {
 				my $function = \&{$classMethod};
 				foreach $target (keys %{$msgTable->{$method}}) {
 					foreach $serial (keys %{$msgTable->{$method}{$target}}) {
-						logMsg("method=$method, target=$target, serial=$serial");
-						logMsg("message=". $$msgTable{$method}{$target}{$serial}{message});
-						$function->(
-							message => $$msgTable{$method}{$target}{$serial}{message},
-							event => $$msgTable{$method}{$target}{$serial}{event},
-							contact => $$msgTable{$method}{$target}{$serial}{contact},
-							priority => $$msgTable{$method}{$target}{$serial}{priority},
-							C => $C
-						);
+						dbg("Notify method=$method, target=$target, serial=$serial message=". $$msgTable{$method}{$target}{$serial}{message});
+						if ( $target and $$msgTable{$method}{$target}{$serial}{message} ) {
+							$function->(
+								message => $$msgTable{$method}{$target}{$serial}{message},
+								event => $$msgTable{$method}{$target}{$serial}{event},
+								contact => $$msgTable{$method}{$target}{$serial}{contact},
+								priority => $$msgTable{$method}{$target}{$serial}{priority},
+								C => $C
+							);
+						}
 					}
 				}
 			}
@@ -5888,7 +5905,7 @@ EO_TEXT
 		print " NMIS config file $C->{configfile} updated\n\n";
 
 	} else {
-		print "\n Root directory of NMIS is $C->{'<nmis_base>'}\n\n";
+		info("\n Root directory of NMIS is $C->{'<nmis_base>'}\n");
 	}
 
 	# Do the var directories exist if not make them?
@@ -6018,7 +6035,7 @@ EO_TEXT
 	convertConfFiles();
 	#==
 
-	print " Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n\n";
+	info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
 }
 
 
@@ -6043,7 +6060,7 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/15 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+#*/5 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day
 30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
@@ -6053,6 +6070,9 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 ##################################################
 # save this crontab every day
 0 8 * * * crontab -l > $C->{'<nmis_base>'}/conf/crontab.root
+##################################################
+# purge old files every week
+0 2 * * 0 $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
@@ -6507,9 +6527,12 @@ sub runThrHld {
 	elsif ($index ne '' and $thrname eq "env_temp" ) {
 		$element = $ET->{$index}{tempDescr};
 	}
-	else {
+	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}
+	#else {
+	#	$element = $IF->{$index}{ifDescr};
+	#}
 
 	# walk through threshold names
 	### 2012-04-25 keiths, fixing loop as not processing correctly.
@@ -6531,7 +6554,7 @@ sub runThrHld {
 		}
 				
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
-		if ( $type =~ /interface|pkts/ and $C->{global_events_bandwidth} eq 'true')
+		if ($C->{global_events_bandwidth} eq 'true' and $type =~ /interface|pkts/ and $IF->{$index}{ifSpeed} ne "")
 		{
 			my $ifSpeed = $IF->{$index}->{ifSpeed};
 																			

@@ -1436,15 +1436,11 @@ EO_HTML
 	#Adding KPI Analysis
 	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
-	
-	logMsg("DEBUG: metricsFirstPeriod=$metricsFirstPeriod metric_comparison_first_period=$C->{'metric_comparison_first_period'}");
-	
+		
 	if (my $stats = getSummaryStats(sys=>$S,type=>"health",start=>$metricsFirstPeriod,end=>time(),index=>$node)) {
 		
 		if ( $stats->{$node}{reachabilityHealth} and $stats->{$node}{availabilityHealth} ) {
-			# now get previous period stats
-			my $statsPrev = getSummaryStats(sys=>$S,type=>"health",start=>$metricsSecondPeriod,end=>$metricsFirstPeriod,index=>$node);
-			
+			# now get previous period stats			
 			my $reachabilityMax = 100 * $C->{weight_reachability};
 			my $availabilityMax = 100 * $C->{weight_availability};
 			my $responseMax = 100 * $C->{weight_response};
@@ -1461,59 +1457,65 @@ EO_HTML
 			$stats->{$node}{memHealth} =~ s/\.00//g;
 			$stats->{$node}{intHealth} =~ s/\.00//g;
 	
-			# get some arrows for the metrics
-			my $reachabilityIcon = $stats->{$node}{reachabilityHealth} >= $statsPrev->{$node}{reachabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-			my $availabilityIcon = $stats->{$node}{availabilityHealth} >= $statsPrev->{$node}{availabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-			my $responseIcon = $stats->{$node}{responseHealth} >= $statsPrev->{$node}{responseHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-			my $cpuIcon = $stats->{$node}{cpuHealth} >= $statsPrev->{$node}{cpuHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-			my $memIcon = $stats->{$node}{memHealth} >= $statsPrev->{$node}{memHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-			my $intIcon = $stats->{$node}{intHealth} >= $statsPrev->{$node}{intHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
-					
 			my $swapCell = "";
 			my $diskCell = "";
+
+			# get some arrows for the metrics
+			my $reachabilityIcon;
+			my $availabilityIcon;
+			my $responseIcon;
+			my $cpuIcon;
+			my $memIcon;
+			my $intIcon;
+			my $diskIcon;
+			my $swapIcon;
+			
+			my $statsPrev = getSummaryStats(sys=>$S,type=>"health",start=>$metricsSecondPeriod,end=>$metricsFirstPeriod,index=>$node);
+			if ( $statsPrev->{$node}{reachabilityHealth} !~ /NaN/ and $statsPrev->{$node}{reachabilityHealth} > 0) {
+				$reachabilityIcon = $stats->{$node}{reachabilityHealth} >= $statsPrev->{$node}{reachabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$availabilityIcon = $stats->{$node}{availabilityHealth} >= $statsPrev->{$node}{availabilityHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$responseIcon = $stats->{$node}{responseHealth} >= $statsPrev->{$node}{responseHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$cpuIcon = $stats->{$node}{cpuHealth} >= $statsPrev->{$node}{cpuHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$memIcon = $stats->{$node}{memHealth} >= $statsPrev->{$node}{memHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$intIcon = $stats->{$node}{intHealth} >= $statsPrev->{$node}{intHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$diskIcon = $stats->{$node}{diskHealth} >= $statsPrev->{$node}{diskHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+				$swapIcon = $stats->{$node}{swapHealth} >= $statsPrev->{$node}{swapHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
+			}
+
 			if ( $stats->{$node}{diskHealth} > 0 ) {
-				my $diskIcon = $stats->{$node}{diskHealth} >= $statsPrev->{$node}{diskHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
 				$stats->{$node}{diskHealth} =~ s/\.00//g;
 				$intMax = 100 * $C->{weight_int} / 2;	
 				$diskMax = 100 * $C->{weight_int} / 2;
-				$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100))},"Disk ",img({src=>"$C->{'<menu_url_base>'}/img/$diskIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{diskHealth}/$diskMax");
+				$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100)),title=>"DISK KPI for how much disk space has been used."},"Disk ",img({src=>"$C->{'<menu_url_base>'}/img/$diskIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{diskHealth}/$diskMax");
 			}
 	
 			if ( $stats->{$node}{swapHealth} > 0 ) {
-				my $swapIcon = $stats->{$node}{swapHealth} >= $statsPrev->{$node}{swapHealth} ? 'arrow_up.gif' : 'arrow_down.gif';
 				$stats->{$node}{swapHealth} =~ s/\.00//g;
 				$memMax = 100 * $C->{weight_mem} / 2;
 				$swapMax = 100 * $C->{weight_mem} / 2; 
-				$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100))},"SWAP ",img({src=>"$C->{'<menu_url_base>'}/img/$swapIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{swapHealth}/$swapMax");
+				$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100)),title=>"SWAP KPI for how much SWAP space is in use."},"SWAP ",img({src=>"$C->{'<menu_url_base>'}/img/$swapIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{swapHealth}/$swapMax");
 			}
-	
-			print start_Tr(),start_td(),start_table();
-	
-			#info("Reachability KPI=$reachabilityHealth/$reachabilityMax");
-			#info("Availability KPI=$availabilityHealth/$availabilityMax");
-			#info("Response KPI=$responseHealth/$responseMax");
-			#info("CPU KPI=$cpuHealth/$cpuMax");
-			#info("MEM KPI=$memHealth/$memMax");
-			#info("Int KPI=$intHealth/$intMax");
-			#info("Disk KPI=$diskHealth/$diskMax") if $diskHealth;
-			#info("SWAP KPI=$swapHealth/$swapMax") if $swapHealth;
-	
-			print Tr(td({class=>'header',colspan=>'4'},"KPI Scores"));
-	
-			print Tr(
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100))},"Reachability ",img({src=>"$C->{'<menu_url_base>'}/img/$reachabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{reachabilityHealth}/$reachabilityMax"),
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100))},"Availability ",img({src=>"$C->{'<menu_url_base>'}/img/$availabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{availabilityHealth}/$availabilityMax"),
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100))},"Response ",img({src=>"$C->{'<menu_url_base>'}/img/$responseIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{responseHealth}/$responseMax"),
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100))},"CPU ",img({src=>"$C->{'<menu_url_base>'}/img/$cpuIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{cpuHealth}/$cpuMax"),
-			);
-	
-			print Tr(
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100))},"MEM ",img({src=>"$C->{'<menu_url_base>'}/img/$memIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{memHealth}/$memMax"),
-				td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100))},"Interface ",img({src=>"$C->{'<menu_url_base>'}/img/$intIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{intHealth}/$intMax"),
-				$diskCell,
-				$swapCell,
-			);
-			print end_table(),end_td(),end_Tr();
+			
+			# only print the table if there is a value over 0 for reachability.
+			if ( $stats->{$node}{reachabilityHealth} ) {
+				print start_Tr(),start_td(),start_table();
+				print Tr(td({class=>'header',colspan=>'4',title=>"The KPI Scores are weighted from the Health Metric for the node, compared to the previous periods KPI's, the cell color indicates overall score and the arrow indicates if the KPI is improving or not."},"KPI Scores"));
+		
+				print Tr(
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100)),title=>"Reachability is the pingability of the node."},"Reachability ",img({src=>"$C->{'<menu_url_base>'}/img/$reachabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{reachabilityHealth}/$reachabilityMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100)),title=>"Availability is the interface availabilty of the node."},"Availability ",img({src=>"$C->{'<menu_url_base>'}/img/$availabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{availabilityHealth}/$availabilityMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100)),title=>"Response is the KPI for the response time."},"Response ",img({src=>"$C->{'<menu_url_base>'}/img/$responseIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{responseHealth}/$responseMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100)),title=>"CPU is the CPU which as it rises reduces the KPI."},"CPU ",img({src=>"$C->{'<menu_url_base>'}/img/$cpuIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{cpuHealth}/$cpuMax"),
+				);
+		
+				print Tr(
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100)),title=>"Main memory usage KPI."},"MEM ",img({src=>"$C->{'<menu_url_base>'}/img/$memIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{memHealth}/$memMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100)),title=>"Interface utilisation KPI, reduces with interface utilisation increase."},"Interface ",img({src=>"$C->{'<menu_url_base>'}/img/$intIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{intHealth}/$intMax"),
+					$diskCell,
+					$swapCell,
+				);
+				print end_table(),end_td(),end_Tr();
+			}
 		}
 	}
 

@@ -48,8 +48,11 @@ This script will update your running NMIS system and add the configuration for a
 
 EO_TEXT
 
-exit unless input_yn("OK to proceed updating NMIS with new Model Files for CiscoRouter Model");
+if ( $arg{nike} ne "true" ) {
 
+	exit unless input_yn("OK to proceed updating NMIS with new Model Files for CiscoRouter Model");
+
+}
 
 #######################################################
 my $modelName = "Common-stats";

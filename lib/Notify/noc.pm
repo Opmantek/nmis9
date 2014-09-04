@@ -30,7 +30,7 @@
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
 
-my $extraLogging = 1;
+my $extraLogging = 0;
 
 # *****************************************************************************
 package Notify::noc;
@@ -150,7 +150,7 @@ sub loadBlackList {
 		}
 		close(IN);
 		
-		logMsg("lines=@lines");
+		dbg("lines=@lines");
 		
 		return @lines;
 	}

@@ -43,6 +43,8 @@
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
+			'--step','1800',
+			'DEF:health=$database:health:AVERAGE',
 			'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
 			'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
 			'DEF:responseHealth=$database:responseHealth:AVERAGE',
@@ -76,6 +78,8 @@
 			'STACK:diskHealth#00aaaa:Disk KPI',
 			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
 
+			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
+
 			#'LINE2:health#ff9900:Health',
 			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',
 			#'LINE2:reach#0000ff:Reachability',
@@ -89,6 +93,9 @@
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
+			'--step','1800',
+			'DEF:health=$database:health:AVERAGE',
+
 			'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
 			'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
 			'DEF:responseHealth=$database:responseHealth:AVERAGE',
@@ -121,6 +128,8 @@
 
 			'STACK:diskHealth#00aaaa:Disk KPI',
 			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
 
 			#'LINE2:health#ff9900:Health',
 			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',

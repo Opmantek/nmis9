@@ -184,7 +184,23 @@ sub listEvent {
 
 	print start_table;
 
-	displayEvents($ET,"Localhost"); #single server
+	displayEvents($ET,$C->{'server_name'}); #single server
+
+	if ($C->{server_master} eq 'true') {
+		# check modify of remote node tables
+		my $ST = loadServersTable();
+		for my $srv (keys %{$ST}) {
+			## don't process server localhost for opHA2
+			next if $srv eq "localhost";
+			
+			my $table = "nmis-$srv-event";       
+			  
+			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) {	
+				my $SET = loadEventStateNoLock(table=>$table);
+				displayEvents($SET,"Slave Server $srv"); #single server
+			}
+		}
+	}
 
 	print end_table;
 	print end_form;
