@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.2.2";
+my $VERSION = "1.2.3";
 
 my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -203,6 +203,13 @@ sub collect_evidence
 				or warn "can't save memory information: $!\n";
 		chmod(0644,"$targetdir/system_status/meminfo"); # /proc/meminfo isn't writable
 		system("free >> $targetdir/system_status/meminfo");
+
+		system("df >> $targetdir/system_status/disk_info");
+		system("mount >> $targetdir/system_status/disk_info");
+
+		system("uname -av > $targetdir/system_status/uname");
+		mkdir("$targetdir/system_status/osrelease");
+		system("cp -a /etc/*release /etc/*version $targetdir/system_status/osrelease/ 2>/dev/null");
 
 		if (!$args->{no_system_stats})
 		{
