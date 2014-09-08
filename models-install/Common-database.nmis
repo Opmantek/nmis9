@@ -134,6 +134,10 @@
       'cps6000Grp' => '/health/$nodeType/$node-cps6000Grp-$index.rrd',
       'cps6000Cct' => '/health/$nodeType/$node-cps6000Cct-$index.rrd',
       'power' => '/health/$nodeType/$node-power.rrd',
+      'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
+      'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
+      'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
+      'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
     }
   }
