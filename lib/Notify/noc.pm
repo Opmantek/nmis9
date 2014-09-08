@@ -30,7 +30,7 @@
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
 
-my $extraLogging = 0;
+my $extraLogging = 1;
 
 # *****************************************************************************
 package Notify::noc;
@@ -72,7 +72,7 @@ sub sendNotification {
 		my $node = $event->{node};
 		
 		# is the node in the black list?
-		if (not grep {$event->{event} eq $_} @blackList) { 			
+		if (not grep { $event->{event} =~ /$_/ } @blackList) { 			
 			my $info = 1;
 			
 			# set this to 1 to include group in the message details, 0 to exclude.
@@ -131,7 +131,7 @@ sub sendNotification {
 			);
 		}
 		else {
-			logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event}.") if $extraLogging;
+			logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;
 		}
 	}
 	else {
