@@ -26,10 +26,10 @@ fi
 find $DIR/database -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # purge the NMIS files
-find $DIR/var -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/ -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # purge the JSON files
-find $DIR/var -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # purge the JSON files
-find $DIR/logs -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/logs/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
