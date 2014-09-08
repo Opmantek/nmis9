@@ -1436,9 +1436,7 @@ EO_HTML
 	#Adding KPI Analysis
 	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
-	
-	logMsg("DEBUG: metricsFirstPeriod=$metricsFirstPeriod metric_comparison_first_period=$C->{'metric_comparison_first_period'}");
-	
+		
 	if (my $stats = getSummaryStats(sys=>$S,type=>"health",start=>$metricsFirstPeriod,end=>time(),index=>$node)) {
 		
 		if ( $stats->{$node}{reachabilityHealth} and $stats->{$node}{availabilityHealth} ) {

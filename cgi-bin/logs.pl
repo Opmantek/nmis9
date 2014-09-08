@@ -718,11 +718,12 @@ sub outputLine {
 				if ( $bits[$b] =~ /(^http:\/\/|^https:\/\/)/ ) {
 					if ( $bits[$b] =~ /:$/ ) {
 						$bits[$b] =~ s/:$//; 
-						$bits[$b] = "<a href=\'$bits[$b]\' target=\'$bits[$b]\'>$bits[$b]</a>:";
 					}
-					else {
-						$bits[$b] = "<a  href=\'$bits[$b]\' target=\'$bits[$b]\'>$bits[$b]</a>";						
+					my $linkName = $bits[$b];
+					if ( $linkName =~ "/omk/opTrend" ) {
+						$linkName = "opTrend Exception Details";
 					}
+					$bits[$b] = "<a href=\'$bits[$b]\' target=\'$bits[$b]\'>$linkName</a>:";
 				}
 			}
 			$logDetails = join(" ",@bits);
