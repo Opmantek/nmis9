@@ -38,7 +38,6 @@ my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::co
 $AU->SetUser($ENV{'NMIS_USER'});
 
 my @groups = ();
-my $GT = loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 
 %hash = (
