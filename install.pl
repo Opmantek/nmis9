@@ -249,23 +249,22 @@ if ($isnewinstall)
 
 
 ###************************************************************************###
-if ($isnewinstall)
+printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
+
+# now offer to run an (initial) update to get nmis' state initialised
+# and/or updated
+if ( input_yn("Ok to run an NMIS type=update action"))
 {
-	printBanner("NMIS State Initialisation");
-
-	# now offer to run an initial update to get nmis' state initialised
-	if ( input_yn("Ok to run an NMIS type=update action"))
-	{
-		print "This may take up to 30 seconds (or a very long time with MANY nodes)...\n";
-		execPrint("$site/bin/nmis.pl type=update");
-	}
-	else
-	{
-		print "ok, continuing without the update run.\nIt's recommended to run nmis.pl type=update once initially - you should do this manually.\n";
-		logInstall("continuing without the update run.\nIt's recommended to run nmis.pl type=update once initially - you should do this manually.");
-	}
+	print "This may take up to 30 seconds (or a very long time with MANY nodes)...\n";
+	execPrint("$site/bin/nmis.pl type=update");
 }
-
+else
+{
+	print "ok, continuing without the update run.\n
+It's highly recommended to run nmis.pl type=update once initially
+and after every NMIS upgrade - you should do this manually.\n";
+	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
+}
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
 logInstall("Installation finished at ".scalar localtime);
