@@ -370,7 +370,10 @@
     'full_mib' =>'nmis_mibs.oid,a3com.oid,dell.oid,ups.oid,akcp.oid'
   },
   'sound' => {
-    'sound_levels' => 'fatal,critical,major,minor,warning,normal',
+# to enable audio feedback, set the severity levels that you want sound for,
+# and point the sound_X to a suitable url
+#    'sound_levels' => 'fatal,critical,major,minor,warning,normal',
+		'sound_levels' => '',
     'sound_type' => 'audio/wav',
     'sound_fatal' => '/nmis8/events/critical.wav',
     'sound_critical' => '/nmis8/events/critical.wav',
