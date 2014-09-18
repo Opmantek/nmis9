@@ -447,9 +447,10 @@ sub typeGraph {
 										-onChange=>'JavaScript:this.form.submit()');
 						} 
 						else {
-							# all interfaces have an ifindex
+							# all interfaces have an ifindex, but for the menu we only want 
+							# the ones that NMIS actually collects
 							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } 
-							grep( exists $IF->{$_}{ifIndex}, keys %{$IF});
+							grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
 
 							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',  @wantedifs],
