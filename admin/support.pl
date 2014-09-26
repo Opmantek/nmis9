@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.2.3";
+my $VERSION = "1.3.0";
 
 my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -52,7 +52,8 @@ die $usage if (!$args{action});
 
 my $configname = $args{config} || "Config.nmis";
 my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
-my $tail = 5000;																# last 5000 lines
+my $maxlogsize = $args{maxlogsize} || 4*1024*1024; # 4 meg for individual log files
+my $tail = 4000;																# last 4000 lines
 
 # first, load the global config
 my $globalconf = loadConfTable(conf => $configname);
@@ -188,7 +189,7 @@ sub collect_evidence
 		
 		# get md5 sums of the relevant installation files
 		print "please wait while we collect file status information...\n";
-		system("find -L $basedir -type f|grep -v -e /database/ -e /logs/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
+		system("find -L $basedir -type f |grep -v -e /.git/ -e /database/ -e /logs/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
 		
 		# verify the relevant users and groups, dump groups and passwd (not shadow)
 		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
@@ -253,13 +254,29 @@ sub collect_evidence
 						next;
 				}
 
-				system("cp","$lfn","$targetdir/logs") == 0
-						or warn "ATTENTION: can't copy logfile $lfn: $!\n";
+				# log files that are larger than maxlogsize are automatically tail'd
+				if (-s $lfn > $maxlogsize)
+				{
+					warn "logfile $lfn is too big, truncating to $maxlogsize bytes.\n";
+					my $targetfile=basename($lfn);
+					system("tail -c $maxlogsize $lfn > $targetdir/logs/$targetfile") == 0
+							or warn "couldn't truncate $lfn!\n";
+				}
+				else
+				{
+					system("cp","$lfn","$targetdir/logs") == 0
+							or warn "ATTENTION: can't copy logfile $lfn to $targetdir!\n";
+				}
 		}
-		
-		# copy all of conf/ and models/
-		system("cp","-r","$basedir/models","$basedir/conf",$targetdir) == 0
-				or warn "can't copy models and conf to $targetdir: $!\n";
+		mkdir("$targetdir/conf",0755);
+		mkdir("$targetdir/conf/scripts",0755);
+
+		# copy all of conf/ and models/ but NOT any stray stuff beneath
+		system("cp","-r","$basedir/models",$targetdir) == 0
+				or warn "can't copy models to $targetdir: $!\n";
+		system("cp $basedir/conf/* $targetdir/conf 2>/dev/null");
+		system("cp $basedir/conf/scripts/* $targetdir/conf/scripts") == 0
+				or warn "can't copy conf to $targetdir/conf/scripts: $!\n";
 
 		# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
