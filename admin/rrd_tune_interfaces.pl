@@ -29,15 +29,12 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+our $VERSION = "1.1.0";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "/usr/local/rrdtool/lib/perl"; 
 
-# Include for reference
-#use lib "/usr/local/nmis8/lib";
-
-# 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
 use func;
@@ -45,9 +42,10 @@ use NMIS;
 use NMIS::Timing;
 use RRDs 1.000.490; # from Tobias
 
+print "rrd_tune_interfaces Version $VERSION\n\n";
+
 my $t = NMIS::Timing->new();
 
-print $t->elapTime(). " Begin\n";
 
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
@@ -59,12 +57,16 @@ $debug = 1;
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
+
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
-ERROR: $0 will tune RRD database files with required changes.
-usage: $0 run=(true|false) change=(true|false)
+ERROR: $0 will tune RRD database files with safe maximum values where required.
+usage: $0 run=(true|false) change=(true|false) [nodes=nodeA,nodeB,nodeC...]
 eg: $0 run=true (will run in test mode)
 or: $0 run=true change=true (will run in change mode)
+
+if a list of nodes  is given, then only these will be worked on; otherwise
+all (active+collect) nodes are checked.
 
 EO_TEXT
 	exit 1;
@@ -79,18 +81,30 @@ if ( $arg{run} eq "true" and $arg{change} ne "true" ) {
 	print "$0 running in test mode, no changes will be made!\n";
 }
 
+print $t->elapTime(). " Begin\n";
+
 print $t->markTime(). " Loading the Device List\n";
 my $LNT = loadLocalNodeTable();
 print "  done in ".$t->deltaTime() ."\n";
 
+my @onlythesenodes = split(/\s*,\s*/, $arg{nodes});
+
+
 my $sum = initSummary();
 
 # Work through each node looking for interfaces, etc to tune.
-foreach my $node (sort keys %{$LNT}) {
+foreach my $node (sort keys %{$LNT}) 
+{
+		if (@onlythesenodes && !grep($_ eq $node, @onlythesenodes))
+		{
+				print $t->elapTime(). " Skipping node $node, not in list of requested nodes\n";	
+				next;
+		}
 	++$sum->{count}{node};
 	
 	# Is the node active and are we doing stats on it.
-	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+#	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+		if (1) { #fixme!!
 		++$sum->{count}{active};
 		print $t->markTime(). " Processing $node\n";
 
@@ -110,44 +124,39 @@ foreach my $node (sort keys %{$LNT}) {
 
 				# Get the ifSpeed
 				my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
+				print "    ". $t->elapTime(). " Interface speed is set to $ifSpeed\n";
 				
 				# only proceed if the ifSpeed is correct
-				if ( $ifSpeed ) {
-					my $ifMaxOctets = int($ifSpeed/8);
-					my $maxBytes = int($ifSpeed/4);
-					my $maxPackets = int($maxBytes/50);
-	
-					# Get the RRD info on the Interface
-					my $hash = RRDs::info($rrd);
-					
-					# Recurse over the hash to see what you can find.
-					foreach my $key (sort keys %$hash){
+				if ( $ifSpeed ) 
+				{
+						my $ifMaxOctets = int($ifSpeed/4); # fixme: older version uses bits/4 but octets = bits/8. why double? 
 
-						# Is this an RRD DS (data source)
-						if ( $key =~ /^ds/ ) {
-						
-							# Is this the DS's we are intersted in?
-							if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)\]\.max/ ) {
+						# Get the RRD info on the Interface
+						my $hash = RRDs::info($rrd);
+						foreach my $key (sort keys %$hash)
+						{
+							# Is this an RRD DS (data source)
+							if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)\]\.max/ ) 
+							{
 								my $dsname = $1;
 								print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
 							
-								# Is the value blank (which means in RRD U, unbounded).
-								if ( $hash->{$key} eq "" or $hash->{$key} == $ifSpeed or $hash->{$key} == $ifMaxOctets) {
+								# bad: value blank (which means in RRD U, unbounded), or ifspeed (which is in bits, but the ds is bytes=octets),
+								# good: only if its precisely speed-in-bytes
+								if ($hash->{$key} != $ifMaxOctets)
+								{
 									# We need to tune this RRD
 									print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
 																
-									# Got everything we need
-									#print qq|RRDs::tune($rrd, "--maximum", "$dsname:$maxBytes")\n| if $debug;
-									
 									# Only make the change if change is set to true
-									if ($arg{change} eq "true" ) {
-										print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to maxBytes=$maxBytes\n";
+									if ($arg{change} eq "true" )
+									{
+										print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
 										#Execute the RRDs::tune API.
-										RRDs::tune($rrd, "--maximum", "$dsname:$maxBytes");
+										RRDs::tune($rrd, "--maximum", "$dsname:$ifMaxOctets");
 										
 										# Check for errors.
-										my $ERROR = RRDs::error;
-										if ($ERROR) {
+										if (my $ERROR = RRDs::error) {
 											print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
 										}
 										else {
@@ -157,23 +166,22 @@ foreach my $node (sort keys %{$LNT}) {
 										}
 									}
 									else {
-										print "      ". $t->elapTime(). " RRD Will be Tuned, maximum for $dsname, ifIndex $intf to maxBytes=$maxBytes\n";
+										print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
 									}
 								}
-								# MAX is already set to something
-								else {
+								# MAX is already set to appropriate value
+								else 
+								{
 									print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
 								}
 							}
 						}
-					}
 				}
 				# no valid ifSpeed found.
 				else {
 					print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
 				}
 		}
-
 
 		#Are there any packet RRDs?
 		print "  ". $t->elapTime(). " Looking for pkts databases\n";
@@ -189,8 +197,7 @@ foreach my $node (sort keys %{$LNT}) {
 				
 				# only proceed if the ifSpeed is correct
 				if ( $ifSpeed ) {
-					my $ifMaxOctets = int($ifSpeed/8);
-					my $maxBytes = int($ifSpeed/4);
+					my $maxBytes = int($ifSpeed/4); # fixme: speed is bits, byte would be /8, why double that?
 					my $maxPackets = int($maxBytes/50);
 	
 					# Get the RRD info on the Interface
@@ -241,7 +248,7 @@ foreach my $node (sort keys %{$LNT}) {
 										}
 									}
 									else {
-										print "      ". $t->elapTime(). " RRD Will be Tuned, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
+										print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
 									}
 								}
 								# MAX is already set to something
@@ -275,8 +282,7 @@ foreach my $node (sort keys %{$LNT}) {
 					
 					# only proceed if the ifSpeed is correct
 					if ( $ifSpeed ) {
-						my $ifMaxOctets = int($ifSpeed/8);
-						my $maxBytes = int($ifSpeed/4);
+						my $maxBytes = int($ifSpeed/4); # fixme: speed is bits, byte would be /8, why double that?
 						my $maxPackets = int($maxBytes/50);
 
 						my $dir = ($cbqos eq 'cbqos-in' ? 'in' : 'out');
@@ -335,7 +341,7 @@ foreach my $node (sort keys %{$LNT}) {
 												}
 											}
 											else {
-												print "      ". $t->elapTime(). " RRD Will be Tuned, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
+												print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
 											}
 										}
 										# MAX is already set to something
