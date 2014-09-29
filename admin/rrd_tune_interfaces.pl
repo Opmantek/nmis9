@@ -95,16 +95,16 @@ my $sum = initSummary();
 # Work through each node looking for interfaces, etc to tune.
 foreach my $node (sort keys %{$LNT}) 
 {
-		if (@onlythesenodes && !grep($_ eq $node, @onlythesenodes))
-		{
-				print $t->elapTime(). " Skipping node $node, not in list of requested nodes\n";	
-				next;
-		}
+	if (@onlythesenodes && !grep($_ eq $node, @onlythesenodes))
+	{
+		print $t->elapTime(). " Skipping node $node, not in list of requested nodes\n";	
+		next;
+	}
 	++$sum->{count}{node};
 	
 	# Is the node active and are we doing stats on it.
-#	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
-		if (1) { #fixme!!
+	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) 
+	{
 		++$sum->{count}{active};
 		print $t->markTime(). " Processing $node\n";
 
@@ -118,71 +118,71 @@ foreach my $node (sort keys %{$LNT})
 		my @instances = $S->getTypeInstances(section => "interface");
 		foreach my $intf (@instances) 
 		{
-				++$sum->{count}{interface};
-				my $rrd = $S->getDBName(graphtype => "interface" , index => $intf);
-				print "    ". $t->elapTime(). " Found $rrd\n";
-
-				# Get the ifSpeed
-				my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
-				print "    ". $t->elapTime(). " Interface speed is set to $ifSpeed\n";
+			++$sum->{count}{interface};
+			my $rrd = $S->getDBName(graphtype => "interface" , index => $intf);
+			print "    ". $t->elapTime(). " Found $rrd\n";
+			
+			# Get the ifSpeed
+			my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
+			print "    ". $t->elapTime(). " Interface speed is set to $ifSpeed\n";
+			
+			# only proceed if the ifSpeed is correct
+			if ( $ifSpeed ) 
+			{
+				my $ifMaxOctets = int($ifSpeed/4); # fixme: older version uses bits/4 but octets = bits/8. why double? 
 				
-				# only proceed if the ifSpeed is correct
-				if ( $ifSpeed ) 
+				# Get the RRD info on the Interface
+				my $hash = RRDs::info($rrd);
+				foreach my $key (sort keys %$hash)
 				{
-						my $ifMaxOctets = int($ifSpeed/4); # fixme: older version uses bits/4 but octets = bits/8. why double? 
-
-						# Get the RRD info on the Interface
-						my $hash = RRDs::info($rrd);
-						foreach my $key (sort keys %$hash)
+					# Is this an RRD DS (data source)
+					if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)\]\.max/ ) 
+					{
+						my $dsname = $1;
+						print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
+						
+						# bad: value blank (which means in RRD U, unbounded), or ifspeed (which is in bits, but the ds is bytes=octets),
+						# good: only if its precisely speed-in-bytes
+						if ($hash->{$key} != $ifMaxOctets)
 						{
-							# Is this an RRD DS (data source)
-							if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)\]\.max/ ) 
-							{
-								my $dsname = $1;
-								print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
+							# We need to tune this RRD
+							print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
 							
-								# bad: value blank (which means in RRD U, unbounded), or ifspeed (which is in bits, but the ds is bytes=octets),
-								# good: only if its precisely speed-in-bytes
-								if ($hash->{$key} != $ifMaxOctets)
-								{
-									# We need to tune this RRD
-									print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
-																
-									# Only make the change if change is set to true
-									if ($arg{change} eq "true" )
-									{
-										print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
-										#Execute the RRDs::tune API.
-										RRDs::tune($rrd, "--maximum", "$dsname:$ifMaxOctets");
-										
-										# Check for errors.
-										if (my $ERROR = RRDs::error) {
-											print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
-										}
-										else {
-											# All GOOD!
-											print "      ". $t->elapTime(). " RRD Tune Successful\n";
-											++$sum->{count}{'tune-interface'};
-										}
-									}
-									else {
-										print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
-									}
+							# Only make the change if change is set to true
+							if ($arg{change} eq "true" )
+							{
+								print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
+								#Execute the RRDs::tune API.
+								RRDs::tune($rrd, "--maximum", "$dsname:$ifMaxOctets");
+								
+								# Check for errors.
+								if (my $ERROR = RRDs::error) {
+									print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
 								}
-								# MAX is already set to appropriate value
-								else 
-								{
-									print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
+								else {
+									# All GOOD!
+									print "      ". $t->elapTime(). " RRD Tune Successful\n";
+									++$sum->{count}{'tune-interface'};
 								}
 							}
+							else {
+								print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to ifMaxOctets=$ifMaxOctets\n";
+							}
 						}
+						# MAX is already set to appropriate value
+						else 
+						{
+							print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
+						}
+					}
 				}
-				# no valid ifSpeed found.
-				else {
-					print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
-				}
+			}
+			# no valid ifSpeed found.
+			else {
+				print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
+			}
 		}
-
+		
 		#Are there any packet RRDs?
 		print "  ". $t->elapTime(). " Looking for pkts databases\n";
 		my @pktinstances = $S->getTypeInstances(section => "pkts");
