@@ -29,7 +29,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.1.0";
+our $VERSION = "1.1.1";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -115,21 +115,28 @@ foreach my $node (sort keys %{$LNT})
 		
 		#Are there any interface RRDs?
 		print "  ". $t->elapTime(). " Looking for interface databases\n";
-		my @instances = $S->getTypeInstances(section => "interface");
+
+		# backwards-compatibility: nmis before 8.5 uses NI section for rrds
+		my @instances = $S->can("getTypeInstances") ? $S->getTypeInstances(section => "interface") 
+					: keys %{$NI->{database}{interface}};
+
 		foreach my $intf (@instances) 
 		{
 			++$sum->{count}{interface};
-			my $rrd = $S->getDBName(graphtype => "interface" , index => $intf);
+			my $rrd = $S->can("getTypeInstances")? $S->getDBName(graphtype => "interface" , index => $intf) :
+					$NI->{database}{interface}{$intf};
+
 			print "    ". $t->elapTime(). " Found $rrd\n";
 			
 			# Get the ifSpeed
 			my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
-			print "    ". $t->elapTime(). " Interface speed is set to $ifSpeed\n";
+			print "    ". $t->elapTime(). " Interface speed is set to ".convertIfSpeed($ifSpeed)." ($ifSpeed)\n";
 			
 			# only proceed if the ifSpeed is correct
 			if ( $ifSpeed ) 
 			{
-				my $ifMaxOctets = int($ifSpeed/4); # fixme: older version uses bits/4 but octets = bits/8. why double? 
+				# correct conversion would be bits/8, take double as safety factor for burstable interfaces
+				my $ifMaxOctets = int($ifSpeed/4); 
 				
 				# Get the RRD info on the Interface
 				my $hash = RRDs::info($rrd);
@@ -185,11 +192,14 @@ foreach my $node (sort keys %{$LNT})
 		
 		#Are there any packet RRDs?
 		print "  ". $t->elapTime(). " Looking for pkts databases\n";
-		my @pktinstances = $S->getTypeInstances(section => "pkts");
+		my @pktinstances = $S->can("getTypeInstances")? $S->getTypeInstances(section => "pkts") 
+				: keys %{$NI->{database}{pkts}};
+				
 		foreach my $intf (@pktinstances) 
 		{
 				++$sum->{count}{pkts};
-				my $rrd = $S->getDBName(graphtype => "pkts", index => $intf);
+				my $rrd = $S->can("getTypeInstances") ? S->getDBName(graphtype => "pkts", index => $intf) :
+						$NI->{database}{pkts}{$intf};
 				print "    ". $t->elapTime(). " Found $rrd\n";
 
 				# Get the ifSpeed
@@ -197,7 +207,7 @@ foreach my $node (sort keys %{$LNT})
 				
 				# only proceed if the ifSpeed is correct
 				if ( $ifSpeed ) {
-					my $maxBytes = int($ifSpeed/4); # fixme: speed is bits, byte would be /8, why double that?
+					my $maxBytes = int($ifSpeed/4);
 					my $maxPackets = int($maxBytes/50);
 	
 					# Get the RRD info on the Interface
@@ -271,7 +281,8 @@ foreach my $node (sort keys %{$LNT})
 		my @cbqosdb = qw(cbqos-in cbqos-out);
 		
 		foreach my $cbqos (@cbqosdb) {
-			my @instances = $S->getTypeInstances(graphtype => $cbqos);
+			my @instances = $S->can("getTypeInstances") ? $S->getTypeInstances(graphtype => $cbqos) 
+					: keys %{$NI->{database}{$cbqos}};
 			if (@instances) {
 				++$sum->{count}{$cbqos};
 				foreach my $intf (@instances) {
@@ -282,15 +293,15 @@ foreach my $node (sort keys %{$LNT})
 					
 					# only proceed if the ifSpeed is correct
 					if ( $ifSpeed ) {
-						my $maxBytes = int($ifSpeed/4); # fixme: speed is bits, byte would be /8, why double that?
+						my $maxBytes = int($ifSpeed/4);
 						my $maxPackets = int($maxBytes/50);
 
 						my $dir = ($cbqos eq 'cbqos-in' ? 'in' : 'out');
 						foreach my $class (keys %{$NI->{cbqos}{$intf}{$dir}{ClassMap}}) {
 							++$sum->{count}{"$cbqos-classes"};
-							my $rrd = $S->getDBName(graphtype => $cbqos, 
-																			index => $intf, 
-																			item => $NI->{cbqos}{$intf}{$dir}{ClassMap}{$class}{Name});
+							my $rrd = $S->can("getTypeInstances")? $S->getDBName(graphtype => $cbqos, 
+																																	 index => $intf, 
+																																	 item => $NI->{cbqos}{$intf}{$dir}{ClassMap}{$class}{Name}) : $NI->{database}{$cbqos}{$intf}{$class};
 							print "    ". $t->elapTime(). " Found $rrd\n";
 		
 							# Get the RRD info on the Interface
@@ -374,9 +385,9 @@ foreach my $node (sort keys %{$LNT})
 print qq|
 $sum->{count}{node} nodes processed, $sum->{count}{active} nodes active
 $sum->{count}{interface}\tinterface RRDs
-$sum->{count}{'tune-interface'}\tinterface RRDs tuned
+$sum->{count}{'tune-interface'}\tinterface RRD DataSets tuned
 $sum->{count}{pkts}\tpkts RRDs
-$sum->{count}{'tune-pkts'}\tpkts RRDs tuned
+$sum->{count}{'tune-pkts'}\tpkts RRD DataSets tuned
 $sum->{count}{'cbqos-in-interface'}\tcbqos-in interfaces
 $sum->{count}{'cbqos-out-interface'}\tcbqos-out interfaces
 $sum->{count}{'cbqos-in-classes'}\tcbqos-in RRD classes
