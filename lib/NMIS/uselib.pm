@@ -41,7 +41,7 @@ our @EXPORT_OK = qw($rrdtool_lib);
 # the last is really just a fallback to silence the 'empty compile time value' warning
 # that use lib emits with rrdtool_lib being undef, and in that case we simply let
 # perl look for the rrd modules in the standard include path
-for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl /usr/lib/perl5/))
+for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl /usr/lib/perl5/ /usr/lib64/perl5))
 {
 	if (-d $knownloc)
 	{
