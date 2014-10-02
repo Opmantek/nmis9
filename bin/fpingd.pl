@@ -1,37 +1,34 @@
 #!/usr/bin/perl
 #
-## $Id: fpingd.pl,v 8.6 2012/03/09 06:43:33 keiths Exp $
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #
-#  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (“NMIS”).
-#  
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-# nmisdev 1/1/2010
-# changed test for fping binary
 #
+# *****************************************************************************
+our $VERSION = "8.5.3";
+
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
 use strict;
@@ -41,6 +38,7 @@ use NMIS;
 use func;
 use Data::Dumper;
 use Fcntl qw(:DEFAULT :flock);
+use File::Basename;
 
 # Variables for command line munging
 my (  $restart, $fpingexit, $fpid, $ppid, $debug) = ();
@@ -50,7 +48,10 @@ my $qripaddr = qr/\d+\.\d+\.\d+\.\d+/;
 
 if ( ! %nvp ) {
 	my $ext = getExtension();
-	print <<EOF;
+	my $base = basename($0);
+	die "$base Version $VERSION
+
+Usage: $base [restart|kill=true|false] [debug=true|false] [logging=true|false] [conf=alt.config]
 
 Command line options are:
  restart=true   - kill the running daemon(s) and restart
@@ -59,10 +60,7 @@ Command line options are:
  logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
  conf=*.$ext    - specify an alternative Conf.$ext file.
 
-default action is to killall and restart , no logging, no debug...
-
-
-EOF
+default action is to killall and restart , no logging, no debug...\n";
 }
 
 # load configuration table
@@ -139,6 +137,9 @@ my $retries = $C->{fastping_retries} ? $C->{fastping_retries} : 3;
 my $count   = $C->{fastping_count} ? $C->{fastping_count} : 3;
 my $sleep = $C->{fastping_sleep} ? $C->{fastping_sleep} : 60;
 my $nodepoll = $C->{fastping_node_poll} ? $C->{fastping_node_poll} : 300;
+
+# should we write a raw event log without stateful deduplication?
+my $raweventlog = $C->{fastping_stateless_log} || '';
 
 # fping requires a minimum of 24 byte packets
 if ( $length < 24 ) { $length = 24 }
@@ -327,10 +328,37 @@ sub fastping {
 		foreach my $nd ( keys %ping_result ) {
 			my $event_hash = eventHash($nd,'Node Down','');
 
+			# write raw events if requested - regardless of state change or not!
+			if ($raweventlog ne '')
+			{
+				if (!open(RF,">>$raweventlog"))
+				{
+					logMsg("ERROR could not open $raweventlog: $!");
+				}
+				else
+				{
+					if (!flock(RF, LOCK_EX))
+					{
+						logMsg("ERROR could not lock $raweventlog: $!");
+					}
+					else
+					{
+						my $down = $ping_result{$nd}{'loss'} == 100;
+						my $event = "Node ".($down? "Down":"Up");
+						my $level = $down? "Critical":"Normal"; # fixme this is not as precise as the stateful 
+						my $details = $down? "Ping failed" : "Ping succeeded, loss=$ping_result{$nd}{'loss'}%";
+
+						print RF join(",", time, $nd, $event, $level, '', $details),"\n";
+						close RF or logMsg("ERROR could now write to or close $raweventlog: $!");
+					}
+				}
+			}
+			
 			# only post a change in status to the main event system, or post all if restart
 			if ( $ping_result{$nd}{'loss'} == 100 ) {
 				&debug( "[" . localtime( time() ) . "]\tPinging Failed $nd is NOT REACHABLE, returned loss=$ping_result{$nd}{'loss'}%");
 				$INFO{$nd}{name} = ''; # maybe DNS changed
+
 				if ($INFO{$nd}{postpone_time} >= $INFO{$nd}{postpone}) {
 					if ( $restart ) {
 						fpingNotify($nd);
@@ -547,11 +575,3 @@ sub getEventTable {
 	return loadEventStateNoLock(type=>'Node_Down'); # from file or DB
 
 }
-
-# *****************************************************************************
-# Copyright (C) Opmantek Limited (www.opmantek.com)
-# This program comes with ABSOLUTELY NO WARRANTY;
-# This is free software licensed under GNU GPL, and you are welcome to 
-# redistribute it under certain conditions; see www.opmantek.com or email
-# contact@opmantek.com
-# *****************************************************************************
