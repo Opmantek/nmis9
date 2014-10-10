@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.0";
+my $VERSION = "1.3.1";
 
 my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -64,7 +64,7 @@ if ($args{action} eq "collect")
 {
 		# collect evidence
 		my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
-		my $targetdir = "$td/collect.$timelabel";
+		my $targetdir = "$td/nmis-collect.$timelabel";
 		mkdir($targetdir);
 		print "collecting support evidence...\n";
 		my $status = collect_evidence($targetdir, \%args);
@@ -113,11 +113,11 @@ Please wait while we collect OMK information as well.\n";
 				chdir($td);							# so that the zip file doesn't have to whole /tmp/this/n/that/ path in it
 				if ($canzip)
 				{
-					$status = system("zip","-q","-r",$zfn, "collect.$timelabel");
+					$status = system("zip","-q","-r",$zfn, "nmis-collect.$timelabel");
 				}
 				else
 				{
-					$status = system("tar","-czf",$zfn,"collect.$timelabel");
+					$status = system("tar","-czf",$zfn,"nmis-collect.$timelabel");
 				}
 				chdir($curdir);
 
@@ -183,8 +183,8 @@ sub collect_evidence
 		my $thisnode = $args{node};
 
 		mkdir("$targetdir/system_status");
-		# dump an ls -laRH, H for follow symlinks
-		system("ls -laRH $basedir > $targetdir/system_status/filelist.txt") == 0
+		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
+		system("find -L $basedir -type d | xargs ls -laH > $targetdir/system_status/filelist.txt") == 0
 				or warn "can't list nmis dir: $!\n";
 		
 		# get md5 sums of the relevant installation files
