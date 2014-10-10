@@ -2423,7 +2423,8 @@ sub convertConfFiles {
 			if ( -r "$C->{\"${name}_Table\"}") {
 				my %table_data = loadCSV($C->{"${name}_Table"},$C->{"${name}_Key"});
 				writeTable(dir=>'conf',name=>$name,data=>\%table_data);
-				
+	
+				my $ext = getExtension(dir=>'conf');
 				print " csv file $C->{\"${name}_Table\"} converted to conf/${name}.$ext\n";
 				rename "$C->{\"${name}_Table\"}","$C->{\"${name}_Table\"}.old";
 			} else {
@@ -2704,7 +2705,6 @@ sub htmlGraph {
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&node=$node&intf=$intf&server=$server";
 	
 
-	my $C = loadConfTable();
 	if( $C->{display_opcharts} eq 'true' ) {
 		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";

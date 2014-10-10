@@ -25,6 +25,11 @@
     'groups' => 'all',
     'privilege' => 'administrator'
   },
+  'admin' => {
+    'user' => 'admin',
+    'groups' => 'all',
+    'privilege' => 'administrator'
+  },
   'nmismst' => {
     'user' => 'nmismst',
     'groups' => 'all',

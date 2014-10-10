@@ -21,9 +21,9 @@
 	  'opConfig' => {
 	    'order' => '3',
 	    'name' => 'opConfig',
-	    'base' => 'opmantek',
-	    'file' => '/cgi-bin/opConfig.pl',
-	    'link' => '/cgi-omk/opConfig.pl',
+	    'base' => 'omk',
+	    'file' => '/install/opconfigd.init.d',
+	    'link' => '/omk/opConfig',
 	    'description' => 'opConfig is an easy-to-use, web based network configuration management tool. opConfig allows organisations to simply manage configuration files in multi-vendor environments assisting in disaster recovery, troubleshooting and change management.',
 	  },
 
