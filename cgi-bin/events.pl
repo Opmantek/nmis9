@@ -235,6 +235,9 @@ sub displayEvents {
 	my $NT = loadNodeTable();
 	my $GT = loadGroupTable();
 
+	# header
+	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
+       
 	# only display the table if there are any events.
 	if (not scalar keys %{$ET}) {
 		print Tr(td({class=>'info Plain'},"No Events Current"));
@@ -260,9 +263,6 @@ sub displayEvents {
 	my $match = 'false';
 
 	my $event_cnt = 0; # index for update routine eventAck()
-
-	# header
-	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
 
 	foreach $event_hash ( sort {
 			$ET->{$a}{ack} cmp  $ET->{$b}{ack} or

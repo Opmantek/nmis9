@@ -196,10 +196,7 @@ sub updateCircuitGroups {
 
 sub processNodes {
 	my $LNT = loadLocalNodeTable();
-	
-	my %groupIdx;
-	my %groupList;
-	
+		
 	foreach my $node (sort keys %{$LNT}) {
 		
 		# Is the node active and are we doing stats on it.
@@ -239,6 +236,8 @@ sub processNodes {
 				
 				# using the custom table CircuitGroups to get the group name from.
 				my $CG = loadTable(dir=>'conf',name=>'CircuitGroups');
+				my %groupIdx;
+				my %groupList;
 				
 				#initialise the unknown group for the SNMP bug in QS941
 				$groupList{"$node Unknown"}{desc} = "$node Unknown";
