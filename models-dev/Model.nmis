@@ -192,6 +192,9 @@
           'Windows2008' => 'Windows Version 6.1'
         },
         '30' => {
+          'Windows2012' => 'Windows Version 6.3'
+        },
+        '40' => {
           'Windows2000' => 'Windows 2000 Version 5.0'
         }
       }

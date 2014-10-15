@@ -1,5 +1,5 @@
 #
-## $Id: Model-ESXi.nmis,v 1.1 2012/08/13 05:09:18 keiths Exp $
+## $Id: Model-QNAP.nmis,v 8.1 2013/01/03 07:42:50 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -52,24 +52,11 @@
       }
     }
   },
-  'alerts' => {
-    'VirtMachines' => {
-      'VirtMachinesPowered' => {
-        'element' => 'vmwVmDisplayName',
-        'event' => 'Virtual Machine not Powered On',
-        'level' => 'Warning',
-        'test' => 'CVAR1=vmwVmState;"$CVAR1" ne "powered on"',
-        'type' => 'test',
-        'unit' => 'state',
-        'value' => 'CVAR1=vmwVmState;return "$CVAR1"'
-      },
-    },
-  },
   'system' => {
-    'nodegraph' => 'health,response,hrsystem,hrmem,hrsmpcpu',
+    'nodegraph' => 'health,response,hrsystem,hrsmpcpu,ip,tcp-conn,tcp-segs',
     'nodeType' => 'server',
-    'nodeModel' => 'ESXi',
-    'nodeVendor' => 'VMware Inc.',
+    'nodeModel' => 'QNAP',
+    'nodeVendor' => 'QNAP SYSTEMS, INC',
     'rrd' => {
       'nodehealth' => {
         'graphtype' => 'hrsystem',
@@ -82,6 +69,116 @@
           }
         }
       },
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          }
+        }
+      },
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'snmp' => {
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
+          },
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
+          },
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
+          },
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
     },
     'sys' => {
       'standard' => {
@@ -120,58 +217,41 @@
           }
         }
       },
-#VMWARE-RESOURCES-MIB::vmwNumCPUs.0 = Gauge32: 1
-#VMWARE-RESOURCES-MIB::vmwMemSize.0 = Gauge32: 16652144 kilobytes
-#VMWARE-RESOURCES-MIB::vmwMemCOS.0 = Gauge32: 0 kilobytes
-#VMWARE-RESOURCES-MIB::vmwMemAvail.0 = Gauge32: 16652144 kilobytes
-#VMWARE-SYSTEM-MIB::vmwProdName.0 = STRING: VMware ESXi
-#VMWARE-SYSTEM-MIB::vmwProdVersion.0 = STRING: 5.1.0
-#VMWARE-SYSTEM-MIB::vmwProdBuild.0 = STRING: 1065491
-#VMWARE-SYSTEM-MIB::vmwProdUpdate.0 = STRING: 1
-#VMWARE-SYSTEM-MIB::vmwProdPatch.0 = STRING: 12
       'extra' => {
         'snmp' => {
-          'vmwProdName' => {
-            'oid' => 'vmwProdName',
-            'title' => 'VMware Product Name'
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr.1',
+            'title' => 'Chassis'
           },
-          'vmwProdVersion' => {
-            'oid' => 'vmwProdVersion',
-            'title' => 'VMware Release'
+          'entPhysicalModelName' => {
+            'oid' => 'entPhysicalModelName.1',
+            'title' => 'Model Name'
           },
-          'vmwProdBuild' => {
-            'oid' => 'vmwProdBuild',
-            'title' => 'VMware Build Number'
+          'entPhysicalSerialNum' => {
+            'oid' => 'entPhysicalSerialNum.1',
+            'title' => 'Serial Number'
           },
-          'vmwProdUpdate' => {
-            'oid' => 'vmwProdUpdate',
-            'title' => 'VMware Update Level'
+          'entPhysicalHardwareRev' => {
+            'oid' => 'entPhysicalHardwareRev.1',
+            'title' => 'HW Version'
           },
-          'vmwProdPatch' => {
-            'oid' => 'vmwProdPatch',
-            'title' => 'VMware Patch Level'
-          },
-          'vmwNumCPUs' => {
-            'oid' => 'vmwNumCPUs',
-            'title' => 'VMware Number CPUs'
-          },
-          'vmwMemSize' => {
-            'oid' => 'vmwMemSize',
-            'title' => 'VMware Memory Size'
+          'entPhysicalSoftwareRev' => {
+            'oid' => 'entPhysicalSoftwareRev.1',
+            'title' => 'SW Version'
           },
         }
-      },    
+      },
     },
   },
   'device' => {
     'sys' => {
-      'cpu' => {
-        'snmp' => {
-          'hrCpuLoad' => {
-            'oid' => 'laLoad.2'
-          }
-        }
-      },
+      #'cpu' => {
+      #  'snmp' => {
+      #    'hrCpuLoad' => {
+      #      'oid' => 'hrProcessorLoad.768'
+      #    }
+      #  }
+      #},
       'device' => {
         'indexed' => 'true',
         'snmp' => {
@@ -282,7 +362,7 @@
             'title' => 'Type'
           }
         }
-      },
+      }
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
@@ -295,7 +375,7 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
-	  }
+	}
   },
   'storage' => {
     'sys' => {
@@ -322,93 +402,6 @@
     },
     'nocollect' => {
       'Description' => '/mnt/cdrom|boot'
-    }
-  },
-  'systemHealth' => {
-    'sections' => 'VirtMachines',
-    'rrd' => {
-      'VirtMachines' => {        
-        'indexed' => 'true',
-        'graphtype' => 'vmwVmState',
-        'snmp' => {
-          'vmwVmStateNum' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
-            'replace' => {
-              'powered off' => '0',
-              'powered on' => '100',
-            },
-          },
-					# raw string state for xxx-node.nmis, should be named same as var in sys section
-          'vmwVmState' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
-          },
-					# This does not produce reliable results
-          #'vmwVmGuestState' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-					#},
-          #'vmwVmGuestStateNum' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-          #  'replace' => {
-          #    'unknown' => '0',
-          #    'notrunning' => '20',
-          #    'standby' => '40',
-          #    'resetting' => '60',
-          #    'shuttingdown' => '80',
-          #    'running' => '100',
-          #  },
-          #},
-          'vmwVmMemSize' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
-          },
-          'vmwVmCpus' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
-          },
-        },
-      },      
-    },
-    'sys' => {
-      'VirtMachines' => {        
-        'indexed' => 'vmwVmDisplayName',
-        'index_oid' => '1.3.6.1.4.1.6876.2.1.1.2',        
-        'index_regex' => '\.(\d+)$',        
-        'headers' => 'vmwVmDisplayName,vmwVmConfigFile,vmwVmUUID,vmwVmState,vmwVmMemSize,vmwVmCpus',
-        'snmp' => {
-          'vmwVmDisplayName' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.2',
-            'title' => 'Display Name'
-          },
-          'vmwVmConfigFile' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.3',
-            'title' => 'Config File'
-          },
-          # This does not produce reliable results
-          #'vmwVmGuestOS' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.4',
-          #  'title' => 'Guest OS'
-          #},
-          'vmwVmMemSize' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.5',
-            'title' => 'Memory Size'
-          },
-          'vmwVmState' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.6',
-            'title' => 'State'
-          },
-          'vmwVmUUID' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.10',
-            'title' => 'VMID'
-          },
-          # This does not produce reliable results
-          #'vmwVmGuestState' => {
-          #  'oid' => '1.3.6.1.4.1.6876.2.1.1.8',
-          #  'title' => 'Guest State'
-          #},
-          'vmwVmCpus' => {
-            'oid' => '1.3.6.1.4.1.6876.2.1.1.9',
-            'title' => 'CPUs'
-          },
-        },
-      },      
     }
   }
 );
