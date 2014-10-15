@@ -292,10 +292,10 @@ sub loadNodeTable {
 
 sub loadGroupTable {
 
-	return $GT_cache if defined ;
-
-	loadNodeTable();
-
+	if( not defined $GT_cache or not defined $NT_cache or ( mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
+		loadNodeTable();
+	}
+	
 	return $GT_cache;
 }
 
