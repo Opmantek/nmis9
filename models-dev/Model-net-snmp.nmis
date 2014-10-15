@@ -56,8 +56,19 @@
     'nodeModel' => 'net-snmp',
     'nodeType' => 'server',
     'nodeVendor' => 'net-snmp',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
       'laload' => {
         'graphtype' => 'laload',
         'snmp' => {
