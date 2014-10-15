@@ -36,16 +36,25 @@ use func;
 use File::Basename;
 use Getopt::Std;
 
-my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2>
-eg: ".basename($0)." /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/Config.nmis\n
+my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2 or dir>
+eg: ".basename($0)." /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/
+
 This script compares two NMIS Config files and reports the differences.
+
+If the second argument is a directory, then the relative file name 
+from CONFIG_1 will be used inside the CONFIG_2 directory.
+
 Exit code 0: no differences, exit code 1: differences were found, other exit codes: internal failure\n\n";
 
 my %opts;
 getopts("q",\%opts) or die $usage;
 
-die($usage) if (@ARGV != 2 or !-f $ARGV[0] or !-f $ARGV[1]);
+die($usage) if (@ARGV != 2 or !-f $ARGV[0] or (!-f $ARGV[1] 
+																							 and !-d $ARGV[1]));
 my ($cf1,$cf2)=@ARGV;
+
+$cf2 .= "/".basename($cf1) if (-d $cf2);
+die $usage if (!-f $cf2);
 
 my $c1 = readFiletoHash(file=>$cf1);
 die "Error: could not read $cf1: $!\n" if (!$c1);
