@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ "$1" == "" ] 
+if [ "$1" = "" ] 
 then
 	echo Please define the location of the NMIS8 installation, usually /usr/local/nmis8
 	echo e.g. $0 /usr/local/nmis8 30
@@ -11,7 +11,7 @@ else
 	DIR=$1
 fi
 
-if [ "$2" == "" ] 
+if [ "$2" = "" ] 
 then
 	echo Please define number of days to cleanup e.g. 30
 	echo e.g. $0 /usr/local/nmis8 30
