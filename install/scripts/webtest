@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+# a small helper script for testing web sites end-to-end
+# args: url
+# -c expected content (regex, case-insensitive)
+# -s expected status code (regex)
+# exits with 100 if ok, 50 if the code is ok but the body is wrong, 0 otherwise
+use strict;
+use LWP::UserAgent;
+use Getopt::Std;
+
+my %opts;
+die "Usage: $0 [-c content-regex] [-s status-regex] [-f #redirs ] <url>
+-f N: follow up to N redirections
+\n\n"
+		if (!getopts("c:s:f:",\%opts) or @ARGV != 1);
+
+my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
+my $okbody = $opts{c} &&  qr/$opts{c}/i;
+my $redirs = defined $opts{f}? $opts{f} : 0;
+my $url = $ARGV[0];
+
+my $ua = LWP::UserAgent->new();
+# mostly we want to receive the redirect, not follow it
+$ua->max_redirect($redirs); 					
+$ua->env_proxy(0);							# no proxying for end-to-end testing
+
+my $exitcode = 0;
+
+my $res = $ua->get($url);
+if ($res->code =~ $okcode)
+{
+	$exitcode = 100;
+
+	if ($okbody && $res->decoded_content !~ $okbody)
+	{
+		$exitcode = 50;
+	}
+}
+
+# 100 is ok, 0 is 'service is down'
+exit $exitcode;
+
+
