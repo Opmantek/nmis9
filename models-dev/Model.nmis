@@ -188,8 +188,14 @@
         '10' => {
           'Windows2003' => 'Windows Version 5.2'
         },
+        '15' => {
+          'Windows2008' => 'Windows Version 6.0'
+        },
         '20' => {
           'Windows2008' => 'Windows Version 6.1'
+        },
+        '25' => {
+          'Windows2012' => 'Windows Version 6.2'
         },
         '30' => {
           'Windows2012' => 'Windows Version 6.3'
