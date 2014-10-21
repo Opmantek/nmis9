@@ -6493,13 +6493,14 @@ sub doThreshold {
 				my $countOk = 0;
 				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
 					++$count;
-					if ( $S->{info}{status}{$statusKey}{status} ) {
+					if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
 						++$countOk;
 					}
 				}
 				if ( $count and $countOk ) {
 					my $perOk = sprintf("%.2f",$countOk/$count * 100);
 					info("Status Summary = $perOk, $count, $countOk\n");
+					$S->{info}{system}{status_summary} = $perOk;
 				}
 
 				#print Dumper $S;
@@ -6591,7 +6592,7 @@ sub runThrHld {
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
 		
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
+		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
 	}
 
 }
@@ -6721,12 +6722,15 @@ sub thresholdProcess {
 			}
 			my $statusKey = "$args{thrname}--$index";
 			$S->{info}{status}{$statusKey} = {
+				type => $args{type},
 				property => $args{thrname},
+				event => $args{event},
 				index => $args{index},
 				level => $args{level},
 				status => $statusResult,
 				element => $args{element},
-				value => $args{value}
+				value => $args{value},
+				updated => time()
 			}
 		}
 	}
