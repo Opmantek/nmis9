@@ -1466,6 +1466,17 @@ sub getIntfInfo {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 
+			if ( $IF->{$index}{collect} eq 'false' ) {
+				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
+				my @types = qw(pkts pkts_hc interface);
+				foreach my $type (@types) {
+					if ( exists $NI->{graphtype}{$index}{$type} ) {
+						logMsg("Interface not collecting, removing graphtype $type for interface $index");
+						delete $NI->{graphtype}{$index}{$type};
+					}
+				}
+			}				
+
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
 
