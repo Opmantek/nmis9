@@ -6297,6 +6297,9 @@ sub doSummaryBuild {
 
 				foreach my $tp (keys %{$M->{summary}{statstype}}) { # oke, look for requests in summary of Model
 					### 2013-09-16 keiths, User defined threshold periods.
+					
+					next if (!exists $M->{system}->{rrd}->{$tp}->{threshold});
+					
 					my $threshold_period = "-15 minutes";
 					if ( $C->{"threshold_period-default"} ne "" ) {
 						$threshold_period = $C->{"threshold_period-default"};
