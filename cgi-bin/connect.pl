@@ -496,7 +496,8 @@ sub doSend{
 					$prev_loadsystemfile = $II->{$int}{node};
 				}
 				# only report these if pkts rrd available to us.
-				if (($S->getTypeName(type=>'pkts',check=>'true'))) {
+				my $dbname = $S->getDBName(graphtype => "pkts", index => $intf);
+				if ($dbname && -r $dbname) {
 					# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
 				    my $hash = getSummaryStats(sys=>$S,type=>"pkts",start=>$par1,end=>$par2,index=>$intf);
 					foreach my $k (keys %{$hash->{$intf}}) {
