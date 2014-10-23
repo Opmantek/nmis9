@@ -854,17 +854,10 @@ sub eventHash {
 	my $node = shift;
 	my $event = shift;
 	my $element = shift;
-	
-	if ( $event =~ /Proactive/ ) {
-		my $i = 0;
-		my $ev = '';
-		foreach my $index ( split /( )/ , $event ) {	# limit length
-			$ev .= $index;
-			last if $i++ >= 6 or $index eq '';				# max of 4 splits, with no trailing space.
-		}
-		$event = $ev;
-	}
 
+	# MD - remove code that trimmed the event, it was causing issues and 
+	# we have no idea why it was there in the first place
+	#
 	my $hash = lc "${node}-${event}-${element}";
 	$hash =~ s#[ /:]#_#g;
 	return $hash; 
