@@ -66,7 +66,8 @@ default action is to killall and restart , no logging, no debug...\n";
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 
-$debug =  $nvp{debug} eq 'true' ? 1 : 0;
+## setting debug levels
+$debug =  setDebug($nvp{debug});
 my $logfile     = $C->{'fpingd_log'};
 my $runfile     = "$C->{'<nmis_var>'}/nmis-fpingd.pid";
 
@@ -244,7 +245,7 @@ sub fastping {
 					# host2 : 0.18 0.19 0.19
 					# host3 : 0.22 - 0.33 		second ping timeout
 					# or rubbbish
-					&debug( "fping returned:\t$_");
+					&debug( "fping returned:\t$_") if $debug > 1;
 					if (/$qr_parse_result/) {
 	
 						($hostname, $r) = split /:/, $_ ;		# split on : into name, list of results

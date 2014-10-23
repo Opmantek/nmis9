@@ -1666,6 +1666,12 @@ sub viewInterface {
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
 	}
+	### 2014-10-23 keiths, added this to display by default for interfaces.
+	if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'errpkts_hc'))) {
+		print Tr(td({class=>'header'},"Errors and Discards")),
+		Tr(td({class=>'image'},htmlGraph(graphtype=>'errpkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
+		;
+	}
 	if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'cbqos-in'))) {
 		print Tr(td({class=>'header'},"CBQoS in")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>'cbqos-in',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
