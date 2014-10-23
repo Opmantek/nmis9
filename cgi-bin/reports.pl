@@ -890,11 +890,17 @@ sub top10Report {
 			my $got_pkts = 0;
 			my $hash;
 			# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
-			if (($S->getTypeName(type=>'pkts_hc',check=>'true'))) {
+
+			# check if this node does have pkts or pkts_hc, based on graphtype
+			my $hcdbname = $S->getDBName(graphtype => "pkts_hc", index => $intf);
+			my $dbname = $S->getDBName(graphtype => "pkts", index => $intf);
+			if ($hcdbname && -r $hcdbname)
+			{
 			  $hash = getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);
 			  $got_pkts = "pkts_hc";
 			}
-			elsif (($S->getTypeName(type=>'pkts',check=>'true'))) {
+			elsif ($dbname && -r $dbname)
+			{
 			  $hash = getSummaryStats(sys=>$S,type=>"pkts",start=>$start,end=>$end,index=>$intf);
 			  $got_pkts = "pkts";
 			}

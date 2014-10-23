@@ -49,6 +49,7 @@
     },
     'type' => {
       'nmis' => '/metrics/nmis-system.rrd',
+      'kpi' => '/health/$nodeType/$node-reach.rrd',
       'nodehealth' => '/health/$nodeType/$node-health.rrd',
       'metrics' => '/metrics/$item.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd'
@@ -60,12 +61,21 @@
         '10' => {
           'Windows2003' => 'Windows Version 5.2'
         },
+        '15' => {
+          'Windows2008' => 'Windows Version 6.0'
+        },
         '20' => {
           'Windows2008' => 'Windows Version 6.1'
         },
-        '30' => {
-          'Windows2000' => 'Windows 2000 Version 5.0'
+        '25' => {
+          'Windows2012' => 'Windows Version 6.2'
         },
+        '30' => {
+          'Windows2012' => 'Windows Version 6.3'
+        },
+        '40' => {
+          'Windows2000' => 'Windows 2000 Version 5.0'
+        }
       }
     },
     '3COM Enterprise' => {

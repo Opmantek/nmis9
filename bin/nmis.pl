@@ -1466,6 +1466,17 @@ sub getIntfInfo {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 
+			if ( $IF->{$index}{collect} eq 'false' ) {
+				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
+				my @types = qw(pkts pkts_hc interface);
+				foreach my $type (@types) {
+					if ( exists $NI->{graphtype}{$index}{$type} ) {
+						logMsg("Interface not collecting, removing graphtype $type for interface $index");
+						delete $NI->{graphtype}{$index}{$type};
+					}
+				}
+			}				
+
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
 
@@ -6284,6 +6295,9 @@ sub doSummaryBuild {
 
 				foreach my $tp (keys %{$M->{summary}{statstype}}) { # oke, look for requests in summary of Model
 					### 2013-09-16 keiths, User defined threshold periods.
+					
+					next if (!exists $M->{system}->{rrd}->{$tp}->{threshold});
+					
 					my $threshold_period = "-15 minutes";
 					if ( $C->{"threshold_period-default"} ne "" ) {
 						$threshold_period = $C->{"threshold_period-default"};
@@ -6466,13 +6480,14 @@ sub doThreshold {
 				my $countOk = 0;
 				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
 					++$count;
-					if ( $S->{info}{status}{$statusKey}{status} ) {
+					if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
 						++$countOk;
 					}
 				}
 				if ( $count and $countOk ) {
 					my $perOk = sprintf("%.2f",$countOk/$count * 100);
 					info("Status Summary = $perOk, $count, $countOk\n");
+					$S->{info}{system}{status_summary} = $perOk;
 				}
 
 				#print Dumper $S;
@@ -6564,7 +6579,7 @@ sub runThrHld {
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
 		
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
+		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
 	}
 
 }
@@ -6694,12 +6709,15 @@ sub thresholdProcess {
 			}
 			my $statusKey = "$args{thrname}--$index";
 			$S->{info}{status}{$statusKey} = {
+				type => $args{type},
 				property => $args{thrname},
+				event => $args{event},
 				index => $args{index},
 				level => $args{level},
 				status => $statusResult,
 				element => $args{element},
-				value => $args{value}
+				value => $args{value},
+				updated => time()
 			}
 		}
 	}
