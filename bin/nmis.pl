@@ -5084,13 +5084,9 @@ LABEL_ESC:
 		$role = lc($NI->{system}{roleType});
 		$type = lc($NI->{system}{nodeType});
 
-		# trim the (proactive) event down to the first 4 keywords or less.
-		$event = "";
-		my $i = 0;
-		foreach $index ( split /( )/ , lc($ET->{$event_hash}{event}) ) {		# the () will pull the spaces as well into the list, handy !
-			$event .= $index;
-			last if $i++ == 6;				# max of 4 splits, with no trailing space.
-		}
+		# NO LONGER trim the (proactive) event down to the first 4 keywords or less.
+		# see NMIS::eventHash 
+		$event = lc($ET->{$event_hash}{event}); 
 
 		dbg("looking for Event to Escalation Table match for Event[ Node:$ET->{$event_hash}{node} Event:$event Element:$ET->{$event_hash}{element} ]");
 		dbg("and node values node=$NI->{system}{name} group=$group role=$role type=$type");
@@ -5121,15 +5117,6 @@ LABEL_ESC:
 		foreach my $klst( @keylist ) {
 			foreach my $esc (keys %{$EST}) {
 				my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
-
-				# patch up escalation table to match the split up event we created in the keylist
-				my $i = 0;
-				my $temp_event = '';
-				foreach $index ( split /( )/ , lc($EST->{$esc}{Event}) ) {		# the () will pull the spaces as well into the list, handy !
-					$temp_event .= $index;
-					last if $i++ == 6;				# max of 4 splits, with no trailing space.
-				}
-				$EST->{$esc}{Event} = $temp_event;
 
 				$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 				$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
