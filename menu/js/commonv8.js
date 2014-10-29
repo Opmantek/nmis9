@@ -172,7 +172,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 
 	// javascript for flow widget needs to loaded even if window isn't
 	// so later loads from menu will have it
-	if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {
+	if ( modules.search("opFlow") > -1 ) {
 		$.ajax({
 			url			:	'/cgi-omk/opFlow.pl?summarise=60&widget=getJavascript',
 			async		: false,

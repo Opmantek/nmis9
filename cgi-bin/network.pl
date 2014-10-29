@@ -127,6 +127,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_storage_view') {	viewStorage(); exit;
 } elsif ($Q->{act} eq 'network_service_view') {	viewService(); exit;
 } elsif ($Q->{act} eq 'network_service_list') {	viewServiceList(); exit;
+} elsif ($Q->{act} eq 'network_threshold_view') {	viewThreshold(); exit;
 } elsif ($Q->{act} eq 'network_environment_view') {	viewEnvironment(); exit;
 } elsif ($Q->{act} eq 'network_system_health_view') {	viewSystemHealth($Q->{section}); exit;
 } elsif ($Q->{act} eq 'network_cssgroup_view') {	viewCSSGroup(); exit;
@@ -2166,6 +2167,110 @@ sub viewServiceList {
 		}
 		else {
 			return $NI->{services}{$b}{$sortField} <=> $NI->{services}{$a}{$sortField};		
+		}
+	}	
+}
+
+sub viewThreshold {
+
+	my $sort = $Q->{sort} ? $Q->{sort} : "level";
+	
+	my $sortField = "level";
+	$sortField = "value" if $sort eq "value";
+	$sortField = "status" if $sort eq "status";
+	$sortField = "element" if $sort eq "element";
+	$sortField = "property" if $sort eq "property";
+
+	my $node = $Q->{node};
+
+	my $S = Sys::->new; # get system object
+	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+	my $NI = $S->ndinfo;
+
+	print header($headeropts);
+	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+
+	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
+
+	if (!$AU->InGroup($NI->{system}{group})) {
+		print 'You are not authorized for this request';
+		return;
+	}
+	
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	
+	print start_table({class=>'table'});
+	
+	if ( not nodeStatus(NI => $NI) ) {
+		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')); 
+	}						
+	elsif ( nodeStatus(NI => $NI) == -1 ) {
+		print Tr(td({class=>'Warning',colspan=>'6'},'Node degraded')); 	
+	}
+
+	my $color = colorPercentHi($NI->{system}{status_summary}) if $NI->{system}{status_summary};
+
+	print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>'6'},'Status Summary')); 	
+
+	print Tr(th({class=>'title',colspan=>'6'},"Threshold Status for node $NI->{system}{name}"));
+	
+    #  "ssCpuRawWait--0" : {
+    #     "value" : "0.00",
+    #     "status" : "ok",
+    #     "event" : "Proactive CPU IO Wait",
+    #     "element" : "",
+    #     "index" : null,
+    #     "level" : "Normal",
+    #     "updated" : 1413880177,
+    #     "type" : "systemStats",
+    #     "property" : "ssCpuRawWait"
+    #  },
+      	
+  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_threshold_view&node=$node&refresh=$Q->{refresh}&widget=$widget";
+	if (defined $NI->{services}) {
+		print Tr(
+			td({class=>'header'},a({href=>"$url&sort=element",class=>"wht"},"Element")),
+			td({class=>'header'},a({href=>"$url&sort=property",class=>"wht"},"Event")),
+			td({class=>'header'},a({href=>"$url&sort=value",class=>"wht"},"Value")),
+			td({class=>'header'},a({href=>"$url&sort=level",class=>"wht"},"Level")),
+			td({class=>'header'},a({href=>"$url&sort=status",class=>"wht"},"Status")),
+			td({class=>'header'},"Updated"),
+		);	
+		foreach my $threshold (sort { sortThreshold($sort,$a,$b) } keys %{$NI->{status}} ) {
+			if ( exists $NI->{status}{$threshold}{updated} and $NI->{status}{$threshold}{updated} > time - 3600) {
+				my $updated = returnDateStamp($NI->{status}{$threshold}{updated});
+				my $elementLink = $NI->{status}{$threshold}{element};
+				if ( $NI->{status}{$threshold}{type} =~ "(interface|pkts)" ) {
+					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$NI->{status}{$threshold}{index}&refresh=$Q->{refresh}&widget=$widget"},$NI->{status}{$threshold}{element});
+				}     
+				
+				print Tr(
+					td({class=>'lft Plain'},$elementLink),
+					td({class=>'info Plain'},$NI->{status}{$threshold}{event}),
+					td({class=>'rht Plain'},$NI->{status}{$threshold}{value}),
+					td({class=>"info Plain $NI->{status}{$threshold}{level}"},$NI->{status}{$threshold}{level}),
+					td({class=>'info Plain'},$NI->{status}{$threshold}{status}),
+					td({class=>'info Plain'},$updated)
+				);	
+			}
+		}
+	}
+	else {
+		print Tr(th({class=>'title',colspan=>'6'},"No Services found for $NI->{system}{name}"));
+	}
+	print end_table;
+	pageEnd() if ($widget eq "false");
+
+	sub sortThreshold {
+		my $sort = shift;
+		my $a = shift;
+		my $b = shift;
+		
+		if ( $sort =~ "(property|level|element)" ) {
+			return $NI->{status}{$a}{$sortField} cmp $NI->{status}{$b}{$sortField};
+		}
+		else {
+			return $NI->{status}{$b}{$sortField} <=> $NI->{status}{$a}{$sortField};		
 		}
 	}	
 }

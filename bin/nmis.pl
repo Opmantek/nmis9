@@ -1466,6 +1466,17 @@ sub getIntfInfo {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 
+			if ( $IF->{$index}{collect} eq 'false' ) {
+				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
+				my @types = qw(pkts pkts_hc interface);
+				foreach my $type (@types) {
+					if ( exists $NI->{graphtype}{$index}{$type} ) {
+						logMsg("Interface not collecting, removing graphtype $type for interface $index");
+						delete $NI->{graphtype}{$index}{$type};
+					}
+				}
+			}				
+
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if $IF->{$index}{collect} eq 'true' && $IF->{$index}{event} eq 'true';
 
@@ -5073,13 +5084,9 @@ LABEL_ESC:
 		$role = lc($NI->{system}{roleType});
 		$type = lc($NI->{system}{nodeType});
 
-		# trim the (proactive) event down to the first 4 keywords or less.
-		$event = "";
-		my $i = 0;
-		foreach $index ( split /( )/ , lc($ET->{$event_hash}{event}) ) {		# the () will pull the spaces as well into the list, handy !
-			$event .= $index;
-			last if $i++ == 6;				# max of 4 splits, with no trailing space.
-		}
+		# NO LONGER trim the (proactive) event down to the first 4 keywords or less.
+		# see NMIS::eventHash 
+		$event = lc($ET->{$event_hash}{event}); 
 
 		dbg("looking for Event to Escalation Table match for Event[ Node:$ET->{$event_hash}{node} Event:$event Element:$ET->{$event_hash}{element} ]");
 		dbg("and node values node=$NI->{system}{name} group=$group role=$role type=$type");
@@ -5110,15 +5117,6 @@ LABEL_ESC:
 		foreach my $klst( @keylist ) {
 			foreach my $esc (keys %{$EST}) {
 				my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
-
-				# patch up escalation table to match the split up event we created in the keylist
-				my $i = 0;
-				my $temp_event = '';
-				foreach $index ( split /( )/ , lc($EST->{$esc}{Event}) ) {		# the () will pull the spaces as well into the list, handy !
-					$temp_event .= $index;
-					last if $i++ == 6;				# max of 4 splits, with no trailing space.
-				}
-				$EST->{$esc}{Event} = $temp_event;
 
 				$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 				$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
@@ -6482,13 +6480,14 @@ sub doThreshold {
 				my $countOk = 0;
 				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
 					++$count;
-					if ( $S->{info}{status}{$statusKey}{status} ) {
+					if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
 						++$countOk;
 					}
 				}
 				if ( $count and $countOk ) {
 					my $perOk = sprintf("%.2f",$countOk/$count * 100);
 					info("Status Summary = $perOk, $count, $countOk\n");
+					$S->{info}{system}{status_summary} = $perOk;
 				}
 
 				#print Dumper $S;
@@ -6580,7 +6579,7 @@ sub runThrHld {
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
 		
-		thresholdProcess(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
+		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
 	}
 
 }
@@ -6710,12 +6709,15 @@ sub thresholdProcess {
 			}
 			my $statusKey = "$args{thrname}--$index";
 			$S->{info}{status}{$statusKey} = {
+				type => $args{type},
 				property => $args{thrname},
+				event => $args{event},
 				index => $args{index},
 				level => $args{level},
 				status => $statusResult,
 				element => $args{element},
-				value => $args{value}
+				value => $args{value},
+				updated => time()
 			}
 		}
 	}

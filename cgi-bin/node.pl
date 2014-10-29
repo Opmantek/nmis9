@@ -451,7 +451,11 @@ sub typeGraph {
 							# the ones that NMIS actually collects
 							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } 
 							grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
-
+							
+							### 2014-10-21 keiths, if the ifIndex is specifically requested, show it in the menu.
+							if (not grep { $_ eq $index } @wantedifs ) {
+										push(@wantedifs, $index);
+							}
 							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',  @wantedifs],
 										-default=>"$index",
