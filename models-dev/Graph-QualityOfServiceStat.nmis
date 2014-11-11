@@ -1,0 +1,78 @@
+#
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - QoS - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - QoS - $length'
+	},
+	'vlabel' => {
+		'standard' => 'AVG Bytes',
+		'short' => 'AVG Bytes'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
+			'DEF:MatchedPassPackets=$database:MatchedPassPackets:AVERAGE',
+			'DEF:MatchedPassBytes=$database:MatchedPassBytes:AVERAGE',
+			'DEF:MatchedDropPackets=$database:MatchedDropPackets:AVERAGE',
+			'DEF:MatchedDropBytes=$database:MatchedDropBytes:AVERAGE',
+			'DEF:MatchedPacketsRate=$database:MatchedPacketsRate:AVERAGE',
+			'DEF:MatchedBytesRate=$database:MatchedBytesRate:AVERAGE',
+			'DEF:ClassifierName=$database:ClassifierName:AVERAGE',
+			#'GPRINT:ClassifierName:LAST:Avg %a\n',
+			'AREA:MatchedPassBytes#BCFD0A:MatchedPassBytes',
+			'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedPassBytes:MAX:Max %1.2lf\n',
+			'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+			'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedDropBytes:MAX:Max %1.2lf\n',
+		],
+		'small' => [
+			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
+			'DEF:MatchedPassPackets=$database:MatchedPassPackets:AVERAGE',
+			'DEF:MatchedPassBytes=$database:MatchedPassBytes:AVERAGE',
+			'DEF:MatchedDropPackets=$database:MatchedDropPackets:AVERAGE',
+			'DEF:MatchedDropBytes=$database:MatchedDropBytes:AVERAGE',
+			'DEF:MatchedPacketsRate=$database:MatchedPacketsRate:AVERAGE',
+			'AREA:MatchedPassBytes#BCFD0A:MatchedPassBytes',
+                        'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf\t',
+			'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+                        'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf\n',
+			#'AREA:MatchedPassBytes#000088:MatchedPassBytes',
+                        #'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%',
+			#'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+		]
+	}
+);
+
