@@ -28,37 +28,19 @@
 #
 # *****************************************************************************
 
-# This program should be run from Cron for the required alerting period, e.g. 5 minutes
-#4-59/5 * * * * /usr/local/admin/interface_util_alerts.pl
+# This program adjusts the metadata for Huawei devices to support QoS statistics
+# on these devices.
+# This program should be run from Cron after every NMIS update operation to ensure
+# the interface and QoS information is kept in synch.
 
-# The average utilisation will be calculated for each interface for the last X minutes
+our $VERSION="1.0.1";
+if (@ARGV == 1 && $ARGV[0] eq "--version")
+{
+	print "version=$VERSION\n";
+	exit 0;
+}
+
 use strict;
-#use warnings;
-
-# *****************************************************************************
-my $debugLogging = 0;
-
-my $defaultLevel = "Major";
-
-my $circuitAlerts = 1;
-
-my $threshold_period = "-5 minutes";
-my $thresholds = {
-              'fatal' => '90',
-              'critical' => '80',
-              'major' => '60',
-              'minor' => '20',
-              'warning' => '10'
-             };
-
-# set this to 1 to include group in the message details, 0 to exclude.
-my $includeGroup = 1;
-
-# the seperator for the details field.
-my $detailSep = "-- ";
-
-# *****************************************************************************
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
  
@@ -69,72 +51,103 @@ use Data::Dumper;
 use rrdfunc;
 use notify;
 
-my %arg = getArguements(@ARGV);
-
-if ( defined $arg{clean} and $arg{clean} eq "true" ) {
-	print "Cleaning Events\n";
-	cleanEvents();
-	exit;
+if (@ARGV == 1 && $ARGV[0] =~ /^-?-[h?]/)
+{
+	die "Usage: $0 [debug=1][info=1] [nodes=nodeA,nodeB,...]\n
+info: print diagnostics, debug: print extensive diagnostics
+if nodes is set, only those nodes are processed, otherwise
+all nodes are checked. note that only active and collecting 
+nodes are handled.\n\n";
 }
 
-# Set debugging level.
-my $debug = setDebug($arg{debug});
+my %arg = getArguements(@ARGV);
 
-# Set debugging level.
+# fixme print usage message, debug/info, should add nodes=
+
+# Set debugging level and/or info 
+my $debug = setDebug($arg{debug});
 my $info = setDebug($arg{info});
 
+my @onlythesenodes = split(/\s*,\s*/, $arg{nodes});
 my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
 
+my $problems;
 updateHuaweiRouters();
-exit 0;
+exit $problems? 1 : 0;
 
-#For the circuit groups which have worked, get them from the MIB
-sub updateHuaweiRouters {    
+sub updateHuaweiRouters
+{
 	my $LNT = loadLocalNodeTable();
 
-	foreach my $node (sort keys %{$LNT}) {
+	foreach my $node (sort keys %{$LNT}) 
+	{
+		# update all actve+collecting nodes OR just the nodes given explicitely
+		next if (@onlythesenodes && !grep($node eq $_, @onlythesenodes));
+		next if (!getbool($LNT->{$node}{active}) or !getbool($LNT->{$node}{collect}));
 		
-		# Is the node active and are we doing stats on it.
-		if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
-			print "Processing $node\n" if $debug;
+		print "Processing $node\n" if $debug or $info;
 
-			my $S = Sys::->new;
-			$S->init(name=>$node,snmp=>'false');
-			my $NI = $S->ndinfo;
-			my $IF = $S->ifinfo;
+		my $S = Sys->new;
+		$S->init(name=>$node,snmp=>'false');
+		my $NI = $S->ndinfo;
+		my $IF = $S->ifinfo;
 
-			if ( $NI->{system}{nodeModel} eq "HuaweiRouter" ) {
-				if ( exists $NI->{QualityOfServiceStat} ) {
-					# seed some information back into the other model.
-					foreach my $qosIndex ( keys %{$NI->{QualityOfServiceStat}}) {
-						my $interface = undef;
-						my $direction = undef;
-						#"15.0.1"
-						if ( $qosIndex =~ /^(\d+)\.\d+\.(\d+)/ ) {
-							$interface = $1;
-							$direction = $2;
+		if ( $NI->{system}{nodeModel} ne "HuaweiRouter" ) 
+		{
+			print "Skipping node $node as it is not a HuaweiRouter.\n" if ($debug or $info);
+			next;
+		}
+		
+		if (ref($NI->{QualityOfServiceStat}) eq "HASH") 
+		{
+			# extract direction and interface info from the QoS info
+			foreach my $qosIndex ( keys %{$NI->{QualityOfServiceStat}}) 
+			{
+				my ($ifidx, $interface, $direction);
+				#"15.0.1"
+				if ( $qosIndex =~ /^(\d+)\.\d+\.(\d+)/ ) {
+					($ifidx, $direction) = ($1,$2);
 							
-							if ( defined $IF->{$interface} and $IF->{$interface}{ifDescr} ) {
-								$interface = $IF->{$interface}{ifDescr};
-							}
-							
-							if ( $direction == 1 ) {
-								$direction = "inbound"
-							}
-							elsif ( $direction == 2 ) {
-								$direction = "outbound"
-							}
-							
-						}
-						print "DEBUG: $qosIndex, $interface, $direction\n" if $debug;
-						$NI->{QualityOfServiceStat}{$qosIndex}{Interface} = $interface; 
-						$NI->{QualityOfServiceStat}{$qosIndex}{Direction} = $direction; 
-
+					if ( defined $IF->{$ifidx} and $IF->{$ifidx}{ifDescr} ) 
+					{
+						$interface = $IF->{$ifidx}{ifDescr};
 					}
+					else
+					{
+						print "ERROR: QoS index $qosIndex points to nonexistent interface $ifidx!\n";
+						++$problems;
+						next;
+					}
+					
+					if ( $direction == 1 ) {
+						$direction = "inbound"
+					}
+					elsif ( $direction == 2 ) {
+						$direction = "outbound"
+					}
+					else
+					{
+						print "ERROR: QoS index $qosIndex has impossible direction value $direction!\n";
+						++$problems;
+						next;
+					}
+							
+					print "DEBUG: $qosIndex: $direction on interface $ifidx = $interface\n" if $debug or $info;
 
-					$S->writeNodeInfo; # save node info in file var/$NI->{name}-node	
+					# save the metadata
+					$NI->{QualityOfServiceStat}{$qosIndex}{Interface} = $interface;
+					$NI->{QualityOfServiceStat}{$qosIndex}{ifIndex} = $ifidx;
+					$NI->{QualityOfServiceStat}{$qosIndex}{Direction} = $direction; 
+
+					# and add qos to the interface's graphtype
+					# fixme is that needed?
+					my $short = "cbqos-".($direction eq "inbound" ? "in":"out");
+					$NI->{graphtype}->{$ifidx}->{$short} = $short;
 				}
 			}
+				
+			# fixme need to check deadlocks!!
+			$S->writeNodeInfo; # save node info in file var/$NI->{name}-node	
 		}
 	}
 }

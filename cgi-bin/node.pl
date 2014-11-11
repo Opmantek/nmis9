@@ -272,7 +272,6 @@ sub typeGraph {
 		$group = 'network' if $group eq "";
 		$item = $group;
 	} elsif ($Q->{graphtype} =~ /cbqos/) {
-##		$item = 'class-default' if $item eq '';;
 	} elsif ($GTT->{$graphtype} eq 'interface') {
 		$item = '';
 	}
@@ -533,17 +532,17 @@ sub typeGraph {
 		my @buttons;
 		my @intf;
 	
-		#Redundant Header!
-		#push @output, Tr(td({class=>'header',align=>'center',colspan=>'1'},$heading));
-	
-		if ( $Q->{graphtype} =~ /cbqos/ ) {
-			my ($CBQosNames,undef) = loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
+		# figure out the available policy or classifier names and other cbqos details
+		if ( $Q->{graphtype} =~ /cbqos/ ) 
+		{
+			my ($CBQosNames,undef) = NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
 			$htitle = 'Policy name';
-			$hvalue = $CBQosNames->[0];
+			$hvalue = $CBQosNames->[0] || "N/A";
+
 			for my $i (1..$#$CBQosNames) {
-				$buttons{$i}{name} = @$CBQosNames[$i];
+				$buttons{$i}{name} = $CBQosNames->[$i];
 				$buttons{$i}{intf} = $index;
-				$buttons{$i}{item} = @$CBQosNames[$i];
+				$buttons{$i}{item} = $CBQosNames->[$i];
 			}
 		}
 	
@@ -556,29 +555,17 @@ sub typeGraph {
 			}
 		}
 
-
-
 		if (%buttons) {
 			my $cg = "conf=$Q->{conf}&act=network_graph_view&graphtype=$Q->{graphtype}&node=$Q->{node}&start=$start&end=$end";
 			push @output, start_Tr;
 			if ($htitle ne "") {
 				push @output, td({class=>'header',colspan=>'1'},$htitle),td({class=>'info Plain',colspan=>'1'},$hvalue);
 			}
-			if (scalar keys %buttons < 6) {
-				push @output, td({class=>'header',colspan=>'1'}, div( eval {
-					my @out;
-					foreach my $i (keys %buttons) {
-						push @out, a({class=>'button',href=>url(-absolute=>1)."?$cg&intf=$buttons{$i}{intf}&item=$buttons{$i}{item}"},"$buttons{$i}{name}");
-					}
-					return @out;
-				}));
-			} else {
-				push @output, td({class=>'header',colspan=>'1'},"Select ",
-						popup_menu(-name=>'item', -override=>'1',
-							-values=>['',map { $buttons{$_}{name} } keys %buttons],
-							-default=>"$item",
-							-onChange=>'JavaScript:this.form.submit()'));
-			}
+			push @output, td({class=>'header',colspan=>'1'},"Select ",
+											 popup_menu(-name=>'item', -override=>'1',
+																	-values=>['',map { $buttons{$_}{name} } keys %buttons],
+																	-default=>"$item",
+																	-onChange=>'JavaScript:this.form.submit()'));
 			push @output, end_Tr;
 		}		
 		
@@ -791,68 +778,4 @@ sub typeStats {
 	print end_table,end_html;
 
 }
-
-###
-### Load the CBQoS values in array
-###
-sub loadCBQoS {
-	my %args = @_;
-	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $CB = $S->cbinfo;
-	my $M = $S->mdl;
-	my $node = $NI->{name};
-	my $index = $args{index};
-	my $graphtype = $args{graphtype};
-
-	my $PMName;
-	my @CMNames;
-	my %CBQosValues;
-	my @CBQosNames;
-
-	# define line color of the graph
-	my @colors = ("888888","00CC00","0000CC","CC00CC","FFCC00","00CCCC",
-				"444444","440000","004400","000044","BBBB00","BB00BB","00BBBB",
-				"888800","880088","008888","444400","440044","004444");
-
-	my $direction = $graphtype eq "cbqos-in" ? "in" : "out" ;
-
-	$PMName = $CB->{$index}{$direction}{PolicyMap}{Name};
-
-	foreach my $k (keys %{$CB->{$index}{$direction}{ClassMap}}) {
-		my $CMName = $CB->{$index}{$direction}{ClassMap}{$k}{Name};
-		push @CMNames , $CMName if $CMName ne "";
-
-		$CBQosValues{$index.$CMName}{'CfgType'} = $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Descr'};
-		$CBQosValues{$index.$CMName}{'CfgRate'} = $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Value'};
-	}
-
-	# order the buttons of the classmap names for the Web page
-	@CMNames = sort {uc($a) cmp uc($b)} @CMNames;
-
-	my @qNames;
-	my @confNames = split(',', $M->{node}{cbqos}{order_CM_buttons});
-	foreach my $Name (@confNames) {
-		for (my $i=0; $i<=$#CMNames; $i++) {
-			if ($Name eq $CMNames[$i] ) {
-				push @qNames, $CMNames[$i] ; # move entry
-				splice (@CMNames,$i,1);
-				last;
-			}
-		}
-	}
-
-	@CBQosNames = ($PMName,@qNames,@CMNames); #policy name, classmap names sorted, classmap names unsorted
-	if ($#CBQosNames) { 
-		# colors of the graph in the same order
-		for my $i (1..$#CBQosNames) {
-			if ($i < $#colors ) {
-				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = $colors[$i-1];
-			} else {
-				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = "000000";
-			}
-		}
-	}
-	return \(@CBQosNames,%CBQosValues);
-} # end loadCBQos
 

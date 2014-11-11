@@ -3113,5 +3113,104 @@ sub requestServer {
 	return 0;
 }
 
+# Load and organize the CBQoS meta-data, used by both rrddraw.pl and node.pl
+# inputs: a sys object, an index and a graphtype
+# returns ref to sorted list of names, ref to hash of description/bandwidth/color/index/section
+# this function is not exported on purpose, to reduce namespace clashes.
+sub loadCBQoS 
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $index = $args{index};
+	my $graphtype = $args{graphtype};
+
+	my $NI = $S->ndinfo;
+	my $CB = $S->cbinfo;
+	my $M = $S->mdl;
+	my $node = $NI->{name};
+
+	my ($PMName,  @CMNames, %CBQosValues , @CBQosNames);
+
+	# define line/area colors of the graph
+	my @colors = ("3300ff", "33cc33", "ff9900", "660099",
+								"ff66ff", "ff3333", "660000", "0099CC", 
+								"0033cc", "4B0082","00FF00", "FF4500",
+								"008080","BA55D3","1E90FF",  "cc00cc");
+
+	my $direction = $graphtype eq "cbqos-in" ? "in" : "out" ;
+
+	# in the cisco case we have the classmap as basis;
+	# for huawei this info comes from the QualityOfServiceStat section
+	# which is indexed (and collected+saved) per qos stat entry, NOT interface!
+	if (exists $NI->{QualityOfServiceStat})
+	{
+		my $huaweiqos = $NI->{QualityOfServiceStat};
+		for my $k (keys %{$huaweiqos})
+		{
+			next if ($huaweiqos->{$k}->{ifIndex} != $index or $huaweiqos->{$k}->{Direction} !~ /^$direction/);
+			my $CMName = $huaweiqos->{$k}->{ClassifierName};
+			push @CMNames, $CMName;
+			$PMName = $huaweiqos->{$k}->{Direction}; # there are no policy map names in huawei's qos
+
+			# huawei devices don't expose descriptions or (easily accessible) bw limits
+			$CBQosValues{$index.$CMName} = { CfgType => "Bandwidth", CfgRate => undef,
+																			 CfgIndex => $k, CfgItem =>  undef, 
+																			 CfgSection => "QualityOfServiceStat",
+																			 # ds names: bytes for in, out, and drop (aka prepolicy postpolicy drop in cisco parlance),
+																			 # then packets and nobufdroppkt (which huawei doesn't have)
+																			 CfgDSNames => [qw(MatchedBytes MatchedPassBytes MatchedDropBytes MatchedPackets MatchedPassPackets MatchedDropPackets),undef],
+			};
+		}
+	}
+	else													# the cisco case
+	{
+		$PMName = $CB->{$index}{$direction}{PolicyMap}{Name};
+		
+		foreach my $k (keys %{$CB->{$index}{$direction}{ClassMap}}) {
+			my $CMName = $CB->{$index}{$direction}{ClassMap}{$k}{Name};
+			push @CMNames , $CMName if $CMName ne "";
+
+			$CBQosValues{$index.$CMName} = { CfgType => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Descr'},
+																			 CfgRate => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Value'},
+																			 CfgIndex => $index, CfgItem => undef, 
+																			 CfgSection => $graphtype,
+																			 CfgDSNames => [qw(PrePolicyByte PostPolicyByte DropByte PrePolicyPkt),
+																											undef,"DropPkt", "NoBufDropPkt"]};
+		}
+	}
+
+	# order the buttons of the classmap names for the Web page
+	@CMNames = sort {uc($a) cmp uc($b)} @CMNames;
+
+	my @qNames;
+	my @confNames = split(',', $M->{node}{cbqos}{order_CM_buttons});
+	foreach my $Name (@confNames) {
+		for (my $i=0; $i<=$#CMNames; $i++) {
+			if ($Name eq $CMNames[$i] ) {
+				push @qNames, $CMNames[$i] ; # move entry
+				splice (@CMNames,$i,1);
+				last;
+			}
+		}
+	}
+
+	@CBQosNames = ($PMName,@qNames,@CMNames); #policy name, classmap names sorted, classmap names unsorted
+	if ($#CBQosNames) { 
+		# colors of the graph in the same order
+		for my $i (1..$#CBQosNames) {
+			if ($i < $#colors ) {
+				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = $colors[$i-1];
+			} else {
+				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = "000000";
+			}
+		}
+	}
+
+	return \(@CBQosNames,%CBQosValues);
+} # end loadCBQos
+
+
+
+
 
 1;
