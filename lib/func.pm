@@ -716,6 +716,8 @@ sub setFileProt {
 		logMsg("ERROR, file=$filename does not exist");
 		return ;
 	}
+
+	my $currentstatus = stat($filename);
 	
 	# set the permissions. Skip if not running as root
 	if ( $< == 0) { # root
@@ -744,33 +746,46 @@ sub setFileProt {
 				$permission = "0660"; # default
 			}
 		}
-		dbg("set file owner/permission of $filename to $username, $permission",3);
 		
 		if (!(($login,$pass,$uid,$gid) = getpwnam($username))) {
 			logMsg("ERROR, unknown username $username");
 		} else {
-			if (!chown($uid,$gid,$filename)) {
-				logMsg("ERROR, could not change ownership $filename to $username, $!");
+			# ownership ok or in need of changing?
+			if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
+			{
+				dbg("setting owner of $filename to $username",3);
+				if (!chown($uid,$gid,$filename)) {
+					logMsg("ERROR, could not change ownership $filename to $username, $!");
+				}
 			}
-			if (!chmod(oct($permission), $filename)) {
-				logMsg("ERROR, could not change $filename permissions to $permission, $!");
+			# perms need changing?
+			if (($currentstatus->mode & 07777) != oct($permission))
+			{
+				dbg("setting permissions of $filename to $permission",3);
+				if (!chmod(oct($permission), $filename)) 
+				{
+					logMsg("ERROR, could not change $filename permissions to $permission, $!");
+				}
 			}
 		}
 	}
-	# you don't need to be root to set the group!
 	else {
 		# Get the current UID and GID of the file.
-		my $fstat = stat($filename);
-		my $fuid = $fstat->uid;
 		my $myuid = $<;
 				
-		# unless your root you can't change files you don't own.
-		if ( $fuid == $myuid ) {
+		# only root can change files that are owned by others, 
+		# you don't need to be root to set the group and perms IF you're the owner 
+		# and if the target group is one you're a member of
+		if ( $currentstatus->uid == $myuid ) {
 			my $gid = getgrnam($C->{'nmis_group'});
 	
-			my $cnt = chown($myuid, $gid, $filename);
-			if (not $cnt) {
-				logMsg("ERROR, could not set the group of $filename $C->{'nmis_group'}.");
+			if ($currentstatus->gid != $gid)
+			{
+				dbg("setting group owner of $filename to $C->{nmis_group}",3);
+				my $cnt = chown($myuid, $gid, $filename);
+				if (not $cnt) {
+					logMsg("ERROR, could not set the group of $filename to $C->{'nmis_group'}: $!");
+				}
 			}
 			
 			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
@@ -789,12 +804,16 @@ sub setFileProt {
 				$permission = "0660"; # default
 			}
 			
-			if (!chmod(oct($permission), $filename)) {
-				logMsg("ERROR, could not change $filename permissions to $permission, $!");
+			if (($currentstatus->mode & 07777) != oct($permission))
+			{
+				dbg("setting permissions of $filename to $permission",3);
+				if (!chmod(oct($permission), $filename)) {
+					logMsg("ERROR, could not change $filename permissions to $permission: $!");
+				}
 			}
 		}
 		else {
-			dbg("INFO: $filename can not change unless root or you own it.",2);
+			dbg("INFO: $filename can not change unless root or you own it.",4);
 		}
 	}
 }
