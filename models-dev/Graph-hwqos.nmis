@@ -31,8 +31,8 @@
 
 %hash = (
 	'title' => {
-		'standard' => '$node - $ClassifierName - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $ClassifierName - $length'
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
 		'standard' => 'AVG Bytes',
