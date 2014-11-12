@@ -3154,7 +3154,8 @@ sub loadCBQoS
 
 			# huawei devices don't expose descriptions or (easily accessible) bw limits
 			$CBQosValues{$index.$CMName} = { CfgType => "Bandwidth", CfgRate => undef,
-																			 CfgIndex => $k, CfgItem =>  undef, 
+																			 CfgIndex => $k, CfgItem =>  undef,
+																			 CfgUnique => $k, # index+cmname is not unique, doesn't cover inbound/outbound - this does.
 																			 CfgSection => "QualityOfServiceStat",
 																			 # ds names: bytes for in, out, and drop (aka prepolicy postpolicy drop in cisco parlance),
 																			 # then packets and nobufdroppkt (which huawei doesn't have)
@@ -3172,7 +3173,8 @@ sub loadCBQoS
 
 			$CBQosValues{$index.$CMName} = { CfgType => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Descr'},
 																			 CfgRate => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Value'},
-																			 CfgIndex => $index, CfgItem => undef, 
+																			 CfgIndex => $index, CfgItem => undef,
+																			 CfgUnique => $k,  # index+cmname is not unique, doesn't cover inbound/outbound - this does.
 																			 CfgSection => $graphtype,
 																			 CfgDSNames => [qw(PrePolicyByte PostPolicyByte DropByte PrePolicyPkt),
 																											undef,"DropPkt", "NoBufDropPkt"]};
