@@ -1487,14 +1487,14 @@ EO_HTML
 				$stats->{$node}{diskHealth} =~ s/\.00//g;
 				$intMax = 100 * $C->{weight_int} / 2;	
 				$diskMax = 100 * $C->{weight_int} / 2;
-				$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100)),title=>"DISK KPI for how much disk space has been used."},"Disk ",img({src=>"$C->{'<menu_url_base>'}/img/$diskIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{diskHealth}/$diskMax");
+				$diskCell = td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{diskHealth}/$diskMax * 100)),title=>"The Disk KPI measures how much disk space is in use."},"Disk ",img({src=>"$C->{'<menu_url_base>'}/img/$diskIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{diskHealth}/$diskMax");
 			}
 	
 			if ( $stats->{$node}{swapHealth} > 0 ) {
 				$stats->{$node}{swapHealth} =~ s/\.00//g;
 				$memMax = 100 * $C->{weight_mem} / 2;
 				$swapMax = 100 * $C->{weight_mem} / 2; 
-				$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100)),title=>"SWAP KPI for how much SWAP space is in use."},"SWAP ",img({src=>"$C->{'<menu_url_base>'}/img/$swapIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{swapHealth}/$swapMax");
+				$swapCell = td({class=>"info",style=>getBGColor(colorPercentHi($stats->{$node}{swapHealth}/$swapMax * 100)),title=>"The Swap KPI increases with the Swap space in use."},"SWAP ",img({src=>"$C->{'<menu_url_base>'}/img/$swapIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{swapHealth}/$swapMax");
 			}
 			
 			# only print the table if there is a value over 0 for reachability.
@@ -1503,15 +1503,15 @@ EO_HTML
 				print Tr(td({class=>'header',colspan=>'4',title=>"The KPI Scores are weighted from the Health Metric for the node, compared to the previous periods KPI's, the cell color indicates overall score and the arrow indicates if the KPI is improving or not."},"KPI Scores"));
 		
 				print Tr(
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100)),title=>"Reachability is the pingability of the node."},"Reachability ",img({src=>"$C->{'<menu_url_base>'}/img/$reachabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{reachabilityHealth}/$reachabilityMax"),
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100)),title=>"Availability is the interface availabilty of the node."},"Availability ",img({src=>"$C->{'<menu_url_base>'}/img/$availabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{availabilityHealth}/$availabilityMax"),
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100)),title=>"Response is the KPI for the response time."},"Response ",img({src=>"$C->{'<menu_url_base>'}/img/$responseIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{responseHealth}/$responseMax"),
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100)),title=>"CPU is the CPU which as it rises reduces the KPI."},"CPU ",img({src=>"$C->{'<menu_url_base>'}/img/$cpuIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{cpuHealth}/$cpuMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{reachabilityHealth}/$reachabilityMax * 100)),title=>"The Reachability KPI measures how well the node can be reached with ping."},"Reachability ",img({src=>"$C->{'<menu_url_base>'}/img/$reachabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{reachabilityHealth}/$reachabilityMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{availabilityHealth}/$availabilityMax * 100)),title=>"Availability measures how many of the node's interfaces are available."},"Availability ",img({src=>"$C->{'<menu_url_base>'}/img/$availabilityIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{availabilityHealth}/$availabilityMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{responseHealth}/$responseMax * 100)),title=>"The Response KPI decreases when the node's response time increases."},"Response ",img({src=>"$C->{'<menu_url_base>'}/img/$responseIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{responseHealth}/$responseMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{cpuHealth}/$cpuMax * 100)),title=>"The CPU utilisation KPI decreases when CPU load increases."},"CPU ",img({src=>"$C->{'<menu_url_base>'}/img/$cpuIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{cpuHealth}/$cpuMax"),
 				);
 		
 				print Tr(
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100)),title=>"Main memory usage KPI."},"MEM ",img({src=>"$C->{'<menu_url_base>'}/img/$memIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{memHealth}/$memMax"),
-					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100)),title=>"Interface utilisation KPI, reduces with interface utilisation increase."},"Interface ",img({src=>"$C->{'<menu_url_base>'}/img/$intIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{intHealth}/$intMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{memHealth}/$memMax * 100)),title=>"Main memory usage KPI, decreases as the memory utilisation increases."},"MEM ",img({src=>"$C->{'<menu_url_base>'}/img/$memIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{memHealth}/$memMax"),
+					td({class=>'info',style=>getBGColor(colorPercentHi($stats->{$node}{intHealth}/$intMax * 100)),title=>"The  Interface utilisation KPI reduces when the global interfaces utilisation increases."},"Interface ",img({src=>"$C->{'<menu_url_base>'}/img/$intIcon",border=>'0', width=>'11', height=>'10'}),"$stats->{$node}{intHealth}/$intMax"),
 					$diskCell,
 					$swapCell,
 				);
