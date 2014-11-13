@@ -367,7 +367,14 @@
       },
 
 			#JUNIPER-MIB::jnxBoxDescr.0 = STRING: node0 Juniper SRX550 Internet Router
-			#JUNIPER-MIB::jnxBoxSerialNo.0 = STRING: AL3613AK0201
+			#JUNIPER-MIB::jnxBoxSerialNo.0 = STRING: AL8888AK8888
+
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestIndex.0 = INTEGER: 108
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestTime.0 = Timeticks: (1941538074) 224 days, 17:09:40.74
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestDate.0 = STRING: 2014-10-30,17:1:33.0,+10:0
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestSource.0 = INTEGER: cli(2)
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestUser.0 = STRING: userid
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgMaxEventEntries.0 = INTEGER: 64
       'extra' => {
         'snmp' => {
           'chassisVer' => {
@@ -390,38 +397,26 @@
             'snmpObjectName' => 'ciscoImageString',
             'title' => 'Software Image'
           },
-          'softwareVersion' => {
-            'calculate' => '$r =~ /CW_VERSION\\$(.+)\\$/; $r = $1',
-            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
-            'snmpObjectName' => 'ciscoVersionString',
-            'title' => 'Software Version'
-          }
         }
       },
 
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestIndex.0 = INTEGER: 108
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestTime.0 = Timeticks: (1941538074) 224 days, 17:09:40.74
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestDate.0 = STRING: 2014-10-30,17:1:33.0,+10:0
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestSource.0 = INTEGER: cli(2)
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestUser.0 = STRING: jlykke
-			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgMaxEventEntries.0 = INTEGER: 64
-      'nodeConfiguration' => {
+      'juniperConfiguration' => {
         'snmp' => {
-          'bootConfigLastChanged' => {
-            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
-            'snmpObject' => 'ccmHistoryStartupLastChanged',
-            'title' => 'Boot Configuration Last Changed'
-          },
           'configLastChanged' => {
-            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
-            'snmpObject' => 'ccmHistoryRunningLastChanged',
-            'title' => 'Configuration Last Changed'
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.2.0',
+            'snmpObject' => 'jnxCmCfgChgLatestTime',
+            'title' => 'Config Last Change'
           },
-          'configLastSaved' => {
-            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
-            'snmpObject' => 'ccmHistoryRunningLastSaved',
-            'title' => 'Configuration Last Viewed'
-          }
+          'configLastChangedDate' => {
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.3.0',
+            'snmpObject' => 'jnxCmCfgChgLatestDate',
+            'title' => 'Config Last Change Date'
+          },
+          'configLastChangedUser' => {
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.5.0',
+            'snmpObject' => 'jnxCmCfgChgLatestUser',
+            'title' => 'Config Changed By'
+          },
         }
       },
       'standard' => {

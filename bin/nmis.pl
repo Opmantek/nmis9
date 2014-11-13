@@ -1040,31 +1040,48 @@ sub checkNodeConfiguration {
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
 	# create previous values if they don't exist
 	for my $attr (@updatePrevValues) {
-		if ($NI->{system}{$attr} ne '' && !defined($NI->{system}{"${attr}_prev"}) ) {
+		if (defined $NI->{system}{$attr} ne '' && $NI->{system}{$attr} ne '' && !defined($NI->{system}{"${attr}_prev"}) ) {
 			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
 		}
 	}
 
-	my $configLastChanged = $NI->{system}{configLastChanged};
-	my $configLastSaved = $NI->{system}{configLastSaved};
-	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged};
-	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev};
+	my $configLastChanged = $NI->{system}{configLastChanged} if defined $NI->{system}{configLastChanged};
+	my $configLastViewed = $NI->{system}{configLastSaved} if defined $NI->{system}{configLastSaved};
+	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged} if defined $NI->{system}{bootConfigLastChanged};
+	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev} if defined $NI->{system}{configLastChanged_prev};
 
-	info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastSaved=$configLastSaved, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
+	if ( defined $configLastViewed && defined $bootConfigLastChanged ) {
+		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastViewed=$configLastViewed, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
+	}
+	else {
+		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastChanged_prev=$configLastChanged_prev");		
+	}
+	
 	# check if config is saved:
-	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 );
-	$V->{system}{configLastSaved_value} = convUpTime( $configLastSaved/100 );
-	$V->{system}{bootConfigLastChanged_value} = convUpTime( $bootConfigLastChanged/100 );
-	$V->{system}{configurationState_title} = 'Configuration State';
-	if( $configLastChanged > $bootConfigLastChanged ) {
-		$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
-		$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
-		info("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
-	} else {
-		$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
-		$V->{system}{"configurationState_color"} = "#00BB00";	#normal
+	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 ) if defined $configLastChanged;
+	$V->{system}{configLastSaved_value} = convUpTime( $configLastViewed/100 ) if defined $configLastViewed;
+	$V->{system}{bootConfigLastChanged_value} = convUpTime( $bootConfigLastChanged/100 ) if defined $bootConfigLastChanged;
+
+	### Cisco Node Configuration Change Only
+	if( defined $configLastChanged && defined $bootConfigLastChanged ) {
+		$V->{system}{configurationState_title} = 'Configuration State';
+		if( $configLastChanged > $bootConfigLastChanged and $configLastChanged > 5000 ) {
+			$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
+			$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
+			info("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
+		} 
+		elsif( $bootConfigLastChanged == 0 and $configLastChanged <= 5000 ) {
+			$V->{system}{"configurationState_value"} = "Config Not Changed Since Boot";
+			$V->{system}{"configurationState_color"} = "#FFDD00";	#normal
+			info("checkNodeConfiguration, config not changed, $configLastChanged $bootConfigLastChanged");
+		} 
+		else {
+			$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
+			$V->{system}{"configurationState_color"} = "#00BB00";	#normal
+		}
 	}
 
+	### If it is newer, someone changed it!
 	if( $configLastChanged > $configLastChanged_prev ) {
 		$V->{system}{configChangeCount_value}++;
 		$V->{system}{configChangeCount_title} = "Configuration change count";
@@ -1075,7 +1092,7 @@ sub checkNodeConfiguration {
 
 	#update previous values to be out current values
 	for my $attr (@updatePrevValues) {
-		if ($NI->{system}{$attr} ne '') {
+		if (defined $NI->{system}{$attr} ne '' && $NI->{system}{$attr} ne '') {
 			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
 		}
 	}
@@ -2164,6 +2181,9 @@ sub updateNodeInfo {
 		$V->{system}{status_color} = '#0F0';
 
 		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{nodeConfiguration};
+	
+		### conditional on model section to ensure backwards compatibility with different Juniper values.
+		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{juniperConfiguration};
 
 	} else {
 		$exit = snmpNodeDown(sys=>$S);

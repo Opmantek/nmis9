@@ -65,7 +65,7 @@
           'ONS15454' => 'ONS 15454'
         }
       }
-    },
+    },    
     'Cisco Systems' => {
       'order' => {
         '10' => {
@@ -159,6 +159,16 @@
       'order' => {
         '10' => {
           'CGESM' => 'CGESM'
+        }
+      }
+    },
+    'Juniper Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+        },
+        '99' => {
+          'JuniperRouter' => '.'
         }
       }
     },
