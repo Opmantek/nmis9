@@ -1154,6 +1154,15 @@ sub nodeStatus {
 	elsif ( eventExist($NI->{system}{name}, $snmp_down, "") ) {
 		$status = -1;
 	}
+	# ping enabled, pingable but dead snmp -> degraded
+	elsif ( 
+		exists $NI->{system}{status_summary} 
+		and exists $NI->{system}{status_updated} 
+		and $NI->{system}{status_summary} <= 99
+		and $NI->{system}{status_updated} > time - 500
+	) {
+		$status = -1;
+	}
 	else {
 		$status = 1;
 	}

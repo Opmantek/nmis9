@@ -1617,7 +1617,7 @@ sub viewInterface {
 		print Tr(td({class=>'Critical', colspan=>'2'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning', colspan=>'2'},'Node degraded')); 	
+		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print start_Tr;
@@ -1753,7 +1753,7 @@ sub viewAllIntf {
 		print Tr(td({class=>'Critical'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning'},'Node degraded')); 	
+		print Tr(td({class=>'Warning'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
@@ -1878,7 +1878,7 @@ sub viewActivePort {
 		print Tr(td({class=>'Critical'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning'},'Node degraded')); 	
+		print Tr(td({class=>'Warning'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
@@ -1985,7 +1985,7 @@ sub viewStorage {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Storage of node $NI->{system}{name}"));
@@ -2035,7 +2035,7 @@ sub viewService {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
@@ -2116,7 +2116,7 @@ sub viewServiceList {
 		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'6'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 
 	print Tr(th({class=>'title',colspan=>'6'},"List of Services on node $NI->{system}{name}"));
@@ -2178,10 +2178,12 @@ sub viewServiceList {
 }
 
 sub viewThreshold {
+	
+	my $colspan = 7;
 
 	my $sort = $Q->{sort} ? $Q->{sort} : "level";
 	
-	my $sortField = "level";
+	my $sortField = "status";
 	$sortField = "value" if $sort eq "value";
 	$sortField = "status" if $sort eq "status";
 	$sortField = "element" if $sort eq "element";
@@ -2208,19 +2210,20 @@ sub viewThreshold {
 	print start_table({class=>'table'});
 	
 	if ( not nodeStatus(NI => $NI) ) {
-		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')); 
+		print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'6'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 
 	my $color = colorPercentHi($NI->{system}{status_summary}) if $NI->{system}{status_summary};
+	
+	#print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>$colspan},'Status Summary')); 	
 
-	print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>'6'},'Status Summary')); 	
-
-	print Tr(th({class=>'title',colspan=>'6'},"Threshold Status for node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>$colspan},"Threshold Status for node $NI->{system}{name}"));
 	
     #  "ssCpuRawWait--0" : {
+    #     "status" : "Threshold",
     #     "value" : "0.00",
     #     "status" : "ok",
     #     "event" : "Proactive CPU IO Wait",
@@ -2235,6 +2238,7 @@ sub viewThreshold {
   my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_threshold_view&node=$node&refresh=$Q->{refresh}&widget=$widget";
 	if (defined $NI->{services}) {
 		print Tr(
+			td({class=>'header'},a({href=>"$url&sort=method",class=>"wht"},"Method")),
 			td({class=>'header'},a({href=>"$url&sort=element",class=>"wht"},"Element")),
 			td({class=>'header'},a({href=>"$url&sort=property",class=>"wht"},"Event")),
 			td({class=>'header'},a({href=>"$url&sort=value",class=>"wht"},"Value")),
@@ -2246,11 +2250,13 @@ sub viewThreshold {
 			if ( exists $NI->{status}{$threshold}{updated} and $NI->{status}{$threshold}{updated} > time - 3600) {
 				my $updated = returnDateStamp($NI->{status}{$threshold}{updated});
 				my $elementLink = $NI->{status}{$threshold}{element};
+				$elementLink = $node if not $elementLink;
 				if ( $NI->{status}{$threshold}{type} =~ "(interface|pkts)" ) {
 					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$NI->{status}{$threshold}{index}&refresh=$Q->{refresh}&widget=$widget"},$NI->{status}{$threshold}{element});
 				}     
 				
 				print Tr(
+					td({class=>'info Plain'},$NI->{status}{$threshold}{method}),
 					td({class=>'lft Plain'},$elementLink),
 					td({class=>'info Plain'},$NI->{status}{$threshold}{event}),
 					td({class=>'rht Plain'},$NI->{status}{$threshold}{value}),
@@ -2262,7 +2268,7 @@ sub viewThreshold {
 		}
 	}
 	else {
-		print Tr(th({class=>'title',colspan=>'6'},"No Services found for $NI->{system}{name}"));
+		print Tr(th({class=>'title',colspan=>$colspan},"No Services found for $NI->{system}{name}"));
 	}
 	print end_table;
 	pageEnd() if ($widget eq "false");
@@ -2272,7 +2278,7 @@ sub viewThreshold {
 		my $a = shift;
 		my $b = shift;
 		
-		if ( $sort =~ "(property|level|element)" ) {
+		if ( $sort =~ "(property|level|element|status|method)" ) {
 			return $NI->{status}{$a}{$sortField} cmp $NI->{status}{$b}{$sortField};
 		}
 		else {
@@ -2305,7 +2311,7 @@ sub viewEnvironment {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Environment of node $NI->{system}{name}"));
@@ -2412,7 +2418,7 @@ sub viewSystemHealth {
 				print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')); 
 			}						
 			elsif ( nodeStatus(NI => $NI) == -1 ) {
-				print Tr(td({class=>'Warning',colspan=>$colspan},'Node degraded')); 	
+				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, status=$NI->{system}{status_summary}")); 	
 			}
 			
 			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
@@ -2478,7 +2484,7 @@ sub viewCSSGroup {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
@@ -2518,7 +2524,7 @@ sub viewCSSContent {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},'Node degraded')); 	
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
 	}
 		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));

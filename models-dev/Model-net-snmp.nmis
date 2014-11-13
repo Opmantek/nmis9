@@ -357,17 +357,17 @@
     }
   },
   'alerts' => {
-    'services' => {
-      'HighProcessMemoryUsage' => {
-        'element' => 'hrSWRunName',
-        'event' => 'High Process Memory Usage',
-        'level' => 'Warning',
-        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'type' => 'test',
-        'unit' => 'KBytes',
-        'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1'
-      }
-    },
+    #'services' => {
+    #  'HighProcessMemoryUsage' => {
+    #    'element' => 'hrSWRunName',
+    #    'event' => 'High Process Memory Usage',
+    #    'level' => 'Warning',
+    #    'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
+    #    'type' => 'test',
+    #    'unit' => 'KBytes',
+    #    'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1'
+    #  }
+    #},
     'storage' => {
       'HighDiskUsage' => {
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',

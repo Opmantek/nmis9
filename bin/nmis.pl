@@ -2202,15 +2202,46 @@ sub processAlerts {
 	foreach my $alert (@{$alerts})
 	{
 		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
-		dbg("Processing alert ".Dumper($alert),3);
+		dbg("Processing alert ".Dumper($alert),1);
+		#$VAR1 = {
+		#  'ds' => '192.168.1.249',
+		#  'event' => 'BGP Peer Down',
+		#  'level' => 'Warning',
+		#  'name' => 'meatball',
+		#  'test' => 'CVAR1=bgpPeerState;$CVAR1 * 1',
+		#  'test_result' => 1,
+		#  'type' => 'test',
+		#  'unit' => '',
+		#  'value' => 100
+		#};
+
 		my $tresult = "Normal";
 		$tresult = $alert->{level} if $alert->{test_result};
+
+		my $statusResult = "ok";
+		$statusResult = "error" if $tresult ne "Normal";
+
 		#$alert->{test}
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
 		if( $alert->{test_result} ) {
 			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
 		} else {
 			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
+		}
+
+		### save the Alert result into the Status thingy
+		my $statusKey = "$alert->{event}--$alert->{ds}";
+		$S->{info}{status}{$statusKey} = {
+			method => "Alert",
+			type => $alert->{type},
+			property => $alert->{test},
+			event => $alert->{event},
+			index => undef, #$args{index},
+			level => $tresult,
+			status => $statusResult,
+			element => $alert->{ds},
+			value => $alert->{value},
+			updated => time()
 		}
 
 	}
@@ -6479,15 +6510,22 @@ sub doThreshold {
 				my $count = 0;
 				my $countOk = 0;
 				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
-					++$count;
-					if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
-						++$countOk;
+					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
+					if ( $S->{info}{status}{$statusKey}{method} eq "Alert" and $S->{info}{status}{$statusKey}{updated} < time - 500) {
+						delete $S->{info}{status}{$statusKey};
+					}
+					else {	
+						++$count;
+						if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
+							++$countOk;
+						}
 					}
 				}
 				if ( $count and $countOk ) {
 					my $perOk = sprintf("%.2f",$countOk/$count * 100);
 					info("Status Summary = $perOk, $count, $countOk\n");
 					$S->{info}{system}{status_summary} = $perOk;
+					$S->{info}{system}{status_updated} = time();
 				}
 
 				#print Dumper $S;
@@ -6709,6 +6747,7 @@ sub thresholdProcess {
 			}
 			my $statusKey = "$args{thrname}--$index";
 			$S->{info}{status}{$statusKey} = {
+				method => "Threshold",
 				type => $args{type},
 				property => $args{thrname},
 				event => $args{event},
