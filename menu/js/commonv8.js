@@ -170,39 +170,6 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		}
 	});
 
-	// javascript for flow widget needs to loaded even if window isn't
-	// so later loads from menu will have it
-	if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {
-		$.ajax({
-			url			:	'/cgi-omk/opFlow.pl?summarise=60&widget=getJavascript',
-			async		: false,
-			dataType: "json",
-			type 		: 'GET',
-			cache		: false,
-			success	: function(data) {
-				for( i = 0; i < data.length; i++ ) {
-					scriptData = data[i];
-					var script   = document.createElement("script");
-					script.type  = "text/javascript";
-
-					if( scriptData.innerHTML !== undefined ) {
-						script.innerHTML = scriptData.innerHTML;
-					}
-					if( scriptData.src !== undefined) {
-						script.src   = scriptData.src;
-					}
-
-					document.body.appendChild(script);
-				}
-
-			},
-			error: function (xhr, ajaxOptions, thrownError) {
-				// this error is expected from older versions of opflow
-				console.log("opFlow requires updating to work with this version of NMIS");
-      }
-		});
-	}
-
 	// launch the select node dialog
 	if( savedWindowState === true ) {
 		loadWindowState();
@@ -270,7 +237,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		}
 		if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {			
 			createDialog({
-				id		: 'ntw_flow',
+				id		: 'ntw_flowSummary',
 				url		: '/cgi-omk/opFlow.pl?widget=true',
 				title	: 'Application Flows',
 				width	:	opFlowWidgetWidth,
@@ -403,6 +370,15 @@ function	createDialog(opt) {
 				type : 'GET',
 				cache: false,
 				success: function(data) {
+					if( opt.url.indexOf("opFlow") !== -1 ) {
+						splitData = data.split("\n");
+						for(i = 0; i < splitData.length; i++) {
+							if(splitData[i].indexOf('jquery') !== -1 ) {
+								splitData[i] = "";
+							}
+						}
+						data = splitData.join("\n");
+					}
 					dialogHandle.html(data);
 					if ( opCharts == true && typeof(loadCharts) != undefined ) {
             loadCharts(dialogHandle);
@@ -622,6 +598,46 @@ function	createDialog(opt) {
 
 	// ensure that the title is saved for refreshed requests, some of the logic above depends on its presence
 	objData.options.title = opt.title;
+
+	// special opFlow handing, it needs to load it's javascript a special way
+	// if it's already loaded call refresh, if refresh is already defined then the javascript has already been loaded
+	// the load will kick of a refresh because of the javascript onload section in opCommon.js
+	// idendifying flow is done by looking for opFlow in the url, namespaces could also be used but there are several	
+	if ( newurl.indexOf("opFlow") !== -1 ) {
+		if( typeof(refresh) != "undefined" ) {
+			refresh();
+		}
+		else {
+
+			$.ajax({
+				url			:	'/cgi-omk/opFlow.pl?summarise=60&widget=getJavascript',
+				async		: false,
+				dataType: "json",
+				type 		: 'GET',
+				cache		: false,
+				success	: function(data) {
+					for( i = 0; i < data.length; i++ ) {
+						scriptData = data[i];
+						var script   = document.createElement("script");
+						script.type  = "text/javascript";
+
+						if( scriptData.innerHTML !== undefined ) {
+							script.innerHTML = scriptData.innerHTML;
+						}
+						if( scriptData.src !== undefined) {
+							script.src   = scriptData.src;
+						}
+
+						document.body.appendChild(script);
+					}			
+				},
+				error: function (xhr, ajaxOptions, thrownError) {
+					// this error is expected from older versions of opflow
+					console.log("opFlow requires updating to work with this version of NMIS");
+				}
+			});
+		}
+	}
 	return dialogHandle;
 };		// end createDialog
 

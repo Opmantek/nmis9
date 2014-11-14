@@ -111,7 +111,25 @@ else {
 
 ###************************************************************************###
 if ( $cpan || $listdeps) {
-	checkCpan();
+	if (!checkCpan())
+	{
+		print "Some critically required Perl modules were missing. 
+NMIS will not work properly until these are installed! 
+
+We recommend that you stop the installer now, resolve the dependencies, 
+and then restart the installer.\n\n";
+		if (input_yn("Stop the installer"))
+		{
+			die "\nAborting the installation. Please install the missing modules, then restart the installer. installer.\n";
+		}
+		else
+		{
+			my $message ="\n\nContinuing the installation as requested. NMIS won't work correctly until
+you install the missing dependencies!\n\n";
+			print $message; logInstall($message);
+		}
+	}
+	 
 	if ($listdeps)
 	{
 			print "NOT proceeding with installation, as requested.\n";
@@ -318,7 +336,7 @@ sub parsefile {
 }
 
 
-
+# returns 1 if no critical modules missing, 0 otherwise
 sub checkCpan {
 	printBanner("Checking for required Perl modules");
 	print <<EOF;
@@ -326,15 +344,6 @@ This will check for installed Perl modules, first by parsing the
 source code to build a list of used modules. Then by checking that 
 the module exists in the src code or is found in the perl standard 
 \@INC directory list: @INC
-
-If the check reports that a required module is missing, which can be 
-installed with CPAN
-
-  perl -MCPAN -e shell
-    install [module name]
-
-  or more conveniently by running
-   cpan [module name] [module name...]
 
 EOF
 	
@@ -371,7 +380,7 @@ EOF
 
 	}
 
-	listModules();
+	return listModules();
 }
 
 
@@ -393,6 +402,7 @@ sub moduleVersion {
 	return ' ';
 }
 
+# returns 1 if no critical modules missing, 0 otherwise
 sub listModules {
 	# list modules found/MODULE NOT FOUND
 	my $f1;
@@ -416,18 +426,38 @@ sub listModules {
 	}
 	
 	print qq|
-You will need to investigate and possibly install modules indicated with MODULE NOT FOUND
+You will need to investigate and possibly install modules indicated with MODULE NOT FOUND.
+Missing modules can be installed with CPAN:
 
-The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, Authen::TacacsPlus, Authen::Simple::RADIUS are optionally required by the NMIS AAA system.
+  perl -MCPAN -e shell
+    install [module name]
 
-The modules SNMP_util and SNMP_Session are optional (needed only for the ipsla 
-subsystem and can be installed either with yum install perl-SNMP_Session or 
-from the provided tar file in install/SNMP_Session-1.12.tar.gz).
+  or more conveniently by running
+   cpan [module name] [module name...]
+
+Note: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, 
+Authen::TacacsPlus, Authen::Simple::RADIUS are optional components for the 
+NMIS AAA system.
+
+The modules SNMP_util and SNMP_Session are also optional (needed only for 
+the ipsla subsystem) and can be installed either with 
+'yum install perl-SNMP_Session' or from the provided tar file in 
+install/SNMP_Session-1.12.tar.gz.
 
 The missing modules are: |. join(" ",@missing)."\n\n";
 
   logInstall("Missing modules: ".join(" ",@missing)."\n");
 	logInstall("Module status details: ".Dumper($nmisModules)) if ($debug);
+
+
+  # return 0 if any critical modules are missing
+  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1);
+  
+  for my $nx (@missing) 
+  { 
+    return 0 if !$noncritical{$nx};
+  }
+  return 1;
 }
 
 

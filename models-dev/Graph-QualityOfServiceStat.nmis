@@ -31,8 +31,8 @@
 
 %hash = (
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'standard' => '$node - QoS - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - QoS - $length'
 	},
 	'vlabel' => {
 		'standard' => 'AVG Bytes',
@@ -40,7 +40,6 @@
 	},
 	'option' => {
 		'standard' => [
-			'--lower-limit','0',
 			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
 			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
 			'DEF:MatchedPassPackets=$database:MatchedPassPackets:AVERAGE',
@@ -49,13 +48,14 @@
 			'DEF:MatchedDropBytes=$database:MatchedDropBytes:AVERAGE',
 			'DEF:MatchedPacketsRate=$database:MatchedPacketsRate:AVERAGE',
 			'DEF:MatchedBytesRate=$database:MatchedBytesRate:AVERAGE',
-			'AREA:MatchedBytes#BCFD0A',
-			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:MatchedBytes:MAX:Max %1.2lf%%',	
-			'AREA:MatchedPassBytes#FDC80A',
-			'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf%%',
-			'STACK:MatchedDropBytes#FD2A0A',
-			'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf%%'
+			'DEF:ClassifierName=$database:ClassifierName:AVERAGE',
+			#'GPRINT:ClassifierName:LAST:Avg %a\n',
+			'AREA:MatchedPassBytes#BCFD0A:MatchedPassBytes',
+			'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedPassBytes:MAX:Max %1.2lf\n',
+			'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+			'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedDropBytes:MAX:Max %1.2lf\n',
 		],
 		'small' => [
 			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
@@ -65,15 +65,13 @@
 			'DEF:MatchedDropPackets=$database:MatchedDropPackets:AVERAGE',
 			'DEF:MatchedDropBytes=$database:MatchedDropBytes:AVERAGE',
 			'DEF:MatchedPacketsRate=$database:MatchedPacketsRate:AVERAGE',
-			'AREA:MatchedBytes#BCFD0A',
-                        'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:MatchedBytes:MAX:Max %1.2lf%%',
-                        'AREA:MatchedPassBytes#FDC80A',
-                        'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf%%',
-                        'STACK:MatchedDropBytes#FD2A0A',
-                        'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf%%'
-			#'AREA:MatchedBytes#90FD0A',
-                        #'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%'
+			'AREA:MatchedPassBytes#BCFD0A:MatchedPassBytes',
+                        'GPRINT:MatchedPassBytes:AVERAGE:Avg %1.2lf\t',
+			'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+                        'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf\n',
+			#'AREA:MatchedPassBytes#000088:MatchedPassBytes',
+                        #'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%',
+			#'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
 		]
 	}
 );

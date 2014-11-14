@@ -43,7 +43,6 @@ require 5;
 use strict;
 use RRDs 1.4004;
 use func;
-#use rrdfunc;
 use Sys;
 use NMIS;
 use Data::Dumper;
@@ -106,7 +105,6 @@ sub rrdDraw {
 	my $debug = $Q->{debug};
 	my $grp = $Q->{group};
 	my $graphtype = $Q->{graphtype};
-	my $graphlength = $Q->{graphlength};
 	my $graphstart = $Q->{graphstart};
 	my $width = $Q->{width};
 	my $height = $Q->{height};
@@ -148,9 +146,13 @@ sub rrdDraw {
 		$intf = "";
 	}
 
-
+	# special graphtypes: cbqos is dynamic (multiple inputs create one graph), ditto calls
 	if ($graphtype =~ /cbqos/) {
-		@opt = graphCBQoS(sys=>$S,graphtype=>$graphtype,intf=>$intf,item=>$item,start=>$start,end=>$end,width=>$width,height=>$height);
+		@opt = graphCBQoS(sys=>$S,
+											graphtype=>$graphtype,
+											intf=>$intf,
+											item=>$item,
+											start=>$start,end=>$end,width=>$width,height=>$height);
 	} elsif ($graphtype eq "calls") {
 		@opt = graphCalls(sys=>$S,graphtype=>$graphtype,intf=>$intf,item=>$item,start=>$start,end=>$end,width=>$width,height=>$height);
 	} else {
@@ -330,9 +332,10 @@ sub rrdDraw {
 		}
 	}
 
-#=====
-	### Cologne and Stephane CBQoS Support
-	sub graphCBQoS {
+	# Cologne and Stephane CBQoS Support
+	# this handles both cisco and huawei flavour cbqos
+	sub graphCBQoS 
+	{
 		my %args = @_;
 		my $S = $args{sys};
 		my $NI = $S->ndinfo;
@@ -344,12 +347,14 @@ sub rrdDraw {
 		my $end = $args{end};
 		my $width = $args{width};
 		my $height = $args{height};
+		my $debug = $Q->{debug};
 
 		my $database;
 		my @opt;
 		my $title;
 
-		my ($CBQosNames,$CBQosValues) = loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$intf);
+		# order the names, find colors and bandwidth limits, index and section names
+		my ($CBQosNames,$CBQosValues) = NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
 
 		if ( $item eq "" ) {
 			# display all class-maps in one graph
@@ -362,7 +367,9 @@ sub rrdDraw {
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			my $vlabel = "Avg Bits per Second";
 			if ( $width <= 400 ) { 
-				$title = "$NI->{name} $ifDescr $direction - $CBQosNames->[0]";
+				$title = "$NI->{name} $ifDescr $direction";
+				$title .= " - $CBQosNames->[0]" if ($CBQosNames->[0] && $CBQosNames->[0] !~ /^(in|out)bound$/i);
+				$title .= ' - $length';
 				$vlabel = "Avg bps";
 			} else { 
 				$title = "$NI->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end';
@@ -397,11 +404,13 @@ sub rrdDraw {
 			}
 						
 			# calculate the sum (avg and max) of all Classmaps for PrePolicy and Drop
+			# note that these CANNOT be graphed by themselves, as 0 isn't a valid RPN expression in rrdtool 
 			$avgppr = "CDEF:avgPrePolicyBitrate=0";
 			$maxppr = "CDEF:maxPrePolicyBitrate=0";
 			$avgdbr = "CDEF:avgDropBitrate=0";
 			$maxdbr = "CDEF:maxDropBitrate=0";
 			
+			# is this hierarchical or flat?
 			my $HQOS = 0;
 			foreach my $i (1..$#$CBQosNames) {
 				if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ ) {
@@ -412,8 +421,13 @@ sub rrdDraw {
 			my $gtype = "AREA";
 			my $gcount = 0;
 			my $parent_name = "";
-			foreach my $i (1..$#$CBQosNames) {
-				$database = $S->getDBName(graphtype=>$graphtype,index=>${intf},item=>$CBQosNames->[$i]);
+			foreach my $i (1..$#$CBQosNames)
+			{
+				my $thisinfo = $CBQosValues->{$intf.$CBQosNames->[$i]};
+
+				$database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
+																	index => $thisinfo->{CfgIndex},
+																	item => $CBQosNames->[$i]	);
 				my $parent = 0;
 				if ( $CBQosNames->[$i] !~ /\w+\-\-\w+/ and $HQOS ) {
 					$parent = 1;
@@ -422,7 +436,7 @@ sub rrdDraw {
 
 				if ( $CBQosNames->[$i] =~ /^([\w\-]+)\-\-\w+\-\-/ ) {
 					$parent_name = $1;
-					print STDERR "DEBUG parent_name=$parent_name\n";
+					print STDERR "DEBUG parent_name=$parent_name\n" if ($debug);
 				}
 
 				if ( not $parent and not $gcount) {
@@ -436,35 +450,34 @@ sub rrdDraw {
 				my $alias = $CBQosNames->[$i];
 				$alias =~ s/$parent_name\-\-//g;
 				$alias =~ s/\-\-/\//g;
+
+				# rough alignment for the columns, necessarily imperfect 
+				# as X-char strings aren't equally wide...
 				my $tab = "\\t";
 				if ( length($alias) <= 5 ) {
-					$tab = "\\t\\t\\t\\t";
+					$tab = $tab x 4;
 				}
 				elsif ( length($alias) <= 14 ) { 
-					$tab = "\\t\\t\\t";
-				}
-				elsif ( length($alias) <= 15 ) { 
-					$tab = "\\t\\t";
+					$tab = $tab x 3;
 				}
 				elsif ( length($alias) <= 19 ) { 
-					$tab = "\\t\\t";
+					$tab = $tab x 2;
 				}
-				elsif ( length($alias) <= 21 ) { 
-					$tab = "\\t";
-				}
-				#$tab = "\\t";
-				
-				my $color = $CBQosValues->{"$intf$CBQosNames->[$i]"}{'Color'};
-				push(@opt,"DEF:avgPPB$i=$database:PrePolicyByte:AVERAGE");
-				push(@opt,"DEF:maxPPB$i=$database:PrePolicyByte:MAX");
-				push(@opt,"DEF:avgDB$i=$database:DropByte:AVERAGE");
-				push(@opt,"DEF:maxDB$i=$database:DropByte:MAX");
+
+				my $color = $CBQosValues->{$intf.$CBQosNames->[$i]}{'Color'};
+
+				push(@opt,"DEF:avgPPB$i=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE");
+				push(@opt,"DEF:maxPPB$i=$database:".$thisinfo->{CfgDSNames}->[0].":MAX");
+				push(@opt,"DEF:avgDB$i=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE");
+				push(@opt,"DEF:maxDB$i=$database:".$thisinfo->{CfgDSNames}->[2].":MAX");
+
 				push(@opt,"CDEF:avgPPR$i=avgPPB$i,8,*");
 				push(@opt,"CDEF:maxPPR$i=maxPPB$i,8,*");
 				push(@opt,"CDEF:avgDBR$i=avgDB$i,8,*");
 				push(@opt,"CDEF:maxDBR$i=maxDB$i,8,*");
+
 				if ($width > 400) {
-					push(@opt,"$gtype:avgPPR$i#$color:$alias$tab");
+					push @opt,"$gtype:avgPPR$i#$color:$alias$tab";
 					push(@opt,"GPRINT:avgPPR$i:AVERAGE:Avg %8.2lf%s\\t");
 					push(@opt,"GPRINT:maxPPR$i:MAX:Max %8.2lf%s\\t");
 					push(@opt,"GPRINT:avgDBR$i:AVERAGE:Avg Drops %6.2lf%s\\t");
@@ -493,15 +506,20 @@ sub rrdDraw {
 				push(@opt,"GPRINT:maxDropBitrate:MAX:Max\\t%8.2lf%s\\l");
 			}
 
-			# reset $database so any errors reference the correct class-map
-	##		$database = getRRDFileName(type => $graph, node => $node, group => $group, nodeType => $NMIS::systemTable{nodeType}, extName => $IF->{$intf}{ifDescr}, item => $CBQosNames[0]);
-
 		} else {
-			# display the selected class-map (push button)
-			my $speed = &convertIfSpeed($$CBQosValues{"$intf$item"}{'CfgRate'});
+			# display ONLY the selected class-map
+			my $thisinfo = $CBQosValues->{$intf.$item};
+
+			my $speed = defined $thisinfo->{CfgRate}? &convertIfSpeed($thisinfo->{'CfgRate'}) : undef;
 			my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
-			$database = $S->getDBName(graphtype=>$graphtype,index=>$intf,item=>$item);
-			my $color = $CBQosValues->{"$intf$item"}{'Color'};
+
+			$database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
+																index => $thisinfo->{CfgIndex},
+																item => $item	);
+
+			# in this case we always use the FIRST color, not the one for this item
+			my $color = $CBQosValues->{$intf.$CBQosNames->[1]}->{'Color'};
+
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			$title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end';
 			
@@ -524,39 +542,63 @@ sub rrdDraw {
 				"--color", 'FONT#222222',      # Font Color
 				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
 				"--color", 'FRAME#808080',      # Canvas Frame Color
-				"DEF:PrePolicyByte=$database:PrePolicyByte:AVERAGE", 
-				"DEF:maxPrePolicyByte=$database:PrePolicyByte:MAX", 
-				"DEF:DropByte=$database:DropByte:AVERAGE", 
-				"DEF:maxDropByte=$database:DropByte:MAX", 
-				"DEF:PrePolicyPkt=$database:PrePolicyPkt:AVERAGE", 
-				"DEF:DropPkt=$database:DropPkt:AVERAGE", 
-				"DEF:NoBufDropPkt=$database:NoBufDropPkt:AVERAGE", 
-				"CDEF:PrePolicyBitrate=PrePolicyByte,8,*",
-				"CDEF:maxPrePolicyBitrate=maxPrePolicyByte,8,*",
-				"CDEF:DropBitrate=DropByte,8,*",
-				"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
-				"STACK:DropBitrate#ff0000:DropBitrate\\l"
-			);
-			
+					);
+
 			if ($width > 400) {
 				push(@opt,"--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
 			}
 			else {
 				push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
 			}
+
+			# needs to work for both types of qos, hence uses the CfgDSNames
+			push @opt, (
+				"DEF:PrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE", 
+				"DEF:maxPrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":MAX", 
+				"DEF:DropByte=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE", 
+				"DEF:maxDropByte=$database:".$thisinfo->{CfgDSNames}->[2].":MAX", 
+				"DEF:PrePolicyPkt=$database:".$thisinfo->{CfgDSNames}->[3].":AVERAGE", 
+				"DEF:DropPkt=$database:".$thisinfo->{CfgDSNames}->[5].":AVERAGE");
 			
+			# huawei doesn't have NoBufDropPkt
+			push @opt, "DEF:NoBufDropPkt=$database:".$thisinfo->{CfgDSNames}->[6].":AVERAGE"
+					if (defined $thisinfo->{CfgDSNames}->[6]);
+
+			push @opt, (
+				"CDEF:PrePolicyBitrate=PrePolicyByte,8,*",
+				"CDEF:maxPrePolicyBitrate=maxPrePolicyByte,8,*",
+				"CDEF:DropBitrate=DropByte,8,*",
+				"TEXTALIGN:left",
+				"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
+			);
+			
+			# detailed legends are only shown on the 'big' graphs
 			if ($width > 400) {
-				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:Avg PrePolicyBitrate\\t%10.0lf bps\\t");
-				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max PrePolicyBitrate\\t%10.0lf bps\\l");
-				push(@opt,"GPRINT:PrePolicyByte:AVERAGE:Avg Bytes transfered\\t%10.0lf\\t\\t");
-				push(@opt,"GPRINT:PrePolicyPkt:AVERAGE:Avg Packets transfered\\t%10.0lf\\l");
-				push(@opt,"GPRINT:DropByte:AVERAGE:Avg Bytes dropped\\t\\t%10.0lf\\t\\t");
-				push(@opt,"GPRINT:maxDropByte:MAX:Max Bytes dropped\\t\\t%10.0lf\\l");
-				push(@opt,"GPRINT:DropPkt:AVERAGE:Avg Packets dropped\\t\\t%10.0lf\\t\\t");
-				push(@opt,"GPRINT:NoBufDropPkt:AVERAGE:Avg Packets No buffer dropped\\t%10.0lf\\l");
+				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:\\tAvg %8.2lf %sbps\\t");
+				push(@opt,"GPRINT:maxPrePolicyBitrate:MAX:Max %8.2lf %sbps");
 			}
-			push(@opt,"COMMENT:$$CBQosValues{\"$intf$item\"}{'CfgType'} $speed");
+			# move back to previous line, then right-align
+			push @opt, "COMMENT:\\u", "AREA:DropBitrate#ff0000:DropBitrate\\r:STACK";
+			
+			if ($width > 400)
+			{
+				push(@opt,"GPRINT:PrePolicyByte:AVERAGE:Bytes transferred\\t\\tAvg %8.2lf %sB/s\\n");
+
+				push(@opt,"GPRINT:DropByte:AVERAGE:Bytes dropped\\t\\t\\tAvg %8.2lf %sB/s\\t");
+				push(@opt,"GPRINT:maxDropByte:MAX:Max %8.2lf %sB/s\\n");
+
+				push(@opt,"GPRINT:PrePolicyPkt:AVERAGE:Packets transferred\\t\\tAvg %8.2lf\\l");
+				push(@opt,"GPRINT:DropPkt:AVERAGE:Packets dropped\\t\\t\\tAvg %8.2lf");
+				
+				# huawei doesn't have that
+				push(@opt,"COMMENT:\\l","GPRINT:NoBufDropPkt:AVERAGE:Packets No buffer dropped\\tAvg %8.2lf\\l")
+						if (defined $thisinfo->{CfgDSNames}->[6]);
+			
+				# not all qos setups have a graphable bandwidth limit
+				push @opt, "COMMENT:\\u", "COMMENT:".$thisinfo->{CfgType}." $speed\\r" if (defined $speed);
+			}
 		}
+
 		return @opt;
 	}
 
@@ -660,69 +702,6 @@ sub rrdDraw {
 
 } # end graph
 
-###
-### Load the CBQoS values in array
-###
-sub loadCBQoS {
-	my %args = @_;
-	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $CB = $S->cbinfo;
-	my $M = $S->mdl;
-	my $node = $NI->{name};
-	my $index = $args{index};
-	my $graphtype = $args{graphtype};
-
-	my $PMName;
-	my @CMNames;
-	my %CBQosValues;
-	my @CBQosNames;
-
-	# define line color of the graph
-	my @colors = ("888888","00CC00","0000CC","CC00CC","FFCC00","00CCCC",
-				"444444","440000","004400","000044","BBBB00","BB00BB","00BBBB",
-				"888800","880088","008888","444400","440044","004444");
-
-	my $direction = $graphtype eq "cbqos-in" ? "in" : "out" ;
-
-	$PMName = $CB->{$index}{$direction}{PolicyMap}{Name};
-
-	foreach my $k (keys %{$CB->{$index}{$direction}{ClassMap}}) {
-		my $CMName = $CB->{$index}{$direction}{ClassMap}{$k}{Name};
-		push @CMNames , $CMName if $CMName ne "";
-
-		$CBQosValues{$index.$CMName}{'CfgType'} = $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Descr'};
-		$CBQosValues{$index.$CMName}{'CfgRate'} = $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Value'};
-	}
-
-	# order the buttons of the classmap names for the Web page
-	@CMNames = sort {uc($a) cmp uc($b)} @CMNames;
-
-	my @qNames;
-	my @confNames = split(',', $M->{node}{cbqos}{order_CM_buttons});
-	foreach my $Name (@confNames) {
-		for (my $i=0; $i<=$#CMNames; $i++) {
-			if ($Name eq $CMNames[$i] ) {
-				push @qNames, $CMNames[$i] ; # move entry
-				splice (@CMNames,$i,1);
-				last;
-			}
-		}
-	}
-
-	@CBQosNames = ($PMName,@qNames,@CMNames); #policy name, classmap names sorted, classmap names unsorted
-	if ($#CBQosNames) { 
-		# colors of the graph in the same order
-		for my $i (1..$#CBQosNames) {
-			if ($i < $#colors ) {
-				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = $colors[$i-1];
-			} else {
-				$CBQosValues{"${index}$CBQosNames[$i]"}{'Color'} = "000000";
-			}
-		}
-	}
-	return \(@CBQosNames,%CBQosValues);
-} # end loadCBQos
 
 sub id { 
 	my $x = 10 *shift;
