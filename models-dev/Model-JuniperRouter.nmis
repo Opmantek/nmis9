@@ -1,9 +1,6 @@
 %hash = (
   '-common-' => {
     'class' => {
-      'calls' => {
-        'common-model' => 'calls'
-      },
       'database' => {
         'common-model' => 'database'
       },
@@ -12,12 +9,6 @@
       },
       'heading' => {
         'common-model' => 'heading'
-      },
-      'stats' => {
-        'common-model' => 'stats'
-      },
-      'summary' => {
-        'common-model' => 'summary'
       },
       'threshold' => {
         'common-model' => 'threshold'
@@ -259,14 +250,10 @@
     }
   },
   'system' => {
-    'cbqos' => {
-      'nocollect' => 'regex for cbqos control'
-    },
-    'nbarpd_check' => 'true',
     'nodeModel' => 'JuniperRouter',
     'nodeType' => 'router',
     'nodeVendor' => 'Juniper Networks, Inc.',
-    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'nodegraph' => 'health,response,routenumber,ip,frag',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -340,7 +327,7 @@
       # SWITCHES HAVE dot1dStpTopChanges
       'nodehealth' => {
         'graphtype' => 'routenumber',
-        'threshold' => ''
+        'threshold' => '',
         'snmp' => {
           'RouteNumber' => {
             'oid' => 'ipCidrRouteNumber'
@@ -349,23 +336,6 @@
       }
     },
     'sys' => {
-      'alerts' => {
-        'snmp' => {
-          'tcpCurrEstab' => {
-            'alert' => {
-              'event' => 'High TCP Connection Count',
-              'level' => 'Warning',
-              'test' => '$r > 5',
-              'unit' => 'connections'
-            },
-            'oid' => 'tcpCurrEstab',
-            'oidcorrect' => '1.3.6.1.2.1.6.9.0',
-            'sysObjectName' => 'tcpCurrEstab',
-            'title' => 'TCP Established Sessions'
-          }
-        }
-      },
-
 			#JUNIPER-MIB::jnxBoxDescr.0 = STRING: node0 Juniper SRX550 Internet Router
 			#JUNIPER-MIB::jnxBoxSerialNo.0 = STRING: AL8888AK8888
 
@@ -378,24 +348,14 @@
       'extra' => {
         'snmp' => {
           'chassisVer' => {
-            'oid' => 'chassisVersion',
-            'title' => 'Chassis Version'
-          },
-          'processorRam' => {
-            'calculate' => '${r}/1000000',
-            'format' => '%1.2f Mb',
-            'oid' => 'processorRam',
-            'title' => 'Processor Mem'
+            'oid' => '1.3.6.1.4.1.2636.3.1.2.0',
+            'snmpObject' => 'jnxBoxDescr',
+            'title' => 'Box Description'
           },
           'serialNum' => {
-            'oid' => 'chassisId',
+            'oid' => '1.3.6.1.4.1.2636.3.1.3.0',
+            'snmpObject' => 'jnxBoxSerialNo',
             'title' => 'Serial Number'
-          },
-          'softwareImage' => {
-            'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
-            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
-            'snmpObjectName' => 'ciscoImageString',
-            'title' => 'Software Image'
           },
         }
       },
@@ -458,100 +418,90 @@
       },
     }
   },
+	#JUNIPER-MIB::jnxOperatingContentsIndex.9.1.0.0 = INTEGER: 9
+	#JUNIPER-MIB::jnxOperatingL1Index.9.1.0.0 = INTEGER: 1
+	#JUNIPER-MIB::jnxOperatingL2Index.9.1.0.0 = INTEGER: 0
+	#JUNIPER-MIB::jnxOperatingL3Index.9.1.0.0 = INTEGER: 0
+	#JUNIPER-MIB::jnxOperatingDescr.9.1.0.0 = STRING: Routing Engine
+	#JUNIPER-MIB::jnxOperatingState.9.1.0.0 = INTEGER: running(2)
+	#JUNIPER-MIB::jnxOperatingTemp.9.1.0.0 = Gauge32: 49
+	#JUNIPER-MIB::jnxOperatingCPU.9.1.0.0 = Gauge32: 32
+	#JUNIPER-MIB::jnxOperatingISR.9.1.0.0 = Gauge32: 1
+	#JUNIPER-MIB::jnxOperatingDRAMSize.9.1.0.0 = INTEGER: 0
+	#JUNIPER-MIB::jnxOperatingBuffer.9.1.0.0 = Gauge32: 28
+	#JUNIPER-MIB::jnxOperatingHeap.9.1.0.0 = Gauge32: 0
+	#JUNIPER-MIB::jnxOperatingUpTime.9.1.0.0 = INTEGER: 1941565200
+	#JUNIPER-MIB::jnxOperatingLastRestart.9.1.0.0 = Timeticks: (0) 0:00:00.00
+	#JUNIPER-MIB::jnxOperatingMemory.9.1.0.0 = INTEGER: 2048
+	#JUNIPER-MIB::jnxOperatingStateOrdered.9.1.0.0 = INTEGER: running(1)
+	#JUNIPER-MIB::jnxOperatingChassisId.9.1.0.0 = INTEGER: singleChassis(2)
+	#JUNIPER-MIB::jnxOperatingChassisDescr.9.1.0.0 = STRING: Single Chassis
+	#JUNIPER-MIB::jnxOperatingRestartTime.9.1.0.0 = STRING: 2014-3-19,23:50:1.0,+10:0
+	#JUNIPER-MIB::jnxOperating1MinLoadAvg.9.1.0.0 = Gauge32: 32
+	#JUNIPER-MIB::jnxOperating5MinLoadAvg.9.1.0.0 = Gauge32: 11
+	#JUNIPER-MIB::jnxOperating15MinLoadAvg.9.1.0.0 = Gauge32: 3
   'systemHealth' => {
-    'rrd' => {
-      'bgpPeer' => {
-        'graphtype' => 'bgpPeer,bgpPeerStats',
-        'indexed' => 'true',
-        'snmp' => {
-          'bgpPeerFsmEstTran' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.15',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions'
-          },
-          'bgpPeerInTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.12',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerInTotalMessages'
-          },
-          'bgpPeerInUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.10',
-            'option' => 'counter,0:U'
-          },
-          'bgpPeerOutTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.13',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerOutTotalMessages'
-          },
-          'bgpPeerOutUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.11',
-            'option' => 'counter,0:U'
-          },
-          'bgpPeerState' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.2',
-            'replace' => {
-              '1' => '0',
-              '2' => '20',
-              '3' => '40',
-              '4' => '60',
-              '5' => '80',
-              '6' => '100'
-            },
-            'title' => 'BGP Peer State'
-          }
-        }
-      },
-      'fanStatus' => {
-        'control' => '$sysObjectName =~ /cisco8..|cisco18../',
-        'graphtype' => 'fan-status',
-        'indexed' => 'true',
-        'snmp' => {
-          'fanValue' => {
-            'oid' => 'ciscoEnvMonFanState',
-            'replace' => {
-              '1' => '100',
-              '2' => '75',
-              '3' => '0',
-              '4' => '50',
-              '5' => '50',
-              '6' => '25'
-            }
-          }
-        }
-      },
-      'rttMonLatestRtt' => {
-        'graphtype' => 'rttMonLatestRtt',
-        'indexed' => 'true',
-        'snmp' => {
-          'OperCompletionTime' => {
-            'oid' => 'rttMonLatestRttOperCompletionTime'
-          },
-          'OperSenseValue' => {
-            'oid' => 'rttMonLatestRttOperSense'
-          }
-        }
-      },
-      'tempStatus' => {
-        'control' => '$sysObjectName =~ /./',
-        'graphtype' => 'temp-status',
-        'indexed' => 'true',
-        'snmp' => {
-          'tempValue' => {
-            'oid' => 'ciscoEnvMonTemperatureState',
-            'replace' => {
-              '1' => '100',
-              '2' => '75',
-              '3' => '0',
-              '4' => '50',
-              '5' => '50',
-              '6' => '25'
-            }
-          }
-        }
-      }
-    },
-    'sections' => 'bgpPeer,tempStatus,fanStatus,rttMonLatestRtt',
+    'sections' => 'bgpPeer,jnxOperations',
     'sys' => {
+      'jnxOperations' => {
+        'headers' => 'jnxOperatingDescr,jnxOperatingState,jnxOperatingTemp,jnxOperatingMemory,jnxOperatingBuffer,jnxOperatingHeap,jnxOper1MinLoadAvg,jnxOper5MinLoadAvg',
+        'index_oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'jnxOperatingDescr',
+        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
+        'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
+        'snmp' => {
+          'jnxOperatingDescr' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
+            'sysObjectName' => 'jnxOperatingDescr',
+            'title' => 'Description'
+          }, 		
+          'jnxOperatingState' => {
+            'sysObjectName' => 'jnxOperatingState',
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.6',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'running',
+              '3' => 'ready',
+              '4' => 'reset',
+              '5' => 'runningAtFullSpeed',
+              '6' => 'down',
+              '7' => 'standby',
+            },
+            'title' => 'State'
+          },
+          'jnxOperatingTemp' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.7',
+            'sysObjectName' => 'jnxOperatingTemp',
+            'title' => 'Temperature (C)'
+          },          
+          'jnxOperatingBuffer' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.11',
+            'sysObjectName' => 'jnxOperatingBuffer',
+            'title' => 'Buffer Pool Utilization'
+          },
+          'jnxOperatingHeap' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.12',
+            'sysObjectName' => 'jnxOperatingHeap',
+            'title' => 'Heap Utilization'
+          },
+          'jnxOperatingMemory' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.15',
+            'sysObjectName' => 'jnxOperatingMemory',
+            'title' => 'Installed Memory (MB)'
+          },
+          'jnxOper1MinLoadAvg' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.20',
+            'sysObjectName' => 'jnxOperating1MinLoadAvg',
+            'title' => '1 Min CPU Load Average'
+          },
+          'jnxOper5MinLoadAvg' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.21',
+            'sysObjectName' => 'jnxOperating5MinLoadAvg',
+            'title' => '5 Min CPU Load Average'
+          },
+        }
+      },
       'bgpPeer' => {
         'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',
         'index_oid' => '1.3.6.1.2.1.15.3.1.1',
@@ -618,141 +568,204 @@
             'title' => 'BGP Peer State'
           }
         }
-      },
-      'fanStatus' => {
-        'control' => '$sysObjectName =~ /cisco8..|cisco18../',
-        'headers' => 'FanStatusDescr',
-        'indexed' => 'ciscoEnvMonFanStatusDescr',
+      }
+    },
+    'rrd' => {
+      'jnxOperations' => {
+        'graphtype' => 'jnxCPU,jnxMem,jnxTemp',
+        'indexed' => 'true',
+        'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
+        'threshold' => 'jnx_cpu,jnx_temp,jnx_buffer,jnx_heap',
         'snmp' => {
-          'FanStateName' => {
-            'oid' => 'ciscoEnvMonFanState',
-            'replace' => {
-              '1' => 'normal',
-              '2' => 'warning',
-              '3' => 'critical',
-              '4' => 'shutdown',
-              '5' => 'notPresent',
-              '6' => 'notFunctioning'
-            },
-            'title' => 'Fan State'
+          'jnxOperatingTemp' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.7',
+            'sysObjectName' => 'jnxOperatingTemp',
+            'title' => 'Temperature (C)'
+          },          
+          'jnxOperatingBuffer' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.11',
+            'sysObjectName' => 'jnxOperatingBuffer',
+            'title' => 'Buffer Pool Utilization'
           },
-          'FanStatusDescr' => {
-            'oid' => 'ciscoEnvMonFanStatusDescr',
-            'title' => 'Fan Status Descr'
+          'jnxOperatingHeap' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.12',
+            'sysObjectName' => 'jnxOperatingHeap',
+            'title' => 'Heap Utilization'
+          },
+          'jnxOper1MinLoadAvg' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.20',
+            'sysObjectName' => 'jnxOperating1MinLoadAvg',
+            'title' => '1 Min CPU Load Average'
+          },
+          'jnxOper5MinLoadAvg' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.21',
+            'sysObjectName' => 'jnxOperating5MinLoadAvg',
+            'title' => '5 Min CPU Load Average'
+          },
+        }
+      },
+      'bgpPeer' => {
+        'graphtype' => 'bgpPeer,bgpPeerStats',
+        'indexed' => 'true',
+        'snmp' => {
+          'bgpPeerFsmEstTran' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.15',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions'
+          },
+          'bgpPeerInTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.12',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerInTotalMessages'
+          },
+          'bgpPeerInUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.10',
+            'option' => 'counter,0:U'
+          },
+          'bgpPeerOutTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.13',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerOutTotalMessages'
+          },
+          'bgpPeerOutUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.11',
+            'option' => 'counter,0:U'
+          },
+          'bgpPeerState' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'replace' => {
+              '1' => '0',
+              '2' => '20',
+              '3' => '40',
+              '4' => '60',
+              '5' => '80',
+              '6' => '100'
+            },
+            'title' => 'BGP Peer State'
           }
         }
       },
-      'rttMonLatestRtt' => {
-        'headers' => 'index,CtrlAdminRttType,EchoAdminTargetAddress,CtrlOperState,OperSense,OperCompletionTime',
-        'indexed' => 'rttMonLatestRttOperCompletionTime',
-        'snmp' => {
-          'CtrlAdminRttType' => {
-            'oid' => 'rttMonCtrlAdminRttType',
-            'replace' => {
-              '1' => 'echo',
-              '10' => 'dlsw',
-              '11' => 'dhcp',
-              '12' => 'ftp',
-              '13' => 'voip',
-              '14' => 'rtp',
-              '15' => 'lspGroup',
-              '16' => 'icmpjitter',
-              '17' => 'lspPing',
-              '18' => 'lspTrace',
-              '19' => 'ethernetPing',
-              '2' => 'pathEcho',
-              '20' => 'ethernetJitter',
-              '21' => 'lspPingPseudowire',
-              '22' => 'video',
-              '3' => 'fileIO',
-              '4' => 'script',
-              '5' => 'udpEcho',
-              '6' => 'tcpConnect',
-              '7' => 'http',
-              '8' => 'dns',
-              '9' => 'jitter'
-            },
-            'title' => 'CtrlAdminRttType'
+    },
+  },
+  'stats' => {
+  	'type' => {
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf'
+      ],
+      'jnxOperations' => [
+			  'DEF:jnxOper5MinLoadAvg=$database:jnxOper5MinLoadAvg:AVERAGE',
+			  'DEF:jnxOperatingTemp=$database:jnxOperatingTemp:AVERAGE',
+			  'DEF:jnxOperatingBuffer=$database:jnxOperatingBuffer:AVERAGE',
+			  'DEF:jnxOperatingHeap=$database:jnxOperatingHeap:AVERAGE',
+
+        'PRINT:jnxOper5MinLoadAvg:AVERAGE:jnxOper5MinLoadAvg=%1.2lf',
+        'PRINT:jnxOperatingTemp:AVERAGE:jnxOperatingTemp=%1.2lf',
+        'PRINT:jnxOperatingBuffer:AVERAGE:jnxOperatingBuffer=%1.2lf',
+        'PRINT:jnxOperatingHeap:AVERAGE:jnxOperatingHeap=%1.2lf',
+      ],
+      
+      'pkts_hc' => [
+        'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+        'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+        'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+        'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+        'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+
+        'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+        'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+        'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+        'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+        'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+
+        'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+        'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+        'CDEF:ifInDiscardsProc=ifInDiscards,ifInPkts,/,100,*',
+        'CDEF:ifOutDiscardsProc=ifOutDiscards,ifOutPkts,/,100,*',
+        'CDEF:ifInErrorsProc=ifInErrors,ifInPkts,/,100,*',
+        'CDEF:ifOutErrorsProc=ifOutErrors,ifOutPkts,/,100,*',
+        'PRINT:ifInUcastPkts:AVERAGE:ifInUcastPkts=%1.2lf',
+        'PRINT:ifInMcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInBcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInDiscards:AVERAGE:ifInDiscards=%1.2lf',
+        'PRINT:ifInErrors:AVERAGE:ifInErrors=%1.2lf',
+        'PRINT:ifInDiscardsProc:AVERAGE:ifInDiscardsProc=%1.2lf',
+        'PRINT:ifInErrorsProc:AVERAGE:ifInErrorsProc=%1.5lf',
+        'PRINT:ifOutUcastPkts:AVERAGE:ifOutUcastPkts=%1.5lf',
+        'PRINT:ifOutMcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutBcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutDiscards:AVERAGE:ifOutDiscards=%1.2lf',
+        'PRINT:ifOutErrors:AVERAGE:ifOutErrors=%1.2lf',
+        'PRINT:ifOutDiscardsProc:AVERAGE:ifOutDiscardsProc=%1.5lf',
+        'PRINT:ifOutErrorsProc:AVERAGE:ifOutErrorsProc=%1.5lf'
+      ],
+      'interface' => [
+        'DEF:input=$database:ifInOctets:AVERAGE',
+        'DEF:output=$database:ifOutOctets:AVERAGE',
+        'DEF:status=$database:ifOperStatus:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$speed,/,100,*',
+        'CDEF:outputUtil=outputBits,$speed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ]  		
+  	}
+  },
+  'summary' => {
+    'statstype' => {
+      'nodehealth' => {
+        'sumname' => {
+          'memory' => {
+            'stsname' => [
+              'ProcMemUsed'
+            ]
           },
-          'CtrlOperState' => {
-            'oid' => 'rttMonCtrlOperState',
-            'replace' => {
-              '1' => 'reset',
-              '2' => 'orderlyStop',
-              '3' => 'immediateStop',
-              '4' => 'pending',
-              '5' => 'inactive',
-              '6' => 'active',
-              '7' => 'restart'
-            },
-            'title' => 'CtrlOperState'
+          'cpu' => {
+            'stsname' => [
+              'avgBusy5min'
+            ]
           },
-          'EchoAdminTargetAddress' => {
-            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
-            'oid' => 'rttMonEchoAdminTargetAddress',
-            'title' => 'EchoAdminTargetAddress'
-          },
-          'OperCompletionTime' => {
-            'oid' => 'rttMonLatestRttOperCompletionTime',
-            'title' => 'OperCompletionTime'
-          },
-          'OperSense' => {
-            'oid' => 'rttMonLatestRttOperSense',
-            'replace' => {
-              '0' => 'other',
-              '1' => 'ok',
-              '10' => 'applicationSpecific',
-              '11' => 'dnsServerTimeout',
-              '12' => 'tcpConnectTimeout',
-              '13' => 'httpTransactionTimeout',
-              '14' => 'dnsQueryError',
-              '15' => 'httpError',
-              '16' => 'error',
-              '17' => 'mplsLspEchoTxError',
-              '18' => 'mplsLspUnreachable',
-              '19' => 'mplsLspMalformedReq',
-              '2' => 'disconnected',
-              '20' => 'mplsLspReachButNotFEC',
-              '3' => 'overThreshold',
-              '4' => 'timeout',
-              '5' => 'busy',
-              '6' => 'notConnected',
-              '7' => 'dropped',
-              '8' => 'sequenceError',
-              '9' => 'verifyError'
-            },
-            'title' => 'OperSense'
-          },
-          'OperSenseValue' => {
-            'oid' => 'rttMonLatestRttOperSense',
-            'title' => 'OperSenseValue'
-          },
-          'OperTime' => {
-            'oid' => 'rttMonLatestRttOperTime',
-            'title' => 'OperTime'
+          'buffer' => {
+            'stsname' => [
+              'bufferElFree'
+           ]
           }
         }
       },
-      'tempStatus' => {
-        'control' => '$sysObjectName =~ /cisco8../',
-        'headers' => 'TemperatureStatusDescr',
-        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
-        'snmp' => {
-          'TemperatureStateName' => {
-            'oid' => 'ciscoEnvMonTemperatureState',
-            'replace' => {
-              '1' => 'normal',
-              '2' => 'warning',
-              '3' => 'critical',
-              '4' => 'shutdown',
-              '5' => 'notPresent',
-              '6' => 'notFunctioning'
-            },
-            'title' => 'Temperature State'
+      'health' => {
+        'sumname' => {
+          'reachable' => {
+            'stsname' => [
+              'reachable'
+            ]
           },
-          'TemperatureStatusDescr' => {
-            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
-            'title' => 'Temperature Status Descr'
+          'response' => {
+            'stsname' => [
+              'response'
+            ]
+          },
+          'available' => {
+            'stsname' => [
+              'available'
+            ]
           }
         }
       }

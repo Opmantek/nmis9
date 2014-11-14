@@ -1134,6 +1134,8 @@ sub nodeStatus {
 	my %args = @_;
 	my $NI = $args{NI};
 
+	my $C = loadConfTable();
+
 	# 1 for reachable
 	# 0 for unreachable
 	# -1 for degraded
@@ -1155,8 +1157,10 @@ sub nodeStatus {
 		$status = -1;
 	}
 	# ping enabled, pingable but dead snmp -> degraded
-	elsif ( 
-		exists $NI->{system}{status_summary} 
+	elsif (
+		exists $C->{node_status_uses_status_summary}
+		and $C->{node_status_uses_status_summary} eq "true"
+		and exists $NI->{system}{status_summary} 
 		and exists $NI->{system}{status_updated} 
 		and $NI->{system}{status_summary} <= 99
 		and $NI->{system}{status_updated} > time - 500
@@ -2755,8 +2759,8 @@ sub createHrButtons {
 
 	if ($NI->{system}{collect} eq 'true') {
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_threshold_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"thresholds"))
-				if defined $NI->{status};
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"status"))
+				if defined $NI->{status} and defined $C->{display_status_summary} and $C->{display_status_summary} eq "true";
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if defined $S->{mdl}{interface};

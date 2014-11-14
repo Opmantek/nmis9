@@ -1065,6 +1065,8 @@ sub checkNodeConfiguration {
 	### Cisco Node Configuration Change Only
 	if( defined $configLastChanged && defined $bootConfigLastChanged ) {
 		$V->{system}{configurationState_title} = 'Configuration State';
+		
+		### when the router reboots bootConfigLastChanged = 0 and configLastChanged is about 2 seconds, which are the changes made by booting.
 		if( $configLastChanged > $bootConfigLastChanged and $configLastChanged > 5000 ) {
 			$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
 			$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
@@ -1072,7 +1074,7 @@ sub checkNodeConfiguration {
 		} 
 		elsif( $bootConfigLastChanged == 0 and $configLastChanged <= 5000 ) {
 			$V->{system}{"configurationState_value"} = "Config Not Changed Since Boot";
-			$V->{system}{"configurationState_color"} = "#FFDD00";	#normal
+			$V->{system}{"configurationState_color"} = "#00BB00";	#normal
 			info("checkNodeConfiguration, config not changed, $configLastChanged $bootConfigLastChanged");
 		} 
 		else {

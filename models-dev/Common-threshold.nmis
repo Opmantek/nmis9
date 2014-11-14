@@ -216,6 +216,98 @@
           }
         }
       },
+
+      'jnx_cpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'jnxOper5MinLoadAvg',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '20',
+              'minor' => '15',
+              'warning' => '15'
+            }
+          },
+          'default' => {
+            'value' => {
+              'fatal' => '80',
+              'critical' => '70',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        }
+      },
+      'jnx_buffer' => {
+        'event' => 'Proactive Buffer Utilisation',
+        'item' => 'jnxOperatingBuffer',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '90',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
+      'jnx_heap' => {
+        'event' => 'Proactive Heap Utilisation',
+        'item' => 'jnxOperatingHeap',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '90',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
+      'jnx_temp' => {
+        'event' => 'Proactive Temp',
+        'item' => 'jnxOperatingTemp',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '85',
+              'critical' => '80',
+              'major' => '75',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
+
       'mem-proc' => {
         'event' => 'Proactive Memory Free',
         'item' => 'ProcMemFree',

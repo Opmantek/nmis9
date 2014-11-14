@@ -127,7 +127,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_storage_view') {	viewStorage(); exit;
 } elsif ($Q->{act} eq 'network_service_view') {	viewService(); exit;
 } elsif ($Q->{act} eq 'network_service_list') {	viewServiceList(); exit;
-} elsif ($Q->{act} eq 'network_threshold_view') {	viewThreshold(); exit;
+} elsif ($Q->{act} eq 'network_status_view') {	viewStatus(); exit;
 } elsif ($Q->{act} eq 'network_environment_view') {	viewEnvironment(); exit;
 } elsif ($Q->{act} eq 'network_system_health_view') {	viewSystemHealth($Q->{section}); exit;
 } elsif ($Q->{act} eq 'network_cssgroup_view') {	viewCSSGroup(); exit;
@@ -2177,7 +2177,7 @@ sub viewServiceList {
 	}	
 }
 
-sub viewThreshold {
+sub viewStatus {
 	
 	my $colspan = 7;
 
@@ -2220,7 +2220,7 @@ sub viewThreshold {
 	
 	#print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>$colspan},'Status Summary')); 	
 
-	print Tr(th({class=>'title',colspan=>$colspan},"Threshold Status for node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>$colspan},"Status Summary for node $NI->{system}{name}"));
 	
     #  "ssCpuRawWait--0" : {
     #     "status" : "Threshold",
@@ -2235,8 +2235,8 @@ sub viewThreshold {
     #     "property" : "ssCpuRawWait"
     #  },
       	
-  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_threshold_view&node=$node&refresh=$Q->{refresh}&widget=$widget";
-	if (defined $NI->{services}) {
+  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_status_view&node=$node&refresh=$Q->{refresh}&widget=$widget";
+	if (defined $NI->{status}) {
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=method",class=>"wht"},"Method")),
 			td({class=>'header'},a({href=>"$url&sort=element",class=>"wht"},"Element")),
@@ -2246,34 +2246,34 @@ sub viewThreshold {
 			td({class=>'header'},a({href=>"$url&sort=status",class=>"wht"},"Status")),
 			td({class=>'header'},"Updated"),
 		);	
-		foreach my $threshold (sort { sortThreshold($sort,$a,$b) } keys %{$NI->{status}} ) {
-			if ( exists $NI->{status}{$threshold}{updated} and $NI->{status}{$threshold}{updated} > time - 3600) {
-				my $updated = returnDateStamp($NI->{status}{$threshold}{updated});
-				my $elementLink = $NI->{status}{$threshold}{element};
+		foreach my $status (sort { sortStatus($sort,$a,$b) } keys %{$NI->{status}} ) {
+			if ( exists $NI->{status}{$status}{updated} and $NI->{status}{$status}{updated} > time - 3600) {
+				my $updated = returnDateStamp($NI->{status}{$status}{updated});
+				my $elementLink = $NI->{status}{$status}{element};
 				$elementLink = $node if not $elementLink;
-				if ( $NI->{status}{$threshold}{type} =~ "(interface|pkts)" ) {
-					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$NI->{status}{$threshold}{index}&refresh=$Q->{refresh}&widget=$widget"},$NI->{status}{$threshold}{element});
+				if ( $NI->{status}{$status}{type} =~ "(interface|pkts)" ) {
+					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$NI->{status}{$status}{index}&refresh=$Q->{refresh}&widget=$widget"},$NI->{status}{$status}{element});
 				}     
 				
 				print Tr(
-					td({class=>'info Plain'},$NI->{status}{$threshold}{method}),
+					td({class=>'info Plain'},$NI->{status}{$status}{method}),
 					td({class=>'lft Plain'},$elementLink),
-					td({class=>'info Plain'},$NI->{status}{$threshold}{event}),
-					td({class=>'rht Plain'},$NI->{status}{$threshold}{value}),
-					td({class=>"info Plain $NI->{status}{$threshold}{level}"},$NI->{status}{$threshold}{level}),
-					td({class=>'info Plain'},$NI->{status}{$threshold}{status}),
+					td({class=>'info Plain'},$NI->{status}{$status}{event}),
+					td({class=>'rht Plain'},$NI->{status}{$status}{value}),
+					td({class=>"info Plain $NI->{status}{$status}{level}"},$NI->{status}{$status}{level}),
+					td({class=>'info Plain'},$NI->{status}{$status}{status}),
 					td({class=>'info Plain'},$updated)
 				);	
 			}
 		}
 	}
 	else {
-		print Tr(th({class=>'title',colspan=>$colspan},"No Services found for $NI->{system}{name}"));
+		print Tr(th({class=>'title',colspan=>$colspan},"No Status Summary found for $NI->{system}{name}"));
 	}
 	print end_table;
 	pageEnd() if ($widget eq "false");
 
-	sub sortThreshold {
+	sub sortStatus {
 		my $sort = shift;
 		my $a = shift;
 		my $b = shift;
