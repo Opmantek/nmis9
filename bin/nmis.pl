@@ -225,6 +225,10 @@ sub	runThreads {
 		# first find all other nmis collect processes
 		my $others = find_nmis_processes(type => $type);
 
+		# to make notify happy, and to attach the complaints to a node
+		my $S = Sys->new;
+		$S->init(name => $C->{server_name}, snmp => 'false') if (keys %$others);
+
 		# if not told otherwise, shoot the others politely
 		for my $pid (keys %{$others})
 		{
@@ -232,6 +236,14 @@ sub	runThreads {
 			logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
 			
 			kill("TERM",$pid);
+
+			# and raise an event to inform the operator
+			logEvent(node => $C->{server_name},
+							 event => "NMIS runtime exceeded",
+							 level => "Warning",
+							 element => $others->{$pid}->{node},
+							 details => "Killed process $pid, $type of $others->{$pid}->{node} which started at "
+							 .returnDateStamp($others->{$pid}->{start}));
 		}
 		if (keys %{$others}) # for the others to shut down cleanly
 		{
@@ -6812,9 +6824,12 @@ sub find_nmis_processes
 		my $procname = $procentry->cmndline;
 		my $starttime = $procentry->start;
 
-		if ($procname =~ /^nmis-worker-$type(-.*)?$/)
+		if ($procname =~ /^nmis-worker-$type(-(.*))?$/)
 		{
-			$others{$procentry->pid} = { name => $procname, start => $starttime };
+			my $trouble = $2;
+			$others{$procentry->pid} = { name => $procname, 
+																	 node => $trouble,
+																	 start => $starttime };
 		}
 	}
 	return \%others;

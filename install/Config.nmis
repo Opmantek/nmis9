@@ -145,7 +145,7 @@
     'snmp_stop_polling_on_error' => 'true',
     'log_node_configuration_events' => 'false',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Reset',
+    'non_stateful_events' => 'Node Configuration Change, Node Reset, NMIS runtime exceeded',
     'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
