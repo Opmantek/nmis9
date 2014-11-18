@@ -272,6 +272,7 @@ sub	runThreads {
 	$SIG{ALRM} = \&catch_zap;
 
 	my $nodecount = 0;
+	my $maxprocs = 1;							# this one
 
 	# select the method we will run
 	my $meth;
@@ -305,7 +306,7 @@ sub	runThreads {
 					
 					# One process for each node until maxThreads is reached.
 					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread) 
+					if ($mthread)
 					{
 						my $pid=fork;
 						if ( defined ($pid) and $pid==0) {
@@ -329,8 +330,12 @@ sub	runThreads {
 							# killing child
 							exit 0;
 						} # end of child
-
-						# parent is forced to wait here unless number of childs is less than maxthreads.
+						else
+						{
+							# parent
+							my $procs_now = 1 + scalar keys %{&find_nmis_processes}; # this one isn't returned
+							$maxprocs = $procs_now if $procs_now > $maxprocs;
+						}
 					}
 					else 
 					{
@@ -435,13 +440,20 @@ sub	runThreads {
 				logMsg("ERROR running post processing routine");
 			}
 		}
-		# nmis collect runtime and save
+		# nmis collect runtime, process counts and save
 		my $D;
 		$D->{collect}{value} = $C->{collecttime} - $C->{starttime};
-		$D->{collect}{option} = 'gauge,0:1200';
+		$D->{collect}{option} = 'gauge,0:U';
 		$D->{total}{value} = time() - $C->{starttime};
-		$D->{total}{option} = 'gauge,0:1200';
-		if (( my $db = updateRRD(data=>$D,sys=>$S,type=>"nmis"))) {
+		$D->{total}{option} = 'gauge,0:U';
+
+		my $nr_processes = 1+ scalar %{&find_nmis_processes}; # current one isn't returned by find_nmis_processes
+		$D->{nr_procs} = { option => "gauge,0:U",
+											 value => $nr_processes };
+		$D->{max_procs} = { option => "gauge,0:U",
+												value => $maxprocs };
+		
+		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis"))) {
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
@@ -6838,7 +6850,8 @@ sub getPidFileName {
 
 # small helper that returns hash of other nmis processes that are 
 # running the given function
-# args: type (=collect or update)
+# args: type (=collect or update). 
+# without type, collects all procs running perl and called nmis-worker or nmis.pl
 # returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
 sub find_nmis_processes
 {
@@ -6846,7 +6859,6 @@ sub find_nmis_processes
 	my $type = $args{type};
 
 	my %others;
-	return \%others if (!$type);
 	
 	my $pst = Proc::ProcessTable->new;
 	foreach my $procentry (@{$pst->table})
@@ -6855,18 +6867,23 @@ sub find_nmis_processes
 		
 		my $procname = $procentry->cmndline;
 		my $starttime = $procentry->start;
+		my $execname = $procentry->fname;
 
-		if ($procname =~ /^nmis-worker-$type(-(.*))?$/)
+		if ($type && $procname =~ /^nmis-worker-$type(-(.*))?$/)
 		{
 			my $trouble = $2;
 			$others{$procentry->pid} = { name => $procname, 
 																	 node => $trouble,
 																	 start => $starttime };
 		}
+		elsif (!$type && $execname =~ /perl/ && $procname =~ /nmis(\.pl|-worker-)/)
+		{
+			$others{$procentry->pid} = { name => $procname, 
+																	 start => $starttime };
+		}
 	}
 	return \%others;
 }
-
 
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};

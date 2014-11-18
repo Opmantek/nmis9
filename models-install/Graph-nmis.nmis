@@ -35,16 +35,35 @@
 		'short' => 'NMIS system - $length'
 	},
 	'vlabel' => {
-		'standard' => 'NMIS runtime seconds'
+		'standard' => 'NMIS runtime seconds',
+		'short' => 'seconds',
 	},
 	'option' => {
 		'standard' => [
+			'--right-axis','1:0',
+			'--right-axis-label','Processes',
+
 			'DEF:total=$database:total:AVERAGE',
 			'DEF:collect=$database:collect:AVERAGE',
-			'LINE2:total#00ff00:total',
-			'LINE2:collect#00ffff:collect',
-			'GPRINT:total:AVERAGE:Avg total runtime %1.2lf seconds',
-			'GPRINT:collect:AVERAGE:Avg collect runtime %1.2lf seconds'
+			'DEF:procs=$database:nr_procs:AVERAGE',
+			'DEF:maxpar=$database:max_procs:AVERAGE',
+
+			'LINE2:total#006400:total runtime\t',
+			'GPRINT:total:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:total:MAX:\tMax %1.2lf seconds\l',
+
+			'LINE2:collect#32CD32:collect time\t',
+			'GPRINT:collect:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:collect:MAX:\tAvg %1.2lf seconds\l',
+
+			'LINE2:procs#B22222:NMIS processes\t\t',
+			'GPRINT:procs:AVERAGE:Avg %6.1lf',
+			'GPRINT:procs:MAX:\tMax %6.1lf\l',
+
+			'LINE2:maxpar#FF8c00:Max Parallel processes\t',
+			'GPRINT:maxpar:AVERAGE:Avg %6.1lf',
+			'GPRINT:maxpar:MAX:\tMax %6.1lf\l',
+
 		]
 	}
 );
