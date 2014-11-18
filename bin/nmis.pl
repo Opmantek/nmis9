@@ -215,64 +215,71 @@ sub	runThreads {
 	runDaemons(); # start daemon processes
 
 
-#==============================================
+	#==============================================
 
 	### test if we are still running, or zombied, and cron will email somebody if we are
-	### not for updates - they can run past 5 mins
 	### collects should not run past 5mins - if they do we have a problem
-	###
-	if ( $type eq 'collect' and !$debug and !$model and !$mthreadDebug ) {
+	### updates can run past 5 mins, BUT no two updates should run at the same time
+	if ( $type eq 'collect' or $type eq "update")
+	{
+		# first find all other nmis collect processes
+		my $others = find_nmis_processes(type => $type);
 
-		$PIDFILE = getPidFileName();
+		# to make notify happy, and to attach the complaints to a node
+		my $S = Sys->new;
+		$S->init(name => $C->{server_name}, snmp => 'false') if (keys %$others);
 
-		if (-f $PIDFILE) {
-			open(F, "<",$PIDFILE);
-			$pid = <F>;
-			close(F);
-			chomp $pid;
-			if ($pid and $pid != $$) {
-				print "Error: nmis.pl, previous pidfile exists, killing the process $pid check your process run-time\n";
-				logMsg("ERROR previous pidfile exists, killing the process $pid check your process run-time");
-				kill 15, $pid;
-				unlink($PIDFILE);
-				dbg("pidfile $PIDFILE deleted");
-			}
+		# if not told otherwise, shoot the others politely
+		for my $pid (keys %{$others})
+		{
+			print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
+			logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
+			
+			kill("TERM",$pid);
+
+			# and raise an event to inform the operator
+			logEvent(node => $C->{server_name},
+							 event => "NMIS runtime exceeded",
+							 level => "Warning",
+							 element => $others->{$pid}->{node},
+							 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
+							 .returnDateStamp($others->{$pid}->{start}));
 		}
-		# Announce our presence via a PID file
-		open(PID, ">",$PIDFILE) or warn "\t Could not create $PIDFILE: $!\n";
-		print PID $$ or warn "\t Could not write: $!\n"; close(PID);
-		print "\t pidfile $PIDFILE created\n" if $debug;
-
-		# Perform a sanity check. If the current PID file is not the same as
-		# our PID then we have become detached somehow, so just exit
-		open(PID, "<$PIDFILE") or warn "\t Could not open $PIDFILE: $!\n";
-		$pid = <PID>; close(PID);
-		chomp $pid;
-		if ( $pid != $$ ) {
-			print "\t pid $pid != $$, we have detached somehow - exiting\n";
-			goto END_runThreads;
+		if (keys %{$others}) # for the others to shut down cleanly
+		{
+			my $grace = 5;
+			logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
+			sleep($grace);
 		}
+
+		# fixme: add option to reshoot them hard after 10s.
+		# fixme: add option to ONLY shoot the ones that have run more than 10 minutes
 	}
 
-	# setup a trap for fatal signals.
+	# the signal handler handles termination more-or-less gracefully, 
+	# and knows about critical sections
 	$SIG{INT} =  \&catch_zap;
 	$SIG{TERM} =  \&catch_zap;
 	$SIG{HUP} = \&catch_zap;
+	$SIG{ALRM} = \&catch_zap;
 
 	my $nodecount = 0;
 
 	# select the method we will run
-	local *meth;
+	my $meth;
 	if ($type eq "update") {
-		*meth = \&doUpdate;
+		$meth = \&doUpdate;
 		logMsg("INFO start of update process");
 	} else {
-		*meth = \&doCollect;
+		$meth = \&doCollect;
 	}
 
-	if ($node_select eq "") {
-		# multithreading
-		# sorting the nodes so we get consistent polling cycles
+	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
+	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
+	
+	if ($node_select eq "")
+	{
+		# operate on all nodes, sort the nodes so we get consistent polling cycles
 		# sort could be more sophisticated if we like, eg sort by core, dist, access or group
 		foreach my $onenode (sort keys %{$NT}) {
 			# This will allow debugging to be turned on for a
@@ -287,9 +294,11 @@ sub	runThreads {
 			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup ) {
 				if ( $NT->{$onenode}{active} eq 'true') {
 					++$nodecount;
-					# One thread for each node until maxThreads is reached.
+					
+					# One process for each node until maxThreads is reached.
 					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread) {
+					if ($mthread) 
+					{
 						my $pid=fork;
 						if ( defined ($pid) and $pid==0) {
 
@@ -297,13 +306,14 @@ sub	runThreads {
 							if ($mthreadDebug) {
 								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
 							}
-							# lets change our name, so a ps will report who we are
-							$0 = "nmis.pl.$type.$onenode";
-
-							meth(name=>$onenode);
+							
+							# don't run longer than X seconds
+							alarm($C->{max_child_runtime})
+									if (defined $C->{max_child_runtime});
+							&$meth(name=>$onenode);
+							alarm(0) if (defined $C->{max_child_runtime});
 
 							# all the work in this thread is done now this child will die.
-
 							if ($mthreadDebug) {
 								print "CHILD $$-> $onenode will now exit\n";
 							}
@@ -312,11 +322,12 @@ sub	runThreads {
 							exit 0;
 						} # end of child
 
-						# Father is forced to wait here unless number of childs is less than maxthreads.
-
-					# will be run if mthread is false (no multithreading)
-					} else {
-						meth(name=>$onenode);
+						# parent is forced to wait here unless number of childs is less than maxthreads.
+					}
+					else 
+					{
+						# iterate over nodes in this process, if mthread is false
+						&$meth(name=>$onenode);
 					}
 				} #if active
 				else {
@@ -325,17 +336,18 @@ sub	runThreads {
 			} #if runGroup
 		} # foreach $onenode
 
-		# only do the cleanup if we have mthread enabled
+		# only do the child process cleanup if we have mthread enabled
 		if ($mthread) {
 			# cleanup
-			# wait this will block until childs done
+			# wait this will block until children are done
 			1 while wait != -1;
 		}
 	} else {
+		# specific node is given to work on, threading not relevant
 		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
 			if ( $NT->{$node}{active} eq 'true') {
 				++$nodecount;
-				meth(name=>$node);
+				&$meth(name=>$node);
 			}
 			else {
 				 dbg("Skipping as $node_select is marked 'inactive'");
@@ -346,6 +358,8 @@ sub	runThreads {
 			return;
 		}
 	}
+
+	alarm(0) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 
 	dbg("### continue normally ###");
 
@@ -437,26 +451,39 @@ sub	runThreads {
 		print "\n".returnTime ." End of $0 Processed $nodecount nodes ran for $endTime seconds.\n\n";
 	}
 
-END_runThreads:
-	if ( $type eq 'collect' and !$debug and !$model and !$mthreadDebug) {
-		unlink($PIDFILE);
-		dbg("pidfile $PIDFILE deleted");
-	}
 	dbg("Finished");
 	return;
 }
 
-#==============
-
-sub catch_zap {
+# generic signal handler, but with awareness of code in critical sections
+# also handles SIGALARM, which we cop if the process has run out of time
+sub catch_zap 
+{
 	my $rs = $_[0];
-	my $PIDFILE = getPidFileName();
-	logMsg("INFO I (nmis.pl conf=$C->{conf}) was killed by $rs");
-	unlink $PIDFILE if (-f $PIDFILE);
-	die "I (nmis.pl conf=$C->{conf}) was killed by $rs\n";
+
+	# if we've run out of our allocated run time, raise an event to inform the operator
+	if ($rs eq "ALRM")
+	{
+		logEvent(node => $C->{server_name},
+						 event => "NMIS runtime exceeded",
+						 level => "Warning",
+						 element => undef,
+						 details => "Process $$, $0, has exceeded its max run time and is terminating");
+	}
+
+	# do a graceful shutdown if in critical, and if this is the FIRST interrupt
+	my $pending_ints = func::interrupt_pending; # scalar ref
+	if (func::in_critical_section && !$$pending_ints)
+	{
+		logMsg("INFO process in critical section, marking as signal $rs pending");
+		++$$pending_ints;
+	}
+	else
+	{
+		logMsg("INFO Process $$ ($0) was killed by signal $rs");
+		die "Process $$ ($0) was killed by signal $rs\n";
+	}
 }
-
-
 
 #====================================================================================
 
@@ -467,6 +494,10 @@ sub doUpdate {
 
 	dbg("================================");
 	dbg("Starting, node $name");
+
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-worker-update-$name";
+
 
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$name,update=>'true'); # loads old node info, and the DEFAULT(!) model (always)
@@ -535,6 +566,9 @@ sub doCollect {
 
 	info("================================");
 	info("Starting, node $name");
+
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-worker-collect-$name";
 
 	my $S = Sys::->new; # create system object
 	### 2013-02-25 keiths, fixing down node refreshing......
@@ -3506,8 +3540,6 @@ sub runServices {
 	my $SNMP = $S->snmp;
 
 	my $node = $NI->{system}{name};
-
-	my $NT = loadLocalNodeTable();
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 	#logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
@@ -6784,6 +6816,8 @@ sub thresholdProcess {
 	}
 }
 
+# az [2014-11-17 Mon 15:23]: this can be removed as we now use the process table
+# to keep track of our processes
 sub getPidFileName {
 	my $PIDFILE = "$C->{'<nmis_var>'}/nmis.pid";
 	if ($C->{conf} ne "") {
@@ -6792,10 +6826,43 @@ sub getPidFileName {
 	return $PIDFILE;
 }
 
+# small helper that returns hash of other nmis processes that are 
+# running the given function
+# args: type (=collect or update)
+# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
+sub find_nmis_processes
+{
+	my (%args) = @_;
+	my $type = $args{type};
+
+	my %others;
+	return \%others if (!$type);
+	
+	my $pst = Proc::ProcessTable->new;
+	foreach my $procentry (@{$pst->table})
+	{
+		next if ($procentry->pid == $$);
+		
+		my $procname = $procentry->cmndline;
+		my $starttime = $procentry->start;
+
+		if ($procname =~ /^nmis-worker-$type(-(.*))?$/)
+		{
+			my $trouble = $2;
+			$others{$procentry->pid} = { name => $procname, 
+																	 node => $trouble,
+																	 start => $starttime };
+		}
+	}
+	return \%others;
+}
+
+
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};
 	info("End of $0, type=$type ran for $endTime seconds.\n");
 }
+
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)

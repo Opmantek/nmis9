@@ -28,8 +28,8 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
 package func;
+our $VERSION = 1.1.0;
 
 require 5;
 
@@ -47,11 +47,9 @@ use Data::Dumper;
 $Data::Dumper::Indent=1;
 $Data::Dumper::Sortkeys=1;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
-
-$VERSION = 1.00;
 
 @ISA = qw(Exporter);
 
@@ -144,6 +142,38 @@ my @htmlElements;
 
 # preset kernel name
 my $kernel = $^O; 
+
+# synchronisation with the main signal handler, to terminate gracefully
+my $_critical_section = 0;
+my $_interrupt_pending = 0;
+
+# returns ref to the interrupt pending counter
+sub interrupt_pending
+{
+	return \$_interrupt_pending;
+}
+
+sub in_critical_section
+{
+	return $_critical_section;
+}
+
+sub enter_critical
+{
+	return ++$_critical_section;
+}
+
+# this handles pending interrupts if catch_zap has signalled any.
+sub leave_critical
+{
+	--$_critical_section;
+	if ($_interrupt_pending)
+	{
+		logMsg("INFO Process $$ ($0) received signal, shutting down\n");
+		die "Process $$ ($0) received signal, shutting down\n";
+	}
+	return $_critical_section;
+}
 
 sub getArguements {
 	my @argue = @_;
@@ -601,6 +631,7 @@ sub backupFile {
 		# change to secure sysopen with truncate after we got the lock
 		sysopen(OUT, "$arg{backup}", O_WRONLY | O_CREAT) or warn ("ERROR: problem with file $arg{backup}; $!");
 		flock(OUT, LOCK_EX) or warn "can't lock filename: $!";
+		enter_critical;
 		truncate(OUT, 0) or warn "can't truncate filename: $!";
 
 		binmode(IN);
@@ -610,6 +641,7 @@ sub backupFile {
 		}
 		close(IN) or warn "can't close filename: $!";
 		close(OUT) or warn "can't close filename: $!";
+		leave_critical;
 		return 1;
 	} else {
 		print STDERR "ERROR, backupFile file $arg{file} not readable.\n";
@@ -1008,16 +1040,21 @@ sub writeHashtoFile {
 	if ($handle eq "") {
 		if (open($handle, "+<$file")) {
 			flock($handle, LOCK_EX) or warn "ERROR writeHashtoFile, can't lock $file, $!\n";
+			enter_critical;
 			seek($handle,0,0) or warn "writeHashtoFile, ERROR can't seek file: $!";
 			truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 		} else {
 			open($handle, ">$file")  or warn "writeHashtoFile: ERROR cannot open $file: $!\n";
 			flock($handle, LOCK_EX) or warn "writeHashtoFile: ERROR can't lock file $file, $!\n";
+			leave_critical;
 		}
 	} else {
+		enter_critical;
 		seek($handle,0,0) or warn "writeHashtoFile, ERROR can't seek file: $!";
 		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 	}
+
+#	sleep(255);
 
 	if ( $useJson and ( $C_cache->{use_json_pretty} eq 'true' or $pretty) ) {
 		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
@@ -1027,8 +1064,8 @@ sub writeHashtoFile {
 	elsif ( $useJson ) {
 		eval { print $handle encode_json($data) } ;
 		if ( $@ ) {
-			logMsg("ERROR convert data objet to $file: $@");
-			info("ERROR convert data objet to $file: $@");
+			logMsg("ERROR convert data object to $file: $@");
+			info("ERROR convert data object to $file: $@");
 		}
 	}
 	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
@@ -1036,6 +1073,7 @@ sub writeHashtoFile {
 	}
 
 	close $handle;
+	leave_critical;
 
 	setFileProt($file);
 

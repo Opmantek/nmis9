@@ -145,12 +145,16 @@
     'snmp_stop_polling_on_error' => 'true',
     'log_node_configuration_events' => 'false',
     'node_configuration_events' => 'Node Configuration Change, Node Reset',
-    'non_stateful_events' => 'Node Configuration Change, Node Reset',
+    'non_stateful_events' => 'Node Configuration Change, Node Reset, NMIS runtime exceeded',
     'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
     'auto_expand_more_graphs' => 'true',
+
+		# maximum runtime of nmis collect or update (child) processes
+		# unlimited if set to zero or undef
+		'max_child_runtime' => undef,
   },
   'url' => {
     '<url_base>' => '/nmis8',
