@@ -242,7 +242,7 @@ sub	runThreads {
 							 event => "NMIS runtime exceeded",
 							 level => "Warning",
 							 element => $others->{$pid}->{node},
-							 details => "Killed process $pid, $type of $others->{$pid}->{node} which started at "
+							 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
 							 .returnDateStamp($others->{$pid}->{start}));
 		}
 		if (keys %{$others}) # for the others to shut down cleanly
@@ -261,21 +261,25 @@ sub	runThreads {
 	$SIG{INT} =  \&catch_zap;
 	$SIG{TERM} =  \&catch_zap;
 	$SIG{HUP} = \&catch_zap;
+	$SIG{ALRM} = \&catch_zap;
 
 	my $nodecount = 0;
 
 	# select the method we will run
-	local *meth;
+	my $meth;
 	if ($type eq "update") {
-		*meth = \&doUpdate;
+		$meth = \&doUpdate;
 		logMsg("INFO start of update process");
 	} else {
-		*meth = \&doCollect;
+		$meth = \&doCollect;
 	}
 
-	if ($node_select eq "") {
-		# multithreading
-		# sorting the nodes so we get consistent polling cycles
+	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
+	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
+	
+	if ($node_select eq "")
+	{
+		# operate on all nodes, sort the nodes so we get consistent polling cycles
 		# sort could be more sophisticated if we like, eg sort by core, dist, access or group
 		foreach my $onenode (sort keys %{$NT}) {
 			# This will allow debugging to be turned on for a
@@ -290,9 +294,11 @@ sub	runThreads {
 			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup ) {
 				if ( $NT->{$onenode}{active} eq 'true') {
 					++$nodecount;
-					# One thread for each node until maxThreads is reached.
+					
+					# One process for each node until maxThreads is reached.
 					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread) {
+					if ($mthread) 
+					{
 						my $pid=fork;
 						if ( defined ($pid) and $pid==0) {
 
@@ -300,7 +306,12 @@ sub	runThreads {
 							if ($mthreadDebug) {
 								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
 							}
-							meth(name=>$onenode);
+							
+							# don't run longer than X seconds
+							alarm($C->{max_child_runtime})
+									if (defined $C->{max_child_runtime});
+							&$meth(name=>$onenode);
+							alarm(0) if (defined $C->{max_child_runtime});
 
 							# all the work in this thread is done now this child will die.
 							if ($mthreadDebug) {
@@ -311,14 +322,12 @@ sub	runThreads {
 							exit 0;
 						} # end of child
 
-						# Father is forced to wait here unless number of childs is less than maxthreads.
-
-
-					} 
+						# parent is forced to wait here unless number of childs is less than maxthreads.
+					}
 					else 
 					{
-						# will be run if mthread is false (no multithreading)
-						meth(name=>$onenode);
+						# iterate over nodes in this process, if mthread is false
+						&$meth(name=>$onenode);
 					}
 				} #if active
 				else {
@@ -334,11 +343,11 @@ sub	runThreads {
 			1 while wait != -1;
 		}
 	} else {
-		# specific node is given to work on
+		# specific node is given to work on, threading not relevant
 		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
 			if ( $NT->{$node}{active} eq 'true') {
 				++$nodecount;
-				meth(name=>$node);
+				&$meth(name=>$node);
 			}
 			else {
 				 dbg("Skipping as $node_select is marked 'inactive'");
@@ -349,6 +358,8 @@ sub	runThreads {
 			return;
 		}
 	}
+
+	alarm(0) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 
 	dbg("### continue normally ###");
 
@@ -445,9 +456,20 @@ sub	runThreads {
 }
 
 # generic signal handler, but with awareness of code in critical sections
+# also handles SIGALARM, which we cop if the process has run out of time
 sub catch_zap 
 {
 	my $rs = $_[0];
+
+	# if we've run out of our allocated run time, raise an event to inform the operator
+	if ($rs eq "ALRM")
+	{
+		logEvent(node => $C->{server_name},
+						 event => "NMIS runtime exceeded",
+						 level => "Warning",
+						 element => undef,
+						 details => "Process $$, $0, has exceeded its max run time and is terminating");
+	}
 
 	# do a graceful shutdown if in critical, and if this is the FIRST interrupt
 	my $pending_ints = func::interrupt_pending; # scalar ref
