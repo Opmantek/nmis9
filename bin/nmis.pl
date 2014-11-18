@@ -225,35 +225,43 @@ sub	runThreads {
 		# first find all other nmis collect processes
 		my $others = find_nmis_processes(type => $type);
 
-		# to make notify happy, and to attach the complaints to a node
-		my $S = Sys->new;
-		$S->init(name => $C->{server_name}, snmp => 'false') if (keys %$others);
-
-		# if not told otherwise, shoot the others politely
-		for my $pid (keys %{$others})
+		# if this is a collect and if told to ignore running processes (ignore_running=1/t), 
+		# then only warn about processes and don't shoot them.
+		if ($type eq "collect" && getbool($nvp{ignore_running}))
 		{
-			print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
-			logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
-			
-			kill("TERM",$pid);
-
-			# and raise an event to inform the operator
-			logEvent(node => $C->{server_name},
-							 event => "NMIS runtime exceeded",
-							 level => "Warning",
-							 element => $others->{$pid}->{node},
-							 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
-							 .returnDateStamp($others->{$pid}->{start}));
+			for my $pid (keys %{$others})
+			{
+				logMsg("INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at ".returnDateStamp($others->{$pid}->{start}));
+			}
 		}
-		if (keys %{$others}) # for the others to shut down cleanly
+		else
 		{
-			my $grace = 5;
-			logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
-			sleep($grace);
+			# if not told otherwise, shoot the others politely
+			for my $pid (keys %{$others})
+			{
+				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
+				logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
+				
+				kill("TERM",$pid);
+				
+				# and raise an event to inform the operator - unless told NOT to
+				if (!defined $C->{disable_nmis_process_events} or !getbool($C->{disable_nmis_process_events}))
+				{
+					logEvent(node => $C->{server_name},
+									 event => "NMIS runtime exceeded",
+									 level => "Warning",
+									 element => $others->{$pid}->{node},
+									 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
+									 .returnDateStamp($others->{$pid}->{start}));
+				}
+			}
+			if (keys %{$others}) # for the others to shut down cleanly
+			{
+				my $grace = 5;
+				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
+				sleep($grace);
+			}
 		}
-
-		# fixme: add option to reshoot them hard after 10s.
-		# fixme: add option to ONLY shoot the ones that have run more than 10 minutes
 	}
 
 	# the signal handler handles termination more-or-less gracefully, 
@@ -462,7 +470,9 @@ sub catch_zap
 	my $rs = $_[0];
 
 	# if we've run out of our allocated run time, raise an event to inform the operator
-	if ($rs eq "ALRM")
+	# unless told NOT to...
+	if ($rs eq "ALRM" and (!defined $C->{disable_nmis_process_events} 
+												 or !getbool($C->{disable_nmis_process_events})))
 	{
 		logEvent(node => $C->{server_name},
 						 event => "NMIS runtime exceeded",
