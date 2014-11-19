@@ -163,8 +163,9 @@ sub rrdDraw {
 		}
 
 		my $graph;
-		if (!($graph = loadTable(dir=>'models',name=>"Graph-$graphtype"))) {
-			logMsg("ERROR reading Graph-$graphtype");
+		if (!($graph = loadTable(dir=>'models',name=>"Graph-$graphtype")) 
+				or !keys %$graph ) {
+			logMsg("ERROR failed to read Graph-$graphtype!");
 			error();
 			return 0;
 		}
