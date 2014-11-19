@@ -78,7 +78,7 @@ sub sendEmail {
 	my $use_sasl = $arg{use_sasl} ? $arg{use_sasl} : "false";
 	my $port;
 	my $password;
-	if( $use_sasl eq 'true' ) {
+	if( getbool($use_sasl)) {
 		$port = $arg{port};
 		$password = $arg{password};
 	}
@@ -106,7 +106,7 @@ sub sendEmail {
 		while ( ! $got_server and $server <= $#servers ) {
 			$smtp_debug = ( $debug > 2 ) ? 1 : 0;
 
-			if( $use_sasl eq 'true' )
+			if( getbool($use_sasl) )
 			{
 				require Net::SMTP::SSL;
 				#if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, SSL_verify_mode => SSL_VERIFY_PEER, Debug => $smtp_debug)) {

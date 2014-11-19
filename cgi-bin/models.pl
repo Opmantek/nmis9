@@ -55,7 +55,7 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-my $wantwidget = ($Q->{widget} ne "false"); # default is thus 1=widgetted.
+my $wantwidget = (!getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
 
 # Before going any further, check to see if we must handle
@@ -244,7 +244,8 @@ sub displayModel{
 	if ($model ne $pmodel) { $node = $pnode = ""; }
 	if ($node ne $pnode) { $model = ""; }
 	my @nodes = (sort {lc($a) cmp lc($b)} keys %{$NT});
-	@nodes = ('',grep { $AU->InGroup($NT->{$_}{group}) and $NT->{$_}{active} eq 'true'} @nodes);
+	@nodes = ('',grep { $AU->InGroup($NT->{$_}{group}) 
+													and getbool($NT->{$_}{active}) } @nodes);
 	print start_Tr;
 	print td({class=>'header', colspan=>'1'},
 			"Select node<br>".
@@ -447,7 +448,7 @@ sub checkIndexed {
 	my $S = $args{sys};
 	my $value = $args{value};
 
-	if ($value eq 'true') {
+	if (getbool($value)) {
 		return 'info',''; 
 	} else {
 		if (name2oid($value)) {
@@ -598,7 +599,7 @@ sub checkControl {
 
 	my ($sect,$rrd,$tp) = split/,/,$hash;
 	if ($S->{name} ne "" and $sect ne "" and $tp ne "") { 
-		return ('info','cannot check because it is index dependent',' (result=unknown)') if ($M->{$sect}{$rrd}{$tp}{indexed} eq 'true' and $string =~ /\$i/);
+		return ('info','cannot check because it is index dependent',' (result=unknown)') if ( getbool($M->{$sect}{$rrd}{$tp}{indexed}) and $string =~ /\$i/);
 		my $result = $S->parseString(string=>"($string) ? 1:0",sys=>$S,type=>$tp);
 		return ('info','',' (<b>result=true</b>)') if $result eq "1";
 		return ('info','',' (<b>result=false</b>)') if $result eq "0";
@@ -725,7 +726,7 @@ End_editModel:
 sub doEditModel {
 	my %args = @_;
 
-	return if ($Q->{cancel} eq 'true');
+	return if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 
@@ -928,7 +929,7 @@ sub nextDelSect {
 sub doDeleteModel {
 	my %args = @_;
 
-	return if ($Q->{cancel} eq 'true');
+	return if getbool($Q->{cancel});
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 
@@ -1107,7 +1108,7 @@ End_addModel:
 sub doAddModel {
 	my %args = @_;
 
-	return if ($Q->{cancel} eq 'true');
+	return if getbool($Q->{cancel});
 
 	$AU->CheckAccess("Table_Models_rw",'header');
 

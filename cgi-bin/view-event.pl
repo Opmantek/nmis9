@@ -303,7 +303,7 @@ sub displayEventItems {
 	# Lets try node_event_element!!
 	$event_hash = eventHash($node, $event, $element);
 
-	if ($flag eq "true" ) {
+	if ( getbool($flag) ) {
 		# generate entry for display event Flow
 		$ET->{$event_hash}{current} = "true";
 		$ET->{$event_hash}{startdate} = time;
@@ -338,7 +338,7 @@ sub displayEventItems {
 	printRow(1,"node",$ET->{$event_hash}{node});
 
 	# info
-	my $ack_str = ($ET->{$event_hash}{ack} eq "true") ?  ", event waiting for activating" : ", event active"; 
+	my $ack_str = getbool($ET->{$event_hash}{ack}) ?  ", event waiting for activating" : ", event active"; 
 	my $esc_str = ($ET->{$event_hash}{escalate} eq -1) ? ", no level set" : "";
 	my $ntf_str = ($ET->{$event_hash}{notify} ne '') ? $ET->{$event_hash}{notify} : "no UP notify sending";
 
@@ -353,7 +353,8 @@ sub displayEventItems {
 	printRow(1,"notify up",$ntf_str);
 
 	my ($outage,undef) = outageCheck($ET->{$event_hash}{node},time());
-	if ( $outage eq "current" and $ET->{$event_hash}{ack} eq "false" ) {
+	if ( $outage eq "current" 
+			 and getbool($ET->{$event_hash}{ack},"invert") ) {
 		# check outage
 		printRow(1,"status","node at Outage, no escalation");
 	}
@@ -366,7 +367,7 @@ sub displayEventItems {
 		foreach my $node_depend ( split /,/ , lc($NT->{$ET->{$event_hash}{node}}{depend}) ) {
 			next if $node_depend eq "N/A" ;		# default setting
 			next if $node_depend eq $ET->{$event_hash}{node};	# remove the catch22 of self dependancy.
-			if ( &eventExist($node_depend, "Node Down", "" ) eq "true" ) {
+			if ( getbool(&eventExist($node_depend, "Node Down", "" )) ) {
 				printRow(1,"status","dependant $node_depend is reported as down");
 				return;
 			}
@@ -437,7 +438,7 @@ sub displayEventItems {
 		printRow(2,"type",$field[2]);
 		printRow(2,"event",$field[3]);
 		printRow(2,"message","Escalation $ET->{$event_hash}{node} $ET->{$event_hash}{event_level} $ET->{$event_hash}{event}\n $ET->{$event_hash}{element} $ET->{$event_hash}{details}");
-		my $not_str = ($EST->{$esc_key}{UpNotify} eq "true") ? ", an UP event notification will be sent to the list of Contacts who received a \'down\' event notification" : "";
+		my $not_str = getbool($EST->{$esc_key}{UpNotify}) ? ", an UP event notification will be sent to the list of Contacts who received a \'down\' event notification" : "";
 		printRow(2,"upnotify","$EST->{$esc_key}{UpNotify} $not_str");
 
 
@@ -695,7 +696,7 @@ sub deleteEvent {
 
 	my $event_hash = $Q->{hash};
 
-	if ($C->{db_events_sql} eq 'true') {
+	if ( getbool($C->{db_events_sql}) ) {
 		DBfunc::->delete(table=>'Events',index=>$event_hash);
 	} else {
 		# Load the event table

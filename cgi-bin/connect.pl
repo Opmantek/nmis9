@@ -186,10 +186,10 @@ sub doSend{
 			$ni{$_} = $NI->{system}{$_};
 		}	
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%ni);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%ni);
 		}	
 		else {
@@ -208,10 +208,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($NT);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($NT);
 		}	
 		else {
@@ -227,10 +227,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($NS);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($NS);
 		}	
 		else {
@@ -244,10 +244,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($ET);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($ET);
 		}	
 		else {
@@ -281,10 +281,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%summaryHash);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%summaryHash);
 		}	
 		else {
@@ -312,10 +312,10 @@ sub doSend{
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 
-			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 				print JSON::XS->new->pretty(1)->encode($summaryHash);
 			}	
-			elsif ( $C->{use_json} eq 'true' ) {
+			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($summaryHash);
 			}	
 			else {
@@ -333,10 +333,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($stats);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($stats);
 		}	
 		else {
@@ -352,10 +352,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($IF);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($IF);
 		}	
 		else {
@@ -369,10 +369,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($II);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($II);
 		}	
 		else {
@@ -395,10 +395,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%reportTable);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%reportTable);
 		}	
 		else {
@@ -421,10 +421,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%cpuTable);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%cpuTable);
 		}	
 		else {
@@ -438,7 +438,7 @@ sub doSend{
 		my %linkTable;
 		my $II = loadInterfaceInfo();
 		foreach my $int ( sortall($II,'node','fwd')) {
-			if ( $II->{$int}{collect} eq "true" ) {
+			if ( getbool($II->{$int}{collect}) ) {
 				# availability, inputUtil, outputUtil, totalUtil
 				my $intf = $II->{$int}{ifIndex};
 				# we need the nodeType for summary stats to get the right directory
@@ -470,10 +470,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%linkTable);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%linkTable);
 		}	
 		else {
@@ -487,7 +487,7 @@ sub doSend{
 		my %pktsTable;
 		my $II = loadInterfaceInfo();
 		foreach my $int ( sortall($II,'node','fwd') ) {
-			if ( $II->{$int}{collect} eq "true" ) {
+			if ( getbool($II->{$int}{collect}) ) {
 				my $intf = $II->{$int}{ifIndex};
 				# availability, inputUtil, outputUtil, totalUtil
 				# we need the nodeType for summary stats to get the right directory
@@ -517,10 +517,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%pktsTable);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%pktsTable);
 		}	
 		else {
@@ -535,7 +535,7 @@ sub doSend{
 		my $II = loadInterfaceInfo();
 		my $PVC;
 		foreach my $int (sortall($II,'node','fwd')) {
-			if ( $II->{$int}{collect} eq "true" ) {
+			if ( getbool($II->{$int}{collect}) ) {
 				my $intf = $II->{$int}{ifIndex};
 				# availability, inputUtil, outputUtil, totalUtil
 				if ($II->{$int}{node} ne $prev_loadsystemfile) {
@@ -564,10 +564,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%pvcTable);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%pvcTable);
 		}	
 		else {
@@ -582,10 +582,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%logreport);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%logreport);
 		}	
 		else {
@@ -601,10 +601,10 @@ sub doSend{
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 
-			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 				print JSON::XS->new->pretty(1)->encode($hash);
 			}	
-			elsif ( $C->{use_json} eq 'true' ) {
+			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
 			}	
 			else {
@@ -625,10 +625,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode(\%hash);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%hash);
 		}	
 		else {
@@ -643,10 +643,10 @@ sub doSend{
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 
-			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 				print JSON::XS->new->pretty(1)->encode($hash);
 			}	
-			elsif ( $C->{use_json} eq 'true' ) {
+			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
 			}	
 			else {
@@ -692,10 +692,10 @@ sub doSend{
 			printTextHead if ($format eq "text");
 			printHead if ($format eq "html");
 
-			if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 				print JSON::XS->new->pretty(1)->encode($hash);
 			}	
-			elsif ( $C->{use_json} eq 'true' ) {
+			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
 			}	
 			else {
@@ -719,10 +719,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($hash);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($hash);
 		}	
 		else {
@@ -744,10 +744,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($OT);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($OT);
 		}	
 		else {
@@ -765,10 +765,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($OT);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($OT);
 		}	
 		else {
@@ -793,10 +793,10 @@ sub doSend{
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( $C->{use_json} eq 'true' and $C->{use_json_pretty} eq 'true' ) {
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
 			print JSON::XS->new->pretty(1)->encode($tm);
 		}	
-		elsif ( $C->{use_json} eq 'true' ) {
+		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($tm);
 		}	
 		else {
@@ -808,7 +808,7 @@ sub doSend{
 		# more ??
 		if ($Q->{check} eq 'rsync') {
 			# check config parameter on rsync is true
-			if ($C->{daemon_rsync} ne 'true') {
+			if ( getbool($C->{daemon_rsync}) ) {
 				# switch on
 				my ($CC,undef) = readConfData(conf=>$Q->{conf});	
 				$CC->{daemons}{daemon_rsync} = 'true';
@@ -821,7 +821,7 @@ sub doSend{
 				writeConfData(data=>$CC);
 			}
 		} elsif ($Q->{check} eq 'http') {
-			if ($C->{server_remote} ne 'true') {
+			if ( !getbool($C->{server_remote}) ) {
 				# switch on
 				my ($CC,undef) = readConfData(conf=>$Q->{conf});	
 				$CC->{system}{server_remote} = 'true';

@@ -173,7 +173,7 @@ sub menuSNMP{
 	print td(button(-name=>'submit',onclick=>"get('nmisSnmp','go');",-value=>"Go"));
 
 	print end_Tr;
-	if ($node ne '' and $oid ne '' and $go eq 'true') { viewSNMP(oid=>$oid); }
+	if ($node ne '' and $oid ne '' and getbool($go)) { viewSNMP(oid=>$oid); }
 
 	print end_table;
 	print hidden(-name=>'pnode', -default=>"$node",-override=>'1');

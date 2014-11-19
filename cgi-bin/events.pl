@@ -77,10 +77,7 @@ $AU->CheckAccess("tls_event_db","header");
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-}
+my $widget = getbool($Q->{widget},"invert")? 'false' : 'true';
 my $wantwidget = $widget eq 'true';
 #======================================================================
 
@@ -109,7 +106,8 @@ sub viewEvent {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "NMIS View Event $node",refresh => 86400) if ($widget eq "false");
+	pageStartJscript(title => "NMIS View Event $node",refresh => 86400) 
+			if (!$wantwidget);
 
 	my $ET = loadEventStateNoLock();
 
@@ -135,7 +133,7 @@ sub viewEvent {
 	for my $event_hash (sorthash($ET,['startdate'],'fwd')) {
 		if ($ET->{$event_hash}{node} eq $node) {
 			$cnt++;
-			my $state = $ET->{$event_hash}{ack} eq 'false' ? 'active' : 'inactive';
+			my $state = getbool($ET->{$event_hash}{ack},"invert") ? 'active' : 'inactive';
 			print Tr( eval { my $line;
 				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widget"},$node));
 				my $outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
@@ -157,7 +155,7 @@ sub viewEvent {
 	}
 	print end_table,end_td,end_Tr;
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 
@@ -165,7 +163,7 @@ sub viewEvent {
 sub listEvent {
 
 	print header($headeropts);
-	pageStartJscript(title => "NMIS List Events") if ($widget eq "false");
+	pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
 
 	my $ET = loadEventStateNoLock();
 
@@ -186,7 +184,7 @@ sub listEvent {
 
 	displayEvents($ET,$C->{'server_name'}); #single server
 
-	if ($C->{server_master} eq 'true') {
+	if (getbool($C->{server_master})) {
 		# check modify of remote node tables
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -205,7 +203,7 @@ sub listEvent {
 	print end_table;
 	print end_form;
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 }
 
@@ -246,7 +244,7 @@ sub displayEvents {
 
 	# rip thru the table once and count all the events by node....helps heaps later.
 	foreach $event_hash ( keys %{$ET})  {
-		if ( $ET->{$event_hash}{ack} eq 'true' ) {
+		if ( getbool($ET->{$event_hash}{ack}) ) {
 			$eventackcount{$ET->{$event_hash}{node}} +=1;
 		}
 		else {
@@ -283,14 +281,14 @@ sub displayEvents {
 			typeHeader();
 		}
 
-		if ($tmpack ne 'false' and $ET->{$event_hash}{ack} eq 'false') {
+		if (!getbool($tmpack,"invert") and getbool($ET->{$event_hash}{ack},"invert")) {
 			$tmpack = 'false';
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'false$server')",-checked=>'',override=>'1'),
 					")"));
 		}
 
-		if ($tmpack ne 'true' and $ET->{$event_hash}{ack} eq 'true') {
+		if (!getbool($tmpack) and getbool($ET->{$event_hash}{ack})) {
 			$tmpack = 'true';
 			$display ='none';
 			$node_cnt = 0;
@@ -303,13 +301,15 @@ sub displayEvents {
 			$tempnode = $ET->{$event_hash}{node};
 			$node_cnt = 0;
 
-			active($server,$tempnode,$tempnodeack,\%eventnoackcount) if $ET->{$event_hash}{ack} eq 'false';
-			inactive($server,$tempnode,$tempnodeack,\%eventackcount) if $ET->{$event_hash}{ack} eq 'true';
+			active($server,$tempnode,$tempnodeack,\%eventnoackcount) 
+					if (getbool($ET->{$event_hash}{ack},"invert"));
+			inactive($server,$tempnode,$tempnodeack,\%eventackcount) 
+					if (getbool($ET->{$event_hash}{ack}));
 
 		}
 
 		# now write the events, hidden or not hidden
-		if ( $ET->{$event_hash}{ack} eq "false" ) {
+		if ( getbool($ET->{$event_hash}{ack},"invert") ) {
 			$color = eventColor($ET->{$event_hash}{level});
 		}
 		else {
@@ -319,7 +319,7 @@ sub displayEvents {
 		$last = returnDateStamp($ET->{$event_hash}{lastchange});
 		$outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
 		# User logic, hmmmm how will users interpret this!
-		if ( $ET->{$event_hash}{ack} eq "false" ) {
+		if ( getbool($ET->{$event_hash}{ack},"invert") ) {
 			$button = "true";
 		}
 		else {
@@ -437,7 +437,9 @@ sub updateEvent {
 			my @a = $q->param($par);		# get the values (numbers) of the checkboxes
 			foreach my $i (@a) {
 				# check for change of event
-				if ($i ne "" and (($ack[$i] eq "true" and $par =~ /false/) or ($ack[$i] eq "false" and $par =~ /true/))) {
+				if ($i ne "" and ((getbool($ack[$i]) and $par =~ /false/) 
+													or (getbool($ack[$i],"invert") and $par =~ /true/))) 
+				{
 					# event changes
 					eventAck(ack=>$ack[$i],node=>$nm[$i],event=>$evnt[$i],element=>$elmnt[$i],user=>$AU->User());
 					#print STDERR "DEBUG: eventAck(ack=>$ack[$i],node=>$nm[$i],event=>$evnt[$i],element=>$elmnt[$i],user=>$AU->User())\n";

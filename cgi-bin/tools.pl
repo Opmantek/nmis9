@@ -73,10 +73,9 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-}
+# on unless explicitely set to false
+my $widget = getbool($Q->{widget},"invert")? 'false' : "true";
+my $wantwidget = $widget eq "true";
 
 #======================================================================
 
@@ -121,7 +120,7 @@ sub typeTool {
 	}
 
 	print header($headeropts);
-	pageStart(title => $title) if ($widget eq "false");
+	pageStart(title => $title) if (!$wantwidget);
 	
 	return unless $AU->CheckAccess("tls_$tool");
 
@@ -183,7 +182,7 @@ sub typeTool {
 		print end_table;
 	}
 	
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 }	
 

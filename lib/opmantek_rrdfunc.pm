@@ -76,7 +76,6 @@ sub rrdFetchGraphPData {
 	my $debug = $args{debug};
 	my $grp = $args{group};
 	my $graphtype = $args{graphtype};
-	my $graphlength = $args{graphlength};
 	my $graphstart = $args{graphstart};
 	my $width = $args{width};
 	my $height = $args{height};
@@ -157,7 +156,7 @@ sub rrdFetchGraphPData {
 
 		$vlabel = 'short' if $width <= 400 and $graph->{vlabel}{short} ne "";
 
-		$vlabel = 'split' if $C->{graph_split} eq "true" and $graph->{vlabel}{split} ne "";
+		$vlabel = 'split' if getbool($C->{graph_split}) and $graph->{vlabel}{split} ne "";
 
 		$size = 'small' if $width <= 400 and $graph->{option}{small} ne "";
 
@@ -243,8 +242,8 @@ sub rrdFetchGraphPData {
 		$group = $grp;
 		$itm = $item;
 		$length = $l;
-		$split = $C->{graph_split} eq 'true' ? -1 : 1 ;
-		$GLINE = $C->{graph_split} eq 'true' ? "AREA" : "LINE1" ;
+		$split = getbool($C->{graph_split}) ? -1 : 1 ;
+		$GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 		$weight = 0.983;
 	
 		foreach my $str (@opt) {

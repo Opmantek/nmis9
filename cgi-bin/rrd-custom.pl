@@ -80,8 +80,8 @@ if ($AU->Require) {
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
-my $split = $C->{graph_split} eq 'true' ? -1 : 1 ;
-my $GLINE = $C->{graph_split} eq 'true' ? "AREA" : "LINE1" ;
+my $split = getbool($C->{graph_split}) ? -1 : 1 ;
+my $GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 
 my $S = Sys::->new; # get system object
 $S->init(name=>$node,snmp=>'false');

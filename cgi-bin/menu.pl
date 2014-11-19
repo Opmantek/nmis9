@@ -220,8 +220,8 @@ sub menu_bar_site {
 		my @nettools;		 
 		push @nettools, qq|<a id='tools_ping' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ping">Ping</a>|;
 		push @nettools, qq|<a id='tools_trace' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_trace">Traceroute</a>|;
-		push @nettools, qq|<a id='tools_lft' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_lft">LFT</a>| if $C->{view_lft} eq 'true'; 
-		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if $C->{view_mtr} eq 'true';
+		push @nettools, qq|<a id='tools_lft' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_lft">LFT</a>| if (getbool($C->{view_lft})); 
+		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if (getbool($C->{view_mtr}));
 		push @nettools, qq|<a id='tls_snmp' href="snmp.pl?conf=$Q->{conf}&amp;act=snmp_var_menu">SNMP Tool</a>|;
 													
 
@@ -454,13 +454,14 @@ sub menu_node_panel {
 	my @tmp;
 	push @menuInt,	( qq|<a id="panel" name="Node" href="network.pl?conf=$Q->{conf}&amp;act=network_node_view&amp;node=$node&amp;server=$C->{server}">Node</a>| );
 	# added check for no interfaces, node is down or never collected due to snmp fault..
-	if ($NI->{system}{collect} eq 'true' and keys %{$NI->{interface}} ) {
+	if ( getbool($NI->{system}{collect}) and keys %{$NI->{interface}} ) {
 		#$menu_site[1][0] = qq|<a Interfaces</a>|;
 		# check for interface up and collect is true
 		# create temporal table
 		foreach my $intf (keys %{$NI->{interface}}) {
 			# get all interface where oper is up and collecting
-			if ($NI->{interface}{$intf}{ifAdminStatus} eq 'up' and $NI->{interface}{$intf}{collect} eq 'true') {
+			if ($NI->{interface}{$intf}{ifAdminStatus} eq 'up' 
+					and getbool($NI->{interface}{$intf}{collect})) {
 				$if->{$intf}{ifDescr} = $NI->{interface}{$intf}{ifDescr};
 				$if->{$intf}{Description} = $NI->{interface}{$intf}{Description};
 			}

@@ -220,7 +220,7 @@ $operation{'tcpConnect-stats'} = $operation{'tcpConnect'};
 my $IPSLA = NMIS::IPSLA->new(C => $C);
 
 # get config database values if view graph is active
-if ($view eq "true" and $key ne "") {
+if ( getbool($view) and $key ne "") {
 	my $probe = $IPSLA->getProbe(probe => $key);
 	
 	$pnode = $probe->{pnode};
@@ -367,7 +367,7 @@ sub displayIPSLAmenu {
 	if ($pnode eq "") { $rnode = $optype = $pcom = $rcom = $pcom = $raddr = $view = $url = $key = $vrf = ""; }
 	if ($optype =~ /http/ and $url eq "") { $url = "http://"; }
 
-	if ($poptype ne $optype and $view ne "true"){ 
+	if ($poptype ne $optype and !getbool($view)) { 
 		$frequence = $lsrpath = $timeout = $tos = ""; $verify = 0; $attr = "on"  # defaults
 	}
 
@@ -520,7 +520,7 @@ sub displayIPSLAmenu {
 						-label=>'',
 						-onChange=>'JavaScript:this.form.submit()')),
 			td({class=>"info Plain"}, eval {
-				if ($view eq "true") {
+				if (getbool($view)) {
 						return "View node charts&nbsp;".
 							checkbox( -name=>"pnodechart",
 								-checked=>"$pnodechart",
@@ -584,7 +584,7 @@ sub displayIPSLAmenu {
 					if ($probe->{message} =~ /\w+/) {
 						$class = "Error";
 						$message = "&nbsp;$probe->{message}";
-					} elsif ( $C->{daemon_ipsla_active} ne "true" ) {
+					} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
 						$class = "Error";
 						$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
 					} elsif ( 
@@ -611,7 +611,7 @@ sub displayIPSLAmenu {
 
 
 	# display node charts ?
-	if ($view eq "true" and $pnodechart eq "on") { displayRTTnode(); } # node charts
+	if (getbool($view) and $pnodechart eq "on") { displayRTTnode(); } # node charts
 
 	# background values
 	print hidden(-name=>'file', -default=>$Q->{conf},-override=>'1');
@@ -620,7 +620,7 @@ sub displayIPSLAmenu {
 	print hidden(-name=>'poptype', -default=>$optype,-override=>'1');
 	print hidden(-name=>'deldb', -default=>'false',-override=>'1');
 	print hidden(-name=>'view', -default=>$view,-override=>'1');
-	print hidden(-name=>'key', -default=>$key,-override=>'1') if $view eq "true";
+	print hidden(-name=>'key', -default=>$key,-override=>'1') if (getbool($view));
 
 	print end_form;
 
@@ -628,7 +628,7 @@ sub displayIPSLAmenu {
 	print start_form( -method=>'get', -name=>"data", -action=>url() );
 
 	# display data
-	if ($view eq "true" and $probe->{status} eq "running") { displayRTTdata($nno); }
+	if (getbool($view) and $probe->{status} eq "running") { displayRTTdata($nno); }
 
 	# background values
 	print hidden(-name=>'file', -default=>$Q->{conf},-override=>'1');
@@ -646,7 +646,8 @@ sub runCfgUpdate {
 	my $probe = $IPSLA->getProbe(probe => $nno);
 
 	# let the daemon unlink the database
-	return if ($probe->{func} =~ /stop|remove/ and $probe->{deldb} eq "true");
+	return if ($probe->{func} =~ /stop|remove/ 
+						 and getbool($probe->{deldb}));
 
 	# run bin/opslad.pl for accept modified configuration
 	# if this system failed then the detach process opslad.pl does it later.
