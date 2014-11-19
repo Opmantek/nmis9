@@ -135,6 +135,7 @@ elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # included in ty
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
+elsif ( $type eq "groupsync" ) { sync_groups(); }
 else { checkArgs(); }
 
 exit;
@@ -6337,9 +6338,10 @@ command line options are:
       crontab   Produce Crontab configuration for NMIS
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
+      groupsync Check all nodes and add any missing groups to the configuration
   [conf=<file name>]     Optional alternate configuation file in directory /conf;
   [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the names group;
+  [group=<group name>]   Run operations on all nodes in the named group;
   [debug=true|false|0-9] default=false - Show debuging information, handy;
   [rmefile=<file name>]  RME file to import.
   [mthread=true|false]   default=false - Enable Multithreading or not;
@@ -6888,6 +6890,49 @@ sub find_nmis_processes
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};
 	info("End of $0, type=$type ran for $endTime seconds.\n");
+}
+
+# iterate over nodes and add any new groups to the configuration
+# this is normally NOT automated, as groups are an administrative feature
+# for maintenance (as nodes in unlisted groups are active but not 
+# shown in the gui)
+# args: none
+# returns: undef if ok, error message otherwise
+sub sync_groups
+{
+	my $NT = loadLocalNodeTable(); 	# only local nodes
+	dbg("table Local Node loaded",2);
+
+	# reread the config with a lock and unflattened
+	my $fn = $C->{'<nmis_conf>'}."/".($nvp{conf}||"Config").".nmis";
+	my ($rawC,$fh) = readFiletoHash(file => $fn, lock => 'true');
+	
+	return "Error: failed to read config $fn!" if (!$rawC or !keys %$rawC);
+
+	my %oldgroups = map { $_ => 1 } (split(/\s*,\s*/, $rawC->{system}->{group_list}));
+	my %newgroups;
+	for my $node (keys %$NT)
+	{
+		my $thisgroup = $NT->{$node}->{group};
+		next if ($oldgroups{$thisgroup});
+		++$newgroups{$thisgroup};
+	}
+
+	print "Existing groups:\n\t", (%oldgroups? join("\n\t",keys %oldgroups) : "<None>"),
+	"\n\nNew groups to add:\n\t", (%newgroups? join("\n\t", keys %newgroups) : "<None>"),
+	"\n\n";
+
+	if (%newgroups)
+	{
+		$rawC->{system}->{group_list} = join(",", sort(keys %oldgroups, keys %newgroups));
+		writeHashtoFile(file => $fn, handle => $fh, data => $rawC);
+	}
+	else
+	{
+		close $fh;
+	}
+	
+	return undef;
 }
 
 
