@@ -68,7 +68,7 @@ sub printFeed {
 	my $feedurl = $C->{community_rss_url} || "https://community.opmantek.com/rss/NMIS.xml";
 
 	print header($headeropts);
-	pageStartJscript(title => "NMIS Community News") if ($Q->{widget} ne "true");
+	pageStartJscript(title => "NMIS Community News") if (!getbool($Q->{widget}));
 
 	print qq|
 <script>
@@ -98,6 +98,6 @@ sub printFeed {
 
 	print end_table;
 
-	pageEnd if ($Q->{widget} ne "true");
+	pageEnd if (!getbool($Q->{widget}));
 
 }

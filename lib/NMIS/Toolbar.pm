@@ -254,8 +254,8 @@ sub DisplayButtons {
 			$urlbase = $query = "";
 			next unless $g eq $B->{$b}{bgroup};
 			next if ($select and not grep $b eq $_,@$select);
-			next if $b eq "mtr" and $C->{mtr} eq "false";
-			next if $b eq "lft" and $C->{lft} eq "false";
+			next if $b eq "mtr" and getbool($C->{mtr},"invert");
+			next if $b eq "lft" and getbool($C->{lft},"invert");
 			if ( $B->{$b}{useconfig} ) {
 				$urlbase = $C->{$B->{$b}{useconfig}}
 			} else {
@@ -292,7 +292,8 @@ sub DisplayButtons {
 				}
 			} else {
 				 
-				push @output, span({class=>"inact"}, $B->{$b}{display}), "$br \n" if ( $C->{auth_buttons_visible} eq "true");
+				push @output, span({class=>"inact"}, $B->{$b}{display}), "$br \n" 
+						if ( getbool($C->{auth_buttons_visible}) );
 				
 			}
 		}

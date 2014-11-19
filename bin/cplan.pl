@@ -99,7 +99,7 @@ if ( not -d "$NMIS::config{database_root}/cplan" ) {
 
 loadInterfaceInfo;
 foreach $int ( keys %NMIS::interfaceInfo ) {
-	if ( $NMIS::interfaceInfo{$int}{collect} eq "true" ) {
+	if ( getbool($NMIS::interfaceInfo{$int}{collect})) {
 
 		# we need the nodeType for summary stats to get the right directory
 		loadSystemFile($NMIS::interfaceInfo{$int}{node});

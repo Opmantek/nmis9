@@ -161,7 +161,7 @@ sub init {
 		$condition = "not update";
 		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}") ;
 	}
-	elsif ($self->{cfg}{node}{ping} eq 'true' and $self->{cfg}{node}{collect} ne 'true' and $self->{update}) {
+	elsif (getbool($self->{cfg}{node}{ping}) and !getbool($self->{cfg}{node}{collect}) and $self->{update}) {
 		$condition = "PingOnly";
 		$exit = $self->loadModel(model=>"Model-PingOnly");
 	} 
@@ -431,7 +431,7 @@ sub loadNodeInfo {
 	my $exit = $self->loadInfo(class=>'system');
 
 	# check if nbarpd is possible
-	if ($self->{mdl}{system}{nbarpd_check} eq "true" and $args{section} eq "") {
+	if (getbool($self->{mdl}{system}{nbarpd_check}) and $args{section} eq "") {
 		my %tmptable = $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions);
 		#2011-11-14 Integrating changes from Till Dierkesmann
 		$self->{info}{system}{nbarpd} = (defined $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions)) ? "true" : "false" ;
@@ -576,11 +576,12 @@ sub getValues {
 				$tbl->{$sect} = join(',',keys %seen) if $index eq "";
 			} else {
 				### 2013-03-06 keiths, check for valid graphtype before complaining about no OID's!
-				if ( $class->{$sect}{no_graphs} ne "true" ) {
+				if ( !getbool($class->{$sect}{no_graphs}) ) {
 					$self->{error} = "ERROR ($self->{info}{system}{name}) missing property 'graphtype' for section $sect";
 					logMsg($self->{error});
 				}
-				elsif ( $class->{$sect}{no_graphs} eq "true" ) {
+				# fixme logic, if not needed here
+				elsif ( getbool($class->{$sect}{no_graphs}) ) {
 					$noGraphs = 1;
 				}
 			}
@@ -1022,7 +1023,7 @@ sub getTypeName {
 	# fall back to rrd section named the same as the graphtype
 	return $graphtype if ($self->{mdl}{database}{type}{$graphtype});
 
-	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table") if $check ne 'true';
+	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table") if (!getbool($check));
 	return undef; # not found
 }
 

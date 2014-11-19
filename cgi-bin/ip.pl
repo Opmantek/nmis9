@@ -73,7 +73,7 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-my $wantwidget = $Q->{widget} ne "false";
+my $wantwidget = !getbool($Q->{widget},"invert");
 
 print header($headeropts);
 pageStart(title => "NMIS IP Calc") if (!$wantwidget);
@@ -170,7 +170,7 @@ sub ipCalc {
 	$broadcast = ipBroadcast(subnet => $subnet, mask => $mask);
 	$wildcard = ipWildcard(mask => $mask);
 	$hosts = ipHosts(mask => $mask);
-	if ( $assume eq "true" ) {
+	if ( getbool($assume) ) {
 		$mask = "No mask assuming 255.255.255.0"; 
 	} 
 	

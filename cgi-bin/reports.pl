@@ -132,7 +132,8 @@ if ( $#ARGV > 0 ) {
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-my $wantwidget = exists $Q->{widget}? $Q->{widget} ne "false" : 1;
+# default is thus 1=widgetted.
+my $wantwidget = (!getbool($Q->{widget},"invert")); 
 my $widget = $wantwidget ? "true" : "false";
 
 
@@ -154,7 +155,7 @@ if ($AU->Require) {
 }
 
 my $nodewrap = "nowrap";
-$nodewrap = "wrap" if $C->{'wrap_node_names'} eq "true";
+$nodewrap = "wrap" if (getbool($C->{'wrap_node_names'}));
 
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
@@ -227,7 +228,7 @@ sub healthReport {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
 			## AS 16 Mar 02, implementing David Gay's requirement for deactiving
 		# a node, ie keep a node in nodes.csv but no collection done.
-		if ( $NT->{$reportnode}{active} eq 'true' ) {
+		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			# get reachable, available, health, response
@@ -274,7 +275,7 @@ sub healthReport {
 	}
 
 	# if debug, print all
-	if ( $Q->{debug} eq "true" ) {
+	if ( getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 		print Dumper(\%summaryTable);
 	}
@@ -437,7 +438,7 @@ sub availReport {
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})}; 
-		if ( $NT->{$reportnode}{active} eq 'true' ) {
+		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
 			my $h;
@@ -450,7 +451,7 @@ sub availReport {
 	}
 
 	# if debug, print all
-	if ( $Q->{debug} eq "true" ) {
+	if ( getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 	}
 
@@ -531,7 +532,7 @@ sub portReport{
 	foreach my $intHash (keys %interfaceInfo) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$interfaceInfo{$intHash}{node}}{group})}; 
 		++$portCount{Total}{totalportcount};
-		if ( $interfaceInfo{$intHash}{real} eq 'true'  ) {
+		if ( getbool($interfaceInfo{$intHash}{real})  ) {
 			++$portCount{Total}{realportcount};
 			++$portCount{Total}{"admin-$interfaceInfo{$intHash}{ifAdminStatus}"};
 			if ($interfaceInfo{$intHash}{ifOperStatus} eq 'up') {
@@ -553,7 +554,8 @@ sub portReport{
 				
 #			++$portCount{Total}{"speed-$interfaceInfo{$intHash}{ifSpeed}"};
 #			++$portCount{Total}{"duplex-$interfaceInfo{$intHash}{portDuplex}"};
-			++$portCount{Total}{'collect'} if $interfaceInfo{$intHash}{collect} eq 'true';
+			++$portCount{Total}{'collect'} 
+			if (getbool($interfaceInfo{$intHash}{collect}));
 		}
 	}
 
@@ -700,7 +702,7 @@ sub responseReport {
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
-		if ( $NT->{$reportnode}{active} eq 'true') {
+		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
 			my $h;
@@ -713,7 +715,7 @@ sub responseReport {
 	}
 
 	# if debug, print all
-	if ( $Q->{debug} eq "true" ) {
+	if ( getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 	}
 
@@ -814,7 +816,7 @@ sub top10Report {
 	my %cpuTable;
 	foreach my $reportnode ( keys %{$NT} ) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
-		if ( $NT->{$reportnode}{active} eq 'true') {
+		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			# reachable, available, health, response
@@ -823,7 +825,8 @@ sub top10Report {
 	   			%reportTable = (%reportTable,%{$h});
 				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 				# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-				if ($NI->{system}{nodeType} eq 'router' and $NI->{system}{collect} eq 'true') {
+				if ($NI->{system}{nodeType} eq 'router' 
+						and getbool($NI->{system}{collect})) {
 					if (($h = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode))) {
 		   				%cpuTable = (%cpuTable,%{$h});
 						$reportTable{$reportnode}{nodeType} = $NI->{nodeType} ;
@@ -849,14 +852,14 @@ sub top10Report {
 	my %interfaceInfo = %{$II}; # copy
 
 	foreach my $int (sortall(\%interfaceInfo,'node','fwd') ) {
-		if ( $interfaceInfo{$int}{collect} eq "true" ) {
+		if ( getbool($interfaceInfo{$int}{collect}) ) {
 			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) }; 
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = convertIfName($interfaceInfo{$int}{ifDescr});
 			my $intf = $interfaceInfo{$int}{ifIndex};
 
 			# save the interface state for the down report
-			if ( $interfaceInfo{$int}{collect} eq "true"
+			if ( getbool($interfaceInfo{$int}{collect})
 				and $interfaceInfo{$int}{ifAdminStatus} eq "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "ok"			
@@ -938,7 +941,7 @@ sub top10Report {
 	}
 
 	# if debug, print all
-	if ( $Q->{debug} eq "true" ) {
+	if ( getbool($Q->{debug}) ) {
 		print "<pre>";
 		print "reportTable\n";
 		print Dumper(\%reportTable);

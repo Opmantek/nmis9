@@ -86,9 +86,9 @@ my $maxThreads = 1;
 my $mthreadDebug = 0;
 my $dnscacheage = 3600;
 
-$mthread = 1 if $C->{ipsla_mthread} eq "true";
+$mthread = 1 if getbool($C->{ipsla_mthread});
 $maxThreads = $C->{ipsla_maxthreads} if $C->{ipsla_maxthreads};
-$mthreadDebug = 1 if $C->{ipsla_mthreaddebug} eq "true";
+$mthreadDebug = 1 if getbool($C->{ipsla_mthreaddebug});
 $dnscacheage = $C->{ipsla_dnscacheage} if $C->{ipsla_dnscacheage} ne "";
 
 my $vardir = $nvp{vardir};
@@ -581,7 +581,7 @@ sub runRTTstart {
 			push @params,"rttMonStatisticsAdminNumHops.$entry",'integer',$probe->{hops} if $probe->{hops} ne "" ;
 			if ($probe->{optype} =~ /tcpConnect|udpEcho/) {
 				push @params,"rttMonEchoAdminTargetPort.$entry",'integer',$probe->{dport} ;
-				if ( $probe->{rnode} eq "other" and $C->{ipsla_control_enable_other} eq "false" ) {
+				if ( $probe->{rnode} eq "other" and getbool($C->{ipsla_control_enable_other},"invert") ) {
 					push @params,"rttMonEchoAdminControlEnable.$entry",'integer',2;
 				}
 				else {
@@ -687,7 +687,7 @@ sub runRTTstop {
 	push @params,"rttMonCtrlAdminStatus.$entry",'integer',6 ;
 	snmpset($hoststr, @params);
 
-	unlink $probe->{database} if $probe->{deldb} eq "true"; # delete RRD
+	unlink $probe->{database} if getbool($probe->{deldb}); # delete RRD
 
 	$IPSLA->updateProbe(probe => $nno, status => "remove");
 }

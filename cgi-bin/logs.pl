@@ -120,16 +120,14 @@ if ($AU->Require) {
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 ### 2012-08-29 keiths, adding wiget less support, widget on by default.
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-}
+my $widget = getbool($Q->{widget},"invert")? "false" : "true";
+my $wantwidget = $widget eq "true";
 
 ### 2012-08-29 keiths, setting default refresh based on widget or not
-if ( $Q->{refresh} eq "" and $widget eq "true" ) { 
+if ( $Q->{refresh} eq "" and $wantwidget ) { 
 	$Q->{refresh} = $C->{widget_refresh_time};
 }
-elsif ( $Q->{refresh} eq "" and $widget eq "false" ) { 
+elsif ( $Q->{refresh} eq "" and !$wantwidget ) { 
 	$Q->{refresh} = $C->{page_refresh_time};
 }
 #--------------------------------------------------------
@@ -170,7 +168,7 @@ my $logFileName;						# this gets set to the full qualified filename in conf/Log
 
 # defaults
 my $logName = 'Event_Log';
-if ($C->{server_master} eq 'true' and $Q->{logname} eq "" ) {
+if ( getbool($C->{server_master}) and $Q->{logname} eq "" ) {
 	$logName = 'Slave_Event_Log';
 }
 elsif ($Q->{logname} ne "" ) {
@@ -226,7 +224,8 @@ my $logLinkEnd=qq|</a>|;
 print header($headeropts);
 
 ### 2012-08-29 keiths, adding wiget less support.
-pageStart(title => "NMIS Log Viewer", refresh => $Q->{refresh}) if ($widget eq "false");
+pageStart(title => "NMIS Log Viewer", refresh => $Q->{refresh}) 
+		if (!$wantwidget);
 
 if ($Q->{act} eq 'log_file_view') {
 	return unless $AU->CheckAccess($logName); # based on group access
@@ -262,7 +261,7 @@ sub notfound {
 }
 
 ### 2012-08-29 keiths, adding wiget less support.
-pageEnd() if ($widget eq "false");
+pageEnd() if (!$wantwidget);
 
 exit;
 # ------------------------------------------------------
@@ -384,7 +383,7 @@ sub loadLogFile {
 			$_ =~ s/  / /g;
 			$readLogNum++;
 	
-			if ( $boolean eq "true" && $switch eq "and" ) {
+			if ( getbool($boolean) && $switch eq "and" ) {
 				if ( 	$_ =~ /$search1/i and
 				$_ =~ /$search2/i and
 				$_ =~ /$search3/i and
@@ -396,7 +395,7 @@ sub loadLogFile {
 					$searchLogNum++;
 				}
 			}
-			if ( $boolean eq "true" && $switch eq "or" ) {
+			if ( getbool($boolean) && $switch eq "or" ) {
 				if ( 	$_ =~ /$search1/i or
 				$_ =~ /$search2/i or
 				$_ =~ /$search3/i or
@@ -408,7 +407,7 @@ sub loadLogFile {
 					$searchLogNum++;
 				}
 			}
-			elsif ( $dosearch eq "false" ) {
+			elsif ( getbool($dosearch,"invert") ) {
 				push @logRecords, $_ ;
 				last if scalar @logRecords >= $logMaxTableLines;
 			}
@@ -595,11 +594,11 @@ sub outputLine {
 			"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 			
-			if ( $C->{node_button_in_logs} eq "true" ) {
+			if ( getbool($C->{node_button_in_logs}) ) {
 				#prepend nodebut!
 				$line = "$logNodeButton $line";
 				}
-				if ( $C->{buttons_in_logs} eq "true" ) {
+				if ( getbool($C->{buttons_in_logs}) ) {
 				#prepend buttons!
 				$line = "$buttons $line";
 			}
@@ -663,11 +662,11 @@ sub outputLine {
 			"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 			
-			if ( $C->{node_button_in_logs} eq "true" ) {
+			if ( getbool($C->{node_button_in_logs}) ) {
 				#prepend nodebut!
 				$line = "$logNodeButton $line";
 				}
-				if ( $C->{buttons_in_logs} eq "true" ) {
+				if ( getbool($C->{buttons_in_logs}) ) {
 				#prepend buttons!
 				$line = "$buttons $line";
 			}
@@ -761,10 +760,10 @@ sub outputLine {
 												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$logNode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 			
-			if ( $C->{node_button_in_logs} eq "true" ) {
+			if ( getbool($C->{node_button_in_logs}) ) {
 				$line = "$logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";
 			}
-			elsif ( $C->{buttons_in_logs} eq "true" ) {
+			elsif ( getbool($C->{buttons_in_logs}) ) {
 				$buttons =
 					"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
 					"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
@@ -833,7 +832,7 @@ sub outputLine {
 	# Rule 3: if Authentication enabled, only print if user enabled for select Group
 	if ( $NT->{$logNode}{group} ne "" and $AU->Require and not $AU->InGroup($NT->{$logNode}{group}) ) { return 0 }
 	
-	if ( $C->{syslogDNSptr} eq "true" and (lc $logName eq "cisco_syslog")) {
+	if ( getbool($C->{syslogDNSptr}) and (lc $logName eq "cisco_syslog")) {
 		# have a go at finding out the hostname for any ip address that may have been referenced in the log.
 		# assumes we have populated our DNS with lots of PTR records !
 		my $i = 3;				# put a failsafe loop counter in here !
@@ -871,14 +870,14 @@ sub logMenuBar {
 	### 2012-08-29 keiths, adding wiget less support
 	my $startform = start_form({ action=>"javascript:get('nmislogform1');", -id=>'nmislogform1',
 			-href=>"$C->{'<cgi_url_base>'}/logs.pl?"});
-	if ( $widget eq "false" ) {
+	if ( !$wantwidget ) {
 		$startform = start_form({ method=>"get", -id=>'nmislogform1',
 			action=>"$C->{'<cgi_url_base>'}/logs.pl"});
 	}
 
 	### 2012-08-29 keiths, adding wiget less support
 	my $submit = submit(-name=>'nmislogform1', -value=>'Go', onClick=>"javascript:get('nmislogform1'); return false;");
-	if ( $widget eq "false" ) {
+	if ( !$wantwidget ) {
 		$submit = submit(-name=>'nmislogform1', -value=>'Go');
 	}
 
