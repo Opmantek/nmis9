@@ -292,7 +292,7 @@ sub typeGraph {
 			}
 		}
 		if ($auth) {
-			if ( $NT->{$node}{active} eq 'true' ) {
+			if ( getbool($NT->{$node}{active}) ) {
 				push(@nodelist, $NT->{$node}{name});
 			}
 		}
@@ -572,12 +572,12 @@ sub typeGraph {
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
 				"&node=$node&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
 		my $chartDiv = "";
-		if( $C->{display_opcharts} eq "true" ) {
+		if( getbool($C->{display_opcharts}) ) {
 			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;	
 		}
 				
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			if( $C->{display_opcharts} eq "true" ) {
+			if( getbool($C->{display_opcharts}) ) {
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
 			} else {
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));

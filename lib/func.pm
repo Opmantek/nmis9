@@ -907,9 +907,9 @@ sub loadTable {
 	my %args = @_;
 	my $dir = lc $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
-	my $check = $args{check}; # if 'true' then check only if table is valid in cache
-	my $mtime = $args{mtime}; # if 'true' then mtime is also returned
-	my $lock = $args{lock}; # if lock is true then no caching
+	my $check = getbool($args{check}); # if 'true' then check only if table is valid in cache
+	my $mtime = getbool($args{mtime}); # if 'true' then mtime is also returned
+	my $lock = getbool($args{lock}); # if lock is true then no caching
 
 	my $C = loadConfTable();
 	
@@ -922,7 +922,7 @@ sub loadTable {
 				my $file = getDir(dir=>$dir)."/$name";
 				$file = getFileName(file => $file);
 				print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
-				if ($lock eq 'true') {
+				if ($lock) {
 					return readFiletoHash(file=>$file,lock=>$lock);
 				} else {
 					# known dir
@@ -930,19 +930,21 @@ sub loadTable {
 					if (exists $Table_cache{$index}{data}) {
 						# already in cache, check for update of file
 						if (stat($file)->mtime eq $Table_cache{$index}{mtime}) {
-							return 1 if $check eq 'true';
+							return 1 if ($check);
 							# else
-							return $Table_cache{$index}{data},$Table_cache{$index}{mtime} if $mtime eq 'true'; # oke
+							return $Table_cache{$index}{data},$Table_cache{$index}{mtime} 
+							if ($mtime); # oke
 							# else
 							return $Table_cache{$index}{data}; # oke
 						}
 					}
-					return 0  if $check eq 'true'; # cached data/table not valid
+					return 0 if ($check); # cached data/table not valid
 					# else
 					# read from file
 					$Table_cache{$index}{data} = readFiletoHash(file=>$file);
 					$Table_cache{$index}{mtime} = stat($file)->mtime;
-					return $Table_cache{$index}{data},$Table_cache{$index}{mtime} if $mtime eq 'true'; # oke
+					return $Table_cache{$index}{data},$Table_cache{$index}{mtime} 
+					if ($mtime); # oke
 					# else
 					return $Table_cache{$index}{data}; # oke
 				}
@@ -989,7 +991,7 @@ sub getFileName {
 	my $check = $dir;
 	$check = $file if $file ne "";
 		
-	if ( ( $C_cache->{use_json} eq 'true' or $json ) and ( $check =~ /\/var/ or $check eq "var" ))  {
+	if ( ( getbool($C_cache->{use_json}) or $json ) and ( $check =~ /\/var/ or $check eq "var" ))  {
 		$file .= '.json' if $file !~ /\.json$/;
 		$file =~ s/\.nmis//g;
 	}
@@ -1009,7 +1011,7 @@ sub getExtension {
 	$check = $file if $file ne "";
 	
 	my $extension = "nmis";
-	if ( ( $C_cache->{use_json} eq 'true' or $json ) and ( $check eq "var" or $check =~ /\/var/ ) ) {
+	if ( (getbool($C_cache->{use_json}) or $json ) and ( $check eq "var" or $check =~ /\/var/ ) ) {
 		$extension = "json";
 	}
 	return $extension;
@@ -1030,10 +1032,11 @@ sub writeHashtoFile {
 	my $data = $args{data};
 	my $handle = $args{handle}; # if handle specified then file is locked EX
 	my $json = $args{json};
-	my $pretty = $args{pretty};
-	$pretty = (defined($pretty)) ? $pretty : 0;		
+	my $pretty = getbool($args{pretty});
+
 	### 2013-11-29 keiths, adding support for JSON.
-	my $useJson = ( ( $C_cache->{use_json} eq 'true' or $json ) and $file =~ /\/var/ ) ? 1 : 0;
+	my $useJson = ( (getbool($C_cache->{use_json}) or $json ) 
+									and $file =~ /\/var/ ) ? 1 : 0;
 	$file = getFileName(file => $file, json => $json);
 
 	dbg("write data to $file");
@@ -1056,7 +1059,7 @@ sub writeHashtoFile {
 
 #	sleep(255);
 
-	if ( $useJson and ( $C_cache->{use_json_pretty} eq 'true' or $pretty) ) {
+	if ( $useJson and ( getbool($C_cache->{use_json_pretty}) or $pretty) ) {
 		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
 			logMsg("ERROR cannot write file $file: $!");
 		}
@@ -1078,7 +1081,7 @@ sub writeHashtoFile {
 	setFileProt($file);
 
 	# store updated filename in table with time stamp
-	if ($C_cache->{server_remote} eq 'true' and $file !~ /nmis-files-modified/) {
+	if (getbool($C_cache->{server_remote}) and $file !~ /nmis-files-modified/) {
 		my ($F,$handle) = loadTable(dir=>'var',name=>'nmis-files-modified',lock=>'true');
 		$F->{$file} = time();
 		writeTable(dir=>'var',name=>'nmis-files-modified',data=>$F,handle=>$handle);
@@ -1091,19 +1094,19 @@ sub writeHashtoFile {
 sub readFiletoHash {
 	my %args = @_;
 	my $file = $args{file};
-	my $lock = $args{lock}; # option
-	my $json = $args{json};
+	my $lock = getbool($args{lock}); # option
+	my $json = getbool($args{json});
 	my %hash;
 	my $handle;
 	my $line;
 			
 	### 2013-11-29 keiths, adding support for JSON.
-	my $useJson = ( ( $C_cache->{use_json} eq 'true' or $json ) and $file =~ /\/var/ ) ? 1 : 0;
+	my $useJson = ( ( getbool($C_cache->{use_json}) or $json ) and $file =~ /\/var/ ) ? 1 : 0;
 	$file = getFileName(file => $file, json => $json);
 	
 	if ( -r $file ) {
-		my $filerw = ($lock eq 'true') ? "+<$file" : "<$file";
-		my $lck = ($lock eq 'true') ? LOCK_EX : LOCK_SH;
+		my $filerw = $lock ? "+<$file" : "<$file";
+		my $lck = $lock ? LOCK_EX : LOCK_SH;
 		if (open($handle, "$filerw")) {
 			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";     
 			local $/ = undef;
@@ -1115,7 +1118,7 @@ sub readFiletoHash {
 					logMsg("ERROR convert $file to hash table, $@");
 					info("ERROR convert $file to hash table, $@");
 				}
-				return ($hashref,$handle) if ($lock eq 'true');
+				return ($hashref,$handle) if ($lock);
 				# else
 				close $handle;
 				return $hashref;
@@ -1127,7 +1130,7 @@ sub readFiletoHash {
 					logMsg("ERROR convert $file to hash table, $@");
 					return;
 				}
-				return (\%hash,$handle) if ($lock eq 'true');
+				return (\%hash,$handle) if ($lock);
 				# else
 				close $handle;
 				return \%hash;
@@ -1136,7 +1139,7 @@ sub readFiletoHash {
 			logMsg("ERROR cannot open file=$file, $!");
 		}
 	} else {
-		if ($lock eq 'true') {
+		if ($lock) {
 			# create new empty file
 			open ($handle,">", "$file") or warn "ERROR readFiletoHash: can't create $file: $!\n";
 			flock($handle, LOCK_EX) or warn "ERROR readFiletoHash: can't lock file $file, $!\n";
@@ -1505,12 +1508,28 @@ sub logPolling {
 	}
 }
 
-sub getbool {
-	my $val = shift;
-	return 1 if $val =~ /^[yt1]/i;
-	return 0; # otherwise
-} # end getbool
-
+# normal op: compares first argument against true or 1 or yes
+# opposite: compares first argument against false or 0 or no
+#
+# this opposite stuff is needed for handling "XX ne false", 
+# which is 1 if XX is undef and thus not the same as !getbool(XX,0) 
+#
+# usage: eq true => getbool, ne true => !getbool,
+# eq false => getbool(...,invert), ne false => !getbool(...,invert)
+#
+# returns: 0 if arg is undef or non-matching, 1 if matches thingy
+sub getbool
+{
+	my ($val,$opposite) = @_;
+	if (!$opposite)
+	{
+		return (defined $val and $val =~ /^[yt1]/i)? 1 : 0;
+	}
+	else
+	{
+		return (defined $val and $val =~ /^[nf0]/i)? 1 : 0;
+	}
+}
 
 ### 2011-12-07 keiths, adding support for specifying the directory.
 sub getConfFileName {
@@ -1637,7 +1656,7 @@ sub loadConfTable {
 			$Table_cache{$conf}{conf} = $conf;
 			$Table_cache{$conf}{configfile} = $configfile;
 			$Table_cache{$conf}{configfile_name} = substr($configfile, rindex($configfile, "/")+1);
-			$Table_cache{$conf}{auth_require} = ($Table_cache{$conf}{auth_require} eq 'false') ? 0 : 1; # default true in Auth
+			$Table_cache{$conf}{auth_require} = (getbool($Table_cache{$conf}{auth_require},"invert")) ? 0 : 1; # default true in Auth
 			$Table_cache{$conf}{starttime} = time();
 
 			$Table_cache{$conf}{mtime} = stat($configfile)->mtime; # remember modified time
@@ -1670,7 +1689,7 @@ sub writeConfData {
 	if (-r "$configfile") {
 		rename "$configfile","$configfile.bak"; # save old one
 	}
-	if ($CC->{system}{xml_config} eq 'true') {
+	if (getbool($CC->{system}{xml_config})) {
 		XMLout($CC,OutputFile=>$configfile,XMLDecl=>1);
 		setFileProt($configfile);
 	} else {

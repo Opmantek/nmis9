@@ -79,7 +79,7 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 my $formid = $Q->{table} ? "nmis$Q->{table}" : "nmisTable";
 
-my $widget = $Q->{widget} eq 'false'? "false" : "true";
+my $widget = getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
 
 
@@ -117,13 +117,13 @@ sub loadReqTable {
 	my $T;
 
 	my $db = "db_".lc($table)."_sql";
-	if ($C->{$db} eq 'true' ) {
+	if (getbool($C->{$db})) {
 		$T = DBfunc::->select(table=>$table); # full table
 	} else { 
 		$T = loadTable(dir=>'conf',name=>$table);
 	}
 			
-	if (!$T and $msg ne 'false') {
+	if (!$T and !getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
 		return;
 	} 
@@ -154,7 +154,7 @@ sub menuTable{
 	my $table = $Q->{table};
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "View Table $table") if ($widget eq "false");
+	pageStartJscript(title => "View Table $table") if (getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 	
@@ -231,7 +231,7 @@ EOF
 
 	print end_table;
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (getbool($widget,"invert"));
 
 }
 
@@ -243,7 +243,7 @@ sub viewTable {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "View Table $table") if ($widget eq "false");
+	pageStartJscript(title => "View Table $table") if (getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 
@@ -300,7 +300,7 @@ sub viewTable {
 
 	print end_table;
 	print end_form;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (getbool($widget,"invert"));
 }
 
 sub showTable {
@@ -312,7 +312,7 @@ sub showTable {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "Show Table $table") if ($widget eq "false");
+	pageStartJscript(title => "Show Table $table") if (getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 
@@ -357,7 +357,7 @@ sub showTable {
 
 	print end_table;
 	print end_form;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (getbool($widget,"invert"));
 }
 
 sub editTable {
@@ -369,7 +369,7 @@ sub editTable {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "Edit Table $table") if ($widget eq "false");
+	pageStartJscript(title => "Edit Table $table") if (getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_rw");
 
@@ -402,7 +402,8 @@ sub editTable {
 			my $mandatory = "";
 			my $headerclass = "header";
 			my $headspan = 1;
-			if ( exists $ref->{$item}{mandatory} and $ref->{$item}{mandatory} eq "true" ) { 
+			if ( exists $ref->{$item}{mandatory} 
+					 and getbool($ref->{$item}{mandatory}) ) { 
 				$mandatory = " <span style='color:#FF0000'>*</span>";
 				$anyMandatory = 1;
 			}
@@ -478,14 +479,14 @@ sub editTable {
 
 	print end_table;
 	print end_form;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (getbool($widget,"invert"));
 }
 
 sub doeditTable {
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
 
-	return 1 if $Q->{cancel} eq 'true';
+	return 1 if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
@@ -496,7 +497,7 @@ sub doeditTable {
 
 	# combine key from values, values separated by underscrore
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
-	$key = lc($key) if $TAB->{$table}{CaseSensitiveKey} eq "false"; # let key of table Nodes equal to name
+	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
 	# test on existing key
 	if ($Q->{act} =~ /doadd/) {
@@ -522,7 +523,7 @@ sub doeditTable {
 	}
 
 	my $db = "db_".lc($table)."_sql";
-	if ($C->{$db} eq 'true' ) {
+	if ( getbool($C->{$db}) ) {
 		my $stat;
 		$V->{index} = $key; # add this column
 		if ($Q->{act} =~ /doadd/) {
@@ -559,7 +560,7 @@ sub doeditTable {
 		}
 		#print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
 		cleanEvent($key,"tables.pl.editNodeTable");
-		if ($Q->{update} eq 'true') {
+		if (getbool($Q->{update})) {
 			doNodeUpdate(node=>$key);
 			return 0;
 		}
@@ -572,13 +573,13 @@ sub dodeleteTable {
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
-	return 1 if $Q->{cancel} eq 'true';
+	return 1 if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
 	my $T = loadReqTable(table=>$table);
 	my $db = "db_".lc($table)."_sql";
-	if ($C->{$db} eq 'true' ) {
+	if (getbool($C->{$db}) ) {
 		if (!(DBfunc::->delete(table=>$table,index=>$key))) {
 			print header({-type=>"text/html",-expires=>'now'});
 			print Tr(td({class=>'error'} ,DBfunc::->error()));
@@ -610,7 +611,7 @@ sub doNodeUpdate {
 	
 	# now run the update and display 
 	print header($headeropts);
-	pageStartJscript(title => "Run update on $node") if ($widget eq "false");
+	pageStartJscript(title => "Run update on $node") if (getbool($widget,"invert"));
 
 	print start_form(-id => "$formid",
 									 -href => url(-absolute=>1)."?")
@@ -656,6 +657,6 @@ sub doNodeUpdate {
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
 									-value=>'Ok'))));
 	print end_form;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (getbool($widget,"invert"));
 }
 

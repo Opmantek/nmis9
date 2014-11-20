@@ -155,6 +155,8 @@
 		# maximum runtime of nmis collect or update (child) processes
 		# unlimited if set to zero or undef
 		'max_child_runtime' => undef,
+		# to disable the generation of "nmis runtime exceeded" events, set this to 1 or true
+		'disable_nmis_process_events' => undef,
   },
   'url' => {
     '<url_base>' => '/nmis8',

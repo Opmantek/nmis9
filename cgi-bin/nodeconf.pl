@@ -54,8 +54,8 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-my $wantwidget = 1;							
-$wantwidget = $Q->{widget} ne "false" if (defined $Q->{widget});
+# widget default on, only off if explicitely set to off
+my $wantwidget = !getbool($Q->{widget},"invert");
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
@@ -122,7 +122,8 @@ sub displayNodemenu{
 	print start_table() ; # first table level
 
 	# row with Node selection
-	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group}) and $NT->{$_}{active} eq 'true' } sort keys %{$NT});
+	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group}) 
+														 and getbool($NT->{$_}{active}) } sort keys %{$NT});
 	print start_Tr;
 	print td({class=>"header",width=>'25%'},
 			"Select node<br>".
@@ -222,7 +223,7 @@ sub displayNodeConf {
 			td({class=>'header3'}, $NCT_sysLocation),
 			td({class=>"Plain"},textfield(-name=>"location",-override=>1,-value=>$NCT->{$node}{sysLocation}));
 
-	if ($NI->{system}{collect} ne 'true') {
+	if ( !getbool($NI->{system}{collect}) ) {
 		print Tr(td({class=>"header"}),td({class=>"header"},"Collect"),
 				td({class=>'header'},'disabled'));
 	}
@@ -232,7 +233,7 @@ sub displayNodeConf {
 
 	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 	# interfaces
-	if ($NI->{system}{collect} eq 'true') {
+	if ( getbool($NI->{system}{collect}) ) {
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
 		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) {
 			### 2013-11-20 keiths, preventing an autovivifaction bug from displaying bad interfaces
@@ -287,21 +288,34 @@ sub displayNodeConf {
 				my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
 				print Tr,td({class=>'header'}),
 					td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
-					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",-values=>['not',$NCT_collect eq 'true' ? 'false':'true'],-default=>$collect,-labels=>\%rglabels));
+					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",
+																					-values=>['not',
+																										getbool($NCT_collect) ? 'false':'true'],-default=>$collect,-labels=>\%rglabels));
 	
-				if ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true') ) {
+				if ( getbool($collect) or (!getbool($collect,"invert") 
+																	 and getbool($NCT_collect)) ) 
+				{
 					my $NCT_event = $IF->{$intf}{nc_event} || $IF->{$intf}{event};
 					print Tr,td({class=>'header'}),
 						td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
-						td({class=>"Plain"},radio_group(-name=>"event_${intf}",-values=>['not',$NCT_event eq 'true' ? 'false':'true'],-default=>$event,-labels=>\%rglabels));
+						td({class=>"Plain"},radio_group(-name=>"event_${intf}",
+																						-values=>['not',
+																											getbool($NCT_event) ? 'false':'true'],-default=>$event,-labels=>\%rglabels));
 				} else {
 					print hidden(-name=>"event_${intf}", -default=>'not',-override=>'1');
 				}
-				if ($NI->{system}{threshold} eq 'true' and ($collect eq 'true' or ($collect ne 'false' and $NCT_collect eq 'true')) ) {
+
+				if (getbool($NI->{system}{threshold}) 
+						and (getbool($collect) or (!getbool($collect,"invert") 
+																			 and getbool($NCT_collect)) )) {
 					my $NCT_threshold = $IF->{$intf}{nc_threshold} || $IF->{$intf}{threshold};
 					print Tr,td({class=>'header'}),
 						td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
-						td({class=>"Plain"},radio_group(-name=>"threshold_${intf}",-values=>['not',$NCT_threshold eq 'true' ? 'false':'true'],-default=>$threshold,-labels=>\%rglabels));
+						td({class=>"Plain"},
+							 radio_group(-name=>"threshold_${intf}",
+													 -values=>['not',
+																		 getbool($NCT_threshold) ? 'false':'true'],
+													 -default=>$threshold,-labels=>\%rglabels));
 				} else {
 					print hidden(-name=>"threshold_${intf}", -default=>'not',-override=>'1');
 				}				
@@ -394,7 +408,7 @@ sub updateNodeConf {
 	writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
 
 	# signal from button
-	if ($Q->{update} eq 'true') {
+	if ( getbool($Q->{update}) ) {
 		doNodeUpdate(node=>$node);
 		return 0;
 	}

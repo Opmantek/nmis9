@@ -201,7 +201,7 @@ print qq|
 
 # defaults
 my $logName = 'Event_Log';
-if ($C->{server_master} eq 'true' and $Q->{logname} eq "" ) {
+if ( getbool($C->{server_master}) and $Q->{logname} eq "" ) {
 	$logName = 'Slave_Event_Log';
 }
 elsif ($Q->{logname} ne "" ) {
@@ -230,7 +230,7 @@ for my $node ( sort keys %{$NT}) {
 		}
 	}
 	if ($auth) {
-		if ( $NT->{$node}{active} eq 'true' ) {
+		if ( getbool($NT->{$node}{active}) ) {
 			push @valNode, $NT->{$node}{name};
 		}
 	}

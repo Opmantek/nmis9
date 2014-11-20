@@ -80,26 +80,24 @@ if ($AU->Require) {
 
 #======================================================================
 
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-	$Q->{expand} = "true";
-}
+my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+$Q->{expand} = "true" if ($widget eq "true");
+my $wantwidget = ($widget eq "true");
 
 ### 2013-11-23 keiths adding some timing debug
 my $t = NMIS::Timing->new();
 my $timing = 0;
-$timing = 1 if $Q->{timing} eq 'true';
+$timing = 1 if getbool($Q->{timing});
 
-if ( $Q->{refresh} eq "" and $widget eq "true" ) { 
+if ( $Q->{refresh} eq "" and $wantwidget ) { 
 	$Q->{refresh} = $C->{widget_refresh_time};
 }
-elsif ( $Q->{refresh} eq "" and $widget eq "false" ) { 
+elsif ( $Q->{refresh} eq "" and !$wantwidget ) { 
 	$Q->{refresh} = $C->{page_refresh_time};
 }
 
 my $nodewrap = "nowrap";
-$nodewrap = "wrap" if $C->{'wrap_node_names'} eq "true";
+$nodewrap = "wrap" if getbool($C->{'wrap_node_names'});
 
 my $smallGraphHeight = 50;
 my $smallGraphWidth = 400;
@@ -153,7 +151,7 @@ sub notfound {
 logMsg("TIMING: ".$t->elapTime()." Select Subs") if $timing;
 
 # option to generate html to file
-if ($Q->{http} eq 'true') {
+if (getbool($Q->{http})) {
 	print start_html(
 		-title=>'NMIS Network Summary',-style=>{'src'=>"$C->{'styles'}"},
 		-meta=>{ 'CacheControl' => "no-cache",'Pragma' => "no-cache",'Expires' => -1 },
@@ -167,7 +165,8 @@ if ($Q->{http} eq 'true') {
 	print header($headeropts);
 }
 
-pageStart(title => "NMIS Network Status", refresh => $Q->{refresh}) if ($widget eq "false");
+pageStart(title => "NMIS Network Status", refresh => $Q->{refresh}) 
+		if (!$wantwidget);
 
 logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
 
@@ -221,7 +220,7 @@ elsif ( $select eq 'business' and $business ne "" ) { selectLarge(business => $b
 elsif ( $select eq 'allgroups' ) { selectAllGroups();}
 
 print "<!-- typeSummary select=$select end-->\n";
-pageEnd() if ($widget eq "false");
+pageEnd() if (!$wantwidget);
 
 logMsg("TIMING: ".$t->elapTime()." END $Q->{act}") if $timing;
 
@@ -938,7 +937,7 @@ sub selectLarge {
 	'Reach','Intf. Avail.','Resp. Time','Outage','Esc.','Last Update');
 	
 	my $ST;
-	if ($C->{server_master} eq "true") {	
+	if (getbool($C->{server_master})) {	
 		$ST = loadServersTable();
 	}
 	
@@ -978,7 +977,7 @@ sub selectLarge {
 			elsif ( $business ne "" ) {
 				next unless $NT->{$node}{businessService} =~ /$business/ and $NT->{$node}{group} eq $group;
 			}
-			next unless $NT->{$node}{active} eq 'true'; # optional skip
+			next unless getbool($NT->{$node}{active}); # optional skip
 			
 			if ( $printGroupHeader ) {
 				$printGroupHeader = 0;
@@ -993,8 +992,9 @@ sub selectLarge {
 			#
 			#my $NI = loadNodeInfoTable($node);
 			my $color;
-			if ( $NT->{$node}{active} eq "true" ) {
-				if ($NT->{$node}{ping} ne 'true' and $NT->{$node}{collect} ne 'true') {
+			if ( getbool($NT->{$node}{active}) ) {
+				if ( !getbool($NT->{$node}{ping}) 
+						 and !getbool($NT->{$node}{collect}) ) {
 					$color = "#C8C8C8"; # grey
 					$groupSummary->{$node}{health_color} = $color;
 					$groupSummary->{$node}{reachable_color} = $color;
@@ -1067,7 +1067,7 @@ sub selectLarge {
 				
 			# response time
 			my $responsetime;
-			if ($groupSummary->{$node}{ping} eq 'true') {
+			if ( getbool($groupSummary->{$node}{ping}) ) {
 				my $ms = ($groupSummary->{$node}{response} ne '' and $groupSummary->{$node}{response} ne 'NaN') ? 'ms' : '' ;
 				my $bg = "background-color:" . colorResponseTime($groupSummary->{$node}{response},$C->{response_time_threshold});
 				$responsetime = td({class=>'info Plain',align=>'right',style=>$bg},
@@ -1128,7 +1128,7 @@ sub viewRunTime {
 	$AU->CheckAccess("tls_nmis_runtime","header");
 	
 	print header($headeropts);
-	pageStart(title => "NMIS Run Time") if ($widget eq "false");
+	pageStart(title => "NMIS Run Time") if (!$wantwidget);
 	print start_table({class=>'dash'});
 	print Tr(th({class=>'title'},"NMIS Runtime Graph"));
 	print Tr(td({class=>'image'},htmlGraph(graphtype=>"nmis", node=>"", intf=>"", width=>"600", height=>"150") ));	
@@ -1204,7 +1204,7 @@ sub viewPollingSummary {
 	}
 		
 	print header($headeropts);
-	pageStart(title => "NMIS Polling Summary") if ($widget eq "false");
+	pageStart(title => "NMIS Polling Summary") if (!$wantwidget);
 	print start_table({class=>'dash'});
 	print Tr(th({class=>'title',colspan=>'2'},"NMIS Polling Summary"));
 	print Tr(td({class=>'heading3'},"Node Count"),td({class=>'rht Plain'},$sum->{count}{node}));	
@@ -1245,7 +1245,7 @@ sub viewMetrics {
 	}
 
 	print header($headeropts);
-	pageStart(title => $group, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
 	
 	if (!$AU->InGroup($group)) {
 		print 'You are not authorized for this request';
@@ -1279,7 +1279,7 @@ sub viewMetrics {
 
 	my $startform = start_form({ action=>"javascript:get('ntw_graph_form');", -id=>'ntw_graph_form', -href=>"$C->{'<cgi_url_base>'}/network.pl?"});
 	my $submit = submit(-name=>'ntw_graph_form', -value=>'Go', onClick=>"javascript:get('ntw_graph_form'); return false;");
-	if ( $widget eq "false" ) {
+	if ( !$wantwidget ) {
 		$startform = start_form({ method=>"get", -id=>'ntw_graph_form', action=>"$C->{'<cgi_url_base>'}/network.pl"});
 		$submit = submit(-name=>'ntw_graph_form', -value=>'Go');
 	}
@@ -1317,7 +1317,7 @@ sub viewNode {
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 	
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
@@ -1480,7 +1480,7 @@ EO_HTML
 				push @out,Tr(td({class=>'header',colspan=>'2'},'Events'));
 				for (sort keys %{$ET}) {
 					if ($ET->{$_}{node} eq $node) {
-						my $state = $ET->{$_}{ack} eq 'false' ? 'active' : 'inactive';
+						my $state = getbool($ET->{$_}{ack},"invert") ? 'active' : 'inactive';
 						my $details = $ET->{$_}{details};
 						$details = "$ET->{$_}{element} $details" if $ET->{$_}{event} =~ /^Proactive|^Alert/ ;
 						$details = $ET->{$_}{element} if $details eq "";
@@ -1584,7 +1584,8 @@ EO_HTML
 	}
 
 
-	if ($NI->{system}{collect} eq 'true' or $NI->{system}{ping} eq 'true') {
+	if ( getbool($NI->{system}{collect})
+			 or getbool($NI->{system}{ping}) ) {
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
 		my @graphs = split /,/,$M->{system}{nodegraph};
@@ -1605,11 +1606,15 @@ EO_HTML
 			my @pr;
 			# check if database rule exists
 			next unless $GTT->{$graph} ne '';
-			next if $graph eq 'response' and $NI->{system}{ping} eq 'false'; # no ping done
+			next if $graph eq 'response' 
+					and getbool($NI->{system}{ping},"invert"); # no ping done
 			# first two or all graphs
 			
 			## display more graphs by default
-			if ($cnt == 3 and $Q->{expand} ne 'true' and $NI->{system}{collect} eq 'true' and $C->{auto_expand_more_graphs} eq "false") {
+			if ($cnt == 3 
+					and !getbool($Q->{expand}) 
+					and getbool($NI->{system}{collect})
+					and getbool($C->{auto_expand_more_graphs},"invert")) {
 				if ($#graphs > 1) {
 					# signal there are more graphs
 					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node&expand=true"},"More graphs")));
@@ -1638,7 +1643,7 @@ EO_HTML
 
 	print end_Tr,end_table;
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 
@@ -1652,7 +1657,7 @@ sub viewInterface {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 
 	if (!$AU->InGroup($NI->{system}{group})) {
@@ -1753,7 +1758,7 @@ sub viewInterface {
 	
 	print end_Tr,end_table;
 	
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 }
 
@@ -1770,7 +1775,7 @@ sub viewAllIntf {
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
@@ -1804,7 +1809,7 @@ sub viewAllIntf {
 	# select available items in view table
 	my @hd;
 	for (@header) {
-		next if $active eq 'true' and $_ eq 'collect'; # not interesting for active interfaces
+		next if (getbool($active) and $_ eq 'collect'); # not interesting for active interfaces
 		if ($items{$_} and $titles{$_} ne '' ) { push @hd,$_; } # available item
 	}
 	
@@ -1836,7 +1841,7 @@ sub viewAllIntf {
 	
 	# print data
 	foreach my $intf ( sorthash(\%view,[${sort},"value"], $dir)) {
-		next if $active eq 'true' and $view{$intf}{collect}{value} ne 'true';
+		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		print Tr(
 		eval { my @out;
 			foreach my $k (@hd){
@@ -1870,7 +1875,7 @@ sub viewAllIntf {
 	
 	print end_table;
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 }
 
@@ -1892,7 +1897,7 @@ sub viewActivePort {
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
 
@@ -1989,7 +1994,7 @@ sub viewActivePort {
 	
 	# print data
 	foreach my $intf ( sorthash(\%view,[${sort},"value"], $dir)) {
-		next if $active eq 'true' and $view{$intf}{collect}{value} ne 'true';
+		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		next if ($graphtype =~ /cbqos/ and !grep($intf eq $_, $S->getTypeInstances(graphtype => $graphtype)));
 		
 		print Tr(
@@ -2021,7 +2026,7 @@ sub viewActivePort {
 	
 	print end_table,end_form;
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 sub viewStorage {
@@ -2033,7 +2038,7 @@ sub viewStorage {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node), refresh => $Q->{refresh} if ($widget eq "false");
+	pageStart(title => $node), refresh => $Q->{refresh} if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2069,7 +2074,7 @@ sub viewStorage {
 		print end_Tr;
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 sub viewService {
@@ -2081,7 +2086,7 @@ sub viewService {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2124,7 +2129,7 @@ sub viewService {
 			#only show response time for polled services, when getting http connect time
 			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,
 																		width=>$thiswidth, height=>$smallGraphHeight);
-			if ( $V->{system}{"${service}_cpumem"} eq "true" ) {
+			if ( getbool($V->{system}{"${service}_cpumem"}) ) {
 				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,
 																		width=>$thiswidth,height=>$smallGraphHeight);
 			}
@@ -2144,7 +2149,7 @@ sub viewService {
 		print Tr(th({class=>'title',colspan=>'3'},"No Services defined for $NI->{system}{name}"));
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 sub viewServiceList {
@@ -2162,7 +2167,7 @@ sub viewServiceList {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2224,7 +2229,7 @@ sub viewServiceList {
 		print Tr(th({class=>'title',colspan=>'6'},"No Services found for $NI->{system}{name}"));
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 	sub sortServiceList {
 		my $sort = shift;
@@ -2259,7 +2264,7 @@ sub viewStatus {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2334,7 +2339,7 @@ sub viewStatus {
 		print Tr(th({class=>'title',colspan=>$colspan},"No Status Summary found for $NI->{system}{name}"));
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 	sub sortStatus {
 		my $sort = shift;
@@ -2359,7 +2364,7 @@ sub viewEnvironment {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2412,7 +2417,7 @@ sub viewEnvironment {
 		print end_Tr;
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 sub viewSystemHealth {
@@ -2426,7 +2431,7 @@ sub viewSystemHealth {
 	my $M = $S->mdl;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2521,7 +2526,7 @@ sub viewSystemHealth {
 		#td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 	}
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 #2011-11-11 Integrating changes from Kai-Uwe Poenisch
@@ -2533,7 +2538,7 @@ sub viewCSSGroup {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2562,7 +2567,7 @@ sub viewCSSGroup {
 	}
 
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
  
 #2011-11-11 Integrating changes from Kai-Uwe Poenisch
@@ -2574,7 +2579,7 @@ sub viewCSSContent {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2602,7 +2607,7 @@ sub viewCSSContent {
 	}
 
 	print end_table;
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 sub viewOverviewIntf {
@@ -2614,7 +2619,7 @@ sub viewOverviewIntf {
 	my $text;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $NT = loadNodeTable();
 	my $II = loadInterfaceInfo();
@@ -2673,11 +2678,11 @@ sub viewOverviewIntf {
 	if ($II->{$key}{ifAdminStatus} ne 'up') {
 		$icon = 'block_grey.png';
 	} elsif ($II->{$key}{ifOperStatus} eq 'up') {
-		$icon = ($II->{$key}{collect} eq 'true') ? 'arrow_up_green.png' : 'arrow_up_purple.png';
+		$icon = getbool($II->{$key}{collect}) ? 'arrow_up_green.png' : 'arrow_up_purple.png';
 	} elsif ($II->{$key}{ifOperStatus} eq 'dormant') {
-		$icon = ($II->{$key}{collect} eq 'true') ? 'arrow_up_yellow.png' : 'arrow_up_purple.png';
+		$icon = getbool($II->{$key}{collect}) ? 'arrow_up_yellow.png' : 'arrow_up_purple.png';
 	} else {
-		$icon = ($II->{$key}{collect} eq 'true') ? 'arrow_down_red.png' : 'block_purple.png';
+		$icon = getbool($II->{$key}{collect}) ? 'arrow_down_red.png' : 'block_purple.png';
 	}
 	if ($cnt++ >= 32) {
 		print end_Tr,start_Tr,td({class=>'info Plain'},'&nbsp;');
@@ -2694,14 +2699,14 @@ sub viewOverviewIntf {
 	print end_table;
 	
 	END_viewOverviewIntf:
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 
 sub viewTop10 {
 
 	print header($headeropts);
-	pageStart(title => "Top 10", refresh => $Q->{refresh}) if ($widget eq "false");
+	pageStart(title => "Top 10", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print '<!-- Top10 report start -->';
 
@@ -2723,7 +2728,7 @@ sub viewTop10 {
 
 	foreach my $reportnode ( keys %{$NT} ) {
 		next unless $AU->InGroup($NT->{$reportnode}{group});
-		if ( $NT->{$reportnode}{active} eq 'true') {
+		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			my $IF = $S->ifinfo;
@@ -2731,13 +2736,14 @@ sub viewTop10 {
 			%reportTable = (%reportTable,%{getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)});
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			if ($NI->{graphtype}{nodehealth} =~ /cpu/ and $NI->{system}{collect} eq 'true') {
+			if ($NI->{graphtype}{nodehealth} =~ /cpu/ 
+					and getbool($NI->{system}{collect})) {
 				%cpuTable = (%cpuTable,%{getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)});
 				print STDERR "Result: ". Dumper \%cpuTable;
 			}
 
 			foreach my $int (keys %{$IF} ) {
-				if ( $IF->{$int}{collect} eq "true" ) {
+				if ( getbool($IF->{$int}{collect}) ) {
 					# availability, inputUtil, outputUtil, totalUtil
 					my $intf = $IF->{$int}{ifIndex};
 													
@@ -2880,7 +2886,7 @@ sub viewTop10 {
 	print end_table;
 	print '<!-- Top10 report end -->';
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 
 }
 

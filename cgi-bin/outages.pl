@@ -72,10 +72,9 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-my $widget = "true";
-if ($Q->{widget} eq 'false' ) {	
-	$widget = "false"; 
-}
+# default is widgeted mode, only off if explicitely set to false
+my $widget = getbool($Q->{widget},"invert")? "false": "true";
+# numeric option as $widget needs to remain t/f text
 my $wantwidget = $widget eq 'true';
 
 #======================================================================
@@ -106,7 +105,7 @@ sub viewOutage {
 	my $time = time();
 
 	print header($headeropts);
-	pageStartJscript(title => $title, refresh => 86400) if ($widget eq "false");
+	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 	
 	my $OT = loadOutageTable();
 	my $NT = loadNodeTable();
@@ -242,7 +241,7 @@ sub viewOutage {
 	});
 ENDS
 
-	pageEnd() if ($widget eq "false");
+	pageEnd() if (!$wantwidget);
 }
 
 

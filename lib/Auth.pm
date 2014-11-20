@@ -1184,7 +1184,8 @@ sub loginout {
 			$self->SetUser($username);
 
 			# handle default privileges or not.
-			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq "" or $C->{auth_default_privilege} eq "false" ) ) { 
+			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq "" 
+																		 or getbool($C->{auth_default_privilege},"invert")) ) { 
 				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator");
 				return 0;	
 			}
@@ -1355,7 +1356,8 @@ sub _GetPrivs {
 		$self->{priv} = $UT->{$user}{privilege};
 	}
 	else {
-		if ( $C->{auth_default_privilege} ne "" and $C->{auth_default_privilege} ne "false" ) { 
+		if ( $C->{auth_default_privilege} ne "" 
+				 and !getbool($C->{auth_default_privilege},"invert") ) { 
 			$self->{priv} = $C->{auth_default_privilege};
 			$self->{privlevel} = 5;
 			logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $C->{auth_default_privilege}");

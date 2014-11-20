@@ -56,10 +56,9 @@ $Q = $q->Vars; # values in hash
 # load NMIS configuration table
 $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
-my $widget = "false";
-if ($Q->{widget} eq 'true' ) {	
-	$widget = "true";
-}
+my $widget = getbool($Q->{widget},"invert")? "false" : "true";
+my $wantwidget = $widget eq "true";
+
 
 moduleMenu();
 
@@ -76,7 +75,7 @@ sub moduleMenu {
 
 	print header({-type=>"text/html",-expires=>'now'});
 	
-	if ( $widget eq "false" ) {
+	if ( !$wantwidget ) {
 		#Don't print the start_html, but we do need to get the javascript in there.
 		print start_html(-title=>$title,
 			-xbase=>&url(-base=>1)."$C->{'<url_base>'}",
@@ -89,7 +88,7 @@ sub moduleMenu {
 	}
 
 	print start_table({class=>"noborder"}) ;
-	if ( $widget eq "false" ) {
+	if ( !$wantwidget ) {
 		print Tr(td({class=>"nav", colspan=>"3", width=>"100%"},
 			"<a href='http://www.opmantek.com'><img height='30px' width='30px' class='logo' src=\"$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png\"/></a>",
 			"<span class=\"title\">$header2</span>",

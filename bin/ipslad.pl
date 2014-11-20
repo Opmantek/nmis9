@@ -541,7 +541,8 @@ sub runRTTstop {
 	push @params,"rttMonCtrlAdminStatus.$entry",'integer',6 ;
 	snmpset($host, @params);
 
-	unlink $RTTcfg{$nno}{database} if $RTTcfg{$nno}{deldb} eq "true"; # delete RRD
+	unlink $RTTcfg{$nno}{database} 
+	if (getbool($RTTcfg{$nno}{deldb})); # delete RRD
 
 	$RTTcfg{$nno}{status} = "remove";
 

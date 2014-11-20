@@ -328,7 +328,7 @@ sub draw {
 
 			$pflag = 0;
 			undef %data;
-			if ( $NMIS::interfaceTable{$int}{collect} eq "true" ) {
+			if ( getbool($NMIS::interfaceTable{$int}{collect}) ) {
 
 				# clean the ifDescr
 				my $extName = &convertIfName($NMIS::interfaceTable{$int}{ifDescr});

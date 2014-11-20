@@ -49,7 +49,7 @@ my %Table_cache = ();
  
 sub new {
 	my ($class,%arg) = @_;
-	my $ext = getExtension();
+
 	my $debug = $arg{debug} || 0;
 	my $conf = $arg{conf} || 'nmis';			# default config name is 'nmis'
 	my $file = $arg{file} || 'Config.$ext' if $conf eq 'nmis';
@@ -130,7 +130,7 @@ sub loadConfTable {
 		$Table_cache{$conf}{debug} = $debug; # include debug setting in conf table
 		$Table_cache{$conf}{conf} = $conf;
 		$Table_cache{$conf}{configfile} = $configfile;
-		$Table_cache{$conf}{auth_require} = ($Table_cache{$conf}{auth_require} eq 'false') ? 0 : 1; # default true in Auth
+		$Table_cache{$conf}{auth_require} = (!getbool($Table_cache{$conf}{auth_require})) ? 0 : 1; # default true in Auth
 		$Table_cache{$conf}{starttime} = scalar localtime();
 		$Table_cache{$conf}{isConfigCached} = 'false';
 		$Table_cache{$conf}{mtime} = stat($configfile)->mtime; # remember modified time

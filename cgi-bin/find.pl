@@ -73,7 +73,7 @@ if ($AU->Require) {
 }
 
 # widget defaults to true
-my $wantwidget = $Q->{widget} ne "false";
+my $wantwidget = !getbool($Q->{widget},"invert");
 my $widgetstate = $wantwidget?"true":"false";
 
 # check for remote request
@@ -173,7 +173,7 @@ sub viewInterfaceFind {
 				push @out,Tr(
 					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}&widget=$widgetstate"},$II->{$intHash}{node})),
 					eval {
-						if ($II->{$intHash}{collect} eq 'true') {
+						if ( getbool($II->{$intHash}{collect}) ) {
 							return td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}&widget=$widgetstate"},$II->{$intHash}{ifDescr}));
 						} else {
 							return td({class=>'info Plain'},$II->{$intHash}{ifDescr});

@@ -54,7 +54,8 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-my $wantwidget = exists $Q->{widget}? $Q->{widget} ne "false" : 1;
+my $wantwidget = exists $Q->{widget}? 
+		!getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
@@ -290,7 +291,7 @@ sub editConfig{
 sub doEditConfig {
 	my %args = @_;
 
-	return 1 if $Q->{cancel} eq 'true';
+	return 1 if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -300,7 +301,8 @@ sub doEditConfig {
 
 	# check if DB <=> file change
 	if ($section eq 'database' and $item =~ /^db.*sql$/ 
-			and $C->{$item} ne $value and ($C->{$item} ne '' or $value eq 'true') ) {
+			and $C->{$item} ne $value and ($C->{$item} ne '' 
+																		 or getbool($value)) ) {
 		storeTable(section=>$section,item=>$item,value=>$value);
 		return 0;
 	} else {
@@ -368,7 +370,7 @@ End_deleteConfig:
 sub doDeleteConfig {
 	my %args = @_;
 
-	return if $Q->{cancel} eq 'true';
+	return if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -435,7 +437,7 @@ sub addConfig{
 sub doAddConfig {
 	my %args = @_;
 
-	return if $Q->{cancel} eq 'true';
+	return if (getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -506,7 +508,7 @@ sub storeTable {
 
 	print start_table;
 
-	if ($C->{$item} eq 'true') {
+	if ( getbool($C->{$item}) ) {
 		print Tr(td({class=>'info Plain'}," mySQL Database is active now"));
 	} else {
 		my $ext = getExtension(dir=>'conf');
@@ -517,7 +519,7 @@ sub storeTable {
 
 	print Tr(td(
 				eval {
-					if ($value eq 'true') {
+					if (getbool($value)) {
 						return button(-name=>"button",
 													onclick=> '$("#dbinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
 													-value=>'Transfer from file to DB');
@@ -545,9 +547,9 @@ sub doStoreTable {
 
 	my $T;
 
-	return 1 if $Q->{cancel} eq 'true';
+	return 1 if (getbool($Q->{cancel}));
 
-	if ($Q->{db} eq 'true') {
+	if (getbool($Q->{db})) {
 		# from file to DB
 		if (($T = loadTable(dir=>'conf',name=>$table)) ) { # load requested table
 			if (DBfunc::->delete(table=>$table,where=>'*')) { # delete all rows

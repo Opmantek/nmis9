@@ -320,7 +320,7 @@ print dumper_html($C);
 
 # slave servers
 
-if ($C->{master_dash} eq "true") {
+if (getbool($C->{master_dash})) {
 	
 	my $ext = getExtension(dir=>'var');
 

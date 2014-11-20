@@ -444,7 +444,7 @@ sub getFileName {
 	# get the rule in Model to find the database file
 	if ($S->{mdl}{database}{type}{$type}) {
 		my $string = $S->{mdl}{database}{type}{$type};
-		$string =~ s/\$node\b/\$host/g if $nmis4 eq 'true';
+		$string =~ s/\$node\b/\$host/g if getbool($nmis4);
 		if ($dir = $S->parseString(string=>$string,type=>$type,index=>$index,item=>$item)) {
 			#		
 			$dir = $C->{database_root}.$dir; # full specification

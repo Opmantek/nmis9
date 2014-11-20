@@ -56,7 +56,7 @@ Usage: $base [restart|kill=true|false] [debug=true|false] [logging=true|false] [
 Command line options are:
  restart=true   - kill the running daemon(s) and restart
  debug=true     - print status to console and logfile
- kill=true      - kill the running deamon(s) and exit. Does not launch a new process.
+ kill=true      - kill the running daemon(s) and exit. Does not launch a new process.
  logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
  conf=*.$ext    - specify an alternative Conf.$ext file.
 
@@ -96,7 +96,7 @@ if ( -f $runfile ) {
 	close(F);
 	chomp $fpid if $fpid;
 }
-if ( defined $nvp{kill} and $nvp{kill} eq "true" ) {
+if ( defined $nvp{kill} and getbool($nvp{kill})) {
 	killall();
 	unlink($runfile) and &debug("Killed process $FindBin::Script deleted $runfile");
 	exit(0);
@@ -190,7 +190,7 @@ close PID;
 logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $ppid");
 umask 0;
 
-if ($C->{daemon_fping_dns_cache} ne 'false' ) {
+if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
         logMsg("INFO daemon fpingd will cache DNS for improved name resolution");
 }
 else {
@@ -385,7 +385,8 @@ sub fastping {
 				if ( $restart ) {
 					fpingCheckEvent($nd);
 				}
-				elsif ( exists $eventTable->{$event_hash} and $eventTable->{$event_hash}{current} eq 'true' ) {
+				elsif ( exists $eventTable->{$event_hash} and 
+								getbool($eventTable->{$event_hash}{current})) {
 					# Device was down is now UP!
 					# Only post the status if the event database records as currently down
 					&debug("\t$nd is now UP, was DOWN, Updating event database");
@@ -422,7 +423,7 @@ sub fpingCheckEvent {
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$node,snmp=>0);
 	my $NI = $S->ndinfo; # pointer to node info table
-	if ($NI->{system}{snmpdown} ne 'true') {
+	if (!getbool($NI->{system}{snmpdown})) {
 		checkEvent(
 				sys		=> $S,
 				event   => "Node Down",
@@ -493,14 +494,14 @@ sub readNodes {
 	my $NT = loadLocalNodeTable(); # from (cached) file or db
 
 	foreach my $nd (sort keys %{$NT} ) {
-		if ( $NT->{$nd}{active} eq 'true' and $NT->{$nd}{ping} eq 'true') {
+		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{ping})) {
 			if ( $INFO{$nd}{name} eq '' or $NT->{$nd}{host} ne $INFO{$nd}{org_host}) {
 				# new entry or changed host address
 				$INFO{$nd}{org_host} = $NT->{$nd}{host}; # remember original for changes
 				$INFO{$nd}{name} = $nd; # remember name of node
 								
 					# Optionally Caching DNS, improved performance but makes development harder :-)
-          if ($C->{daemon_fping_dns_cache} ne 'false' ) {
+          if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
 						if ($NT->{$nd}{host} =~ /$qripaddr/) {
 							$INFO{$NT->{$nd}{host}}{node} = $nd;
 							$INFO{$nd}{host} = $NT->{$nd}{host};

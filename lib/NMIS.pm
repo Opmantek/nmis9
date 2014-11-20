@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.2G";
+$VERSION = "8.5.3a";
 
 @ISA = qw(Exporter);
 
@@ -202,7 +202,7 @@ sub loadNodeConfTable {
 # load local node table and store also in cache
 sub loadLocalNodeTable {
 	my $C = loadConfTable();
-	if ($C->{db_nodes_sql} eq 'true') {
+	if (getbool($C->{db_nodes_sql})) {
 		return DBfunc::->select(table=>'Nodes');
 	} else {
 		return loadTable(dir=>'conf',name=>'Nodes');
@@ -215,7 +215,7 @@ sub loadNodeTable {
 
 	my $C = loadConfTable();
 
-	if ($C->{server_master} eq 'true') {
+	if (getbool($C->{server_master})) {
 		# check modify of remote node tables
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -233,7 +233,7 @@ sub loadNodeTable {
 		$reload = 'true';
 	}
 
-	return $NT_cache if $reload eq 'false';
+	return $NT_cache if getbool($reload,"invert");
 
 	# rebuild tables
 	$NT_cache = undef;
@@ -255,7 +255,7 @@ sub loadNodeTable {
 	}
 	$NT_modtime = mtimeFile(dir=>'conf',name=>'Nodes');
 
-	if ($C->{server_master} eq 'true') {
+	if (getbool($C->{server_master})) {
 		# check modify of remote node tables
 		my $ST = loadServersTable();	
 		my $NT;
@@ -315,7 +315,7 @@ sub loadFileOrDBTable {
 	my $ltable = lc $table;
 
 	my $C = loadConfTable();
-	if ($C->{"db_${ltable}_sql"} eq 'true') {
+	if (getbool($C->{"db_${ltable}_sql"})) {
 		return DBfunc::->select(table=>$table);
 	} else {
 		return loadTable(dir=>'conf',name=>$table);
@@ -761,7 +761,7 @@ sub loadEventStateNoLock {
 
 	my $C = loadConfTable();
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		if ($type eq 'Node_Down') {	# used by fpingd
 			return DBfunc::->select(table=>'Events',column=>'event,node,element',where=>'event=\'Node Down\'');
 		} else {
@@ -785,7 +785,7 @@ sub loadEventStateLock {
 
 	my $C = loadConfTable();
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		logMsg("ERROR (nmis) loadEventStateLock not supported by SQL active");
 		return (undef,undef);
 	} else {
@@ -816,7 +816,7 @@ sub loadNodeSummary {
 	}
 
 	### 2011-12-29 keiths, moving master handling outside of Cache handling!
-	if ($C->{server_master} eq "true" or $master eq "true") {
+	if (getbool($C->{server_master}) or getbool($master)) {
 		dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -873,13 +873,13 @@ sub eventExist {
 	my $event_hash = eventHash($node,$event,$element);
 	my $ET;
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 	} else {
 		$ET = loadEventStateNoLock();
 	}
 
-	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq 'true' ) {
+	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
 		return 1;
 	}
 	else {
@@ -926,7 +926,7 @@ sub checkEvent {
 		# event table already loaded in sys object
 		$ET = $S->{ET};
 	} else {
-		if ($C->{db_events_sql} eq 'true') {
+		if (getbool($C->{db_events_sql})) {
 			$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 		} else {
 			$ET = loadEventStateNoLock();
@@ -936,7 +936,8 @@ sub checkEvent {
 
 	my $outage;
 
-	if (exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq 'true') {
+	if (exists $ET->{$event_hash} 
+			and getbool($ET->{$event_hash}{current})) {
 		# The opposite of this event exists log an UP and delete the event
 
 		# save some stuff, as we cant rely on the hash after the write 
@@ -987,14 +988,14 @@ sub checkEvent {
 			$details = "$details change=$OT->{$key}{change}";
 		}
 
-		if ($C->{db_events_sql} eq 'true') {
+		if (getbool($C->{db_events_sql})) {
 			dbg("event $event_hash marked for UP notify and delete");
 			DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
 		} else {
 			# re-open the file with a lock, as we to wish to update
 			my ($ETL,$handle) = loadEventStateLock();
 			# make sure we still have a valid event
-			if ( $ETL->{$event_hash}{current} eq 'true' ) {
+			if ( getbool($ETL->{$event_hash}{current})) {
 				dbg("event $event_hash marked for UP notify and delete");
 				$ETL->{$event_hash}{current} = 'false';
 				### 2013-02-07 keiths, fixed stateful event properties not clearing.
@@ -1005,12 +1006,13 @@ sub checkEvent {
 			writeEventStateLock(table=>$ETL,handle=>$handle);
 		}
 
-		if ($log eq 'true') {
+		if (getbool($log)) {
 			logEvent(node=>$S->{name},event=>$event,level=>$level,element=>$element,details=>$details);
 		}
 
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
-		if ($C->{syslog_events} eq 'true' and $syslog eq 'true' and $C->{syslog_use_escalation} ne 'true') {			
+		if (getbool($C->{syslog_events}) and getbool($syslog) 
+				and !getbool($C->{syslog_use_escalation})) {
 			sendSyslog(
 				server_string => $C->{syslog_server},
 				facility => $C->{syslog_facility},
@@ -1052,7 +1054,7 @@ sub notify {
 		# event table already loaded in sys object
 		$ET = $S->{ET};
 	} else {
-		if ($C->{db_events_sql} eq 'true') {
+		if (getbool($C->{db_events_sql})) {
 			$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 		} else {
 			$ET = loadEventStateNoLock();
@@ -1060,13 +1062,13 @@ sub notify {
 	}
 
 	### 2014-09-01 keiths, fixing up an autovification problem.
-	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
+	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
 		# event exists, maybe a level change of proactive threshold
 		if ($event =~ /Proactive|Alert\:/ ) {
 			if ($ET->{$event_hash}{level} ne $level) {
 				# change of level
 				$ET->{$event_hash}{level} = $level; # update cache
-				if ($C->{db_events_sql} eq 'true') {
+				if (getbool($C->{db_events_sql})) {
 					DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
 				} else {
 					my ($ETL,$handle) = loadEventStateLock();
@@ -1098,12 +1100,14 @@ sub notify {
 		}
 	}
 	# log events
-	if ( $log eq 'true' ) {
+	if ( getbool($log)) {
 		logEvent(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 	}
 
 	# Syslog must be explicitly enabled in the config and will escalation is not being used.
-	if ($C->{syslog_events} eq 'true' and $syslog eq 'true' and $C->{syslog_use_escalation} ne 'true') {			
+	if (getbool($C->{syslog_events}) 
+			and getbool($syslog) 
+			and !getbool($C->{syslog_use_escalation})) {
 		sendSyslog(
 			server_string => $C->{syslog_server},
 			facility => $C->{syslog_facility},
@@ -1145,7 +1149,7 @@ sub nodeStatus {
 	my $snmp_down = "SNMP Down";
 
 	# ping disabled ->  snmp state is authoritative
-	if ( $NI->{system}{ping} eq 'false' ) {
+	if ( getbool($NI->{system}{ping},"invert") ) {
 		$status = 0 if eventExist($NI->{system}{name}, $snmp_down, "");
 	}
 	# ping enabled, but unpingable -> down
@@ -1159,7 +1163,7 @@ sub nodeStatus {
 	# ping enabled, pingable but dead snmp -> degraded
 	elsif (
 		exists $C->{node_status_uses_status_summary}
-		and $C->{node_status_uses_status_summary} eq "true"
+		and getbool($C->{node_status_uses_status_summary})
 		and exists $NI->{system}{status_summary} 
 		and exists $NI->{system}{status_updated} 
 		and $NI->{system}{status_summary} <= 99
@@ -1293,7 +1297,7 @@ sub eventAdd {
 	my $new_event = 0;
 	my $event_hash = eventHash($node,$event,$element);
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 	} else {
 		($ET,$handle) = loadEventStateLock();
@@ -1301,7 +1305,7 @@ sub eventAdd {
 
 	# before we log check the state table if there is currently an event outstanding.
 	### 2014-09-01 keiths, fixing up an autovification problem.
-	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
+	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
 		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
 		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
 	}
@@ -1321,7 +1325,7 @@ sub eventAdd {
 		##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
 	}
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		if ($new_event) {
 			$ET->{$event_hash}{index} = $event_hash;
 			DBfunc::->insert(table=>'Events',data=>$ET->{$event_hash}) ;
@@ -1349,14 +1353,14 @@ sub eventAck {
 	my ($ET,$handle);
 	$event_hash = eventHash($node,$event,$element);
 
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 	} else {
 		($ET,$handle) = loadEventStateLock();
 	}
 	# make sure we still have a valid event
-	if ( exists $ET->{$event_hash} and $ET->{$event_hash}{current} eq "true" ) {
-		if ( $ack eq "true" and $ET->{$event_hash}{ack} eq "false"  ) {
+	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
+		if ( getbool($ack) and getbool($ET->{$event_hash}{ack},"invert")) {
 			### if a TRAP type event, then trash when ack. event record will be in event log if required
 			if ( $ET->{$event_hash}{event} eq "TRAP" ) {
 				logEvent(node => $ET->{$event_hash}{node}, event => "deleted event: $ET->{$event_hash}{event}", level => "Normal", element => $ET->{$event_hash}{element});
@@ -1369,13 +1373,13 @@ sub eventAck {
 				$ET->{$event_hash}{user} = $user;
 			}
 		}
-		elsif ( $ack eq "false" and $ET->{$event_hash}{ack} eq "true"  ) {
+		elsif ( getbool($ack,"invert") and getbool($ET->{$event_hash}{ack})) {
 			logEvent(node => $node, event => $event, level => $ET->{$event_hash}{level}, element => $element, details => "acknowledge=false ($user)");
 			$ET->{$event_hash}{ack} = "false";
 			$ET->{$event_hash}{user} = $user;
 		}
 	}
-	if ($C->{db_events_sql} eq 'true') {
+	if (getbool($C->{db_events_sql})) {
 		if ($delete_event) {
 			DBfunc::->delete(table=>'Events',index=>$event_hash);
 		} else {
@@ -1401,7 +1405,7 @@ sub getSummaryStats{
 	my $M  = $S->mdl;
 
 	my $C = loadConfTable();
-	if ($C->{server_master} eq 'true' and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
+	if (getbool($C->{server_master}) and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
 		# send request to remote server
 		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
 		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
@@ -1497,7 +1501,7 @@ sub getNodeSummary {
 	my %nt;
 	
 	foreach my $nd (keys %{$NT}) {
-		next if $NT->{$nd}{active} ne 'true';
+		next if (!getbool($NT->{$nd}{active}));
 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
 
 		my $NI = loadNodeInfoTable($nd);
@@ -1636,7 +1640,7 @@ sub getGroupSummary {
 	unless ($cache) {
 		$SUM = {};
 		foreach my $node ( keys %{$NT} ) {
-			next if ($NT->{$node}{active} ne 'true' or exists $NT->{$node}{server});
+			next if ( !getbool($NT->{$node}{active}) or exists $NT->{$node}{server});
 			$SUM->{$node}{server_priority} = $master_server_priority;
 			$SUM->{$node}{reachable} = 'NaN';
 			$SUM->{$node}{response} = 'NaN';
@@ -1651,18 +1655,6 @@ sub getGroupSummary {
 				foreach (keys %{$stats}) { $SUM->{$node}{$_} = $stats->{$_};  }
 			}
 			
-			#print STDERR "DEBUG: node=$node NI-nodedown=$NI->{system}{nodedown} SUM-nodedown=$SUM->{$node}{nodedown}\n";
-
-			# One way to get node status is to ask Node Info. 
-			#$S->init(name=>$node,snmp=>'false'); # need this node info for summary
-			#my $NI = $S->ndinfo;
-			#if ($NI->{system}{nodedown} eq 'true') {
-			#	$SUM->{$node}{nodedown} = 'true';
-			#}
-			#else {
-			#	$SUM->{$node}{nodedown} = 'false';
-			#}
-
 			# The other way to get node status is to ask Event State DB. 
 			if ( eventExist($node, "Node Down", "") ) {
 				$SUM->{$node}{nodedown} = "true";
@@ -1695,7 +1687,7 @@ sub getGroupSummary {
 
 
 	### 2011-12-29 keiths, moving master handling outside of Cache handling!
-	if ($C->{server_master} eq "true") {
+	if (getbool($C->{server_master})) {
 		dbg("Master, processing Slave Servers");
 		my $ST = loadServersTable();
 		for my $srv (keys %{$ST}) {
@@ -1770,7 +1762,7 @@ NODE:
 					or ($customer ne "" and $NT->{$node}{customer} eq $customer)		
 					or ($business ne "" and $NT->{$node}{businessService} =~ /$business/)
 		) {
-			if ( $NT->{$node}{active} eq 'true' ) {
+			if ( getbool($NT->{$node}{active}) ) {
 				++$nodecount{counttotal};
 				my $outage = '';
 				# check nodes
@@ -1910,7 +1902,7 @@ NODE:
 	}
 
 	# modification of interface available calculation
-	if ($C->{intf_av_modified} eq 'true') {
+	if (getbool($C->{intf_av_modified})) {
 		$summaryHash{average}{available} = 
 				sprintf("%.3f",($summaryHash{total}{intfColUp} / $summaryHash{total}{intfCollect}) * 100 );
 	}
@@ -1973,7 +1965,7 @@ sub getAdminColor {
 		$collect = $args{collect};
 	}
 
-	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or $collect ne "true" ) {
+	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or !getbool($collect)) {
 		$adminColor="#ffffff";
 	} else {
 		$adminColor="#00ff00";
@@ -2003,7 +1995,7 @@ sub getOperColor {
 		$collect = $args{collect};
 	}
 
-	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or $collect ne "true") {
+	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or !getbool($collect)) {
 		$operColor="#ffffff"; # white
 	} else {
 		if ($ifOperStatus eq 'down') {
@@ -2205,20 +2197,20 @@ sub overallNodeStatus {
 
 	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
 		foreach $node (sort keys %{$NT} ) {
-			if ($NT->{$node}{active} eq 'true') {
+			if (getbool($NT->{$node}{active})) {
 				my $nodedown = 0;
 				my $outage = "";
 				if ( $NT->{$node}{server} eq $C->{server_name} ) {
 					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 					my $event_hash = eventHash($node,$down_event,"");
 					($outage,undef) = outageCheck(node=>$node,time=>time());
 					$nodedown = exists $ET->{$event_hash}{node};
 				}
 				else {
 					$outage = $NS->{$node}{outage};
-					if ( $NS->{$node}{nodedown} eq "true" ) {
+					if ( getbool($NS->{$node}{nodedown})) {
 						$nodedown = 1;
 					}
 				}
@@ -2237,21 +2229,21 @@ sub overallNodeStatus {
 	}
 	elsif ( $netType ne "" and $roleType ne "" ) {
 		foreach $node (sort keys %{$NT} ) {
-			if ($NT->{$node}{active} eq 'true') {
+			if (getbool($NT->{$node}{active})) {
 				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
 					my $nodedown = 0;
 					my $outage = "";
 					if ( $NT->{$node}{server} eq $C->{server_name} ) {
 						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 						my $down_event = "Node Down";
-						$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+						$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 						my $event_hash = eventHash($node,$down_event,"");
 						($outage,undef) = outageCheck(node=>$node,time=>time());
 						$nodedown = exists $ET->{$event_hash}{node};
 					}
 					else {
 						$outage = $NS->{$node}{outage};
-						if ( $NS->{$node}{nodedown} eq "true" ) {
+						if ( getbool($NS->{$node}{nodedown})) {
 							$nodedown = 1;
 						}
 					}
@@ -2272,7 +2264,7 @@ sub overallNodeStatus {
 	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
 		foreach $node (sort keys %{$NT} ) {
 			if ( 
-				$NT->{$node}{active} eq 'true' 
+				getbool($NT->{$node}{active})
 				and ( ($group ne "" and $NT->{$node}{group} eq $group)
 							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
 							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
@@ -2283,14 +2275,14 @@ sub overallNodeStatus {
 				if ( $NT->{$node}{server} eq $C->{server_name} ) {
 					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if $NT->{$node}{ping} eq 'false';
+					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 					my $event_hash = eventHash($node,$down_event,"");
 					($outage,undef) = outageCheck(node=>$node,time=>time());
 					$nodedown = exists $ET->{$event_hash}{node};
 				}
 				else {
 					$outage = $NS->{$node}{outage};
-					if ( $NS->{$node}{nodedown} eq "true" ) {
+					if ( getbool($NS->{$node}{nodedown})) {
 						$nodedown = 1;
 					}
 				}
@@ -2321,7 +2313,8 @@ sub overallNodeStatus {
 	#print STDERR "New CALC: status_number=$status_number count=$statusHash{count}\n";
 
 	### 2014-08-27 keiths, adding a more coarse any nodes down is red
-	if ( defined $C->{overall_node_status_coarse} and $C->{overall_node_status_coarse} eq "true" ) {
+	if ( defined $C->{overall_node_status_coarse} 
+			 and getbool($C->{overall_node_status_coarse})) {
 		$C->{overall_node_status_level} = "Critical" if not defined $C->{overall_node_status_level};
 		if ( $status_number == 100 ) { $overall_status = "Normal"; }
 		else { $overall_status = $C->{overall_node_status_level}; }
@@ -2590,7 +2583,7 @@ sub outageCheck {
 				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
 					# check if this node is down
 					my $NI = loadNodeInfoTable($nd);
-					if ($NI->{system}{nodedown} eq 'true') {
+					if (getbool($NI->{system}{nodedown})) {
 						return "current",$key;
 					}
 				}
@@ -2763,7 +2756,7 @@ sub htmlGraph {
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&node=$node&intf=$intf&server=$server";
 	
 
-	if( $C->{display_opcharts} eq 'true' ) {
+	if( getbool($C->{display_opcharts}) ) {
 		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
@@ -2798,7 +2791,7 @@ sub createHrButtons {
 
 	return unless $AU->InGroup($NI->{system}{group});
 
-	my $server = ($C->{server_master} eq 'true') ? '' : $NI->{system}{server};
+	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
 
 	push @out, start_table({class=>'table'}),start_Tr;
 	push @out, td({class=>'header litehead'},'Node ',
@@ -2809,10 +2802,11 @@ sub createHrButtons {
 			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$node&server=$server"},"modules"));
 	}
 
-	if ($NI->{system}{collect} eq 'true') {
+	if (getbool($NI->{system}{collect})) {
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"status"))
-				if defined $NI->{status} and defined $C->{display_status_summary} and $C->{display_status_summary} eq "true";
+				if defined $NI->{status} and defined $C->{display_status_summary} 
+		and getbool($C->{display_status_summary});
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if defined $S->{mdl}{interface};
@@ -2879,22 +2873,22 @@ sub createHrButtons {
 			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
-				if $C->{view_telnet} eq 'true';
+			if (getbool($C->{view_telnet}));
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
-				if $C->{view_ping} eq 'true';
+			if getbool($C->{view_ping});
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$node&refresh=$refresh&widget=$widget&server=$server"},"trace")) 
-				if $C->{view_trace} eq 'true';
+				if getbool($C->{view_trace});
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$node&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
-				if $C->{view_mtr} eq 'true';
+			if getbool($C->{view_mtr});
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$node&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
-				if $C->{view_lft} eq 'true';
+				if getbool($C->{view_lft});
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
-				if $NI->{system}{webserver} eq 'true';
+				if getbool($NI->{system}{webserver});
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
 		push @out, td({class=>'header litehead'},
