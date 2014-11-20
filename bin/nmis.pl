@@ -6578,8 +6578,20 @@ sub doThreshold {
 				if ( $count and $countOk ) {
 					my $perOk = sprintf("%.2f",$countOk/$count * 100);
 					info("Status Summary = $perOk, $count, $countOk\n");
-					$S->{info}{system}{status_summary} = $perOk;
-					$S->{info}{system}{status_updated} = time();
+					$NI->{system}{status_summary} = $perOk;
+					$NI->{system}{status_updated} = time();
+
+					# cache the current nodestatus for use in the dash
+					my $nodestatus = nodeStatus(NI => $NI);
+					if ( not $nodestatus ) {
+						$NI->{system}{nodestatus} = "unreachable";
+					}
+					elsif ( $nodestatus == -1 ) {
+						$NI->{system}{nodestatus} = "degraded";
+					}
+					else {
+						$NI->{system}{nodestatus} = "reachable";
+					}
 				}
 
 				#print Dumper $S;

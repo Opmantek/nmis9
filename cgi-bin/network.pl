@@ -285,6 +285,12 @@ sub getSummaryStatsbyGroup {
 		$percentDown = sprintf("%2.0u",$groupSummary->{average}{countdown}/$groupSummary->{average}{counttotal}) * 100;
 	}
 	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
+
+	my $percentDegraded = 0;
+	if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$percentDegraded = sprintf("%2.0u",$groupSummary->{average}{countdegraded}/$groupSummary->{average}{counttotal}) * 100;
+	}
+	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
 	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = colorPercentLo(0); }
 	#else { $groupSummary->{average}{countdowncolor} = "$overallColor"; }
 
@@ -390,29 +396,38 @@ sub selectNetworkHealth {
 	my $customer = $args{customer};
 	my $business = $args{business};
 	
-	my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+	my @h=qw(Group);
 	my $healthTitle = "All Groups Status";
 	my $healthType = "group";
 	
 	if ( $type eq "customer" and tableExists('Customers') ) { 
-		@h=qw(Customer Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		@h=qw(Customer);
 		$healthTitle = "All Nodes Status";
 		$healthType = "customer";
 	}
 	elsif ( $type eq "business" and tableExists('BusinessServices') ) { 
-		@h=qw(Business Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		@h=qw(Business);
 		$healthTitle = "All Nodes Status";
 		$healthType = "business";
 	}
 	elsif ( $C->{network_health_view} eq "Customer" and tableExists('Customers') ) { 
-		@h=qw(Customer Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		@h=qw(Customer);
 		$healthTitle = "All Nodes Status";
 		$healthType = "customer";
 	}
 	elsif ( $C->{network_health_view} eq "Business" and tableExists('BusinessServices') ) { 
-		@h=qw(Business Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
+		@h=qw(Business);
 		$healthTitle = "All Nodes Status";
 		$healthType = "business";
+	}
+	
+	if ( exists $C->{display_status_summary}
+			and getbool($C->{display_status_summary})
+	) {
+		push(@h,qw(Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime));
+	}			 		
+	else {
+		push(@h,qw(Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime));
 	}
 
 	logMsg("TIMING: ".$t->elapTime()." selectNetworkHealth healthTitle=$healthTitle healthType=$healthType") if $timing;
@@ -432,6 +447,11 @@ sub selectNetworkHealth {
 		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 		}
+		my $classDegraded = "Normal";
+		if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$classDegraded = "Error";
+		}
+		
 		print
 		start_Tr,
 		td(
@@ -439,10 +459,10 @@ sub selectNetworkHealth {
 			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
 		),
 		td({class=>"info $overallStatus"},"$overallStatus"),
-		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-		td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-		td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
-		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
+		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
+		print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
+		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}");
 
 		my @h = qw/metric reachable available health response/;
 		foreach my $t (@h) {
@@ -630,11 +650,18 @@ sub printGroup {
 	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 	}
+	my $classDegraded = "Normal";
+	if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$classDegraded = "Error";
+	}
+
 	print
 	td({class=>"info $overallStatus"},$overallStatus),
-	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-	td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
+	print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
+	print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	
 
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h) {
@@ -673,6 +700,9 @@ sub selectNetworkView {
 	
 	#my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
 	my @h=qw(Group NodeDn Metric Reach Health);
+
+	@h=qw(Group NodeDn NodeDeg Metric Reach Health) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+
 	my $healthTitle = "All Groups Status";
 	my $healthType = "group";
 	
@@ -691,13 +721,16 @@ sub selectNetworkView {
 	# Use a subtitle when using multiple servers
 	#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
 	#Tr(th({class=>"header"},\@h));
-	Tr(
-		th({class=>"header",title=>"A group of nodes, and the status"},"Group"),
-		th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Down"),
-		th({class=>"header",title=>"A single metric for the group of nodes"},"Metric"),
-		th({class=>"header",title=>"Group reachability (pingability) of the nodes"},"Reachability"),
-		th({class=>"header",title=>"The health of the group"},"Health")
-	);
+	start_Tr;
+
+	print th({class=>"header",title=>"A group of nodes, and the status"},"Group");
+	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Down");
+	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Degraded") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	print th({class=>"header",title=>"A single metric for the group of nodes"},"Metric");
+	print th({class=>"header",title=>"Group reachability (pingability) of the nodes"},"Reachability");
+	print th({class=>"header",title=>"The health of the group"},"Health");
+	
+	print end_Tr;
 
 	if ($AU->InGroup("network") and $group eq ''){
 		# get all the stats and stuff the hashs
@@ -707,16 +740,21 @@ sub selectNetworkView {
 		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 		}
+		my $classDegraded = "Normal";
+		if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$classDegraded = "Error";
+		}
 		print
 		start_Tr,
 		td(
 			{class=>"infolft $overallStatus"},
 			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
-		),
+		);
 		#td({class=>"info $overallStatus"},"$overallStatus"),
 		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
 		#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-		td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
 
 		#my @h = qw/metric reachable available health response/;
@@ -773,11 +811,16 @@ sub printGroupView {
 	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 	}
-	print
+	my $classDegraded = "Normal";
+	if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$classDegraded = "Error";
+	}
+	
 	#td({class=>"info $overallStatus"},$overallStatus),
 	#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
 	#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+	print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}")  if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	#my @h = qw/metric reachable available health response/;
 	my @h = qw/metric reachable health/;
@@ -838,11 +881,18 @@ sub printHealth {
 	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 		$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 	}
+
+	my $classDegraded = "Normal";
+	if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		$classDegraded = "Error";
+	}
+
 	print
 	td({class=>"info $overallStatus"},$overallStatus),
-	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-	td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-	td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
+	print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
+	print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h) {
@@ -1035,14 +1085,27 @@ sub selectLarge {
 				my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node=$node";
 				$nodelink = a({target=>"Graph-$node", onclick=>"viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},$NT->{$node}{name},img({src=>"$C->{'nmis_slave'}",alt=>"NMIS Server $server"})) ;
 			}
-
+			
+			my $statusClass = $groupSummary->{$node}{event_status};
+			my $statusValue = $groupSummary->{$node}{event_status};	
+			if ( exists $C->{display_status_summary}
+					and getbool($C->{display_status_summary}) 
+					and exists $groupSummary->{$node}{nodestatus} 
+					and $groupSummary->{$node}{nodestatus}
+			) {
+				$statusValue = $groupSummary->{$node}{nodestatus};
+				if ( $groupSummary->{$node}{nodestatus} eq "degraded" ) {
+					$statusClass = "Error";	
+				}
+			}
+			
 			print Tr(
 				td({class=>"infolft Plain $nodewrap"},$nodelink),
 				td({class=>'info Plain'},$groupSummary->{$node}{sysLocation}),
 				td({class=>'info Plain'},$groupSummary->{$node}{nodeType}),
 				td({class=>'info Plain'},$groupSummary->{$node}{netType}),
 				td({class=>'info Plain'},$groupSummary->{$node}{roleType}),
-				td({class=>"info $groupSummary->{$node}{event_status}"},$groupSummary->{$node}{event_status}),
+				td({class=>"info $statusClass"},$statusValue),
 				td({class=>'info Plain',style=>$groupSummary->{$node}{'health-bg'}},img({src=>$C->{$groupSummary->{$node}{'health-icon'}}}),$groupSummary->{$node}{health},"%"),
 				td({class=>'info Plain',style=>$groupSummary->{$node}{'reachable-bg'}},img({src=>$C->{$groupSummary->{$node}{'reachable-icon'}}}),$groupSummary->{$node}{reachable},"%"),
 				td({class=>'info Plain',style=>$groupSummary->{$node}{'available-bg'}},img({src=>$C->{$groupSummary->{$node}{'available-icon'}}}),$groupSummary->{$node}{available},"%"),
