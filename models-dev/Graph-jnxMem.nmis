@@ -1,5 +1,5 @@
 #
-## $Id: Graph-mem-io.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+## $Id: Graph-fan.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -32,44 +32,35 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'Memory Utilisation'
 	},
 	'vlabel' => {
-		'standard' => '% Memory Utilisation',
-		'short' => '% Memory Util.'
+		'standard' => 'Memory Utilisation'
 	},
 	'option' => {
 		'standard' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:MemUsed=$database:MemoryUsedIO:AVERAGE',
-			'DEF:MemFree=$database:MemoryFreeIO:AVERAGE',
-			'CDEF:totalMem=MemUsed,MemFree,+',
-			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
-			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
-			'AREA:perUsedMem#00FF7F:IO Mem Used',
-			'GPRINT:perUsedMem:AVERAGE:Avg IO Mem Used %1.1lf%%',
-			'GPRINT:perFreeMem:AVERAGE:Avg IO Mem Free %1.1lf%%\\n',
-			'GPRINT:MemUsed:AVERAGE:IO Mem Used %1.2lf %sbytes',
-			'GPRINT:MemFree:AVERAGE:IO Mem Free %1.2lf %sbytes',
-			'GPRINT:totalMem:AVERAGE:Total IO Mem %1.2lf %sbytes\\n',
+			'DEF:jnxOperatingBuffer=$database:jnxOperatingBuffer:AVERAGE',
+			'DEF:jnxOperatingHeap=$database:jnxOperatingHeap:AVERAGE',
+
+			'LINE2:jnxOperatingBuffer#00BFFF: Buffer Utilization',
+			'GPRINT:jnxOperatingBuffer:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:jnxOperatingHeap#00FF7F: Heap Utilization',
+			'GPRINT:jnxOperatingHeap:AVERAGE:Avg. %1.2lf%%\\n',
 		],
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
-			'DEF:MemUsed=$database:MemoryUsedIO:AVERAGE',
-			'DEF:MemFree=$database:MemoryFreeIO:AVERAGE',
-			'CDEF:totalMem=MemUsed,MemFree,+',
-			'CDEF:perUsedMem=MemUsed,totalMem,/,100,*',
-			'CDEF:perFreeMem=MemFree,totalMem,/,100,*',
-			'AREA:perUsedMem#4169E1:IO Mem Used',
-			'GPRINT:perUsedMem:AVERAGE:Avg IO Mem Used %1.1lf%%',
-			'GPRINT:perFreeMem:AVERAGE:Avg IO Mem Free %1.1lf%%\\n',
-			'GPRINT:MemUsed:AVERAGE:IO Mem Used %1.2lf %sbytes',
-			'GPRINT:MemFree:AVERAGE:IO Mem Free %1.2lf %sbytes',
-			'GPRINT:totalMem:AVERAGE:Total IO Mem %1.2lf %sbytes\\n',
+			'DEF:jnxOperatingBuffer=$database:jnxOperatingBuffer:AVERAGE',
+			'DEF:jnxOperatingHeap=$database:jnxOperatingHeap:AVERAGE',
+
+			'LINE2:jnxOperatingBuffer#00BFFF: Buffer Utilization',
+			'GPRINT:jnxOperatingBuffer:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:jnxOperatingHeap#00FF7F: Heap Utilization',
+			'GPRINT:jnxOperatingHeap:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}
 );

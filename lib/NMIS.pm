@@ -1524,6 +1524,19 @@ sub getNodeSummary {
 		$nt{$nd}{nodedown} = $NI->{system}{nodedown};
 		my $event_hash = eventHash($nd, "Node Down", "Node");
 		$nt{$nd}{escalate} = $ET->{$event_hash}{escalate};
+
+		### adding node_status to the summary data
+		# check status from event db
+		my $nodestatus = nodeStatus(NI => $NI);
+		if ( not $nodestatus ) {
+			$nt{$nd}{nodestatus} = "unreachable";
+		}
+		elsif ( $nodestatus == -1 ) {
+			$nt{$nd}{nodestatus} = "degraded";
+		}
+		else {
+			$nt{$nd}{nodestatus} = "reachable";
+		}
 		
 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
 		my $outageText;
@@ -1584,10 +1597,13 @@ sub getGroupSummary {
 	$nodecount{counttotal} = 0;
 	$nodecount{countup} = 0;
 	$nodecount{countdown} = 0;
+	$nodecount{countdegraded} = 0;
 
 	my $S = Sys::->new;
 	my $NT = loadNodeTable(); # local + nodes of remote servers
 	my $C = loadConfTable();
+
+	my $master_server_priority = $C->{master_server_priority} || 10;
 
 	### 2014-08-28 keiths, configurable metric periods
 	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
@@ -1625,6 +1641,7 @@ sub getGroupSummary {
 		$SUM = {};
 		foreach my $node ( keys %{$NT} ) {
 			next if ( !getbool($NT->{$node}{active}) or exists $NT->{$node}{server});
+			$SUM->{$node}{server_priority} = $master_server_priority;
 			$SUM->{$node}{reachable} = 'NaN';
 			$SUM->{$node}{response} = 'NaN';
 			$SUM->{$node}{loss} = 'NaN';
@@ -1677,6 +1694,8 @@ sub getGroupSummary {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
 
+			my $server_priority = $ST->{$srv}{server_priority} || 5;
+
 			my $slavefile = "nmis-$srv-$filename";
 			dbg("Processing Slave $srv for $slavefile");
 			
@@ -1684,8 +1703,18 @@ sub getGroupSummary {
 			if (existFile(dir=>'var',name=>$slavefile) ) {
 				my $H = loadTable(dir=>'var',name=>$slavefile);
 				for my $node (keys %{$H}) {
-					for (keys %{$H->{$node}}) {
-						$SUM->{$node}{$_} = $H->{$node}{$_};
+					if ( not exists $SUM->{$node}
+							or $SUM->{$node}{server} eq $srv		
+							or ( exists $SUM->{$node}
+								and $SUM->{$node}{server_priority}
+								and $SUM->{$node}{server_priority} < $server_priority
+								)
+					) {
+						for (keys %{$H->{$node}}) {
+							$SUM->{$node}{$_} = $H->{$node}{$_};
+						}
+						$SUM->{$node}{server_priority} = $server_priority;
+						$SUM->{$node}{server} = $srv;
 					}
 				}
 			}
@@ -1694,6 +1723,7 @@ sub getGroupSummary {
 			dbg("Processing Slave $srv for $slavenodesum");
 			# I should now have an up to date file, if I don't log a message
 			if (existFile(dir=>'var',name=>$slavenodesum) ) {
+				
 				my $NS = loadTable(dir=>'var',name=>$slavenodesum);
 				for my $node (keys %{$NS}) {
 					if ( 	($group eq "" and $customer eq "" and $business eq "") 
@@ -1701,8 +1731,18 @@ sub getGroupSummary {
 								or ($customer ne "" and $NS->{$node}{customer} eq $customer)					
 								or ($business ne "" and $NS->{$node}{businessService} =~ /$business/)
 					) {
-						for (keys %{$NS->{$node}}) {
-							$SUM->{$node}{$_} = $NS->{$node}{$_};
+						if ( not exists $SUM->{$node}
+								or $SUM->{$node}{server} eq $srv		
+								or ( exists $SUM->{$node}
+									and $SUM->{$node}{server_priority}
+									and $SUM->{$node}{server_priority} < $server_priority
+									)
+						) {
+							for (keys %{$NS->{$node}}) {
+								$SUM->{$node}{$_} = $NS->{$node}{$_};
+							}
+							$SUM->{$node}{server_priority} = $server_priority;
+							$SUM->{$node}{server} = $srv;
 						}
 					}
 				}
@@ -1732,7 +1772,18 @@ NODE:
 					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$NT->{$node}{roleType});
 					++$nodecount{countdown};
 					($outage,undef) = outageCheck(node=>$node,time=>time());
-				} else {
+				} 
+				elsif (exists $C->{display_status_summary} 
+					and getbool($C->{display_status_summary}) 
+					and exists $summaryHash{$node}{nodestatus}
+					and $summaryHash{$node}{nodestatus} eq "degraded"
+				) {
+					$summaryHash{$node}{event_status} = "Error";
+					$summaryHash{$node}{event_color} = "#ffff00";
+					++$nodecount{countdegraded};
+					($outage,undef) = outageCheck(node=>$node,time=>time());
+				} 
+				else {
 					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$NT->{$node}{roleType});
 					++$nodecount{countup};
 				}
@@ -1828,6 +1879,7 @@ NODE:
 	$summaryHash{average}{intfCollect} = $summaryHash{total}{intfCollect} eq '' ? 0 : $summaryHash{total}{intfCollect};
 
 	$summaryHash{average}{countdown} = $nodecount{countdown};
+	$summaryHash{average}{countdegraded} = $nodecount{countdegraded};
 	### 2012-12-17 keiths, fixed divide by zero error when doing group status summaries
 	if ( $nodecount{countdown} > 0 and $nodecount{counttotal} > 0 ) {
 		$summaryHash{average}{countdowncolor} = ($nodecount{countdown}/$nodecount{counttotal})*100;
