@@ -57,7 +57,7 @@
       'HighProcessMemoryUsage' => {
         'type' => 'test',
         'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1',
+        'value' => 'CVAR1=hrSWRunPerfMem;int($CVAR1)',
         'unit' => 'bytes',
         'element' => 'hrSWRunName',
         'event' => 'High Process Memory Usage',
