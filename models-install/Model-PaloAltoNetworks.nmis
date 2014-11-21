@@ -104,7 +104,6 @@
             'oid' => 'panSysHwVersion',
             'title' => 'HW Version'
           },
-
           'panSysSerialNumber' => {
             'oid' => 'panSysSerialNumber',
             'title' => 'Serial Number'

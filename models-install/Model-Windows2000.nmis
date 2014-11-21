@@ -52,61 +52,10 @@
       }
     }
   },
-  'alerts' => {
-    'services' => {
-      'HighProcessMemoryUsage' => {
-        'type' => 'test',
-        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'value' => 'CVAR1=hrSWRunPerfMem;$CVAR1 * 1',
-        'unit' => 'bytes',
-        'element' => 'hrSWRunName',
-        'event' => 'High Process Memory Usage',
-        'level' => 'Warning'
-      }
-    },
-    'storage' => {
-      'HighDiskUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-        	'Normal' => '70',
-        	'Warning' => '75',
-        	'Minor' => '80',
-        	'Major' => '95',
-        	'Critical' => '98',
-        	'Fatal' => '99',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Disk Usage',
-        'level' => 'Warning',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
-      },
-      'HighMemoryUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-        	'Normal' => '85',
-        	'Warning' => '0',
-        	'Minor' => '0',
-        	'Major' => '90',
-        	'Critical' => '95',
-        	'Fatal' => '98',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Memory Usage',
-        'level' => 'Warning',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
-      }
-    }
-  },
   'system' => {
     'nodeModel' => 'Windows2000',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,ip,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -161,15 +110,30 @@
     },
     'rrd' => {
       'hrwin' => {
-        'graphtype' => 'hrwinproc,hrwinusers',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers'
           },
-          'hrProcesses' => {
-            'oid' => 'hrSystemProcesses',
+          'UserTime' => {
+            'oid' => 'cpuPercentUserTime'
           },
+          'AvailableBytes' => {
+            'oid' => 'memoryAvailableBytes'
+          },
+          'CommittedBytes' => {
+            'oid' => 'memoryCommittedBytes'
+          },
+          'PagesPerSec' => {
+            'oid' => 'memoryPagesPerSec'
+          },
+          'ProcessorTime' => {
+            'oid' => 'cpuPercentProcessorTime'
+          },
+          'InterruptsPerSec' => {
+            'oid' => 'cpuInterruptsPerSec'
+          }
         },
+        'graphtype' => 'hrwincpu,hrwincpuint,hrwinpps,hrwinusers,hrwinmem'
       },
       'mib2ip' => {
         'snmp' => {

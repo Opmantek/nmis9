@@ -293,6 +293,10 @@
             'oid' => 'hrSystemProcesses.0',
             'title' => 'Processes'
           },
+          'hrMemorySize' => {
+            'oid' => 'hrMemorySize.0',
+            'title' => 'Memory'
+          },
         }
       }
     },
