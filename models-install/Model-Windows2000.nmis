@@ -52,6 +52,46 @@
       }
     }
   },
+  'alerts' => {
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '70',
+        	'Warning' => '75',
+        	'Minor' => '80',
+        	'Major' => '95',
+        	'Critical' => '98',
+        	'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '85',
+        	'Warning' => '0',
+        	'Minor' => '0',
+        	'Major' => '90',
+        	'Critical' => '95',
+        	'Fatal' => '98',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+      }
+    }
+  },
   'system' => {
     'nodeModel' => 'Windows2000',
     'nodeType' => 'server',
