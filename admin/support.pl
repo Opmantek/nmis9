@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.1";
+my $VERSION = "1.3.2";
 
 my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
 Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
@@ -301,7 +301,11 @@ sub collect_evidence
 						if ($lnt->{$nextnode})
 						{
 								my $fileprefix = "$basedir/var/".lc($nextnode);
-								system("cp","$fileprefix-node.nmis","$fileprefix-view.nmis","$targetdir/var/") == 0
+								my @files_to_copy = (-r "$fileprefix-node.json")?
+										("$fileprefix-node.json", "$fileprefix-view.json") :
+										("$fileprefix-node.nmis", "$fileprefix-view.nmis");
+										
+								system("cp", @files_to_copy, "$targetdir/var/") == 0
 										or warn "can't copy node ${nextnode}'s node files: $!\n";
 						}
 						else
