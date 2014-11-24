@@ -53,17 +53,6 @@
     }
   },
   'alerts' => {
-    'services' => {
-      'HighProcessMemoryUsage' => {
-        'type' => 'test',
-        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'value' => 'CVAR1=hrSWRunPerfMem;int($CVAR1)',
-        'unit' => 'bytes',
-        'element' => 'hrSWRunName',
-        'event' => 'High Process Memory Usage',
-        'level' => 'Warning'
-      }
-    },
     'storage' => {
       'HighDiskUsage' => {
         'type' => 'threshold-rising',

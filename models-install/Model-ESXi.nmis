@@ -66,10 +66,23 @@
     },
   },
   'system' => {
-    'nodegraph' => 'health,response,hrmem,hrsmpcpu',
+    'nodegraph' => 'health,response,hrsystem,hrmem,hrsmpcpu',
     'nodeType' => 'server',
     'nodeModel' => 'ESXi',
     'nodeVendor' => 'VMware Inc.',
+    'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
+    },
     'sys' => {
       'standard' => {
         'snmp' => {

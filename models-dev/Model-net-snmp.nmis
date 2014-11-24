@@ -387,10 +387,10 @@
         'unit' => '%',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100'
       },
-			# fixme: ideally this should calculate
-			# phys mem used mem minus cache and buffers
-			# at least on linux 100% used is common with lots of buffers/cache
       'HighMemoryUsage' => {
+        'comment' => 'fixme: ideally this should calculate
+phys mem used mem minus cache and buffers
+at least on linux 100% used is common with lots of buffers/cache',
         'type' => 'threshold-rising',
         'threshold' => {
           'Normal' => '99.3',
@@ -429,6 +429,7 @@
     }
   },
   'systemHealth' => {
+    'sections' => 'diskIOTable',
     'sys' => {
       'diskIOTable' => {
         'headers' => 'diskIODevice',

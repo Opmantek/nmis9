@@ -56,7 +56,7 @@
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     'sys' => {
       'standard' => {        
         'snmp' => {
@@ -130,6 +130,17 @@
       },
     },
     'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
       'tcp' => {
         'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {
@@ -346,17 +357,6 @@
     }
   },
   'alerts' => {
-    'services' => {
-      'HighProcessMemoryUsage' => {
-        'type' => 'test',
-        'test' => 'CVAR1=hrSWRunPerfMem;$CVAR1 > 300000',
-        'value' => 'CVAR1=hrSWRunPerfMem;int($CVAR1)',
-        'unit' => 'KBytes',
-        'element' => 'hrSWRunName',
-        'event' => 'High Process Memory Usage',
-        'level' => 'Warning'
-      }
-    },
     'storage' => {
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
@@ -419,6 +419,7 @@
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        
+        'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
         'headers' => 'diskIODevice',
         'snmp' => {
           'diskIOIndex' => {
@@ -434,7 +435,7 @@
     },
     'rrd' => {
       'diskIOTable' => {
-        'control' => 'CVAR=diskIODevice;$CVAR =~ /sd|sr|disk|xvda|dm\-/',
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\-/',
         'indexed' => 'true',
         'graphtype' => 'diskio-rw,diskio-rwbytes',
         'snmp' => {
