@@ -210,8 +210,8 @@ sub menu_bar_site {
 			push @netperf, qq|<a id='ntw_flowSummary' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetflowSummary">Application Flows</a>|;
 			push @netperf, qq|<a id='ntw_topnApps' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnApps">TopN Applications</a>|;
 			push @netperf, qq|<a id='ntw_topnAppSrc' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnAppSrc">TopN Application Sources</a>|;
-			push @netperf, qq|<a id='ntw_topnTalkers' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnTalkers">TopN Talkers</a>|;
-			push @netperf, qq|<a id='ntw_topnListeners' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnListeners">TopN Listeners</a>|;
+			push @netperf, qq|<a id='ntw_topnEndpoints' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnTalkers">TopN Talkers</a>|;
+			push @netperf, qq|<a id='ntw_topnEndpoints' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnListeners">TopN Listeners</a>|;
 		}
 		push @menu_site,(qq|Network Performance|,[ @netperf ]);		
 
