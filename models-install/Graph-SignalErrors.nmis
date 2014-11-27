@@ -44,7 +44,7 @@
 			'LINE2:qpskbiterr#FF4500:QPSK Error Rate\\t',
 			'GPRINT:qpskbiterr:AVERAGE:Avg %10.2lf%s err/s\\t',
 			'GPRINT:qpskbiterr:MIN:Min %10.2lf%s err/s\\t',
-			'GPRINT:qpskbiterr:MAX:tMax %10.2lf%s err/s\\n',
+			'GPRINT:qpskbiterr:MAX:Max %10.2lf%s err/s\\n',
 			
 			'LINE2:pvbiterr#8B0000:PV Error Rate\\t\\t',
 			'GPRINT:pvbiterr:AVERAGE:Avg %10.2lf%s err/s\\t',
