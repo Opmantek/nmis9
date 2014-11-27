@@ -525,9 +525,19 @@ sub updateRRD {
 		$ds .= $var;
 		# cleanup invalid values:
 		# nonexistent or blank object we treat as 0
-		$data->{$var}{value} = 0 if $data->{$var}{value} eq "noSuchObject" or $data->{$var}{value} eq "noSuchInstance" or $data->{$var}{value} eq "";
+		$data->{$var}{value} = 0 if ($data->{$var}{value} eq "noSuchObject" 
+				or $data->{$var}{value} eq "noSuchInstance" 
+				or $data->{$var}{value} eq "");
+
+		# then get rid of unwanted leading or trailing white space
+		$data->{$var}{value} =~ s/^\s*//;
+		$data->{$var}{value} =~ s/\s*$//;
+
 		# other non-numeric input becomes rrdtool's 'undefined' value
-		$data->{$var}{value} = "U" if ($data->{$var}{value} !~ /^\d+(\.\d+)?$/);
+		# all standard integer/float notations (incl 1.345E+7) should be accepted
+		$data->{$var}{value} = "U" if ($data->{$var}{value} !~ 
+																	 /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+
 		$value .= ":$data->{$var}{value}";
 	}
 	push @options,("-t",$ds,$value);
