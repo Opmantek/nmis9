@@ -385,6 +385,14 @@
         }
       }
     },
+
+		'Scientific-Atlanta, Inc.' => {
+			'order' => {
+				'10' => {
+					'SciAtl' => "D98xx",
+				},
+			},
+		},
   
   },
   'system' => {
