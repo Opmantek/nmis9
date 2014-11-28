@@ -1057,26 +1057,31 @@ sub writeHashtoFile {
 		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 	}
 
-#	sleep(255);
-
+	my $errormsg;
+	# write out the data, but defer error logging until after the lock is released!
 	if ( $useJson and ( getbool($C_cache->{use_json_pretty}) or $pretty) ) {
 		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
-			logMsg("ERROR cannot write file $file: $!");
+			$errormsg = "ERROR cannot write data object to file $file: $!";
 		}
 	}
 	elsif ( $useJson ) {
 		eval { print $handle encode_json($data) } ;
 		if ( $@ ) {
-			logMsg("ERROR convert data object to $file: $@");
-			info("ERROR convert data object to $file: $@");
+			$errormsg = "ERROR cannot write data object to $file: $@";
 		}
 	}
 	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		logMsg("ERROR cannot write file $file: $!");
+		$errormsg = "ERROR cannot write to file $file: $!";
 	}
-
 	close $handle;
 	leave_critical;
+
+	# now it's safe to handle the error
+	if ($errormsg)
+	{
+		logMsg($errormsg);
+		info($errormsg);
+	}
 
 	setFileProt($file);
 

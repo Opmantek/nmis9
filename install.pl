@@ -148,12 +148,13 @@ logInstall("Installation destination is $site");
 if ( -d $site ) {
 	printBanner("Make a backup of an existing install...");
 
-	exit unless input_yn("OK to make a backup of your current NMIS");
-	my $backupFile = getBackupFileName();
-	execPrint("cd $site;tar cvf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
-	print "Backup of NMIS install in $backupFile\n";
+	if (input_yn("OK to make a backup of your current NMIS"))
+	{
+		my $backupFile = getBackupFileName();
+		execPrint("cd $site; tar czvf $backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+		print "Backup of NMIS install was created in $site/$backupFile\n";
+	}
 }
-
 
 ###************************************************************************###
 printBanner("Copying NMIS system files...");

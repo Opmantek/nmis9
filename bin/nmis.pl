@@ -229,7 +229,10 @@ sub	runThreads {
 
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t), 
 		# then only warn about processes and don't shoot them.
-		if ($type eq "collect" && getbool($nvp{ignore_running}))
+		# the same should be done if this is an interactive run with info or debug
+		if (($type eq "collect" and ( getbool($nvp{ignore_running})
+																	or $C->{debug} or $C->{info} ))
+				or ($type eq "update" and ($C->{debug} or $C->{info})))
 		{
 			for my $pid (keys %{$others})
 			{
@@ -520,7 +523,7 @@ sub doUpdate {
 	dbg("Starting, node $name");
 
 	# lets change our name, so a ps will report who we are
-	$0 = "nmis-worker-update-$name";
+	$0 = "nmis-".$C->{conf}."-update-$name";
 
 
 	my $S = Sys::->new; # create system object
@@ -592,7 +595,7 @@ sub doCollect {
 	info("Starting, node $name");
 
 	# lets change our name, so a ps will report who we are
-	$0 = "nmis-worker-collect-$name";
+	$0 = "nmis-".$C->{conf}."-collect-$name";
 
 	my $S = Sys::->new; # create system object
 	### 2013-02-25 keiths, fixing down node refreshing......
@@ -6896,8 +6899,10 @@ sub getPidFileName {
 
 # small helper that returns hash of other nmis processes that are 
 # running the given function
-# args: type (=collect or update). 
-# without type, collects all procs running perl and called nmis-worker or nmis.pl
+# args: type (=collect or update)
+# with type given, collects the processes that run that cmd AND have the same config
+# without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
+# NOT just the ones with this config!
 # returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
 sub find_nmis_processes
 {
@@ -6905,6 +6910,7 @@ sub find_nmis_processes
 	my $type = $args{type};
 
 	my %others;
+	my $confname = $C->{conf};
 	
 	my $pst = Proc::ProcessTable->new;
 	foreach my $procentry (@{$pst->table})
@@ -6915,14 +6921,14 @@ sub find_nmis_processes
 		my $starttime = $procentry->start;
 		my $execname = $procentry->fname;
 
-		if ($type && $procname =~ /^nmis-worker-$type(-(.*))?$/)
+		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
 		{
 			my $trouble = $2;
 			$others{$procentry->pid} = { name => $procname, 
 																	 node => $trouble,
 																	 start => $starttime };
 		}
-		elsif (!$type && $execname =~ /perl/ && $procname =~ /nmis(\.pl|-worker-)/)
+		elsif (!$type && $execname =~ /perl/ && $procname =~ /(nmis.pl|nmis-\S+-)/)
 		{
 			$others{$procentry->pid} = { name => $procname, 
 																	 start => $starttime };

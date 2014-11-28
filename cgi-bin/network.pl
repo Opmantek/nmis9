@@ -1325,8 +1325,14 @@ sub viewNode {
 	my $M = $S->mdl;
 	my $time = time;
 
+	# don't print the not authorized msg if somebody has renamed the node
+	if (!$NT->{$node})
+	{
+		print "The requested node does not exist.";
+		return;
+	}
 	if (!$AU->InGroup($NT->{$node}{group})) {
-		print "You are not authorized for this request group=$NT->{$node}{group}";
+		print "You are not authorized for this request! (group=$NT->{$node}{group})";
 		return;
 	}
 	
