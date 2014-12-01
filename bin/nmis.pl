@@ -153,6 +153,14 @@ sub	runThreads {
 
 	dbg("Starting");
 
+	# first thing: do a selftest and cache the result. this takes a second and a bit.
+	dbg("starting selftest");
+	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true');
+	writeHashtoFile(file => $selftest_cache, json => 1,
+									data => { status => $allok, lastupdate => time, tests => $tests });
+	dbg("selftest complete (status ".($allok?"ok":"FAILED!")."), cache file written");
+
 	# load all the files we need here
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
 	dbg("table Enterprise loaded",2);
@@ -225,7 +233,7 @@ sub	runThreads {
 	if ( $type eq 'collect' or $type eq "update")
 	{
 		# first find all other nmis collect processes
-		my $others = find_nmis_processes(type => $type);
+		my $others = func::find_nmis_processes(type => $type, config => $C);
 
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t), 
 		# then only warn about processes and don't shoot them.
@@ -288,6 +296,9 @@ sub	runThreads {
 		$meth = \&doCollect;
 	}
 
+	# update the operation start/stop timestamp
+	func::update_operations_stamp(type => $type, start => $C->{starttime}, stop => undef);
+
 	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
 	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 	
@@ -338,7 +349,8 @@ sub	runThreads {
 						else
 						{
 							# parent
-							my $procs_now = 1 + scalar keys %{&find_nmis_processes}; # this one isn't returned
+							my $others = func::find_nmis_processes(config => $C);
+							my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
 							$maxprocs = $procs_now if $procs_now > $maxprocs;
 						}
 					}
@@ -452,7 +464,7 @@ sub	runThreads {
 		$D->{total}{value} = time() - $C->{starttime};
 		$D->{total}{option} = 'gauge,0:U';
 
-		my $nr_processes = 1+ scalar %{&find_nmis_processes}; # current one isn't returned by find_nmis_processes
+		my $nr_processes = 1+ scalar %{&func::find_nmis_processes(config => $C)}; # current one isn't returned by find_nmis_processes
 		$D->{nr_procs} = { option => "gauge,0:U",
 											 value => $nr_processes };
 		$D->{max_procs} = { option => "gauge,0:U",
@@ -475,6 +487,8 @@ sub	runThreads {
 		print "\n".returnTime ." Number of Data Points: $stats->{datapoints}, Sum of Bytes: $stats->{databytes}, RRDs updated: $stats->{rrdcount}, Nodes with Updates: $stats->{nodecount}\n";
 		print "\n".returnTime ." End of $0 Processed $nodecount nodes ran for $endTime seconds.\n\n";
 	}
+
+	func::update_operations_stamp(type => $type, start => $C->{starttime}, stop => time());
 
 	dbg("Finished");
 	return;
@@ -4807,6 +4821,8 @@ sub nmisSummary {
 	my %args = @_;
 
 	dbg("Calculating NMIS network stats for cgi cache");
+	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => undef)
+			if ($type eq "summary");	# not if part of collect
 
 	my $S = Sys::->new;
 
@@ -4821,6 +4837,8 @@ sub nmisSummary {
 	my $file = "nmis-nodesum";
 	writeTable(dir=>'var',name=>$file,data=>$NS);
 	dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
+	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => time())
+			if ($type eq "summary");	# not if part of collect
 
 	sub summaryCache {
 		my %args = @_;
@@ -4907,6 +4925,8 @@ sub runEscalate {
 	my %seen;
 
 	dbg("Starting");
+	func::update_operations_stamp(type => "escalate", start => $C->{starttime}, stop => undef)
+			if ($type eq "escalate");	# not if part of collect
 	# load Contacts table
 	my $CT = loadContactsTable();
 
@@ -5578,6 +5598,8 @@ LABEL_ESC:
 	# Cologne, send the messages now
 	sendMSG(data=>\%msgTable);
 	dbg("Finished");
+	func::update_operations_stamp(type => "escalate", start => $C->{starttime}, stop => time())
+			if ($type eq "escalate");	# not if part of collect
 } # end runEscalate
 
 #=========================================================================================
@@ -6541,6 +6563,8 @@ sub doThreshold {
 	my $sts = $args{table}; # pointer to data build by doSummaryBuild
 
 	dbg("Starting");
+	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => undef)
+			if ($type eq "threshold");	# not if part of collect
 
 	my $NT = loadLocalNodeTable();
 
@@ -6662,6 +6686,8 @@ sub doThreshold {
 	}
 	$S->{ET} = ''; # done
 	dbg("Finished");
+	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => time())
+			if ($type eq "threshold");	# not if part of collect
 }
 
 sub runThrHld {
@@ -6897,45 +6923,6 @@ sub getPidFileName {
 	return $PIDFILE;
 }
 
-# small helper that returns hash of other nmis processes that are 
-# running the given function
-# args: type (=collect or update)
-# with type given, collects the processes that run that cmd AND have the same config
-# without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
-# NOT just the ones with this config!
-# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
-sub find_nmis_processes
-{
-	my (%args) = @_;
-	my $type = $args{type};
-
-	my %others;
-	my $confname = $C->{conf};
-	
-	my $pst = Proc::ProcessTable->new;
-	foreach my $procentry (@{$pst->table})
-	{
-		next if ($procentry->pid == $$);
-		
-		my $procname = $procentry->cmndline;
-		my $starttime = $procentry->start;
-		my $execname = $procentry->fname;
-
-		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
-		{
-			my $trouble = $2;
-			$others{$procentry->pid} = { name => $procname, 
-																	 node => $trouble,
-																	 start => $starttime };
-		}
-		elsif (!$type && $execname =~ /perl/ && $procname =~ /(nmis.pl|nmis-\S+-)/)
-		{
-			$others{$procentry->pid} = { name => $procname, 
-																	 start => $starttime };
-		}
-	}
-	return \%others;
-}
 
 sub printRunTime {
 	my $endTime = time() - $C->{starttime};

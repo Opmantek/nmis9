@@ -31,5 +31,8 @@ find $DIR/var/ -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
 # purge the JSON files
 find $DIR/var/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
 
-# purge the JSON files
+# same for the operations timestamps, which have no file extension
+find $DIR/var/nmis_system/timestamps -mtime +$DAYS -type f -exec rm -f {} \;
+
+# purge the JSON log files
 find $DIR/logs/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;

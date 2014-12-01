@@ -362,9 +362,12 @@ sub menu_bar_site {
 					if ($AU->CheckAccess("tls_event_flow","check"));
 
 		my @hostdiags;
-		push @hostdiags, qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
-		qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|
-				if ($AU->CheckAccess("tls_nmis_runtime","check"));
+		if ($AU->CheckAccess("tls_nmis_runtime", "check"))
+		{
+			push @hostdiags, qq|<a id='nmis_selftest' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_selftest_view">NMIS Selftest</a>|,
+			qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
+			qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|;
+		};
 
 		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
 

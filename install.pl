@@ -501,7 +501,7 @@ sub getBackupFileName {
 	# Do some sums to calculate the time date etc 2 days ago
 	$wday=('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$wday];
 	$mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$mon];
-	return "nmis8-backup-$year-$mon-$mday-$hour$min.tar";
+	return "nmis8-backup-$year-$mon-$mday-$hour$min.tgz";
 }
 
 sub printBanner {
