@@ -153,13 +153,18 @@ sub	runThreads {
 
 	dbg("Starting");
 
-	# first thing: do a selftest and cache the result. this takes a second and a bit.
-	dbg("starting selftest");
-	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
-	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true');
-	writeHashtoFile(file => $selftest_cache, json => 1,
+	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
+	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
+	# which shouldn't be delayed at all.
+	if (!$node_select)
+	{
+		info("Starting selftest (takes about 5 seconds)...");
+		my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true');
+		writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
-	dbg("selftest complete (status ".($allok?"ok":"FAILED!")."), cache file written");
+		info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+	}
 
 	# load all the files we need here
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
