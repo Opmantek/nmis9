@@ -128,6 +128,8 @@
       'util' => 'Interface $ifDescr Utilisation Including Availability',
       'vmwVmState' => "Virtual Machine Status",
       'hrsystem' => "Users and Processes",
+			'SignalLevel' => "Signal Level",
+			"SignalErrors" => "Signal Errors",
     }
   }
 );

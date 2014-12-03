@@ -351,6 +351,8 @@ sub runOneRTT {
 	my $nno = shift;
 	my $runtime = shift;
 	my $collect = shift;
+	
+	$IPSLA->cloneHandle();
 
 	if ($IPSLA->existProbe(probe => $nno)) {		
 		my $probe = $IPSLA->getProbe(probe => $nno);
@@ -674,7 +676,7 @@ sub runRTTstop {
 	my @params = ();
 	my $entry = $probe->{entry};
 
-	logIpsla("opSLAD: RTTstop, probe $nno, flag delete db is $probe->{deldb}") if $debug;
+	logIpsla("opSLAD: RTTstop, probe $nno, entry $entry, flag delete db is $probe->{deldb}");
  
 	my $community = $IPSLA->getCommunity(node => $probe->{pnode});
 	my $node = $probe->{pnode} ;
@@ -1065,7 +1067,7 @@ sub runRRDupdate {
 		$probe->{items} = join(':',(split(/:/,$probe->{items}),@dsnm)); # append new items
 		$IPSLA->updateProbe(probe => $nno, items => $probe->{items});
 	}
-	logIpsla("opSLAD: runRRDupdate, tmp=$tmp dsnm=@dsnm") if $debug;
+	logIpsla("opSLAD: runRRDupdate $nno, tmp=$tmp dsnm=@dsnm") if $debug;
 
 	my @dsnames = map { /^\d+[A-Z]\d+_(.*)/ ? $1 : $_ ;} @names ; # remove leading info for web display
 	my $dsnames = join':',@dsnames; # clean concatenated DS names
@@ -1138,7 +1140,7 @@ sub runRRDcreate {
 	my $RRA_step = 1;
 	my $RRA_rows = ((86400/$frequence) * 7) * $probe->{history}; # calc. db size
 
-	my $time  = time()-10;
+	my $time  = time()-60;
 	my @options;
 
 	@options = ( "-b", $time, "-s", $RRD_poll );

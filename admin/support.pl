@@ -39,16 +39,18 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.2";
+my $VERSION = "1.3.4";
 
-my $usage = "Opmantek NMIS Support Tool Version $VERSION\n
-Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
+print "Opmantek NMIS Support Tool Version $VERSION\n"; 
+
+my $usage = "Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info 
  if nodename='*' then ALL nodes' info will be collected (MIGHT BE HUGE!)\n\n";
-my %args = getArguements(@ARGV);
 
-die $usage if (!$args{action});
+die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
+
+my %args = getArguements(@ARGV);
 
 my $configname = $args{config} || "Config.nmis";
 my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
@@ -59,6 +61,32 @@ my $tail = 4000;																# last 4000 lines
 my $globalconf = loadConfTable(conf => $configname);
 # make tempdir
 my $td = File::Temp::tempdir("/tmp/support.XXXXXX", CLEANUP => 1);
+
+if (func->can("selftest"))
+{
+	# run the selftest in interactive mode - if our nmis is new enough
+	print "Performing Selftest, please wait...\n";
+	my ($testok, $testdetails) = func::selftest(config => $globalconf, , delay_is_ok => 'true');
+	if (!$testok)
+	{
+		print STDERR "\n\nAttention: NMIS Selftest Failed!
+================================\n\nThe following tests failed:\n\n";
+ 
+		for my $test (@$testdetails)
+		{
+			my ($name, $details) = @$test;
+			next if !defined $details; #  the successful ones
+			print STDERR "$name: $details\n";
+		}
+		
+		print STDERR "\n\nHit enter to contine:\n";
+		my $x = <STDIN>;
+	}
+	else
+	{
+		print "Selftest completed\n";
+	}
+}
 
 if ($args{action} eq "collect")
 {
@@ -146,6 +174,10 @@ Please wait while we collect OMK information as well.\n";
 		print "Please include ".($omkzfn? "these zip files": "this zip file"). " when you contact 
 the NMIS Community or the Opmantek Team.\n\n";
 }
+else
+{
+	die "$usage\n";
+}
 
 # remove tempdir (done automatically on exit)
 exit 0;
@@ -196,9 +228,12 @@ sub collect_evidence
 		system("id nmis >$targetdir/system_status/nmis_userinfo 2>&1");
 		system("id apache >$targetdir/system_status/web_userinfo 2>&1");
 		system("id www-data >>$targetdir/system_status/web_userinfo 2>&1");
-		# dump the process table
+		# dump the process table,
 		system("ps ax >$targetdir/system_status/processlist.txt") == 0 
 				or warn  "can't list processes: $!\n";
+		# the lock status
+		system("cp","/proc/locks","$targetdir/system_status/");
+
 		# dump the memory info, free
 		system("cp","/proc/meminfo","$targetdir/system_status/meminfo") == 0
 				or warn "can't save memory information: $!\n";
@@ -281,9 +316,9 @@ sub collect_evidence
 		# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
 		opendir(D,"$basedir/var") or warn "can't read var dir: $!\n";
-		my @generics = grep(/^nmis-/, readdir(D));
+		my @generics = grep(/^nmis[-_]/, readdir(D));
 		closedir(D);
-		system("cp", (map { "$basedir/var/$_" } (@generics)), 
+		system("cp", "-r", (map { "$basedir/var/$_" } (@generics)), 
 					 "$targetdir/var") == 0 or warn "can't copy var files: $!\n";
 
 		# if node info requested copy those files as well

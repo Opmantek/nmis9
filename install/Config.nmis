@@ -157,6 +157,16 @@
 		'max_child_runtime' => undef,
 		# to disable the generation of "nmis runtime exceeded" events, set this to 1 or true
 		'disable_nmis_process_events' => undef,
+		# various selftest limits
+		'selftest_min_diskfree_percent' => 10,
+		'selftest_min_diskfree_mb' => 25,
+		'selftest_max_collect_age' => 900, # seconds, 15 min
+		'selftest_max_update_age' => 604800, # seconds, one week
+		'selftest_max_nmis_procs' => 50,
+		'selftest_max_system_cpu' => 60, # utilization in percent
+		'selftest_max_system_iowait' => 20, # in percent
+		'selftest_max_swap' => 50, # in percent
+		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
   },
   'url' => {
     '<url_base>' => '/nmis8',

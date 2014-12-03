@@ -112,16 +112,16 @@ sub sendEmail {
 				#if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, SSL_verify_mode => SSL_VERIFY_PEER, Debug => $smtp_debug)) {
 				if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, Debug => $smtp_debug)) {
 					if( $smtp->auth($arg{user}, $arg{password}) ) {
-						if ($debug) { print "SASL auth successfull"; }
+						if ($debug) { print "SASL auth successful\n"; }
 					}
 					else {
 						undef $smtp;
-						if ($debug) { print "SMTP::SSL auth NOT successfull"; }
+						if ($debug) { print "SMTP::SSL auth NOT successful\n"; }
 					}											
 				}
 				else {
 					undef $smtp;
-					if ($debug) { print "SMTP::SSL connect NOT successfull"; }
+					if ($debug) { print "SMTP::SSL connect NOT successful\n"; }
 				}
 			}
 			else {
@@ -129,12 +129,17 @@ sub sendEmail {
 				if ( $smtp = Net::SMTP->new($servers[$server], Debug => $smtp_debug ) ) {
 					if( $arg{user} ne "" and $arg{password} ne "") {
 						if( $smtp->auth($arg{user}, $arg{password}) ) {
-							if ($debug) { print "SMTP auth successfull"; }
+							if ($debug) { print "SMTP auth successful\n"; }
+						}
+						else
+						{
+							print "SMTP AUTH NOT successful: "
+									.$smtp->code." ".$smtp->message."\n" if (($debug));
 						}
 					}
 				}
 				else {
-					logMsg("sendMail, ERROR with sending email server=$arg{server} to=$arg{to} from=$arg{from} subject=$arg{subject}");
+					logMsg("sendMail, ERROR with sending email server=$servers[$server] to=$arg{to} from=$arg{from} subject=$arg{subject}");
 				}
 			}
 

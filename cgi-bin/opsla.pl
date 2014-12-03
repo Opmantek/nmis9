@@ -150,6 +150,17 @@ my $tas = $q->param('tas');
 my $codec = $q->param('codec');
 my $factor = $q->param('factor');
 my $vrf = $q->param('vrf');
+my $probes_q = $q->param('probes');
+
+logDebug("/tmp/opsla.pl",Dumper $q);
+
+if ( $key ne "" and $key !~ /$optype/ ) {
+	logDebug("/tmp/opsla.pl",returnDateStamp." ERROR: optype not in key, key=$key optype=$optype\n");
+}
+
+if ( $probes_q ne "" and $key ne $probes_q ) {
+	logDebug("/tmp/opsla.pl","ERROR: optype and probes don't match, key=$key probes_q=$probes_q\n");
+}
 
 my $dump_data = Dump;
 $q->delete_all();
@@ -276,6 +287,7 @@ if ($func eq "graph") {
 
 startIPSLApage();
 
+my $displayMenu = 1;
 if ($func eq "start") {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
 		runRTTstart($nno);
@@ -288,9 +300,13 @@ if ($func eq "start") {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
 		&runRTTremove($key);
 	}
+} elsif ($func eq "probes") {
+	if ( $AU->CheckAccess('ipsla_rw') ) {
+		&displayProbes();
+		$displayMenu = 0;
+	}
 } 
-
-if ( $AU->CheckAccess('ipsla_menu') ) {
+if ( $displayMenu and $AU->CheckAccess('ipsla_menu') ) {
 	displayIPSLAmenu();
 }
 
@@ -302,7 +318,10 @@ sub startIPSLApage {
 	my $header = "opSLA $NMIS::IPSLA::VERSION";
 	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?conf=$Q->{conf}\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
 	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
-	
+	if ( $AU->CheckAccess('ipsla_rw') ) {
+		$header2 = $header2." <a href=\"$ENV{SCRIPT_NAME}?func=probes\"><img src=\"$C->{'nmis_slave'}\"/></a>";
+	}	
+
 	#ipsla.pl is NOT parsing this $Q properly!	
 	my $portalCode = loadPortalCode(conf=>$Q->{conf});
 
@@ -539,8 +558,13 @@ sub displayIPSLAmenu {
 						$button = "remove" ;
 					}
 				}
-				return 	"Collect&nbsp;".submit(-name=>"func",
-					-value=>uc $button)})
+				if ( $button ) {
+					return 	"Collect&nbsp;".submit(-name=>"func",-value=>uc $button);
+				}
+				else {
+					return undef;
+				}
+				})
 			);
 	}
 
@@ -553,24 +577,44 @@ sub displayIPSLAmenu {
 	my @probeList = $IPSLA->getProbes();
 	foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
 		my $key = $p->{probe};
-		if ($p->{pnode} ne "") {
-			### 2012-10-02 keiths, Updates for AUTH Implementation.
-			if ($AU->InGroup($NT->{$p->{pnode}}{group})) {
-		  	# all good, allowed to see device.		
-				if ($p->{status} eq "error") {
-					#$attr{$key}{class} = "error";
-					$msg = "one of the probes is in error state";
-				}
-				push @probes,$key;
-				$probes{$key} = "$p->{select} ($p->{status})";
-			}	# endif AU
+
+		my $authOk = 0;
+
+		if ($p->{status} eq "error") {
+			#$attr{$key}{class} = "error";
+			$msg = "one of the probes is in error state";
+		}
+		
+		### 2012-10-02 keiths, Updates for AUTH Implementation.
+		if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
+	  	# all good, allowed to see device.
+	  	$authOk = 1;
+	  }
+		elsif ($p->{pnode} eq "") {
+			$authOk = 1;
+		}
+				
+		if ( $authOk ) {
+			push @probes,$key;
+			$probes{$key} = "$p->{select} ($p->{status})";
 		}
 	}
 
 	if (@probes or $msg ne ""){
+		my $colspan1 = 1;
+		my $colspan2 = 3;
+		my $width1 = "25%";
+		my $width2 = "75%";
+		if ( $key ne "" ) {
+			$colspan1 = 2;
+			$colspan2 = 2;
+			$width1 = "50%";
+			$width2 = "50%";
+		}
+		
 		# probe select and status/error info
 		print Tr(
-			td({class=>"header",colspan=>"2",width=>"50%"}, "Select probe for graph&nbsp;".
+			td({class=>"header",colspan=>"$colspan1",width=>"$width1"}, "Select probe for graph&nbsp;".
 				popup_menu(-name=>"probes", -override=>'1',
 					-values=>["",@probes],
 					-default=>$key,
@@ -604,7 +648,7 @@ sub displayIPSLAmenu {
 				}
 				$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 				$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
-				return td({class=>"$class wrap",colspan=>"2", width=>"50%"},"$message");
+				return td({class=>"$class wrap",colspan=>"$colspan2", width=>"$width2"},"$message");
 			}
 		);
 	}
@@ -630,6 +674,10 @@ sub displayIPSLAmenu {
 	# display data
 	if (getbool($view) and $probe->{status} eq "running") { displayRTTdata($nno); }
 
+	if ( $pnode eq "" )  {
+		displayProbes();
+	}
+
 	# background values
 	print hidden(-name=>'file', -default=>$Q->{conf},-override=>'1');
 	print hidden(-name=>'start',-default=>"$start",-override=>'1');
@@ -641,6 +689,104 @@ sub displayIPSLAmenu {
 	print end_form;
 
 }
+
+sub displayProbes {
+
+	my $url = url()."?conf=$Q->{conf}&view=true&key=";
+	
+	my @headers = qw(probe select pnode rnode optype tos status frequence timeout entry items starttime message);
+
+	print	start_table({class=>"dash", width => "100%"});
+	print start_Tr;
+	foreach my $header (@headers) {
+		print th({class=>"header"},"$header");	
+	}
+	print end_Tr;
+	
+	my @probeList = $IPSLA->getProbes();
+	#logDebug("/tmp/opsla.pl",Dumper \@probeList);
+	foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
+		my $key = $p->{probe};
+		
+		my $authOk = 0;
+		
+		### 2012-10-02 keiths, Updates for AUTH Implementation.
+		if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
+	  	# all good, allowed to see device.
+	  	$authOk = 1;
+	  }
+		elsif ($p->{pnode} eq "") {
+			$authOk = 1;
+		}
+				
+		if ( $authOk ) {
+			print start_Tr;
+			foreach my $header (@headers) {
+				## A probe should always have this!!!!!
+				if ( $p->{pnode} eq "" and $p->{optype} eq "" ) {
+					$p->{status} = "error";
+				}
+				
+				my $class = "Plain";
+				$class = "Error" if $p->{status} eq "error";
+				if ( $header eq "rnode" and $p->{url} ne "" ) {
+					print th({class=>"info $class"},"$p->{url}");					
+				}
+				elsif ( $header eq "status" and $p->{status} =~ "remove|error" ) {
+					print th({class=>"info $class"},"<a href=\"$url$p->{probe}&amp;func=remove\">$p->{status}</a>");					
+				}
+				elsif ( $header eq "probe" ) {
+					print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{probe}</a>");					
+				}
+				else {
+					print th({class=>"info $class"},"$p->{$header}");
+				}
+			
+			}
+			print end_Tr;
+			#logDebug("/tmp/opsla.pl",Dumper $p);
+		}	# endif AU
+	}
+
+	print	end_table;
+
+}
+#$VAR1 = {
+#  'codec' => '0',
+#  'database' => '/usr/local/nmis8/database/misc/ipsla-meatball_vor.randomkaos.com-_http_0.rrd',
+#  'deldb' => 'false',
+#  'dport' => '0',
+#  'entry' => '146',
+#  'factor' => '0',
+#  'frequence' => '60',
+#  'func' => '',
+#  'history' => '1',
+#  'interval' => '0',
+#  'items' => '6L1_httpRTT:6L1_dnsRTT:6L1_tcpConnectRTT:6L1_transactionRTT:P2_dnsTimeout:P2_tcpConnTimeout:P2_transTimeout:P2_Error',
+#  'lastupdate' => '0',
+#  'lsrpath' => '',
+#  'message' => '',
+#  'numpkts' => '0',
+#  'optype' => 'http',
+#  'pnode' => 'meatball',
+#  'probe' => 'meatball_vor.randomkaos.com-_http_0',
+#  'raddr' => '',
+#  'reqdatasize' => '0',
+#  'responder' => '',
+#  'rnode' => '',
+#  'saddr' => '',
+#  'select' => 'meatball::vor.randomkaos.com-::http::0',
+#  'starttime' => 'probe started at 27-Nov-2014 17:34:20',
+#  'status' => 'running',
+#  'tas' => '',
+#  'timeout' => '5',
+#  'tnode' => '',
+#  'tos' => '0',
+#  'tport' => '0',
+#  'url' => 'http://vor.randomkaos.com/',
+#  'verify' => '2',
+#  'vrf' => ''
+#};
 
 sub runCfgUpdate {
 	my $probe = $IPSLA->getProbe(probe => $nno);
@@ -743,7 +889,8 @@ sub runRTTstop {
 	}
 
 	### 2012-10-02 keiths, Updates for AUTH Implementation.
-	if ($AU->InGroup($NT->{$au_pnode}{group})) {		if ($probe->{func} eq "" and $probe->{status} =~ /start|running|error/) {
+	if ($AU->InGroup($NT->{$au_pnode}{group})) {		
+		if ($probe->{func} eq "" and $probe->{status} =~ /start|running|error/) {
 			my %sprobe;
 			$sprobe{probe} = $nno;
 			$sprobe{func} = "stop";
@@ -776,9 +923,18 @@ sub runRTTremove {
 	if ( $au_pnode eq "" ) {
 		$au_pnode = $pnode;
 	}
+	
+	my $authOk = 0;
 
 	### 2012-10-02 keiths, Updates for AUTH Implementation.
-	if ($AU->InGroup($NT->{$au_pnode}{group})) {
+	if ($au_pnode ne "" and $AU->InGroup($NT->{$au_pnode}{group})) {
+		$authOk = 1;
+	}	# endif AU
+	elsif ($au_pnode eq "") {
+		$authOk = 1;		
+	}
+	
+	if ( $authOk ) {
 		if ($probe->{func} eq "" and $probe->{pnode} ne "" and $probe->{status} !~ /remove|running|start/) {
 			my %sprobe;
 			$sprobe{probe} = $nno;
@@ -795,13 +951,14 @@ sub runRTTremove {
 			$IPSLA->deleteProbe(probe => $nno);
 		}
 		$pnode = $pcom = $rnode = $rcom = $view = $attr = $url = "";
-	}	# endif AU
+		
+	}
 	else {
 		print	start_table({class=>"dash", width => "100%"}),
 		Tr(th({class=>"subtitle"},"You are not authorized for this request"));
 		print	end_table;
 		return;
-	}
+	}	
 }
 
 

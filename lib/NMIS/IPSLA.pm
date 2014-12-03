@@ -43,7 +43,7 @@ use vars qw(@EXPORT_OK $VERSION);
 
 use Exporter;
 
-$VERSION = "2.5.3";
+$VERSION = "2.5.4";
 
 @EXPORT_OK = qw(	
 			$version
@@ -125,6 +125,12 @@ sub getHandle {
 	my $data_source = "DBI:mysql:$self->{_db}:$self->{_server}:$self->{_port}";
 	print STDERR "DBI->connect($data_source, db_user, db_password)\n" if $self->{_debug};
 	$self->{_dbh} = DBI->connect($data_source, $self->{_user}, $self->{_password}, { RaiseError => 1, AutoCommit => 1, mysql_auto_reconnect => 1, ShowErrorStatement => 1 }) || die returnDateStamp()." Connect failed: $DBI::errstr\n";
+	$self->{_dbh}->{InactiveDestroy} = 1;
+}
+
+sub cloneHandle {
+	my ($self) = @_;
+	$self->{_dbh} = $self->{_dbh}->clone();
 }
 
 sub DESTROY {

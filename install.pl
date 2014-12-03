@@ -148,12 +148,13 @@ logInstall("Installation destination is $site");
 if ( -d $site ) {
 	printBanner("Make a backup of an existing install...");
 
-	exit unless input_yn("OK to make a backup of your current NMIS");
-	my $backupFile = getBackupFileName();
-	execPrint("cd $site;tar cvf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
-	print "Backup of NMIS install in $backupFile\n";
+	if (input_yn("OK to make a backup of your current NMIS"))
+	{
+		my $backupFile = getBackupFileName();
+		execPrint("cd $site; tar czvf $backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+		print "Backup of NMIS install was created in $site/$backupFile\n";
+	}
 }
-
 
 ###************************************************************************###
 printBanner("Copying NMIS system files...");
@@ -500,7 +501,7 @@ sub getBackupFileName {
 	# Do some sums to calculate the time date etc 2 days ago
 	$wday=('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$wday];
 	$mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$mon];
-	return "nmis8-backup-$year-$mon-$mday-$hour$min.tar";
+	return "nmis8-backup-$year-$mon-$mday-$hour$min.tgz";
 }
 
 sub printBanner {

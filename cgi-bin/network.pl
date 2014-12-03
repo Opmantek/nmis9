@@ -137,6 +137,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_interface_overview') {	viewOverviewIntf(); exit;
 } elsif ($Q->{act} eq 'nmis_runtime_view') {	viewRunTime(); exit;
 } elsif ($Q->{act} eq 'nmis_polling_summary') {	viewPollingSummary(); exit;
+} elsif ($Q->{act} eq "nmis_selftest_view") { viewSelfTest(); exit;
 } else { 
 	$select = 'health';
 	#notfound(); exit 
@@ -309,76 +310,93 @@ sub getSummaryStatsbyGroup {
 # ResponseTime
 #============================
 
-sub selectMetrics {
+sub selectMetrics 
+{
+	my $showmetrics = 1;
 
-	if ($AU->InGroup("network") or $AU->InGroup($group)) {
-		
-		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup(group => $group);
-
-		my @h = qw/Metric Reachablility InterfaceAvail Health ResponseTime/;
-		my @k = qw/metric reachable available health response/;
-		my @item = qw/status reachability intfAvail health responsetime/;
-		my $time = time;
-		my $cp;
-
-		print
-		start_table({class=>"noborder", width => "100%"}),
-		Tr(th({class=>"subtitle"},"8Hr Summary"));
-
-		foreach my $t (0..4) {
-
-			$groupSummary->{average}{$k[$t]} = int( $groupSummary->{average}{$k[$t]} );
-			$cp = colorPercentHi( $groupSummary->{average}{$k[$t]});
-			$cp = colorPercentLo( $groupSummary->{average}{$k[$t]}) if $t == 4;
-			my $img_width = $groupSummary->{average}{$k[$t]};
-			$img_width = 100 - $groupSummary->{average}{$k[$t]} if $t == 4;
-			$img_width = 15 if $img_width < 10;						# set min width so value always has bg image color
-			$img_width.='%';
-			my $units = $t == 4 ? 'ms' : '%' ;
-			print
-			Tr(
-				td({class=>'metrics', style=>"width:186px;"},
-					span({style=>'float:left;'},
-						img({src=>"$C->{$icon{$k[$t]}}"}),
-						$h[$t]
-					),
-					span({style=>'float:right;'},
-						"$groupSummary->{average}{$k[$t]}$units"
-					),br,
-					span({ style=>"display:inline-block;position:relative; width:100%; height:16px;border:1px solid;"},
-						span({ style=>"display:inline-block;position:relative;background-color:$cp; width:$img_width;height:16px;"},
-						span({ class=>"smallbold", style=>"float:right; height:16px;"},
-							"$groupSummary->{average}{$k[$t]}$units"
-						))),
-
-					
-					#div({style=>"width:100%; height:16px; color:black; background-color:D4D0F8; border:1px #000000 solid;"},
-					#	div({style=>"width:$img_width; height:16px; overflow:hidden; border-right:1px 000000 solid; background-color:$cp;"},
-					#		div({style=>"float:right; height:16px;", class=>'smallbold'},
-					#			"$groupSummary->{average}{$k[$t]}%"
-					#		)
-					#	)
-					#)
-				)	#td
-			);	#tr
+	# first check if we can/should show the selftest result
+	if ($AU->CheckAccess("tls_nmis_runtime","check"))
+	{
+		# allowed to, but do we have a problem to show? 
+		# this widget is overridden for selftest alerting, iff the last nmis selftest was unsuccessful
+		my $cachefile = func::getFileName(file => $C->{'<nmis_var>'}."/nmis_system/selftest", 
+																			json => 'true');
+		if (-f $cachefile)
+		{
+			my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true');
+			if (!$selfteststatus->{status})
+			{
+				$showmetrics=0;
 				
-			# old code
-			#				Tr(td(
-			#					#td({class=>'image'},htmlGraph(graphtype=>"metrics",group=>$ntwrk, item=>'health') ));
-			#					img({src=>"rrddraw.pl?act=draw_graph_view&group=network&graphtype=metrics&item=$item[0]"})
-			#					)));
-			
-		}	#foreach
-	print	end_table;
-	}	# endif AU
-	else {
-		print
-		start_table({class=>"dash", width => "100%"}),
-		Tr(th({class=>"subtitle"},"You are not authorized for this request"));
-		print	end_table;
+				print "<h3>NMIS Selftest failed!</h3>",
+				start_table({width => "100%"});
+				for my $test (@{$selfteststatus->{tests}})
+				{
+					my ($name,$message) = @$test;
+					next if (!defined $message); # skip the successful ones and only print the message here
+					print Tr(td({class => "info Error"}, 
+											a({ href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=nmis_selftest_view",
+													id => "nmis_selftest",
+													class => "black" }, 
+												$message)));
+				}
+				print end_table;
+			}
+		}
 	}
-} # end sub selectMetrics
+	
+	# no errors or not allowed to show them, so continue normally
+	if ($showmetrics)
+	{
+		if ($AU->InGroup("network") or $AU->InGroup($group)) 
+		{
+			# get all the stats and stuff the hashs
+			getSummaryStatsbyGroup(group => $group);
+			
+			my @h = qw/Metric Reachablility InterfaceAvail Health ResponseTime/;
+			my @k = qw/metric reachable available health response/;
+			my @item = qw/status reachability intfAvail health responsetime/;
+			my $time = time;
+			my $cp;
+			
+			print start_table({class=>"noborder", width => "100%"}),
+			Tr(th({class=>"subtitle"},"8Hr Summary"));
+			
+			foreach my $t (0..4)
+			{
+				$groupSummary->{average}{$k[$t]} = int( $groupSummary->{average}{$k[$t]} );
+				$cp = colorPercentHi( $groupSummary->{average}{$k[$t]});
+				$cp = colorPercentLo( $groupSummary->{average}{$k[$t]}) if $t == 4;
+				my $img_width = $groupSummary->{average}{$k[$t]};
+				$img_width = 100 - $groupSummary->{average}{$k[$t]} if $t == 4;
+				$img_width = 15 if $img_width < 10;						# set min width so value always has bg image color
+				$img_width.='%';
+				my $units = $t == 4 ? 'ms' : '%' ;
+				print
+						Tr(
+							td({class=>'metrics', style=>"width:186px;"},
+								 span({style=>'float:left;'},
+											img({src=>"$C->{$icon{$k[$t]}}"}),
+											$h[$t]
+								 ),
+								 span({style=>'float:right;'},
+											"$groupSummary->{average}{$k[$t]}$units"
+								 ),br,
+								 span({ style=>"display:inline-block;position:relative; width:100%; height:16px;border:1px solid;"},
+											span({ style=>"display:inline-block;position:relative;background-color:$cp; width:$img_width;height:16px;"},
+													 span({ class=>"smallbold", style=>"float:right; height:16px;"},
+																"$groupSummary->{average}{$k[$t]}$units"
+													 )))));
+			}	#foreach
+			print	end_table;
+		}
+		else 												# not authed
+		{
+			print start_table({class=>"dash", width => "100%"}),
+					Tr(th({class=>"subtitle"},"You are not authorized for this request")), end_table;
+		}
+	}
+}
 
 
 #============================
@@ -1125,15 +1143,15 @@ sub selectLarge {
 sub viewRunTime {
 
 	# $AU->CheckAccess, will send header and display message denying access if fails.
-	$AU->CheckAccess("tls_nmis_runtime","header");
-	
-	print header($headeropts);
-	pageStart(title => "NMIS Run Time") if (!$wantwidget);
-	print start_table({class=>'dash'});
-	print Tr(th({class=>'title'},"NMIS Runtime Graph"));
-	print Tr(td({class=>'image'},htmlGraph(graphtype=>"nmis", node=>"", intf=>"", width=>"600", height=>"150") ));	
-	print end_table;
-
+	if ($AU->CheckAccess("tls_nmis_runtime","header"))
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Run Time") if (!$wantwidget);
+		print start_table({class=>'dash'});
+		print Tr(th({class=>'title'},"NMIS Runtime Graph"));
+		print Tr(td({class=>'image'},htmlGraph(graphtype=>"nmis", node=>"", intf=>"", width=>"600", height=>"150") ));	
+		print end_table;
+	}
 } # viewRunTime
 
 ### 2012-01-11 keiths, adding some polling information
@@ -1141,101 +1159,133 @@ sub viewPollingSummary {
 
 	# $AU->CheckAccess, will send header and display message denying access if fails.
 	# using the same auth type as the nmis runtime graph
-	$AU->CheckAccess("tls_nmis_runtime","header");
-	
-	my $sum;
-	my $qossum;
-	my $LNT = loadLocalNodeTable();
-	foreach my $node (keys %{$LNT}) {
-		++$sum->{count}{node};
-		if ( getbool($LNT->{$node}{active}) ) {
-			++$sum->{count}{active};
-			
-			my $NI = loadNodeInfoTable($node);
-			++$sum->{group}{$NI->{system}{group}};
-			++$sum->{nodeType}{$NI->{system}{nodeType}};
-			++$sum->{netType}{$NI->{system}{netType}};
-			++$sum->{roleType}{$NI->{system}{roleType}};
-			++$sum->{nodeModel}{$NI->{system}{nodeModel}};
-
-			### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
-			my $S = Sys::->new;
-			if ($S->init(name=>$node,snmp=>'false')) { 
-				my $IF = $S->ifinfo;
-				foreach my $int (keys %{$IF}) {
-					++$sum->{count}{interface};
-					++$sum->{ifType}{$IF->{$int}{ifType}};		
-					if ( getbool($IF->{$int}{collect}) ) {
-						++$sum->{count}{interface_collect};
+	if ($AU->CheckAccess("tls_nmis_runtime","header"))
+	{
+		my $sum;
+		my $qossum;
+		my $LNT = loadLocalNodeTable();
+		foreach my $node (keys %{$LNT}) {
+			++$sum->{count}{node};
+			if ( getbool($LNT->{$node}{active}) ) {
+				++$sum->{count}{active};
+				
+				my $NI = loadNodeInfoTable($node);
+				++$sum->{group}{$NI->{system}{group}};
+				++$sum->{nodeType}{$NI->{system}{nodeType}};
+				++$sum->{netType}{$NI->{system}{netType}};
+				++$sum->{roleType}{$NI->{system}{roleType}};
+				++$sum->{nodeModel}{$NI->{system}{nodeModel}};
+				
+				### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
+				my $S = Sys::->new;
+				if ($S->init(name=>$node,snmp=>'false')) { 
+					my $IF = $S->ifinfo;
+					foreach my $int (keys %{$IF}) {
+						++$sum->{count}{interface};
+						++$sum->{ifType}{$IF->{$int}{ifType}};		
+						if ( getbool($IF->{$int}{collect}) ) {
+							++$sum->{count}{interface_collect};
+						}
 					}
 				}
-			}
-			
-			my @cbqosdb = qw(cbqos-in cbqos-out);
-			foreach my $cbqos (@cbqosdb) 
-			{
-				my @instances = $S->getTypeInstances(graphtype => $cbqos);
-				if (@instances) 
+				
+				my @cbqosdb = qw(cbqos-in cbqos-out);
+				foreach my $cbqos (@cbqosdb) 
 				{
-					++$sum->{count}{$cbqos};
-					foreach my $idx (@instances) 
+					my @instances = $S->getTypeInstances(graphtype => $cbqos);
+					if (@instances) 
 					{
-						++$qossum->{$cbqos}{interface};
-						# node info has cbqos -> {<ifindex>} -> {"in" or "out"}->{"ClassMap"}-> ... class details,
-						# and we want to count those classes
-						my $direction = ($cbqos eq "cbqos-in"? 'in' : 'out');
-						my $count;
-						
-						$count = scalar keys %{$NI->{cbqos}->{$idx}->{$direction}->{ClassMap}} 
-						if (exists $NI->{cbqos}->{$idx}->{$direction} 
-								&& ref($NI->{cbqos}->{$idx}->{$direction}->{ClassMap}) eq "HASH");
-						
-						$qossum->{$cbqos}{classes} += $count;
+						++$sum->{count}{$cbqos};
+						foreach my $idx (@instances) 
+						{
+							++$qossum->{$cbqos}{interface};
+							# node info has cbqos -> {<ifindex>} -> {"in" or "out"}->{"ClassMap"}-> ... class details,
+							# and we want to count those classes
+							my $direction = ($cbqos eq "cbqos-in"? 'in' : 'out');
+							my $count;
+							
+							$count = scalar keys %{$NI->{cbqos}->{$idx}->{$direction}->{ClassMap}} 
+							if (exists $NI->{cbqos}->{$idx}->{$direction} 
+									&& ref($NI->{cbqos}->{$idx}->{$direction}->{ClassMap}) eq "HASH");
+							
+							$qossum->{$cbqos}{classes} += $count;
+						}
 					}
 				}
 			}
+			if ( getbool($LNT->{$node}{collect}) ) {
+				++$sum->{count}{collect};
+			}
+			if ( getbool($LNT->{$node}{ping}) ) {
+				++$sum->{count}{ping};
+			}
 		}
-		if ( getbool($LNT->{$node}{collect}) ) {
-			++$sum->{count}{collect};
-		}
-		if ( getbool($LNT->{$node}{ping}) ) {
-			++$sum->{count}{ping};
-		}
-	}
 		
-	print header($headeropts);
-	pageStart(title => "NMIS Polling Summary") if (!$wantwidget);
-	print start_table({class=>'dash'});
-	print Tr(th({class=>'title',colspan=>'2'},"NMIS Polling Summary"));
-	print Tr(td({class=>'heading3'},"Node Count"),td({class=>'rht Plain'},$sum->{count}{node}));	
-	print Tr(td({class=>'heading3'},"active Count"),td({class=>'rht Plain'},$sum->{count}{active}));	
-	print Tr(td({class=>'heading3'},"collect Count"),td({class=>'rht Plain'},$sum->{count}{collect}));	
-	print Tr(td({class=>'heading3'},"ping Count"),td({class=>'rht Plain'},$sum->{count}{ping}));	
-	print Tr(td({class=>'heading3'},"interface Count"),td({class=>'rht Plain'},$sum->{count}{interface}));	
-	print Tr(td({class=>'heading3'},"interface collect Count"),td({class=>'rht Plain'},$sum->{count}{interface_collect}));	
-	print Tr(td({class=>'heading3'},"cbqos-in Count"),td({class=>'rht Plain'},$sum->{count}{'cbqos-in'}));	
-	print Tr(td({class=>'heading3'},"cbqos-out Count"),td({class=>'rht Plain'},$sum->{count}{'cbqos-out'}));	
-	
-	my @sumhead = qw(group nodeType netType roleType nodeModel ifType);
-	foreach my $sh (@sumhead) {
-		print Tr(td({class=>'heading',colspan=>'2'},"Summary of $sh"));		
-		foreach my $item (keys %{$sum->{$sh}}) {
-			print Tr(td({class=>'heading3'},"$item Count"),td({class=>'rht Plain'},$sum->{$sh}{$item}));	
+		print header($headeropts);
+		pageStart(title => "NMIS Polling Summary") if (!$wantwidget);
+		print start_table({class=>'dash'});
+		print Tr(th({class=>'title',colspan=>'2'},"NMIS Polling Summary"));
+		print Tr(td({class=>'heading3'},"Node Count"),td({class=>'rht Plain'},$sum->{count}{node}));	
+		print Tr(td({class=>'heading3'},"active Count"),td({class=>'rht Plain'},$sum->{count}{active}));	
+		print Tr(td({class=>'heading3'},"collect Count"),td({class=>'rht Plain'},$sum->{count}{collect}));	
+		print Tr(td({class=>'heading3'},"ping Count"),td({class=>'rht Plain'},$sum->{count}{ping}));	
+		print Tr(td({class=>'heading3'},"interface Count"),td({class=>'rht Plain'},$sum->{count}{interface}));	
+		print Tr(td({class=>'heading3'},"interface collect Count"),td({class=>'rht Plain'},$sum->{count}{interface_collect}));	
+		print Tr(td({class=>'heading3'},"cbqos-in Count"),td({class=>'rht Plain'},$sum->{count}{'cbqos-in'}));	
+		print Tr(td({class=>'heading3'},"cbqos-out Count"),td({class=>'rht Plain'},$sum->{count}{'cbqos-out'}));	
+		
+		my @sumhead = qw(group nodeType netType roleType nodeModel ifType);
+		foreach my $sh (@sumhead) {
+			print Tr(td({class=>'heading',colspan=>'2'},"Summary of $sh"));		
+			foreach my $item (keys %{$sum->{$sh}}) {
+				print Tr(td({class=>'heading3'},"$item Count"),td({class=>'rht Plain'},$sum->{$sh}{$item}));	
+			}
 		}
+		
+		my @cbqosdb;
+		push(@cbqosdb,"cbqos-in") if $sum->{count}{'cbqos-in'};
+		push(@cbqosdb,"cbqos-out") if $sum->{count}{'cbqos-out'};
+		foreach my $cbqos (@cbqosdb) {
+			print Tr(td({class=>'heading',colspan=>'2'},"QoS Summary for $cbqos"));
+			print Tr(td({class=>'heading3'},"$cbqos Interface Count"),td({class=>'rht Plain'},$qossum->{$cbqos}{interface}));	
+			print Tr(td({class=>'heading3'},"$cbqos Class Count"),td({class=>'rht Plain'},$qossum->{$cbqos}{classes}));	
+		}
+		print end_table;
 	}
-	
-	my @cbqosdb;
-	push(@cbqosdb,"cbqos-in") if $sum->{count}{'cbqos-in'};
-	push(@cbqosdb,"cbqos-out") if $sum->{count}{'cbqos-out'};
-	foreach my $cbqos (@cbqosdb) {
-		print Tr(td({class=>'heading',colspan=>'2'},"QoS Summary for $cbqos"));
-		print Tr(td({class=>'heading3'},"$cbqos Interface Count"),td({class=>'rht Plain'},$qossum->{$cbqos}{interface}));	
-		print Tr(td({class=>'heading3'},"$cbqos Class Count"),td({class=>'rht Plain'},$qossum->{$cbqos}{classes}));	
-	}
-	
-	print end_table;
 
 } # viewPollingSummary
+
+
+# show the full nmis self test
+sub viewSelfTest 
+{
+	# $AU->CheckAccess, will send header and display message denying access if fails.
+	# using the same auth type as the nmis runtime graph
+	if ($AU->CheckAccess("tls_nmis_runtime","header"))
+	{
+		my $cachefile = func::getFileName(file => $C->{'<nmis_var>'}."/nmis_system/selftest", 
+																			json => 'true');
+		if (-f $cachefile)
+		{
+			my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true');
+
+			print header($headeropts);
+			pageStart(title => "NMIS Selftest") if (!$wantwidget);
+			print start_table({class=>'dash'}), 
+			Tr(th({class=>'title',colspan=>'2'},"NMIS Selftest")),
+			Tr(td({class=>"heading3"}, "Last Selftest"), td({class=>"rht Plain"}, 
+																										returnDateStamp($selfteststatus->{lastupdate})));
+
+			for my $test (@{$selfteststatus->{tests}})
+			{
+				my ($name,$message) = @$test;
+				print Tr(td({class => "heading3"}, $name),
+								 td({class => "rht ".($message? "Critical":"Normal")}, $message || "OK"));
+			}
+			print end_table;
+		}
+	}
+}
 
 sub viewMetrics {
 
@@ -1313,9 +1363,6 @@ sub viewNode {
 	my $node = $Q->{node};
 	my $NT = loadNodeTable();
 	
-	my $S = Sys::->new; # get system object
-	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 	
@@ -1325,8 +1372,14 @@ sub viewNode {
 	my $M = $S->mdl;
 	my $time = time;
 
+	# don't print the not authorized msg if somebody has renamed the node
+	if (!$NT->{$node})
+	{
+		print "The requested node does not exist.";
+		return;
+	}
 	if (!$AU->InGroup($NT->{$node}{group})) {
-		print "You are not authorized for this request group=$NT->{$node}{group}";
+		print "You are not authorized for this request! (group=$NT->{$node}{group})";
 		return;
 	}
 	
@@ -1771,9 +1824,6 @@ sub viewAllIntf {
 	my $dir;
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
-	my $S = Sys::->new; # get system object
-	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
@@ -1840,7 +1890,7 @@ sub viewAllIntf {
 	});
 	
 	# print data
-	foreach my $intf ( sorthash(\%view,[${sort},"value"], $dir)) {
+	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
 		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		print Tr(
 		eval { my @out;
@@ -1993,7 +2043,7 @@ sub viewActivePort {
 	});
 	
 	# print data
-	foreach my $intf ( sorthash(\%view,[${sort},"value"], $dir)) {
+	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
 		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		next if ($graphtype =~ /cbqos/ and !grep($intf eq $_, $S->getTypeInstances(graphtype => $graphtype)));
 		
@@ -2038,7 +2088,7 @@ sub viewStorage {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node), refresh => $Q->{refresh} if (!$wantwidget);
+	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';

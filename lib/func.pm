@@ -29,9 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = 1.1.0;
-
-require 5;
+our $VERSION = "1.2.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -42,6 +40,7 @@ use Time::Local;
 use CGI::Pretty qw(:standard);
 
 use JSON::XS;
+use Proc::ProcessTable;
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;
@@ -110,6 +109,7 @@ use Exporter;
 		logAuth
 		logIpsla
 		logPolling
+		logDebug
 		dbg
 		info
 		getbool
@@ -1031,7 +1031,7 @@ sub writeHashtoFile {
 	my $file = $args{file};
 	my $data = $args{data};
 	my $handle = $args{handle}; # if handle specified then file is locked EX
-	my $json = $args{json};
+	my $json = getbool($args{json});
 	my $pretty = getbool($args{pretty});
 
 	### 2013-11-29 keiths, adding support for JSON.
@@ -1057,26 +1057,31 @@ sub writeHashtoFile {
 		truncate($handle,0) or warn "writeHashtoFile, ERROR can't truncate file: $!";
 	}
 
-#	sleep(255);
-
+	my $errormsg;
+	# write out the data, but defer error logging until after the lock is released!
 	if ( $useJson and ( getbool($C_cache->{use_json_pretty}) or $pretty) ) {
 		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
-			logMsg("ERROR cannot write file $file: $!");
+			$errormsg = "ERROR cannot write data object to file $file: $!";
 		}
 	}
 	elsif ( $useJson ) {
 		eval { print $handle encode_json($data) } ;
 		if ( $@ ) {
-			logMsg("ERROR convert data object to $file: $@");
-			info("ERROR convert data object to $file: $@");
+			$errormsg = "ERROR cannot write data object to $file: $@";
 		}
 	}
 	elsif ( not print $handle Data::Dumper->Dump([$data], [qw(*hash)]) ) {
-		logMsg("ERROR cannot write file $file: $!");
+		$errormsg = "ERROR cannot write to file $file: $!";
 	}
-
 	close $handle;
 	leave_critical;
+
+	# now it's safe to handle the error
+	if ($errormsg)
+	{
+		logMsg($errormsg);
+		info($errormsg);
+	}
 
 	setFileProt($file);
 
@@ -1460,11 +1465,13 @@ sub logIpsla {
 		dbg($msg); # 
 	}
 
+	my $PID = $$;
+	my $sep = "::";
 	my ($string,$caller,$ln,$fn);
 	for my $i (1..10) {
 		($caller) = (caller($i))[3];	# name sub
 		($ln) = (caller($i-1))[2];	# linenumber
-		$string = "$caller#$ln".$string;
+		$string = "$sep$PID$sep$caller#$ln".$string;
 		if ($caller =~ /main/ or $caller eq '') {
 			($fn) = (caller($i-1))[1];	# filename
 			$fn =~ s;.*/(.*\.\w+)$;$1; ; # strip directory
@@ -1505,6 +1512,32 @@ sub logPolling {
 		print $handle returnDateStamp().",$msg\n" or warn returnTime." logPolling, can't write file $C->{polling_log}. $!\n";
 		close $handle or warn "logPolling, can't close filename: $!";
 		setFileProt($C->{polling_log});
+	}
+}
+
+### a utility for development, just log whatever I want to the file I want.
+sub logDebug {
+	my $file = shift;
+	my $output = shift;
+	my $C = $C_cache; # local scalar
+	my $fileOK = 1;
+	my $handle;
+	
+	if ( -f $file and not -w $file ) {
+		logMsg "ERROR, logDebug can not write file $file\n";
+		$fileOK = 0;
+	}
+	elsif ( -d $file ) {
+		logMsg "ERROR, logDebug $file is a directory\n";
+		$fileOK = 0;
+	}
+
+	if ( $fileOK ) {
+		open($handle,">>$file") or warn returnTime." logDebug, Couldn't open log file $file. $!\n";
+		flock($handle, LOCK_EX)  or warn "logDebug, can't lock filename: $!";
+		print $handle returnDateStamp().",$output\n" or warn returnTime." logDebug, can't write file $file. $!\n";
+		close $handle or warn "logDebug, can't close filename: $!";
+		setFileProt($file);
 	}
 }
 
@@ -2055,6 +2088,341 @@ sub checkPerlLib {
 	}
 	
 	return $found;
+}
+
+
+# a quick selftest function to verify that the runtime environment is ok
+# function name not exported, on purpose
+# args: an nmis config structure (needed for the paths),
+# and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no)
+# returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
+sub selftest
+{
+	my (%args) = @_;
+	my ($allok, @details);
+	
+	my $config = $args{config};
+	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"}) 
+			if (ref($config) ne "HASH" or !keys %$config);
+	my $candelay = getbool($args{delay_is_ok});
+
+	$allok=1;
+	
+	# check the main/involved directories AND /tmp and /var
+	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
+	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
+	for my $dir ("/tmp","/var",
+							 @{$config}{'<nmis_base>','<nmis_var>',
+													'<nmis_logs>','database_root'})
+	{
+		next if (!-d $dir);
+		my $testname = "Free space in $dir";
+
+		my @df = `df -mlP $dir 2>/dev/null`;
+		if ($? >> 8)
+		{
+			push @details, [$testname, "Could not determine free space: $!"];
+			$allok=0;
+			next;
+		}
+		# Filesystem       1048576-blocks  Used Available Capacity Mounted on
+		my (undef,undef,undef,$remaining,$usedpercent,undef) = split(/\s+/,$df[1]);
+		$usedpercent =~ s/%$//;
+		if (100-$usedpercent < $minfreepercent)
+		{
+			push @details, [$testname, "Only ".(100-$usedpercent)."% available!"];
+			$allok=0;
+		}
+		elsif ($remaining < $minfreemegs)
+		{
+			push @details, [$testname, "Only $remaining Megabytes available!"];
+			$allok=0;
+		}
+		else
+		{
+			push @details, [$testname, undef];
+		}
+	}
+
+	# check the number of nmis processes, complain if above limit
+	my $nr_procs = keys %{&find_nmis_processes(config => $config)}; # does not count this process
+	my $max_nmis_processes = $config->{selftest_max_nmis_procs} || 50;
+	my $status;
+	if ($nr_procs > $max_nmis_processes)
+	{
+		$status = "Too many NMIS processes running: current count $nr_procs";
+		$allok=0;
+	}
+	push @details, ["NMIS process count",$status];
+	
+	# check that there is some sort of cron running, ditto for fpingd (if enabled)
+	my $cron_name = $config->{selftest_cron_name}? qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
+	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
+	my ($cron_found, $fpingd_found, $cron_status, $fpingd_status);
+	for my $pentry (@{$ptable->table})
+	{
+		if ($pentry->fname =~ $cron_name)
+		{
+			$cron_found=1;
+			last if ($cron_found && $fpingd_found);
+		}
+		# fpingd is identifyable only by cmdline
+		elsif (getbool($config->{daemon_fping_active}) 
+					 && $pentry->cmndline =~ $config->{daemon_fping_filename})
+		{
+			$fpingd_found=1;
+			last if ($cron_found && $fpingd_found);
+		}
+	}
+	if (!$cron_found)
+	{
+		$cron_status = "No CRON daemon seems to be running!";
+		$allok=0;
+	}
+	push @details, ["CRON daemon",$cron_status];
+
+	if ($config->{daemon_fping_active} && !$fpingd_found)
+	{
+		$fpingd_status = "No ".$config->{daemon_fping_filename}." daemon seems to be running!";
+		$allok=0;
+	}
+	push @details, ["FastPing daemon", $fpingd_status];
+	
+	# check iowait and general busyness of the system
+	# however, do that ONLY if we are allowed to delay for a few seconds
+	# (otherwise we get only the avg since boot!)
+	if ($candelay)
+	{
+		my (@total, @busy, @iowait);
+		for my $run (0,1)
+		{
+			open(F,"/proc/stat") or die "cannot read /proc/stat: $!\n";
+			for my $line (<F>)
+			{
+				my ($name,@info) = split(/\s+/, $line);
+				# cpu user nice system idle iowait irq softirq steal guest guestnice
+				if ($name eq "cpu")
+				{
+					my $total = $info[0] + $info[1] + $info[2] + $info[3] + $info[4] 
+							+ $info[5] + $info[6] + $info[7] + $info[8] + $info[9];
+					# cpu util = sum of everything but idle, iowait is separate
+					push @total, $total;
+					push @busy, $total-$info[3];
+					push @iowait, $info[4];
+					last;
+				}
+			}
+			close(F);
+			sleep(5) if (!$run);			# get the cpu and io load over a few seconds
+		}
+		
+		my $total_delta = $total[1] - $total[0];
+		my $busy_delta = $busy[1] - $busy[0];
+		my $iowait_delta = $iowait[1] - $iowait[0];
+
+		my ($busy_ratio, $iowait_ratio, $busy_status, $iowait_status);
+		$busy_ratio = $busy_delta / $total_delta;
+		$iowait_ratio = $iowait_delta / $total_delta;
+
+		my $max_cpu = $config->{selftest_max_system_cpu} || 50;
+		my $max_iowait = $config->{selftest_max_system_iowait} || 10;
+		if ($busy_ratio * 100 > $max_cpu)
+		{
+			$busy_status = sprintf("CPU load %.2f%% is above maximum %.2f%%", 
+														 $busy_ratio*100, $max_cpu);
+			$allok=0;
+		}
+		if ($iowait_ratio * 100 > $max_iowait)
+		{
+			$iowait_status = sprintf("I/O load %.2f%% is above maximum %.2f%%", 
+															 $iowait_ratio*100, 
+															 $max_iowait);
+			$allok=0;
+		}
+		push @details, ["Server Load", $busy_status], ["Server I/O Load", $iowait_status];
+	}
+
+	# check the swap status, more than 50% is a bad sign
+	my $max_swap = $config->{selftest_max_swap} || 50;
+	open(F,"/proc/meminfo") or die "cannot read /proc/meminfo: $!\n";
+	my ($swaptotal, $swapfree, $swapstatus);
+	for my $line (<F>)
+	{
+		if ($line =~ /^Swap(Total|Free):\s*(\d+)\s+(\S+)\s*$/)
+		{
+			my ($name,$value,$unit) = ($1,$2,$3);
+			$value *= 1024 if ($unit eq "kB");
+			($name eq "Total"? $swaptotal : $swapfree ) = $value;
+		}
+	}
+	close(F);
+	my $swapused = $swaptotal - $swapfree;
+	if ($swaptotal && 100*$swapused/$swaptotal > $max_swap)
+	{
+		$swapstatus = sprintf("Swap memory use %.2f%% is above maximum %.2f%%",
+													$swapused/$swaptotal * 100, $max_swap);
+		$allok=0;
+	}
+	push @details, ["Server Swap Memory", $swapstatus];
+
+	# check the last successful operation completion, see if it was too long ago
+	my $max_update_age = $config->{selftest_max_update_age} || 604800;
+	my $max_collect_age = $config->{selftest_max_collect_age} || 900;
+	# having this hardcoded twice isn't great...
+	my $oplogdir = $config->{'<nmis_var>'}."/nmis_system/timestamps";
+	if (-d $oplogdir)
+	{
+		opendir(D, $oplogdir) or die "cannot open dir $oplogdir: $!\n";
+		# last _successful_ op
+		my ($last_update_start,$last_update_end, $last_collect_start, $last_collect_end);
+		for my $f (readdir(D))
+		{
+			if ($f =~ /^(update|collect)-(\d+)-(\d*)$/)
+			{
+				my ($op,$start,$end) = ($1,$2,$3);
+				my ($target_start,$target_end) = ($op eq "update")? 
+						(\$last_update_start, \$last_update_end) : 
+						(\$last_collect_start, \$last_collect_end);
+
+				if ($end && $start >= $$target_start && $end >= $$target_end)
+				{
+						$$target_start = $start;
+						$$target_end = $end;
+				}
+			}
+		}
+		closedir(D);
+		my ($updatestatus, $collectstatus);
+		if ($last_update_end < time - $max_update_age)
+		{
+			$updatestatus = "Last update completed too long ago, at ".returnDateStamp($last_update_end);
+			$allok = 0;
+		}
+		if ($last_collect_end < time - $max_collect_age)
+		{
+			$collectstatus = "Last collect completed too long ago, at ".returnDateStamp($last_collect_end);
+			$allok = 0;
+		}
+		# put these at the beginning
+		unshift @details, ["Last Update", $updatestatus], [ "Last Collect", $collectstatus];
+	}
+	
+	return ($allok, \@details);
+}
+
+# updates the operations start/stop timestamps
+# args: type (=collect, update, threshold, summary etc),
+# start (= time), stop (= time or undef to record the start)
+# returns nothing
+sub update_operations_stamp
+{
+	my (%args) = @_;
+	my ($type,$start,$stop) = @args{"type","start","stop"};
+
+	return if (!$type or !$start); # we associate start with stop
+	
+	my $C = loadConfTable;
+	# having this hardcoded twice isn't great...
+	my $oplogdir = $C->{'<nmis_var>'}."/nmis_system/timestamps";
+	for my $maybedir ($C->{'<nmis_var>'}."/nmis_system/", $oplogdir)
+	{
+		if (!-d $maybedir)
+		{
+			mkdir($maybedir,0755) or die "cannot create $maybedir: $!\n";
+			setFileProt($maybedir);
+		}
+	}
+
+	# simple setup: update-123456- for start 
+	# and update-1234567-1400000 for stop
+	my $startstamp = "$oplogdir/$type-$start-";
+	my $endstamp = "$oplogdir/$type-$start-$stop";
+	
+	if (!$stop)
+	{
+		open(F,">$startstamp") or die "cannot write to $startstamp: $!\n";
+		close(F);
+		setFileProt($startstamp);
+	}
+	else
+	{
+		# we actually should only have a start- stamp file to rename
+		unlink($endstamp) if (-f $endstamp);
+		if (-f $startstamp)
+		{
+			rename($startstamp,$endstamp) 
+					or die "cannot rename $startstamp to $endstamp: $!\n";
+			setFileProt($endstamp);
+		}
+		else
+		{
+			open(F,">$endstamp") or die "cannot write to $endstamp: $!\n";
+			close(F);
+			setFileProt($endstamp);
+		}
+
+		# now be a good camper and ensure that we don't leave too many 
+		# of these files around
+		opendir(D,$oplogdir) or die "cannot open dir $oplogdir: $!\n";
+		# need these sorted by first timestamp
+		my @files = sort { my ($first,$second) = ($a,$b); 
+											 $first =~ s/^$type-(\d+).*$/$1/;
+											 $second =~ s/^$type-(\d+).*$/$1/;
+											 $second <=> $first; } grep(/^$type-/, readdir(D));
+		my $maxfiles = 500;
+
+		for my $idx ($maxfiles..$#files)
+		{
+			unlink("$oplogdir/$files[$idx]") 
+					or die "cannot remove $oplogdir/$files[$idx]: $!\n";
+		}
+		close F;
+	}
+}
+
+# small helper that returns hash of other nmis processes that are 
+# running the given function
+# args: type (=collect or update), config (config hash)
+# with type given, collects the processes that run that cmd AND have the same config
+# without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
+# NOT just the ones with this config!
+# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
+sub find_nmis_processes
+{
+	my (%args) = @_;
+	my $type = $args{type};
+	my $config = $args{config};
+
+	my %others;
+	die "cannot run find_nmis_processes without configuration!\n"
+		if (ref($config) ne "HASH" or !keys %$config);
+	my $confname = $config->{conf};
+	
+	my $pst = Proc::ProcessTable->new(enable_ttys => 0);
+	foreach my $procentry (@{$pst->table})
+	{
+		next if ($procentry->pid == $$);
+		
+		my $procname = $procentry->cmndline;
+		my $starttime = $procentry->start;
+		my $execname = $procentry->fname;
+
+		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
+		{
+			my $trouble = $2;
+			$others{$procentry->pid} = { name => $procname, 
+																	 exe => $execname,
+																	 node => $trouble,
+																	 start => $starttime };
+		}
+		elsif (!$type && $execname =~ /(perl|nmis\.pl)/ && $procname =~ /(nmis\.pl|nmis-\S+-\S)/)
+		{
+			$others{$procentry->pid} = { name => $procname,
+																	 exe => $execname,
+																	 start => $starttime };
+		}
+	}
+	return \%others;
 }
 
 
