@@ -2293,12 +2293,23 @@ sub selftest
 		}
 		closedir(D);
 		my ($updatestatus, $collectstatus);
-		if ($last_update_end < time - $max_update_age)
+    # for bootstrapping until first update with timestamping runs: treat no timestamps whatsoever 
+		# as NO error (for metrics), but put error text in (for details page)
+		if (!defined $last_update_end)
+		{
+			$updatestatus = "Could not determine last Update status";
+		}
+		elsif ($last_update_end < time - $max_update_age)
 		{
 			$updatestatus = "Last update completed too long ago, at ".returnDateStamp($last_update_end);
 			$allok = 0;
 		}
-		if ($last_collect_end < time - $max_collect_age)
+		# same bootstrapping logic as above
+		if (!defined $last_collect_end)
+		{
+			$collectstatus = "Could not determine last Collect status";
+		}
+		elsif ($last_collect_end < time - $max_collect_age)
 		{
 			$collectstatus = "Last collect completed too long ago, at ".returnDateStamp($last_collect_end);
 			$allok = 0;
