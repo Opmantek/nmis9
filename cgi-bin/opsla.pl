@@ -302,10 +302,14 @@ if ($func eq "start") {
 	}
 } elsif ($func eq "probes") {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
+		print STDERR "BEGIN: displayMenu=$displayMenu\n";
 		&displayProbes();
 		$displayMenu = 0;
 	}
-} 
+}
+
+print STDERR "BEGIN: displayMenu=$displayMenu\n";
+
 if ( $displayMenu and $AU->CheckAccess('ipsla_menu') ) {
 	displayIPSLAmenu();
 }
@@ -317,10 +321,14 @@ exit;
 sub startIPSLApage {
 	my $header = "opSLA $NMIS::IPSLA::VERSION";
 	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?conf=$Q->{conf}\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
-	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
+	my $header2 = "$header";
+	my $buttons = "<a class='nmisbut wht' href=\"$ENV{SCRIPT_NAME}\">Main</a>";
+	print STDERR "BEGIN: startIPSLApage func=$func\n";
 	if ( $AU->CheckAccess('ipsla_rw') ) {
-		$header2 = $header2." <a href=\"$ENV{SCRIPT_NAME}?func=probes\"><img src=\"$C->{'nmis_slave'}\"/></a>";
+		$buttons = $buttons." <a class='nmisbut wht' href=\"$ENV{SCRIPT_NAME}?func=probes\">List Probes</a>";
+		$buttons = $buttons." <a class='nmisbut wht' href=\"$ENV{SCRIPT_NAME}?func=add\">Add Probe</a>";
 	}	
+
 
 	#ipsla.pl is NOT parsing this $Q properly!	
 	my $portalCode = loadPortalCode(conf=>$Q->{conf});
@@ -350,18 +358,16 @@ sub startIPSLApage {
 
 	$portalCode = $nmisicon if not $portalCode;
 
-	print start_table({class=>"noborder"}) ;
-	print Tr(td({class=>"nav", colspan=>"4", width=>"100%"},
+	print div({class=>"nav", width=>"100%"},
 		"<a href='http://www.opmantek.com'><img height='30px' width='30px' class='logo' src=\"$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png\"/></a>",
-		"<span class=\"title\">$header2</span>",
+		"<span class=\"title\">$header2</span><span>$buttons</span>",
 		$portalCode,
 		"<span class=\"right\"><a id=\"menu_help\" href=\"$C->{'nmis_docs_online'}\"><img src=\"$C->{'nmis_help'}\"/></a> User: $user Auth: Level$privlevel</span>",
-	));
-	
+	);
 }
 
 sub endIPSLApage {
-	print end_table, end_html;	
+	print end_html;	
 }
 
 
@@ -371,6 +377,8 @@ sub displayIPSLAmenu {
 	my $fields;
 	my %interfaceTable;
 	my @saddr = ("");
+	
+	print STDERR "BEGIN: displayIPSLAmenu\n";
 	
 	my $probe = $IPSLA->getProbe(probe => $nno);
 		
@@ -419,7 +427,11 @@ sub displayIPSLAmenu {
 	# start of form
 	print start_form( -method=>'get', -name=>"rtt", -action=>url(), -onSubmit=>"return check(this,event)");
 
+	print start_table({class=>"noborder"}) ;
+
 	# row with Probe Node, Type, Source address and Community
+	my @optypes = ($pnode ne "") ? ('',sort keys %operation) : ('');
+
 	push @output, start_Tr;
 	push @output, th({class=>"title", width=>"25%"},
 			"Probe node ".
@@ -427,15 +439,16 @@ sub displayIPSLAmenu {
 					-values=>\@pnode,
 					-default=>"$pnode",
 					-title=>"node to run probe",
-					-onChange=>"return noview(this);"));
+					-onChange=>"return noview(this);")
+			,"&nbsp;Operation type ".
+				popup_menu(-name=>"optype", -override=>'1',
+					-values=>\@optypes,
+					-default=>"$optype",
+					-title=>"type of probe",
+					-onChange=>"return noview(this);")					
+	);
 
-	my @optypes = ($pnode ne "") ? ('',sort keys %operation) : ('');
-	push @output, th({class=>"title", width=>"25%", nowrap=>"nowrap"},"Operation type ".
-			popup_menu(-name=>"optype", -override=>'1',
-				-values=>\@optypes,
-				-default=>"$optype",
-				-title=>"type of probe",
-				-onChange=>"return noview(this);"));
+	push @output, th({class=>"title", width=>"25%", nowrap=>"nowrap"},"&nbsp;");
 
 	if ($operation{$optype}{attr} =~ /source-addr/ ) {
 		push @output, th({class=>"title", width=>"25%", nowrap=>"nowrap"}, "Source address ".
@@ -464,14 +477,14 @@ sub displayIPSLAmenu {
 		push @output, start_Tr;
 		# row with Responder Nodeor URL and optional IP address and Community
 		if ($optype =~ /http/) {
-			push @output, td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, "Url ".
+			push @output, td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, "Url ".
 					textfield(-name=>'url',-override=>1,
 						-title=>"specify an URL to get a page",
 						-value=>"$url"));
 		} else {
 			my @choices = ($operation{$optype}{responder} =~ /server/) ? ("","other") : ("") ;
 			@choices = (@choices,@nodes) if ($operation{$optype}{responder} =~ /router/);
-			push @output, td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, "Responder node ".
+			push @output, td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, "Responder node ".
 					popup_menu(-name=>"rnode", -override=>'1',
 						-values=>\@choices,
 						-default=>"$rnode",
@@ -480,7 +493,7 @@ sub displayIPSLAmenu {
 		$fields = 1;
 
 		if ($rnode eq "other") {
-			push @output, td({class=>"info Plain"}, "Name or IP address ".
+			push @output, td({class=>"opcl Plain"}, "Name or IP address ".
 				textfield(-name=>"raddr",-override=>1,
 					-value=>"$raddr"));
 			$fields++;
@@ -488,7 +501,7 @@ sub displayIPSLAmenu {
 
 		if ($operation{$optype}{responder} =~ /dport/) {
 			$dport = $operation{$optype}{default}{dport} if $dport eq "";
-			push @output, td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, "Destination port ".
+			push @output, td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, "Destination port ".
 				textfield(-name=>"dport",-align=>"right",-size=>'3',-override=>1,
 					-value=>"$dport"));
 			$fields++;
@@ -496,13 +509,13 @@ sub displayIPSLAmenu {
 
 		if ($operation{$optype}{responder} =~ /community/ and $rnode ne "other") {
 			# dont use CGI password field
-			push @output,td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, "SNMP&nbsp;community&nbsp;R/W ".
+			push @output,td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, "SNMP&nbsp;community&nbsp;R/W ".
 					textfield(-name=>'rcom',-override=>1,
 						-title=>"community string of responder node to send snmp commands",
 						-value=>"$rcom"));
 			$fields++;
 		}
-		foreach ($fields..3){ push @output, td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},'&nbsp;'); }
+		foreach ($fields..3){ push @output, td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},'&nbsp;'); }
 		push @output, end_Tr;
 
 		print @output;
@@ -512,7 +525,7 @@ sub displayIPSLAmenu {
 
 		# row with History, Nodecharts and Submit button
 		print Tr(
-			td({class=>"info Plain"}, eval {
+			td({class=>"opcl Plain"}, eval {
 				if ($probe->{status} =~ /running|error/i ) {
 					my $s = ($probe->{history} > 1) ? "s" : "";
 					return "History of values for $probe->{history} week$s" ;
@@ -532,13 +545,13 @@ sub displayIPSLAmenu {
 						-title=>"size of RRD database depends",
 						-labels=>{'1'=>'1 week','2'=>'2 weeks','4'=>'4 weeks','8'=>'8 weeks'});
 				}}),
-			td({class=>"info Plain"},
+			td({class=>"opcl Plain"},
 				"View attributes&nbsp;".
 					checkbox( -name=>"attr",
 						-checked=>"$attr",
 						-label=>'',
 						-onChange=>'JavaScript:this.form.submit()')),
-			td({class=>"info Plain"}, eval {
+			td({class=>"opcl Plain"}, eval {
 				if (getbool($view)) {
 						return "View node charts&nbsp;".
 							checkbox( -name=>"pnodechart",
@@ -546,7 +559,7 @@ sub displayIPSLAmenu {
 								-label=>'',
 								-onChange=>'JavaScript:this.form.submit()');
 				} else {return "&nbsp;"} }),
-			td({class=>"info Plain"}, eval {
+			td({class=>"opcl Plain"}, eval {
 				# button for command the daemon to start,stop and remove
 				my $button;
 				if ($pnode ne "" and $optype ne "" and ($rnode ne "" or $optype =~ /http/)) { 
@@ -611,46 +624,47 @@ sub displayIPSLAmenu {
 			$width1 = "50%";
 			$width2 = "50%";
 		}
+
+		# display status msg
+		my $message;
+		my $class = "header";
+		if ($pnode ne "") {
+			if ($probe->{message} =~ /\w+/) {
+				$class = "data Error";
+				$message = "&nbsp;$probe->{message}";
+			} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
+				$class = "data Error";
+				$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
+			} elsif ( 
+					(not -r "$C->{'<nmis_var>'}/ipslad.pid") 
+					#or ( -M "$C->{'<nmis_var>'}/ipslad.pid" > 0.0015)
+			) { 
+				$class = "data Error";
+				$message = "&nbsp;daemon opslad.pl is not running";
+			} elsif ($msg ne "") { 
+				$class = "data Error";
+				$message = $msg; # local msg
+			} else {
+				$message = "$probe->{starttime}";
+			}
+		} elsif ($msg ne "") { 
+			$message = $msg; $class = "data Error"; # local msg
+		}
+		$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
+		$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
 		
 		# probe select and status/error info
 		print Tr(
-			td({class=>"header",colspan=>"$colspan1",width=>"$width1"}, "Select probe for graph&nbsp;".
+			td({class=>"header data",colspan=>"4",width=>"$width1"}, span("Select probe for graph&nbsp;".
 				popup_menu(-name=>"probes", -override=>'1',
 					-values=>["",@probes],
 					-default=>$key,
 					-labels=>\%probes,
 					-attributes=>\%attr,
-					-onChange=>"return gotoURL(\"$url\");")), eval {
-				# display status msg
-				my $message;
-				my $class = "header";
-				if ($pnode ne "") {
-					if ($probe->{message} =~ /\w+/) {
-						$class = "Error";
-						$message = "&nbsp;$probe->{message}";
-					} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
-						$class = "Error";
-						$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
-					} elsif ( 
-							(not -r "$C->{'<nmis_var>'}/ipslad.pid") 
-							#or ( -M "$C->{'<nmis_var>'}/ipslad.pid" > 0.0015)
-					) { 
-						$class = "Error";
-						$message = "&nbsp;daemon opslad.pl is not running";
-					} elsif ($msg ne "") { 
-						$class = "Error";
-						$message = $msg; # local msg
-					} else {
-						$message = "$probe->{starttime}";
-					}
-				} elsif ($msg ne "") { 
-					$message = $msg; $class = "error"; # local msg
-				}
-				$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
-				$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
-				return td({class=>"$class wrap",colspan=>"$colspan2", width=>"$width2"},"$message");
-			}
-		);
+					-onChange=>"return gotoURL(\"$url\");")),
+			span("&nbsp;"), 
+			span("$message") 
+		));
 	}
 
 
@@ -675,7 +689,7 @@ sub displayIPSLAmenu {
 	if (getbool($view) and $probe->{status} eq "running") { displayRTTdata($nno); }
 
 	if ( $pnode eq "" )  {
-		displayProbes();
+		displayMenu();
 	}
 
 	# background values
@@ -686,15 +700,15 @@ sub displayIPSLAmenu {
 	print hidden(-name=>'key', -default=>$key,-override=>'1');
 	print hidden(-name=>'item', -default=>$item,-override=>'1');
 
-	print end_form;
+	print end_table;	
 
+	print end_form;
 }
 
 sub displayProbes {
-
 	my $url = url()."?conf=$Q->{conf}&view=true&key=";
 	
-	my @headers = qw(probe select pnode rnode optype tos status frequence timeout entry items starttime message);
+	my @headers = qw(probe pnode rnode optype tos status frequence timeout entry items starttime message);
 
 	print	start_table({class=>"dash", width => "100%"});
 	print start_Tr;
@@ -733,10 +747,10 @@ sub displayProbes {
 					print th({class=>"info $class"},"$p->{url}");					
 				}
 				elsif ( $header eq "status" and $p->{status} =~ "remove|error" ) {
-					print th({class=>"info $class"},"<a href=\"$url$p->{probe}&amp;func=remove\">$p->{status}</a>");					
+					print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");					
 				}
 				elsif ( $header eq "probe" ) {
-					print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{probe}</a>");					
+					print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");					
 				}
 				else {
 					print th({class=>"info $class"},"$p->{$header}");
@@ -749,7 +763,6 @@ sub displayProbes {
 	}
 
 	print	end_table;
-
 }
 #$VAR1 = {
 #  'codec' => '0',
@@ -787,6 +800,71 @@ sub displayProbes {
 #  'verify' => '2',
 #  'vrf' => ''
 #};
+
+sub displayMenu {
+	my $url = url()."?conf=$Q->{conf}&view=true&key=";
+	
+	my @headers = qw(probe pnode rnode optype tos status frequence timeout entry items starttime message);
+
+	print	start_table({class=>"noborder"});
+
+
+	print start_Tr;
+	print td({class=>"lft Plain"},qq
+|<h3>opSLA Main Menu</h3>
+To see a list of IPSLA probes, click on \"List Probes\", or select a probe from the select list above.<br/>
+To add an IPSLA probe click \"Add Probe\", then select the Probe Node and the \"Operation Type\".<br/>	
+|);	
+	print end_Tr;
+
+	
+	my @probeList = $IPSLA->getProbes();
+	#logDebug("/tmp/opsla.pl",Dumper \@probeList);
+	#foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
+	#	my $key = $p->{probe};
+	#	
+	#	my $authOk = 0;
+	#	
+	#	### 2012-10-02 keiths, Updates for AUTH Implementation.
+	#	if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
+	#  	# all good, allowed to see device.
+	#  	$authOk = 1;
+	#  }
+	#	elsif ($p->{pnode} eq "") {
+	#		$authOk = 1;
+	#	}
+	#			
+	#	if ( $authOk ) {
+	#		print start_Tr;
+	#		foreach my $header (@headers) {
+	#			## A probe should always have this!!!!!
+	#			if ( $p->{pnode} eq "" and $p->{optype} eq "" ) {
+	#				$p->{status} = "error";
+	#			}
+	#			
+	#			my $class = "Plain";
+	#			$class = "Error" if $p->{status} eq "error";
+	#			if ( $header eq "rnode" and $p->{url} ne "" ) {
+	#				print th({class=>"info $class"},"$p->{url}");					
+	#			}
+	#			elsif ( $header eq "status" and $p->{status} =~ "remove|error" ) {
+	#				print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");					
+	#			}
+	#			elsif ( $header eq "probe" ) {
+	#				print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");					
+	#			}
+	#			else {
+	#				print th({class=>"info $class"},"$p->{$header}");
+	#			}
+	#		
+	#		}
+	#		print end_Tr;
+	#		#logDebug("/tmp/opsla.pl",Dumper $p);
+	#	}	# endif AU
+	#}
+  #
+	print	end_table;
+}
 
 sub runCfgUpdate {
 	my $probe = $IPSLA->getProbe(probe => $nno);
@@ -976,7 +1054,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /frequence/) {
 			$frequence = $operation{$optype}{default}{freq} if $frequence eq "";
 			if ($attr eq "on") {
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, 
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, 
 					"interval&nbsp;".
 						popup_menu(-name=>"freq", -override=>'1',
 							-values=>$operation{$optype}{frequence},
@@ -988,7 +1066,7 @@ sub displayRTTattr {
 		}
 		if ($operation{$optype}{attr} =~ /lsr-path/) {
 			if ($attr eq "on") {
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"lsr path, ip addr.&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"lsr path, ip addr.&nbsp;".
 							textfield(-name=>'lsr',-override=>1,
 							-value=>"$lsrpath"));
 				$field_cnt++;
@@ -999,7 +1077,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /request-data-size/) {
 			$reqdatasize = $operation{$optype}{default}{dsize} if $reqdatasize eq "";
 			if ($attr eq "on") {
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"req data size".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"req data size".
 						textfield(-name=>'dsize',-override=>'1',-size=>'2',-align=>'right',
 							-title=>"optional, range 1 - 1500",
 							-value=>"$reqdatasize"));
@@ -1013,7 +1091,7 @@ sub displayRTTattr {
 			$timeout = $operation{$optype}{default}{tout} if $timeout eq "";
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", align=>"right", width=>"25%", nowrap=>"nowrap"},"timeout&nbsp;".
+				print td({class=>"opcl Plain", align=>"right", width=>"25%", nowrap=>"nowrap"},"timeout&nbsp;".
 					popup_menu(-name=>"tout", -override=>'1',
 						-values=>["",1,2,3,4,5,10,20,30],
 						-default=>"$timeout"));
@@ -1026,7 +1104,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /tport/) {
 			$tport = $operation{$optype}{default}{tport} if $tport eq "";
 			if ($attr eq "on") {
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"port&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"port&nbsp;".
 						textfield(-name=>'tport',-override=>'1',-size=>'2',-align=>'right',
 							-title=>"even number in range 16384 - 32766 or 49152 - 65534",
 							-value=>"$tport"));
@@ -1039,7 +1117,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /tos/) {
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", align=>"right", width=>"25%", nowrap=>"nowrap"},"tos&nbsp;".
+				print td({class=>"opcl Plain", align=>"right", width=>"25%", nowrap=>"nowrap"},"tos&nbsp;".
 					popup_menu(-name=>"tos", -override=>'1',
 						-values=>["",(0..255)],
 						-title=>"optional, defines the IP ToS byte",
@@ -1053,7 +1131,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /codec/) {
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"codec&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"codec&nbsp;".
 					popup_menu(-name=>"codec", -override=>'1',
 						-values=>[qw/1 2 3/],
 						-labels=>{'1'=>'g711ulaw','2'=>'g711alaw','3'=>'g729a'}, 
@@ -1067,7 +1145,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /factor/) {
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"ICPIF factor&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"ICPIF factor&nbsp;".
 					popup_menu(-name=>"factor", -override=>'1',
 						-values=>[qw/0 5 10 20/],
 						-default=>"$factor"));
@@ -1080,7 +1158,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /verify-data/) {
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"}, 
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, 
 					"verify data&nbsp;".
 						popup_menu(-name=>"verify", -override=>'1',
 							-values=>[2,1],
@@ -1096,7 +1174,7 @@ sub displayRTTattr {
 			$interval = $operation{$optype}{default}{intvl} if $interval eq "";
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"interval&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"interval&nbsp;".
 						textfield(-name=>'intvl',-override=>1,-size=>'2',-align=>'right',
 							-title=>"time in msec. between packets",
 							-value=>"$interval")." msec");
@@ -1110,7 +1188,7 @@ sub displayRTTattr {
 			$numpkts = $operation{$optype}{default}{pkts} if $numpkts eq "";
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"# of packets&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"# of packets&nbsp;".
 						textfield(-name=>'pkts',-override=>1,-size=>'2',-align=>'right',
 							-title=>"number of packets per probe operation, range 1 to 60000",
 							-value=>"$numpkts"));
@@ -1124,7 +1202,7 @@ sub displayRTTattr {
 			$tas = $operation{$optype}{default}{tas} if $tas eq "";
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"dns addr. of request&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"dns addr. of request&nbsp;".
 						textfield(-name=>'tas',-override=>1,
 							-title=>"can be in IP address format or a hostname",
 							-value=>"$tas"));
@@ -1138,7 +1216,7 @@ sub displayRTTattr {
 			$vrf = $operation{$optype}{default}{vrf} if $vrf eq "";
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"vrf name&nbsp;".
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"vrf name&nbsp;".
 						textfield(-name=>'vrf',-override=>1,
 							-title=>"optional vrf name, max 30 char",
 							-value=>"$vrf"));
@@ -1148,7 +1226,7 @@ sub displayRTTattr {
 			}
 		}
 		if ($attr eq "on" and $probe->{entry} ne "") {
-			print td({class=>"info Plain",align=>"center", width=>"25%", nowrap=>"nowrap"},"probe entry is $probe->{entry}");
+			print td({class=>"opcl Plain",align=>"center", width=>"25%", nowrap=>"nowrap"},"probe entry is $probe->{entry}");
 			$field_cnt++;
 		}
 		if ($attr eq "on") {
@@ -1245,15 +1323,15 @@ sub displayRTTdata {
 	if ($numrows == 0) { print Tr(td("Waiting for data")); return; }
 
 	# date time and column name fields
-	print Tr(th({class=>"info Plain",colspan=>"2",align=>"center", width=>"50%", nowrap=>"nowrap"},"Start&nbsp;",
+	print Tr(th({class=>"opcl Plain",colspan=>"2",align=>"center", width=>"50%", nowrap=>"nowrap"},"Start&nbsp;",
 				textfield(-name=>"date_start",-value=>"$date_start",-override=>1),
 				"&nbsp;End&nbsp;",
 				textfield(-name=>"date_end",-value=>"$date_end",-override=>1),
 				submit(-name=>"date",-value=>"View")),
-				th({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},$probe->{select}),
+				th({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},$probe->{select}),
 				eval {
 					my $str = $probe->{optype} =~ /echo/i ? "Target / Responder": "Item";
-					return th({class=>"info Plain", width=>"25%", nowrap=>"nowrap"},$str); 
+					return th({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},$str); 
 				} # eval
 			);
 
@@ -1269,11 +1347,11 @@ sub displayRTTdata {
 			my $lookup = $IPSLA->getDns(lookup => $_);
 			
 			my $addr = "$_<br><small>$lookup->{result}</small>";
-			print Tr(td({align=>"center",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},a({href=>url()."?conf=$Q->{conf}&view=true&key=$nno&start=$start&end=$end&item=$nm"},$addr)));
+			print Tr(td({align=>"center",class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},a({href=>url()."?conf=$Q->{conf}&view=true&key=$nno&start=$start&end=$end&item=$nm"},$addr)));
 		}
 	}
 	print Tr(th({colspan=>"3",align=>"center",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"),
-				th({class=>"info Plain noborder"},"&nbsp"));
+				th({class=>"data Plain noborder"},"&nbsp"));
 }
 
 # generate chart
@@ -1343,7 +1421,7 @@ sub displayRTTgraph {
 			if ( $probe->{optype} eq "dns" ) {
 				$ds = $probe->{tas};
 			}
-			print STDERR "DEBUG: az=$az gp=$gp ds=$ds spc=$spc\n";
+			#print STDERR "DEBUG: az=$az gp=$gp ds=$ds spc=$spc\n";
 			if ($az eq "L") {
 				++$ltimes;
 				$spc = "\\n" if $ltimes % 4 == 0;
