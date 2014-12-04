@@ -47,7 +47,6 @@
       }
     },
     'type' => {
-
 			'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
@@ -110,6 +109,7 @@
       'upsload' => '/misc/$nodeType/$node-apc-ups-load.rrd',
       'upspwr' => '/misc/$nodeType/$node-apc-ups-pwr.rrd',
       'upsvolt' => '/misc/$nodeType/$node-apc-ups-volt.rrd',
+			'SignalStatus' => '/health/$nodeType/$node-signalstatus-$index.rrd',
       'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
       'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
     }
