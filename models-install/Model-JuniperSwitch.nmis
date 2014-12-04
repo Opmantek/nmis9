@@ -29,22 +29,25 @@
     },
   },
   'interface' => {
-    'collect' => {
-      'Description' => '(CNOC|Collection)'
-    },
-    'nocollect' => {
-      'Description' => '^#',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
-      'ifOperStatus' => 'other|notPresent',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm',
-      'noDescription' => 'false'
-    },
+
+    'rrd' => {
+
     'noevent' => {
-      'Description' => '^!|^0',
       'ifDescr' => 'null',
+      'Description' => '^!|^0',
       'ifType' => 'other'
     },
-    'rrd' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'null',
+      'ifDescr' => 'sublayer|null|controller',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'other|softwareloopback|propVirtual|slip'
+    },
+
       'interface' => {
         'graphtype' => 'bits,abits,maxbits,util,autil',
         'indexed' => 'true',
@@ -250,10 +253,10 @@
     }
   },
   'system' => {
-    'nodeModel' => 'JuniperRouter',
-    'nodeType' => 'router',
+    'nodeModel' => 'JuniperSwitch',
+    'nodeType' => 'switch',
     'nodeVendor' => 'Juniper Networks, Inc.',
-    'nodegraph' => 'health,response,routenumber,ip,frag',
+    'nodegraph' => 'health,response,topo,routenumber,ip,frag',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -326,12 +329,17 @@
       },
       # SWITCHES HAVE dot1dStpTopChanges
       'nodehealth' => {
-        'graphtype' => 'routenumber',
+        'graphtype' => 'topo,routenumber',
         'threshold' => '',
         'snmp' => {
           'RouteNumber' => {
             'oid' => 'ipCidrRouteNumber'
           },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+
         },
       }
     },
@@ -363,17 +371,17 @@
       'juniperConfiguration' => {
         'snmp' => {
           'configLastChanged' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.2.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.2.0',
             'snmpObject' => 'jnxCmCfgChgLatestTime',
             'title' => 'Config Last Change'
           },
           'configLastChangedDate' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.3.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.3.0',
             'snmpObject' => 'jnxCmCfgChgLatestDate',
             'title' => 'Config Last Change Date'
           },
           'configLastChangedUser' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.5.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.5.0',
             'snmpObject' => 'jnxCmCfgChgLatestUser',
             'title' => 'Config Changed By'
           },
@@ -448,8 +456,6 @@
         'index_oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'jnxOperatingDescr',
-        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
-        'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
         'snmp' => {
           'jnxOperatingDescr' => {
             'oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
@@ -575,6 +581,7 @@
         'graphtype' => 'jnxCPU,jnxMem,jnxTemp',
         'indexed' => 'true',
         'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
+        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
         'threshold' => 'jnx_cpu,jnx_temp,jnx_buffer,jnx_heap',
         'snmp' => {
           'jnxOperatingTemp' => {

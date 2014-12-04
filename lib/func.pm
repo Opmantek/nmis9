@@ -109,6 +109,7 @@ use Exporter;
 		logAuth
 		logIpsla
 		logPolling
+		logDebug
 		dbg
 		info
 		getbool
@@ -1464,11 +1465,13 @@ sub logIpsla {
 		dbg($msg); # 
 	}
 
+	my $PID = $$;
+	my $sep = "::";
 	my ($string,$caller,$ln,$fn);
 	for my $i (1..10) {
 		($caller) = (caller($i))[3];	# name sub
 		($ln) = (caller($i-1))[2];	# linenumber
-		$string = "$caller#$ln".$string;
+		$string = "$sep$PID$sep$caller#$ln".$string;
 		if ($caller =~ /main/ or $caller eq '') {
 			($fn) = (caller($i-1))[1];	# filename
 			$fn =~ s;.*/(.*\.\w+)$;$1; ; # strip directory
@@ -1509,6 +1512,32 @@ sub logPolling {
 		print $handle returnDateStamp().",$msg\n" or warn returnTime." logPolling, can't write file $C->{polling_log}. $!\n";
 		close $handle or warn "logPolling, can't close filename: $!";
 		setFileProt($C->{polling_log});
+	}
+}
+
+### a utility for development, just log whatever I want to the file I want.
+sub logDebug {
+	my $file = shift;
+	my $output = shift;
+	my $C = $C_cache; # local scalar
+	my $fileOK = 1;
+	my $handle;
+	
+	if ( -f $file and not -w $file ) {
+		logMsg "ERROR, logDebug can not write file $file\n";
+		$fileOK = 0;
+	}
+	elsif ( -d $file ) {
+		logMsg "ERROR, logDebug $file is a directory\n";
+		$fileOK = 0;
+	}
+
+	if ( $fileOK ) {
+		open($handle,">>$file") or warn returnTime." logDebug, Couldn't open log file $file. $!\n";
+		flock($handle, LOCK_EX)  or warn "logDebug, can't lock filename: $!";
+		print $handle returnDateStamp().",$output\n" or warn returnTime." logDebug, can't write file $file. $!\n";
+		close $handle or warn "logDebug, can't close filename: $!";
+		setFileProt($file);
 	}
 }
 

@@ -126,16 +126,20 @@ sub sendEmail {
 			}
 			else {
 				# don't use sasl
-				$smtp = Net::SMTP->new($servers[$server], Debug => $smtp_debug );
-				if( $arg{user} ne "" and $arg{password} ne "") {
-					if( $smtp->auth($arg{user}, $arg{password}) ) {
-						if ($debug) { print "SMTP auth successful\n"; }
+				if ( $smtp = Net::SMTP->new($servers[$server], Debug => $smtp_debug ) ) {
+					if( $arg{user} ne "" and $arg{password} ne "") {
+						if( $smtp->auth($arg{user}, $arg{password}) ) {
+							if ($debug) { print "SMTP auth successful\n"; }
+						}
+						else
+						{
+							print "SMTP AUTH NOT successful: "
+									.$smtp->code." ".$smtp->message."\n" if (($debug));
+						}
 					}
-					else
-					{
-						print "SMTP AUTH NOT successful: "
-								.$smtp->code." ".$smtp->message."\n" if (($debug));
-					}
+				}
+				else {
+					logMsg("sendMail, ERROR with sending email server=$servers[$server] to=$arg{to} from=$arg{from} subject=$arg{subject}");
 				}
 			}
 
@@ -176,7 +180,7 @@ sub sendEmail {
 		}
 
 		if ( ! $got_server ) {
-				logMsg("sendMail, ERROR with sending email server=$arg{server} to=$arg{to} from=$arg{from} subject=$arg{subject}");
+			logMsg("sendMail, ERROR with sending email server=$arg{server} to=$arg{to} from=$arg{from} subject=$arg{subject}");
 		}
 	}
 	else {

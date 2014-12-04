@@ -216,7 +216,6 @@
           }
         }
       },
-
       'jnx_cpu' => {
         'event' => 'Proactive CPU',
         'item' => 'jnxOper5MinLoadAvg',

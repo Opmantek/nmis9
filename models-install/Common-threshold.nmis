@@ -1,3 +1,32 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (NMIS).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
 %hash = (
   'threshold' => {
     'name' => {
@@ -607,6 +636,96 @@
               'minor' => '88',
               'warning' => '85',
               'major' => '91'
+            }
+          }
+        }
+      },
+      'jnx_cpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'jnxOper5MinLoadAvg',
+        'select' => {
+          '10' => {
+            'control' => '$roleType =~ /core/',
+            'value' => {
+              'critical' => '60',
+              'fatal' => '70',
+              'major' => '50',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          },
+          '20' => {
+            'control' => '$roleType =~ /distribution/',
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          },
+          '30' => {
+            'control' => '$roleType =~ /access/',
+            'value' => {
+              'critical' => '80',
+              'fatal' => '90',
+              'major' => '20',
+              'minor' => '15',
+              'warning' => '15'
+            }
+          },
+          'default' => {
+            'value' => {
+              'fatal' => '80',
+              'critical' => '70',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        }
+      },
+      'jnx_buffer' => {
+        'event' => 'Proactive Buffer Utilisation',
+        'item' => 'jnxOperatingBuffer',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '90',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
+      'jnx_heap' => {
+        'event' => 'Proactive Heap Utilisation',
+        'item' => 'jnxOperatingHeap',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '90',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
+      'jnx_temp' => {
+        'event' => 'Proactive Temp',
+        'item' => 'jnxOperatingTemp',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '85',
+              'critical' => '80',
+              'major' => '75',
+              'minor' => '70',
+              'warning' => '60'
             }
           }
         }

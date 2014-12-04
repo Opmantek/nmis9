@@ -2312,7 +2312,7 @@ sub processAlerts {
 	foreach my $alert (@{$alerts})
 	{
 		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
-		dbg("Processing alert ".Dumper($alert),1);
+		dbg("Processing alert ".Dumper($alert),2);
 		#$VAR1 = {
 		#  'ds' => '192.168.1.249',
 		#  'event' => 'BGP Peer Down',
