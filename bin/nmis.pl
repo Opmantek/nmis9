@@ -6247,6 +6247,8 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 ##################################################
 # save this crontab every day
 0 8 * * * crontab -l > $C->{'<nmis_base>'}/conf/crontab.root
+# backup configuration and models once a day, and keep 30 backups
+22 8 * * * $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################
 # purge old files every week
 0 2 * * 0 $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
