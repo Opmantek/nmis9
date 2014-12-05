@@ -67,7 +67,7 @@
         'element' => 'index',
         'event' => 'BGP Peer Down',
         'level' => 'Warning',
-        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 6',
+        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
         'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
