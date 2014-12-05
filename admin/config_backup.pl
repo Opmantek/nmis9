@@ -34,8 +34,9 @@ use strict;
 use File::Basename;
 use FindBin;
 use POSIX;
-use Cwd;
+use Cwd qw();
 use File::Spec;
+use File::Temp qw();
 
 my $usage = "Usage: ".basename($0)." <backupdir> [nr_of_backups]\n
 
@@ -73,12 +74,12 @@ die "Cannot write to directory $backupdir, check permissions!\n"
 die "Cannot read directory $backupdir, check permissions!\n"
 		if (!-r $backupdir or !-x $backupdir);
 
-# first take a new backup...
+# now let's take a new backup...
 my $backupprefix = "nmis-config-backup-";
-my $backupfilename = "$backupdir/$backupprefix".POSIX::strftime("%Y-%m-%d-%H%M",localtime).".tgz";
+my $backupfilename = "$backupdir/$backupprefix".POSIX::strftime("%Y-%m-%d-%H%M",localtime).".tar";
 
-my $status = system("tar","-czf",$backupfilename,"-C","$FindBin::RealBin/..",
-										"conf","models");
+# ...of our models and conf first.
+my $status = system("tar","-cf",$backupfilename,"-C","$FindBin::RealBin/..", "models","conf");
 if ($status == -1)
 {
 	die "Failed to execute tar!\n";
@@ -91,6 +92,42 @@ elsif ($status >> 8)
 {
 	die "Backup failed, tar exited with exit code ".($status >> 8)."\n";
 }
+
+# then add the various cron files to the archive and compress it
+my $td = File::Temp::tempdir(CLEANUP => 1);
+chdir $td or die "cannot chdir to $td: $!\n";
+mkdir("$td/cron",0755) or die "Cannot create $td/cron: $!\n"; 
+system("cp -a /etc/cron* cron/ 2>/dev/null");
+system("crontab -l -u root >cron/root_crontab 2>/dev/null");
+system("crontab -l -u nmis >cron/nmis_crontab 2>/dev/null");
+
+$status = system("tar","-rf",$backupfilename,"cron");
+if ($status == -1)
+{
+	die "Failed to execute tar!\n";
+}
+elsif ($status & 127)
+{
+	die "Backup failed, tar killed with signal ".($status & 127)."\n";
+}
+elsif ($status >> 8)
+{
+	die "Backup failed, tar exited with exit code ".($status >> 8)."\n";
+}
+$status = system("gzip",$backupfilename);
+if ($status == -1)
+{
+	warn "Failed to execute gzip!\n";
+}
+elsif ($status & 127)
+{
+	warn "Backup compression failed, gzip killed with signal ".($status & 127)."\n";
+}
+elsif ($status >> 8)
+{
+	warn "Backup compression failed, gzip exited with exit code ".($status >> 8)."\n";
+}
+chdir("/");											# so that the tempdir can be cleaned up
 
 if (defined $keep && $keep > 0)
 {

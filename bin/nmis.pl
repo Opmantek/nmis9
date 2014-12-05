@@ -6245,9 +6245,7 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 # Check to rotate the logs 4am every day UTC
 5 20 * * * /usr/sbin/logrotate $C->{'<nmis_base>'}/conf/logrotate.conf
 ##################################################
-# save this crontab every day
-0 8 * * * crontab -l > $C->{'<nmis_base>'}/conf/crontab.root
-# backup configuration and models once a day, and keep 30 backups
+# backup configuration, models and crontabs once a day, and keep 30 backups
 22 8 * * * $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################
 # purge old files every week
