@@ -435,7 +435,7 @@
     },
     'rrd' => {
       'diskIOTable' => {
-        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\-/',
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /sd|sr|disk|xvda|dm\-/',
         'indexed' => 'true',
         'graphtype' => 'diskio-rw,diskio-rwbytes',
         'snmp' => {
