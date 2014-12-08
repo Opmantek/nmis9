@@ -1,4 +1,5 @@
 archive/*
+backups/*
 conf/*
 models/*
 logs/*

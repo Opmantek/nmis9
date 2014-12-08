@@ -99,6 +99,19 @@
         }
       }
     },
+    'Juniper Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+        },
+        '20' => {
+          'JuniperSwitch' => 'Juniper Networks, Inc. .+ Switch'
+        },
+        '99' => {
+          'JuniperRouter' => '.'
+        }
+      }
+    },
     'KCP, Inc.' => {
       'order' => {
         '10' => {

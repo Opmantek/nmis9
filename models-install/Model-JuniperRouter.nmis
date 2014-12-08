@@ -21,7 +21,7 @@
         'element' => 'index',
         'event' => 'BGP Peer Down',
         'level' => 'Warning',
-        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 6',
+        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
         'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
@@ -363,17 +363,17 @@
       'juniperConfiguration' => {
         'snmp' => {
           'configLastChanged' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.2.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.2.0',
             'snmpObject' => 'jnxCmCfgChgLatestTime',
             'title' => 'Config Last Change'
           },
           'configLastChangedDate' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.3.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.3.0',
             'snmpObject' => 'jnxCmCfgChgLatestDate',
             'title' => 'Config Last Change Date'
           },
           'configLastChangedUser' => {
-            'oid' => '1.3.6.1.4.1.2636.3.18.1.7.1.5.0',
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.5.0',
             'snmpObject' => 'jnxCmCfgChgLatestUser',
             'title' => 'Config Changed By'
           },
@@ -448,8 +448,6 @@
         'index_oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'jnxOperatingDescr',
-        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
-        'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
         'snmp' => {
           'jnxOperatingDescr' => {
             'oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
@@ -575,6 +573,7 @@
         'graphtype' => 'jnxCPU,jnxMem,jnxTemp',
         'indexed' => 'true',
         'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
+        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
         'threshold' => 'jnx_cpu,jnx_temp,jnx_buffer,jnx_heap',
         'snmp' => {
           'jnxOperatingTemp' => {

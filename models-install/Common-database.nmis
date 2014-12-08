@@ -136,6 +136,9 @@
       'power' => '/health/$nodeType/$node-power.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
 			'SignalStatus' => '/health/$nodeType/$node-signalstatus-$index.rrd',
+      'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
+      'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
+      'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
     }
   }
 );
