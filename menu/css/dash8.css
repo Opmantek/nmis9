@@ -360,6 +360,7 @@ ul.jd_menu,
 ul.jd_menu ul,
 ul.jd_menu_vertical,
 ul.jd_menu_vertical ul {
+		/* SKIN: This is the "Menu Bar". */
 	  color: white;
 	  background-color: #518C1E;
 	  border: 0px solid #518C1E;
@@ -368,6 +369,7 @@ ul.jd_menu_vertical ul {
 /* these make the vertical a bit smaller */
 ul.jd_menu_vertical li.jdm_hover,
 ul.jd_menu_vertical li.jdm_active {
+		/* SKIN: This is the "Menu Bar Hover". */
 	  color: white;
 		background-color: #70BC44;
 		border: 1px solid #518C1E;
@@ -570,4 +572,7 @@ nmisbut:active.wht {
 	color: white;
 	text-decoration: none;
 }
- 
+
+.blk {
+	color:#000000
+}

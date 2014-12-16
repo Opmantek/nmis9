@@ -587,6 +587,8 @@ sub doUpdate {
 				$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
 			}
 			$S->close; # close snmp session
+			### 2014-12-16 keiths, when did the update poll last complete properly.
+			$NI->{system}{lastUpdatePoll} = time();
 		}
 	} else {		# no ping, no snmp, no type
 		$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";		# nmisdev Dec2010 first time model seen, collect, but no snmp answer
@@ -629,6 +631,14 @@ sub doCollect {
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
+
+	### 2014-12-16 keiths, run an update if no update poll has been run.
+	if ( not exists $NI->{system}{lastUpdatePoll} or (exists $NI->{system}{lastUpdatePoll} and not $NI->{system}{lastUpdatePoll}) ) {
+		info("no cached node data available, running an update now");
+		doUpdate(name=>$name);
+		info("update done, continue with collect");
+	}
+
 	$S->{docollect} = 'true'; # flag what is running
 	$S->readNodeView; # from prev. run
 	# print what we are
@@ -678,6 +688,9 @@ sub doCollect {
 
 						# Custom Alerts
 						runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
+						
+						### 2014-12-16 keiths, when did the collect poll last complete properly.
+						$NI->{system}{lastCollectPoll} = time();
 					}
 				}
 			}
@@ -3687,8 +3700,10 @@ sub runServices {
 	}
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
+	my $didRunServices = 0;
 	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
-	
+		$didRunServices = 1;
+		
 		# make sure this gets reinitialized for every service!	
   	my $gotMemCpu = 0;
 		my %Val;
@@ -3979,9 +3994,12 @@ sub runServices {
 		}
 	} # foreach
 
-	# save the service_status node info
-	$S->{info}{service_status} = \%status;
-
+	if ( $didRunServices ) {
+		# save the service_status node info
+		$S->{info}{service_status} = \%status;
+		### 2014-12-16 keiths, when did the services poll last complete properly.
+		$NI->{system}{lastServicesPoll} = time();
+	}
 END_runServices:
 	info("Finished");
 } # end runServices

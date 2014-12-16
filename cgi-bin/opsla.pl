@@ -655,15 +655,16 @@ sub displayIPSLAmenu {
 		
 		# probe select and status/error info
 		print Tr(
-			td({class=>"header data",colspan=>"4",width=>"$width1"}, span("Select probe for graph&nbsp;".
-				popup_menu(-name=>"probes", -override=>'1',
-					-values=>["",@probes],
-					-default=>$key,
-					-labels=>\%probes,
-					-attributes=>\%attr,
-					-onChange=>"return gotoURL(\"$url\");")),
-			span("&nbsp;"), 
-			span("$message") 
+			td({class=>"header data",colspan=>"4",width=>"$width1"}, 
+				span("Select probe for graph&nbsp;".
+					popup_menu(-name=>"probes", -override=>'1',
+						-values=>["",@probes],
+						-default=>$key,
+						-labels=>\%probes,
+						-attributes=>\%attr,
+						-onChange=>"return gotoURL(\"$url\");")),
+				span("&nbsp;"), 
+				span({class=>"$class"},$message) 
 		));
 	}
 
