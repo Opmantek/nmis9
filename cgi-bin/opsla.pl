@@ -630,32 +630,32 @@ sub displayIPSLAmenu {
 		my $class = "header";
 		if ($pnode ne "") {
 			if ($probe->{message} =~ /\w+/) {
-				$class = "data Error";
-				$message = "&nbsp;$probe->{message}";
+				$class = "data Error blk";
+				$message = "$probe->{message}";
 			} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
-				$class = "data Error";
-				$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
+				$class = "data Error blk";
+				$message = "parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
 			} elsif ( 
 					(not -r "$C->{'<nmis_var>'}/ipslad.pid") 
 					#or ( -M "$C->{'<nmis_var>'}/ipslad.pid" > 0.0015)
 			) { 
-				$class = "data Error";
-				$message = "&nbsp;daemon opslad.pl is not running";
+				$class = "data Error blk";
+				$message = "daemon opslad.pl is not running";
 			} elsif ($msg ne "") { 
-				$class = "data Error";
+				$class = "data Error blk";
 				$message = $msg; # local msg
 			} else {
 				$message = "$probe->{starttime}";
 			}
 		} elsif ($msg ne "") { 
-			$message = $msg; $class = "data Error"; # local msg
+			$message = $msg; $class = "data Error blk"; # local msg
 		}
 		$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 		$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
 		
 		# probe select and status/error info
 		print Tr(
-			td({class=>"header data",colspan=>"4",width=>"$width1"}, span("Select probe for graph&nbsp;".
+			td({class=>"header data",colspan=>"4",width=>"$width1"}, span("Select probe for graph".
 				popup_menu(-name=>"probes", -override=>'1',
 					-values=>["",@probes],
 					-default=>$key,
@@ -663,7 +663,7 @@ sub displayIPSLAmenu {
 					-attributes=>\%attr,
 					-onChange=>"return gotoURL(\"$url\");")),
 			span("&nbsp;"), 
-			span("$message") 
+			span({class=>"$class"},$message) 
 		));
 	}
 
@@ -1424,18 +1424,18 @@ sub displayRTTgraph {
 			#print STDERR "DEBUG: az=$az gp=$gp ds=$ds spc=$spc\n";
 			if ($az eq "L") {
 				++$ltimes;
-				$spc = "\\n" if $ltimes % 4 == 0;
+				$spc = "\\n" if $ltimes % 3 == 0;
 				push @options,"LINE1:$field#$color:${ds}";
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf msec.$spc" if $gp == 1;
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "P") {
 				++$ptimes;
-				$spc = "\\n" if $ptimes % 4 == 0;
+				$spc = "\\n" if $ptimes % 3 == 0;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf msec.$spc" if $gp == 1 ;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "M") {
 				++$ptimes;				
-				$spc = "\\n" if $ptimes % 4 == 0;
+				$spc = "\\n" if $ptimes % 3 == 0;
 				push @p_options,"GPRINT:max$cnt:MAX:$ds %0.1lf msec.$spc" if $gp == 1 ;
 			}
 		}

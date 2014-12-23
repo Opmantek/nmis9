@@ -479,7 +479,7 @@ sub selectNetworkHealth {
 		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
 		print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
 		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
-		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}");
+		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( getbool($C->{display_status_summary}));
 
 		my @h = qw/metric reachable available health response/;
 		foreach my $t (@h) {

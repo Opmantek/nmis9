@@ -1160,7 +1160,7 @@ sub nodeStatus {
 	elsif ( eventExist($NI->{system}{name}, $snmp_down, "") ) {
 		$status = -1;
 	}
-	# ping enabled, pingable but dead snmp -> degraded
+	# let NMIS use the status summary calculations
 	elsif (
 		exists $C->{node_status_uses_status_summary}
 		and getbool($C->{node_status_uses_status_summary})
