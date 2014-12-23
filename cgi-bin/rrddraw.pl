@@ -224,6 +224,24 @@ sub rrdDraw {
 		foreach my $str (@{$graph->{option}{$size}}) {
 			push @opt, $str;
 		}
+
+		# for type=service, add in any extra DS as a gprint (for now)
+		if ($graphtype eq 'service')
+		{
+			my $rrdinfo = RRDs::info($db);
+			for my $dslist (grep(/^ds.+\.index$/,keys %$rrdinfo))
+			{
+				my $dsname = $dslist; $dsname =~ s/^ds\[(.+)\]\.index/$1/;
+				# ignore the already covered standard DSs
+				next if ($dsname eq "responsetime" or $dsname eq "service");
+				
+				push @opt,"DEF:$dsname=\$database:$dsname:AVERAGE",
+				"COMMENT:\\n",
+				"GPRINT:$dsname:AVERAGE:Avg $dsname %.2lf%s",
+				"GPRINT:$dsname:MIN:Min $dsname %.2lf%s",
+				"GPRINT:$dsname:MAX:Max $dsname %.2lf%s\\n";
+			}
+		}
 	}
 
 	# define length of graph
