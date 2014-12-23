@@ -1396,7 +1396,25 @@ sub displayRTTgraph {
 			"--width", "$width",
 			"--height", "$height",
 			"--imgformat", "PNG",
-			"--interlace");
+			"--interlace",
+				"--disable-rrdtool-tag",
+				"--color", 'BACK#ffffff',      # Background Color
+				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+				"--color", 'SHADEB#ffffff',    # was CFCFCF
+				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+				"--color", 'FONT#222222',      # Font Color
+				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+				"--color", 'FRAME#808080'      # Canvas Frame Color
+			);
+
+	if ($width > 400) {
+		push(@options, "--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+	}
+	else {
+		push(@options, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+	}
 
 	my $cnt = 0;
 	my @p_options = ();
