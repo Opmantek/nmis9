@@ -248,9 +248,16 @@ sub editConfig{
 		}
 	}
 
-	# display edit field
-	my $value = escape($CC->{$section}{$item});
+	# display edit field; if text, then show it UNescaped;
+	my $rawvalue = $CC->{$section}{$item};
+	my $value = escape($rawvalue);
+	# and make sure to put the RAW item name into the hidden field!
+	my $rawitem = $item;
 	$item = escape($item);
+
+	# background values
+	print hidden(-name=>'section', -value => $section, -override=>'1');
+	print hidden(-name=>'item', -value => $rawitem, -override=>'1');
 
 	if ($ref->{display} =~ /popup/) {
 		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
@@ -265,7 +272,7 @@ sub editConfig{
 	} 
 	else {
 		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-				textfield(-name=>"value",-size=>((length $value) * 1.3),-value=>"$value",-style=>'font-size:14px;')));
+				textfield(-name=>"value",-size=>((length $rawvalue) * 1.3), -value=>$rawvalue, -style=>'font-size:14px;')));
 	}
 
 	print Tr(td({colspan=>'2'},'&nbsp;'),
@@ -279,9 +286,6 @@ sub editConfig{
 	my $info = getHelp($Q->{item});
 	print Tr(td({class=>'info Plain',colspan=>'3'},$info)) if $info ne "";
 
-	# background values
-	print hidden(-name=>'section', -default=>$section,-override=>'1');
-	print hidden(-name=>'item', -default=>$item,-override=>'1');
 
 	print end_table();
 	print end_form;
@@ -314,7 +318,7 @@ sub doEditConfig {
 }
 
 
-sub deleteConfig{
+sub deleteConfig {
 	my %args = @_;
 
 	my $section = $Q->{section};
@@ -337,6 +341,11 @@ sub deleteConfig{
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
 
+	# background values
+	print hidden(-name=>'section', -default => $section,-override=>'1');
+	print hidden(-name=>'item', -default => $item,-override=>'1');
+
+
 	print start_table() ; # first table level
 
 	# display edit field
@@ -355,15 +364,11 @@ sub deleteConfig{
 									 onclick=> '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
 									 -value=>'Cancel')));
 
-	# background values
-	print hidden(-name=>'section', -default=>$section,-override=>'1');
-	print hidden(-name=>'item', -default=>$item,-override=>'1');
 	print end_form;
 
 End_deleteConfig:
 	print end_table;
 	pageEnd if (!$wantwidget);
-
 }
 
 
