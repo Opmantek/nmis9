@@ -2794,6 +2794,11 @@ sub createHrButtons {
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
 
 	push @out, start_table({class=>'table'}),start_Tr;
+	
+	# provide link back to the main dashboard if not in widget mode
+	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}}, "NMIS $NMIS::VERSION"))
+			if (!getbool($widget));
+
 	push @out, td({class=>'header litehead'},'Node ',
 			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
 
