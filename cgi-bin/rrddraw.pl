@@ -233,7 +233,9 @@ sub rrdDraw {
 			{
 				my $dsname = $dslist; $dsname =~ s/^ds\[(.+)\]\.index/$1/;
 				# ignore the already covered standard DSs
-				next if ($dsname eq "responsetime" or $dsname eq "service");
+				next if ($dsname eq "responsetime" or $dsname eq "service" 
+								 # or the ones that the cpu and mem graphs show
+								 or $dsname eq "cpu" or $dsname eq "memory");
 				
 				push @opt,"DEF:$dsname=\$database:$dsname:AVERAGE",
 				"COMMENT:\\n",

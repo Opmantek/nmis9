@@ -101,6 +101,8 @@
       'service' => '/health/$nodeType/$node-$item.rrd',
       'service-response' => '/health/$nodeType/$node-$item.rrd',
       'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
+      'service-mem' => '/health/$nodeType/$node-$item.rrd',
+      'service-cpu' => '/health/$nodeType/$node-$item.rrd',
       'upsvolt' => '/misc/$nodeType/$node-apc-ups-volt.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd',
       'hrwincpu' => '/health/$nodeType/$node-hrwincpu$index.rrd',

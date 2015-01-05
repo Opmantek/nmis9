@@ -1,7 +1,5 @@
 #
-## $Id: Graph-service.nmis,v 8.4 2012/04/23 23:42:48 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2015 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -35,31 +33,22 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'MBytes',
-		'short' => 'Mbytes'
+		'standard' => 'CPU Seconds',
+		'short' => 'CPU sec'
 	},
 	'option' => {
 		'standard' => [
-			'--right-axis','1:0',
-			'--right-axis-label','CPU seconds',
-			'DEF:memory=$database:memory:AVERAGE',
 			'DEF:cpu=$database:cpu:AVERAGE',
-			'CDEF:memMBytes=memory,1024,/',
 			'CDEF:cpuSec=cpu,100,/',
-			'LINE2:memMBytes#ADFF2F:Memory $indx',
-			'GPRINT:memMBytes:AVERAGE:Avg %1.3lf MBytes\\n',
 			'LINE2:cpuSec#DA70D6:CPU $indx',
-			'GPRINT:cpuSec:AVERAGE:Avg CPU %1.3lf CPU-seconds\\n',
+			'GPRINT:cpuSec:AVERAGE:Avg %1.3lf CPU-seconds',
+			'GPRINT:cpuSec:MIN:Min %1.3lf CPU-seconds',
+			'GPRINT:cpuSec:MAX:Max %1.3lf CPU-seconds\\n',
 		],
 		'small' => [
-			'--right-axis','1:0',
-			'--right-axis-label','s',
 			'DEF:cpu=$database:cpu:AVERAGE',
 			'CDEF:cpuSec=cpu,100,/',
-			'DEF:memory=$database:memory:AVERAGE',
-			'CDEF:memMBytes=memory,1024,/',			
 			'LINE2:cpuSec#DA70D6:CPU $indx',
-			'LINE2:memMBytes#ADFF2F:Memory $indx',
 		]
 	}
 );

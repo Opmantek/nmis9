@@ -3974,7 +3974,7 @@ sub runServices {
 		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
 			$NI->{graphtype}{$service}{service} = 'service,service-response';
 			if ($gotMemCpu) {
-				$NI->{graphtype}{$service}{service} = 'service,service-response,service-cpumem';
+				$NI->{graphtype}{$service}{service} = 'service,service-response,service-mem,service-cpu';
 			}
 		}
 	} # foreach
