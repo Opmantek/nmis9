@@ -2796,7 +2796,7 @@ sub createHrButtons {
 	push @out, start_table({class=>'table'}),start_Tr;
 	
 	# provide link back to the main dashboard if not in widget mode
-	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}}, "NMIS $NMIS::VERSION"))
+	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
 			if (!getbool($widget));
 
 	push @out, td({class=>'header litehead'},'Node ',
