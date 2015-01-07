@@ -132,7 +132,9 @@ my %MT = (
 			'^summary,statstype,\w+$',
 			'^summary,statstype,\w+,sumname,\w+$',
 			'^threshold,name,\w+$',
-			'^common,class,\w+$'
+			'^common,class,\w+$',
+			'^alerts,\w+$',
+			'^alerts,\w+,\w+$',
 		],
 		'add,delete' => [
 			'^calls,rrd,\w+,snmp,\w+$',
@@ -255,11 +257,17 @@ sub displayModel{
 					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
 	if ($node ne "" and $model eq "") { $model = $NI->{system}{nodeModel}; } # get nodeModel from node info
-	my @models;
+
+	# find all known models, but list each once only - main models listing can include a model 
+	# many times under different criteria
+	my (@models,%unique);
 	foreach my $vndr (keys  %{$B->{mdl}{models}}) {
 		foreach my $order (keys  %{$B->{mdl}{models}{$vndr}{order}}) {
-			foreach my $mdl (keys %{$B->{mdl}{models}{$vndr}{order}{$order}}) {
+			foreach my $mdl (keys %{$B->{mdl}{models}{$vndr}{order}{$order}}) 
+			{
+				next if ($unique{$mdl});
 				push @models,$mdl;
+				$unique{$mdl}=1;
 			}
 		}
 	}
@@ -1054,7 +1062,8 @@ sub addModel{
 	elsif ($hsh =~ /^event,event$/) { @field = qw(event role level logging); }
 	elsif ($hsh =~ /^event,event,\w+$/) { @field = qw(role level logging); }
 	elsif ($hsh =~ /^heading,graphtype$/) { @field = qw(graphtype headerscript); }
-	elsif ($hsh =~ /^threshold,name,\w+,select$/) { @field = qw(order fatal critical major minor warning); }
+	elsif ($hsh =~ /^threshold,name,\w+,select$/ 
+			or $hsh =~ /^alerts,\w+,\w+,threshold$/) { @field = qw(order fatal critical major minor warning); }
 	elsif ($hsh =~ /^threshold,name,\w+,select,\w+$/) { @field = qw(control); }
 	elsif ($hsh =~ /^threshold,name$/) { @field = qw(name eventdescr item order control fatal critical major minor warning); }
 	elsif ($hsh =~ /^stats,type$/) { @field = qw(type rrdopt); }
