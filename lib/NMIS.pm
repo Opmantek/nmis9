@@ -1248,9 +1248,8 @@ sub getLevelLogEvent {
 			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
 		} 		
 	}
-	### 2012-03-11 keiths, this was the code causing Node Up to be Oozosl instead of Normal.
-	#$level |= $mdl_level;
-	if ($mdl_level) {
+	# overwrite the level argument if it wasn't set AND if the models reported something useful
+	if ($mdl_level && !defined $level) {
 		$level = $mdl_level;
 	}
 	return ($level,$log,$syslog);
