@@ -31,24 +31,17 @@
 # are viewable at http://opmantek.com/licensing
 #  
 # *****************************************************************************
-
 package NMIS::IPSLA;
 
-require 5;
+our $VERSION = "2.6.1";
 
 use strict;
 use DBI qw(:sql_types);
 
-use vars qw(@EXPORT_OK $VERSION);
-
 use Exporter;
-
-$VERSION = "2.6";
-
-@EXPORT_OK = qw(	
+our @EXPORT_OK = qw(	
 			$version
 		);
-
 
 sub new {
 	my ($class,%arg) = @_;
@@ -71,6 +64,12 @@ sub new {
 	if ( defined $C->{db_port} ) { $port = $C->{db_port} }
 	else { $port = 3306 }
 
+	# provide sensible default socket, for 'localhost' accesses
+	# mainly relevant for activeperl, whose compilation defaults
+	# don't match the common /var/lib/mysql/ location...
+	my $mysqlsocket = defined $C->{db_socket}? 
+	    $C->{db_socket} : "/var/lib/mysql/mysql.sock";
+
 	my $user = undef;
 	if ( defined $C->{db_user} ) { $user = $C->{db_user} }
 	else { $user = "nmis" }
@@ -90,6 +89,7 @@ sub new {
 	   	_db => $db,
 	   	_server => $server,
 	   	_port => $port,
+		_socket => $mysqlsocket,
 	   	_user => $user,
 	   	_password => $password,
 	   	_prefix => $prefix,
@@ -122,7 +122,7 @@ sub setDebug {
 
 sub getHandle {
 	my ($self) = @_;
-	my $data_source = "DBI:mysql:$self->{_db}:$self->{_server}:$self->{_port}";
+	my $data_source = "DBI:mysql:database=$self->{_db};host=$self->{_server};port=$self->{_port};mysql_socket=$self->{_socket}";
 	print STDERR "DBI->connect($data_source, db_user, db_password)\n" if $self->{_debug};
 	$self->{_dbh} = DBI->connect($data_source, $self->{_user}, $self->{_password}, { RaiseError => 1, AutoCommit => 1, mysql_auto_reconnect => 1, ShowErrorStatement => 1 }) || die returnDateStamp()." Connect failed: $DBI::errstr\n";
 	$self->{_dbh}->{InactiveDestroy} = 1;

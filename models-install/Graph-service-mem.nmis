@@ -1,7 +1,5 @@
 #
-## $Id: Graph-service.nmis,v 8.4 2012/04/23 23:42:48 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2015 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -35,28 +33,22 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Status',
-		'short' => 'Status'
+		'standard' => 'Bytes',
+		'short' => 'Bytes'
 	},
 	'option' => {
 		'standard' => [
-			'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-			'DEF:service=$database:service:AVERAGE',
-			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:service#0000ff:Service $indx',
-			'GPRINT:service:AVERAGE:Avg status %1.3lf\\n',
-			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs'
+			'DEF:memory=$database:memory:AVERAGE',
+			'CDEF:membytes=memory,1024,*',
+			'LINE2:membytes#ADFF2F:Memory $indx',
+			'GPRINT:membytes:AVERAGE:Avg %1.3lf %sBytes',
+			'GPRINT:membytes:MIN:Min %1.3lf %sBytes',
+			'GPRINT:membytes:MAX:Max %1.3lf %sBytes\\n',
 		],
 		'small' => [
-			'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-			'DEF:service=$database:service:AVERAGE',
-			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:service#0000ff:Service $indx',
-			'GPRINT:service:AVERAGE:Avg status %1.3lf',
+			'DEF:memory=$database:memory:AVERAGE',
+			'CDEF:membytes=memory,1024,*',			
+			'LINE2:membytes#ADFF2F:Memory $indx',
 		]
 	}
 );

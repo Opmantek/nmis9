@@ -52,6 +52,7 @@ use POSIX qw(:sys_wait_h);
 ## Setting Default Install Options.
 my $defaultSite = "/usr/local/nmis8";
 my $defaultFping = "/usr/local/sbin/fping";
+
 my $defaultCpan = 1;
 my $installLog = undef;
 my $nmisModules;			# local modules used in our scripts
@@ -224,6 +225,11 @@ else
 if ( -f $fping ) {
 	printBanner("Restart the fping daemon...");
 	execPrint("$site/bin/fpingd.pl restart=true");
+}
+
+if ( -x "$site/bin/opslad.pl" ) {
+	printBanner("Restarting the opSLA Daemon...");
+	execPrint("$site/bin/opslad.pl"); # starts a new one and kills any existing ones
 }
 
 	

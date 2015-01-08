@@ -65,7 +65,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 
-our $VERSION = "1.0.1";
+our $VERSION = "1.1.0";
 
 @ISA = qw(Exporter);
 
@@ -123,12 +123,14 @@ my $debug = 0;
 
 #----------------------------------
 
+
+# record non-standard "conf" ONLY if confname is given as argument
 sub new {
 	my $this = shift;
 	my $class = ref($this) || $this;
 	
 	my %arg = @_;	
-	$C = $arg{conf},
+	$C = $arg{conf};
 
 	my $banner = undef;
 	if ( $arg{banner} ne "" ) {
@@ -139,7 +141,7 @@ sub new {
 		_require => 1,
 		dir => $arg{dir},
 		user => undef,
-		config => undef,
+		confname => $arg{confname},
 		banner => $banner,
 		priv => undef,
 		privlevel => 0, # default all
@@ -801,19 +803,21 @@ sub _ms_ldap_verify {
 sub do_login {
 	my $self = shift;
 	my %args = @_;
-	my $config = $args{conf};
+	my $config = $args{conf} || $self->{confname};
 	my $msg = $args{msg};
 
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
-	my $url = self_url();
-	if( $config ne '' ) {
-		if( index($url, '?') == -1 ) {
-			$url .= "?conf=$config";
-		} else {
-			$url .= "&conf=$config";
-		}
+
+	# add the config only once, if not present/matching!
+	my $subcgi = CGI->new;
+	my $presentconf = $subcgi->param("conf");
+	if ($config ne '' && $presentconf ne $config)
+	{
+		$subcgi->param("conf"=>$config);
 	}
+	my $url = $subcgi->self_url();
+
 
 	if( http("X-Requested-With") eq "XMLHttpRequest" )
 	{
@@ -861,7 +865,7 @@ EOHTML
 
 	print $self->do_login_banner();
 
-	print start_form({method=>"POST", action=>"?", target=>"_top"});
+	print start_form({method=>"POST", action=> $url, target=>"_top"});
 
 	print start_table({class=>""});
 
@@ -916,7 +920,7 @@ EOHTML
 sub do_force_login {
 	my $self = shift;
 	my %args = @_;
-	my $config = $args{conf};
+	my $config = $args{conf} || $self->{confname};
 	my($javascript);
 	my($err) = shift;
 
@@ -967,17 +971,20 @@ EOHTML
 sub do_logout {
 	my $self = shift;
 	my %args = @_;
-	my $config = $args{conf};
-	
+	my $config = $args{conf} || $self->{confname};
+
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
-	my $url = url(-full=>1);
+	# ensure the  conf argument is kept
+	param(conf=>$config) if ($config);
+	CGI::delete('auth_type'); 		# but don't keep that one
+	my $url = url(-full=>1, -query=>1);
 	$url =~ s!^[^:]+://!//!;
-	
+
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
-	logAuth("INFO logout of user=$self->{user}");
+	logAuth("INFO logout of user=$self->{user} conf=$config");
 
 	print header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({ 
@@ -1152,14 +1159,14 @@ sub loginout {
 	my $type = lc($args{type});
 	my $username = $args{username};
 	my $password = $args{password};
-	my $config = $args{conf};
-	#my $config = $self->{config};
-	#my $config = $self->{config}{configfile_name};
+	my $config = $args{conf} || $self->{confname};
+
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
-	logAuth("DEBUG: loginout type=$type username=$username") if $debug;
-	
+	logAuth("DEBUG: loginout type=$type username=$username config=$config") 
+			if $debug;
+
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
 	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {             

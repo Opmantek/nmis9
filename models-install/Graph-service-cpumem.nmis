@@ -41,22 +41,24 @@
 	'option' => {
 		'standard' => [
 			'--right-axis','1:0',
-			'--right-axis-label','centi-seconds',
+			'--right-axis-label','CPU seconds',
 			'DEF:memory=$database:memory:AVERAGE',
 			'DEF:cpu=$database:cpu:AVERAGE',
-			'CDEF:memMBytes=memory,1024,/',			
+			'CDEF:memMBytes=memory,1024,/',
+			'CDEF:cpuSec=cpu,100,/',
 			'LINE2:memMBytes#ADFF2F:Memory $indx',
 			'GPRINT:memMBytes:AVERAGE:Avg %1.3lf MBytes\\n',
-			'LINE2:cpu#DA70D6:CPU $indx',
-			'GPRINT:cpu:AVERAGE:Avg CPU %1.3lf centi-seconds\\n',
+			'LINE2:cpuSec#DA70D6:CPU $indx',
+			'GPRINT:cpuSec:AVERAGE:Avg CPU %1.3lf CPU-seconds\\n',
 		],
 		'small' => [
 			'--right-axis','1:0',
-			'--right-axis-label','centi-s',
+			'--right-axis-label','s',
 			'DEF:cpu=$database:cpu:AVERAGE',
+			'CDEF:cpuSec=cpu,100,/',
 			'DEF:memory=$database:memory:AVERAGE',
 			'CDEF:memMBytes=memory,1024,/',			
-			'LINE2:cpu#DA70D6:CPU $indx',
+			'LINE2:cpuSec#DA70D6:CPU $indx',
 			'LINE2:memMBytes#ADFF2F:Memory $indx',
 		]
 	}

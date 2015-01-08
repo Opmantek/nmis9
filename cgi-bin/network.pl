@@ -2181,8 +2181,10 @@ sub viewService {
 			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,
 																		width=>$thiswidth, height=>$smallGraphHeight);
 			if ( getbool($V->{system}{"${service}_cpumem"}) ) {
-				$serviceGraphs .= htmlGraph(graphtype=>"service-cpumem",node=>$node,intf=>$service,
-																		width=>$thiswidth,height=>$smallGraphHeight);
+				$serviceGraphs .= htmlGraph(graphtype=>"service-cpu",node=>$node,intf=>$service,
+																		width=>$thiswidth,height=>$smallGraphHeight)
+						. htmlGraph(graphtype=>"service-mem",node=>$node,intf=>$service,
+												width=>$thiswidth,height=>$smallGraphHeight);
 			}
 			else {
 				$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,

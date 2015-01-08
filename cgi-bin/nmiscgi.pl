@@ -85,7 +85,9 @@ my $user;
 
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
+# pass in confname ONLY if its not the default
+my $custom_confname = $Q->{conf}; undef $custom_confname if ($custom_confname eq "Config.nmis");
+$AU = Auth->new(conf => $C, confname => $custom_confname);  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -94,8 +96,10 @@ if ($AU->Require) {
 		$AU->{username}=$ENV{'REMOTE_USER'};
 		$logoutButton = qq|disabled="disabled"|;
 	}
-	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
-					password=>$Q->{auth_password},headeropts=>$headeropts) ;
+	exit 0 unless $AU->loginout(type=>$Q->{auth_type},
+															username=>$Q->{auth_username},
+															password=>$Q->{auth_password},
+															headeropts=>$headeropts) ;
 	$privlevel = $AU->{privlevel};
 	$user = $AU->{user};
 } else {
@@ -151,9 +155,10 @@ if ( $C->{company_logo} ) {
 			</span>|;
 } 
  
-my $logout = qq|<form id="nmislogout" method="POST" class="inline" action="$C->{nmis}?conf=$Q->{conf}">
-					<input class="inline" type="submit" id="logout" name="auth_type" value="Logout" $logoutButton />
-				</form>
+my $logout = qq|<form id="nmislogout" method="POST" class="inline" action="$C->{nmis}">
+	<input type="hidden" name="conf" value="$Q->{conf}"/>
+	<input class="inline" type="submit" id="logout" name="auth_type" value="Logout" $logoutButton />
+</form>
 |;
  
 if ($C->{auth_method_1} eq "apache") {

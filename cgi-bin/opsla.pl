@@ -630,25 +630,25 @@ sub displayIPSLAmenu {
 		my $class = "header";
 		if ($pnode ne "") {
 			if ($probe->{message} =~ /\w+/) {
-				$class = "data Error";
-				$message = "&nbsp;$probe->{message}";
+				$class = "data Error blk";
+				$message = "$probe->{message}";
 			} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
-				$class = "data Error";
-				$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
+				$class = "data Error blk";
+				$message = "parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
 			} elsif ( 
 					(not -r "$C->{'<nmis_var>'}/ipslad.pid") 
 					#or ( -M "$C->{'<nmis_var>'}/ipslad.pid" > 0.0015)
 			) { 
-				$class = "data Error";
-				$message = "&nbsp;daemon opslad.pl is not running";
+				$class = "data Error blk";
+				$message = "daemon opslad.pl is not running";
 			} elsif ($msg ne "") { 
-				$class = "data Error";
+				$class = "data Error blk";
 				$message = $msg; # local msg
 			} else {
 				$message = "$probe->{starttime}";
 			}
 		} elsif ($msg ne "") { 
-			$message = $msg; $class = "data Error"; # local msg
+			$message = $msg; $class = "data Error blk"; # local msg
 		}
 		$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 		$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
@@ -1397,7 +1397,25 @@ sub displayRTTgraph {
 			"--width", "$width",
 			"--height", "$height",
 			"--imgformat", "PNG",
-			"--interlace");
+			"--interlace",
+				"--disable-rrdtool-tag",
+				"--color", 'BACK#ffffff',      # Background Color
+				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
+				"--color", 'SHADEB#ffffff',    # was CFCFCF
+				"--color", 'CANVAS#FFFFFF',    # Canvas (Grid Background)
+				"--color", 'GRID#E2E2E2',      # Grid Line ColorGRID#808020'
+				"--color", 'MGRID#EBBBBB',     # Major Grid Line ColorMGRID#80c080
+				"--color", 'FONT#222222',      # Font Color
+				"--color", 'ARROW#924040',     # Arrow Color for X/Y Axis
+				"--color", 'FRAME#808080'      # Canvas Frame Color
+			);
+
+	if ($width > 400) {
+		push(@options, "--font", $C->{graph_default_font_standard}) if $C->{graph_default_font_standard};
+	}
+	else {
+		push(@options, "--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
+	}
 
 	my $cnt = 0;
 	my @p_options = ();
@@ -1425,18 +1443,18 @@ sub displayRTTgraph {
 			#print STDERR "DEBUG: az=$az gp=$gp ds=$ds spc=$spc\n";
 			if ($az eq "L") {
 				++$ltimes;
-				$spc = "\\n" if $ltimes % 4 == 0;
+				$spc = "\\n" if $ltimes % 3 == 0;
 				push @options,"LINE1:$field#$color:${ds}";
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf msec.$spc" if $gp == 1;
 				push @options,"GPRINT:$field:AVERAGE:Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "P") {
 				++$ptimes;
-				$spc = "\\n" if $ptimes % 4 == 0;
+				$spc = "\\n" if $ptimes % 3 == 0;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf msec.$spc" if $gp == 1 ;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "M") {
 				++$ptimes;				
-				$spc = "\\n" if $ptimes % 4 == 0;
+				$spc = "\\n" if $ptimes % 3 == 0;
 				push @p_options,"GPRINT:max$cnt:MAX:$ds %0.1lf msec.$spc" if $gp == 1 ;
 			}
 		}

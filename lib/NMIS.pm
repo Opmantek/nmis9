@@ -1248,9 +1248,8 @@ sub getLevelLogEvent {
 			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
 		} 		
 	}
-	### 2012-03-11 keiths, this was the code causing Node Up to be Oozosl instead of Normal.
-	#$level |= $mdl_level;
-	if ($mdl_level) {
+	# overwrite the level argument if it wasn't set AND if the models reported something useful
+	if ($mdl_level && !defined $level) {
 		$level = $mdl_level;
 	}
 	return ($level,$log,$syslog);
@@ -2794,6 +2793,11 @@ sub createHrButtons {
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
 
 	push @out, start_table({class=>'table'}),start_Tr;
+	
+	# provide link back to the main dashboard if not in widget mode
+	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
+			if (!getbool($widget));
+
 	push @out, td({class=>'header litehead'},'Node ',
 			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
 
