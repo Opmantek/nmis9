@@ -74,10 +74,6 @@
           'sysObjectID' => {
             'oid' => 'sysObjectID'
           },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
-          },
           'ifNumber' => {
             'oid' => 'ifNumber',
             'title' => 'Interfaces'
@@ -91,6 +87,17 @@
           },
           'sysName' => {
             'oid' => 'sysName'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime'
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime'
           }
         }
       },

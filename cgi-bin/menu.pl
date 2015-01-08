@@ -182,7 +182,7 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
 				if ($AU->CheckAccess("tls_event_db","check"));
 
-		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=25&amp;logname=Event_Log">Network Events</a>|
+		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=50">Network Events</a>|
 						if ($AU->CheckAccess("Event_Log","check"));
 
 		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if tableExists('Customers');
@@ -290,7 +290,7 @@ sub menu_bar_site {
 		my @logstuff;
 		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=NMIS_Log">NMIS Log</a>|
 				if ($AU->CheckAccess("NMIS_Log","check"));
-		push @logstuff, qq|<a id='eventlogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;logname=Event_Log">Event Log</a>|
+		push @logstuff, qq|<a id='eventlogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view">Event Log</a>|
 				if ($AU->CheckAccess("Event_Log","check"));
 		push @logstuff, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_list_view">Log List</a>|
 				if ($AU->CheckAccess("log_list","check"));

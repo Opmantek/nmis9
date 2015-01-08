@@ -2231,8 +2231,17 @@ sub updateNodeInfo {
 
 			# Read the uptime from the node info file from the last time it was polled
 		$NI->{system}{sysUpTimeSec} = int($NI->{system}{sysUpTime}/100); # seconds
-
 		$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec});
+
+		### 2014-01-08 keiths, adding update from Scott Cubic
+		if ( defined $NI->{system}{snmpUpTime} ) {
+			# SRC - add processing for SNMP Uptime- handle just like sysUpTime
+			$NI->{system}{snmpUpTimeSec} = int($NI->{system}{snmpUpTime}/100);
+			$NI->{system}{snmpUpTime} = convUpTime($NI->{system}{snmpUpTimeSec});		
+			$V->{system}{snmpUpTime_value} = $NI->{system}{snmpUpTime};
+			$V->{system}{snmpUpTime_title} = 'SNMP Uptime';
+		}
+		
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
 		### 2012-08-18 keiths, Special debug for Node Reset false positives
 		#logMsg("DEBUG Node Reset: Node=$S->{name} Old=$sysUpTime New=$NI->{system}{sysUpTime} OldSec=$sysUpTimeSec NewSec=$NI->{system}{sysUpTimeSec}");

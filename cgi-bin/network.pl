@@ -842,7 +842,6 @@ sub printGroupView {
 	#my @h = qw/metric reachable available health response/;
 	my @h = qw/metric reachable health/;
 	foreach my $t (@h) {
-
 		my $units = $t eq 'response' ? 'ms' : '%' ;
 		my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
 		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
@@ -1553,6 +1552,7 @@ EO_HTML
 	#Adding KPI Analysis
 	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+	my $validKpiData = 0;
 		
 	if (my $stats = getSummaryStats(sys=>$S,type=>"health",start=>$metricsFirstPeriod,end=>time(),index=>$node)) {
 		
@@ -1614,7 +1614,8 @@ EO_HTML
 			}
 			
 			# only print the table if there is a value over 0 for reachability.
-			if ( $stats->{$node}{reachabilityHealth} ) {
+			if ( $stats->{$node}{reachabilityHealth} and $stats->{$node}{reachabilityHealth} !~ /NaN/ ) {
+				$validKpiData = 1;
 				print start_Tr(),start_td(),start_table();
 				print Tr(td({class=>'header',colspan=>'4',title=>"The KPI Scores are weighted from the Health Metric for the node, compared to the previous periods KPI's, the cell color indicates overall score and the arrow indicates if the KPI is improving or not."},"KPI Scores"));
 		
@@ -1647,7 +1648,7 @@ EO_HTML
 		if ( not grep { "kpi" eq $_ } (@graphs) ) {
 			my @newgraphs;
 			foreach my $graph (@graphs) {
-				if ( $graph eq "health" ) {
+				if ( $graph eq "health" and $validKpiData ) {
 					push(@newgraphs,"kpi");
 				}
 				push(@newgraphs,$graph);
