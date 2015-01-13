@@ -71,6 +71,9 @@
 		# if this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
     'node_status_uses_status_summary' => 'false',
     'display_status_summary' => 'false',
+    
+		# to have additional fields in the node summary data.
+    'node_summary_field_list' => 'customer,businessService,serviceStatus',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
