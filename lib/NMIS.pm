@@ -60,7 +60,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.4G";
+$VERSION = "8.5.5G";
 
 @ISA = qw(Exporter);
 
@@ -1149,8 +1149,8 @@ sub nodeStatus {
 	my $snmp_down = "SNMP Down";
 
 	# ping disabled ->  snmp state is authoritative
-	if ( getbool($NI->{system}{ping},"invert") ) {
-		$status = 0 if eventExist($NI->{system}{name}, $snmp_down, "");
+	if ( getbool($NI->{system}{ping},"invert") and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
@@ -1162,10 +1162,10 @@ sub nodeStatus {
 	}
 	# let NMIS use the status summary calculations
 	elsif (
-		exists $C->{node_status_uses_status_summary}
+		defined $C->{node_status_uses_status_summary}
 		and getbool($C->{node_status_uses_status_summary})
-		and exists $NI->{system}{status_summary} 
-		and exists $NI->{system}{status_updated} 
+		and defined $NI->{system}{status_summary} 
+		and defined $NI->{system}{status_updated} 
 		and $NI->{system}{status_summary} <= 99
 		and $NI->{system}{status_updated} > time - 500
 	) {
@@ -1174,7 +1174,7 @@ sub nodeStatus {
 	else {
 		$status = 1;
 	}
-		
+	
 	return $status;
 }
 

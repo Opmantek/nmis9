@@ -78,6 +78,10 @@ foreach my $node (sort keys %$LNT) {
 	my $NI = $S->{info};
 	my $M = $S->mdl();
 
+	my $nodeStatus = nodeStatus(NI => $NI);
+	
+	print "$NI->{system}{name} status_summary=$NI->{system}{status_summary} status_updated=$NI->{system}{status_updated} nodeStatus=$nodeStatus\n";
+
 	my @instances = $S->getTypeInstances(section => "hrsmpcpu");
 	if ( exists $M->{system}{rrd}{nodehealth}{snmp}{avgBusy5}{oid} ) {
 		print "$node supports CPU Stats\n";
