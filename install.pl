@@ -458,7 +458,7 @@ The missing modules are: |. join(" ",@missing)."\n\n";
 
 
   # return 0 if any critical modules are missing
-  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1);
+  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1);
   
   for my $nx (@missing) 
   { 
