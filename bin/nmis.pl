@@ -989,7 +989,6 @@ sub getNodeInfo {
 	# process status
 	if ($exit) {
 		delete $NI->{interface}; # reset intf info
-		$NI->{system}{noderesetcnt} = 0; # counter to skip rrd heartbeat
 
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
@@ -2185,6 +2184,8 @@ sub getSystemHealthData {
 }
 #=========================================================================================
 
+# updates the node info and node view structures with all kinds of stuff
+# returns: 1 if node is up, and all ops worked; 0 if node is down/to be skipped etc.
 sub updateNodeInfo {
 	my %args = @_;
 	my $S = $args{sys};
@@ -2196,18 +2197,9 @@ sub updateNodeInfo {
 	my $result;
 	my $exit = 1;
 
-		info("Starting Update Node Info, node $S->{name}");
-
-	# check node reset count
-	if ($NI->{system}{noderesetcnt} > 0) {
-		info("noderesetcnt=$NI->{system}{noderesetcnt} skip collecting");
-		$NI->{system}{noderesetcnt}--;
-		$NI->{system}{noderesetcnt} = 4 if $NI->{system}{noderesetcnt} > 4; # limit
-		delete $NI->{system}{noderesetcnt} if $NI->{system}{noderesetcnt} <= 0; # failure
-		$exit= 0;
-		goto END_updateNodeInfo;
-	}
-
+	info("Starting Update Node Info, node $S->{name}");
+	# clear the node reset indication from the last run
+	$NI->{system}->{node_was_reset}=0;
 	my $NCT = loadNodeConfTable();
 
 	# save what we need now for check of this node
@@ -2243,21 +2235,14 @@ sub updateNodeInfo {
 		}
 		
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
-		### 2012-08-18 keiths, Special debug for Node Reset false positives
-		#logMsg("DEBUG Node Reset: Node=$S->{name} Old=$sysUpTime New=$NI->{system}{sysUpTime} OldSec=$sysUpTimeSec NewSec=$NI->{system}{sysUpTimeSec}");
-		#if ( $NI->{system}{sysUpTime} ) {
-		#
-		#}
 		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
 			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
-			notify(sys=>$S, event=>"Node Reset",element=>"",details=>"Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
-			# calculate time of node no collecting to overlap heartbeat
-			my $cnt = 4 - ((time() - $NI->{system}{lastUpdateSec})/300);
-#			if ($cnt > 0) {
-#				$NI->{system}{noderesetcnt} = int($cnt);
-#				$exit= 0;
-#				goto END_updateNodeInfo;
-#			}
+			notify(sys=>$S, event=>"Node Reset",element=>"",
+						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
+
+			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
+			# so that no spikes appear in the graphs
+			$NI->{system}{node_was_reset}=1;
 		}
 
 		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
