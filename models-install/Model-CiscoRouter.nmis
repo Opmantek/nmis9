@@ -607,7 +607,7 @@
       'Description' => '^#',
       'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm'
     }
-  }
+  },
 
   'systemHealth' => {
     'rrd' => {
