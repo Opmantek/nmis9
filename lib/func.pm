@@ -2110,7 +2110,7 @@ sub selftest
 	$allok=1;
 
 	# check that we have a new enough RRDs module
-	my $minversion=version->parse(("1.4004");
+	my $minversion=version->parse("1.4004");
 	my $testname="RRDs Module";
 	my $curversion;
 	eval { 
