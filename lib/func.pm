@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.0";
+our $VERSION = "1.2.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -38,6 +38,7 @@ use File::stat;
 use Time::ParseDate;
 use Time::Local;
 use CGI::Pretty qw(:standard);
+use version 0.77;
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -2107,7 +2108,45 @@ sub selftest
 	my $candelay = getbool($args{delay_is_ok});
 
 	$allok=1;
+
+	# check that we have a new enough RRDs module
+	my $minversion=version->parse("1.4004");
+	my $testname="RRDs Module";
+	my $curversion;
+	eval { 
+		require RRDs;
+		$curversion = version->parse($RRDs::VERSION);
+	};
+	if ($@)
+	{
+		push @details, [$testname, "RRDs Module not present!"];
+		$allok=0;
+	}
+	elsif ($curversion < $minversion)
+	{
+		push @details, [$testname, "RRDs Version $curversion is below required min $minversion!"];
+		$allok=0;
+	}
+	else
+	{
+		push @details, [$testname, undef];
+	}
 	
+	# verify that nmis isn't disabled altogether
+	$testname = "NMIS enabled";
+	my $result = undef;
+	my $lockoutfile = $config->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+	if (-f $lockoutfile)
+	{
+		$result = "NMIS is disabled! Remove the file $lockoutfile to re-enable.";
+	}
+	elsif (getbool($config->{global_collect},"invert"))
+	{
+		$result = "NMIS is disabled! Set the configuration variable \"global_collect\" to \"true\" to re-enable.";
+	}
+	push @details, [$testname, $result];
+	$allok = 0 if ($result);
+
 	# check the main/involved directories AND /tmp and /var
 	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
@@ -2436,6 +2475,11 @@ sub find_nmis_processes
 	return \%others;
 }
 
+# semi-internal accessor for the table cache structure
+sub _table_cache
+{
+	return \%Table_cache;
+}
 
 1;
 

@@ -28,8 +28,8 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
 package rrdfunc;
+our $VERSION = "2.0.1";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -38,7 +38,7 @@ require 5;
 
 use strict;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 
@@ -49,8 +49,6 @@ use Sys;
 #use Data::Dumper;
 #$Data::Dumper::Ident=1;
 #$Data::Dumper::SortKeys=1;
-
-$VERSION = 2.0;
 
 @ISA = qw(Exporter);
 
@@ -456,6 +454,8 @@ sub getFileName {
 	return $dir;
 }
 
+# this function takes in a set of data items and updates the relevant rrd file
+# returns: the database file name
 sub updateRRD {
 	my %args = @_;
 	my $S = $args{sys};
@@ -473,7 +473,7 @@ sub updateRRD {
 		push(@nodes,$S->{name}); 
 	}
 
-	dbg("Starting RRD Update Process, type=$type, index=$index,item=$item");
+	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
 
 	if ($database eq "") {
 
@@ -519,26 +519,37 @@ sub updateRRD {
 	my $ERROR;
 	my $ds;
 	my $value = "N";
+	
+	dbg("node was reset, inserting U value") if ($NI->{system}->{node_was_reset});
 
 	foreach my $var (keys %{$data}) {
 		$ds .= ":" if $ds ne "";
 		$ds .= $var;
-		# cleanup invalid values:
-		# nonexistent or blank object we treat as 0
-		$data->{$var}{value} = 0 if ($data->{$var}{value} eq "noSuchObject" 
-				or $data->{$var}{value} eq "noSuchInstance" 
-				or $data->{$var}{value} eq "");
 
-		# then get rid of unwanted leading or trailing white space
-		$data->{$var}{value} =~ s/^\s*//;
-		$data->{$var}{value} =~ s/\s*$//;
+		# if the node has gone through a reset, then insert a U to avoid spikes
+		if ($NI->{system}->{node_was_reset})
+		{
+			$value .= ':U';
+		}
+		else
+		{
+			# cleanup invalid values:
+			# nonexistent or blank object we treat as 0
+			$data->{$var}{value} = 0 if ($data->{$var}{value} eq "noSuchObject" 
+																	 or $data->{$var}{value} eq "noSuchInstance" 
+																	 or $data->{$var}{value} eq "");
+			
+			# then get rid of unwanted leading or trailing white space
+			$data->{$var}{value} =~ s/^\s*//;
+			$data->{$var}{value} =~ s/\s*$//;
 
-		# other non-numeric input becomes rrdtool's 'undefined' value
-		# all standard integer/float notations (incl 1.345E+7) should be accepted
-		$data->{$var}{value} = "U" if ($data->{$var}{value} !~ 
-																	 /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+			# other non-numeric input becomes rrdtool's 'undefined' value
+			# all standard integer/float notations (incl 1.345E+7) should be accepted
+			$data->{$var}{value} = "U" if ($data->{$var}{value} !~ 
+																		 /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
 
-		$value .= ":$data->{$var}{value}";
+			$value .= ":$data->{$var}{value}";
+		}
 	}
 	push @options,("-t",$ds,$value);
 	
@@ -713,21 +724,28 @@ sub createRRD {
 	else {
 		my @x = $database =~ /\//g; # until last slash
 		my $dir = $`; # before last slash
-		# let check if the node directory exists as well, create if not.
-		if ( not -d "$dir" 
-			and not -r "$dir" 
-		) { 
+
+		if ( not -d "$dir" and not -r "$dir" )
+		{ 
 			my $permission = "0770"; # default
 			if ( $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 
-			dbg("creating database directory $dir,$permission");
-			
-			my $umask = umask(0);
-			mkdir($dir, oct($permission)) or warn "Cannot mkdir $dir: $!\n";
-			umask($umask);
-			setFileProt($dir);
+			my @comps = split(m!/!,$dir);
+			for my $idx (1..$#comps)
+			{
+				my $parentdir = join("/",@comps[0..$idx]);
+				if (!-d $parentdir)
+				{
+					dbg("creating database directory $parentdir, $permission");
+					
+					my $umask = umask(0);
+					mkdir($parentdir, oct($permission)) or warn "Cannot mkdir $parentdir: $!\n";
+					umask($umask);
+					setFileProt($parentdir);
+				}
+			}
 		}
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);

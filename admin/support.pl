@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.4";
+my $VERSION = "1.3.5";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n"; 
 
@@ -264,6 +264,14 @@ sub collect_evidence
 				or warn "can't save interface status: $!\n";
 		system("/sbin/route -n > $targetdir/system_status/route") == 0
 				or warn "can't save routing table: $!\n";
+
+		# capture the cron files, root's and nmis's tabs
+		mkdir("$targetdir/system_status/cron");
+		system("cp -a /etc/cron* $targetdir/system_status/cron") == 0 
+				or warn "can't save cron files: $!\n";
+		
+		system("crontab -u root -l > $targetdir/system_status/cron/crontab.root 2>/dev/null");
+		system("crontab -u nmis -l > $targetdir/system_status/cron/crontab.nmis 2>/dev/null");
 
 		# copy the install log if there is one
 		if (-f "$basedir/install.log")

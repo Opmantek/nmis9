@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: install.pl,v 8.2 2012/05/24 13:24:37 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -76,7 +74,9 @@ my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 my $debug = 0;
 $debug = 1 if $arg{debug};
 
-print qx|clear|;
+my %options;										# for futher unattended mode
+
+system("clear");
 
 ###************************************************************************###
 printBanner("NMIS Installation Script");
@@ -100,13 +100,12 @@ printBanner("Checking Perl version...");
 
 my $ver = ref($^V) eq 'version' ? $^V->normal : ( $^V ? join('.', unpack 'C*', $^V) : $] );
 my $perl_ver_check = '';
+print "\n";
 if ($] < 5.010001) {  # our minimal requirement for support
-	print qq|The version of Perl installed on your server is lower than the minimum supported version 5.10.1. Please upgrade to at least Perl 5.10.1|;
+	echolog("The version of Perl installed on your server is lower than the minimum supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
 }
 else {
-	my $message = "The version of Perl installed on your server $ver is OK";
-	print qq|\n$message\n\n|;
-	logInstall($message);
+	echolog("The version of Perl installed on your server $ver is OK");
 }
 
 
@@ -119,21 +118,19 @@ NMIS will not work properly until these are installed!
 
 We recommend that you stop the installer now, resolve the dependencies, 
 and then restart the installer.\n\n";
-		if (input_yn("Stop the installer"))
+		if (input_yn("Stop the installer?"))
 		{
 			die "\nAborting the installation. Please install the missing modules, then restart the installer. installer.\n";
 		}
 		else
 		{
-			my $message ="\n\nContinuing the installation as requested. NMIS won't work correctly until
-you install the missing dependencies!\n\n";
-			print $message; logInstall($message);
+			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!\n\n");
 		}
 	}
 	 
 	if ($listdeps)
 	{
-			print "NOT proceeding with installation, as requested.\n";
+			echolog("NOT proceeding with installation, as requested.\n");
 			exit 0;
 	}
 }
@@ -141,7 +138,7 @@ you install the missing dependencies!\n\n";
 
 ###************************************************************************###
 printBanner("Configuring installation path...");
-$site = input_str("Folder to install NMIS in", $defaultSite);
+$site = input_str("Folder to install NMIS in", $defaultSite, 1);
 logInstall("Installation destination is $site");
 
 
@@ -149,27 +146,43 @@ logInstall("Installation destination is $site");
 if ( -d $site ) {
 	printBanner("Make a backup of an existing install...");
 
-	if (input_yn("OK to make a backup of your current NMIS"))
+	if (input_yn("OK to make a backup of your current NMIS?"))
 	{
 		my $backupFile = getBackupFileName();
 		execPrint("cd $site; tar czvf $backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
-		print "Backup of NMIS install was created in $site/$backupFile\n";
+		echolog("Backup of NMIS install was created in $site/$backupFile\n");
+	}
+	else
+	{
+		echolog("Continuing without backup as instructed.\n");
 	}
 }
 
 ###************************************************************************###
 printBanner("Copying NMIS system files...");
 
-exit unless input_yn("OK to copy NMIS distribution files from $src to $site");
-print "Copying source files from $src to $site...\n";
+if (!input_yn("Ready to start installation/upgrade to $site?"))
+{
+	echolog("Exiting installation as directed.\n");
+	exit  0;
+}
+
+echolog("Copying source files from $src to $site...\n");
+
+# lock nmis first
+open(F,">$site/conf/NMIS_IS_LOCKED");
+print F "$0 is operating, started at ".localtime."\n";
+close F;
 
 my $isnewinstall;
-if ( not -d $site ) {
+if ( not -d $site ) 
+{
 	$isnewinstall=1;
-	execPrint("mkdir $site");
+	mkdir($site,0755) or die "cannot mkdir $site: $!\n";
 }
+# fixme: this fails benignly but noisyly if there are 
+# (convenience) symlinks in the nmis dir, e.g. var or database
 execPrint("cp -r $src/* $site");
-
 
 if ($isnewinstall)
 {
@@ -177,48 +190,64 @@ if ($isnewinstall)
 		execPrint("cp -a $site/install/* $site/conf/");
 		execPrint("cp -a $site/models-install/* $site/models/");
 
-		if (input_yn("OK to create NMIS user"))
+		if (!getpwnam("nmis"))
 		{
+			if (input_yn("OK to create NMIS user?"))
+			{
 				execPrint("adduser nmis");
-		}
-		else
-		{
-				print("ok, continuing without nmis user.\n");
+			}
+			else
+			{
+				echolog("Continuing without nmis user.\n");
+			}
 		}
 }
 else
 {
 		###************************************************************************###
-		printBanner("Update the config files with new options...");
-		
-		exit unless input_yn("OK to update the config files");
-		# merge changes for new NMIS Config options. 
-		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
-		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
-		
-		# update default config options that have been changed:
-		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
+		printBanner("Updating the config files with any new options...");
 
-		# move config/cache files to new locations where necessary
-		if (-f "$site/conf/WindowState.nmis")
+		if (input_yn("OK to update the config files?"))
 		{
-			printBanner("Moving old WindowState file to new location");
-			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+			# merge changes for new NMIS Config options. 
+			execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
+			execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
+		
+			# update default config options that have been changed:
+			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
+
+			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
+			execPrint("$site/admin/patch_config -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
+
+			# move config/cache files to new locations where necessary
+			if (-f "$site/conf/WindowState.nmis")
+			{
+				printBanner("Moving old WindowState file to new location");
+				execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+			}
+
+			printBanner("Performing Model Updates");
+			# that plugin normally does its own confirmation prompting, which cannot work with execPrint
+			execPrint("$site/install/install_stats_update.pl nike=true");
+
+			printBanner("Updating RRD Variables");
+			# Updating the mib2ip RRD Type
+			execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
+
+			# Updating the TopChanges RRD Type
+			execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
+
+			# Updating the TopChanges RRD Type
+			execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
 		}
-
-		printBanner("Updating Model Update");
-		# that plugin does its own confirmation prompting
-		execPrint("$site/install/install_stats_update.pl nike=true");
-
-		printBanner("Updating RRD Variables");
-		# Updating the mib2ip RRD Type
-		execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
-
-		# Updating the TopChanges RRD Type
-		execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
-
-		# Updating the TopChanges RRD Type
-		execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
+		else
+		{
+			echolog("Continuing without configuration updates as directed.
+Please note that you will likely have to perform various configuration updates manually 
+to ensure NMIS performs correctly.");
+			print "\n\nPlease hit enter to continue: ";
+			my $x = <STDIN>;
+		}
 }
 
 ###************************************************************************###
@@ -237,6 +266,64 @@ if ( -x "$site/bin/opslad.pl" ) {
 printBanner("Cache some fonts...");
 execPrint("fc-cache -f -v");
 
+# check if the common-databases differ, and if so offer to run migrate_rrd_locations.pl
+if (!$isnewinstall)
+{
+	echolog("Checking Common-database files for updates");
+	logInstall("running $site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
+	my $res = system("$site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
+	if ($res >> 8 == 0)						# relevant diffs were found
+	{
+		printBanner("RRD Database Migration");
+		echolog("The installer has detected differences between your current Common-database 
+and the shipped one. These changes can be merged using the rrd migration 
+script that comes with NMIS.
+
+If you choose Y below, the installer will use admin/migrate_rrd_locations.pl
+to move all existing RRD files into the appropriate new locations and merge
+the Common-database entries.  This is highly recommended! 
+
+If you choose N, then NMIS will continue using the RRD locations specified
+in your current Common-database configuration file.\n\n");
+		
+		if (input_yn("OK to run rrd migration script?"))
+		{
+			echolog("Performing RRD migration operation...\n");
+			my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis");
+
+			if ($error)
+			{
+				echolog("Error: RRD migration failed! Please use the rollback script
+listed above to revert to the original status!\nHit enter to continue:\n");
+				my $x = <STDIN>;
+			}
+			else
+			{
+				echolog("RRD migration completed successfully.");
+			}
+		}
+		else
+		{
+			echolog("Continuing without RRD migration as directed.
+You can perform this step manually later, by 
+running $site/admin/migrate_rrd_locations.pl. This script also has a 
+simulation mode where it only shows what it WOULD do without making any
+changes.
+
+It is highly recommended that you perform the RRD migration.");
+			print "Please hit enter to continue:\n";
+			my $x = <STDIN>;
+		}
+	}
+	else
+	{
+		echolog("No relevant differences between current and new Common-database.nmis,
+no RRD migration required.");
+	}
+}
+
+# all files are there; let nmis run
+unlink("$site/conf/NMIS_IS_LOCKED");
 
 ###************************************************************************###
 printBanner("Checking configuration and fixing file permissions (takes a few minutes) ...");
@@ -251,7 +338,7 @@ if ($isnewinstall)
 				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
 											 "/etc/apache2/sites-available/$apacheconf" : undef;
 		if ($finaltarget 
-				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access"))
+				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access?"))
 		{
 				execPrint("mv /tmp/$apacheconf $finaltarget");
 				execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
@@ -272,23 +359,26 @@ if ($isnewinstall)
 		}
 }
 
-
 ###************************************************************************###
 printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 
 # now offer to run an (initial) update to get nmis' state initialised
 # and/or updated
-if ( input_yn("Ok to run an NMIS type=update action"))
+if ( input_yn("NMIS Update: This may take up to 30 seconds (or a very long time with MANY nodes)...
+Ok to run an NMIS type=update action?"))
 {
-	print "This may take up to 30 seconds (or a very long time with MANY nodes)...\n";
 	execPrint("$site/bin/nmis.pl type=update");
 }
 else
 {
-	print "ok, continuing without the update run.\n
+	print "Ok, continuing without the update run as directed.\n\n
 It's highly recommended to run nmis.pl type=update once initially
-and after every NMIS upgrade - you should do this manually.\n";
+and after every NMIS upgrade - you should do this manually.\n
+Please hit enter to continue: ";
+
 	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
+	
+	my $x = <STDIN>;
 }
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
@@ -458,7 +548,7 @@ The missing modules are: |. join(" ",@missing)."\n\n";
 
 
   # return 0 if any critical modules are missing
-  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1);
+  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1);
   
   for my $nx (@missing) 
   { 
@@ -468,31 +558,65 @@ The missing modules are: |. join(" ",@missing)."\n\n";
 }
 
 
-# question , return true if y, else 0 if no, default is yes.
-sub input_yn {
+# print question, return true if y (or in unattended mode). default is yes.
+sub input_yn 
+{
+	my ($query) = @_;
 
-	print STDOUT qq|$_[0] ? <Enter> to accept, any other key for 'no'|;
-	my $input = <STDIN>;
-	chomp $input;
-	return 1 if $input eq '';
-	return 0;
-}
-
-# question, default answer
-sub input_str {
-	my $str = $_[1];
-		
-	while (1) {{
-		print STDOUT qq|$_[0]: [$str]: type new value or <Enter> to accept default: |;
+	print "$query";
+	if ($options{y})
+	{
+		print " (auto-default YES)\n\n";
+		return 1;
+	}
+	else
+	{
+		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
 		my $input = <STDIN>;
 		chomp $input;
-		$str = $input if $input ne '';
-		print qq|You entered [$str] -  Is this correct ? <Enter> to accept, or any other key to go back: |;
-		$input = <STDIN>;
-		chomp $input;
-		return $str if !$input;			# accept default
+		logInstall("User input for \"$query\": \"$input\"");
 		
-	}}
+		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
+	}
+}
+
+# question, default answer, whether we want confirmation or not
+# returns string in question
+sub input_str 
+{
+	my ($query, $default, $wantconfirmation) = @_;
+
+	print "$query [default: $default]: ";
+	if ($options{y})
+	{
+		print " (auto-default)\n\n";
+		return $default;
+	}
+	else
+	{
+		while (1)
+		{
+			my $result = $default;
+
+			print "\nEnter new value or hit <Enter> to accept default: ";
+			my $input = <STDIN>;
+			chomp $input;
+			logInstall("User input for \"$query\": \"$input\"");
+			$result = $input if ($input ne '');
+		
+			if ($wantconfirmation)
+			{
+				print "You entered '$input' -  Is this correct ? <Enter> to accept, or any other key to go back: ";
+				$input = <STDIN>;
+				chomp $input;
+				return $result if ($input eq '');
+			}
+			else
+			{
+				return $result;
+			}
+		}
+	}
 }
 
 sub getBackupFileName {
@@ -539,6 +663,14 @@ sub execPrint {
 	return $res;
 }
 
+
+# prints args to stdout, logs to install log.
+# args should not have a trailing newline.
+sub echolog {
+	my (@stuff) = @_;
+	print join("\n",@stuff)."\n";
+	logInstall(join("\n",@stuff));
+}
 
 sub logInstall {
 	my $string = shift;

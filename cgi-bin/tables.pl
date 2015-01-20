@@ -499,6 +499,11 @@ sub doeditTable {
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
 	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
+	if ($table eq "Nodes")	# key and 'name' property values must match up, and be space-stripped
+	{
+	    $key = stripSpaces($key);
+	}
+
 	# test on existing key
 	if ($Q->{act} =~ /doadd/) {
 		if (exists $T->{$key}) {
@@ -517,9 +522,11 @@ sub doeditTable {
 	# store new values in table
 	for my $ref ( @{$CT}) {
 		for my $item (keys %{$ref}) {
+		    
 			$T->{$key}{$item} = stripSpaces($Q->{$item});
 			$V->{$item} = stripSpaces($Q->{$item});
 		}
+		
 	}
 
 	my $db = "db_".lc($table)."_sql";
@@ -630,7 +637,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running update on node $node\n\n\n";
 	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true 2>&1 |"); 
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=\"$node\" info=true 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -643,7 +650,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running collect on node $node\n\n\n";
 	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |"); 
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=\"$node\" info=true 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 

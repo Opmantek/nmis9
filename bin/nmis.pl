@@ -77,11 +77,25 @@ my %nvp = getArguements(@ARGV);
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
 
 # check for global collection off or on
-# useful for disabling nmis poll for server maintenance
-if (getbool($C->{global_collect},"invert")) 
-{ 
-	print "\n!!Global Collect set to false !!\n"; 
-	exit(0); 
+# useful for disabling nmis poll for server maintenance, nmis upgrades etc.
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+{
+	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
+	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false');
+	writeHashtoFile(file => $selftest_cache, json => 1,
+									data => { status => $allok, lastupdate => time, tests => $tests });
+	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+	if (-f $lockoutfile)
+	{
+		
+		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+	}
+	else
+	{ 
+		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
+	}
 }
 
 # all arguments are now stored in nvp (name value pairs)
@@ -989,7 +1003,6 @@ sub getNodeInfo {
 	# process status
 	if ($exit) {
 		delete $NI->{interface}; # reset intf info
-		$NI->{system}{noderesetcnt} = 0; # counter to skip rrd heartbeat
 
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
@@ -2185,6 +2198,8 @@ sub getSystemHealthData {
 }
 #=========================================================================================
 
+# updates the node info and node view structures with all kinds of stuff
+# returns: 1 if node is up, and all ops worked; 0 if node is down/to be skipped etc.
 sub updateNodeInfo {
 	my %args = @_;
 	my $S = $args{sys};
@@ -2196,18 +2211,9 @@ sub updateNodeInfo {
 	my $result;
 	my $exit = 1;
 
-		info("Starting Update Node Info, node $S->{name}");
-
-	# check node reset count
-	if ($NI->{system}{noderesetcnt} > 0) {
-		info("noderesetcnt=$NI->{system}{noderesetcnt} skip collecting");
-		$NI->{system}{noderesetcnt}--;
-		$NI->{system}{noderesetcnt} = 4 if $NI->{system}{noderesetcnt} > 4; # limit
-		delete $NI->{system}{noderesetcnt} if $NI->{system}{noderesetcnt} <= 0; # failure
-		$exit= 0;
-		goto END_updateNodeInfo;
-	}
-
+	info("Starting Update Node Info, node $S->{name}");
+	# clear the node reset indication from the last run
+	$NI->{system}->{node_was_reset}=0;
 	my $NCT = loadNodeConfTable();
 
 	# save what we need now for check of this node
@@ -2243,21 +2249,14 @@ sub updateNodeInfo {
 		}
 		
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
-		### 2012-08-18 keiths, Special debug for Node Reset false positives
-		#logMsg("DEBUG Node Reset: Node=$S->{name} Old=$sysUpTime New=$NI->{system}{sysUpTime} OldSec=$sysUpTimeSec NewSec=$NI->{system}{sysUpTimeSec}");
-		#if ( $NI->{system}{sysUpTime} ) {
-		#
-		#}
 		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
 			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
-			notify(sys=>$S, event=>"Node Reset",element=>"",details=>"Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
-			# calculate time of node no collecting to overlap heartbeat
-			my $cnt = 4 - ((time() - $NI->{system}{lastUpdateSec})/300);
-#			if ($cnt > 0) {
-#				$NI->{system}{noderesetcnt} = int($cnt);
-#				$exit= 0;
-#				goto END_updateNodeInfo;
-#			}
+			notify(sys=>$S, event=>"Node Reset",element=>"",
+						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
+
+			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
+			# so that no spikes appear in the graphs
+			$NI->{system}{node_was_reset}=1;
 		}
 
 		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
@@ -6132,25 +6131,11 @@ EO_TEXT
 		checkFunc("$C->{'<nmis_conf>'}");
 	}
 
-	# Do the database directories exist if not make them?
+	# Does the database directory exist? if not make it.
 	info("Config $checkType - Checking database directories");
-	if ($C->{database_root} ne '') {
+	if ($C->{database_root} ne '') 
+	{
 		checkFunc("$C->{database_root}");
-		checkFunc("$C->{database_root}/health");
-		checkFunc("$C->{database_root}/metrics");
-		checkFunc("$C->{database_root}/misc");
-		checkFunc("$C->{database_root}/ipsla");
-		checkFunc("$C->{database_root}/health/generic");
-		checkFunc("$C->{database_root}/health/router");
-		checkFunc("$C->{database_root}/health/switch");
-		checkFunc("$C->{database_root}/health/server");
-		checkFunc("$C->{database_root}/health/firewall");
-		checkFunc("$C->{database_root}/interface");
-		checkFunc("$C->{database_root}/interface/generic");
-		checkFunc("$C->{database_root}/interface/router");
-		checkFunc("$C->{database_root}/interface/switch");
-		checkFunc("$C->{database_root}/interface/server");
-		checkFunc("$C->{database_root}/interface/firewall");
 	} else {
 		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
 	}
