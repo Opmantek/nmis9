@@ -647,11 +647,11 @@
         'item' => 'outputUtil',
         'select' => {
           '1' => {
-            'control' => '$node eq "meatball" and $ifDescr eq "Dialer1"',
+            'control' => '$node eq "meatball" and $ifDescr eq "dialer1"',
             'value' => {
               'critical' => '90',
               'fatal' => '95',
-              'major' => '3',
+              'major' => '80',
               'minor' => '2',
               'warning' => '1'
             }
