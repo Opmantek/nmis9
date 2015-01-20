@@ -724,21 +724,28 @@ sub createRRD {
 	else {
 		my @x = $database =~ /\//g; # until last slash
 		my $dir = $`; # before last slash
-		# let check if the node directory exists as well, create if not.
-		if ( not -d "$dir" 
-			and not -r "$dir" 
-		) { 
+
+		if ( not -d "$dir" and not -r "$dir" )
+		{ 
 			my $permission = "0770"; # default
 			if ( $C->{'os_execperm'} ne "" ) {
 				$permission = $C->{'os_execperm'} ;
-			} 
+			}
 
-			dbg("creating database directory $dir,$permission");
-			
-			my $umask = umask(0);
-			mkdir($dir, oct($permission)) or warn "Cannot mkdir $dir: $!\n";
-			umask($umask);
-			setFileProt($dir);
+			my @comps = split(m!/!,$dir);
+			for my $idx (1..$#comps)
+			{
+				my $parentdir = join("/",@comps[0..$idx]);
+				if (!-d $parentdir)
+				{
+					dbg("creating database directory $parentdir, $permission");
+					
+					my $umask = umask(0);
+					mkdir($parentdir, oct($permission)) or warn "Cannot mkdir $parentdir: $!\n";
+					umask($umask);
+					setFileProt($parentdir);
+				}
+			}
 		}
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);

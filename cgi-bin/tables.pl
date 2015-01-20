@@ -637,7 +637,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running update on node $node\n\n\n";
 	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true 2>&1 |"); 
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=\"$node\" info=true 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -650,7 +650,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running collect on node $node\n\n\n";
 	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |"); 
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=\"$node\" info=true 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
