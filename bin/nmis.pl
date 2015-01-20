@@ -6131,25 +6131,11 @@ EO_TEXT
 		checkFunc("$C->{'<nmis_conf>'}");
 	}
 
-	# Do the database directories exist if not make them?
+	# Does the database directory exist? if not make it.
 	info("Config $checkType - Checking database directories");
-	if ($C->{database_root} ne '') {
+	if ($C->{database_root} ne '') 
+	{
 		checkFunc("$C->{database_root}");
-		checkFunc("$C->{database_root}/health");
-		checkFunc("$C->{database_root}/metrics");
-		checkFunc("$C->{database_root}/misc");
-		checkFunc("$C->{database_root}/ipsla");
-		checkFunc("$C->{database_root}/health/generic");
-		checkFunc("$C->{database_root}/health/router");
-		checkFunc("$C->{database_root}/health/switch");
-		checkFunc("$C->{database_root}/health/server");
-		checkFunc("$C->{database_root}/health/firewall");
-		checkFunc("$C->{database_root}/interface");
-		checkFunc("$C->{database_root}/interface/generic");
-		checkFunc("$C->{database_root}/interface/router");
-		checkFunc("$C->{database_root}/interface/switch");
-		checkFunc("$C->{database_root}/interface/server");
-		checkFunc("$C->{database_root}/interface/firewall");
 	} else {
 		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
 	}

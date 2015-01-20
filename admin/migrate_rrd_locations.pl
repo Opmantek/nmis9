@@ -212,10 +212,11 @@ if (keys %todos and !$simulate)
 		{
 			push @rollback,"rmdir $newdir";
 			my $error;
+			my $desiredperms = oct($C->{os_execperm} || "0755");
 			File::Path::make_path($newdir, { error => \$error, 
 																			 owner => $C->{nmis_user}||"nmis",
 																			 group => $C->{nmis_group} || "nmis",
-																			 mode => oct($C->{os_execperm} || "0755") } );
+																			 mode =>  $desiredperms } ); # umask is applied afterwards :-(
 			if (ref($error) eq "ARRAY" and @$error)
 			{
 				my @errs;
@@ -225,6 +226,8 @@ if (keys %todos and !$simulate)
 				}
 				die "Could not create directory: ".join(", ",@errs)."\n";
 			}
+			# make_path doesn't disable umask, so it's mode isn't much good...
+			chmod($desiredperms,$newdir);
 		}
 		# move the file (remember what you did)
 		push @rollback, "mv $newfile $oldfile";
