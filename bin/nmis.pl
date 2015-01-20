@@ -77,11 +77,25 @@ my %nvp = getArguements(@ARGV);
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
 
 # check for global collection off or on
-# useful for disabling nmis poll for server maintenance
-if (getbool($C->{global_collect},"invert")) 
-{ 
-	print "\n!!Global Collect set to false !!\n"; 
-	exit(0); 
+# useful for disabling nmis poll for server maintenance, nmis upgrades etc.
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+{
+	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
+	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false');
+	writeHashtoFile(file => $selftest_cache, json => 1,
+									data => { status => $allok, lastupdate => time, tests => $tests });
+	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+	if (-f $lockoutfile)
+	{
+		
+		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+	}
+	else
+	{ 
+		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
+	}
 }
 
 # all arguments are now stored in nvp (name value pairs)

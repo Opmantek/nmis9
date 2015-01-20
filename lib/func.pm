@@ -2132,6 +2132,21 @@ sub selftest
 		push @details, [$testname, undef];
 	}
 	
+	# verify that nmis isn't disabled altogether
+	$testname = "NMIS enabled";
+	my $result = undef;
+	my $lockoutfile = $config->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+	if (-f $lockoutfile)
+	{
+		$result = "NMIS is disabled! Remove the file $lockoutfile to re-enable.";
+	}
+	elsif (getbool($config->{global_collect},"invert"))
+	{
+		$result = "NMIS is disabled! Set the configuration variable \"global_collect\" to \"true\" to re-enable.";
+	}
+	push @details, [$testname, $result];
+	$allok = 0 if ($result);
+
 	# check the main/involved directories AND /tmp and /var
 	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
@@ -2460,6 +2475,11 @@ sub find_nmis_processes
 	return \%others;
 }
 
+# semi-internal accessor for the table cache structure
+sub _table_cache
+{
+	return \%Table_cache;
+}
 
 1;
 
