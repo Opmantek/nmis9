@@ -145,6 +145,7 @@ elsif ( $type eq "config" ) { checkConfig(change => "true"); }
 elsif ( $type eq "audit" ) { checkConfig(audit => "true", change => "false"); }
 elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
+elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
 elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # included in type=collect
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
@@ -6115,6 +6116,8 @@ EO_TEXT
 	info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
 	if ($C->{'<nmis_var>'} ne '') {
 		checkFunc("$C->{'<nmis_var>'}");
+		checkFunc("$C->{'<nmis_var>'}/nmis_system");
+		checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
 	}
 
 	# Do the log directories exist if not make them?
@@ -6289,6 +6292,78 @@ EO_TEXT
 
 #=========================================================================================
 
+# apache 2.4 needs a different configuration layout
+sub printApache24 
+{
+	my $C = loadConfTable;
+	print qq|
+# Apache configuration snippet for NMIS
+
+# this should either be made part of your preferred VirtualHost,
+# or saved in /etc/apache2/sites-enabled as <somefile>.conf
+
+# Further documentation about Apache: http://httpd.apache.org/docs/2.4/
+
+# NMIS Aliases for static files:
+Alias $C->{'<url_base>'}/ "$C->{web_root}/"
+<Directory "$C->{web_root}">
+  Options Indexes FollowSymLinks MultiViews
+	AllowOverride None
+  Require all granted
+</Directory>
+
+Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
+<Directory "$C->{'<nmis_menu>'}">
+  Options Indexes FollowSymLinks MultiViews
+  AllowOverride None
+  Require all granted
+</Directory>
+
+# Alias and Activation for the CGI scripts
+ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
+<Directory "$C->{'<nmis_cgi>'}">
+  Options +ExecCGI
+  Require all granted
+</Directory>
+
+# This is now optional, if using internal NMIS Authentication
+<Location "$C->{'<url_base>'}/">
+#  # For IP address based permissions
+#  <RequireAny>
+#  Require ip 10.0.0.0/8 
+#  Require ip 172.16.0.0/16
+#  Require ip 192.168.1.1
+#  Require host .opmantek.com
+#  Require all denied 
+#</RequireAny>
+
+#  # For Username based authentication
+#  AuthType Basic
+#  AuthName "NMIS8"
+#  AuthUserFile $C->{'auth_htpasswd_file'}
+#  Require valid-user
+</Location>
+
+<Location "$C->{'<cgi_url_base>'}/">
+#  # For IP address based permissions
+#  <RequireAny>
+#  Require ip 10.0.0.0/8 
+#  Require ip 172.16.0.0/16
+#  Require ip 192.168.1.1
+#  Require host .opmantek.com
+#  Require all denied 
+#</RequireAny>
+
+#  # For Username based authentication
+#  AuthType Basic
+#  AuthName "NMIS8"
+#  AuthUserFile $C->{'auth_htpasswd_file'}
+#  Require valid-user
+</Location>
+|;
+
+}
+
 sub printApache {
 
 	my $C = loadConfTable();
@@ -6407,7 +6482,8 @@ command line options are:
       escalate  Run the escalation routine only ( debug use only)
       config    Validate the chosen configuration file
       audit     Audit the configuration without changes
-      apache    Produce Apache configuration for NMIS
+      apache    Produce Apache 2.0/2.2 configuration for NMIS
+      apache24  Produce Apache 2.4 configuration for NMIS
       crontab   Produce Crontab configuration for NMIS
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file

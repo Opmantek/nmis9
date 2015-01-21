@@ -393,32 +393,82 @@ execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)
 {
-		printBanner("Setting up Apache config...");
-		my $apacheconf = "00nmis.conf";
-		system("$site/bin/nmis.pl type=apache > /tmp/$apacheconf");
+	printBanner("Integration with Apache");
+
+	# determine apache version
+	my $prog = $osflavour eq "redhat"? "httpd" : "apache2";
+	my $versioninfo = `$prog -v 2>/dev/null`;
+	$versioninfo =~ s/^.*Apache\/(\d+\.\d+\.\d+).*$/$1/s;
+	my $istwofour = ($versioninfo =~ /^2\.4\./);
+
+	if (!$versioninfo)
+	{
+		echolog("No Apache found!");
+		print "
+It seems that you don't have Apache 2.x installed, so the installer
+can't configure Apache for NMIS.
+
+The NMIS GUI consists of a number of CGI scripts, which need to be 
+run by a web server. You will need to integrate NMIS with your particular
+web server manually. 
+
+Please use the output of 'nmis.pl type=apache' and check the 
+NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.
+
+Please hit enter to continue:\n";
+		my $x = <STDIN>;
+	}
+	else
+	{
+		echolog("Found Apache version $versioninfo");
+
+		my $apacheconf = "nmis.conf";
+		my $res = system("$site/bin/nmis.pl type="
+										 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
 		my $finaltarget = $osflavour eq "redhat"? 
-				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
-											 "/etc/apache2/sites-available/$apacheconf" : undef;
+				"/etc/httpd/conf.d/$apacheconf" : 
+				$osflavour eq "debian" ? "/etc/apache2/sites-available/$apacheconf" : undef;
+
 		if ($finaltarget 
-				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access?"))
+				&& input_yn("Ok to install Apache config file to $finaltarget?"))
 		{
-				execPrint("mv /tmp/$apacheconf $finaltarget");
-				execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
-						if (-d "/etc/apache2/sites-enabled");
+			execPrint("mv /tmp/$apacheconf $finaltarget");
+			execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
+					if (-d "/etc/apache2/sites-enabled");
+
+			if ($istwofour)
+			{
+				execPrint("a2enmod cgi");
+			}
 				
-				if ($osflavour eq "redhat")
-				{
-						execPrint("usermod -G nmis apache");
-				}
-				elsif ($osflavour eq "debian")
-				{
-						execPrint("adduser www-data nmis");
-				}
+			if ($osflavour eq "redhat")
+			{
+				execPrint("usermod -G nmis apache");
+				execPrint("service httpd restart");
+			}
+			elsif ($osflavour eq "debian")
+			{
+				execPrint("adduser www-data nmis");
+				execPrint("service apache2 restart");
+			}
 		}
 		else
 		{
-				print "ok, continuing without adjusting Apache configuration.\n";
+			echolog("Continuing without Apache configuration.");
+			print "You will need to integrate NMIS with your 
+web server manually. 
+
+Please use the output of 'nmis.pl type=apache' (or type=apache24) and 
+check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.
+
+Please hit enter to continue:\n";
+			my $x = <STDIN>;
 		}
+	}
 }
 
 ###************************************************************************###
@@ -712,10 +762,11 @@ EOF
 
 
 # run external program/command via a shell
+# external command cannot not prompt or read stdin!
 # returns the command's exit code or -1 for signal/didn't start/non-standard termination
 sub execPrint {
 	my $exec = shift;	
-	my $out = `$exec 2>&1`;
+	my $out = `$exec </dev/null 2>&1`;
 	my $rawstatus = $?;
 	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
 	print $out;
