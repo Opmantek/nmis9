@@ -45,6 +45,7 @@ use File::Find;
 use File::Basename;
 use Cwd;
 use POSIX qw(:sys_wait_h);
+use version 0.77;
 
 
 ## Setting Default Install Options.
@@ -98,14 +99,13 @@ logInstall("Installation source is $src");
 ###************************************************************************###
 printBanner("Checking Perl version...");
 
-my $ver = ref($^V) eq 'version' ? $^V->normal : ( $^V ? join('.', unpack 'C*', $^V) : $] );
-my $perl_ver_check = '';
-print "\n";
-if ($] < 5.010001) {  # our minimal requirement for support
+if ($^V < version->parse("5.10.1")) 
+{  
 	echolog("The version of Perl installed on your server is lower than the minimum supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
+	exit 1;
 }
 else {
-	echolog("The version of Perl installed on your server $ver is OK");
+	echolog("The version of Perl installed on your server is $^V and OK");
 }
 
 
@@ -124,7 +124,15 @@ and then restart the installer.\n\n";
 		}
 		else
 		{
-			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!\n\n");
+			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!
+
+We recommend that you check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.\n\n");
+
+			print "Please hit enter to continue:\n";
+			my $x = <STDIN>;
+
 		}
 	}
 	 
@@ -135,6 +143,60 @@ and then restart the installer.\n\n";
 	}
 }
 
+# check dependencies
+printBanner("Checking Dependencies");
+# rrdtool/rrds new enough?
+{
+	my $rrdisok=0;
+
+	use NMIS::uselib;
+	use lib "$NMIS::uselib::rrdtool_lib";
+
+	eval { require RRDs; };
+	if (!$@)
+	{
+		# the rrds version is given in a weird form, eg. 1.4007 meaning 1.4.7.
+		# the  version module doesn't quite understand this flavour, expects 1.004007 to mean 1.4.7
+		my $foundversion = version->parse("$RRDs::VERSION"); 
+		my $minversion = version->parse("1.4004");
+		if ($foundversion >= $minversion)
+		{
+			echolog("rrdtool/RRDs version $foundversion is sufficient for NMIS.");
+			$rrdisok=1;
+		}
+		else 
+		{
+			echolog("rrdtool/RRDs version $foundversion is NOT sufficient for NMIS, need at least $minversion");
+		}
+	}
+	else
+	{
+		echolog("No RRDs module found!");
+	}
+	
+	if (!$rrdisok)
+	{
+		print "\nNMIS will not work properly without a sufficiently modern rrdtool/RRDs.
+
+We HIGHLY recommend that you stop the installer now, install rrdtool
+and the RRDs perl module, and then restart the installer.
+
+You should check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.\n\n";
+
+		if (input_yn("Stop the installer?"))
+		{
+			die "\nAborting the installation. Please install rrdtool and the RRDs perl module, then restart the installer.\n";
+		}
+		else
+		{
+			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install rrdtool and RRDs!\n\n");
+			print "Please hit enter to continue:\n";
+			my $x = <STDIN>;
+		}
+	}
+}
 
 ###************************************************************************###
 printBanner("Configuring installation path...");
