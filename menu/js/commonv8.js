@@ -744,12 +744,12 @@ function get(Id,optTrue,optFalse,evnt) {
 				}
 
 				if (e.type == "hidden") {
-					getstr += "&"+ e.name + "=" + e.value;
+					getstr += "&"+ e.name + "=" + encodeURIComponent(e.value);
 				}
 
 				if (e.type=="checkbox") {
 					if (e.checked) {
-						getstr+="&"+e.name+"="+e.value;
+						getstr+="&"+e.name+"="+ encodeURIComponent(e.value);
 					}
 					else {
 						getstr+="&"+e.name+"=";
@@ -759,7 +759,7 @@ function get(Id,optTrue,optFalse,evnt) {
 
 			if (e.type=="radio") {
 				if (e.checked) {
-					getstr+="&"+e.name+"="+e.value;
+					getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 				}
 			}
 		}
@@ -789,7 +789,7 @@ function get(Id,optTrue,optFalse,evnt) {
 					getstr+="&"+sel.name+"="+sel.options[sel.selectedIndex].value;
 				}
 				else {
-					getstr+="&"+sel.name+"="+sel.value;
+					getstr+="&"+sel.name+"="+encodeURIComponent(sel.value);
 				}	
 			}
 			dialogID = e.id;
