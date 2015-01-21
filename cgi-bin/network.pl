@@ -45,6 +45,7 @@ use strict;
 use NMIS;
 use func;
 use NMIS::Timing;
+use URI::Escape;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -1095,11 +1096,17 @@ sub selectLarge {
 			}
 			my $nodelink;
 			if ( $NT->{$node}{server} eq $C->{server_name} ) {
-				$nodelink = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node=$node", id=>"node_view_$node"},$NT->{$node}{name});
+				# attention: this construction must match up with what commonv8.js's nodeInfoPanel() uses as id attrib!
+				my $idsafenode = $node; 
+				$idsafenode = (split(/\./,$idsafenode))[0];
+				$idsafenode =~ s/[^a-zA-Z0-9_:\.-]//g;
+
+				$nodelink = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node), id=>"node_view_$idsafenode"},$NT->{$node}{name});
 			}
 			else {
 				my $server = $NT->{$node}{server};
-				my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node=$node";
+				my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=false&node=".
+						uri_escape($node);
 				$nodelink = a({target=>"Graph-$node", onclick=>"viewwndw(\'$node\',\'$url\',$C->{win_width},$C->{win_height} * 1.5)"},$NT->{$node}{name},img({src=>"$C->{'nmis_slave'}",alt=>"NMIS Server $server"})) ;
 			}
 			
@@ -1389,7 +1396,7 @@ sub viewNode {
 		my $ht = 700;
 				
 		my $server = $NT->{$node}{server};
-		my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node=$node";
+		my $url = "$ST->{$server}{portal_protocol}://$ST->{$server}{portal_host}:$ST->{$server}{portal_port}$ST->{$server}{cgi_url_base}/network.pl?conf=$ST->{$server}{config}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=false&node=".uri_escape($node);
 		my $nodelink = a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$NT->{$node}{name});
 		print "$nodelink is managed by server $NT->{$node}{server}";
 		print <<EO_HTML;
@@ -1447,13 +1454,14 @@ EO_HTML
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") ) {
-		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=$NI->{system}{name}";
+		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=".uri_escape($NI->{system}{name});
 		$editnode = qq| <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
 	}
 
 	my $editconf;
 	if ( $AU->CheckAccessCmd("table_nodeconf_view") ) {
-		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node=$NI->{system}{name}";
+		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node=".
+				uri_escape($NI->{system}{name});
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
 	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
@@ -1671,7 +1679,7 @@ EO_HTML
 					and getbool($C->{auto_expand_more_graphs},"invert")) {
 				if ($#graphs > 1) {
 					# signal there are more graphs
-					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node&expand=true"},"More graphs")));
+					print Tr(td({class=>'info Plain'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&expand=true&node=".uri_escape($node)},"More graphs")));
 				}
 				last;
 			}
@@ -1884,7 +1892,7 @@ sub viewAllIntf {
 		foreach my $k (@hd){
 			my @hdr = split(/\(/,$titles{$k}); # strip added info
 			push @out,td({class=>'header',align=>'center'},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$Q->{refresh}&widget=$widget&sort=$k&dir=$dir&active=$Q->{active}"},
+			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view_all&refresh=$Q->{refresh}&widget=$widget&sort=$k&dir=$dir&active=$Q->{active}&node=".uri_escape($node)},
 			$hdr[0]));
 		}
 		return @out;
@@ -1901,7 +1909,7 @@ sub viewAllIntf {
 				eval { my $line;
 					$view{$intf}{$k}{value} = ($view{$intf}{$k}{value} =~ /noSuch|unknow/i) ? '' : $view{$intf}{$k}{value};
 					if ($k eq 'ifDescr') {
-						$line = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&node=$node&intf=$intf"},$view{$intf}{$k}{value});
+						$line = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node=".uri_escape($node)},$view{$intf}{$k}{value});
 					} 
 					elsif ($k eq 'Description' and $view{$intf}{ipAdEntAddr1}{value} ne "") {
 						$line = "$view{$intf}{Description}{value}<br/>$view{$intf}{ipAdEntAddr1}{value}";
@@ -1984,7 +1992,7 @@ sub viewActivePort {
 		if ($items{$_} and $titles{$_} ne '') { push @hd,$_; } # available item
 	}
 	
-	my $url = "network.pl?conf=$Q->{conf}&act=network_port_view&node=$node";
+	my $url = "network.pl?conf=$Q->{conf}&act=network_port_view&node=".uri_escape($node);
 	
 	# start of form
 	print start_form(-id=>"nmis",-href=>"$url");
@@ -2024,18 +2032,19 @@ sub viewActivePort {
 		foreach my $k (@hd){
 			my @hdr = split(/\(/,$titles{$k}); # strip added info
 			push @out,td({class=>'header',align=>'center'},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_port_view&node=$node&sort=$k&dir=$dir&graphtype=$graphtype"},
+			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_port_view&sort=$k&dir=$dir&graphtype=$graphtype&node="
+						 .uri_escape($node)},
 			$hdr[0]));
 		}
 		push @out,td({class=>'header',align=>'center'},'Graph');
 	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-in')) {
 		push @out,td({class=>'header',align=>'center'},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&graphtype=cbqos-in"},'CBQoS in'));
+		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-in&node=".uri_escape($node)},'CBQoS in'));
 		$colspan++;
 	}
 	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-out')) {
 		push @out,td({class=>'header',align=>'center'},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&graphtype=cbqos-out"},'CBQoS out'));
+		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-out&node=".uri_escape($node)},'CBQoS out'));
 		$colspan++;
 	}
 	push @out,td({class=>'header',align=>'center'}),popup_menu(-name=>"graphtype",
@@ -2057,7 +2066,7 @@ sub viewActivePort {
 				eval { my $line;
 					$if->{value} = ($if->{value} =~ /noSuch|unknow/i) ? '' : $if->{value};
 					if ($k eq 'ifDescr') {
-						$line = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&node=$node&refresh=$Q->{refresh}&widget=$widget&intf=$intf"},$if->{value});
+						$line = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&refresh=$Q->{refresh}&widget=$widget&intf=$intf&node=".uri_escape($node)},$if->{value});
 					} else {
 						$line = $if->{value};
 					}
@@ -2249,7 +2258,8 @@ sub viewServiceList {
     #  'hrSWRunPerfCPU' => 7301,
     #  'hrSWRunName' => 'AppleMobileDeviceService.exe:1756'
     #},
-  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$Q->{refresh}&widget=$widget";
+  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node=".
+uri_escape($node);
 	if (defined $NI->{services}) {
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=Service",class=>"wht"},"Service")),
@@ -2356,7 +2366,7 @@ sub viewStatus {
     #     "property" : "ssCpuRawWait"
     #  },
       	
-  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_status_view&node=$node&refresh=$Q->{refresh}&widget=$widget";
+  my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_status_view&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node);
 	if (defined $NI->{status}) {
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=method",class=>"wht"},"Method")),
@@ -2373,7 +2383,7 @@ sub viewStatus {
 				my $elementLink = $NI->{status}{$status}{element};
 				$elementLink = $node if not $elementLink;
 				if ( $NI->{status}{$status}{type} =~ "(interface|pkts)" ) {
-					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$NI->{status}{$status}{index}&refresh=$Q->{refresh}&widget=$widget"},$NI->{status}{$status}{element});
+					$elementLink = a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$NI->{status}{$status}{index}&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node)},$NI->{status}{$status}{element});
 				}     
 				
 				print Tr(
@@ -2726,7 +2736,7 @@ sub viewOverviewIntf {
 		$node = $II->{$key}{node};
 		$cnt = 0;
 		print start_Tr,td({class=>'info Plain'},
-		a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&node=$node"},$NT->{$node}{name}));
+		a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$NT->{$node}{name}));
 	}
 	if ($II->{$key}{ifAdminStatus} ne 'up') {
 		$icon = 'block_grey.png';
@@ -2744,7 +2754,7 @@ sub viewOverviewIntf {
 	$text = "name=$II->{$key}{ifDescr}<br>adminStatus=$II->{$key}{ifAdminStatus}<br>operStatus=$II->{$key}{ifOperStatus}<br>".
 	"description=$II->{$key}{Description}<br>collect=$II->{$key}{collect}";
 	print td({class=>'info Plain'},
-	a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&node=$node&intf=$II->{$key}{ifIndex}&refresh=$Q->{refresh}&widget=$widget",
+	a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_interface_view&intf=$II->{$key}{ifIndex}&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node),
 	},
 	img({src=>"$C->{'<menu_url_base>'}/img/$icon",border=>'0', width=>'11', height=>'10'})));
 	}
@@ -2850,7 +2860,7 @@ sub viewTop10 {
 	for my $reportnode ( sortall(\%reportTable,'response','rev')) {
 		push @out_resp,
 		td({class=>"info Plain $nodewrap"},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)).
+		a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($reportnode)},$reportnode)).
 		td({class=>'info Plain',align=>'center'},$reportTable{$reportnode}{response});
 		# loop control
 		last if --$i == 0;
@@ -2860,7 +2870,7 @@ sub viewTop10 {
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		push @out_cpu,
 		td({class=>"info Plain $nodewrap"},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)).
+		a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($reportnode)},$reportnode)).
 		td({class=>'info Plain',align=>'center'},$cpuTable{$reportnode}{avgBusy5min});
 		# loop control
 		last if --$i == 0;
@@ -2899,9 +2909,9 @@ sub viewTop10 {
 		my $output = $1;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$reportnode&intf=$intf&refresh=$Q->{refresh}&widget=$widget"},$linkTable{$reportlink}{ifDescr})),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($reportnode)},$linkTable{$reportlink}{ifDescr})),
 			td({class=>'info Plain',align=>'right'},"$linkTable{$reportlink}{inputUtil} %"),
 			td({class=>'info Plain',align=>'right'},"$linkTable{$reportlink}{outputUtil} %")
 		);
@@ -2927,9 +2937,9 @@ sub viewTop10 {
 		my $intf = $linkTable{$reportlink}{intf} ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$reportnode"},$reportnode)),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$reportnode&intf=$intf&refresh=$Q->{refresh}&widget=$widget"},$linkTable{$reportlink}{ifDescr})),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&intf=$intf&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($reportnode)},$linkTable{$reportlink}{ifDescr})),
 			td({class=>'info Plain',align=>'right'},getBits($linkTable{$reportlink}{inputBits})),
 			td({class=>'info Plain',align=>'right'},getBits($linkTable{$reportlink}{outputBits}))
 		);

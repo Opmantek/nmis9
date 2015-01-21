@@ -46,6 +46,7 @@ use notify;
 use ip;
 use Sys;
 use DBfunc;
+use URI::Escape;
 
 # added for authentication
 use CGI::Pretty qw(:standard *table *Tr *td *Select *form escape);
@@ -2751,17 +2752,19 @@ sub htmlGraph {
 	my $win_width = $C->{win_width}; # window size
 	my $win_height = $C->{win_height};
 
+	my $urlsafenode = uri_escape($node);
+
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&node=$node&intf=$intf&server=$server";
+	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&intf=$intf&server=$server&node=$urlsafenode";
 	
 
 	if( getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
 	}
 	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$node&intf=$intf&server=$server".
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
@@ -2791,6 +2794,7 @@ sub createHrButtons {
 	return unless $AU->InGroup($NI->{system}{group});
 
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
+	my $urlsafenode = uri_escape($node);
 
 	push @out, start_table({class=>'table'}),start_Tr;
 	
@@ -2799,41 +2803,41 @@ sub createHrButtons {
 			if (!getbool($widget));
 
 	push @out, td({class=>'header litehead'},'Node ',
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
+			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
 
 	if (scalar keys %{$NI->{module}}) {
 		push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$node&server=$server"},"modules"));
+			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
 	}
 
 	if (getbool($NI->{system}{collect})) {
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"status"))
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 				if defined $NI->{status} and defined $C->{display_status_summary} 
 		and getbool($C->{display_status_summary});
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$node&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if defined $S->{mdl}{interface};
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$node&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
 		if ($NI->{system}{nodeType} =~ /router|switch/) {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		if ($NI->{system}{nodeType} =~ /server/) {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 
 		if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"services"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 		}
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if (defined $NI->{services} && keys %{$NI->{services}}) {
 					push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$node&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	
 
 		### 2013-03-06 keiths, adding systemHealth support
@@ -2844,7 +2848,7 @@ sub createHrButtons {
 			foreach my $sysHealth (@systemHealth) {	
 				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
 					push @out, td({class=>'header litehead'},
-						a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$node&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
+						a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
 				}
 			}
 		}
@@ -2852,43 +2856,43 @@ sub createHrButtons {
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{cssgroup} ne '') {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_cssgroup_view&node=$node&refresh=false&server=$server"},"Group"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
  		if ($NI->{csscontent} ne '') {
 			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_csscontent_view&node=$node&refresh=false&server=$server"},"Content"));
+				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
 		}
 	}
 
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"events"));
+			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$node&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
 			if (getbool($C->{view_telnet}));
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$node&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
+			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
 			if getbool($C->{view_ping});
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$node&refresh=$refresh&widget=$widget&server=$server"},"trace")) 
+			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace")) 
 				if getbool($C->{view_trace});
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$node&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
+			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
 			if getbool($C->{view_mtr});
 	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$node&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
+			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
 				if getbool($C->{view_lft});
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
@@ -2896,10 +2900,10 @@ sub createHrButtons {
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Contacts&key=$NI->{system}{sysContact}&node=$node&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
 		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Locations&key=$NI->{system}{sysLocation}&node=$node&refresh=$refresh&widget=$widget&server=$server"},"location"))
+				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
 					if $NI->{system}{sysLocation} ne '';
 	}
 

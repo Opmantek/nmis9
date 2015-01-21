@@ -506,6 +506,7 @@ function	createDialog(opt) {
 	dialog = dialogHandle.dialog();
 	titleBar = dialog.parents('.ui-dialog').find('.ui-dialog-titlebar');
 	title = dialog.parents('.ui-dialog').find('.ui-dialog-title');
+
 	$('span#timer_' + opt.id ).remove();
 	title.css('width','auto');
 	
@@ -1020,14 +1021,18 @@ function nodeInfoPanel(nodename) {
 
 	//var pserver = getServer();
 	//var url ='network.pl?act=network_node_view&refresh=60&node=' + nodename + '&server=' + pserver + '';
-	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + nodename + '';
+	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + encodeURIComponent(nodename) + '';
 	
+	// attention: the id must match what network.pl's selectLarge() uses!
 	var node = nodename.split(".", 1 )[0];
 	if ( node == '' ) {
 		node = nodename;
 	}
-	var id = 'node_view_' + node;
-	// alert( nodename );
+	// id attribs mustn't have spaces in them, start with letter, then letter/digits/-/_/:/., nothing else.
+	var safenode = node.replace(/[^a-zA-Z0-9_:\.-]/g,'');
+
+	var id = 'node_view_' + safenode;
+	// alert( safenode );
 	var opt = {
 		id		: id,
 		title	: nodename,

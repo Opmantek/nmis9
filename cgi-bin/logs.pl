@@ -75,6 +75,8 @@ push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
 # use CGI qw(:standard);
 use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 
+use URI::Escape;
+
 # declare holder for CGI objects
 use vars qw($q $Q $C $AU);
 $q = new CGI; # This processes all parameters passed via GET and POST
@@ -287,8 +289,8 @@ sub viewLogList {
 		foreach my $i (sort  keys %{$LL} )  {
 			if ( $LL->{$i}{logFileName} ne '' and -r $LL->{$i}{logFileName} ) {
 					@filestat = stat $LL->{$i}{logFileName};
-					$logFileSize = @filestat[7] . ' bytes';
-				$date = func::returnDateStamp(@filestat[9]);
+					$logFileSize = $filestat[7] . ' bytes';
+				$date = func::returnDateStamp($filestat[9]);
 			}
 			else { 
 				$date = 'UA';
@@ -564,7 +566,8 @@ sub outputLine {
 				
 		#if ( $logEvent =~ m/-(\d+)-/ ) {
 		if ( $gotEvent ) {
-			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$logEvent/;
+			my $urlsafeevent = uri_escape($logEvent);
+			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafeevent/;
 			$logEventLinkStart =~ s/&level=/&level=$logLevelText/;
 
 			$logEventLink=$logEventLinkStart.$logEvent.$logLinkEnd;
@@ -576,9 +579,10 @@ sub outputLine {
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
 		if ( exists $NN->{$logSplit[3]} and defined $NN->{$logSplit[3]} ) {
 			$logNode = $NN->{$logSplit[3]};
-			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$logNode/;		# dont clobber the template logLinkStart.
+			my $urlsafelognode = uri_escape($logNode);
+			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafelognode/;		# dont clobber the template logLinkStart.
 			$logNodeLinkStart =~ s/&level=/&level=$logLevelText/g;
-			$logNodeLinkStart =~ s/&node=/&node=$logNode/g ;
+			$logNodeLinkStart =~ s/&node=/&node=$urlsafelognode/g ;
 			$logNodeLink=$logNodeLinkStart.$logNode.$logLinkEnd;
 			# update line
 			$line =~ s/$logSplit[3]/$logNodeLink/;
@@ -586,12 +590,12 @@ sub outputLine {
 			my $id = qq|node_view_$logNode|;
 			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
 			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
-			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$logNode">|.
+			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 			
 			$buttons=
-			"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
-			"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
+			"<a href=\"$C->{admin}?tool=ping&node=$urlsafelognode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
+			"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 			
 			if ( getbool($C->{node_button_in_logs}) ) {
@@ -619,7 +623,8 @@ sub outputLine {
 		### set the log level in the URL if we have a syslog severity level
 		if ( $logEvent =~ m/-(\d+)-/ ) {
 			$logLevelText = eventLevelSet($1);
-			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$logEvent/;
+			my $urlsafeevent = uri_escape($logEvent);
+			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafeevent/;
 			$logEventLinkStart =~ s/&level=/&level=$logLevelText/;
 
 			$logEventLink=$logEventLinkStart.$logEvent.$logLinkEnd;
@@ -644,9 +649,10 @@ sub outputLine {
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
 		if ( exists $NN->{$logSplit[3]} and defined $NN->{$logSplit[3]} ) {
 			$logNode = $NN->{$logSplit[3]};
-			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$logNode/;		# dont clobber the template logLinkStart.
+			my $urlsafelognode = uri_escape($logNode);
+			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafelognode/;		# dont clobber the template logLinkStart.
 			$logNodeLinkStart =~ s/&level=/&level=$logLevelText/g;
-			$logNodeLinkStart =~ s/&node=/&node=$logNode/g ;
+			$logNodeLinkStart =~ s/&node=/&node=$urlsafelognode/g ;
 			$logNodeLink=$logNodeLinkStart.$logNode.$logLinkEnd;
 			# update line
 			$line =~ s/$logSplit[3]/$logNodeLink/;
@@ -654,12 +660,12 @@ sub outputLine {
 			my $id = qq|node_view_$logNode|;
 			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
 			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
-			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$logNode">|.
+			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 			
 			$buttons=
-			"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
-			"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
+			"<a href=\"$C->{admin}?tool=ping&node=$urlsafelognode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
+			"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 			
 			if ( getbool($C->{node_button_in_logs}) ) {
@@ -740,12 +746,14 @@ sub outputLine {
 		
 		if ( exists $NN->{$logNode} and defined $NN->{$logNode} ) {
 			$logNode = $NN->{$logNode};
+			my $urlsafelognode = uri_escape($logNode);
 			
-			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$logNode/;
+			($logNodeLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafelognode/;
 			$logNodeLinkStart =~ s/&level=/&level=ALL/;
 			$logNodeLink=$logNodeLinkStart.$logNode.$logLinkEnd;
-						
-			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$logEvent/;
+
+			my $urlsafeevent = uri_escape($logEvent);						
+			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafeevent/;
 			$logEventLinkStart =~ s/&level=/&level=ALL/;
 			$logEventLink=$logEventLinkStart.$logEvent.$logLinkEnd;
 			
@@ -757,7 +765,7 @@ sub outputLine {
 			# set up the leading buttons
 			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
 												qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
-												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$logNode">|.
+												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 			
 			if ( getbool($C->{node_button_in_logs}) ) {
@@ -765,8 +773,8 @@ sub outputLine {
 			}
 			elsif ( getbool($C->{buttons_in_logs}) ) {
 				$buttons =
-					"<a href=\"$C->{admin}?tool=ping&node=$logNode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
-					"<a href=\"$C->{admin}?tool=trace&node=$logNode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
+					"<a href=\"$C->{admin}?tool=ping&node=$urlsafelognode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
+					"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 					"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 				$line = "$buttons $logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";		
 			}
@@ -923,7 +931,7 @@ sub logMenuBar {
 			 		 ( 
 						map { my $k = $_;
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=$logSearch&sort=$logSort&widget=$widget&group=$logGroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$logGroup",
 								-onclick=>"clickMenu(this);return false;"},
 					 			$k 
 								)
@@ -935,7 +943,7 @@ sub logMenuBar {
 						map { my $k = $_;
 									my $txtColor = logRFCColor($k);
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=$logSearch&sort=$logSort&widget=$widget&group=$logGroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$logGroup",
 								-onclick=>"clickMenu(this);return false;", -style=>"color:$txtColor;"},
 								$k 
 							)
@@ -1105,7 +1113,8 @@ sub logSummary {
 		print qq|<th class="info"><a onclick="clickMenu(this);return false;" href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$index">$index</a></th>|;
 
    	for my $event ( sort keys %{ $logSum{"Header"} } ) {
-			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a onclick="clickMenu(this);return false;" href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$event&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
+			my $urlsafeevent = uri_escape($event);
+			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a onclick="clickMenu(this);return false;" href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$urlsafeevent&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
 			}
 			else { print "<th class='info'>&nbsp;</th>";} 
 		}
