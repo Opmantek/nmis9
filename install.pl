@@ -45,6 +45,7 @@ use File::Find;
 use File::Basename;
 use Cwd;
 use POSIX qw(:sys_wait_h);
+use version 0.77;
 
 
 ## Setting Default Install Options.
@@ -98,14 +99,13 @@ logInstall("Installation source is $src");
 ###************************************************************************###
 printBanner("Checking Perl version...");
 
-my $ver = ref($^V) eq 'version' ? $^V->normal : ( $^V ? join('.', unpack 'C*', $^V) : $] );
-my $perl_ver_check = '';
-print "\n";
-if ($] < 5.010001) {  # our minimal requirement for support
+if ($^V < version->parse("5.10.1")) 
+{  
 	echolog("The version of Perl installed on your server is lower than the minimum supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
+	exit 1;
 }
 else {
-	echolog("The version of Perl installed on your server $ver is OK");
+	echolog("The version of Perl installed on your server is $^V and OK");
 }
 
 
@@ -124,7 +124,15 @@ and then restart the installer.\n\n";
 		}
 		else
 		{
-			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!\n\n");
+			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!
+
+We recommend that you check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.\n\n");
+
+			print "Please hit enter to continue:\n";
+			my $x = <STDIN>;
+
 		}
 	}
 	 
@@ -135,6 +143,60 @@ and then restart the installer.\n\n";
 	}
 }
 
+# check dependencies
+printBanner("Checking Dependencies");
+# rrdtool/rrds new enough?
+{
+	my $rrdisok=0;
+
+	use NMIS::uselib;
+	use lib "$NMIS::uselib::rrdtool_lib";
+
+	eval { require RRDs; };
+	if (!$@)
+	{
+		# the rrds version is given in a weird form, eg. 1.4007 meaning 1.4.7.
+		# the  version module doesn't quite understand this flavour, expects 1.004007 to mean 1.4.7
+		my $foundversion = version->parse("$RRDs::VERSION"); 
+		my $minversion = version->parse("1.4004");
+		if ($foundversion >= $minversion)
+		{
+			echolog("rrdtool/RRDs version $foundversion is sufficient for NMIS.");
+			$rrdisok=1;
+		}
+		else 
+		{
+			echolog("rrdtool/RRDs version $foundversion is NOT sufficient for NMIS, need at least $minversion");
+		}
+	}
+	else
+	{
+		echolog("No RRDs module found!");
+	}
+	
+	if (!$rrdisok)
+	{
+		print "\nNMIS will not work properly without a sufficiently modern rrdtool/RRDs.
+
+We HIGHLY recommend that you stop the installer now, install rrdtool
+and the RRDs perl module, and then restart the installer.
+
+You should check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.\n\n";
+
+		if (input_yn("Stop the installer?"))
+		{
+			die "\nAborting the installation. Please install rrdtool and the RRDs perl module, then restart the installer.\n";
+		}
+		else
+		{
+			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install rrdtool and RRDs!\n\n");
+			print "Please hit enter to continue:\n";
+			my $x = <STDIN>;
+		}
+	}
+}
 
 ###************************************************************************###
 printBanner("Configuring installation path...");
@@ -331,32 +393,82 @@ execPrint("$site/bin/nmis.pl type=config info=true");
 
 if ($isnewinstall)
 {
-		printBanner("Setting up Apache config...");
-		my $apacheconf = "00nmis.conf";
-		system("$site/bin/nmis.pl type=apache > /tmp/$apacheconf");
+	printBanner("Integration with Apache");
+
+	# determine apache version
+	my $prog = $osflavour eq "redhat"? "httpd" : "apache2";
+	my $versioninfo = `$prog -v 2>/dev/null`;
+	$versioninfo =~ s/^.*Apache\/(\d+\.\d+\.\d+).*$/$1/s;
+	my $istwofour = ($versioninfo =~ /^2\.4\./);
+
+	if (!$versioninfo)
+	{
+		echolog("No Apache found!");
+		print "
+It seems that you don't have Apache 2.x installed, so the installer
+can't configure Apache for NMIS.
+
+The NMIS GUI consists of a number of CGI scripts, which need to be 
+run by a web server. You will need to integrate NMIS with your particular
+web server manually. 
+
+Please use the output of 'nmis.pl type=apache' and check the 
+NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.
+
+Please hit enter to continue:\n";
+		my $x = <STDIN>;
+	}
+	else
+	{
+		echolog("Found Apache version $versioninfo");
+
+		my $apacheconf = "nmis.conf";
+		my $res = system("$site/bin/nmis.pl type="
+										 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
 		my $finaltarget = $osflavour eq "redhat"? 
-				"/etc/httpd/conf.d/$apacheconf" : $osflavour eq "debian" ? 
-											 "/etc/apache2/sites-available/$apacheconf" : undef;
+				"/etc/httpd/conf.d/$apacheconf" : 
+				$osflavour eq "debian" ? "/etc/apache2/sites-available/$apacheconf" : undef;
+
 		if ($finaltarget 
-				&& input_yn("Ok to install Apache config file in $finaltarget and allow Apache access?"))
+				&& input_yn("Ok to install Apache config file to $finaltarget?"))
 		{
-				execPrint("mv /tmp/$apacheconf $finaltarget");
-				execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
-						if (-d "/etc/apache2/sites-enabled");
+			execPrint("mv /tmp/$apacheconf $finaltarget");
+			execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
+					if (-d "/etc/apache2/sites-enabled");
+
+			if ($istwofour)
+			{
+				execPrint("a2enmod cgi");
+			}
 				
-				if ($osflavour eq "redhat")
-				{
-						execPrint("usermod -G nmis apache");
-				}
-				elsif ($osflavour eq "debian")
-				{
-						execPrint("adduser www-data nmis");
-				}
+			if ($osflavour eq "redhat")
+			{
+				execPrint("usermod -G nmis apache");
+				execPrint("service httpd restart");
+			}
+			elsif ($osflavour eq "debian")
+			{
+				execPrint("adduser www-data nmis");
+				execPrint("service apache2 restart");
+			}
 		}
 		else
 		{
-				print "ok, continuing without adjusting Apache configuration.\n";
+			echolog("Continuing without Apache configuration.");
+			print "You will need to integrate NMIS with your 
+web server manually. 
+
+Please use the output of 'nmis.pl type=apache' (or type=apache24) and 
+check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.
+
+Please hit enter to continue:\n";
+			my $x = <STDIN>;
 		}
+	}
 }
 
 ###************************************************************************###
@@ -650,10 +762,11 @@ EOF
 
 
 # run external program/command via a shell
+# external command cannot not prompt or read stdin!
 # returns the command's exit code or -1 for signal/didn't start/non-standard termination
 sub execPrint {
 	my $exec = shift;	
-	my $out = `$exec 2>&1`;
+	my $out = `$exec </dev/null 2>&1`;
 	my $rawstatus = $?;
 	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
 	print $out;

@@ -42,6 +42,7 @@ use csv;
 use Net::hostent;
 use Socket;
 use Data::Dumper;
+use URI::Escape;
 
 use DBfunc;
 
@@ -214,18 +215,20 @@ EOF
 				}
 			}
 		}
+
+		my $safekey = uri_escape($k);
 		
 		if ($AU->CheckAccess("Table_${table}_rw","check")) {
 			$bt = '&nbsp;'
-					.	a({href=>"$url&act=config_table_edit&key=$k&widget=$widget"},
+					.	a({href=>"$url&act=config_table_edit&key=$safekey&widget=$widget"},
 							'edit')
 					. '&nbsp;'
-					. a({href=>"$url&act=config_table_delete&key=$k&widget=$widget"},
+					. a({href=>"$url&act=config_table_delete&key=$safekey&widget=$widget"},
 							'delete');
 		} else {
 			$bt = '';
 		}
-		print td({class=>'info Plain'},a({href=>"$url&act=config_table_view&key=$k&widget=$widget"},'view'),$bt) if $display;
+		print td({class=>'info Plain'},a({href=>"$url&act=config_table_view&key=$safekey&widget=$widget"},'view'),$bt) if $display;
 		print end_Tr if $display;
 	}
 

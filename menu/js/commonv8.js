@@ -506,6 +506,7 @@ function	createDialog(opt) {
 	dialog = dialogHandle.dialog();
 	titleBar = dialog.parents('.ui-dialog').find('.ui-dialog-titlebar');
 	title = dialog.parents('.ui-dialog').find('.ui-dialog-title');
+
 	$('span#timer_' + opt.id ).remove();
 	title.css('width','auto');
 	
@@ -743,12 +744,12 @@ function get(Id,optTrue,optFalse,evnt) {
 				}
 
 				if (e.type == "hidden") {
-					getstr += "&"+ e.name + "=" + e.value;
+					getstr += "&"+ e.name + "=" + encodeURIComponent(e.value);
 				}
 
 				if (e.type=="checkbox") {
 					if (e.checked) {
-						getstr+="&"+e.name+"="+e.value;
+						getstr+="&"+e.name+"="+ encodeURIComponent(e.value);
 					}
 					else {
 						getstr+="&"+e.name+"=";
@@ -758,7 +759,7 @@ function get(Id,optTrue,optFalse,evnt) {
 
 			if (e.type=="radio") {
 				if (e.checked) {
-					getstr+="&"+e.name+"="+e.value;
+					getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 				}
 			}
 		}
@@ -788,7 +789,7 @@ function get(Id,optTrue,optFalse,evnt) {
 					getstr+="&"+sel.name+"="+sel.options[sel.selectedIndex].value;
 				}
 				else {
-					getstr+="&"+sel.name+"="+sel.value;
+					getstr+="&"+sel.name+"="+encodeURIComponent(sel.value);
 				}	
 			}
 			dialogID = e.id;
@@ -1020,14 +1021,18 @@ function nodeInfoPanel(nodename) {
 
 	//var pserver = getServer();
 	//var url ='network.pl?act=network_node_view&refresh=60&node=' + nodename + '&server=' + pserver + '';
-	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + nodename + '';
+	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + encodeURIComponent(nodename) + '';
 	
+	// attention: the id must match what network.pl's selectLarge() uses!
 	var node = nodename.split(".", 1 )[0];
 	if ( node == '' ) {
 		node = nodename;
 	}
-	var id = 'node_view_' + node;
-	// alert( nodename );
+	// id attribs mustn't have spaces in them, start with letter, then letter/digits/-/_/:/., nothing else.
+	var safenode = node.replace(/[^a-zA-Z0-9_:\.-]/g,'');
+
+	var id = 'node_view_' + safenode;
+	// alert( safenode );
 	var opt = {
 		id		: id,
 		title	: nodename,

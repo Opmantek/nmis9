@@ -49,6 +49,8 @@ $CGI::Pretty::LINEBREAK = "\n";
 push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
 #use CGI::Debug;
 
+use URI::Escape;
+
 # declare holder for CGI objects
 use vars qw($q $Q $C $AU);
 $q = new CGI; # This processes all parameters passed via GET and POST
@@ -171,10 +173,10 @@ sub viewInterfaceFind {
 				$II->{$intHash}{ifSpeed} = convertIfSpeed($II->{$intHash}{ifSpeed});
 	
 				push @out,Tr(
-					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$II->{$intHash}{node}&widget=$widgetstate"},$II->{$intHash}{node})),
+					td({class=>'info Plain',nowrap=>undef},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($II->{$intHash}{node})."&widget=$widgetstate"},$II->{$intHash}{node})),
 					eval {
 						if ( getbool($II->{$intHash}{collect}) ) {
-							return td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=$II->{$intHash}{node}&intf=$II->{$intHash}{ifIndex}&widget=$widgetstate"},$II->{$intHash}{ifDescr}));
+							return td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=".uri_escape($II->{$intHash}{node})."&intf=$II->{$intHash}{ifIndex}&widget=$widgetstate"},$II->{$intHash}{ifDescr}));
 						} else {
 							return td({class=>'info Plain'},$II->{$intHash}{ifDescr});
 						} 
@@ -250,7 +252,7 @@ sub viewNodeFind {
 	
 				push @out,Tr(
 					td({class=>'info',nowrap=>undef},
-						 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widgetstate"},
+						 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($node)."&widget=$widgetstate"},
 							 $NT->{$node}{name})),
 					td({class=>'info'},$NT->{$node}{host}),
 					td({class=>'info'},$NT->{$node}{group}),

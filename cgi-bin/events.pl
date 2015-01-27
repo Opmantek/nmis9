@@ -42,6 +42,8 @@ use func;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
+use URI::Escape;
+
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
 $CGI::Pretty::INDENT = "  ";
@@ -135,7 +137,7 @@ sub viewEvent {
 			$cnt++;
 			my $state = getbool($ET->{$event_hash}{ack},"invert") ? 'active' : 'inactive';
 			print Tr( eval { my $line;
-				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widget"},$node));
+				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
 				my $outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
 				$line .= td({class=>'info Plain'},$outage);
 				$line .= td({class=>'info Plain'},returnDateStamp($ET->{$event_hash}{startdate}));
@@ -367,7 +369,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventnoackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
 				"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
@@ -383,7 +385,7 @@ sub displayEvents {
 		my $tempnodeack = shift;
 		my $eventackcount = shift;
 		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$tempnode&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
+			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
 				td({class=>'info Plain',colspan=>'9'},
 				img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
 				"&nbsp;$eventackcount->{$tempnode} Event(s)",
