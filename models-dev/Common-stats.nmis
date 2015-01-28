@@ -176,6 +176,7 @@
         'CDEF:perIFreeMem=MemIFree,totalIMem,/,100,*',
         'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
         'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+        'PRINT:bufferElFree:AVERAGE:bufferElFree=%1.2lf',
         'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
         'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf',
         'PRINT:perIUsedMem:AVERAGE:IOMemUsed=%1.2lf',
