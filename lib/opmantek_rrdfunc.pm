@@ -269,15 +269,6 @@ sub rrdFetchGraphPData {
 		# ($begin,$step,$names,$data) = RRDs::graphfetch($tmpimg, @options);
 		if ( -f $tmpimg ) {
 	
-			### 2012-01-30 keiths, deprecating the need for Win32 support and Image::Resize.
-			#use Image::Resize;
-			#my $image = Image::Resize->new("$tmpimg");
-			#my $gd = $image->resize(120,120);
-	
-			#open(FH, ">$tmpimg");
-			#print FH $gd->png();
-			#close(FH);
-	
 			open(IMG,"$tmpimg") or logMsg("$NI->{system}{name}, ERROR: problem with $tmpimg; $!");
 			binmode(IMG);
 			binmode(STDOUT);
