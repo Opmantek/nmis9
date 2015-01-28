@@ -397,7 +397,14 @@ sub nextSect {
 			my $class = 'info';
 			my $result;
 			if ($s eq 'control') { ($class,$errinf,$result) = checkControl(sys=>$S,hash=>$hash,value=>$sect->{$s}); } # check value
-			if ($s eq 'indexed') { ($class,$errinf) = checkIndexed(sys=>$S,value=>$sect->{$s}); } # check value
+			if ($s eq 'indexed') { 
+				if ( defined $sect->{index_oid} ) {
+					($class,$errinf) = checkIndexed(sys=>$S,value=>$sect->{$s},index_oid=>$sect->{index_oid}); 
+				}
+				else {
+					($class,$errinf) = checkIndexed(sys=>$S,value=>$sect->{$s}); 					
+				}
+			} # check value
 			if ($s eq 'oid') { ($class,$errinf) = checkOID(sys=>$S,name=>$sect->{$s}); } # check value
 			if ($s eq 'graphtype') { ($class,$errinf) = checkGraphType(sys=>$S,types=>$sect->{$s}); }
 			if ($s eq 'healthgraph') { ($class,$errinf) = checkGraphType(sys=>$S,types=>$sect->{$s}); }
@@ -455,14 +462,25 @@ sub checkIndexed {
 	my %args = @_;
 	my $S = $args{sys};
 	my $value = $args{value};
+	my $index_oid = $args{index_oid};
 
 	if (getbool($value)) {
 		return 'info',''; 
-	} else {
-		if (name2oid($value)) {
+	} 
+	else {
+		# If this is already an OID don't try to cross check it.
+		# checking for 5 levels of numbers as all OID's start with at least 5
+		if ( $value =~ /^\d+\.\d+\.\d+.\d+\.\d+/ ) {
 			return 'info',''; 
-		} else {
-			$S->{errorfound} = "value must be true or var value not found in MIB";
+		}
+		elsif (name2oid($value)) {
+			return 'info',''; 
+		} 
+		elsif (not name2oid($value) and $index_oid ) {
+			return 'info',''; 
+		} 
+		else {
+			$S->{errorfound} = "value $value must be true or var value not found in MIB";
 			return 'error',$S->{errorfound};
 		}
 	}
@@ -484,8 +502,13 @@ sub checkOID {
 	my %args = @_;
 	my $S = $args{sys};
 	my $name = $args{name};
-
-	if (name2oid($name)) {
+	
+	# If this is already an OID don't try to cross check it.
+	# checking for 5 levels of numbers as all OID's start with at least 5
+	if ( $name =~ /^\d+\.\d+\.\d+.\d+\.\d+/ ) {
+		return 'info',''; 
+	}
+	elsif (name2oid($name)) {
 		return 'info',''; 
 	} else {
 		$S->{errorfound} = "oid $name not found in Mib, check NMIS config section mibs";

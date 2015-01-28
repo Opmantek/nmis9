@@ -167,6 +167,7 @@
         'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
         'DEF:MemIUsed=$database:MemoryUsedIO:AVERAGE',
         'DEF:MemIFree=$database:MemoryFreeIO:AVERAGE',
+        'DEF:bufferElFree=$database:bufferElFree:AVERAGE',
         'CDEF:totalPMem=MemPUsed,MemPFree,+',
         'CDEF:totalIMem=MemIUsed,MemIFree,+',
         'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
