@@ -1047,11 +1047,13 @@ sub selectLarge {
 			# check lastupdate
 			my $lastUpdate = "";
 			my $colorlast = $color;
+			my $lastUpdateClass = "info Plain nowrap";
 			my $time = $groupSummary->{$node}{lastUpdateSec};
 			if ( $time ne "") {
 				$lastUpdate = returnDateStamp($time);
 				if ($time < (time - 60*15)) {
 					$colorlast = "#ffcc00"; # to late
+					$lastUpdateClass = "info Plain Error nowrap";
 				}
 			}
 			
@@ -1136,7 +1138,7 @@ sub selectLarge {
 				$responsetime,
 				$outage,
 				td({class=>'info Plain'},$escalate),
-				td({class=>'info Plain nowrap'},"$lastUpdate")
+				td({class=>$lastUpdateClass},"$lastUpdate")
 			);
 		}	# end foreach node
 	}	# end foreach group

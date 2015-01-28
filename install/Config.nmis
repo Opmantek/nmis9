@@ -71,6 +71,9 @@
 		# if this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
     'node_status_uses_status_summary' => 'false',
     'display_status_summary' => 'false',
+    
+		# to have additional fields in the node summary data.
+    'node_summary_field_list' => 'customer,businessService,serviceStatus',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -109,7 +112,7 @@
     'default_authkey' => '',
     'default_privpassword' => '',
     'default_privkey' => '',
-    'fastping_timeout' => '300',
+    'fastping_timeout' => '5000',
     'fastping_packet' => '56',
     'fastping_retries' => '3',
     'fastping_count' => '3',
@@ -129,7 +132,7 @@
     'threshold_period-pkts_hc' => '-15 minutes',
     'threshold_period-interface' => '-15 minutes',
     'default_graphtype' => 'abits',
-    'ping_timeout' => '300',
+    'ping_timeout' => '5000',
     'ping_packet' => '56',
     'ping_retries' => '3',
     'ping_count' => '3',

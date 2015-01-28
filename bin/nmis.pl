@@ -1229,7 +1229,7 @@ sub getIntfInfo {
 	my $NI = $S->ndinfo; # node info table
 	my $V =  $S->view;
 	my $M = $S->mdl;	# node model table
-	my $SNMP =$S->snmp;
+	my $SNMP = $S->snmp;
 	my $IF = $S->ifinfo; # interface info table
 	my $NC = $S->ndcfg; # node config table
 
@@ -1262,7 +1262,7 @@ sub getIntfInfo {
 		} else {
 			logMsg("ERROR ($S->{name}) on get interface index table");
 			# failed by snmp
-			if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+			if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
 				snmpNodeDown(sys=>$S);
 			}
 			info("Finished");
@@ -1337,8 +1337,8 @@ sub getIntfInfo {
 		my $ifMaskTable;
 		my %ifCnt;
 		info("Getting Device IP Address Table");
-		if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
-			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
+		if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex',$max_repetitions)) {
+			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
 				foreach my $addr (keys %{$ifAdEntTable}) {
 					my $index = $ifAdEntTable->{$addr};
 					next if ($intf_one ne '' and $intf_one ne $index);
@@ -1720,7 +1720,7 @@ sub checkPIX {
 
 	my $NI = $S->ndinfo;
 	my $V =  $S->view;
-	my $SNMP = $S->{snmp};
+	my $SNMP = $S->snmp;
 	my $result;
 	dbg("Starting");
 
@@ -1831,7 +1831,7 @@ sub getEnvInfo {
 					} else {
 						logMsg("ERROR ($S->{name}) on get environment $section index table");
 						# failed by snmp
-						if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -1902,7 +1902,7 @@ sub getEnvInfo {
 					} else {
 						logMsg("ERROR ($S->{name}) on get environment $section index table");
 						# failed by snmp
-						if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -2107,7 +2107,7 @@ sub getSystemHealthInfo {
 				} else {
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
 					# failed by snmp
-					if ( $S->{snmp}{error} !~ /is empty or does not exist/ ) {
+					if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
 						snmpNodeDown(sys=>$S);
 					}
 				}
@@ -2465,6 +2465,7 @@ sub getIntfData {
 	my $V =  $S->view;
 	my $IF = $S->ifinfo; # interface info
 	my $RI = $S->reach;
+	my $SNMP = $S->snmp;
 	my $IFCACHE;
 
 	my $C = loadConfTable();
@@ -2476,6 +2477,9 @@ sub getIntfData {
 
 	my $createdone = "false";
 
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
 	info("Starting Interface get data, node $S->{name}");
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
@@ -2486,8 +2490,8 @@ sub getIntfData {
 						and !getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert")) ) {
 		my $ifAdminTable;
 		my $ifOperTable;
-		if ( ($ifAdminTable = $S->{snmp}->getindex('ifAdminStatus')) ) {
-			$ifOperTable = $S->{snmp}->getindex('ifOperStatus');
+		if ( ($ifAdminTable = $SNMP->getindex('ifAdminStatus',$max_repetitions)) ) {
+			$ifOperTable = $SNMP->getindex('ifOperStatus',$max_repetitions);
 			for my $index (keys %{$ifAdminTable}) {
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
 				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
@@ -2768,7 +2772,7 @@ sub getCBQoS {
 		my $S = $args{sys};
 		my $NI = $S->ndinfo;
 		my $IF = $S->ifinfo;
-		my $SNMP = $S->{snmp};
+		my $SNMP = $S->snmp;
 		my $CBQOS = $S->cbinfo;
 
 		my %qosIntfTable;
@@ -2841,7 +2845,8 @@ sub getCBQoS {
 		my $NI = $S->ndinfo;
 		my $IF = $S->ifinfo;
 		my $NC = $S->ndcfg;
-		my $SNMP = $S->{snmp};
+		my $SNMP = $S->snmp;
+
 
 		my $message;
 		my %qosIntfTable;
@@ -2851,10 +2856,13 @@ sub getCBQoS {
 
 		# get the interface indexes and objects from the snmp table
 
+		# the default-default is no value whatsoever, for letting the snmp module do its thing
+		my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
 		info("start table scanning");
 
 		# read qos interface table
-		if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex')) {
+		if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions)) {
 			foreach my $PIndex (keys %{$ifIndexTable}) {
 				my $intf = $ifIndexTable->{$PIndex}; # the interface number from de snmp qos table
 				info("CBQoS, scan interface $intf");
@@ -2886,7 +2894,7 @@ sub getCBQoS {
 						my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
 
 						# get the policy config table for this interface
-						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
+						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex",$max_repetitions);
 
 						if ( $C->{debug} > 5 ) {
 							print Dumper ( $qosIndexTable );
@@ -3219,12 +3227,16 @@ sub getCalls {
 		my $S = $args{sys};
 		my $NI = $S->ndinfo;
 		my $IF = $S->ifinfo;
-		my $SNMP = $S->{snmp};
+		my $SNMP = $S->snmp;
+
 
 		my %seen;
 		my %callsTable;
 		my %mappingTable;
 		my ($intfindex,$parentintfIndex);
+
+		# the default-default is no value whatsoever, for letting the snmp module do its thing
+		my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 		dbg("Starting Calls ports collection");
 
@@ -3251,7 +3263,7 @@ sub getCalls {
 		# getindex the cpmDS0InterfaceIndex oid to populate $callsTable hash with such as interface indexes, ports, slots
 		my $IntfIndexTable;
 		my $IntfStatusTable;
-		if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex")) {
+		if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex",$max_repetitions)) {
 			foreach my $index (keys %{$IntfIndexTable}) {
 				$intfindex = $IntfIndexTable->{$index};
 				my ($slot,$port,$channel) = split /\./,$index,3;
@@ -3261,7 +3273,7 @@ sub getCalls {
 				$callsTable{$intfindex}{'port'} = $port;
 				$callsTable{$intfindex}{'channel'} = $channel;
 			}
-			if ($IntfStatusTable = $SNMP->getindex("ifStackStatus")) {
+			if ($IntfStatusTable = $SNMP->getindex("ifStackStatus",$max_repetitions)) {
 				foreach my $index (keys %{$IntfStatusTable}) {
 					($intfindex,$parentintfIndex) = split /\./,$index,2;
 					$mappingTable{$intfindex}{'parentintfIndex'} = $parentintfIndex;
@@ -3335,6 +3347,9 @@ sub getPVC {
 	my %pvcStats;		# start this new every time
 	my %snmpTable;
 
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
 	dbg("Starting frame relay PVC collection");
 
 	# double check if any frame relay interfaces on this node.
@@ -3365,7 +3380,7 @@ sub getPVC {
 
 	my $frCircEntryTable;
 	my $cfrExtCircIfNameTable;
-	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry')) {
+	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry',$max_repetitions)) {
 		foreach my $index (keys %{$frCircEntryTable}) {
 			my ($oid,$port,$pvc) = split /\./,$index,3;
 			my $textoid = oid2name("1.3.6.1.2.1.10.32.2.1.$oid");
@@ -3375,7 +3390,7 @@ sub getPVC {
 			}
 		}
 		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ ) {
-			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName')) {
+			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName',$max_repetitions)) {
 				foreach my $index (keys %{$cfrExtCircIfNameTable}) {
 					my ($port,$pvc) = split /\./,$index;
 					$pvcStats{$port}{$pvc}{'cfrExtCircuitIfName'} = $cfrExtCircIfNameTable->{$index};
@@ -3462,12 +3477,15 @@ sub runServer {
 
 	if ($NI->{system}{nodeType} ne 'server') { return;}
 
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
 	info("Starting server device/storage collection, node $NI->{system}{name}");
 
 	# get cpu info
 	delete $NI->{device};
 	if ($M->{device} ne '') {
-		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
+		my $deviceIndex = $SNMP->getindex('hrDeviceIndex',$max_repetitions);
 		$S->loadInfo(class=>'device',model=>$model); # get cpu load without index
 		foreach my $index (keys %{$deviceIndex}) {
 			if ($S->loadInfo(class=>'device',index=>$index,model=>$model)) {
@@ -3505,7 +3523,7 @@ sub runServer {
 	if ($M->{storage} ne '') {
 		# get storage info
 		my $disk_cnt = 1;
-		my $storageIndex = $SNMP->getindex('hrStorageIndex');
+		my $storageIndex = $SNMP->getindex('hrStorageIndex',$max_repetitions);
 		foreach my $index (keys %{$storageIndex}) {
 			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
 				my $D = $NI->{storage}{$index};
@@ -3630,6 +3648,9 @@ sub runServices {
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 	#logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
 	my $service;
 	my $cpu;
 	my $memory;
@@ -3662,7 +3683,7 @@ sub runServices {
 		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
 		foreach my $var ( @snmpvars ) {
-			if ( $hrIndextable = $SNMP->getindex($var)) {
+			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions)) {
 				foreach my $inst (keys %{$hrIndextable}) {
 					my $value = $hrIndextable->{$inst};
 					my $textoid = oid2name(name2oid($var).".".$inst);

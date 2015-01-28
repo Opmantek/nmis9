@@ -61,7 +61,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.4G";
+$VERSION = "8.5.5G";
 
 @ISA = qw(Exporter);
 
@@ -1150,8 +1150,8 @@ sub nodeStatus {
 	my $snmp_down = "SNMP Down";
 
 	# ping disabled ->  snmp state is authoritative
-	if ( getbool($NI->{system}{ping},"invert") ) {
-		$status = 0 if eventExist($NI->{system}{name}, $snmp_down, "");
+	if ( getbool($NI->{system}{ping},"invert") and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
@@ -1163,10 +1163,10 @@ sub nodeStatus {
 	}
 	# let NMIS use the status summary calculations
 	elsif (
-		exists $C->{node_status_uses_status_summary}
+		defined $C->{node_status_uses_status_summary}
 		and getbool($C->{node_status_uses_status_summary})
-		and exists $NI->{system}{status_summary} 
-		and exists $NI->{system}{status_updated} 
+		and defined $NI->{system}{status_summary} 
+		and defined $NI->{system}{status_updated} 
 		and $NI->{system}{status_summary} <= 99
 		and $NI->{system}{status_updated} > time - 500
 	) {
@@ -1175,7 +1175,7 @@ sub nodeStatus {
 	else {
 		$status = 1;
 	}
-		
+	
 	return $status;
 }
 
@@ -1500,6 +1500,14 @@ sub getNodeSummary {
 	my $OT = loadOutageTable();
 	my %nt;
 	
+	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
+	my $node_summary_field_list = "customer,businessService";
+	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
+		$node_summary_field_list = $C->{node_summary_field_list};
+	}
+	
+	my @node_summary_properties = split(",",$node_summary_field_list);
+	
 	foreach my $nd (keys %{$NT}) {
 		next if (!getbool($NT->{$nd}{active}));
 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
@@ -1507,19 +1515,23 @@ sub getNodeSummary {
 		my $NI = loadNodeInfoTable($nd);
 
 		$nt{$nd}{name} = $NI->{system}{name};
-		$nt{$nd}{netType} = $NI->{system}{netType};
 		$nt{$nd}{group} = $NI->{system}{group};
-		$nt{$nd}{customer} = $NI->{system}{customer};
-		$nt{$nd}{businessService} = $NI->{system}{businessService};
-		$nt{$nd}{roleType} = $NI->{system}{roleType};
+		$nt{$nd}{collect} = $NI->{system}{collect};
 		$nt{$nd}{active} = $NT->{$nd}{active};
 		$nt{$nd}{ping} = $NT->{$nd}{ping};
+		$nt{$nd}{netType} = $NI->{system}{netType};
+		$nt{$nd}{roleType} = $NI->{system}{roleType};
 		$nt{$nd}{nodeType} = $NI->{system}{nodeType};
 		$nt{$nd}{nodeModel} = $NI->{system}{nodeModel};
 		$nt{$nd}{nodeVendor} = $NI->{system}{nodeVendor};
-		$nt{$nd}{collect} = $NI->{system}{collect};
 		$nt{$nd}{lastUpdateSec} = $NI->{system}{lastUpdateSec};
+		$nt{$nd}{sysName} = $NI->{system}{sysName} ;
 		$nt{$nd}{server} = $C->{'server_name'};
+
+		foreach my $property (@node_summary_properties) {
+			$nt{$nd}{$property} = $NI->{system}{$property};
+		}
+		
 		#
 		$nt{$nd}{nodedown} = $NI->{system}{nodedown};
 		my $event_hash = eventHash($nd, "Node Down", "Node");
@@ -1556,7 +1568,6 @@ sub getNodeSummary {
 			( my $lat, my $long, my $alt, $sysLocation) = split(',',$NI->{system}{sysLocation});
 		}
 		$nt{$nd}{sysLocation} = $sysLocation ;
-		$nt{$nd}{sysName} = $NI->{system}{sysName} ;
 	}
 	return \%nt;
 }
