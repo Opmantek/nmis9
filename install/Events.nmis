@@ -1,0 +1,143 @@
+%hash = (
+  'Generic Down' => {
+    'Event' => 'Generic Down',
+    'Stateful' => 'true',
+  },
+  'Generic Up' => {
+    'Event' => 'Generic Up',
+    'Stateful' => 'true',
+  },
+  'Interface Down' => {
+    'Event' => 'Interface Down',
+    'Stateful' => 'true',
+  },
+  'Interface Up' => {
+    'Event' => 'Interface Up',
+    'Stateful' => 'true',
+  },
+  'Node Down' => {
+    'Event' => 'Node Down',
+    'Stateful' => 'true',
+  },
+  'Node Reset' => {
+    'Event' => 'Node Reset',
+    'Stateful' => 'false',
+  },
+  'Node Failover' => {
+    'Event' => 'Node Failover',
+    'Stateful' => 'true',
+  },
+  'Node Up' => {
+    'Event' => 'Node Up',
+    'Stateful' => 'true',
+  },
+  'RPS Fail' => {
+    'Event' => 'RPS Fail',
+    'Stateful' => 'true',
+  },
+  'SNMP Down' => {
+    'Event' => 'SNMP Down',
+    'Stateful' => 'true',
+  },
+  'SNMP Up' => {
+    'Event' => 'SNMP Up',
+    'Stateful' => 'true',
+  },
+  'Service Down' => {
+    'Event' => 'Service Down',
+    'Stateful' => 'true',
+  },
+  'Service Up' => {
+    'Event' => 'Service Up',
+    'Stateful' => 'true',
+  },
+  'Proactive Response Time' => {
+    'Event' => 'Proactive Response Time',
+    'Stateful' => 'true',
+  },
+  'Proactive Reachability' => {
+    'Event' => 'Proactive Reachability',
+    'Stateful' => 'true',
+  },
+  'Proactive CPU' => {
+    'Event' => 'Proactive CPU',
+    'Stateful' => 'true',
+  },
+  'Proactive Memory' => {
+    'Event' => 'Proactive Memory',
+    'Stateful' => 'true',
+  },
+  'Proactive Interface Availability' => {
+    'Event' => 'Proactive Interface Availability',
+    'Stateful' => 'true',
+  },
+  'Proactive Interface Input Utilisation' => {
+    'Event' => 'Proactive Interface Input Utilisation',
+    'Stateful' => 'true',
+  },
+  'Proactive Interface Output Utilisation' => {
+    'Event' => 'Proactive Interface Output Utilisation',
+    'Stateful' => 'true',
+  },
+  'Proactive Availability Threshold Interface' => {
+    'Event' => 'Proactive Availability Threshold Interface',
+    'Stateful' => 'true',
+  },
+  'Proactive Interface Input NonUnicast' => {
+    'Event' => 'Proactive Interface Input NonUnicast',
+    'Stateful' => 'true',
+  },
+  'Proactive Interface Output NonUnicast' => {
+    'Event' => 'Proactive Interface Output NonUnicast',
+    'Stateful' => 'true',
+  },
+  'Node Configuration Change' => {
+    'Event' => 'Node Configuration Change',
+    'Stateful' => 'false',
+  },
+  'Alert: BGP Peer Down' => {
+    'Event' => 'Alert: BGP Peer Down',
+    'Stateful' => 'true',
+  },
+  'Alert: GE Alarm Active' => {
+    'Event' => 'Alert: GE Alarm Active',
+    'Stateful' => 'true',
+  },
+  'Alert: High Disk Usage' => {
+    'Event' => 'Alert: High Disk Usage',
+    'Stateful' => 'true',
+  },
+  'Alert: High Memory Usage' => {
+    'Event' => 'Alert: High Memory Usage',
+    'Stateful' => 'true',
+  },
+  'Alert: High Number of System Processes' => {
+    'Event' => 'Alert: High Number of System Processes',
+    'Stateful' => 'true',
+  },
+  'Alert: High Oper Completion Time' => {
+    'Event' => 'Alert: High Oper Completion Time',
+    'Stateful' => 'true',
+  },
+  'Alert: High Process Memory Usage' => {
+    'Event' => 'Alert: High Process Memory Usage',
+    'Stateful' => 'true',
+  },
+  'Alert: High Swap Usage' => {
+    'Event' => 'Alert: High Swap Usage',
+    'Stateful' => 'true',
+  },
+  'Alert: High TCP Connection Count' => {
+    'Event' => 'Alert: High TCP Connection Count',
+    'Stateful' => 'true',
+  },
+  'Alert: RTT Completion Status Not OK' => {
+    'Event' => 'Alert: RTT Completion Status Not OK',
+    'Stateful' => 'true',
+  },
+  'Alert: Virtual Machine not Powered On' => {
+    'Event' => 'Alert: Virtual Machine not Powered On',
+    'Stateful' => 'true',
+  },
+);
+			
