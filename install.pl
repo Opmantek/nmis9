@@ -256,7 +256,15 @@ if ($isnewinstall)
 		{
 			if (input_yn("OK to create NMIS user?"))
 			{
-				execPrint("adduser nmis");
+				# redhat/centos' adduser is non-interactive, debian/ubuntu's wants interaction
+				if ($osflavour eq "redhat")
+				{
+					execPrint("adduser nmis");
+				}
+				elsif ($osflavour eq "debian")
+				{
+					execPrint("useradd nmis");
+				}
 			}
 			else
 			{
@@ -431,7 +439,7 @@ Please hit enter to continue:\n";
 				"/etc/httpd/conf.d/$apacheconf" : 
 				$osflavour eq "debian" ? "/etc/apache2/sites-available/$apacheconf" : undef;
 
-		if ($finaltarget 
+		if ($finaltarget
 				&& input_yn("Ok to install Apache config file to $finaltarget?"))
 		{
 			execPrint("mv /tmp/$apacheconf $finaltarget");
@@ -765,7 +773,7 @@ EOF
 # external command cannot not prompt or read stdin!
 # returns the command's exit code or -1 for signal/didn't start/non-standard termination
 sub execPrint {
-	my $exec = shift;	
+	my $exec = shift;
 	my $out = `$exec </dev/null 2>&1`;
 	my $rawstatus = $?;
 	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
