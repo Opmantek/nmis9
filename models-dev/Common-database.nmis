@@ -112,6 +112,7 @@
 			'SignalStatus' => '/health/$nodeType/$node-signalstatus-$index.rrd',
       'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
       'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
+      'ppxAtm' => '/interface/$nodeType/$node-ppxAtm-$index.rrd',
     }
   }
 );

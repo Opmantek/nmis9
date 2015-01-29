@@ -54,8 +54,8 @@
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'SNMPv1',
-    'nodeType' => 'generic',
+    'nodeModel' => 'Ericsson-PPX',
+    'nodeType' => 'switch',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -184,7 +184,7 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
+            'oid' => 'ifName',
             'title' => 'Name'
           },
           'ifSpeed' => {
@@ -304,6 +304,7 @@
           },
         },
         'graphtype' => 'pkts,errpkts',
+        #'control' => '$sysObjectName =~ /17\\d+|36\\d+|516/'
       }
     },
     'collect' => {
@@ -321,5 +322,90 @@
       'ifDescr' => 'null',
       'ifType' => 'other'
 	}
+  },
+  'systemHealth' => {
+    'sections' => 'ppxAtm',
+    'rrd' => {
+      'ppxAtm' => {
+        'graphtype' => 'ppxAtmCells,ppxAtmUtil',
+        'indexed' => 'true',
+        'snmp' => {
+          'mscAtmIfTxCell' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.13',
+            'sysObjectName' => 'mscAtmIfTxCell',
+            'option' => 'counter,0:U',
+          },
+          'mscAtmIfRxCell' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.23',
+            'sysObjectName' => 'mscAtmIfRxCell',
+            'option' => 'counter,0:U',
+          },
+          'mscAtmIfTxLinkUtil' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.59',
+            'sysObjectName' => 'mscAtmIfTxLinkUtilization',
+            'option' => 'gauge,0:100',
+          },
+          'mscAtmIfRxLinkUtil' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.60',
+            'sysObjectName' => 'mscAtmIfRxLinkUtilization',
+            'option' => 'gauge,0:100',
+          },
+        }
+      },
+    },
+    'sys' => {
+      'ppxAtm' => {
+        'headers' => 'mscAtmIfComponentName,mscAtmIfAdminState,mscAtmIfOperationalState,mscAtmIfTxLinkUtil,mscAtmIfRxLinkUtil,mscAtmIfTxCell,mscAtmIfRxCell',
+        'index_oid' => '1.3.6.1.4.1.562.36.2.1.114.1.1.2',
+        #'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'mscAtmIfComponentName',
+        'snmp' => {
+          'mscAtmIfComponentName' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.1.1.2',
+            'sysObjectName' => 'mscAtmIfComponentName',
+            'title' => 'Component Name'
+          },
+          'mscAtmIfAdminState' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.130.1.1',
+            'sysObjectName' => 'mscAtmIfAdminState',
+            'replace' => {
+              '0' => 'locaked',
+              '1' => 'unlocked',
+              '2' => 'shuttingDown'
+            },
+            'title' => 'Admin State'
+          },
+          'mscAtmIfOperationalState' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.130.1.2',
+            'sysObjectName' => 'mscAtmIfOperationalState',
+            'replace' => {
+              '0' => 'disabled',
+              '1' => 'enabled',
+            },
+            'title' => 'Operational State'
+          },
+          'mscAtmIfTxCell' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.13',
+            'sysObjectName' => 'mscAtmIfTxCell',
+            'title' => 'Tx Cell'
+          },
+          'mscAtmIfRxCell' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.23',
+            'sysObjectName' => 'mscAtmIfRxCell',
+            'title' => 'Rx Cell'
+          },
+          'mscAtmIfTxLinkUtil' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.59',
+            'sysObjectName' => 'mscAtmIfTxLinkUtilization',
+            'title' => 'Tx Link Util'
+          },
+          'mscAtmIfRxLinkUtil' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.114.150.1.60',
+            'sysObjectName' => 'mscAtmIfRxLinkUtilization',
+            'title' => 'Rx Link Util'
+          },
+        }
+      },
+    }
   }
 );
