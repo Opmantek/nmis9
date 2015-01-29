@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.5";
+my $VERSION = "1.3.6";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n"; 
 
@@ -60,7 +60,7 @@ my $tail = 4000;																# last 4000 lines
 # first, load the global config
 my $globalconf = loadConfTable(conf => $configname);
 # make tempdir
-my $td = File::Temp::tempdir("/tmp/support.XXXXXX", CLEANUP => 1);
+my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
 
 if (func->can("selftest"))
 {
@@ -273,6 +273,19 @@ sub collect_evidence
 		system("crontab -u root -l > $targetdir/system_status/cron/crontab.root 2>/dev/null");
 		system("crontab -u nmis -l > $targetdir/system_status/cron/crontab.nmis 2>/dev/null");
 
+		# capture the apache configs
+		my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
+		if ($apachehome)
+		{
+			my $apachetarget = "$targetdir/system_status/apache";
+			mkdir ($apachetarget) if (!-d $apachetarget);
+			# on centos/RH there are symlinks pointing to all the apache module binaries, we don't 
+			# want these (so  -a or --dereference is essential)
+			system("cp -a $apachehome/* $apachetarget");
+			# and save a filelist for good measure
+			system("ls -laHR $apachehome > $apachetarget/filelist");
+		}
+		
 		# copy the install log if there is one
 		if (-f "$basedir/install.log")
 		{
