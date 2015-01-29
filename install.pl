@@ -52,12 +52,8 @@ use version 0.77;
 my $defaultSite = "/usr/local/nmis8";
 my $defaultFping = "/usr/local/sbin/fping";
 
-my $defaultCpan = 1;
-my $installLog = undef;
+my $installLog = "./install.log";
 my $nmisModules;			# local modules used in our scripts
-
-# there are some slight but annoying differences
-my $osflavour = -f "/etc/redhat-release" ? "redhat" : -f "/etc/debian_version"? "debian" : undef;
 
 if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
 	printHelp();
@@ -69,18 +65,55 @@ my %arg = getArguements(@ARGV);
 
 my $site = $arg{site} ? $arg{site} : $defaultSite;
 my $fping = $arg{fping} ? $arg{fping} : $defaultFping;
-my $cpan = 0 ? $arg{cpan} =~ /0|false|no/ : $defaultCpan;
 my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 
-my $debug = 0;
-$debug = 1 if $arg{debug};
+my $debug = $arg{debug}? 1 : 0;
+my %options;										# for future unattended mode
 
-my %options;										# for futher unattended mode
+die "This installer must be run with root privileges, terminating now!\n"
+		if ($> != 0);
 
 system("clear");
 
 ###************************************************************************###
 printBanner("NMIS Installation Script");
+my $hostname = `hostname -f`; chomp $hostname;
+logInstall("Installation on host '$hostname' started at ".scalar localtime(time));
+
+# there are some slight but annoying differences
+my $osflavour;
+if (-f "/etc/redhat-release")
+{
+	$osflavour="redhat";
+	logInstall("detected OS flavour RedHat/CentOS");
+}
+elsif (-f "/etc/os-release")
+{
+	open(F,"/etc/os-release");
+	my @osinfo = <F>;
+	close(F);
+	if (grep(/ID=debian/, @osinfo))
+	{
+		$osflavour="debian";
+		logInstall("detected OS flavour Debian");
+	}
+	elsif (grep(/ID=ubuntu/, @osinfo))
+	{
+		$osflavour="ubuntu";
+		logInstall("detected OS flavour Ubuntu");
+	}
+}
+if (!$osflavour)
+{
+	echolog("Attention: The installer was unable to determine the type of your OS
+and won't be able to make certain installation adjustments!
+
+We recommend that you check the NMIS Installation guide at 
+https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
+for further info.\n\n");
+	print "Hit <Enter> to continue:\n";
+	my $x = <STDIN>;
+}
 
 ###************************************************************************###
 printBanner("Getting installation source location...");
@@ -90,61 +123,200 @@ printBanner("Getting installation source location...");
 my $src = cwd();
 $src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
 $src = input_str("Full path to distribution folder:", $src);
-
-$installLog = "$src/install.log";
-logInstall("Installation started at ".scalar localtime);
 logInstall("Installation source is $src");
-
 
 ###************************************************************************###
 printBanner("Checking Perl version...");
 
 if ($^V < version->parse("5.10.1")) 
 {  
-	echolog("The version of Perl installed on your server is lower than the minimum supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
+	echolog("The version of Perl installed on your server is lower than the minimum 
+supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
 	exit 1;
 }
 else {
 	echolog("The version of Perl installed on your server is $^V and OK");
 }
 
-
 ###************************************************************************###
-if ( $cpan || $listdeps) {
-	if (!checkCpan())
-	{
-		print "Some critically required Perl modules were missing. 
-NMIS will not work properly until these are installed! 
+printBanner("Checking Dependencies...");
+if ($osflavour)
+{
+	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
+libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
+libcrypt-ssleay-perl apache2 fping snmp snmpd libnet-snmp-perl
+libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
+libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl
+libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
+libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
+libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
+libauthen-sasl-perl rrdtool librrds-perl ));
 
-We recommend that you stop the installer now, resolve the dependencies, 
+	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
+pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
+libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
+net-snmp-utils net-snmp-perl perl-Net-SSLeay perl-JSON-XS httpd fping
+make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
+perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL uuid-perl perl-Time-modules
+perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
+perl-Crypt-PasswdMD5 perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
+perl-rrdtool));
+
+	
+	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
+	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
+
+	print "The installer can use $pkgmgr to install the software packages 
+that NMIS depends on, if your system has Internet access and if $pkgmgr is 
+configured to use online repositories or a local package source (e.g. an 
+installation DVD).\n\n";
+
+	if (!input_yn("Does this system have Internet access or is $pkgmgr configured\nwith a local package source?"))
+	{
+		echolog("Instructed NOT to install pre-requisites.");
+		print "NMIS will not work properly until the  following packages are installed:\n\n".join(" ",@$pkglist)
+				."\n\nWe recommend that you stop the installer now, resolve the dependencies, 
 and then restart the installer.\n\n";
+		
 		if (input_yn("Stop the installer?"))
 		{
-			die "\nAborting the installation. Please install the missing modules, then restart the installer. installer.\n";
-		}
-		else
-		{
-			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install the missing dependencies!
-
-We recommend that you check the NMIS Installation guide at 
-https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
-for further info.\n\n");
-
-			print "Please hit enter to continue:\n";
-			my $x = <STDIN>;
-
+			die "\nAborting the installation. Please install the missing packages, then restart the installer.\n";
 		}
 	}
-	 
-	if ($listdeps)
+	else
 	{
-			echolog("NOT proceeding with installation, as requested.\n");
-			exit 0;
+		if ($osflavour eq "debian" or $osflavour eq "ubuntu")
+		{
+			echolog("Updating package status, please wait...");
+			execPrint("apt-get update -qq");
+
+			for my $pkg (@debpackages)
+			{
+				if (`dpkg -l $pkg 2>/dev/null` =~ /^ii\s*$pkg\s*/m)
+				{
+					echolog("Required package $pkg is already installed.");
+				}
+				else
+				{
+					echolog("\nRequired package $pkg is NOT installed!");
+					if (input_yn("Do you want to install the package $pkg with apt-get now?"))
+					{
+						$ENV{"DEBIAN_FRONTEND"}="noninteractive";
+						echolog("Installing $pkg with apt-get");
+						execPrint("apt-get -yq install $pkg");
+
+						print "\n\n";			# apt is a bit noisy
+					}
+					else
+					{
+						echolog("Package $pkg not present but was instructed to NOT install it.");
+						print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
+dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
+						my $x = <STDIN>;
+					}
+				}
+			}
+		}
+		elsif ($osflavour eq "redhat")
+		{
+			# a few packages are only available via the EPEL repo...
+			# and a usable rrdtool version requires the rpmforge repo
+			open(F,"/etc/redhat-release");
+			my $rhver =	<F>; 
+			chomp $rhver;
+			close F;
+			$rhver =~ s/^[^0-9]+(\d)\.\d.*$/$1/;
+
+			echolog("Checking yum repository list, please wait...");
+			my @repos=`yum repolist 2>/dev/null`;
+			if (!grep(/^rpmforge\s+/, @repos))
+			{
+				echolog("Adding RepoForge Repository for suitable RRDTool version");
+				# centos 6 ships an ancient rrdtool, repoforge-extras has what we're after
+				execPrint("yum -y install http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el$rhver.rf.x86_64.rpm");
+			}
+			if (!grep(/^epel\s+/, @repos) and $rhver == 6)
+			{
+				echolog("Adding EPEL Repository for glib and Net-SNMP");
+				execPrint("yum -y install http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm");
+			}
+			
+			for my $pkg (@rhpackages)
+			{
+				if (`rpm -qa $pkg 2>/dev/null` ne "")
+				{
+					echolog("Required package $pkg is already installed.");
+				}
+				else
+				{
+					echolog("\nRequired package $pkg is NOT installed!");
+					if (input_yn("Do you want to install the package $pkg with yum now?"))
+					{
+						if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
+						{
+							echolog("Installing $pkg with yum");
+							execPrint("yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool");
+						}
+						else
+						{
+							echolog("Installing $pkg with yum");
+							execPrint("yum -y install $pkg");
+							
+							if ($pkg eq "httpd")
+							{
+								execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
+							}
+						}
+						print "\n\n";			# yum is pretty noisy
+					}
+					else
+					{
+						echolog("Package $pkg not present but was instructed to NOT install it.");
+						print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
+dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
+						my $x = <STDIN>;
+					}
+				}
+			}
+		}
 	}
 }
 
-# check dependencies
-printBanner("Checking Dependencies");
+printBanner("Checking Perl Module Dependencies...");
+
+my ($isok,@missingones) = &checkCpan;
+if (!$isok)
+{
+	print "The installer can use CPAN to install the missing Perl packages
+that NMIS depends on, if your system has Internet access.\n\n";
+
+	if (!input_yn("Does this system have Internet access?") or !input_yn("OK to use CPAN to install missing modules?"))
+	{
+		echolog("Instructed NOT to install missing CPAN modules.");
+		print "NMIS will not work properly until the following Perl modules are installed:\n\n".join(" ",@missingones)
+				."\n\nWe recommend that you stop the installer now, resolve the dependencies, 
+and then restart the installer.\n\n";
+		
+		if (input_yn("Stop the installer?"))
+		{
+			die "\nAborting the installation. Please install the missing Perl packages, then restart the installer.\n";
+		}
+	}
+	else
+	{
+		echolog("Installing modules with CPAN");
+		system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
+	}
+}
+	 
+if ($listdeps)
+{
+	echolog("Dependency checks completed, NOT proceeding with installation as requested.\n");
+	exit 0;
+}
+
+# check that rrdtool is indeed new enough
+printBanner("Checking RRDTool Version");
 # rrdtool/rrds new enough?
 {
 	my $rrdisok=0;
@@ -246,31 +418,34 @@ if ( not -d $site )
 # (convenience) symlinks in the nmis dir, e.g. var or database
 execPrint("cp -r $src/* $site");
 
+# catch missing nmis user, regardless of upgrade/new install
+if (!getpwnam("nmis"))
+{
+	if (input_yn("OK to create NMIS user?"))
+	{
+		# redhat/centos' adduser is non-interactive, debian/ubuntu's wants interaction
+		if ($osflavour eq "redhat")
+		{
+			execPrint("adduser nmis");
+		}
+		elsif ($osflavour eq "debian" or $osflavour eq "ubuntu")
+		{
+			execPrint("useradd nmis");
+		}
+	}
+	else
+	{
+		echolog("Continuing without nmis user.\n");
+	}
+}
+
 if ($isnewinstall)
 {
 		printBanner("Installing default config files...");
 		execPrint("cp -a $site/install/* $site/conf/");
 		execPrint("cp -a $site/models-install/* $site/models/");
 
-		if (!getpwnam("nmis"))
-		{
-			if (input_yn("OK to create NMIS user?"))
-			{
-				# redhat/centos' adduser is non-interactive, debian/ubuntu's wants interaction
-				if ($osflavour eq "redhat")
-				{
-					execPrint("adduser nmis");
-				}
-				elsif ($osflavour eq "debian")
-				{
-					execPrint("useradd nmis");
-				}
-			}
-			else
-			{
-				echolog("Continuing without nmis user.\n");
-			}
-		}
+
 }
 else
 {
@@ -364,7 +539,7 @@ in your current Common-database configuration file.\n\n");
 			if ($error)
 			{
 				echolog("Error: RRD migration failed! Please use the rollback script
-listed above to revert to the original status!\nHit enter to continue:\n");
+listed above to revert to the original status!\nHit <Enter> to continue:\n");
 				my $x = <STDIN>;
 			}
 			else
@@ -437,7 +612,7 @@ Please hit enter to continue:\n";
 										 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
 		my $finaltarget = $osflavour eq "redhat"? 
 				"/etc/httpd/conf.d/$apacheconf" : 
-				$osflavour eq "debian" ? "/etc/apache2/sites-available/$apacheconf" : undef;
+				($osflavour eq "debian" or $osflavour eq "ubuntu")? "/etc/apache2/sites-available/$apacheconf" : undef;
 
 		if ($finaltarget
 				&& input_yn("Ok to install Apache config file to $finaltarget?"))
@@ -456,7 +631,7 @@ Please hit enter to continue:\n";
 				execPrint("usermod -G nmis apache");
 				execPrint("service httpd restart");
 			}
-			elsif ($osflavour eq "debian")
+			elsif ($osflavour eq "debian" or $osflavour eq "ubuntu")
 			{
 				execPrint("adduser www-data nmis");
 				execPrint("service apache2 restart");
@@ -502,6 +677,8 @@ Please hit enter to continue: ";
 }
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
+print "You should now be able to access NMIS at http://<yourserver name or ip>/nmis8/\n
+Based on your hostname config, this would be\n\thttp://$hostname/nmis8/\n\n";
 logInstall("Installation finished at ".scalar localtime);
 
 exit 0;
@@ -553,7 +730,7 @@ sub parsefile {
 }
 
 
-# returns 1 if no critical modules missing, 0 otherwise
+# returns (1) if no critical modules missing, (0,critical modules) otherwise
 sub checkCpan {
 	printBanner("Checking for required Perl modules");
 	print <<EOF;
@@ -596,8 +773,9 @@ EOF
 		}
 
 	}
-
-	return listModules();
+	# returns status, list of critical missing
+	my ($status, @missing) = &listModules;
+	return ($status, @missing);
 }
 
 
@@ -619,62 +797,59 @@ sub moduleVersion {
 	return ' ';
 }
 
-# returns 1 if no critical modules missing, 0 otherwise
-sub listModules {
-	# list modules found/MODULE NOT FOUND
-	my $f1;
-	my $f2;
-	my $f3;
+# returns (1) if no critical modules missing, (0,critical) otherwise
+sub listModules 
+{
+  my (@missing, @critmissing);
+  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, 
+										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, 
+										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1);
 
-	format =
-  @<<<<<<<<<<<<<<<<<<<<<   @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<   @>>>>>>>>>
-  $f1,                     $f2,                                      $f3
-.
-
-  my @missing;
+	
   logInstall("Module status follows:\n");
-	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules) {
-		$f1 = $k;
+	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules) 
+	{
     logInstall("$k\t$nmisModules->{$k}->{file}");
     push @missing, $k if ($nmisModules->{$k}->{file} eq "MODULE NOT FOUND");
-		( $f2 , $f3) = split /\s+/, $nmisModules->{$k}{file}, 2;
-		$f3 = ' ' if !$f3;
-		write();
 	}
-	
-	print qq|
-You will need to investigate and possibly install modules indicated with MODULE NOT FOUND.
-Missing modules can be installed with CPAN:
 
-  perl -MCPAN -e shell
-    install [module name]
+	if (@missing)
+	{
+		@critmissing = grep( !$noncritical{$_}, @missing);
+		my @optionals = grep ($noncritical{$_}, @missing);
 
-  or more conveniently by running
-   cpan [module name] [module name...]
-
-Note: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, 
+		if (@optionals)
+		{
+			printBanner("Some Optional Perl Modules are missing");
+			print qq|The following optional modules are missing:\n| .join(" ", @optionals)
+					.qq|\n\nNote: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, 
 Authen::TacacsPlus, Authen::Simple::RADIUS are optional components for the 
 NMIS AAA system.
 
 The modules SNMP_util and SNMP_Session are also optional (needed only for 
 the ipsla subsystem) and can be installed either with 
 'yum install perl-SNMP_Session' or from the provided tar file in 
-install/SNMP_Session-1.12.tar.gz.
+install/SNMP_Session-1.12.tar.gz.\n\n|;
+		}
 
-The missing modules are: |. join(" ",@missing)."\n\n";
+		if (@critmissing)
+		{
+			printBanner("Some Critical Perl Modules are missing!");
+			print qq|The following essential Perl modules are missing and need to be installed
+before NMIS will work correctly:\n\n| . join(" ", @critmissing)."\n\n";
+		}
+		
+		print qq|Missing modules can be installed with CPAN, if your system has Internet access:
 
-  logInstall("Missing modules: ".join(" ",@missing)."\n");
-	logInstall("Module status details: ".Dumper($nmisModules)) if ($debug);
+  perl -MCPAN -e shell
+    install [module name]
 
+  or more conveniently by running
+   cpan [module name] [module name...]\n\n|;
+	}
 
-  # return 0 if any critical modules are missing
-  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1, "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1, "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1);
-  
-  for my $nx (@missing) 
-  { 
-    return 0 if !$noncritical{$nx};
-  }
-  return 1;
+	my $resultcode = @critmissing? 0 : 1;
+	return ($resultcode, @critmissing);
 }
 
 
@@ -809,13 +984,12 @@ NMIS Install Script
 NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-usage: $0 [site=$defaultSite] [fping=$defaultFping] [cpan=(true|false)] [listdeps=(true|false)]
+usage: $0 [site=$defaultSite] [fping=$defaultFping] [listdeps=(true|false)]
 
 Options:  
-  listdeps Only show Perl module dependencies, do not install NMIS
+  listdeps Only show (missing) dependencies, do not install NMIS
   site	Target site for installation, default is $defaultSite 
   fping	Location of the fping program, default is $defaultFping 
-  cpan	Check Perl dependancies or not, default is true
 
 eg: $0 site=$defaultSite fping=$defaultFping cpan=true
 
