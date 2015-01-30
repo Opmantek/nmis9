@@ -98,6 +98,8 @@
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
       'service' => '/health/$nodeType/$node-$item.rrd',
       'service-cpumem' => '/health/$nodeType/$node-$item.rrd',
+      'service-cpu' => '/health/$nodeType/$node-$item.rrd',
+      'service-mem' => '/health/$nodeType/$node-$item.rrd',
       'service-response' => '/health/$nodeType/$node-$item.rrd',
       'sessions' => '/misc/$nodeType/$node-sessions.rrd',
       'statistics' => '/health/$nodeType/$node-statistics.rrd',
@@ -112,6 +114,7 @@
 			'SignalStatus' => '/health/$nodeType/$node-signalstatus-$index.rrd',
       'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
       'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
+      'ppxAtm' => '/interface/$nodeType/$node-ppxAtm-$index.rrd',
     }
   }
 );

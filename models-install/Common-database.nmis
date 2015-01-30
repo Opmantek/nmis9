@@ -144,6 +144,7 @@
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
       'jnxOperations' => '/nodes/$node/health/jnxOperations-$index.rrd',
       'bgpPeer' => '/nodes/$node/health/bgpPeer-$index.rrd',
+      'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
     }
   }
 );

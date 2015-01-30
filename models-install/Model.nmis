@@ -406,6 +406,13 @@
 				},
 			},
 		},
+    'Northern Telecom, Ltd.' => {
+      'order' => {
+        '10' => {
+          'Ericsson-PPX' => 'Ericsson PPX'
+        }
+      }
+    },
   
   },
   'system' => {

@@ -653,8 +653,78 @@
         }
       },
     },
-    'sections' => 'bgpPeer',
+    'sections' => 'addressTable,bgpPeer,cdp',
     'sys' => {
+      'cdp' => {
+        'headers' => 'cdpCacheAddressType,cdpCacheAddress,cdpCacheVersion,cdpCacheDeviceId,cdpCacheDevicePort,cdpCachePlatform',
+        'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'cdpCacheDeviceId',
+        'snmp' => {
+          'cdpCacheVersion' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
+            'sysObjectName' => 'cdpCacheVersion',
+            'title' => 'cdpCacheVersion'
+          },
+          'cdpCacheAddressType' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
+            'sysObjectName' => 'cdpCacheAddressType',
+            'replace' => {
+              '1' => 'ip',
+            },
+            'title' => 'cdpCacheAddressType'
+          },
+          'cdpCacheAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.4',
+            'sysObjectName' => 'cdpCacheAddress',
+            'title' => 'cdpCacheAddress'
+          },
+          'cdpCacheVersion' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
+            'sysObjectName' => 'cdpCacheVersion',
+            'title' => 'cdpCacheVersion'
+          },
+          'cdpCacheDeviceId' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
+            'sysObjectName' => 'cdpCacheDeviceId',
+            'title' => 'cdpCacheDeviceId'
+          },
+          'cdpCacheDevicePort' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.7',
+            'sysObjectName' => 'cdpCacheDevicePort',
+            'title' => 'cdpCacheDevicePort'
+          },
+          'cdpCachePlatform' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.8',
+            'sysObjectName' => 'cdpCachePlatform',
+            'title' => 'cdpCachePlatform'
+          },
+        }
+      },
+      'addressTable' => {
+        'headers' => 'ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ipNetToMediaIfIndex',
+        'snmp' => {
+          'ipNetToMediaIfIndex' => {
+            'oid' => 'ipNetToMediaIfIndex',
+            'title' => 'ipNetToMediaIfIndex'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'ipNetToMediaPhysAddress'
+          },
+          'ipNetToMediaNetAddress' => {
+            'oid' => 'ipNetToMediaNetAddress',
+            'title' => 'ipNetToMediaNetAddress'
+          },
+          'ipNetToMediaType' => {
+            'oid' => 'ipNetToMediaType',
+            'title' => 'ipNetToMediaType'
+          },
+        }
+      },
       'bgpPeer' => {
         'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',
         'index_oid' => '1.3.6.1.2.1.15.3.1.1',

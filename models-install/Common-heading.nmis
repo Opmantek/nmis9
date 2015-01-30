@@ -162,6 +162,7 @@
       'jnxCPU' => "CPU Load",
       'jnxMem' => "Memory",
       'jnxTemp' => "Temperature",
+      'ppxAtmCells' => "PPX ATM Cells",
     }
   }
 );
