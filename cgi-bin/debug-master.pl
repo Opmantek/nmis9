@@ -79,7 +79,6 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
-use Data::Dumper::HTML qw(dumper_html);
 $Data::Dumper::Sortkeys = 1;
 
 #####################
@@ -361,6 +360,32 @@ print "</body></html>";
 
 
 exit();
+
+# want to avoid the unnecessary dependency on two unmaintained marginal and ancient modules, 
+# ie. Text::InHTML and Data::Dumper::HTML
+# args: any number of refs
+# returns: something not entirely unlike html
+sub dumper_html
+{
+    my (@things) = @_;
+
+    my $unclean = join("\n", Dumper(@things));
+
+    # that's ALL that text::inhtml contributed :-((
+    $unclean =~ s/&/&amp;/g;
+    $unclean =~ s/"/&quot;/g;
+    $unclean =~ s/</&lt;/g;
+    $unclean =~ s/>/&gt;/g;
+
+    # and that's all that data::dumper::html did :-(
+    $unclean =~ s{\n}{<br />\n}g;    
+    $unclean =~ s{\t}{    }g;
+    $unclean=~ s{[ ]{5}}{&nbsp; &nbsp; &nbsp;}g;
+    $unclean =~ s{[ ]{3}}{&nbsp; &nbsp;}g;
+    $unclean =~ s{[ ]{2}}{&nbsp; }g;
+
+    return $unclean;
+}
 
 
 # here's a stylesheet incorporated directly into the page
