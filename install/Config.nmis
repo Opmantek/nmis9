@@ -170,6 +170,7 @@
 		'selftest_max_system_iowait' => 20, # in percent
 		'selftest_max_swap' => 50, # in percent
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
+		'nmis4_compatibility' => 'false',
   },
   'url' => {
     '<url_base>' => '/nmis8',
