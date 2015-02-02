@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.5.4";
+our $VERSION = "8.5.6";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -39,28 +39,30 @@ use func;
 use Data::Dumper;
 use Fcntl qw(:DEFAULT :flock);
 use File::Basename;
+use Test::Deep::NoTest;
+
 
 # Variables for command line munging
-my (  $restart, $fpingexit, $fpid, $ppid, $debug) = ();
+my (  $restart, $fpingexit, $debug) = ();
 my %nvp = map { split /=/ } @ARGV;
 my %INFO;
 my $qripaddr = qr/\d+\.\d+\.\d+\.\d+/;
 
-if ( ! %nvp ) {
+if ( ! %nvp or (@ARGV == 1 and $ARGV[0] =~ /^-{1,2}(h(elp)?|\?)$/ )) {
 	my $ext = getExtension();
 	my $base = basename($0);
 	die "$base Version $VERSION
 
-Usage: $base [restart|kill=true|false] [debug=true|false] [logging=true|false] [conf=alt.config]
+Usage: $base [restart|kill]=[true|false] [debug=true|false] [logging=true|false] [conf=alt.config]
 
 Command line options are:
- restart=true   - kill the running daemon(s) and restart
+ restart=true   - kill any running daemon(s) and restart
  debug=true     - print status to console and logfile
- kill=true      - kill the running daemon(s) and exit. Does not launch a new process.
+ kill=true      - kill any running daemon(s) and exit. Does not launch a new daemon!
  logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
  conf=*.$ext    - specify an alternative Conf.$ext file.
 
-default action is to killall and restart , no logging, no debug...\n";
+default is no logging, no debug\n";
 }
 
 # load configuration table
@@ -69,7 +71,7 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 ## setting debug levels
 $debug =  setDebug($nvp{debug});
 my $logfile     = $C->{'fpingd_log'};
-my $runfile     = "$C->{'<nmis_var>'}/nmis-fpingd.pid";
+my $runfile     = "/var/run/nmis-fpingd.pid";
 
 #----------------------------------------
 # figure out if we have fping installed or not
@@ -86,25 +88,23 @@ else {
 #----------------------------------------
 
 # Process Control
-
-# get the pid - this should be 'portable'
-$ppid = qx|ps -C $FindBin::Script -o pid=|;
-chomp $ppid;
+# check for a running fpingd
+my $alreadyrunning;
 if ( -f $runfile ) {
 	open(F, "<$runfile");
-	$fpid = <F>;
+	$alreadyrunning = <F>;
+	chomp $alreadyrunning;
 	close(F);
-	chomp $fpid if $fpid;
 }
-if ( defined $nvp{kill} and getbool($nvp{kill})) {
-	killall();
-	unlink($runfile) and &debug("Killed process $FindBin::Script deleted $runfile");
+if ( $alreadyrunning and ( getbool($nvp{kill}) or getbool($nvp{restart}) ))
+{
+	killall($alreadyrunning);
+}
+
+if (defined $nvp{kill} and getbool($nvp{kill})) 
+{
+	debug("Killed process $FindBin::Script, deleted $runfile");
 	exit(0);
-}
-# default action is 'restart'
-else {
-	killall();
-	unlink($runfile) and &debug("Restarted process $FindBin::Script deleted $runfile");
 }
 
 
@@ -154,7 +154,7 @@ my $ext = getExtension(dir=>'var');
 
 &debug( "logfile = $FindBin::Bin/../logs/fpingd.log") if defined $nvp{logging};
 &debug( "logging not enabled - set cmdline option \'logging=true\' if logging required") if !defined $nvp{logging};
-&debug( "pidfile = $FindBin::Bin/../var/fpingd.pid");
+&debug( "pidfile = $runfile");
 &debug( "ping result file = $FindBin::Bin/../var/fping.$ext");
 &debug( "fping cmd: $fpingcmd");
 #---------------------------------------
@@ -170,24 +170,20 @@ $SIG{HUP} = \&catch_zap;
 POSIX::setsid() or die "Can't start new session: $!";
 chdir('/') or die "Can't chdir to /: $!";
 
-## Reopen stderr, stdout, stdin to /dev/null
+## Reopen stdout, stdin to /dev/null
+# attach stderr to the fpingd logfile
 # !! if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang !!
 open(STDIN,  "+>/dev/null");
 open(STDOUT, "+>&STDIN");
-open(STDERR, "+>&STDIN");
-fork && exit;
+open(STDERR, ">>$logfile");
+fork && exit;										# parent exits, child continues with the actual work
 
 # Announce our presence via a PID file
-# get our pid - this should be 'portable'
-# logMsg( "running ps -C $FindBin::Script -o pid=");
-#$ppid = qx|ps -C $FindBin::Script -o pid=|;
-$ppid = qx|/bin/pidof $FindBin::Script|;
-#logMsg("found ppid=$ppid\n");
 open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
-print PID $ppid;
+print PID $$;
 close PID;
-&debug("daemon started, pidfile $runfile created with pid: $ppid");
-logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $ppid");
+&debug("daemon started, pidfile $runfile created with pid: $$");
+logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $$");
 umask 0;
 
 if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
@@ -196,6 +192,13 @@ if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
 else {
         logMsg("WARNING daemon fpingd will not CACHE DNS, use under adult supervision");
 }
+
+
+# remember the original script location plus the parameter that we want to push through for restart
+# old path might have been relative and doesn't work past chdir
+my $origscript = $FindBin::RealBin."/".$FindBin::Script; 
+# we want to keep any params, except kill
+my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
 
 # set our name so that rc scripts can figure out who we are.
 $0 = $FindBin::Script;
@@ -214,16 +217,26 @@ sub fastping {
 	my $eventTable;
 	my %ping_result = ();
 	my $start_time;
+	my $prevlnt;
 
 	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
-	while(1) {
-
+	while(1)
+	{
 		$start_time = time();
 
+		my $lnt = loadLocalNodeTable();
+		if ($prevlnt && !eq_deeply($lnt, $prevlnt))
+		{
+			debug("Nodes list has changed, reloading after the next sleep");
+			$read_cnt = 1 if ($read_cnt > 1); # reload no later than after this run
+		}
+		$prevlnt = $lnt;
+		
 		if ($read_cnt-- <= 0) {
-			### 2012-02-22 keiths, fping $nodepoll nodes at time, exceeding command line of 4098 bytes
-			$nodelist = readNodes(); # check every 10 runs for update of Node table
+			# check every 10 runs for update of Node table - not on every cycle as it involves lots of dns!
+			debug("Rereading Nodes list");
+			$nodelist = readNodes(); 
 			$read_cnt = 10;
 		}
 
@@ -403,7 +416,19 @@ sub fastping {
 		# At this point, %ping_result is a hash populated by ping results keyed by NMIS host names
 		# Write the hash out to a file
 		writeTable(dir=>'var',name=>"nmis-fping",data=>\%ping_result );
-		
+
+		# check if the config is still unchanged, if not restart (but only after firstrun)
+		my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+		if (!eq_deeply($C,$newconf))
+		{
+			debug("Config has changed, will restart after sleep");
+			logMsg("INFO fpingd will restart after sleep, Config has changed");
+			sleep int(rand(10)) + $sleep;
+			logMsg("INFO fpingd is restarting now");
+			exec($origscript,@restartparams);
+			die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
+		}
+
 		# sleep for a while
 		$restart = 0; # first run done
 		&debug("sleeping ...");
@@ -411,7 +436,7 @@ sub fastping {
 		
 		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
 		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
-		
+
 		sleep int(rand(10)) + $sleep;
 
 	} # while 1
@@ -471,25 +496,22 @@ sub catch_zap {
 	die "I was killed by $_[0]: $!\n";
 }
 
-sub killall {				# except me..!
-	my @pp = map {
-		  s/^\s*//; # Remove leading spaces
-  		  s/\s*$//;	# remove trailing space
-  		  $_
-  		 } split /\s+/, $ppid;		# maybe more than 1 processs running ?
+# kill all given processes except me..!
+sub killall {
+	my (@shootthem) = @_;
 
-	foreach my $p ( @pp ) {
-		next if !$p;
-		next if $p eq $$;
-		qx|kill -9 $p|;		# killall except ourselves
+	foreach my $p (@shootthem) 
+	{
+		next if !$p or $p eq $$;
+		kill 9, $p;
 		&debug("killed running process pid $p ");
 	}
-	$fpid = '';
 }
 
 # read node info from file. maybe cached, or from db
-sub readNodes {
-
+# returns sorted list of ips to ping, chunked into rows
+sub readNodes 
+{
 	my @hosts;
 	my $NT = loadLocalNodeTable(); # from (cached) file or db
 
