@@ -635,10 +635,7 @@ sub displayIPSLAmenu {
 			} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
 				$class = "data Error blk";
 				$message = "parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
-			} elsif ( 
-					(not -r "$C->{'<nmis_var>'}/ipslad.pid") 
-					#or ( -M "$C->{'<nmis_var>'}/ipslad.pid" > 0.0015)
-			) { 
+			} elsif (not -r "/var/run/ipslad.pid") { 
 				$class = "data Error blk";
 				$message = "daemon opslad.pl is not running";
 			} elsif ($msg ne "") { 

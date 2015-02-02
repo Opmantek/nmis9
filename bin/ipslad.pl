@@ -118,7 +118,7 @@ if ( $nvp{type} eq "update") {
 }
 
 # See if another instance of ourself is running, if so kill the process
-my $pidfile = $vardir."/ipslad.pid";
+my $pidfile = "/var/run/ipslad.pid";
 
 if (-f $pidfile) {
   open(F, "<$pidfile");
