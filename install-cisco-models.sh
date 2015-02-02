@@ -2,7 +2,7 @@
 
 echo This script will NOT backup your existing NMIS installation, please backup your installation before proceeding.
 echo press Enter to continue ctrl+C to stop.
-read
+read X
 
 unalias cp
 

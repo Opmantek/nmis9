@@ -69,140 +69,140 @@ helptext() {
 	exit 1
 }
 
-if [ "$1" == "" ] 
+if [ -z "$1" ] 
 then
 	echo No arguements given:
 	helptext
 fi
 
-if [ "$3" == "debug" ]
+if [ "$3" = "debug" ]
 then
 	DEBUG="debug=true"
 fi
 
-if [ "$2" == "debug" ]
+if [ "$2" = "debug" ]
 then
 	DEBUG="debug=true"
 fi
 
-if [ "$1" == "log" ]
+if [ "$1" = "log" ]
 then
 	tail -$taillines $nmis_log
 	exit 0
 fi
 
-if [ "$1" == "event" ]
+if [ "$1" = "event" ]
 then
 	tail -$taillines $event_log
 	exit 0
 fi
 
-if [ "$1" == "apache" ]
+if [ "$1" = "apache" ]
 then
 	tail -$taillines $error_log
 	exit 0
 fi
 
-if [ "$1" == "master" ]
+if [ "$1" = "master" ]
 then
 	$nmis type=master debug=true sleep=1
 	exit 0
 fi
 
-if [ "$1" == "threshold" ]
+if [ "$1" = "threshold" ]
 then
 	$nmis type=threshold debug=true sleep=1
 	exit 0
 fi
 
-if [ "$1" == "summary" ]
+if [ "$1" = "summary" ]
 then
 	$nmis type=summary debug=true
 	exit 0
 fi
 
-if [ "$1" == "audit" ]
+if [ "$1" = "audit" ]
 then
 	$nmis type=audit debug=true
 	exit 0
 fi
 
-if [ "$1" == "config" ]
+if [ "$1" = "config" ]
 then
 	$nmis type=config debug=true
 	exit 0
 fi
 
-if [ "$1" == "crontab" ]
+if [ "$1" = "crontab" ]
 then
 	$nmis type=crontab debug=true
 	exit 0
 fi
 
-if [ "$1" == "escalate" ]
+if [ "$1" = "escalate" ]
 then
 	$nmis type=escalate debug=true
 	exit 0
 fi
 
-if [ "$1" == "Nodes" ]
+if [ "$1" = "Nodes" ]
 then
 	$editor $nmis_base/conf/Nodes.nmis
 	exit 0
 fi
 
-if [ "$1" == "Config" ]
+if [ "$1" = "Config" ]
 then
 	$editor $nmis_base/conf/Config.nmis
 	exit 0
 fi
 
-if [ "$1" == "Users" ]
+if [ "$1" = "Users" ]
 then
 	$editor $nmis_base/conf/Users.nmis
 	exit 0
 fi
 
-if [ "$1" == "grep" ]
+if [ "$1" = "grep" ]
 then
 	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
 	exit 0
 fi
 
-if [ "$1" == "unixtime" ]
+if [ "$1" = "unixtime" ]
 then
 	$nmis_base/admin/unixtime.pl $2
 	exit 0
 fi
 
-if [ "$1" == "fpingd" ]
+if [ "$1" = "fpingd" ]
 then
-	if [ "$2" == "restart" ]
+	if [ "$2" = "restart" ]
 	then
 		sudo $nmis_base/bin/fpingd.pl restart
 		exit 0
 	fi
 fi
 
-if [ "$1" == "grepcode" ]
+if [ "$1" = "grepcode" ]
 then
 	find $nmis_base -name "*.p?" -exec grep -H "$2" {} \;
 	exit 0
 fi
 
-if [ "$1" == "grepfile" ]
+if [ "$1" = "grepfile" ]
 then
 	find $nmis_base -name "*.nmis" -exec grep -H "$2" {} \;
 	exit 0
 fi
 
-if [ "$1" == "mib" ]
+if [ "$1" = "mib" ]
 then
 	grep "$2" $nmis_base/mibs/nmis_mibs.oid
 	exit 0
 fi
 
-if [ "$1" == "conf" ]
+if [ "$1" = "conf" ]
 then
 	if [ -f $nmis_base/conf/$2.nmis ]
 	then
@@ -214,51 +214,51 @@ then
 fi
 
 
-if [ "$2" == "" ] 
+if [ "$2" = "" ] 
 then
 	echo NMIS Shell option not understood.
 	helptext
 else
 	node="node=$1"
-	if [ "$1" == "all" ] 
+	if [ "$1" = "all" ] 
 	then
 		node=""
 	fi
 fi
 
-if [ "$2" == "collect" ]
+if [ "$2" = "collect" ]
 then
 	$nmis type=collect "$node" info=true $DEBUG
 	exit 0
 fi
 
-if [ "$2" == "update" ]
+if [ "$2" = "update" ]
 then
 	$nmis type=update "$node" info=true $DEBUG
 	exit 0
 fi
 
-if [ "$2" == "threshold" ]
+if [ "$2" = "threshold" ]
 then
 	$nmis type=threshold "$node" info=true $DEBUG
 	exit 0
 fi
 
-if [ "$2" == "model" ]
+if [ "$2" = "model" ]
 then
 	$nmis type=update "$node" model=true info=true
 	$nmis type=collect "$node" model=true info=true
 	exit 0
 fi
 
-if [ "$2" == "verbose" ]
+if [ "$2" = "verbose" ]
 then
 	$nmis type=update "$node" model=true debug=true
 	$nmis type=collect "$node" model=true debug=true
 	exit 0
 fi
 
-if [ "$2" == "node" ]
+if [ "$2" = "node" ]
 then
 	node=${1,,}
 	if [ -f "$nmis_base/var/$node-node.json" ]
