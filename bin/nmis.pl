@@ -137,7 +137,7 @@ NMIS version $NMIS::VERSION
 / if $C->{debug} or $C->{info};
 
 
-if ($type =~ /collect|update/) {
+if ($type =~ /^(collect|update|services)$/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
@@ -158,7 +158,9 @@ exit;
 
 #=========================================================================================
 
-sub	runThreads {
+# run collection-type functions, possibly spread across multiple processes
+sub	runThreads 
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $node_select = $args{'node'};
@@ -166,12 +168,12 @@ sub	runThreads {
 	my $mthreadDebug = getbool($args{mthreadDebug});
 	my $debug_watch;
 
-	dbg("Starting");
+	dbg("Starting, operation is $type");
 
 	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
-	# which shouldn't be delayed at all.
-	if (!$node_select)
+	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
+	if (!$node_select and $type ne "services")
 	{
 		info("Starting selftest (takes about 5 seconds)...");
 		my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
@@ -209,8 +211,7 @@ sub	runThreads {
 			$C->{daemon_fping_failed} = 'true'; # remember for runPing
 		}
 	}
-
-	dbg("tables loaded");
+	dbg("all relevant tables loaded");
 
 	my $debug_global = $C->{debug};
 	my $debug = $C->{debug};
@@ -250,6 +251,7 @@ sub	runThreads {
 	### test if we are still running, or zombied, and cron will email somebody if we are
 	### collects should not run past 5mins - if they do we have a problem
 	### updates can run past 5 mins, BUT no two updates should run at the same time
+	### for potentially frequent type=services we don't do any of these.
 	if ( $type eq 'collect' or $type eq "update")
 	{
 		# first find all other nmis collect processes
@@ -307,13 +309,22 @@ sub	runThreads {
 	my $nodecount = 0;
 	my $maxprocs = 1;							# this one
 
-	# select the method we will run
 	my $meth;
 	if ($type eq "update") {
 		$meth = \&doUpdate;
 		logMsg("INFO start of update process");
-	} else {
+	} 
+	elsif ($type eq "collect")
+	{
 		$meth = \&doCollect;
+	}
+	elsif ($type eq "services")
+	{
+		$meth = \&doServices;
+	}
+	else
+	{
+		die "Unknown operation type=$type, terminating!\n";
 	}
 
 	# update the operation start/stop timestamp
@@ -554,7 +565,7 @@ sub doUpdate {
 	my $C = loadConfTable();
 
 	dbg("================================");
-	dbg("Starting, node $name");
+	dbg("Starting update, node $name");
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
@@ -623,12 +634,33 @@ sub doUpdate {
 
 #=========================================================================================
 
+# args: only name (node name)
+# returns: nothing
+sub doServices
+{
+	my (%args) = @_;
+	my $name = $args{name};
+
+	info("================================");
+	info("Starting services, node $name");
+
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-services-$name";
+
+	my $S = Sys->new;
+	$S->init(name => $name);
+	runServices(sys=>$S);
+	
+	return;
+}
+
+
 sub doCollect {
 	my %args = @_;
 	my $name = $args{name};
 
 	info("================================");
-	info("Starting, node $name");
+	info("Starting collect, node $name");
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-collect-$name";
@@ -6019,6 +6051,7 @@ END_runLinks:
 
 #=========================================================================================
 
+# starts up fpingd and/or opslad
 sub runDaemons {
 
 	my $C = loadConfTable();
@@ -6265,8 +6298,11 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 ######################################################
 # NMIS8 Config
 ######################################################
-# Run Statistics Collection
+# Run Full Statistics Collection
 */5 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
+# ######################################################
+# Optionally run a more frequent Services-only Collection
+# */3 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
 */2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
@@ -6496,9 +6532,10 @@ NMIS version $NMIS::VERSION
 command line options are:
   type=<option>
     Where <option> is one of the following:
-      collect   NMIS will collect all statistics;
+      collect   NMIS will collect all statistics (incl. Services)
       update    Update all the dynamic NMIS configuration
       threshold Calculate thresholds
+      services  Run Services data collection only
       master    Run NMIS Master Functions
       escalate  Run the escalation routine only ( debug use only)
       config    Validate the chosen configuration file
