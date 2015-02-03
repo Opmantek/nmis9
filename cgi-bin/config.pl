@@ -39,6 +39,7 @@ use NMIS;
 use func;
 use csv;
 use DBfunc;
+use URI::Escape;
 
 # Prefer to use CGI::Pretty for html processing
 use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
@@ -90,7 +91,11 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_edit') {		editConfig();
 } elsif ($Q->{act} eq 'config_nmis_delete') {	deleteConfig();
 } elsif ($Q->{act} eq 'config_nmis_doadd') {	doAddConfig(); displayConfig();
-} elsif ($Q->{act} eq 'config_nmis_doedit') {	if (doEditConfig()) { displayConfig(); }
+																							
+# edit submission action: if it returns 0, we do nothing (assuming it prints complains)
+# if it returns 0 AND sets error_message in Q, then we show the toplevel config AND the error message in a bar
+# if it returns 1 we shod the topplevel config
+} elsif ($Q->{act} eq 'config_nmis_doedit') {	if (doEditConfig() or $Q->{error_message}) { displayConfig(); }
 } elsif ($Q->{act} eq 'config_nmis_dodelete') { doDeleteConfig(); displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_dostore') { 	doStoreTable(); displayConfig();
 } else { notfound(); }
@@ -132,6 +137,12 @@ sub displayConfig{
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table({width=>"400px"}) ; # first table level
+
+	if (defined $Q->{error_message} && $Q->{error_message} ne "" )
+	{
+		print Tr(td({class=>'Fatal',align=>'center'}, "Error: $Q->{error_message}"));
+	}
+
 	print Tr(td({class=>'header',align=>'center'},"NMIS Configuration - $C->{conf} loaded"));
 
 	my @sections = ('',sort keys %{$CC});
@@ -189,16 +200,25 @@ sub typeSect {
 				} else { return ""; }
 			}
 		));
-	for my $k (@items_all) { 
+	for my $k (@items_all) 
+	{ 
+		my $value = $CC->{$section}{$k};
+		if ($section eq "system" and $k eq "group_list")
+		{
+			$value =  join(" ", sort split(/\s*,\s*/, $value));
+		}
+		
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
-				td({class=>"header"},escape($k)),td({class=>'info Plain'},escape($CC->{$section}{$k})),
+				td({class=>"header"},escape($k)),td({class=>'info Plain'},
+																						escape($value)),
 				eval {
 					if ($AU->CheckAccess("Table_Config_rw","check")) {
 						return td({class=>'info Plain'},
 							a({ href=>"$ref&act=config_nmis_edit&section=$section&item=$k&widget=$widget"},'edit&nbsp;'),
-							eval { my $line;
-								$line = a({ href=>"$ref&act=config_nmis_delete&section=$section&item=$k&widget=$widget"},'delete&nbsp;') unless
-									grep { $_ eq $k } @items;
+							eval { 
+								my $line;
+								$line = a({ href=>"$ref&act=config_nmis_delete&section=$section&item=$k&widget=$widget"},
+														'delete&nbsp;') unless (grep { $_ eq $k } @items);
 								return $line;
 							});
 					} else { return ""; }
@@ -232,60 +252,98 @@ sub editConfig{
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nmis_doedit")
 			. hidden(-override => 1, -name => "widget", -value => $widget)
-			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
-		
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
+			. hidden(-override => 1, -name => "edittype", -value => '', -id=> "edittype")
+			
+			. hidden(-name=>'section', -value => $section, -override=>'1')
+			. hidden(-name=>'item', -value => $item, -override=>'1');
+
 	print start_table() ; # first table level
 
-	print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config - $Q->{conf}"));
-	print Tr(td({class=>"header"},$section));
-	# look for item ref
-	my $ref;
-	for my $rf (@{$CT->{$section}}) {
-		for my $itm (keys %{$rf}) {
-			if ($item eq $itm) {
-				$ref = $rf->{$item};
+
+	# the more comfy group editing interface  has only two columns and
+	# the shared button should be named delete
+	my $numberofcols = 3;
+	my $submitbuttonvalue = "Edit";
+	
+	if ($section eq "system" and $item eq "group_list")
+	{
+		$numberofcols = 2;
+		$submitbuttonvalue = "Delete";
+		print Tr(td({class=>"header",colspan=>'2'},"Edit of NMIS Config - $Q->{conf}"));
+		
+		# an entry for adding a group
+		print Tr(td({class => "header", colspan => 2 }, "Add New Group")),
+		Tr(td({class=>'info Plain', colspan => 2}, 
+					textfield(-name=>"newgroup", -style=>'font-size:14px;', -title => "Group names cannot contain spaces or commas.")
+					.button(-name=>"addbutton",
+									onclick=> ('$("#edittype").val("Add"); '. ($wantwidget? "get('nmisconfig');" : "submit()" )), 
+									-value=>"Add"))),
+							Tr(td({class => "header", colspan => 2}, "Existing Groups"));
+
+		# figure out the number of members per group and warn the user if there are any members
+		my $LNT = loadLocalNodeTable();
+		my %membercounts; 
+		for my $node (values %$LNT)
+		{
+			$membercounts{$node->{group}}++ if ($node->{group});
+		}
+
+		# print the group rows, one per line plus delete button at the end
+		my @actualgroups = sort split(/\s*,\s*/, $CC->{$section}->{$item});
+		for my $group (@actualgroups)
+		{
+			my $escapedgroup = uri_escape($group);
+			print Tr(td( $membercounts{$group}? qq|<span title="If you remove this group, then its members will no longer be shown in NMIS.">$group ($membercounts{$group} members)</span>| : $group),
+							 td(checkbox(-name => "delete_group_$escapedgroup", -label => "Delete Group", -value => "nuke"))
+					);
+		}
+	}
+	else
+	{
+		# the generic editing interface		
+		print Tr(td({class=>"header",colspan=>'3'},"Edit of NMIS Config - $Q->{conf}"));
+
+		print Tr(td({class=>"header"},$section));
+		# look for item ref
+		my $ref;
+		for my $rf (@{$CT->{$section}}) {
+			for my $itm (keys %{$rf}) {
+				if ($item eq $itm) {
+					$ref = $rf->{$item};
+				}
 			}
+		}
+
+		# display edit field; if text, then show it UNescaped;
+		my $rawvalue = $CC->{$section}{$item};
+		my $value = escape($rawvalue);
+		$item = escape($item);
+
+		if ($ref->{display} =~ /popup/) {
+			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
+																																						 popup_menu(-name=>"value", -style=>'width:100%;font-size:12px;',
+																																												-values=>$ref->{value},
+																																												-default=>$value)));
+		} 
+		else {
+			print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
+																																						 textfield(-name=>"value",-size=>((length $rawvalue) * 1.3), -value=>$rawvalue, -style=>'font-size:14px;')));
 		}
 	}
 
-	# display edit field; if text, then show it UNescaped;
-	my $rawvalue = $CC->{$section}{$item};
-	my $value = escape($rawvalue);
-	# and make sure to put the RAW item name into the hidden field!
-	my $rawitem = $item;
-	$item = escape($item);
-
-	# background values
-	print hidden(-name=>'section', -value => $section, -override=>'1');
-	print hidden(-name=>'item', -value => $rawitem, -override=>'1');
-
-	if ($ref->{display} =~ /popup/) {
-		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-				popup_menu(-name=>"value", -style=>'width:100%;font-size:12px;',
-								-values=>$ref->{value},
-								-default=>$value)));
-	} 
-	elsif ($item =~ /group_list/) {
-		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-				textarea(-name=>"value", -value=>$value, -style=>"width: 260px; height: 100px; font-size:14px;", -size=>'35')
-				));
-	} 
-	else {
-		print Tr(td({class=>'header'},'&nbsp;'),td({class=>'header'},$item),td({class=>'info Plain'},
-				textfield(-name=>"value",-size=>((length $rawvalue) * 1.3), -value=>$rawvalue, -style=>'font-size:14px;')));
-	}
-
-	print Tr(td({colspan=>'2'},'&nbsp;'),
-					 td(button(-name=>"button", 
-										 onclick=> ($wantwidget? "get('nmisconfig');" : "submit()" ) , 
-										 -value=>"Edit"),
-							button(-name=>"button",
+	
+	print Tr( ($numberofcols == 3? td({colspan=>'2'},'&nbsp;') : ''),
+						td(button(-name=>"submitbutton", 
+											onclick=> ( '$("#edittype").val("'.$submitbuttonvalue.'"); ' . ($wantwidget? "get('nmisconfig');" : "submit()" )), 
+										 -value=> $submitbuttonvalue)
+							 . button(-name=>"cancelbutton",
 										 onclick => '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
-										 -value=>"Cancel")));
+											 -value=>"Cancel")));
 
-	my $info = getHelp($Q->{item});
-	print Tr(td({class=>'info Plain',colspan=>'3'},$info)) if $info ne "";
-
+		my $info = getHelp($Q->{item});
+		print Tr(td({class=>'info Plain',colspan=>$numberofcols},$info)) if $info ne "";
+	
 
 	print end_table();
 	print end_form;
@@ -309,8 +367,46 @@ sub doEditConfig {
 																		 or getbool($value)) ) {
 		storeTable(section=>$section,item=>$item,value=>$value);
 		return 0;
-	} else {
+	} 
+	else 
+	{
 		my ($CC,undef) = readConfData(conf=>$C->{conf});
+
+		# handle the comfy group_list editing and translate the separate values
+		if ($section eq "system" and $item eq "group_list")
+		{
+			my @existinggroups = split(/\s*,\s*/, $CC->{$section}->{$item});
+			my $newgroup = $Q->{newgroup};
+			# add actions ONLY if the add button was used to submit
+			if ($Q->{edittype} eq "Add" and defined $newgroup and $newgroup ne '')
+			{
+				if ($newgroup =~ /[, ]/)
+				{
+					$Q->{error_message} = "Group name \"$newgroup\" contains invalid characters. Spaces and commas are prohibited.";
+					return 0;
+				}
+
+				push @existinggroups, $newgroup
+						if (!grep($_ eq $newgroup, @existinggroups));
+			}
+			
+			# delete actions ONLY if the delete button was used to submit
+			if ($Q->{edittype} eq "Delete")
+			{
+				for my $deletable (grep(/^delete_group_/, keys %$Q))
+				{
+					next if $Q->{$deletable} ne "nuke";
+					my $groupname = $deletable;
+					$groupname =~ s/^delete_group_//; 
+					my $unesc = uri_unescape($groupname);
+					
+					@existinggroups = grep($_ ne $unesc, @existinggroups);
+				}
+			}
+
+			$value = join(",", sort @existinggroups);
+		}
+
 		$CC->{$section}{$item} = $value;
 		writeConfData(data=>$CC);
 		return 1;
@@ -652,7 +748,8 @@ sub getHelp {
 		'fileperm' => 		'Format: string<br>set this to your nmis user id - we will create files to this userid and groupid<br>'.
 								'and some file permissions as well (default: nmis, 0775)',
 		'kernelname' => 	'Format: string<br>set kernel name if NMIS can\'t detect the real name',
-		'group_list' => 	'Format: string<br>Comma separated list of groups, without spaces',
+# fixme: does the new list still need help text?
+#		'group_list' => 	'Format: string<br>Comma separated list of groups, without spaces',
 		'view_mtr' => 		'Format: true | false<br>set if your system supports them and you wish to use them',
 		'view_lft' => 		'Format: true | false<br>set if your system supports them and you wish to use them',
 		'page_refresh_time'=>'Format: number, range 30 - 300<br>'.
