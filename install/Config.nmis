@@ -36,7 +36,8 @@
     'mib_root' => '<nmis_base>/mibs',
     'report_root' => '<nmis_base>/htdocs/reports',
     'script_root' => '<nmis_conf>/scripts',
-    'web_root' => '<nmis_base>/htdocs'
+    'web_root' => '<nmis_base>/htdocs',
+		'plugin_root' => '<nmis_conf>/plugins',
   },
   'globals' => {
     'global_threshold' => 'true',
@@ -171,6 +172,7 @@
 		'selftest_max_swap' => 50, # in percent
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'nmis4_compatibility' => 'false',
+		'plugins_enabled' => 'true',
   },
   'url' => {
     '<url_base>' => '/nmis8',

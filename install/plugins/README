@@ -1,0 +1,52 @@
+NMIS plugins
+------------
+
+NMIS code plugins are meant to augment and extend the update and collect 
+functionality, if and when classic modelling doesn't suffice to handle a 
+particular scenario.
+
+each plugin must be valid perl, be named X.pm, must have a 'package X;' line, 
+and its package name must not clash with the other NMIS components. the 
+plugin MUST NOT use Exporter to export anything from its namespace.
+
+it's recommended that the plugin have a version declaration right after the 
+package line, i.e. 'our $VERSION = "1.2.3";' 
+
+the plugin may load extra perl modules with use or require, but it 
+must not use any package-level global variables. all its variables and any
+objects that it might create must have local scope.
+
+a plugin can offer either or both of the functions update_plugin() and collect_plugin(). 
+
+these functions will be called for each node in sequence,
+independently (and possibly in separate processes), at the end of the
+collect/update operation.  all existing valid plugins will be loaded, and
+all available update_plugin()/collect_plugin() functions will be applied to
+every node regardless of the plugins success or failure indications.
+
+the calling interface is the same for both functions:
+
+sub update_plugin(node => nodename, sys => live sys object, 
+		config => read-only configuration object/hash)
+
+sub collect_plugin(node => nodename, sys => live sys object, 
+		config => configuration object/hash, treat as read-only)
+
+the plugin can modify any node attributes via sys where required. it may call
+other nmis code (but care needs to be taken of nmmis config/table caching if 
+that is done). neither the local config object nor the global nmis config
+must be modified by a plugin.
+
+return values:
+
+- (0 or undef,rest ignored) means no changes were made, or that the
+plugin declined to run altogether (because this node has a
+non-matching model for example)
+
+- (1,rest ignored) means changes were made to the sys object, and nmis
+will save the nodeinfo and view components.
+
+- (2,list of error messages) means the plugin failed to work and NMIS
+should please log the error messages. no nodeinfo/view saving will be 
+performed.
+

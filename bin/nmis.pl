@@ -29,7 +29,6 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
 package main;
 
 # Auto configure to the <nmis-base>/lib
@@ -112,6 +111,9 @@ my $model		= getbool($nvp{model});
 my $mthread		=$nvp{mthread};
 my $mthreadDebug=$nvp{mthreaddebug};
 my $maxThreads	=$nvp{maxthreads}||1;
+
+# park the list of collect/update plugins globally
+my @active_plugins;
 
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0); # trace mode on
@@ -254,6 +256,9 @@ sub	runThreads
 	### for potentially frequent type=services we don't do any of these.
 	if ( $type eq 'collect' or $type eq "update")
 	{
+		# unrelated but also for collect and update only
+		@active_plugins = &load_plugins;
+
 		# first find all other nmis collect processes
 		my $others = func::find_nmis_processes(type => $type, config => $C);
 
@@ -625,6 +630,33 @@ sub doUpdate {
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 
+	# done with the standard work, now run any plugins that offer update_plugin()
+	for my $plugin (@active_plugins)
+	{
+		my $funcname = $plugin->can("update_plugin");
+		next if (!$funcname);
+
+		dbg("Running update plugin $plugin with node $node");
+		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
+		if ($status == 1)						# changes were made, need to re-save the view and info files
+		{
+			dbg("Plugin $plugin indicated success, updating node and view files");
+			$S->writeNodeView;
+			$S->writeNodeInfo;
+		}
+		elsif ($status == 0)
+		{
+			dbg("Plugin $plugin indicated no changes");
+		}
+		else
+		{
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+	}
+
 	### 2013-03-19 keiths, NMIS Plugins!
 	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
 
@@ -633,6 +665,62 @@ sub doUpdate {
 } # end runUpdate
 
 #=========================================================================================
+
+# a function to load the available code plugins,
+# returns the list of package names that have working plugins
+sub load_plugins
+{
+	my @activeplugins;
+	
+	# check for plugins enabled and the dir
+	return () if (!getbool($C->{plugins_enabled})
+								or !$C->{plugin_root} or !-d $C->{plugin_root});
+
+	if (!opendir(PD, $C->{plugin_root}))
+	{
+		logMsg("Error: cannot open plugin dir $C->{plugin_root}: $!");
+		return ();
+	}
+	my @candidates = grep(/\.pm$/, readdir(PD));
+	closedir(PD);
+
+	for my $candidate (@candidates)
+	{
+		my $packagename = $candidate; 
+		$packagename =~ s/\.pm$//;
+
+		# read it and check that it has precisely one matching package line
+		dbg("Checking candidate plugin $candidate");
+		if (!open(F,$C->{plugin_root}."/$candidate"))
+		{
+			logMsg("Error: cannot open plugin file $candidate: $!");
+			next;
+		}
+		my @plugindata = <F>;
+		close F;
+		my @packagelines = grep(/^\s*package\s+[a-zA-Z0-9_:-]+\s*;\s*$/, @plugindata);
+		if (@packagelines > 1 or $packagelines[0] !~ /^\s*package\s+$packagename\s*;\s*$/)
+		{
+			logMsg("Plugin $candidate doesn't have correct \"package\" declaration. Ignoring.");
+			next;
+		}
+
+		# do the actual load and eval
+		eval { require $C->{plugin_root}."/$candidate"; };
+		if ($@)
+		{
+			logMsg("Ignoring plugin $candidate as it isn't valid perl: $@");
+			next;
+		}
+
+		# interested if either or 
+		push @activeplugins, $packagename 
+				if ($packagename->can("update_plugin") or $packagename->can("collect_plugin"));
+	}
+
+	return sort @activeplugins;
+}
+
 
 # args: only name (node name)
 # returns: nothing
@@ -751,9 +839,37 @@ sub doCollect {
 
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
-	$S->writeNodeView;
 
+	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
+
+	# done with the standard work, now run any plugins that offer collect_plugin()
+	for my $plugin (@active_plugins)
+	{
+		my $funcname = $plugin->can("collect_plugin");
+		next if (!$funcname);
+
+		dbg("Running collect plugin $plugin with node $node");
+		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
+		if ($status == 1)						# changes were made, need to re-save the view and info files
+		{
+			dbg("Plugin $plugin indicated success, updating node and view files");
+			$S->writeNodeView;
+			$S->writeNodeInfo;
+		}
+		elsif ($status == 0)
+		{
+			dbg("Plugin $plugin indicated no changes");
+		}
+		else
+		{
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+	}
+
 	$S->close;
 	info("Finished");
 	return;
