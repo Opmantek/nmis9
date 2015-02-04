@@ -708,7 +708,7 @@
     'sections' => 'cdp,addressTable,bgpPeer,tempStatus,fanStatus,rttMonLatestRtt',
     'sys' => {
       'cdp' => {
-        'headers' => 'cdpCacheAddressType,cdpCacheAddress,cdpCacheVersion,cdpCacheDeviceId,cdpCacheDevicePort,cdpCachePlatform',
+        'headers' => 'cdpCacheAddressType,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
         'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
         'index_regex' => '\\.(\\d+\.\\d+)$',
         'indexed' => 'cdpCacheDeviceId',
@@ -718,6 +718,13 @@
             'sysObjectName' => 'cdpCacheVersion',
             'title' => 'cdpCacheVersion'
           },
+          #'cdpCacheIfIndex' => {
+          #  'calculate' => 'CVAR1=cdpCacheDeviceId;return $CVAR1;',
+          #  'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
+          #  'sysObjectName' => 'cdpCacheIfIndex',
+          #  'title' => 'cdpCacheIfIndex',
+          #
+          #},
           'cdpCacheAddressType' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
             'sysObjectName' => 'cdpCacheAddressType',

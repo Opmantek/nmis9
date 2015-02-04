@@ -214,6 +214,7 @@
       'cpu_cpm' => {
         'indexed' => 'cpmCPUTotalPhysicalIndex',        
         'headers' => 'cpmCPUTotal1min,cpmCPUTotal5min',
+        'index_headers' => 'cpmCPUTotalPhysicalIndex',
         'snmp' => {
           'cpmCPUTotalPhysicalIndex' => {
             'oid' => 'cpmCPUTotalPhysicalIndex',

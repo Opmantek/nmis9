@@ -6762,7 +6762,7 @@ sub doThreshold {
 				my $countOk = 0;
 				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
 					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
-					if ( $S->{info}{status}{$statusKey}{method} eq "Alert" and $S->{info}{status}{$statusKey}{updated} < time - 500) {
+					if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
 						delete $S->{info}{status}{$statusKey};
 					}
 					else {	
