@@ -437,12 +437,11 @@ function	createDialog(opt) {
 		});
 
 		//==============================================
-		// form handler - find the inline javascript onclick get('nmis')
+		// form handler - find the inline javascript onclick get('nmis') - well, any handler that uses get()
 		// add an hidden input tag, name = 'formID', value= 'opt.id', so we know what dialog we are in.
 		// nmisdev 3Apr2012 use JQ 'after' with html string to avoid IE9 exception on appendTo
-		
 			$(':input[onclick]', dialogHandle ).each( function() {
-		  		if ( $(this).attr('onclick').match(/^get|^javascript\:get/) ) {
+		  	if ( $(this).attr('onclick').match(/get\(|javascript\:get\(/) ) {
 		  		 		var newInput = '<input name="formID" type="hidden" value="'+opt.id+'">';
 		  		 		$(this).after(newInput);
 		  		}

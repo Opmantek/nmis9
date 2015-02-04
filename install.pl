@@ -444,11 +444,41 @@ if ($isnewinstall)
 		printBanner("Installing default config files...");
 		execPrint("cp -a $site/install/* $site/conf/");
 		execPrint("cp -a $site/models-install/* $site/models/");
-
-
 }
 else
 {
+	opendir(D,"$site/install/plugins") or warn "cannot open directory install/plugins: $!\n";
+	my @candidates = grep(/\.pm$/, readdir(D));
+	closedir(D);
+
+	if (@candidates)
+	{
+		if (!-d "$site/conf/plugins") {
+			mkdir("$site/conf/plugins",0755) or die "cannot mkdir $site/conf/plugins: $!\n";
+		}
+		printBanner("Updating plugins");
+
+		for my $maybe (@candidates)
+		{
+			my $docopy;
+			if (-f "$site/conf/plugins/$maybe")
+			{
+				my $havechange = system("diff -q $site/install/plugins/$maybe $site/conf/plugins/$maybe >/dev/null 2>&1") >> 8;
+				if ($havechange and input_yn("OK to replace changed plugin $maybe?"))
+				{
+					$docopy=1;
+				}
+			}
+			else
+			{
+				$docopy =1;
+			}
+			execPrint("cp $site/install/plugins/$maybe $site/conf/plugins/$maybe")
+					if ($docopy);
+		}
+	}
+
+	
 		###************************************************************************###
 		printBanner("Updating the config files with any new options...");
 

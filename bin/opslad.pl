@@ -37,8 +37,7 @@
 # turn on debug if you want detailed logging to the <nmis>/logs/ipsla.log file
 # will fork and leave a status message so you know it is running.
 #
-
-require 5.008_000;
+our $VERSION = "8.5.6";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -59,6 +58,7 @@ use Carp;
 use Proc::ProcessTable; # from CPAN
 use Proc::Queue ':all'; # from CPAN
 use POSIX ":sys_wait_h"; # imports WNOHANG
+use Test::Deep::NoTest;
 
 use Data::Dumper; 
 $Data::Dumper::Indent = 1;
@@ -116,8 +116,9 @@ foreach my $file ( "CISCO-RTTMON-MIB.oid" ) {
 my %revOIDS = reverse %SNMP_util::OIDS; # the power of perl
 
 # Initialize globals
-
-my $restartcmd = "$0 '$vardir'";
+my $origscript = $FindBin::RealBin."/".$FindBin::Script; 
+# we want to keep all the original command line params
+my @restartparams = map { "$_=".$nvp{$_}; } (keys %nvp);
 
 ### 2012-02-23 keiths, ipsla configuration options from the NMIS config.
 # collect interval time in seconds
@@ -156,7 +157,7 @@ elsif ( $nvp{type} eq "threads") {
 }
 
 # See if another instance of ourself is running, if so kill the process
-my $pidfile = $vardir."/ipslad.pid";
+my $pidfile = "/var/run/ipslad.pid";
 
 if (-f $pidfile) {
   open(F, "<$pidfile");
@@ -192,21 +193,11 @@ FORK: {
 		$0="NMIS opslad (ipslad+) debug=$debug";
 		
 		# Announce our presence via a PID file
-
 		open(PID, ">$pidfile") || exit;
 		print PID $$; close(PID);
 		logIpsla("opSLAD: pidfile $pidfile created");
 
-		# Perform a sanity check. If the current PID file is not the same as
-		# our PID then we have become detached somehow, so just exit
-
-		open(PID, "<$pidfile") || exit;
-		$pid = <PID>; close(PID);
-		chomp $pid;
-		exit unless $pid == $$;
-
 		# Record our (re)starting in the event log
-
 		logIpsla("opSLAD: start: pidfile=$pidfile pid=$pid mthread=$mthread maxThreads=$maxThreads");
 
 		# code body here.
@@ -233,6 +224,15 @@ FORK: {
 			#runRTT(1);
 			my $lines = `$C->{'<nmis_bin>'}/opslad.pl type=threads debug=$debug`;
 			
+			# now check if the config has changed, and if so, restart
+			my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+			if (!eq_deeply($C, $newconf))
+			{
+				logIpsla("opSLAD: Configuration has changed, restarting daemon");
+				exec($origscript,@restartparams);
+				die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
+			}
+
 			$time2 = time(); 
 			if ( ($time2 - $time1) > $collect_time ) { 
 				logIpsla("opSLAD: runPD, runtime of collecting exceed collect interval time"); 

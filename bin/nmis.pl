@@ -29,7 +29,6 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
 package main;
 
 # Auto configure to the <nmis-base>/lib
@@ -113,6 +112,9 @@ my $mthread		=$nvp{mthread};
 my $mthreadDebug=$nvp{mthreaddebug};
 my $maxThreads	=$nvp{maxthreads}||1;
 
+# park the list of collect/update plugins globally
+my @active_plugins;
+
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0); # trace mode on
 Proc::Queue::debug(0); # debug is off
@@ -137,7 +139,7 @@ NMIS version $NMIS::VERSION
 / if $C->{debug} or $C->{info};
 
 
-if ($type =~ /collect|update/) {
+if ($type =~ /^(collect|update|services)$/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
@@ -158,7 +160,9 @@ exit;
 
 #=========================================================================================
 
-sub	runThreads {
+# run collection-type functions, possibly spread across multiple processes
+sub	runThreads 
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $node_select = $args{'node'};
@@ -166,12 +170,12 @@ sub	runThreads {
 	my $mthreadDebug = getbool($args{mthreadDebug});
 	my $debug_watch;
 
-	dbg("Starting");
+	dbg("Starting, operation is $type");
 
 	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
-	# which shouldn't be delayed at all.
-	if (!$node_select)
+	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
+	if (!$node_select and $type ne "services")
 	{
 		info("Starting selftest (takes about 5 seconds)...");
 		my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
@@ -209,8 +213,7 @@ sub	runThreads {
 			$C->{daemon_fping_failed} = 'true'; # remember for runPing
 		}
 	}
-
-	dbg("tables loaded");
+	dbg("all relevant tables loaded");
 
 	my $debug_global = $C->{debug};
 	my $debug = $C->{debug};
@@ -250,8 +253,12 @@ sub	runThreads {
 	### test if we are still running, or zombied, and cron will email somebody if we are
 	### collects should not run past 5mins - if they do we have a problem
 	### updates can run past 5 mins, BUT no two updates should run at the same time
+	### for potentially frequent type=services we don't do any of these.
 	if ( $type eq 'collect' or $type eq "update")
 	{
+		# unrelated but also for collect and update only
+		@active_plugins = &load_plugins;
+
 		# first find all other nmis collect processes
 		my $others = func::find_nmis_processes(type => $type, config => $C);
 
@@ -307,13 +314,22 @@ sub	runThreads {
 	my $nodecount = 0;
 	my $maxprocs = 1;							# this one
 
-	# select the method we will run
 	my $meth;
 	if ($type eq "update") {
 		$meth = \&doUpdate;
 		logMsg("INFO start of update process");
-	} else {
+	} 
+	elsif ($type eq "collect")
+	{
 		$meth = \&doCollect;
+	}
+	elsif ($type eq "services")
+	{
+		$meth = \&doServices;
+	}
+	else
+	{
+		die "Unknown operation type=$type, terminating!\n";
 	}
 
 	# update the operation start/stop timestamp
@@ -554,7 +570,7 @@ sub doUpdate {
 	my $C = loadConfTable();
 
 	dbg("================================");
-	dbg("Starting, node $name");
+	dbg("Starting update, node $name");
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
@@ -614,8 +630,36 @@ sub doUpdate {
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 
+	# done with the standard work, now run any plugins that offer update_plugin()
+	for my $plugin (@active_plugins)
+	{
+		my $funcname = $plugin->can("update_plugin");
+		next if (!$funcname);
+
+		dbg("Running update plugin $plugin with node $node");
+		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
+		if ($status == 1)						# changes were made, need to re-save the view and info files
+		{
+			dbg("Plugin $plugin indicated success, updating node and view files");
+			$S->writeNodeView;
+			$S->writeNodeInfo;
+		}
+		elsif ($status == 0)
+		{
+			dbg("Plugin $plugin indicated no changes");
+		}
+		else
+		{
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+	}
+
 	### 2013-03-19 keiths, NMIS Plugins!
-	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
+	# fixme: to be removed when all model-level custom plugins are converted to new plugin infrastructure
+	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
 	dbg("Finished");
 	return;
@@ -623,12 +667,89 @@ sub doUpdate {
 
 #=========================================================================================
 
+# a function to load the available code plugins,
+# returns the list of package names that have working plugins
+sub load_plugins
+{
+	my @activeplugins;
+	
+	# check for plugins enabled and the dir
+	return () if (!getbool($C->{plugins_enabled})
+								or !$C->{plugin_root} or !-d $C->{plugin_root});
+
+	if (!opendir(PD, $C->{plugin_root}))
+	{
+		logMsg("Error: cannot open plugin dir $C->{plugin_root}: $!");
+		return ();
+	}
+	my @candidates = grep(/\.pm$/, readdir(PD));
+	closedir(PD);
+
+	for my $candidate (@candidates)
+	{
+		my $packagename = $candidate; 
+		$packagename =~ s/\.pm$//;
+
+		# read it and check that it has precisely one matching package line
+		dbg("Checking candidate plugin $candidate");
+		if (!open(F,$C->{plugin_root}."/$candidate"))
+		{
+			logMsg("Error: cannot open plugin file $candidate: $!");
+			next;
+		}
+		my @plugindata = <F>;
+		close F;
+		my @packagelines = grep(/^\s*package\s+[a-zA-Z0-9_:-]+\s*;\s*$/, @plugindata);
+		if (@packagelines > 1 or $packagelines[0] !~ /^\s*package\s+$packagename\s*;\s*$/)
+		{
+			logMsg("Plugin $candidate doesn't have correct \"package\" declaration. Ignoring.");
+			next;
+		}
+
+		# do the actual load and eval
+		eval { require $C->{plugin_root}."/$candidate"; };
+		if ($@)
+		{
+			logMsg("Ignoring plugin $candidate as it isn't valid perl: $@");
+			next;
+		}
+
+		# interested if either or 
+		push @activeplugins, $packagename 
+				if ($packagename->can("update_plugin") or $packagename->can("collect_plugin"));
+	}
+
+	return sort @activeplugins;
+}
+
+
+# args: only name (node name)
+# returns: nothing
+sub doServices
+{
+	my (%args) = @_;
+	my $name = $args{name};
+
+	info("================================");
+	info("Starting services, node $name");
+
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-services-$name";
+
+	my $S = Sys->new;
+	$S->init(name => $name);
+	runServices(sys=>$S);
+	
+	return;
+}
+
+
 sub doCollect {
 	my %args = @_;
 	my $name = $args{name};
 
 	info("================================");
-	info("Starting, node $name");
+	info("Starting collect, node $name");
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-collect-$name";
@@ -719,9 +840,37 @@ sub doCollect {
 
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
-	$S->writeNodeView;
 
+	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
+
+	# done with the standard work, now run any plugins that offer collect_plugin()
+	for my $plugin (@active_plugins)
+	{
+		my $funcname = $plugin->can("collect_plugin");
+		next if (!$funcname);
+
+		dbg("Running collect plugin $plugin with node $node");
+		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
+		if ($status == 1)						# changes were made, need to re-save the view and info files
+		{
+			dbg("Plugin $plugin indicated success, updating node and view files");
+			$S->writeNodeView;
+			$S->writeNodeInfo;
+		}
+		elsif ($status == 0)
+		{
+			dbg("Plugin $plugin indicated no changes");
+		}
+		else
+		{
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+	}
+
 	$S->close;
 	info("Finished");
 	return;
@@ -6019,6 +6168,7 @@ END_runLinks:
 
 #=========================================================================================
 
+# starts up fpingd and/or opslad
 sub runDaemons {
 
 	my $C = loadConfTable();
@@ -6265,8 +6415,11 @@ MAILTO=WhoeverYouAre\@yourdomain.tld
 ######################################################
 # NMIS8 Config
 ######################################################
-# Run Statistics Collection
+# Run Full Statistics Collection
 */5 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
+# ######################################################
+# Optionally run a more frequent Services-only Collection
+# */3 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
 */2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
@@ -6496,9 +6649,10 @@ NMIS version $NMIS::VERSION
 command line options are:
   type=<option>
     Where <option> is one of the following:
-      collect   NMIS will collect all statistics;
+      collect   NMIS will collect all statistics (incl. Services)
       update    Update all the dynamic NMIS configuration
       threshold Calculate thresholds
+      services  Run Services data collection only
       master    Run NMIS Master Functions
       escalate  Run the escalation routine only ( debug use only)
       config    Validate the chosen configuration file

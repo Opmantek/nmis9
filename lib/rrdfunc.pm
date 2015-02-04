@@ -475,8 +475,8 @@ sub updateRRD {
 
 	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
 
-	if ($database eq "") {
-
+	if ($database eq "") 
+	{
 		if (! ($database = getFileName(sys=>$S,type=>$type,index=>$index,item=>$item))) {
 			return; # error
 		}
@@ -492,28 +492,35 @@ sub updateRRD {
 			$S->{error} = "ERROR ($S->{name}) database $database Exists but is readonly";
 			logMsg($S->{error});
 			return;
-		} else {
-			# maybe version nmis4 with hostname
-			my $database4;
-			dbg("file=$database not found, try nmis4 format");
-			if (! ($database4 = getFileName(sys=>$S,type=>$type,index=>$index,item=>$item,nmis4=>'true'))) {
-				return; # error
-			}
-			if ( -f $database4 and -r $database4 and -w $database4 ) { 
-				# its oke !
-				$database = $database4;
-				dbg("database $database exists and is R/W");
-			} else {
-				if (! createRRD(data=>$data,sys=>$S,type=>$type,database=>$database,index=>$index)) {
-					return; # error
+		} 
+		else 												# no db file exists
+		{
+			# fall back to nmis4 format if requested to
+			my $C = loadConfTable();
+			if (getbool($C->{nmis4_compatibility}))
+			{
+				dbg("file=$database not found, try nmis4 format");
+				my $database4 = getFileName(sys=>$S, type=>$type, index=>$index,
+																		item=>$item, nmis4=>'true');
+				if ($database4 and -f $database4 
+						and -r $database4 and -w $database4 )
+				{
+					$database = $database4;
+					dbg("database $database exists and is R/W");
 				}
+			}
+			
+			# nope, create new file
+			if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
+											index=>$index)) 
+			{
+				return; # error
 			}
 		}
 	} else {
 		# no check
 		dbg("database $database");
 	}
-
 
 	my @options;
 	my $ERROR;

@@ -809,14 +809,9 @@ sub do_login {
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
 
-	# add the config only once, if not present/matching!
+	# we need to find out our url, but don't want any query params added to it...conf is kept as hidden field
 	my $subcgi = CGI->new;
-	my $presentconf = $subcgi->param("conf");
-	if ($config ne '' && $presentconf ne $config)
-	{
-		$subcgi->param("conf"=>$config);
-	}
-	my $url = $subcgi->self_url();
+	my $url = $subcgi->url(-absolute => 1);
 
 
 	if( http("X-Requested-With") eq "XMLHttpRequest" )

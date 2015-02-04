@@ -95,6 +95,8 @@
       'sensorhum' => 'Humidity of sensor',
       'sensortemp' => 'Temperature of sensor',
       'service' => 'Service',
+      'service-cpu' => 'Service CPU',
+      'service-mem' => 'Service Memory',
       'service-cpumem' => 'Service CPU and Memory',
       'service-response' => 'Service Response Time',
       'session-util' => 'Session Utilisation',
