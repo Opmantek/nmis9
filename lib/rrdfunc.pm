@@ -758,6 +758,8 @@ sub createRRD {
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
 
 		if ( @options ) {
+			logMsg("Creating new RRD database $database");
+			
 			dbg("options to create database $database");
 			foreach my $t (@options) {
 				dbg($t);
