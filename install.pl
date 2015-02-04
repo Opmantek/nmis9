@@ -364,7 +364,7 @@ for further info.\n\n";
 		else
 		{
 			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install rrdtool and RRDs!\n\n");
-			print "Please hit enter to continue:\n";
+			print "Please hit <Enter> to continue:\n";
 			my $x = <STDIN>;
 		}
 	}
@@ -520,10 +520,24 @@ else
 			echolog("Continuing without configuration updates as directed.
 Please note that you will likely have to perform various configuration updates manually 
 to ensure NMIS performs correctly.");
-			print "\n\nPlease hit enter to continue: ";
+			print "\n\nPlease hit <Enter> to continue: ";
 			my $x = <STDIN>;
 		}
+
+	printBanner("Comparing Models");
+
+	if (input_yn("OK to run a comparison of old and new models?"))
+	{
+		# let's not run this with execPrint as that might take quite a bit of time
+		my $res = system("$site/admin/compare_models.pl $site/models $site/models-install");
+		if ($res >> 8)
+		{
+			print "\n\nPlease hit <Enter> to continue:";
+			my $x = <STDIN>;
+		}
+	}
 }
+
 
 ###************************************************************************###
 if ( -f $fping ) {
@@ -586,7 +600,7 @@ simulation mode where it only shows what it WOULD do without making any
 changes.
 
 It is highly recommended that you perform the RRD migration.");
-			print "Please hit enter to continue:\n";
+			print "Please hit <Enter> to continue:\n";
 			my $x = <STDIN>;
 		}
 	}
@@ -630,7 +644,7 @@ NMIS Installation guide at
 https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
 for further info.
 
-Please hit enter to continue:\n";
+Please hit <Enter> to continue:\n";
 		my $x = <STDIN>;
 	}
 	else
@@ -678,7 +692,7 @@ check the NMIS Installation guide at
 https://community.opmantek.com/display/NMIS/NMIS+8+Installation+Guide
 for further info.
 
-Please hit enter to continue:\n";
+Please hit <Enter> to continue:\n";
 			my $x = <STDIN>;
 		}
 	}
@@ -699,7 +713,7 @@ else
 	print "Ok, continuing without the update run as directed.\n\n
 It's highly recommended to run nmis.pl type=update once initially
 and after every NMIS upgrade - you should do this manually.\n
-Please hit enter to continue: ";
+Please hit <Enter> to continue: ";
 
 	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
 	
