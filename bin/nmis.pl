@@ -658,7 +658,8 @@ sub doUpdate {
 	}
 
 	### 2013-03-19 keiths, NMIS Plugins!
-	runCustomPlugins(node => $name, sys=>$S) if defined $S->{mdl}{custom};
+	# fixme: to be removed when all model-level custom plugins are converted to new plugin infrastructure
+	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
 	dbg("Finished");
 	return;

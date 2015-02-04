@@ -226,7 +226,8 @@
   'custom' => {
 		'interface' => {
 			'ifAdminStatus' => 'false',
-			'script' => 'admin/zyxel_interface_discovery.pl'
+# replaced by plugins/ZyxelInterface.pm
+#			'script' => 'admin/zyxel_interface_discovery.pl'
 		}
 	},
   'interface' => {

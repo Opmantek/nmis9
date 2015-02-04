@@ -209,7 +209,8 @@
   'custom' => {
 		'interface' => {
 			'ifAdminStatus' => 'false',
-			'script' => 'admin/alcatel_interface_discovery.pl'
+# replaced by plugins/AlcatelInterface.pm
+# 'script' => 'admin/alcatel_interface_discovery.pl'
 		}
 	},
   'interface' => {

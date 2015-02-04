@@ -90,7 +90,7 @@ if (!$simulate)
 	push @rollback, "rm -f $lockoutfile";
 
 	open F,">$lockoutfile" or die "cannot lock out nmis: $!\n";
-	print F "$0 is operating, started at ".localtime."\n";
+	print F "$0 is operating, started at ".(scalar localtime)."\n";
 	close F;
 }
 
