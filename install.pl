@@ -290,7 +290,7 @@ if (!$isok)
 	print "The installer can use CPAN to install the missing Perl packages
 that NMIS depends on, if your system has Internet access.\n\n";
 
-	if (!input_yn("Does this system have Internet access?") or !input_yn("OK to use CPAN to install missing modules?"))
+	if (!input_yn("Does this system have Internet access for CPAN?") or !input_yn("OK to use CPAN to install missing modules?"))
 	{
 		echolog("Instructed NOT to install missing CPAN modules.");
 		print "NMIS will not work properly until the following Perl modules are installed:\n\n".join(" ",@missingones)
@@ -719,6 +719,49 @@ Please hit <Enter> to continue: ";
 	
 	my $x = <STDIN>;
 }
+
+printBanner("NMIS Cron Setup");
+print "NMIS relies on Cron to schedule its periodic execution,
+and provides an example/default Cron schedule.
+
+The installer can install this default schedule in /etc/cron.d/nmis,
+which immediately activates it.
+
+Please note that if you already have an NMIS schedule in your per-user
+root crontab, then you need decide on using either the system-wide cron 
+files in /etc/cron.d or the per-user crontab but not both!\n\n";
+
+my $crongood = (-f "/etc/cron.d/nmis");
+if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /etc/cron.d/nmis?"))
+{
+	echolog("Creating default Cron schedule with nmis.pl type=crontab");
+	my $res = system("$site/bin/nmis.pl type=crontab >/tmp/new-nmis-cron");
+	
+	if (0 == $res>>8)
+	{
+		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
+		print "\nA new default cron was created in /etc/cron.d/nmis, 
+but feel free to adjust it.\n\nPlease hit <Enter> to continue:\n";
+		my $x = <STDIN>;
+		$crongood = 1;
+	}
+	else
+	{
+		echolog("Default Cron schedule generation failed!");
+		$crongood = 0;
+	}
+}
+
+if (!$crongood)
+{
+	print "\n\nTo see what the suggested default Cron schedule is like,
+simply run \"$site/bin/nmis.pl type=crontab >/tmp/somefile\", then
+view /tmp/somefile. NMIS will require some scheduling setup
+to work correctly.\n\nPlease hit <Enter> to continue:\n";
+	my $x = <STDIN>;
+}
+
+
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
 print "You should now be able to access NMIS at http://<yourserver name or ip>/nmis8/\n

@@ -6411,7 +6411,10 @@ sub printCrontab {
 	dbg(" Crontab Config for NMIS for config file=$nvp{conf}",3);
 
 	print <<EO_TEXT;
-MAILTO=WhoeverYouAre\@yourdomain.tld
+# if you DON'T want any NMIS cron mails to go to root, 
+# uncomment and adjust the next line
+# MAILTO=WhoeverYouAre\@yourdomain.tld
+
 ######################################################
 # NMIS8 Config
 ######################################################
