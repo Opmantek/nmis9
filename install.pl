@@ -444,6 +444,8 @@ if ($isnewinstall)
 		printBanner("Installing default config files...");
 		execPrint("cp -a $site/install/* $site/conf/");
 		execPrint("cp -a $site/models-install/* $site/models/");
+		# this test plugin shouldn't be activated automatically
+		unlink("$site/conf/plugins/TestPlugin.pm") if (-f "$site/conf/plugins/TestPlugin.pm");
 }
 else
 {
@@ -460,6 +462,7 @@ else
 
 		for my $maybe (@candidates)
 		{
+			next if ($maybe eq "TestPlugin.pm"); # this example plugin shouldn't be auto-activated
 			my $docopy;
 			if (-f "$site/conf/plugins/$maybe")
 			{
