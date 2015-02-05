@@ -338,6 +338,7 @@ sub	runThreads
 	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
 	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 	
+	my @list_of_handled_nodes;		# for any after_x_plugin() functions
 	if ($node_select eq "")
 	{
 		# operate on all nodes, sort the nodes so we get consistent polling cycles
@@ -355,6 +356,7 @@ sub	runThreads
 			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup ) {
 				if ( getbool($NT->{$onenode}{active}) ) {
 					++$nodecount;
+					push @list_of_handled_nodes, $onenode;
 					
 					# One process for each node until maxThreads is reached.
 					# This loop is entered only if the commandlinevariable mthread=true is used!
@@ -413,6 +415,7 @@ sub	runThreads
 		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
 			if ( getbool($NT->{$node}{active}) ) {
 				++$nodecount;
+				push @list_of_handled_nodes, $node;
 				&$meth(name=>$node);
 			}
 			else {
@@ -428,16 +431,12 @@ sub	runThreads
 	alarm(0) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 
 	dbg("### continue normally ###");
-
-	if ($C->{debug} == 1) {
-		dbg("=== debug output suppressed with debug=1 ===");
-		$C->{debug} = 0;
-	}
-
 	$C->{collecttime} = time();
 
-	# if an update,
-	if ( $type eq "update" ) {
+	my $S;
+	# on update prime the interface summary
+	if ( $type eq "update" )
+	{
 		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
 		if ( !getbool($C->{disable_interfaces_summary}) ) {
@@ -445,14 +444,13 @@ sub	runThreads
 			runLinks();
 		}
 	}
-
-	# Couple of post processing things.
-	### 2012-04-25 keiths, skipping extra processing if running onenode!
-	if ( $type eq "collect" and $node_select eq "" ) {
-		my $S = Sys::->new; # object nmis-system
+	# some collect post-processing, but only if running on all nodes
+	elsif ( $type eq "collect" and $node_select eq "" ) 
+	{
+		$S = Sys->new; # object nmis-system
 		$S->init();
 		my $NI = $S->ndinfo;
-		delete $NI->{database};	 # no longer used at all
+		delete $NI->{database};	 # remove pre-8.5.0 key as it's not used anymore
 
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
 		if ( getbool($C->{'nmis_master_poll_cycle'}) or !getbool($C->{'nmis_master_poll_cycle'},"invert") ) {
@@ -485,14 +483,6 @@ sub	runThreads
 		dbg("Starting runEscalate");
 		runEscalate();
 
-		# optional post processing routines
-		if ( -r "$C->{'<nmis_base>'}/bin/nmis_post_proc.pl") {
-			require "$C->{'<nmis_base>'}/bin/nmis_post_proc.pl";
-			dbg("start of post processing package");
-			if (!pp::doPP()) {
-				logMsg("ERROR running post processing routine");
-			}
-		}
 		# nmis collect runtime, process counts and save
 		my $D;
 		$D->{collect}{value} = $C->{collecttime} - $C->{starttime};
@@ -510,12 +500,49 @@ sub	runThreads
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
-		#
 	}
 
-	if ( $type eq "update" ) {
-		logMsg("INFO end of update process");
+	if ($type eq "collect" or $type eq "update")
+	{
+		# now run all after_{collect,update}_plugin() functions, regardless of whether 
+		# this was a one-node or all-nodes run
+		for my $plugin (@active_plugins)
+		{
+			my $funcname = $plugin->can("after_${type}_plugin");
+			next if (!$funcname);
+			
+			# prime the global sys object, if this was an update run or a one-node collect
+			if (!$S)
+			{
+				$S = Sys->new;					# the nmis-system object
+				$S->init();
+			}
+
+			dbg("Running after_$type plugin $plugin");
+			logMsg("Running after_$type plugin $plugin");
+			my ($status, @errors);
+			eval { ($status, @errors) = &$funcname(sys => $S, config => $C, nodes => \@list_of_handled_nodes); };
+			if ($status >=2 or $status < 0 or $@)
+			{
+				logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+				for my $err (@errors)
+				{
+					logMsg("Error: Plugin $plugin: $err");
+				}
+			}
+			elsif ($status == 1)						# changes were made, need to re-save info file
+			{
+				dbg("Plugin $plugin indicated success, updating nmis-system file");
+				$S->writeNodeInfo;
+			}
+			elsif ($status == 0)
+			{
+				dbg("Plugin $plugin indicated no changes");
+			}
+		}
 	}
+	
+	logMsg("INFO end of $type process");
 
 	if ($C->{info} or $debug or $mthreadDebug) {
 		my $endTime = time() - $C->{starttime};
@@ -636,9 +663,18 @@ sub doUpdate {
 		my $funcname = $plugin->can("update_plugin");
 		next if (!$funcname);
 
-		dbg("Running update plugin $plugin with node $node");
-		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
-		if ($status == 1)						# changes were made, need to re-save the view and info files
+		dbg("Running update plugin $plugin with node $name");
+		my ($status, @errors);
+		eval { ($status, @errors) = &$funcname(node => $name, sys => $S, config => $C); };
+		if ($status >=2 or $status < 0 or $@)
+		{
+			logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+		elsif ($status == 1)						# changes were made, need to re-save the view and info files
 		{
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
@@ -648,17 +684,11 @@ sub doUpdate {
 		{
 			dbg("Plugin $plugin indicated no changes");
 		}
-		else
-		{
-			for my $err (@errors)
-			{
-				logMsg("Error: Plugin $plugin: $err");
-			}
-		}
 	}
 
 	### 2013-03-19 keiths, NMIS Plugins!
-	# fixme: to be removed when all model-level custom plugins are converted to new plugin infrastructure
+	# fixme: deprecated, to be removed once all model-level custom plugins are converted to new plugin infrastructure
+	# and when the remaining customers using this have upgraded
 	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
 	dbg("Finished");
@@ -714,9 +744,12 @@ sub load_plugins
 			next;
 		}
 
-		# interested if either or 
+		# we're interested if one or more of the supported plugin functions are provided
 		push @activeplugins, $packagename 
-				if ($packagename->can("update_plugin") or $packagename->can("collect_plugin"));
+				if ($packagename->can("update_plugin") 
+						or $packagename->can("collect_plugin")
+						or $packagename->can("after_collect_plugin")
+						or $packagename->can("after_update_plugin") );
 	}
 
 	return sort @activeplugins;
@@ -850,9 +883,18 @@ sub doCollect {
 		my $funcname = $plugin->can("collect_plugin");
 		next if (!$funcname);
 
-		dbg("Running collect plugin $plugin with node $node");
-		my ($status, @errors) = &$funcname(node => $node, sys => $S, config => $C);
-		if ($status == 1)						# changes were made, need to re-save the view and info files
+		dbg("Running collect plugin $plugin with node $name");
+		my ($status, @errors);
+		eval { ($status, @errors) = &$funcname(node => $name, sys => $S, config => $C); };
+		if ($status >=2 or $status < 0 or $@)
+		{
+			logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
+			for my $err (@errors)
+			{
+				logMsg("Error: Plugin $plugin: $err");
+			}
+		}
+		elsif ($status == 1)						# changes were made, need to re-save the view and info files
 		{
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
@@ -861,13 +903,6 @@ sub doCollect {
 		elsif ($status == 0)
 		{
 			dbg("Plugin $plugin indicated no changes");
-		}
-		else
-		{
-			for my $err (@errors)
-			{
-				logMsg("Error: Plugin $plugin: $err");
-			}
 		}
 	}
 
@@ -4918,6 +4953,8 @@ sub getNodeAllInfo {
 
 #=========================================================================================
 
+# fixme: deprecated, will be removed once the last customers who're using models
+# with this feature have upgraded to 8.5.6.
 sub runCustomPlugins {
 	my %args = @_;
 	my $S = $args{sys};
@@ -6411,7 +6448,10 @@ sub printCrontab {
 	dbg(" Crontab Config for NMIS for config file=$nvp{conf}",3);
 
 	print <<EO_TEXT;
-MAILTO=WhoeverYouAre\@yourdomain.tld
+# if you DON'T want any NMIS cron mails to go to root, 
+# uncomment and adjust the next line
+# MAILTO=WhoeverYouAre\@yourdomain.tld
+
 ######################################################
 # NMIS8 Config
 ######################################################
