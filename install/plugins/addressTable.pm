@@ -12,8 +12,7 @@ sub update_plugin
 
 	my $NI = $S->ndinfo;
 	# anything to do?
-	return (0,undef) if ($NI->{system}->{nodeModel} ne "CiscoRouter"
-											 or ref($NI->{addressTable}) ne "HASH");
+	return (0,undef) if (ref($NI->{addressTable}) ne "HASH");
 	my $changesweremade = 0;
 
 	for my $mackey (keys %{$NI->{addressTable}})

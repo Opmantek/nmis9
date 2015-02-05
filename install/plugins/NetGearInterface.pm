@@ -17,7 +17,7 @@ sub update_plugin
 	my $NI = $S->ndinfo;
 
 	# this plugin deals only with this specific device type, and only ones with snmp enabled and working
-	return (0,undef) if ( $NI->{system}{sysDescr} !~ /GS108T|GS724Tv3/ 
+	return (0,undef) if ( $NI->{system}{nodeModel} ne "Netgear-Manual"
 												or $NI->{system}{nodeVendor} ne "Netgear"
 												or !getbool($NI->{system}->{collect}));
 
