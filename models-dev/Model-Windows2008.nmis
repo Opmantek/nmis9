@@ -387,6 +387,10 @@
             'oid' => 'ifDescr',
             'title' => 'Name'
           },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
+          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -431,6 +435,34 @@
       'ifDescr' => 'null',
       'ifType' => 'other'
 	  }
+  },
+  'systemHealth' => {    
+    'sections' => 'addressTable',
+    'sys' => {
+        'addressTable' => {
+        'headers' => 'ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ipNetToMediaIfIndex',
+        'snmp' => {
+          'ipNetToMediaIfIndex' => {
+            'oid' => 'ipNetToMediaIfIndex',
+            'title' => 'ipNetToMediaIfIndex'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'ipNetToMediaPhysAddress'
+          },
+          'ipNetToMediaNetAddress' => {
+            'oid' => 'ipNetToMediaNetAddress',
+            'title' => 'ipNetToMediaNetAddress'
+          },
+          'ipNetToMediaType' => {
+            'oid' => 'ipNetToMediaType',
+            'title' => 'ipNetToMediaType'
+          },
+        }
+      },
+    },
   },
   #'systemHealth' => {    
   #  'sections' => 'tcpConn,tcpConnection',

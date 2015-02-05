@@ -223,6 +223,10 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'
@@ -248,7 +252,24 @@
             'oid' => 'ifType',
             'title' => 'Type (ifType)'
           }
-        }
+        },
+	      'extra' => {
+	        'indexed' => 'true',
+	        'snmp' => {
+	  				'ifHighSpeed' => {
+	  					'oid' => 'ifHighSpeed'
+	  				},
+	  				'Description' => {
+	            'oid' => 'ifAlias',
+	            'title' => 'Description'
+	          },
+	          'vlanPortVlan' => {
+	            'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',
+	            'sysObjectName' => 'dot1qPvid',
+	            'title' => 'VLAN'
+	          }
+	        }
+	      }
       }
     }
   },
@@ -449,8 +470,33 @@
 	#JUNIPER-MIB::jnxOperating5MinLoadAvg.9.1.0.0 = Gauge32: 11
 	#JUNIPER-MIB::jnxOperating15MinLoadAvg.9.1.0.0 = Gauge32: 3
   'systemHealth' => {
-    'sections' => 'bgpPeer,jnxOperations',
+    'sections' => 'bgpPeer,jnxOperations,dot1qMacTable',
     'sys' => {
+      'dot1qMacTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
       'jnxOperations' => {
         'headers' => 'jnxOperatingDescr,jnxOperatingState,jnxOperatingTemp,jnxOperatingMemory,jnxOperatingBuffer,jnxOperatingHeap,jnxOper1MinLoadAvg,jnxOper5MinLoadAvg',
         'index_oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',

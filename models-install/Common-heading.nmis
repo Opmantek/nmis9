@@ -163,6 +163,7 @@
       'jnxMem' => "Memory",
       'jnxTemp' => "Temperature",
       'ppxAtmCells' => "PPX ATM Cells",
+      'ppxAtmUtil' => "PPX ATM Utilisation",
     }
   }
 );

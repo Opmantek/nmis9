@@ -1,7 +1,9 @@
 %hash = (
 			Events => [
 				{ 'Event' => { mandatory => 'true', header => 'Event', display => 'key,header,text', value => [ '' ] }},
-				{ 'Stateful' => { mandatory => 'true', header => 'Stateful', display => 'header,popup', value => ["true", "false"] }},
+				{ 'Notify' => { mandatory => 'true', header => 'Notify on Event', display => 'header,popup', value => ["true", "false"] }},
+				{ 'Log' => { mandatory => 'true', header => 'Log on Event', display => 'header,popup', value => ["true", "false"] }},
+				{ 'Stateful' => { mandatory => 'false', header => 'Stateful', display => 'header,popup', value => ["true", "false"] }},
 			]
 );
 

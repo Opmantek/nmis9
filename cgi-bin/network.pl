@@ -1732,7 +1732,7 @@ sub viewInterface {
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
 
 	# order of items
-	my @order = ('ifAdminStatus','ifOperStatus','ifDescr','ifType','Description','operAvail','totalUtil',
+	my @order = ('ifAdminStatus','ifOperStatus','ifDescr','ifType','ifPhysAddress','Description','operAvail','totalUtil',
 	'ifSpeed','ipAdEntAddr','ipSubnet','ifLastChange','collect','nocollect');
 	
 	# format key is ${index}_item_value
@@ -1770,6 +1770,14 @@ sub viewInterface {
 					my $value = $V->{interface}{"${intf}_${k}_value"};
 					if ( $k eq "ifSpeed" and $V->{interface}{"${intf}_ifSpeedIn_value"} ne "" and $V->{interface}{"${intf}_ifSpeedOut_value"} ne "" ) {
 						$value = qq|IN: $V->{interface}{"${intf}_ifSpeedIn_value"} OUT: $V->{interface}{"${intf}_ifSpeedOut_value"}|;
+					}
+					elsif ( $k eq "ifPhysAddress" and $value =~ /^0x[0-9a-fA-F]+$/ ) {
+						my $macaddress = $value;
+						$macaddress =~ s/^0x//i;
+						my @bytes = unpack("C*", pack("H*", $macaddress));
+						if (@bytes) {
+							$value = sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
+						}
 					}
 					push @out,Tr(td({class=>'info Plain'},$title),
 					td({class=>'info Plain',style=>getBGColor($color)},$value));
