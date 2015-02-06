@@ -150,7 +150,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl
 libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl ));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl));
 
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -798,15 +798,21 @@ sub parsefile {
 			next;
 		}
 		elsif ( 
-			$line =~ m/^(use|require)\s+(\w+::\w+::\w+|\w+::\w+|\w+)/ 
-			or $line =~ m/(use|require)\s+(\w+::\w+::\w+|\w+::\w+)/ 
-			or $line =~ m/(use|require)\s+(\w+);/ 
-		) {
-			my $mod = $2;
-			if ( defined $mod and $mod ne '' and $mod !~ /^\d+/ ) {
+			$line =~ m/^(use|require)\s+(\w+::\w+::\w+|\w+::\w+|\w+)(\s+([0-9\.]+))?/ 
+			or $line =~ m/(use|require)\s+(\w+::\w+::\w+|\w+::\w+)(\s+([0-9\.]+))?/ 
+			or $line =~ m/(use|require)\s+(\w+)(\s+([0-9\.]+))?;/ 
+		) 
+		{
+			my ($mod, $minversion) = ($2,$4);
+			
+			if ( defined $mod and $mod ne '' and $mod !~ /^\d+/ ) 
+			{
 				$nmisModules->{$mod}{file} = 'MODULE NOT FOUND';					# set all as 'MODULE NOT FOUND' here, will check installation status of '$mod' next
 				$nmisModules->{$mod}{type} = $1;
-				if (not grep {$_ eq $f} @{$nmisModules->{$mod}{by}}) {
+				$nmisModules->{$mod}{minversion} = $minversion if (defined $minversion);
+
+				if (not grep {$_ eq $f} @{$nmisModules->{$mod}{by}}) 
+				{
 					push(@{$nmisModules->{$mod}{by}},$f);
 				}
 			}
@@ -851,13 +857,15 @@ EOF
 		$mFile =~ s/::/\//g;
 		# test for local include first
 		if ( -e "$libPath/$mFile" ) {
-			$nmisModules->{$mod}{file} = "$libPath/$mFile" . "\t\t" . &moduleVersion("$libPath/$mFile");
+			$nmisModules->{$mod}{file} = "$libPath/$mFile";
+			$nmisModules->{$mod}{version} = &moduleVersion("$libPath/$mFile");
 		}
 		else {
 			# Now look in @INC for module path and name
 			foreach my $path( @INC ) {
 				if ( -e "$path/$mFile" ) {
-					$nmisModules->{$mod}{file} = "$path/$mFile" . "\t\t" . &moduleVersion("$path/$mFile");
+					$nmisModules->{$mod}{file} = "$path/$mFile";
+					$nmisModules->{$mod}{version} = &moduleVersion("$path/$mFile");
 				}
 			}
 		}
@@ -896,11 +904,15 @@ sub listModules
 										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1);
 
 	
-  logInstall("Module status follows:\n");
+  logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
 	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules) 
 	{
-    logInstall("$k\t$nmisModules->{$k}->{file}");
-    push @missing, $k if ($nmisModules->{$k}->{file} eq "MODULE NOT FOUND");
+    logInstall(join("\t", $k, $nmisModules->{$k}->{file},
+										$nmisModules->{$k}->{version}||"N/A", $nmisModules->{$k}->{minversion}||"N/A"));
+		# report as missing: if not present, or version below required minimum
+    push @missing, $k if 	($nmisModules->{$k}->{file} eq "MODULE NOT FOUND"
+													 or (defined $nmisModules->{$k}->{minversion}
+															 and version->parse($nmisModules->{$k}->{version}) < version->parse($nmisModules->{$k}->{minversion})));
 	}
 
 	if (@missing)
@@ -910,8 +922,8 @@ sub listModules
 
 		if (@optionals)
 		{
-			printBanner("Some Optional Perl Modules are missing");
-			print qq|The following optional modules are missing:\n| .join(" ", @optionals)
+			printBanner("Some Optional Perl Modules are missing (or too old)");
+			print qq|The following optional modules are missing or too old:\n| .join(" ", @optionals)
 					.qq|\n\nNote: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt, 
 Authen::TacacsPlus, Authen::Simple::RADIUS are optional components for the 
 NMIS AAA system.
@@ -924,12 +936,12 @@ install/SNMP_Session-1.12.tar.gz.\n\n|;
 
 		if (@critmissing)
 		{
-			printBanner("Some Critical Perl Modules are missing!");
-			print qq|The following essential Perl modules are missing and need to be installed
-before NMIS will work correctly:\n\n| . join(" ", @critmissing)."\n\n";
+			printBanner("Some Critical Perl Modules are missing (or too old)!");
+			print qq|The following essential Perl modules are missing or too old and need 
+to be installed (or upgraded) before NMIS will work correctly:\n\n| . join(" ", @critmissing)."\n\n";
 		}
 		
-		print qq|Missing modules can be installed with CPAN, if your system has Internet access:
+		print qq|These modules can be installed with CPAN, if your system has Internet access:
 
   perl -MCPAN -e shell
     install [module name]
