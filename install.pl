@@ -146,7 +146,7 @@ if ($osflavour)
 libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping snmp snmpd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
-libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl
+libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl

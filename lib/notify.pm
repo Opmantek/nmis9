@@ -38,15 +38,14 @@ use strict;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
-use Net::SMTP;
-# use Net::SMTP::SSL;
+use Net::SMTPS;
 use Net::SNPP;
 use Sys::Syslog 0.28;						# older versions cannot set a custom syslog port
 use Sys::Hostname;							# for sys::syslog
 use File::Basename;
 use version 0.77;
-use NMIS;
-use func;
+# use NMIS; # this makes circular use loops and causes lots of subroution redefined warnings
+use func;												# for logmsg and dbg
 use JSON::XS;
 
 @ISA = qw(Exporter);
@@ -61,132 +60,118 @@ use JSON::XS;
 
 @EXPORT_OK = qw(	);
 
-## KS 18/4/01 - Added new sendEmail routine for use elsewhere.
-## EHG 28 Aug added message priority handling
-sub sendEmail {
-	my %arg = @_;
-	my $debug = $arg{debug};
-	if ( ! defined $debug ) { $debug = 0; }
-	my $smtp_debug;
-	my $string;
-	my $help;
-	my @addr;
-	my $oneaddr;
-	my $got_server = 0;
-	my $server = 0;
-	my $smtp;
-	
-	my $use_sasl = $arg{use_sasl} ? $arg{use_sasl} : "false";
-	my $port;
-	my $password;
-	if( getbool($use_sasl)) {
-		$port = $arg{port};
-		$password = $arg{password};
+# sendEmail: send input text or mime entity to any number of recipients
+# 
+# args: text or mime (=entity) or body+subject+from+to (old-style compat args)
+# mailserver, sender, recipients (=list), hello (all required)
+#
+# optional serverport (default 25, you may want to use 587)
+# optional ipproto ("ipv4" or "ipv6" or undef for auto-detection)
+# optional usetls (default 1), 
+# optional username and password (default no auth), 
+# optional authmethod (default CRAM-MD5, use LOGIN if you have to)
+# optional ssl_verify_mode (default not defined - set to SSL_VERIFY_NONE 
+# when calling in Windows or on a system without workable certificate setup)
+# 
+# text has to be a complete email with headers and body, mime entity must be a toplevel 
+# entity with appropriate headers
+# 
+# returns list of (status, last server code, last server message), 
+# status 1 is all ok, 0 otherwise
+# 
+# last server code is last SMTP status code (eg. 250, 550 etc) of SMTP DATA
+# on success, or the one that caused sendEmail to give up, or 999 if we didn't
+# get anywhere (eg. dud arguments)
+#
+# last server message is either response of SMTP data (= queue id at target)
+# or the server response that caused sendEmail to give up.
+sub sendEmail 
+{
+	my (%arg)=@_;
+
+	$arg{serverport} ||= 25;
+	$arg{usetls} = 'starttls' 
+			if ($arg{usetls} || !exists($arg{usetls})); # if 1 or not given
+		
+	# sanity checking first
+	for my $mand (qw(mailserver serverport sender recipients hello))
+	{
+		return (0,999,"mandatory argument $mand is missing - giving up.")
+				if (!$arg{$mand});		# autovivification is not a problem here, zero/blank not allowed anyway
 	}
 
-	my $priNum = 3;
-	my $priWord = "Normal";
-	if ( defined $arg{priority} ) {
-		if ( $arg{priority} =~ /^[a-z]+$/i ) {
+	return (0,999,"full text, or the body+specific args or mime entity must be given - giving up.")
+			if (!$arg{text} && !$arg{body}&& ref($arg{mime}) ne "MIME::Entity");
+
+	# backwards-compat creation of the mail on the go
+	if (!$arg{text} && ref($arg{mime}) ne "MIME::Entity")
+	{
+		my $mailtext;
+
+		my $priNum = 3;
+		my $priWord = "Normal";
+		if ( defined $arg{priority} && $arg{priority} =~ /^[a-z]+$/i ) 
+		{
 			$priWord = $arg{priority};
 			$priNum = &setSMTPPriority($arg{priority});
 		}
-		else {
+		elsif (defined $arg{priority} && $arg{priority} =~ /^\\d+$/ )
+		{
 			$priNum = $arg{priority};
 			$priWord = &setSMTPPriority($arg{priority});
 		}
+		
+		$mailtext = "X-Mailer: NMIS $NMIS::VERSION\nX-Priority: $priNum\nX-MSMail-Priority: $priWord\n"
+				."Importance: $priWord\nPriority: $priWord\n";
+		$mailtext .= "Subject: $arg{subject}\nFrom: $arg{from}\nTo: $arg{to}\n\n$arg{body}\n";
+		$arg{text} = $mailtext;
 	}
-	else {
-		print "Priority not set, priority=$arg{priority}\n";
+
+	# undef means autodetect.
+	my $ipproto = $arg{ipproto} eq "ipv4"? AF_INET : $arg{ipproto} eq "ipv6"? AF_INET6: undef;
+
+	# if dossl isn't on then this just opens a normal unauthed socket
+	my @connargs=($arg{mailserver},
+								Port => $arg{serverport},
+								doSSL => $arg{usetls},
+								"Hello" => $arg{hello},
+								"Domain" => $ipproto,
+								SSL_verify_mode => $arg{ssl_verify_mode});
+	my $smtp = Net::SMTPS->new( @connargs );
+		
+	return (0,999,"connection to $arg{mailserver}, port $arg{serverport} failed: $!")
+			if (!$smtp);
+
+	# auth is done whenever both mail_user and mail_password are both set to non-blank
+	if ($arg{username} && $arg{password})
+	{
+		return (0,$smtp->code, "auth failed: ".$smtp->message)
+				if (!$smtp->auth($arg{username}, $arg{password}, $arg{authmethod}));
 	}
-
-	if ($debug) { print returnTime." sendEmail to=$arg{to} subject=$arg{subject}\n"; }
-	if  ( $arg{to} ne "" ) {
-		# Allow multiple smtp servers!
-		my @servers = split(",",$arg{server});
-		while ( ! $got_server and $server <= $#servers ) {
-			$smtp_debug = ( $debug > 2 ) ? 1 : 0;
-
-			if( getbool($use_sasl) )
-			{
-				require Net::SMTP::SSL;
-				#if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, SSL_verify_mode => SSL_VERIFY_PEER, Debug => $smtp_debug)) {
-				if( $smtp = Net::SMTP::SSL->new($servers[$server], Port => $port, Debug => $smtp_debug)) {
-					if( $smtp->auth($arg{user}, $arg{password}) ) {
-						if ($debug) { print "SASL auth successful\n"; }
-					}
-					else {
-						undef $smtp;
-						if ($debug) { print "SMTP::SSL auth NOT successful\n"; }
-					}											
-				}
-				else {
-					undef $smtp;
-					if ($debug) { print "SMTP::SSL connect NOT successful\n"; }
-				}
-			}
-			else {
-				# don't use sasl
-				if ( $smtp = Net::SMTP->new($servers[$server], Debug => $smtp_debug ) ) {
-					if( $arg{user} ne "" and $arg{password} ne "") {
-						if( $smtp->auth($arg{user}, $arg{password}) ) {
-							if ($debug) { print "SMTP auth successful\n"; }
-						}
-						else
-						{
-							print "SMTP AUTH NOT successful: "
-									.$smtp->code." ".$smtp->message."\n" if (($debug));
-						}
-					}
-				}
-				else {
-					logMsg("sendMail, ERROR with sending email server=$servers[$server] to=$arg{to} from=$arg{from} subject=$arg{subject}");
-				}
-			}
-
-			if ( defined $smtp ) {
-				$got_server = 1;
-				if ( $debug > 2 ) {
-					# Use this to debug what mailers I can't use or support if needs be.
-					print "sendEmail; BANNER: ", $smtp->banner(), "\n";
-					print "sendEmail; SMTP HELP: ", $smtp->help(), "\n";
-				}
 	
-				$smtp->mail($arg{from});
-				@addr = split(",", $arg{to});
-				foreach $oneaddr (@addr) {
-					$smtp->to($oneaddr);
-				}
+	# send mail from 
+	return (0, $smtp->code, "server rejected sender: ".$smtp->message)
+			if (!$smtp->mail($arg{sender}));
 	
-				# Some servers might need this!
-				#$smtp->hello($arg{mail_domain});
-	
-				$smtp->data();
-				$smtp->datasend("X-Mailer: NMIS on Net::SMTP\n");
-				$smtp->datasend("X-Priority: $priNum\n");
-				$smtp->datasend("X-MSMail-Priority: $priWord\n");
-				$smtp->datasend("Importance: $priWord\n");
-				$smtp->datasend("Priority: $priWord\n");
-				$smtp->datasend("Subject: $arg{subject}\n");
-				$smtp->datasend("From: $arg{from}\n");
-				$smtp->datasend("To: $arg{to}\n");
-				$smtp->datasend("\n");
-				$smtp->datasend("$arg{body}\n");
-	
-				$smtp->dataend();
-	
-				$smtp->quit;
-			}
-			++$server;
-		}
-
-		if ( ! $got_server ) {
-			logMsg("sendMail, ERROR with sending email server=$arg{server} to=$arg{to} from=$arg{from} subject=$arg{subject}");
+	# send recipient to and bail out if any of them fail
+	{
+		for my $to (@{$arg{recipients}})
+		{
+			return (0, $smtp->code, "server rejected recipient $to: ".$smtp->message)
+					if (!$smtp->to($to));
 		}
 	}
-	else {
-		print STDERR "sendEmail, ERROR: \"to\" is BLANK\n";
-	}
+	
+	# almost there, now send data and produce the content
+	my $content = defined $arg{text}? $arg{text} : $arg{mime}->as_string;
+	return (0, $smtp->code, "server rejected data: ".$smtp->message)
+			if (!$smtp->data( $content ));
+	
+	# message actually returns list if in list context, not that any docs say so...
+	my @ret = (1, $smtp->code, (join("",$smtp->message)));
+	$smtp->quit; 								# no error handling required or useful
+
+	return @ret;
 }
 
 sub setSMTPPriority {

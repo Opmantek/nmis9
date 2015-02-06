@@ -54,34 +54,64 @@ my $target = $CT->{$contactKey}{Email};
 print "This script will send a test email to the contact $contactKey $target\n";
 print "Using the configured email server $C->{mail_server}\n";
 
-sendEmail(
-	to => $target, 
+my ($status, $code, $errmsg) = sendEmail(
+	# params for connection and sending 
+	sender => $C->{mail_from},
+	recipients => [$target],
+
+	mailserver => $C->{mail_server},
+	serverport => $C->{mail_server_port},
+	hello => $C->{mail_domain},
+	usetls => $C->{mail_use_tls},
+						
+	username => $C->{mail_user},
+	password => $C->{mail_password},
+
+	# and params for making the message on the go
+	to => $target,
+	from => $C->{mail_from},
+
 	subject => "Normal Priority Test Email from NMIS8",
 	body => "This is a Normal Priority Test Email from NMIS8",
-	from => $C->{mail_from}, 
-	server => $C->{mail_server}, 
-	domain => $C->{mail_domain},
-	use_sasl => $C->{mail_use_sasl},
-	port => $C->{mail_server_port},
-	user => $C->{mail_user},						
-	password => $C->{mail_password},						
-	priority => "Normal",
-	debug => 4
-);
+	priority => "Normal"
+		);
 
-sendEmail(
-	to => $target, 
+if (!$status)
+{
+	print "Error: Sending email to $target failed: $code $errmsg\n";
+}
+else
+{
+	print "Test Email to $target sent successfully\n";
+}
+
+($status, $code, $errmsg) = sendEmail(
+	# params for connection and sending 
+	sender => $C->{mail_from},
+	recipients => [$target],
+
+	mailserver => $C->{mail_server},
+	serverport => $C->{mail_server_port},
+	hello => $C->{mail_domain},
+	usetls => $C->{mail_use_tls},
+						
+	username => $C->{mail_user},
+	password => $C->{mail_password},
+
+	# and params for making the message on the go
+	to => $target,
+	from => $C->{mail_from},
+
 	subject => "High Priority Test Email from NMIS8",
 	body => "This is a High Priority Test Email from NMIS8",
-	from => $C->{mail_from}, 
-	server => $C->{mail_server}, 
-	domain => $C->{mail_domain},
-	use_sasl => $C->{mail_use_sasl},
-	port => $C->{mail_server_port},
-	user => $C->{mail_user},						
-	password => $C->{mail_password},						
-	priority => "High",
-	debug => 4
-);
+	priority => "High"
+		);
 
-
+if (!$status)
+{
+	print "Error: Sending email to $target failed: $code $errmsg\n";
+}
+else
+{
+	print "Test Email to $target sent successfully\n";
+}

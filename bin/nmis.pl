@@ -321,6 +321,7 @@ sub	runThreads
 	} 
 	elsif ($type eq "collect")
 	{
+		logMsg("INFO start of collect process");
 		$meth = \&doCollect;
 	}
 	elsif ($type eq "services")
@@ -5865,47 +5866,81 @@ sub sendMSG {
 	foreach my $method (keys %$msgTable) {
 		dbg("Method $method");
 		if ($method eq "email") {
+
+			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
 			foreach $target (keys %{$msgTable->{$method}}) {
-				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) 
+				{
 					next if $C->{mail_server} eq '';
-					sendEmail(
+
+					my ($status, $code, $errmsg) = sendEmail(
+					  # params for connection and sending 
+						sender => $C->{mail_from},
+						recipients => [$target],
+
+						mailserver => $C->{mail_server},
+						serverport => $C->{mail_server_port},
+						hello => $C->{mail_domain},
+						usetls => $C->{mail_use_tls},
+						
+						username => $C->{mail_user},
+						password => $C->{mail_password},
+
+						# and params for making the message on the go
 						to => $target,
+						from => $C->{mail_from},
 						subject => $$msgTable{$method}{$target}{$serial}{subject},
 						body => $$msgTable{$method}{$target}{$serial}{message},
-						from => $C->{mail_from},
-						server => $C->{mail_server},
-						domain => $C->{mail_domain},
-						use_sasl => $C->{mail_use_sasl},
-						port => $C->{mail_server_port},
-						user => $C->{mail_user},
-						password => $C->{mail_password},
 						priority => $$msgTable{$method}{$target}{$serial}{priority},
-						debug => $C->{debug}
-					);
-					dbg("Escalation Email Notification sent to $target");
+							);
+
+					if (!$status)
+					{
+						logMsg("Error: Sending email to $target failed: $code $errmsg");
+					}
+					else
+					{
+						dbg("Escalation Email Notification sent to $target");
+					}
 				}
 			}
 		} # end email
 		### Carbon copy notifications - no action required - FYI only.
 		elsif ( $method eq "ccopy" ) {
+			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
 			foreach $target (keys %{$msgTable->{$method}}) {
 				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
 					next if $C->{mail_server} eq '';
-					sendEmail(
+
+					my ($status, $code, $errmsg) = sendEmail(
+					  # params for connection and sending 
+						sender => $C->{mail_from},
+						recipients => [$target],
+
+						mailserver => $C->{mail_server},
+						serverport => $C->{mail_server_port},
+						hello => $C->{mail_domain},
+						usetls => $C->{mail_use_tls},
+						
+						username => $C->{mail_user},
+						password => $C->{mail_password},
+
+						# and params for making the message on the go
 						to => $target,
+						from => $C->{mail_from},
 						subject => $$msgTable{$method}{$target}{$serial}{subject},
 						body => $$msgTable{$method}{$target}{$serial}{message},
-						from => $C->{mail_from},
-						server => $C->{mail_server},
-						domain => $C->{mail_domain},
-						use_sasl => $C->{mail_use_sasl},
-						port => $C->{mail_server_port},
-						user => $C->{mail_user},
-						password => $C->{mail_password},
 						priority => $$msgTable{$method}{$target}{$serial}{priority},
-						debug => $C->{debug}
-					);
-					dbg("Escalation CC Email Notification sent to $target");
+							);
+
+					if (!$status)
+					{
+						logMsg("Error: Sending email to $target failed: $code $errmsg");
+					}
+					else
+					{
+						dbg("Escalation CC Email Notification sent to $target");
+					}
 				}
 			}
 		} # end ccopy
