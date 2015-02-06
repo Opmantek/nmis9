@@ -1,6 +1,6 @@
 # a small update plugin for converting the mac addresses in ciscorouter addresstables 
 # into a more human-friendly form
-package MacTable;
+package addressTable;
 our $VERSION = "1.0.0";
 
 use strict;
