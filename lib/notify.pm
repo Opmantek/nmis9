@@ -28,25 +28,26 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
 package notify;
+our $VERSION = "1.1.0";
 
 require 5;
 
 use strict;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 use Net::SMTP;
 # use Net::SMTP::SSL;
 use Net::SNPP;
-use Net::Syslog;
+use Sys::Syslog 0.28;						# older versions cannot set a custom syslog port
+use Sys::Hostname;							# for sys::syslog
+use File::Basename;
+use version 0.77;
 use NMIS;
 use func;
 use JSON::XS;
-
-$VERSION = 1.00;
 
 @ISA = qw(Exporter);
 
@@ -225,7 +226,12 @@ sub sendSNPP {
 	}
 }
 
-sub sendSyslog {
+# args: debug, server_string (comma-sep list of host:proto:port), facility, 
+# time, event, level, details, node and nmis_host
+# message (which is IGNORED if arg node and arg nmis_host are set!)
+# 
+sub sendSyslog 
+{
 	my %arg = @_;
 	my $debug = $arg{debug};
 	my $server_string = $arg{server_string};
@@ -235,40 +241,61 @@ sub sendSyslog {
 	if ( $arg{nmis_host} eq "" and $arg{node} eq "" and $arg{message} ne "" ) {
 		$message = $arg{message};
 	}
+	return if (!$message);
 
 	my $priority = eventToSyslog($arg{level});
 	$priority = 'notice' if $priority eq "";
 	
-	my $s=Net::Syslog->new(Facility => $facility, Priority => $priority);
 	my @servers = split(",",$server_string);
-	foreach my $server (@servers) {
-		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ ) {
+	foreach my $server (@servers) 
+	{
+		if ( $server =~ /([\w\.\-]+):(udp|tcp):(\d+)/ ) 
+		{
 			#server = localhost:udp:514
 			my $server = $1;
 			my $protocol = $2;
 			my $port = $3;
-			if ( $message ne "" ) {
-				$s->send($message, SyslogHost => $server, SyslogPort => $port, Priority => $priority);
-				dbg("syslog $message to $server:$port");
-			}
+
+
+			# don't bother waiting, especially not with udp
+
+			# sys::syslog has a silly bug: host option is overwritten by "path" for udp and tcp :-/
+			Sys::Syslog::setlogsock({type => $protocol, host => $server,
+
+															 path => $server, 
+															 port => $port, timeout => 0});
+			# this creates an rfc3156-compliant hostname + command[pid]: header
+			# note that sys::syslog doesn't fully support rfc5424, as it doesn't
+			# create a version part.
+			openlog(hostname." ".basename($0), "nofatal,pid", $facility);
+			# the nofatal is for not bothering with send failures.
+
+			syslog($priority, $message);
+			closelog;
+			Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]); 			# reset to defaults
+
+			dbg("syslog $message to $server:$port");
 		}
-		else {
-			logMsg("ERROR: syslog server not configured correctly, configured as $server, should be in the format 'localhost:udp:514'");
+		else 
+		{
+			logMsg("ERROR: syslog server \"$server\" not configured correctly, should be in the format 'localhost:udp:514'");
 		}
 	}
 }
 
+# convert event level to syslog priority
 sub eventToSyslog {
 	my $level = shift;
 	my $priority;   	
-	#emergency, alert, critical, error, warning, notice, informational, debug
+	# sys::syslog insists on the output matching the syslog(3) levels, ie. either be "LOG_ALERT" or "alert" etc.
+	# LOG_EMERG, LOG_ALERT, LOG_CRIT, LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
 
 	if ( $level eq "Normal" ) { $priority = "notice"; }
 	elsif ( $level eq "Warning" ) { $priority = "warning"; }
-	elsif ( $level eq "Minor" ) { $priority = "error"; }
-	elsif ( $level eq "Major" ) { $priority = "critical"; }
+	elsif ( $level eq "Minor" ) { $priority = "err"; }
+	elsif ( $level eq "Major" ) { $priority = "crit"; }
 	elsif ( $level eq "Critical" ) { $priority = "alert"; }
-	elsif ( $level eq "Fatal" ) { $priority = "emergency"; }
+	elsif ( $level eq "Fatal" ) { $priority = "emerg"; }
 	else { $priority = "info" }
 
 	return $priority;
