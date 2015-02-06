@@ -283,17 +283,19 @@ sub sendSyslog
 	}
 }
 
+# convert event level to syslog priority
 sub eventToSyslog {
 	my $level = shift;
 	my $priority;   	
-	#emergency, alert, critical, error, warning, notice, informational, debug
+	# sys::syslog insists on the output matching the syslog(3) levels, ie. either be "LOG_ALERT" or "alert" etc.
+	# LOG_EMERG, LOG_ALERT, LOG_CRIT, LOG_ERR, LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG
 
 	if ( $level eq "Normal" ) { $priority = "notice"; }
 	elsif ( $level eq "Warning" ) { $priority = "warning"; }
-	elsif ( $level eq "Minor" ) { $priority = "error"; }
-	elsif ( $level eq "Major" ) { $priority = "critical"; }
+	elsif ( $level eq "Minor" ) { $priority = "err"; }
+	elsif ( $level eq "Major" ) { $priority = "crit"; }
 	elsif ( $level eq "Critical" ) { $priority = "alert"; }
-	elsif ( $level eq "Fatal" ) { $priority = "emergency"; }
+	elsif ( $level eq "Fatal" ) { $priority = "emerg"; }
 	else { $priority = "info" }
 
 	return $priority;
