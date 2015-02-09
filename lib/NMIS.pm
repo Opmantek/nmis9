@@ -94,6 +94,7 @@ $VERSION = "8.5.5G";
 		loadOutageTable
 		loadInterfaceTypes
 		loadCfgTable
+		findCfgEntry
 
 		checkNodeName
 
@@ -386,9 +387,35 @@ sub checkNodeName {
 
 #==================================================================
 
+# this small helper takes an optional section and a require config item name,
+# and returns the structure info for that item from loadCfgTable
+# returns: hashref (keys display, value etc.) or undef if not found
+sub findCfgEntry
+{
+	my (%args) = @_;
+	my ($section,$item) = @args{qw(section item)};
+	
+	my $meta = loadCfgTable();
+	for my $maybesection (defined $section? ($section) : keys %$meta)
+	{
+		for my $entry (@{$meta->{$maybesection}})
+		{
+			if ($entry->{$item})
+			{
+				return $entry->{$item};
+			}
+		}
+	}
+	return undef;
+}
+
+# this returns an almost config-like structure that describes the well-known config keys,
+# how to display them and what options they have
+# args: none!
 sub loadCfgTable {
 	my %args = @_;
-	my $table = $args{table};
+
+	my $table = $args{table}; # fixme ignored, has no function
 	
 	my %Cfg = ( 
   	'online' => [
@@ -508,10 +535,15 @@ sub loadCfgTable {
 		],
 
 		'email' => [
-				{ 'mail_server' => { display => 'text', value => ['mail.domain.com']}},
-				{ 'mail_domain' => { display => 'text', value => ['domain.com']}},
-				{ 'mail_from' => { display => 'text', value => ['nmis@domain.com']}},
-				{ 'mail_combine' => { display => 'popup', value => ['true','false']}}
+			{ 'mail_server' => { display => 'text', value => ['mail.domain.com']}},
+			{ 'mail_domain' => { display => 'text', value => ['domain.com']}},
+			{ 'mail_from' => { display => 'text', value => ['nmis@domain.com']}},
+			{ 'mail_combine' => { display => 'popup', value => ['true','false']}},
+			{ 'mail_from' => { display => "text", value => ['nmis@yourdomain.com']}},
+			{	'mail_use_tls' => { display => 'popup', value => ['true','false']}},
+			{ 'mail_server_port' => { display => "text", value => ['25']}},
+			{ 'mail_user' => { display => "text", value => ['your mail username']}},
+			{ 'mail_password' => { display => "text", value => ['']}},
 		],
 
 		'menu' => [
@@ -2665,8 +2697,7 @@ sub outageRemove {
 
 
 
-## EHG 28 Aug for Net::SMTP priority setting on email
-##
+# small translator from event level to priority: header for email
 sub eventToSMTPPri {
 	my $level = shift;
 	# More granularity might be possible there are 5 numbers but
@@ -2680,6 +2711,10 @@ sub eventToSMTPPri {
 	elsif ( $level eq "Disaster" ) { return "High" }
 	elsif ( $level eq "Catastrophic" ) { return "High" }
 	elsif ( $level eq "Unknown" ) { return "Low" }
+	else
+	{
+		return "Normal";
+	}
 }
 
 # test the dutytime of the given contact.
