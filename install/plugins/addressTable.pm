@@ -15,6 +15,8 @@ sub update_plugin
 	return (0,undef) if (ref($NI->{addressTable}) ne "HASH");
 	my $changesweremade = 0;
 
+	my $IF = $S->ifinfo;
+
 	for my $mackey (keys %{$NI->{addressTable}})
 	{
 		my $macentry = $NI->{addressTable}->{$mackey};
@@ -38,6 +40,10 @@ sub update_plugin
 			$macentry->{ipNetToMediaPhysAddress} = 
 					sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
 			$changesweremade = 1;
+		}
+
+		if ( defined $IF->{$macentry->{ipNetToMediaIfIndex}}{ifDescr} ) {
+			$macentry->{ifDescr} = $IF->{$macentry->{ipNetToMediaIfIndex}}{ifDescr};
 		}
 
 	}

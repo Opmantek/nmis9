@@ -316,8 +316,142 @@
     'nodegraph' => 'health,response,cpu,ip,mem-router,topo,routenumber'
   },
   'systemHealth' => {
-  	'sections' => 'psuStatus,fanStatus',
+  	'sections' => 'vtpVlan,dot1dBase,cdp,addressTable,psuStatus,fanStatus',
     'sys' => {
+      'dot1dBase' => {
+        'headers' => 'dot1dBasePort,dot1dBasePortIfIndex',
+        'indexed' => 'dot1dBasePortIfIndex',
+        'snmp' => {
+          'dot1dBasePort' => {
+            'oid' => 'dot1dBasePort',
+            'title' => 'Bridge Port'
+          },
+          'dot1dBasePortIfIndex' => {
+            'oid' => 'dot1dBasePortIfIndex',
+            'title' => 'Bridge ifIndex'
+          },
+        }
+      },
+      'vtpVlan' => {
+        'headers' => 'vtpVlanState,vtpVlanType,vtpVlanName,vtpVlanMtu,vtpVlanDot10Said',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'vtpVlanState',
+        'snmp' => {
+          'vtpVlanState' => {
+            'oid' => 'vtpVlanState',
+            'replace' => {
+              '1' => 'operational',
+              '2' => 'suspended',
+              '3' => 'mtuTooBigForDevice',
+              '4' => 'mtuTooBigForTrunk',
+            },
+            'title' => 'VLAN State'
+          },
+          'vtpVlanType' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.3',
+            'replace' => {
+              '1' => 'ethernet',
+              '2' => 'fddi',
+              '3' => 'tokenRing',
+              '4' => 'fddiNet',
+              '5' => 'trNet',
+              '6' => 'deprecated',
+            },
+            'title' => 'VLAN Type'
+          },
+          'vtpVlanName' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
+            'title' => 'VLAN Name'
+          },
+          'vtpVlanMtu' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.5',
+            'title' => 'VLAN MTU'
+          },
+          'vtpVlanIfIndex' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.18',
+            'replace' => {
+              '0' => 'N/A',
+            },
+            'title' => 'VLAN ifIndex'
+          },
+        }
+      },
+      'cdp' => {
+        'headers' => 'ifDescr,cdpCacheAddressType,cdpCacheAddress,cdpCacheVersion,cdpCacheDeviceId,cdpCacheDevicePort,cdpCachePlatform',
+        'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'cdpCacheDeviceId',
+        'snmp' => {
+          'cdpCacheVersion' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
+            'sysObjectName' => 'cdpCacheVersion',
+            'title' => 'cdpCacheVersion'
+          },
+          'cdpCacheAddressType' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
+            'sysObjectName' => 'cdpCacheAddressType',
+            'replace' => {
+              '1' => 'ip',
+            },
+            'title' => 'cdpCacheAddressType'
+          },
+          'cdpCacheAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.4',
+            'sysObjectName' => 'cdpCacheAddress',
+            'title' => 'cdpCacheAddress'
+          },
+          'cdpCacheVersion' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
+            'sysObjectName' => 'cdpCacheVersion',
+            'title' => 'cdpCacheVersion'
+          },
+          'cdpCacheDeviceId' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
+            'sysObjectName' => 'cdpCacheDeviceId',
+            'title' => 'cdpCacheDeviceId'
+          },
+          'cdpCacheDevicePort' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.7',
+            'sysObjectName' => 'cdpCacheDevicePort',
+            'title' => 'cdpCacheDevicePort'
+          },
+          'cdpCachePlatform' => {
+            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.8',
+            'sysObjectName' => 'cdpCachePlatform',
+            'title' => 'cdpCachePlatform'
+          },
+        }
+      },
+      'addressTable' => {
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ipNetToMediaIfIndex',
+        'snmp' => {
+          'ipNetToMediaIfIndex' => {
+            'oid' => 'ipNetToMediaIfIndex',
+            'title' => 'ipNetToMediaIfIndex'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'ipNetToMediaPhysAddress'
+          },
+          'ipNetToMediaNetAddress' => {
+            'oid' => 'ipNetToMediaNetAddress',
+            'title' => 'ipNetToMediaNetAddress'
+          },
+          'ipNetToMediaType' => {
+            'oid' => 'ipNetToMediaType',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'dynamic',
+              '4' => 'static',
+            },
+            'title' => 'ipNetToMediaType'
+          },
+        }
+      },
       'psuStatus' => {        
       	'control' => '$sysObjectName =~ /./',
         'indexed' => 'ciscoEnvMonSupplyStatusDescr',        
@@ -473,16 +607,38 @@
         'snmp' => {
           'vlanTrunkPortEncapsulationType' => {
             'replace' => {
-              '1' => 'isl',
-              '4' => 'dot1q',
               '0' => 'null',
-              '3' => 'lane',
-              'unknown' => 'unknown',
+              '1' => 'isl',
               '2' => 'dot10',
-              '5' => 'negotiate'
+              '3' => 'lane',
+              '4' => 'dot1q',
+              '5' => 'negotiate',
+              'unknown' => 'unknown',
             },
             'oid' => 'vlanTrunkPortEncapsulationType',
             'title' => ' Encapsulation Type'
+          },
+          'vlanTrunkPortDynamicState' => {
+            'replace' => {
+              '0' => 'null',
+              '1' => 'on',
+              '2' => 'off',
+              '3' => 'desirable',
+              '4' => 'auto',
+              '5' => 'onNoNegotiate',
+              'unknown' => 'unknown',
+            },
+            'oid' => '1.3.6.1.4.1.9.9.46.1.6.1.1.13',
+            'title' => ' Trunk State'
+          },
+          'vlanTrunkPortDynamicStatus' => {
+            'replace' => {
+              '1' => 'trunking',
+              '2' => 'notTrunking',
+              'unknown' => 'unknown',
+            },
+            'oid' => '1.3.6.1.4.1.9.9.46.1.6.1.1.14',
+            'title' => ' Trunk Status'
           },
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
