@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.1";
+our $VERSION = "1.2.2";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -2095,7 +2095,8 @@ sub checkPerlLib {
 # a quick selftest function to verify that the runtime environment is ok
 # function name not exported, on purpose
 # args: an nmis config structure (needed for the paths),
-# and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no)
+# and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
+# optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise)
 # returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 sub selftest
 {
@@ -2106,6 +2107,9 @@ sub selftest
 	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"}) 
 			if (ref($config) ne "HASH" or !keys %$config);
 	my $candelay = getbool($args{delay_is_ok});
+
+	my $dbdir_status = $args{report_database_status};
+	$$dbdir_status = 1 if (ref($dbdir_status) eq "SCALAR"); # assume the database dir passes the test
 
 	$allok=1;
 
@@ -2162,6 +2166,7 @@ sub selftest
 		{
 			push @details, [$testname, "Could not determine free space: $!"];
 			$allok=0;
+			$$dbdir_status = undef if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			next;
 		}
 		# Filesystem       1048576-blocks  Used Available Capacity Mounted on
@@ -2170,11 +2175,13 @@ sub selftest
 		if (100-$usedpercent < $minfreepercent)
 		{
 			push @details, [$testname, "Only ".(100-$usedpercent)."% available!"];
+			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
 		}
 		elsif ($remaining < $minfreemegs)
 		{
 			push @details, [$testname, "Only $remaining Megabytes available!"];
+			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
 		}
 		else

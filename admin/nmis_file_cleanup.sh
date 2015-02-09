@@ -22,8 +22,11 @@ else
 	DAYS=$2
 fi
 
-# purge the RRD files
-find $DIR/database -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
+# purge old RRD files
+find $DIR/database/ -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
+
+# and also get rid of definitely corrupt zero-byte-size RRD files
+find $DIR/database/ -name "*.rrd" -type f -size 0c -exec rm -f {} \;
 
 # purge the NMIS files
 find $DIR/var/ -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;

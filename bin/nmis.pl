@@ -75,20 +75,27 @@ my %nvp = getArguements(@ARGV);
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
 
+# and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
+# this is used by rrdfunc::createRRD(), so needs to be scoped suitably.
+our $selftest_dbdir_status;
+$selftest_dbdir_status = undef;
+
 # check for global collection off or on
 # useful for disabling nmis poll for server maintenance, nmis upgrades etc.
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+
 if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
 	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
-	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false');
+
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false', 
+																			 report_database_status => \$selftest_dbdir_status);
 	writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	if (-f $lockoutfile)
 	{
-		
 		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
 	}
 	else
@@ -179,7 +186,8 @@ sub	runThreads
 	{
 		info("Starting selftest (takes about 5 seconds)...");
 		my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
-		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true');
+		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
+																				 report_database_status => \$selftest_dbdir_status);
 		writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
 		info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
