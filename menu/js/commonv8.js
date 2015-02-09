@@ -225,6 +225,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				position : [ 10, 725 ]
 				});
 		}
+
 		if ( modules.search("opMaps") > -1 && displayopMapsWidget ) {
 			createDialog({
 				id       : 'ntw_map',
@@ -259,6 +260,17 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 	
 	// draw the quick search widget after the others.
 	selectNodeOpen();	
+
+	// except that the setup window should be the topmost dialog if active
+	if ( displaySetupWidget ) 
+	{
+		createDialog({
+			id       : 'cfg_setup',
+ 			url      : 'setup.pl?conf=' + config + '&amp;act=setup_menu&amp;widget=true',
+			title    : 'Basic Setup',
+			position : [ 5, 65 ]
+		});
+	}
 
 };		// end init	
 	

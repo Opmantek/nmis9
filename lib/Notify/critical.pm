@@ -28,17 +28,16 @@
 # *****************************************************************************
 
 package Notify::critical;
+our $VERSION = "1.1.0";
 
 require 5;
 
 use strict;
 use notify;
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Data::Dumper;
 
-
-$VERSION = 1.00;
 
 @ISA = qw(Exporter);
 
@@ -64,23 +63,41 @@ sub sendNotification {
 	$event->{mobile} = $contact->{Mobile};
 	
 	print STDERR "Notify::critical checking event....\n" if $C->{debug};
-	if( $event->{event} =~ /Interface Down|Interface Up/ && $event->{details} =~ /CRITICAL/ ) {
+	if ( $event->{event} =~ /Interface Down|Interface Up/ && $event->{details} =~ /CRITICAL/ ) 
+	{
 		print STDERR "Notify::critical Sending critical email to $contact->{Email}\n" if $C->{debug};
-		sendEmail(
-			to => $contact->{Email}, 
-			subject => $subject, 
-			body => $message,
-			from => $C->{mail_from},
-			server => $C->{mail_server},
-			domain => $C->{mail_domain},
-			use_sasl => $C->{mail_use_sasl},
-			port => $C->{mail_server_port},
-			user => $C->{mail_user},
+
+		my ($status, $code, $errmsg) = sendEmail(
+			# params for connection and sending 
+			sender => $C->{mail_from},
+			recipients => [$contact->{Email}],
+			
+			mailserver => $C->{mail_server},
+			serverport => $C->{mail_server_port},
+			hello => $C->{mail_domain},
+			usetls => $C->{mail_use_tls},
+			
+			username => $C->{mail_user},
 			password => $C->{mail_password},
+			
+			# and params for making the message on the go
+			to => $contact->{Email},
+			from => $C->{mail_from},
+			subject => $subject,
+			body => $message,
 			priority => $priority,
-			debug => $C->{debug}
-		);
-	}	
+				);
+		
+		if (!$status)
+		{
+			print STDERR "Notify::critical Sending Sending email to $contact->{Email} failed: $code $errmsg\n" 
+					if $C->{debug};
+		}
+		else
+		{
+			print STDERR "Notify::critical Notification to $contact->{Email} sent successfully\n" if $C->{debug};
+		}
+	}
 }
 
 

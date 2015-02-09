@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.0.1";
+our $VERSION = "2.1.0";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -701,6 +701,8 @@ sub optionsRRD {
 
 ### createRRRDB now checks if RRD exists and only creates if doesn't exist.
 ### also add node directory create for node directories, if rrd is not found
+### note that the function does NOT create an rrd file if 
+### $main::selftest_dbdir_status is 0 (not undef)
 sub createRRD {
 	my %args = @_;
 	my $S = $args{sys}; # optional
@@ -723,9 +725,15 @@ sub createRRD {
 	}
 	# Check if the RRD Database Exists but is ReadOnly
 	# Maybe this should check for valid directory or not.
-	elsif ( -f $database and not -w $database ) { 
+	elsif ( -f $database and not -w $database ) {
 		dbg("ERROR ($S->{name}) database $database Exists but is readonly");
 		$exit = 0;
+	}
+	# are we allowed to create new files, or is the filesystem with the database dir (almost) full already?
+	elsif (defined $main::selftest_dbdir_status && !$main::selftest_dbdir_status)
+	{
+		logMsg("ERROR: Not creating $database, as database filesystem is (almost) full!");
+		return 0;
 	}
 	# It doesn't so create it
 	else {

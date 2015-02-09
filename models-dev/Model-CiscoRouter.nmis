@@ -773,7 +773,7 @@
         }
       },
       'addressTable' => {
-        'headers' => 'ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
         'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'ipNetToMediaIfIndex',
         'snmp' => {
@@ -791,6 +791,12 @@
           },
           'ipNetToMediaType' => {
             'oid' => 'ipNetToMediaType',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'dynamic',
+              '4' => 'static',
+            },
             'title' => 'ipNetToMediaType'
           },
         }

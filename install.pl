@@ -146,7 +146,7 @@ if ($osflavour)
 libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping snmp snmpd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
-libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl
+libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
@@ -495,8 +495,13 @@ else
 			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
 			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
-			execPrint("$site/admin/patch_config -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
 
+			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+			{
+				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+			}
+			
 			# move config/cache files to new locations where necessary
 			if (-f "$site/conf/WindowState.nmis")
 			{

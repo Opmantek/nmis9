@@ -226,9 +226,9 @@
     'mail_combine' => 'true',
     'mail_domain' => 'yourdomain.com',
     'mail_from' => 'nmis@yourdomain.com',
-    'mail_use_sasl' => 'false',
-    'mail_server_port' => 465,
-    'mail_user' => 'emailuserid or email@gmail.com',
+		'mail_use_tls' => 'false',
+    'mail_server_port' => '25',
+    'mail_user' => 'your mail username',
     'mail_password' => ''
   },
   'syslog' => {

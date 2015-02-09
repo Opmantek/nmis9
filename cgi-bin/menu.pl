@@ -331,9 +331,11 @@ sub menu_bar_site {
 		## a setup/wizard menu
 
 		my @systemitems;
-		
-		push @systemitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|
-				if ($AU->CheckAccess("table_config_view","check"));
+
+		if ($AU->CheckAccess("table_config_view","check"))
+		{
+			push @systemitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|;
+		}
 
 		push @systemitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
@@ -347,10 +349,10 @@ sub menu_bar_site {
 		push @systemitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 				
-		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=CiscoRouter&amp;section=threshold">Thresholding Alerts</a>| 
+		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alerts</a>| 
 				if ($AU->CheckAccess("table_models_view","check"));				
 
-		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=CiscoRouter&amp;section=event">Event Logging and Syslog</a>| 
+		push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
 				if ($AU->CheckAccess("table_models_view","check"));				
 
 		push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
@@ -377,6 +379,12 @@ sub menu_bar_site {
 						if ($AU->CheckAccess("tls_$cmd","check"));
 		}		
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
+
+		# note: jd_menu doesn't work with a toplevel non-menu item, therefore this one-entry menu
+		push 	@menu_site, "Setup", 
+		[qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|]
+				if ($AU->CheckAccess("table_config_view","check"));
+
 		push @menu_site, qq|System|, \@systemitems if (@systemitems);
 
 		# Moved Quick Search to network status and do not need NMIS Server anymore.
