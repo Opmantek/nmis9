@@ -371,6 +371,16 @@
         'event' => 'Proactive Interface Discards Output Packets',
         'item' => 'ifOutDiscardsProc',
         'select' => {
+          '10' => {
+            'control' => '$node eq "meatball"',
+            'value' => {
+              'fatal' => '5.0',
+              'critical' => '3.00',
+              'major' => '2.0',
+              'minor' => '1.0',
+              'warning' => '0.5'
+            }
+          },
           'default' => {
             'value' => {
               'critical' => '0.25',
