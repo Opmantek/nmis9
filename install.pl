@@ -495,8 +495,13 @@ else
 			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
 			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
-			execPrint("$site/admin/patch_config -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
 
+			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+			{
+				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+			}
+			
 			# move config/cache files to new locations where necessary
 			if (-f "$site/conf/WindowState.nmis")
 			{
