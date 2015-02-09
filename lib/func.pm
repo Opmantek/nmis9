@@ -2267,13 +2267,13 @@ sub selftest
 		my $max_iowait = $config->{selftest_max_system_iowait} || 10;
 		if ($busy_ratio * 100 > $max_cpu)
 		{
-			$busy_status = sprintf("CPU load %.2f%% is above maximum %.2f%%", 
+			$busy_status = sprintf("CPU load %.2f%% is above threshold %.2f%%", 
 														 $busy_ratio*100, $max_cpu);
 			$allok=0;
 		}
 		if ($iowait_ratio * 100 > $max_iowait)
 		{
-			$iowait_status = sprintf("I/O load %.2f%% is above maximum %.2f%%", 
+			$iowait_status = sprintf("I/O load %.2f%% is above threshold %.2f%%", 
 															 $iowait_ratio*100, 
 															 $max_iowait);
 			$allok=0;
@@ -2298,7 +2298,7 @@ sub selftest
 	my $swapused = $swaptotal - $swapfree;
 	if ($swaptotal && 100*$swapused/$swaptotal > $max_swap)
 	{
-		$swapstatus = sprintf("Swap memory use %.2f%% is above maximum %.2f%%",
+		$swapstatus = sprintf("Swap memory use %.2f%% is above threshold %.2f%%",
 													$swapused/$swaptotal * 100, $max_swap);
 		$allok=0;
 	}
