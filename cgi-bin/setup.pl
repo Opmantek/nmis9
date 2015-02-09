@@ -264,7 +264,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 			td({class => "infolft Plain"},
 				 ($havecustomgroups? "You have configured ".
 					scalar(split(/\s*,\s*/, $rawconf->{system}->{group_list})). " groups" : 
-					"You have only the default NMIS groups")),
+					"You have only the default NMIS groups.")."<br/>Use the button to the left to edit groups."),
 					end_Tr;
 
 	my $NT = loadLocalNodeTable();
@@ -276,8 +276,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		 . button(-name => "add_nodes", -value => "Add Nodes",
 							-onclick => $wantwidget? "createDialog({id: 'cfg_nodes', url: 'tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes&amp;widget=$widget', title: 'Add Nodes'})" : "document.location='tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes&amp;widget=$widget'" )),
 
-# , <a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes&amp;widget=$widget">Add Nodes</a>|),
-			td({class => "infolft Plain"}, ($havecustomnodes? "You have configured ".(scalar keys %$NT)." nodes": "Your configuration contains only the single default node.")), end_Tr;
+			td({class => "infolft Plain"}, ($havecustomnodes? "You have configured ".(scalar keys %$NT)." nodes": "Your configuration contains only the single default node.")."<br/>Use the button to the left to add nodes."), end_Tr;
 	
 	print end_table;
 
