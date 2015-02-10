@@ -223,6 +223,7 @@
   },
   'email' => {
     'mail_server' => '127.0.0.1',
+    'mail_server_ipproto' => undef,
     'mail_combine' => 'true',
     'mail_domain' => 'yourdomain.com',
     'mail_from' => 'nmis@yourdomain.com',

@@ -63,6 +63,7 @@ my ($status, $code, $errmsg) = sendEmail(
 	serverport => $C->{mail_server_port},
 	hello => $C->{mail_domain},
 	usetls => $C->{mail_use_tls},
+	ipproto =>  $C->{mail_server_ipproto},
 						
 	username => $C->{mail_user},
 	password => $C->{mail_password},

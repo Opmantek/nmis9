@@ -1,4 +1,12 @@
-%hash = (
+%hash = 
+		(
+  'NMIS runtime exceeded' => {
+		'Event' => "NMIS runtime exceeded",
+		'Notify' => "true",
+		'Log' => "true",
+		'Stateful' => "false",
+  },
+
   'Interface Down' => {
     'Event' => 'Interface Down',
     'Notify' => 'true',

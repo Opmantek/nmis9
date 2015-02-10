@@ -542,6 +542,7 @@ sub loadCfgTable {
 			{ 'mail_from' => { display => "text", value => ['nmis@yourdomain.com']}},
 			{	'mail_use_tls' => { display => 'popup', value => ['true','false']}},
 			{ 'mail_server_port' => { display => "text", value => ['25']}},
+			{ 'mail_server_ipproto' => { display => "popup", value => ['','ipv4','ipv6']}},
 			{ 'mail_user' => { display => "text", value => ['your mail username']}},
 			{ 'mail_password' => { display => "text", value => ['']}},
 		],
@@ -937,6 +938,10 @@ sub checkEvent {
 	my $syslog;
 	
 	my $C = loadConfTable();
+
+	# events.nmis controls which events are active/logging/notifying
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $thisevent_control = $events_config->{$event} || {};
 	
 	# just in case this is blank.
 	if ( $C->{'non_stateful_events'} eq '' ) {
@@ -971,7 +976,7 @@ sub checkEvent {
 
 	if (exists $ET->{$event_hash} 
 			and getbool($ET->{$event_hash}{current})) {
-		# The opposite of this event exists log an UP and delete the event
+		# The opposite of this event exists, so log an UP and delete the original event
 
 		# save some stuff, as we cant rely on the hash after the write 
 		my $escalate = $ET->{$event_hash}{escalate};
@@ -1008,6 +1013,9 @@ sub checkEvent {
 		elsif ( $event =~ /down/i ) {
 			$event =~ s/down/Up/i;
 		}
+		
+		# event was renamed/inverted/massaged, need to get the right control record
+		$thisevent_control = $events_config->{$event} || {};
 
 		$details = "$details Time=$outage";
 		$ET->{$event_hash}{current} = 'false'; # next processing by escalation routine
@@ -1039,12 +1047,13 @@ sub checkEvent {
 			writeEventStateLock(table=>$ETL,handle=>$handle);
 		}
 
-		if (getbool($log)) {
+		if (getbool($log) and getbool($thisevent_control->{Log})) {
 			logEvent(node=>$S->{name},event=>$event,level=>$level,element=>$element,details=>$details);
 		}
 
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
-		if (getbool($C->{syslog_events}) and getbool($syslog) 
+		if (getbool($C->{syslog_events}) and getbool($syslog)
+				and getbool($thisevent_control->{Log})
 				and !getbool($C->{syslog_use_escalation})) {
 			sendSyslog(
 				server_string => $C->{syslog_server},
@@ -1079,6 +1088,10 @@ sub notify {
 	my $C = loadConfTable();
 
 	dbg("Start of Notify");
+	
+	# events.nmis controls which events are active/logging/notifying
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $thisevent_control = $events_config->{$event} || {};
 
 	my $event_hash = eventHash($S->{name},$event,$element);
 	my $ET;
@@ -1121,25 +1134,28 @@ sub notify {
 		# get level(if not defined) and log status from Model
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
 
-		if ($C->{non_stateful_events} !~ /$event/ ) {
-			#$event ne non_stateful_events 'Node Reset' && $event ne 'Node Configuration Change'
-			# Push the event onto the event table.
+		if ($C->{non_stateful_events} !~ /$event/ or getbool($thisevent_control->{Stateful})) {
+			# Push the event onto the event table if it is a stateful one
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
 		
-		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/) {
-			# Push the event onto the event table.
-			logConfigEvent(dir => $C->{config_logs}, node=>$node,event=>$event,level=>$level,element=>$element,details=>$details, host => $NI->{system}{host}, nmis_server => $C->{nmis_host} );			
+		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/
+				and getbool($thisevent_control->{Log})) 
+		{
+			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
+										 element=>$element, details=>$details, host => $NI->{system}{host}, 
+										 nmis_server => $C->{nmis_host} );			
 		}
 	}
 	# log events
-	if ( getbool($log)) {
+	if ( getbool($log) and getbool($thisevent_control->{Log})) {
 		logEvent(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 	}
 
 	# Syslog must be explicitly enabled in the config and will escalation is not being used.
 	if (getbool($C->{syslog_events}) 
-			and getbool($syslog) 
+			and getbool($syslog)
+			and getbool($thisevent_control->{Log})
 			and !getbool($C->{syslog_use_escalation})) {
 		sendSyslog(
 			server_string => $C->{syslog_server},
@@ -1380,6 +1396,7 @@ sub eventAck {
 	my $event_hash;
 
 	my $C = loadConfTable();
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 
 	my $delete_event = 0;
 	my ($ET,$handle);
@@ -1395,18 +1412,26 @@ sub eventAck {
 		if ( getbool($ack) and getbool($ET->{$event_hash}{ack},"invert")) {
 			### if a TRAP type event, then trash when ack. event record will be in event log if required
 			if ( $ET->{$event_hash}{event} eq "TRAP" ) {
-				logEvent(node => $ET->{$event_hash}{node}, event => "deleted event: $ET->{$event_hash}{event}", level => "Normal", element => $ET->{$event_hash}{element});
+				logEvent(node => $ET->{$event_hash}{node}, event => "deleted event: $ET->{$event_hash}{event}", 
+								 level => "Normal", element => $ET->{$event_hash}{element})
+						# log the deletion meta-event iff the original event had logging enabled
+						if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
+
 				delete $ET->{$event_hash};
 				$delete_event = 1;
 			}
 			else {
-				logEvent(node => $node, event => $event, level => "Normal", element => $element, details => "acknowledge=true ($user)");
+				logEvent(node => $node, event => $event, level => "Normal", element => $element, details => "acknowledge=true ($user)")
+						# log the ack meta-event iff the original event had logging enabled
+						if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
+				
 				$ET->{$event_hash}{ack} = "true";
 				$ET->{$event_hash}{user} = $user;
 			}
 		}
 		elsif ( getbool($ack,"invert") and getbool($ET->{$event_hash}{ack})) {
-			logEvent(node => $node, event => $event, level => $ET->{$event_hash}{level}, element => $element, details => "acknowledge=false ($user)");
+			logEvent(node => $node, event => $event, level => $ET->{$event_hash}{level}, element => $element, details => "acknowledge=false ($user)")
+					if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
 			$ET->{$event_hash}{ack} = "false";
 			$ET->{$event_hash}{user} = $user;
 		}
@@ -2198,11 +2223,18 @@ sub cleanEvent {
 	my $node=shift;
 	my $caller=shift;
 
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my ($ET,$handle) = loadEventStateLock();
 
-	foreach my $event_hash ( sort keys %{$ET})  {
-		if ( exists $ET->{$event_hash} and $ET->{$event_hash}{node} eq "$node" ) {
-			logEvent(node => "$ET->{$event_hash}{node}", event => "$caller: deleted event: $ET->{$event_hash}{event}", level => "Normal", element => "$ET->{$event_hash}{element}", details => "$ET->{$event_hash}{details}");
+	foreach my $event_hash ( sort keys %{$ET})  
+	{
+		if ( exists $ET->{$event_hash} and $ET->{$event_hash}{node} eq "$node" )
+		{
+			# log the deletion meta-event iff the original event had logging enabled
+			if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}))
+			{
+				logEvent(node => "$ET->{$event_hash}{node}", event => "$caller: deleted event: $ET->{$event_hash}{event}", level => "Normal", element => "$ET->{$event_hash}{element}", details => "$ET->{$event_hash}{details}");
+			}
 			delete $ET->{$event_hash};
 		}
 	}
