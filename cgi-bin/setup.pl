@@ -332,7 +332,7 @@ sub edit_config
 			return 0;
 		}
 		elsif (($item eq "nmis_host" or $item eq "mail_server")  
-					 and $value !~ /^([a-zA-Z_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
+					 and $value !~ /^([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
 			$Q->{error_message} = $item2displayname{$item}." contains invalid characters!";
 			return 0;
