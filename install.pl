@@ -150,7 +150,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl));
 
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -160,7 +160,7 @@ make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL uuid-perl perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
-perl-rrdtool));
+perl-rrdtool perl-Test-Deep));
 
 	
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
@@ -506,6 +506,7 @@ else
 			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
 			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
 
+			echolog("\n");
 			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
 			{
 				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
@@ -752,7 +753,7 @@ my $crongood = (-f "/etc/cron.d/nmis");
 if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /etc/cron.d/nmis?"))
 {
 	echolog("Creating default Cron schedule with nmis.pl type=crontab");
-	my $res = system("$site/bin/nmis.pl type=crontab >/tmp/new-nmis-cron");
+	my $res = system("$site/bin/nmis.pl type=crontab system=true >/tmp/new-nmis-cron");
 	
 	if (0 == $res>>8)
 	{
@@ -772,7 +773,7 @@ but feel free to adjust it.\n\nPlease hit <Enter> to continue:\n";
 if (!$crongood)
 {
 	print "\n\nTo see what the suggested default Cron schedule is like,
-simply run \"$site/bin/nmis.pl type=crontab >/tmp/somefile\", then
+simply run \"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\", then
 view /tmp/somefile. NMIS will require some scheduling setup
 to work correctly.\n\nPlease hit <Enter> to continue:\n";
 	my $x = <STDIN>;
@@ -876,10 +877,17 @@ EOF
 		}
 		else {
 			# Now look in @INC for module path and name
+			# and record the newest one
 			foreach my $path( @INC ) {
-				if ( -e "$path/$mFile" ) {
-					$nmisModules->{$mod}{file} = "$path/$mFile";
-					$nmisModules->{$mod}{version} = &moduleVersion("$path/$mFile");
+				if ( -e "$path/$mFile" ) 
+				{
+					my $thisversion = moduleVersion("$path/$mFile");
+					if (!defined $nmisModules->{$mod}{version} 
+							or version->parse($thisversion) >= version->parse($nmisModules->{$mod}{version}))
+					{
+						$nmisModules->{$mod}{file} = "$path/$mFile";
+						$nmisModules->{$mod}{version} = $thisversion;
+					}
 				}
 			}
 		}

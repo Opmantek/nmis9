@@ -205,10 +205,10 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		}
 
 		# some options inter-depend, add their colorings here
-		# mail port: 25 and 587 are ok
-		if ($item eq "mail_server_port" && $rawconf->{email}->{$item} =~ /^(25|587)$/)
+		# mail port: 25 and 587 are ok, none other are
+		if ($item eq "mail_server_port")
 		{
-			$entryisok=1;
+			$entryisok = $curval =~ /^(25|587)$/? 1 : 0;
 		}
 		if ($item eq "mail_user" or $item eq "mail_password")
 		{

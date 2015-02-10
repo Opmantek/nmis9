@@ -6401,21 +6401,24 @@ sub checkConfig {
 
 	my $ext = getExtension(dir=>'conf');
 
-	local *checkFunc;
+	my $checkFunc;
 	my $checkType;
 
-	# depending on our job, create dir or just check them.
-	if (getbool($change)) {
-		*checkFunc = \&createDir;
-		$checkType = "Checking"
+	# depending on our job, create dir and fix the perms! 
+	# or just check and report them.
+	if (getbool($change)) 
+	{
+		$checkFunc = sub { my ($dirname) = @_; createDir($dirname); setFileProtDirectory($dirname, 1); };
+		$checkType = "Checking and Fixing";
 	}
 	else {
-		*checkFunc = \&checkDir;
-		$checkType = "Auditing"
+		$checkFunc = \&checkDir;
+		$checkType = "Auditing and Reporting"
 	}
 
 	# check if nmis_base already oke
-	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl")) {
+	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl")) 
+	{
 
 		my $nmis_bin_dir = $FindBin::Bin; # dir of this program
 
@@ -6449,7 +6452,6 @@ EO_TEXT
 		}
 
 		# store nmis_base in NMIS config
-
 		my ($CC,undef) = readConfData(conf=>$nvp{conf},debug=>$nvp{debug});
 
 		$CC->{directories}{'<nmis_base>'} = $nmis_base;
@@ -6464,33 +6466,33 @@ EO_TEXT
 		info("\n Root directory of NMIS is $C->{'<nmis_base>'}\n");
 	}
 
-	# Do the var directories exist if not make them?
+	# Do the var directories exist? if not make them and fix the perms!
 	info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
 	if ($C->{'<nmis_var>'} ne '') {
-		checkFunc("$C->{'<nmis_var>'}");
-		checkFunc("$C->{'<nmis_var>'}/nmis_system");
-		checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
+		&$checkFunc("$C->{'<nmis_var>'}");
+		&$checkFunc("$C->{'<nmis_var>'}/nmis_system");
+		&$checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
 	}
 
-	# Do the log directories exist if not make them?
+	# Do the log directories exist, if not make them?
 	info("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
 	if ($C->{'<nmis_logs>'} ne '') {
-		checkFunc("$C->{'<nmis_logs>'}");
-		checkFunc("$C->{'json_logs'}");
-		checkFunc("$C->{'config_logs'}");
+		&$checkFunc("$C->{'<nmis_logs>'}");
+		&$checkFunc("$C->{'json_logs'}");
+		&$checkFunc("$C->{'config_logs'}");
 	}
 
 	# Do the conf directories exist if not make them?
 	info("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
 	if ($C->{'<nmis_conf>'} ne '') {
-		checkFunc("$C->{'<nmis_conf>'}");
+		&$checkFunc("$C->{'<nmis_conf>'}");
 	}
 
 	# Does the database directory exist? if not make it.
 	info("Config $checkType - Checking database directories");
 	if ($C->{database_root} ne '') 
 	{
-		checkFunc("$C->{database_root}");
+		&$checkFunc("$C->{database_root}");
 	} else {
 		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
 	}
@@ -6585,11 +6587,16 @@ EO_TEXT
 
 #=========================================================================================
 
-sub printCrontab {
-
+# two modes: default, for the root user's personal crontab
+# if system=true is given, then a crontab for /etc/cron.d/XXX is printed 
+# (= with the extra 'root' user column)
+sub printCrontab 
+{
 	my $C = loadConfTable();
 
 	dbg(" Crontab Config for NMIS for config file=$nvp{conf}",3);
+
+	my $usercol = getbool($nvp{system})? "\troot\t" : '';
 
 	print <<EO_TEXT;
 # if you DON'T want any NMIS cron mails to go to root, 
@@ -6600,50 +6607,50 @@ sub printCrontab {
 # NMIS8 Config
 ######################################################
 # Run Full Statistics Collection
-*/5 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
+*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
 # ######################################################
 # Optionally run a more frequent Services-only Collection
-# */3 * * * * $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
+# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
-*/2 * * * * /usr/local/nmis8/bin/nmis.pl type=summary
+*/2 * * * * $usercol /usr/local/nmis8/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
 ######################################################
 # Run the update once a day
-30 20 * * * nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
+30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
 ######################################################
 # Check to rotate the logs 4am every day UTC
-5 20 * * * /usr/sbin/logrotate $C->{'<nmis_base>'}/conf/logrotate.conf
+5 20 * * * $usercol /usr/sbin/logrotate $C->{'<nmis_base>'}/conf/logrotate.conf
 ##################################################
 # backup configuration, models and crontabs once a day, and keep 30 backups
-22 8 * * * $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
+22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################
 # purge old files every week
-0 2 * * 0 $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
+0 2 * * 0 $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
-0 0 * * * /usr/local/nmis8/bin/run-reports.pl day health
-10 0 * * * /usr/local/nmis8/bin/run-reports.pl day top10
-30 0 * * * /usr/local/nmis8/bin/run-reports.pl day outage
-40 0 * * * /usr/local/nmis8/bin/run-reports.pl day response
-45 0 * * * /usr/local/nmis8/bin/run-reports.pl day avail
-50 0 * * * /usr/local/nmis8/bin/run-reports.pl day port
+0 0 * * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day health
+10 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day top10
+30 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day outage
+40 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day response
+45 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day avail
+50 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day port
 # weekly
-0 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week health
-10 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week top10
-30 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week outage
-40 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week response
-50 1 * * 0 /usr/local/nmis8/bin/run-reports.pl week avail
+0 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week health
+10 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week top10
+30 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week outage
+40 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week response
+50 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week avail
 # monthly
-0 2 1 * * /usr/local/nmis8/bin/run-reports.pl month health
-10 2 1 * * /usr/local/nmis8/bin/run-reports.pl month top10
-30 2 1 * * /usr/local/nmis8/bin/run-reports.pl month outage
-40 2 1 * * /usr/local/nmis8/bin/run-reports.pl month response
-50 2 1 * * /usr/local/nmis8/bin/run-reports.pl month avail
+0 2 1 * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month health
+10 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month top10
+30 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month outage
+40 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month response
+50 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month avail
 ###########################################
 EO_TEXT
 }
@@ -6843,7 +6850,8 @@ command line options are:
       audit     Audit the configuration without changes
       apache    Produce Apache 2.0/2.2 configuration for NMIS
       apache24  Produce Apache 2.4 configuration for NMIS
-      crontab   Produce Crontab configuration for NMIS
+      crontab   Produce Crontab configuration for NMIS 
+                (add system=true for /etc/cron.d snippet)
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
