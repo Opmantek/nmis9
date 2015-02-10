@@ -218,6 +218,8 @@ sub fastping {
 	my %ping_result = ();
 	my $start_time;
 	my $prevlnt;
+	# cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $oldeventconfig = loadTable(dir => 'conf', name => 'Events'); 
 
 	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
@@ -229,10 +231,11 @@ sub fastping {
 		if ($prevlnt && !eq_deeply($lnt, $prevlnt))
 		{
 			debug("Nodes list has changed, reloading after the next sleep");
+			logMsg("INFO fpingd will reload the Nodes list as it has changed");
 			$read_cnt = 1 if ($read_cnt > 1); # reload no later than after this run
 		}
 		$prevlnt = $lnt;
-		
+
 		if ($read_cnt-- <= 0) {
 			# check every 10 runs for update of Node table - not on every cycle as it involves lots of dns!
 			debug("Rereading Nodes list");
@@ -418,12 +421,16 @@ sub fastping {
 		writeTable(dir=>'var',name=>"nmis-fping",data=>\%ping_result );
 
 		# check if the config is still unchanged, if not restart (but only after firstrun)
+		# ditto for the events config
 		my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
-		if (!eq_deeply($C,$newconf))
+		my $eventconfig = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
+
+		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ? "Events List" : !eq_deeply($C,$newconf) ? "Config" : undef;
+		if ($whichchanged)
 		{
-			debug("Config has changed, will restart after sleep");
-			logMsg("INFO fpingd will restart after sleep, Config has changed");
-			sleep int(rand(10)) + $sleep;
+			debug("$whichchanged has changed, will restart after this sleep");
+			logMsg("INFO fpingd will restart after this sleep, $whichchanged has changed");
+			sleep(int(5-rand(10)) + $sleep); # standard interval +/- 5 sec
 			logMsg("INFO fpingd is restarting now");
 			exec($origscript,@restartparams);
 			die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
@@ -437,7 +444,7 @@ sub fastping {
 		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
 		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
 
-		sleep int(rand(10)) + $sleep;
+		sleep(int(5-rand(10)) + $sleep);
 
 	} # while 1
 }
@@ -458,8 +465,10 @@ sub fpingCheckEvent {
 		);
 	}
 }
-sub fpingNotify {
+sub fpingNotify 
+{
 	my $node = shift;
+
 	&debug("\tUpdating event database via sub notify() host: $node event: Node Down");
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$node,snmp=>0);

@@ -205,10 +205,10 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		}
 
 		# some options inter-depend, add their colorings here
-		# mail port: 25 and 587 are ok
-		if ($item eq "mail_server_port" && $rawconf->{email}->{$item} =~ /^(25|587)$/)
+		# mail port: 25 and 587 are ok, none other are
+		if ($item eq "mail_server_port")
 		{
-			$entryisok=1;
+			$entryisok = $curval =~ /^(25|587)$/? 1 : 0;
 		}
 		if ($item eq "mail_user" or $item eq "mail_password")
 		{
@@ -332,7 +332,7 @@ sub edit_config
 			return 0;
 		}
 		elsif (($item eq "nmis_host" or $item eq "mail_server")  
-					 and $value !~ /^([a-zA-Z_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
+					 and $value !~ /^([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
 			$Q->{error_message} = $item2displayname{$item}." contains invalid characters!";
 			return 0;
