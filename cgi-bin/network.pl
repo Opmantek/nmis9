@@ -2132,14 +2132,17 @@ sub viewStorage {
 		my $D = $NI->{storage}{$st};
 		my $graphtype = $D->{hrStorageGraph};
 		my $index = $D->{hrStorageIndex};
+		
+		my $util = sprintf("%.1f%", ( $D->{hrStorageUnits} * $D->{hrStorageUsed} ) / ( $D->{hrStorageUnits} * $D->{hrStorageSize} ) * 100);
+		
 		print start_Tr;
-		print Tr(td({class=>'header'},'Type'),td({class=>'info Plain',width=>'40%'},$D->{hrStorageType}),
+		print Tr(td({class=>'header'},'Type'),td({class=>'info header',width=>'40%'},$D->{hrStorageType}),
 		td({class=>'header'},$D->{hrStorageDescr}));
 		print Tr(td({class=>'header'},'Units'),td({class=>'info Plain'},$D->{hrStorageUnits}),
 		td({class=>'image',rowspan=>'5'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Size'),td({class=>'info Plain'},$D->{hrStorageSize}));
 		print Tr(td({class=>'header'},'Total'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageSize})));
-		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageUsed})));
+		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageUsed}),"($util)"));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hrStorageDescr}));
 		print end_Tr;
 	}
@@ -2573,8 +2576,16 @@ sub viewSystemHealth {
 		my @cells;
 		my $cell;
 		foreach my $head (@headers) {
-			$cell = td({class=>'info Plain'},$D->{$head});
-			push(@cells,$cell);
+			if ( defined $D->{$head."_url"} and defined $D->{$head."_id"} ) {
+				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\" id=\"$D->{$head.'_id'}\">$D->{$head}</a>");
+			}
+			elsif ( defined $D->{$head."_url"} ) {
+				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\">$D->{$head}</a>");
+			}
+			else {
+				$cell = td({class=>'info Plain'},$D->{$head});
+			}
+			push(@cells,$cell);			
 		}
 
 		if ( $graphtype ) {
