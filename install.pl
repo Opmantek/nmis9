@@ -290,7 +290,8 @@ if (!$isok)
 	print "The installer can use CPAN to install the missing Perl packages
 that NMIS depends on, if your system has Internet access.\n\n";
 
-	if (!input_yn("Does this system have Internet access for CPAN?") or !input_yn("OK to use CPAN to install missing modules?"))
+	if (!input_yn("Does this system have Internet access for CPAN?") 
+			or !input_yn("OK to use CPAN to install missing modules?"))
 	{
 		echolog("Instructed NOT to install missing CPAN modules.");
 		print "NMIS will not work properly until the following Perl modules are installed:\n\n".join(" ",@missingones)
@@ -481,12 +482,20 @@ else
 		}
 	}
 
-	
-		###************************************************************************###
-		printBanner("Updating the config files with any new options...");
-
-		if (input_yn("OK to update the config files?"))
+	printBanner("Copying optional new NMIS config files");
+	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis","Customers.nmis")
+	{
+		if (-f "$site/install/$cff" && !-f "$site/conf/$cff")
 		{
+			execPrint("cp $site/install/$cff $site/conf/$cff");
+		}
+	}
+	
+	###************************************************************************###
+	printBanner("Updating the config files with any new options...");
+
+	if (input_yn("OK to update the config files?"))
+	{
 			# merge changes for new NMIS Config options. 
 			execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
 			execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
@@ -522,18 +531,18 @@ else
 
 			# Updating the TopChanges RRD Type
 			execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
-		}
-		else
-		{
+	}
+	else
+	{
 			echolog("Continuing without configuration updates as directed.
 Please note that you will likely have to perform various configuration updates manually 
 to ensure NMIS performs correctly.");
 			print "\n\nPlease hit <Enter> to continue: ";
 			my $x = <STDIN>;
-		}
+	}
 
 	printBanner("Comparing Models");
-
+	
 	if (input_yn("OK to run a comparison of old and new models?"))
 	{
 		# let's not run this with execPrint as that might take quite a bit of time
