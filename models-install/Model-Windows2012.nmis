@@ -361,6 +361,12 @@
             'oid' => 'ifDescr',
             'title' => 'Name'
           },
+
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',

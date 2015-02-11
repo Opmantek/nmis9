@@ -139,12 +139,18 @@
 						'5' => 'dormant'
 					},
 					'oid' => 'ifOperStatus',
-					'title' => ' Oper Status'
+					'title' => ' Oper Status',
 				},
 				'ifDescr' => {
 					'oid' => 'ifDescr',
-					'title' => ' Name'
+					'title' => ' Name',
+		    },
+
+				'ifPhysAddress' => {
+					'oid' => 'ifPhysAddress',
+					'title' => 'Physical Address',
 				},
+
 				'ifSpeed' => {
 					'oid' => 'ifSpeed',
 					'title' => ' Bandwidth'

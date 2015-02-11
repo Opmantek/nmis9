@@ -220,6 +220,11 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'

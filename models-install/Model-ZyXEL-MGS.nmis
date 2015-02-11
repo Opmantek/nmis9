@@ -307,6 +307,10 @@
             'oid' => 'ifDescr',
             'title' => ' Name'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => ' Last Change'

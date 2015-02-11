@@ -343,6 +343,12 @@
             'oid' => 'ifDescr',
             'title' => ' Name'
           },
+
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => ' Bandwidth'
