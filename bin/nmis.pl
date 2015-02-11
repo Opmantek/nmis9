@@ -3726,7 +3726,7 @@ sub runServer {
 		foreach my $index (keys %{$storageIndex}) {
 			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
 				my $D = $NI->{storage}{$index};
-				info("storage Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
+				info("storage $D->{hrStorageDescr} Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
 				if (($M->{storage}{nocollect}{Description} ne '' and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/ )
 							or $D->{hrStorageSize} <= 0) {
 					delete $NI->{storage}{$index};
@@ -3819,6 +3819,7 @@ sub runServer {
 
 	### 2012-12-20 keiths, adding Server Disk Usage to Health Calculations.
 	if ( defined $S->{reach}{diskList} and @{$S->{reach}{diskList}} ) {
+		#print Dumper $S->{reach}{diskList};
 		$S->{reach}{disk} = mean(@{$S->{reach}{diskList}});
 	}
 

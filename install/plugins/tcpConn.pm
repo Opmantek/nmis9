@@ -83,7 +83,7 @@ sub collect_plugin
 
 	if (ref($NI->{tcpConn}) eq "HASH" or ref($NI->{tcpConnection}) eq "HASH") {
 		
-		if (ref($NI->{tcpConn}) eq "HASH") {
+		if (ref($NI->{tcpConn}) eq "HASH" and $NI->{system}{nodedown} ne "true") {
 			
 			my $NC = $S->ndcfg;
 			my $LNT = loadLocalNodeTable();
@@ -136,7 +136,7 @@ sub collect_plugin
 			}
 		}
 		
-		if (ref($NI->{tcpConnection}) eq "HASH") {
+		if (ref($NI->{tcpConnection}) eq "HASH" and $NI->{system}{nodedown} ne "true") {
 			my $NC = $S->ndcfg;
 			my $LNT = loadLocalNodeTable();
 			
