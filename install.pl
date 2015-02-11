@@ -882,7 +882,8 @@ EOF
 				if ( -e "$path/$mFile" ) 
 				{
 					my $thisversion = moduleVersion("$path/$mFile");
-					if (!defined $nmisModules->{$mod}{version} 
+					if (!$nmisModules->{$mod}{version}
+							or !$thisversion
 							or version->parse($thisversion) >= version->parse($nmisModules->{$mod}{version}))
 					{
 						$nmisModules->{$mod}{file} = "$path/$mFile";
@@ -909,12 +910,12 @@ sub moduleVersion {
 		if ( /(?:our\s+\$VERSION|my\s+\$VERSION|\$VERSION|\s+version|::VERSION)/i ) {
 			/(\d+\.\d+(?:\.\d+)?)/;
 			if ( defined $1 and $1 ne '' ) {
-				return " $1";
+				return "$1";
 			}
 		}
 	}
 	close FH;
-	return ' ';
+	return '';
 }
 
 # returns (1) if no critical modules missing, (0,critical) otherwise
