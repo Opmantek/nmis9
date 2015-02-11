@@ -1861,7 +1861,7 @@ sub viewAllIntf {
 	
 	# order of header
 	my @header = ('ifDescr','Description','ipAdEntAddr1','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
-	'ifSpeed','ifSpeedIn','ifSpeedOut','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
+	'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
 	
 	# create hash from loaded view table
 	my %view;
@@ -1929,9 +1929,20 @@ sub viewAllIntf {
 					elsif ($k eq 'ifSpeed' and $view{$intf}{ifSpeedIn}{value} ne "" and $view{$intf}{ifSpeedOut}{value} ne "") {
 						$line = "IN:$view{$intf}{ifSpeedIn}{value}<br/>OUT:$view{$intf}{ifSpeedOut}{value}";
 					}
-
 					elsif ($k eq 'ifSpeedIn' or $k eq 'ifSpeedOut' or $k eq 'ipAdEntAddr1') {
 						#just skip display!
+					}                                                                                               
+					#0x002a14fffeeb352e
+					#0x00cfda005ebf
+					elsif ( $k eq 'ifPhysAddress' and $view{$intf}{ifPhysAddress}{value} =~ /^0x[0-9a-fA-F]+$/ ) {
+						my $macaddress = $view{$intf}{ifPhysAddress}{value};
+						$macaddress =~ s/^0x//i;
+						my @bytes = unpack("C*", pack("H*", $macaddress));
+						if (@bytes) {
+							my $template = join(":", "%02x" x @bytes);
+							$line = sprintf($template, @bytes);
+							#$line = sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
+						}
 					}
 					else {
 						$line = $view{$intf}{$k}{value};
@@ -2579,17 +2590,13 @@ sub viewSystemHealth {
 		my $cell;
 		foreach my $head (@headers) 
 		{
-<<<<<<< HEAD
-			### this handles plugin URLs so we can do cross integration and possibly external integration.
-			# links to outside targets, using the <header>_url and _id properties in the node info structure
-=======
 			# links to all kinds of targets, using the <header>_url, <header>_target 
 			# and <header>_id properties in the node info structure
 			# _url needs to understand query param widget if its an internal page.
 			# _id needed to make widgetted mode work and is passed as id attrib.
 			# _target is passed through as target attrib. 
 			# if _target is present, then we DON'T set widget=X and DON'T set the id attrib at all.
->>>>>>> b88b002fb16e8c954637231fc8655066e8350267
+
 			my $url;
 			if ($D->{$head."_url"})
 			{

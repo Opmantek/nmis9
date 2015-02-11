@@ -40,6 +40,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'false',
+    'Description' => 'Brief description of the event.',
   },
   'Node Failover' => {
     'Event' => 'Node Failover',
@@ -167,6 +168,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'false',
+    'Description' => 'Brief description of the event.',
   },
   'Alert: BGP Peer Down' => {
     'Event' => 'Alert: BGP Peer Down',
