@@ -724,51 +724,42 @@
         'index_regex' => '\\.(\\d+\.\\d+)$',
         'indexed' => 'cdpCacheDeviceId',
         'snmp' => {
-          'cdpCacheVersion' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
-            'sysObjectName' => 'cdpCacheVersion',
-            'title' => 'cdpCacheVersion'
+          'ifDescr' => {
+            'title' => 'Local Interface'
           },
-          #'cdpCacheIfIndex' => {
-          #  'calculate' => 'CVAR1=cdpCacheDeviceId;return $CVAR1;',
-          #  'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
-          #  'sysObjectName' => 'cdpCacheIfIndex',
-          #  'title' => 'cdpCacheIfIndex',
-          #
-          #},
           'cdpCacheAddressType' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
             'sysObjectName' => 'cdpCacheAddressType',
             'replace' => {
               '1' => 'ip',
             },
-            'title' => 'cdpCacheAddressType'
+            'title' => 'Neighbor AddressType'
           },
           'cdpCacheAddress' => {
             'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.4',
             'sysObjectName' => 'cdpCacheAddress',
-            'title' => 'cdpCacheAddress'
+            'title' => 'Neighbor Address'
           },
           'cdpCacheVersion' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
             'sysObjectName' => 'cdpCacheVersion',
-            'title' => 'cdpCacheVersion'
+            'title' => 'Neighbor Version'
           },
           'cdpCacheDeviceId' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
             'sysObjectName' => 'cdpCacheDeviceId',
-            'title' => 'cdpCacheDeviceId'
+            'title' => 'Neighbor DeviceId'
           },
           'cdpCacheDevicePort' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.7',
             'sysObjectName' => 'cdpCacheDevicePort',
-            'title' => 'cdpCacheDevicePort'
+            'title' => 'Neighbor Interface'
           },
           'cdpCachePlatform' => {
             'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.8',
             'sysObjectName' => 'cdpCachePlatform',
-            'title' => 'cdpCachePlatform'
+            'title' => 'Neighbor Platform'
           },
         }
       },
