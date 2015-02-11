@@ -34,7 +34,7 @@ our $VERSION = "1.0.0";
 
 use strict;
 
-use func;												# for the conf table extras
+use func;												# for the conf table extras, and beautify_physaddress
 use NMIS;
 
 sub update_plugin
@@ -67,7 +67,9 @@ sub update_plugin
 			$entry->{vlan} = shift(@octets);
 			my $macstring = join("",@octets);
 			@octets = unpack("C*", pack("H*", $macstring));
-			$entry->{dot1qTpFdbAddress} = sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @octets);
+
+			my $template = join(":", ("%02x") x @octets);
+			$entry->{dot1qTpFdbAddress} = sprintf($template, @octets);
 			
 			$changesweremade = 1;
 		}		

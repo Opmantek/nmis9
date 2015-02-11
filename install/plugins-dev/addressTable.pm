@@ -4,7 +4,7 @@ package addressTable;
 our $VERSION = "1.0.0";
 
 use strict;
-use func;												# for the conf table extras
+use func;												# for the conf table extras, and beautify_physaddress
 
 sub update_plugin
 {
@@ -24,24 +24,11 @@ sub update_plugin
 	{
 		my $macentry = $NI->{addressTable}->{$mackey};
 		my $macaddress = 	$macentry->{ipNetToMediaPhysAddress};
-		my @bytes;
-
-		if (length($macaddress) == 6) # if it's raw binary, convert it on the go
+		
+		my $nice = beautify_physaddress($macaddress);
+		if ($nice ne $macaddress)
 		{
-			@bytes = unpack("(C2)6",$macaddress);
-		}
-		# nope, nice 0xlonghex -> split into bytes 
-		elsif ($macaddress =~ /^0x[0-9a-fA-F]+$/) 
-		{
-			$macaddress =~ s/^0x//i;
-			@bytes = unpack("C*", pack("H*", $macaddress));
-		}
-		# do nothing if they're already NN:MM:...
-
-		if (@bytes)
-		{
-			$macentry->{ipNetToMediaPhysAddress} = 
-					sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
+			$macentry->{ipNetToMediaPhysAddress} = $nice;
 			$changesweremade = 1;
 		}
 

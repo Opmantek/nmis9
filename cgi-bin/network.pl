@@ -1773,13 +1773,8 @@ sub viewInterface {
 					if ( $k eq "ifSpeed" and $V->{interface}{"${intf}_ifSpeedIn_value"} ne "" and $V->{interface}{"${intf}_ifSpeedOut_value"} ne "" ) {
 						$value = qq|IN: $V->{interface}{"${intf}_ifSpeedIn_value"} OUT: $V->{interface}{"${intf}_ifSpeedOut_value"}|;
 					}
-					elsif ( $k eq "ifPhysAddress" and $value =~ /^0x[0-9a-fA-F]+$/ ) {
-						my $macaddress = $value;
-						$macaddress =~ s/^0x//i;
-						my @bytes = unpack("C*", pack("H*", $macaddress));
-						if (@bytes) {
-							$value = sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
-						}
+					elsif ( $k eq "ifPhysAddress" and $value =~ /^0x[0-9a-f]+$/i ) {
+						$value = beautify_physaddress($value);
 					}
 					push @out,Tr(td({class=>'info Plain'},$title),
 					td({class=>'info Plain',style=>getBGColor($color)},$value));
@@ -1934,15 +1929,8 @@ sub viewAllIntf {
 					}                                                                                               
 					#0x002a14fffeeb352e
 					#0x00cfda005ebf
-					elsif ( $k eq 'ifPhysAddress' and $view{$intf}{ifPhysAddress}{value} =~ /^0x[0-9a-fA-F]+$/ ) {
-						my $macaddress = $view{$intf}{ifPhysAddress}{value};
-						$macaddress =~ s/^0x//i;
-						my @bytes = unpack("C*", pack("H*", $macaddress));
-						if (@bytes) {
-							my $template = join(":", "%02x" x @bytes);
-							$line = sprintf($template, @bytes);
-							#$line = sprintf("%02x:%02x:%02x:%02x:%02x:%02x", @bytes);
-						}
+					elsif ( $k eq 'ifPhysAddress' and $view{$intf}{ifPhysAddress}{value} =~ /^0x[0-9a-f]+$/i ) {
+						$line = beautify_physaddress($view{$intf}{ifPhysAddress}{value});
 					}
 					else {
 						$line = $view{$intf}{$k}{value};

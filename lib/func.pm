@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.2";
+our $VERSION = "1.2.3";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -124,6 +124,7 @@ use Exporter;
 		checkDirectoryFiles
 
 		checkPerlLib
+    beautify_physaddress
 	);
 
 
@@ -2486,6 +2487,38 @@ sub find_nmis_processes
 sub _table_cache
 {
 	return \%Table_cache;
+}
+
+# this small helper converts an ethernet or similar layer2 address
+# from pure binary or 0xsomething into a string of the colon-separated bytes in the address
+# the distinction raw binary vs. other formats depends on the 0x being present,
+# and expects the raw binary to be 6 bytes or longer
+# returns: string
+sub beautify_physaddress
+{
+	my ($raw) = @_;
+
+	return $raw if ($raw =~ /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i); # nothing to do
+
+	my @bytes;
+	# nice 0xlonghex -> split into bytes 
+	if ($raw =~ /^0x[0-9a-f]+$/i)
+	{
+		$raw =~ s/^0x//i;
+		@bytes = unpack("C*", pack("H*", $raw));
+	}
+	elsif (length($raw) >= 6) # hmm looks like if it's raw binary, convert it on the go
+	{
+		@bytes = unpack("(C2)".length($raw), $raw);
+	}
+
+	if (@bytes)
+	{
+		my $template = join(":", ("%02x") x @bytes);
+		return sprintf($template, @bytes);
+	}
+
+	return $raw;									# fallback to return the input unchanged if beautication doesn't work out
 }
 
 1;
