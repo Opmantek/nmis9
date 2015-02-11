@@ -64,6 +64,7 @@ my %item2displayname = ( "server_name" => "Server Name",
 												 "mail_domain" => "Mail Domain", 
 												 "mail_use_tls" => "Use TLS Encryption", 
 												 "mail_combine" => "Combined Emails",
+												 "status_mode" => "Node Status Mode",
 		);
 
 
@@ -188,17 +189,26 @@ Leave this blank if you don't need to authenticate at your mail server."],
 
 		["email", "mail_combine", 
 		 "Do you want to get separate NMIS mails for every event or should NMIS combine multiple messages into one mail?"],
+
+		["dummy", "status_mode", "NMIS has three methods for classifying a node's status, which are documented in detail <a href='https://community.opmantek.com/display/NMIS/NMIS+Node+Status' target='_blank'>on this page</a>. Classic is the default." ],
 			)
 	{
 		my ($section, $item, $tooltip) = @$_;
 		my $title = $item2displayname{$item};
-		my $curval = $rawconf->{$section}->{$item};
 
+		my $curval = $rawconf->{$section}->{$item} if defined ($rawconf->{$section}); # catch a dummy!
 		my $displayinfo = findCfgEntry(section => $section, item => $item) || {};
-
 		my $entryisok = 1;
 
+		if ($item eq "status_mode")	#  doesn't exist as single item in config
+		{
+			$displayinfo = { display => "popup", value => ['classic', 'coarse', 'fine-grained' ]};
+			$curval = getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
+			$entryisok = 1;
+		}
+
 		if ($displayinfo->{display} eq "text"
+				and defined($defaultconf->{$section}) 
 				and $curval eq $defaultconf->{$section}->{$item})
 		{
 			$entryisok=0;
@@ -331,6 +341,11 @@ sub edit_config
 			$Q->{error_message} = $item2displayname{$item}." cannot be blank!";
 			return 0;
 		}
+		elsif ($item eq "status_mode" and $value !~ /^(coarse|fine-grained|classic)$/)
+		{
+			$Q->{error_message} = $item2displayname{$item}." must be one of coarse, fine-grained or classic!";
+			return 0;
+		}
 		elsif (($item eq "nmis_host" or $item eq "mail_server")  
 					 and $value !~ /^([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
@@ -354,17 +369,50 @@ sub edit_config
 			return 0;
 		}
 
-		if (!defined $rawconf->{$section})
+		if ($item eq "status_mode")	# catch a dummy - section is virtual
 		{
-			$Q->{error_message} = "Error: Attempting to set unknown item $update!";
-			return 0;
+			my $curval = getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
+			if ($value ne $curval)
+			{
+				$changes = 1;
+				if ($value eq "coarse")
+				{
+					$rawconf->{system}->{overall_node_status_coarse} = 'true';
+					# quietly set a default color if the current value is a dud
+					$rawconf->{system}->{overall_node_status_level} = 'Critical'
+							if (!defined $rawconf->{system}->{overall_node_status_level}
+									or $rawconf->{system}->{overall_node_status_level} !~ /^(Normal|Warning|Minor|Major|Critical|Fatal)$/);
+					$rawconf->{system}->{node_status_uses_status_summary} = 'false';
+					$rawconf->{system}->{display_status_summary} = 'false';
+				}
+				elsif ($value eq "classic")
+				{
+					$rawconf->{system}->{overall_node_status_coarse} = 'false';
+					$rawconf->{system}->{node_status_uses_status_summary} = 'false';
+					$rawconf->{system}->{display_status_summary} = 'false';
+				}
+				else										# fine-grained
+				{
+					$rawconf->{system}->{overall_node_status_coarse} = 'false';
+					$rawconf->{system}->{node_status_uses_status_summary} = 'true';
+					$rawconf->{system}->{display_status_summary} = 'true';
+				}
+			}
 		}
-		# then adjust the entries in question and record that changes were made
-		my $curval = $rawconf->{$section}->{$item};
-		if ($curval ne $value)
+		else
 		{
-			$rawconf->{$section}->{$item} = $value;
-			$changes=1;
+			if (!defined $rawconf->{$section})
+			{
+				$Q->{error_message} = "Error: Attempting to set unknown item $update!";
+				return 0;
+			}
+			# then adjust the entries in question and record that changes were made
+			my $curval = $rawconf->{$section}->{$item};
+			if ($curval ne $value)
+			{
+				$rawconf->{$section}->{$item} = $value;
+				$changes=1;
+			}
 		}
 	}
 	
