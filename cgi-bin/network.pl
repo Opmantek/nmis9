@@ -2576,6 +2576,7 @@ sub viewSystemHealth {
 		my @cells;
 		my $cell;
 		foreach my $head (@headers) {
+			### this handles plugin URLs so we can do cross integration and possibly external integration.
 			if ( defined $D->{$head."_url"} and defined $D->{$head."_id"} ) {
 				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\" id=\"$D->{$head.'_id'}\">$D->{$head}</a>");
 			}
