@@ -6855,7 +6855,7 @@ command line options are:
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
-  [conf=<file name>]     Optional alternate configuation file in directory /conf;
+  [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
   [debug=true|false|0-9] default=false - Show debuging information, handy;
