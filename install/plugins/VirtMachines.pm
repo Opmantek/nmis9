@@ -1,5 +1,4 @@
-# a small update plugin for converting the mac addresses in ciscorouter addresstables 
-# into a more human-friendly form
+# a small update plugin for adding links to the vmware guests if they're managed by nmis
 package VirtMachines;
 our $VERSION = "1.0.0";
 
