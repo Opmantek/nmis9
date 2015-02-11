@@ -2579,22 +2579,35 @@ sub viewSystemHealth {
 		my $cell;
 		foreach my $head (@headers) 
 		{
+<<<<<<< HEAD
 			### this handles plugin URLs so we can do cross integration and possibly external integration.
 			# links to outside targets, using the <header>_url and _id properties in the node info structure
+=======
+			# links to all kinds of targets, using the <header>_url, <header>_target 
+			# and <header>_id properties in the node info structure
+			# _url needs to understand query param widget if its an internal page.
+			# _id needed to make widgetted mode work and is passed as id attrib.
+			# _target is passed through as target attrib. 
+			# if _target is present, then we DON'T set widget=X and DON'T set the id attrib at all.
+>>>>>>> b88b002fb16e8c954637231fc8655066e8350267
 			my $url;
 			if ($D->{$head."_url"})
 			{
 				$url = URI->new($D->{$head."_url"});
-				$url->query_param("widget" => $widget);
+				$url->query_param("widget" => $widget) if ($D->{"${head}_target"});
 			}
 
-			if ( $url and defined $D->{$head."_id"} ) 
+			# internal mode, widgetted
+			if ( $url and defined $D->{$head."_id"} and not $D->{"${head}_target"} ) 
 			{
 				$cell = td({class=>'info Plain'},"<a href=\"$url\" id=\"$D->{$head.'_id'}\">$D->{$head}</a>");
 			}
+			# non-widgetted or external mode
 			elsif ( $url ) 
 			{
-				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\">$D->{$head}</a>");
+				$cell = td({class=>'info Plain'},"<a href='$url'"
+									 .($D->{"${head}_target"}? " target='".$D->{"${head}_target"}."'":'')
+									 .">$D->{$head}</a>");
 			}
 			else {
 				$cell = td({class=>'info Plain'},$D->{$head});

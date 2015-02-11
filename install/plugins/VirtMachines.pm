@@ -27,7 +27,7 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for turning the Virtual Machine into a link
+# a small update plugin for adding links to the vmware guests if they're managed by nmis
 
 package VirtMachines;
 our $VERSION = "1.0.0";
@@ -54,9 +54,7 @@ sub update_plugin
 	{
 		my $entry = $NI->{VirtMachines}{$vm};
 		my $vmName = 	$entry->{vmwVmDisplayName};
-		
-		#http://nmisdev64.dev.opmantek.com/cgi-nmis8/network.pl?conf=Config.nmis&act=network_node_view&refresh=180&widget=true&node=nmisdev64
-		
+				
 		if ( defined $LNT->{$vmName}{name} and $LNT->{$vmName}{name} eq $vmName ) {
 			$changesweremade = 1;
 			$entry->{vmwVmDisplayName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$vmName";

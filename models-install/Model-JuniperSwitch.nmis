@@ -223,6 +223,11 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
