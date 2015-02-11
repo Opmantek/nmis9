@@ -333,10 +333,17 @@
         }
       },
       'vtpVlan' => {
-        'headers' => 'vtpVlanState,vtpVlanType,vtpVlanName,vtpVlanMtu,vtpVlanDot10Said',
+        'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
         'index_regex' => '\\.(\\d+\.\\d+)$',
         'indexed' => 'vtpVlanState',
         'snmp' => {
+          'vtpVlanName' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
+            'title' => 'VLAN Name'
+          },
+          'vtpVlanIndex' => {
+            'title' => 'VLAN'
+          },
           'vtpVlanState' => {
             'oid' => 'vtpVlanState',
             'replace' => {
@@ -359,10 +366,6 @@
             },
             'title' => 'VLAN Type'
           },
-          'vtpVlanName' => {
-            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
-            'title' => 'VLAN Name'
-          },
           'vtpVlanMtu' => {
             'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.5',
             'title' => 'VLAN MTU'
@@ -373,6 +376,32 @@
               '0' => 'N/A',
             },
             'title' => 'VLAN ifIndex'
+          },
+          'ifDescr' => {
+            'title' => 'ifDescr'
+          },
+        }
+      },
+      'dot1dMacTable' => {
+        'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus',
+        #'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        #'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'ifDescr' => {
+            'title' => 'ifDescr'
+          },
+          'dot1dTpFdbAddress' => {
+            'title' => 'Address'
+          },
+          'vlan' => {
+            'title' => 'VLAN'
+          },
+          'dot1dTpFdbPort' => {
+            'title' => 'Port'
+          },
+          'dot1dTpFdbStatus' => {
+            'title' => 'Status'
           },
         }
       },

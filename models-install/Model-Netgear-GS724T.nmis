@@ -229,6 +229,11 @@
   				'Description' => {
             'oid' => 'ifAlias',
             'title' => 'Description'
+          },
+          'vlanPortVlan' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',
+            'sysObjectName' => 'dot1qPvid',
+            'title' => 'VLAN'
           }
         }
       }
@@ -355,6 +360,36 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'dot1qMacTable',
+    'sys' => {
+      'dot1qMacTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
     }
   }
 );
