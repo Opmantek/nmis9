@@ -39,14 +39,14 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.3.6";
+my $VERSION = "1.4.0";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n"; 
 
 my $usage = "Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info 
- if nodename='*' then ALL nodes' info will be collected (MIGHT BE HUGE!)\n\n";
+ if nodename='*' then ALL nodes' info will be collected (DATA MIGHT BE HUGE!)\n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
 
@@ -57,6 +57,8 @@ my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
 my $maxlogsize = $args{maxlogsize} || 4*1024*1024; # 4 meg for individual log files
 my $tail = 4000;																# last 4000 lines
 
+my %options;										# dummy-ish, for input_yn and friends
+
 # first, load the global config
 my $globalconf = loadConfTable(conf => $configname);
 # make tempdir
@@ -66,7 +68,7 @@ if (func->can("selftest"))
 {
 	# run the selftest in interactive mode - if our nmis is new enough
 	print "Performing Selftest, please wait...\n";
-	my ($testok, $testdetails) = func::selftest(config => $globalconf, , delay_is_ok => 'true');
+	my ($testok, $testdetails) = func::selftest(config => $globalconf, delay_is_ok => 'true');
 	if (!$testok)
 	{
 		print STDERR "\n\nAttention: NMIS Selftest Failed!
@@ -85,6 +87,27 @@ if (func->can("selftest"))
 	else
 	{
 		print "Selftest completed\n";
+	}
+}
+
+# now ask nmis to do a dir/perms audit, and offer to fix things
+my @auditresults = `$globalconf->{'<nmis_base>'}/bin/nmis.pl type=audit`;
+if (@auditresults)
+{
+	print STDERR "\n\nAttention: NMIS File Check detected problems!
+=============================================\n\nThe following issues were reported:\n\n",
+			@auditresults,"\n\n";
+	
+	if (input_yn("OK to perform the automated repair operation now?"))
+	{
+		system("$globalconf->{'<nmis_base>'}/bin/nmis.pl type=config info=true");
+	}
+	else
+	{
+		print "\n\nYou can run the file and directory repair operation later,
+by running \"$globalconf->{'<nmis_base>'}/bin/nmis.pl type=config info=true\" as root.
+Alternatively, to fix permissions only you could\nuse \"$globalconf->{'<nmis_base>'}/admin/fixperms.pl\".\n\nPlease hit <Enter> to continue:\n";
+		my $x = <STDIN>;
 	}
 }
 
@@ -374,3 +397,23 @@ sub collect_evidence
 		return undef;
 }
 
+# print question, return true if y (or in unattended mode). default is yes.
+sub input_yn 
+{
+	my ($query) = @_;
+
+	print "$query";
+	if ($options{y})
+	{
+		print " (auto-default YES)\n\n";
+		return 1;
+	}
+	else
+	{
+		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
+		my $input = <STDIN>;
+		chomp $input;
+
+		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
+	}
+}

@@ -6856,7 +6856,7 @@ command line options are:
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
-  [conf=<file name>]     Optional alternate configuation file in directory /conf;
+  [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
   [debug=true|false|0-9] default=false - Show debuging information, handy;
@@ -7028,6 +7028,7 @@ sub doThreshold {
 			if ($type eq "threshold");	# not if part of collect
 
 	my $NT = loadLocalNodeTable();
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 
 	my $S = Sys::->new; # create system object
 
@@ -7097,20 +7098,36 @@ sub doThreshold {
 				}
 				
 				## process each status and have it decay the overall node status......
-				#$S->{info}{status}{$statusKey} = {       "util_in--4" : {               
-				#	property => $args{thrname},                "level" : "Normal",         
-				#	index => $args{index},                     "index" : "4",              
-				#	level => $args{level},                     "value" : "0.00",           
-				#	status => $statusResult,                   "status" : "ok",            
-				#	element => $args{element},                 "element" : "FastEthernet2",
-				#	value => $args{value}                      "property" : "util_in"      
-				#}                                        },                             
+	      #"High TCP Connection Count--tcpCurrEstab" : {
+	      #   "status" : "ok",
+	      #   "value" : "1",
+	      #   "event" : "High TCP Connection Count",
+	      #   "element" : "tcpCurrEstab",
+	      #   "index" : null,
+	      #   "level" : "Normal",
+	      #   "type" : "test",
+	      #   "updated" : 1423619108,
+	      #   "method" : "Alert",
+	      #   "property" : "$r > 250"
+	      #},
 				my $count = 0;
 				my $countOk = 0;
-				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
+				foreach my $statusKey (sort keys %{$S->{info}{status}}) {			
+					my $eventKey = $S->{info}{status}{$statusKey}{event}; 
+					$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
+					
+					my $thisevent_control = $events_config->{$eventKey};
+
 					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 					if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
 						delete $S->{info}{status}{$statusKey};
+					}
+					# in case of Status being off for this event, we don't have to include it in the calculations
+					elsif ( defined $thisevent_control->{Status} and not getbool($thisevent_control->{Status}) ) {
+						dbg("DEBUG: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
+						$S->{info}{status}{$statusKey}{status} = "ignored";
+						++$count;
+						++$countOk;
 					}
 					else {	
 						++$count;
