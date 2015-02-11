@@ -46,6 +46,8 @@ use NMIS;
 use func;
 use NMIS::Timing;
 use URI::Escape;
+use URI;
+use URI::QueryParam;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -2575,11 +2577,22 @@ sub viewSystemHealth {
 		# now make each cell!
 		my @cells;
 		my $cell;
-		foreach my $head (@headers) {
-			if ( defined $D->{$head."_url"} and defined $D->{$head."_id"} ) {
-				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\" id=\"$D->{$head.'_id'}\">$D->{$head}</a>");
+		foreach my $head (@headers) 
+		{
+			# links to outside targets, using the <header>_url and _id properties in the node info structure
+			my $url;
+			if ($D->{$head."_url"})
+			{
+				$url = URI->new($D->{$head."_url"});
+				$url->query_param("widget" => $widget);
 			}
-			elsif ( defined $D->{$head."_url"} ) {
+
+			if ( $url and defined $D->{$head."_id"} ) 
+			{
+				$cell = td({class=>'info Plain'},"<a href=\"$url\" id=\"$D->{$head.'_id'}\">$D->{$head}</a>");
+			}
+			elsif ( $url ) 
+			{
 				$cell = td({class=>'info Plain'},"<a href=\"$D->{$head.'_url'}\">$D->{$head}</a>");
 			}
 			else {
