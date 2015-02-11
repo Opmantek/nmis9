@@ -2594,7 +2594,7 @@ sub viewSystemHealth {
 			if ($D->{$head."_url"})
 			{
 				$url = URI->new($D->{$head."_url"});
-				$url->query_param("widget" => $widget) if ($D->{"${head}_target"});
+				$url->query_param("widget" => $widget) if (!$D->{"${head}_target"});
 			}
 
 			# internal mode, widgetted
