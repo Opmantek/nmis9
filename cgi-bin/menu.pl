@@ -328,9 +328,8 @@ sub menu_bar_site {
 			push @tableMenu, qq|<a id="cfg_$table" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=$table">$Tables->{$table}{DisplayName}</a>| if ($table ne "Nodes" and $AU->CheckAccess("Table_${table}_view","check"));
 		}
 
-		## a setup/wizard menu
+		my (@systemitems, @setupitems);
 
-		my @systemitems;
 
 		#if ($AU->CheckAccess("table_config_view","check"))
 		#{
@@ -398,13 +397,13 @@ sub menu_bar_site {
 		push @setupitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
 
-		push @setupitems, qq|<a id="cfg_Contacts" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Contact Setup</a>| 
+		push @setupitems, qq|<a id="cfg_Contacts" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contact Setup</a>| 
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 				
 		push @setupitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
 				if ($AU->CheckAccess("Table_Escalations_view","check"));
 				
-		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Event Configuration</a>| 
+		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Events">Event Configuration</a>| 
 				if ($AU->CheckAccess("Table_Events_view","check"));
 				
 		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alert Tuning</a>| 
