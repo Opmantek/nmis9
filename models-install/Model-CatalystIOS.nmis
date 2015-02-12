@@ -601,7 +601,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp',
+    'sections' => 'cdp,vtpVlan,fanStatus,psuStatus,tempStatus',
     'sys' => {
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
@@ -648,6 +648,192 @@
           },
         }
       },
+      'vtpVlan' => {
+        'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'vtpVlanState',
+        'snmp' => {
+          'vtpVlanName' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
+            'title' => 'VLAN Name'
+          },
+          'vtpVlanIndex' => {
+            'title' => 'VLAN'
+          },
+          'vtpVlanState' => {
+            'oid' => 'vtpVlanState',
+            'replace' => {
+              '1' => 'operational',
+              '2' => 'suspended',
+              '3' => 'mtuTooBigForDevice',
+              '4' => 'mtuTooBigForTrunk',
+            },
+            'title' => 'VLAN State'
+          },
+          'vtpVlanType' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.3',
+            'replace' => {
+              '1' => 'ethernet',
+              '2' => 'fddi',
+              '3' => 'tokenRing',
+              '4' => 'fddiNet',
+              '5' => 'trNet',
+              '6' => 'deprecated',
+            },
+            'title' => 'VLAN Type'
+          },
+          'vtpVlanMtu' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.5',
+            'title' => 'VLAN MTU'
+          },
+          'vtpVlanIfIndex' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.18',
+            'replace' => {
+              '0' => 'N/A',
+            },
+            'title' => 'VLAN ifIndex'
+          },
+          'ifDescr' => {
+            'title' => 'ifDescr'
+          },
+        }
+      },
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'headers' => 'FanStatusDescr',
+        'indexed' => 'ciscoEnvMonFanStatusDescr',
+        'snmp' => {
+          'FanStateName' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Fan State'
+          },
+          'FanStatusDescr' => {
+            'oid' => 'ciscoEnvMonFanStatusDescr',
+            'title' => 'Fan Status Descr'
+          }
+        }
+      },
+      'psuStatus' => {        
+      	'control' => '$sysObjectName =~ /./',
+        'indexed' => 'ciscoEnvMonSupplyStatusDescr',        
+        'headers' => 'SupplyStatusDescr,SupplyStatusSource',
+        'snmp' => {
+          'SupplyStatusDescr' => {
+            'oid' => 'ciscoEnvMonSupplyStatusDescr',
+            'title' => 'PSU Status Descr'
+          },
+          'SupplyStatusSource' => {
+            'oid' => 'ciscoEnvMonSupplySource',
+            'title' => 'PSU Source',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'ac',
+              '3' => 'dc',
+              '4' => 'externalPowerSupply',
+              '5' => 'internalRedundant',
+            },
+          },
+          'SupplyStateName' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'title' => 'PSU State',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning',
+            },
+          },
+        },
+      }, 
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'headers' => 'TemperatureStatusDescr',
+        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
+        'snmp' => {
+          'TemperatureStateName' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Temperature State'
+          },
+          'TemperatureStatusDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Temperature Status Descr'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'fan-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'fanValue' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      },     
+      'psuStatus' => {
+      	'control' => '$sysObjectName =~ /./',
+        'indexed' => 'true',
+        'graphtype' => 'psu-status',
+        'snmp' => {
+          'psuValue' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25',
+            },
+          },
+        },
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'temp-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'tempValue' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      }
     },
   },
 );

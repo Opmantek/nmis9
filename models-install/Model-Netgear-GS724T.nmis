@@ -363,9 +363,9 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'dot1qMacTable',
+    'sections' => 'macTable',
     'sys' => {
-      'dot1qMacTable' => {
+      'macTable' => {
         'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
         'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
         'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',

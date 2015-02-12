@@ -614,8 +614,8 @@
       'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm'
     }
   },
-
   'systemHealth' => {
+    'sections' => 'bgpPeer,cdp,fanStatus,psuStatus,tempStatus',
     'rrd' => {
       'bgpPeer' => {
         'graphtype' => 'bgpPeer,bgpPeerStats',
@@ -658,8 +658,61 @@
           }
         }
       },
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'fan-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'fanValue' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      },     
+      'psuStatus' => {
+      	'control' => '$sysObjectName =~ /./',
+        'indexed' => 'true',
+        'graphtype' => 'psu-status',
+        'snmp' => {
+          'psuValue' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25',
+            },
+          },
+        },
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'temp-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'tempValue' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      }
     },
-    'sections' => 'bgpPeer,cdp',
     'sys' => {
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
@@ -773,6 +826,86 @@
           }
         }
       },
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'headers' => 'FanStatusDescr',
+        'indexed' => 'ciscoEnvMonFanStatusDescr',
+        'snmp' => {
+          'FanStateName' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Fan State'
+          },
+          'FanStatusDescr' => {
+            'oid' => 'ciscoEnvMonFanStatusDescr',
+            'title' => 'Fan Status Descr'
+          }
+        }
+      },
+      'psuStatus' => {        
+      	'control' => '$sysObjectName =~ /./',
+        'indexed' => 'ciscoEnvMonSupplyStatusDescr',        
+        'headers' => 'SupplyStatusDescr,SupplyStatusSource',
+        'snmp' => {
+          'SupplyStatusDescr' => {
+            'oid' => 'ciscoEnvMonSupplyStatusDescr',
+            'title' => 'PSU Status Descr'
+          },
+          'SupplyStatusSource' => {
+            'oid' => 'ciscoEnvMonSupplySource',
+            'title' => 'PSU Source',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'ac',
+              '3' => 'dc',
+              '4' => 'externalPowerSupply',
+              '5' => 'internalRedundant',
+            },
+          },
+          'SupplyStateName' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'title' => 'PSU State',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning',
+            },
+          },
+        },
+      }, 
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /cisco8../',
+        'headers' => 'TemperatureStatusDescr',
+        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
+        'snmp' => {
+          'TemperatureStateName' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Temperature State'
+          },
+          'TemperatureStatusDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Temperature Status Descr'
+          }
+        }
+      }
     }
   }
 );

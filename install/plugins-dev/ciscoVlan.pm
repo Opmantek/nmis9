@@ -64,10 +64,19 @@ sub update_plugin
 	#dot1dBase
 	#vtpVlan
 	
-	info("Working on $node vtpVlan");
+	info("Working on $node ciscoVlan");
 
 	my $changesweremade = 0;
-
+	
+	my $session = mysnmpsession( $LNT->{$node}{host}, $LNT->{$node}{community}, $LNT->{$node}{version}, $LNT->{$node}{port}, $C);
+	my $basePort = 0;
+	my $baseIndex;
+	my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
+	if ( $baseIndex = mygettable($session,$dot1dBasePortIfIndex) ) {
+		$basePort = 1;
+		print Dumper $baseIndex;
+	}
+	
 	for my $key (keys %{$NI->{vtpVlan}})
 	{
 		my $entry = $NI->{vtpVlan}->{$key};
@@ -110,11 +119,12 @@ sub update_plugin
 				$gotPorts = 1;
 			}
 			
-			my $gotStatus = 1;
+			my $gotStatus = 0;
 			my $dot1dTpFdbStatus = "1.3.6.1.2.1.17.4.3.1.3"; #dot1dTpFdbStatus
 			if ( $addressStatus = mygettable($session,$dot1dTpFdbStatus) ) {
 				$gotStatus = 1;
-			}
+			}			
+
 			
 			if ( $gotAddresses and $gotPorts ) {
 				$changesweremade = 1;
@@ -125,22 +135,28 @@ sub update_plugin
 				#print Dumper $addressStatus;
 				
 				foreach my $key (keys %$addresses) {
-					my $macAddress = $addresses->{$key};
-					
+					#;
+					#my $macAddress = $key;					
+					#$macAddress =~ s/1\.3\.6\.1\.2\.1\.17\.4\.3\.1\.1\.//;
+					my $macAddress = beautify_physaddress($addresses->{$key});
+										
 					# got to use a different OID for the different queries.
 					my $portKey = $key;
 					my $statusKey = $key;
 					$portKey =~ s/17.4.3.1.1/17.4.3.1.2/;
 					$statusKey =~ s/17.4.3.1.1/17.4.3.1.3/;
 
-					$NI->{dot1dMacTable}->{$macAddress}{dot1dTpFdbAddress} = $macAddress;
-					$NI->{dot1dMacTable}->{$macAddress}{dot1dTpFdbPort} = $ports->{$portKey};
-					$NI->{dot1dMacTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
-					$NI->{dot1dMacTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
+					$NI->{macTable}->{$macAddress}{dot1dTpFdbAddress} = $macAddress;					
+					$NI->{macTable}->{$macAddress}{dot1dTpFdbPort} = $ports->{$portKey};
+					$NI->{macTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
+					$NI->{macTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
+					$NI->{macTable}->{$macAddress}{updated} = time();
 					
-					my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
-					
-					$NI->{dot1dMacTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
+					if ( exists $ports->{$portKey} ) {
+						my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
+						$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
+					}
+				
 					#dot1dTpFdbAddress
 					#dot1dTpFdbPort
 					#dot1dTpFdbStatus
@@ -362,7 +378,7 @@ sub mygettable {
 	my $result = $session->get_table( -baseoid => $oid );                                         
                                                                                                        
 	my $cnt = scalar keys %{$result};                                                                    
-	dbg("result: $cnt values for table $oid",1);                                                        
+	dbg("result: $cnt values for table $oid",2);                                                        
 	return $result;                                                                                      
 }                                                                                                      
 
