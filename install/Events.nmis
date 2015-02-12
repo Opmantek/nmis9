@@ -7,7 +7,7 @@
 		'Log' => 'true',
 		'Status' => 'true',
 		'Stateful' => 'false',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'Indicating that the NMIS polling cycle is going too long.',
   },
 
   'Interface Down' => {
@@ -16,7 +16,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'An interface NMIS is managing has gone down (physical or logical outage).',
   },
   'Interface Up' => {
     'Event' => 'Interface Up',
@@ -24,7 +24,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'An interface NMIS is managing is UP, working normally.',
   },
   'Node Down' => {
     'Event' => 'Node Down',
@@ -72,7 +72,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'SNMP communication to the node has a problem.',
   },
   'SNMP Up' => {
     'Event' => 'SNMP Up',
@@ -80,7 +80,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'SNMP communication to the node has been restored.',
   },
   'Service Down' => {
     'Event' => 'Service Down',
@@ -88,7 +88,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'A service NMIS is managing has failed to respond.',
   },
   'Service Up' => {
     'Event' => 'Service Up',
@@ -96,7 +96,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'A service NMIS is managing is available again.',
   },
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
@@ -104,7 +104,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'The response time threshold of the node has been exceeded.',
   },
   'Proactive Reachability' => {
     'Event' => 'Proactive Reachability',
@@ -112,7 +112,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'Brief description of the event.',
+    'Description' => 'The response time threshold of the node has been exceeded',
   },
   'Proactive CPU' => {
     'Event' => 'Proactive CPU',

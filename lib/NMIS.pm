@@ -945,7 +945,7 @@ sub checkEvent {
 
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $thisevent_control = $events_config->{$event} || {};
+	my $thisevent_control = $events_config->{$event} || { Log => "true", Event => "true", Status => "true"};
 	
 	# just in case this is blank.
 	if ( $C->{'non_stateful_events'} eq '' ) {
@@ -1019,7 +1019,7 @@ sub checkEvent {
 		}
 		
 		# event was renamed/inverted/massaged, need to get the right control record
-		$thisevent_control = $events_config->{$event} || {};
+		$thisevent_control = $events_config->{$event} || { Log => "true", Event => "true", Status => "true"};
 
 		$details = "$details Time=$outage";
 		$ET->{$event_hash}{current} = 'false'; # next processing by escalation routine
@@ -1095,7 +1095,7 @@ sub notify {
 	
 	# events.nmis controls which events are active/logging/notifying
 	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $thisevent_control = $events_config->{$event} || {};
+	my $thisevent_control = $events_config->{$event} || { Log => "true", Event => "true", Status => "true"};
 
 	my $event_hash = eventHash($S->{name},$event,$element);
 	my $ET;
@@ -1406,6 +1406,9 @@ sub eventAck {
 	my ($ET,$handle);
 	$event_hash = eventHash($node,$event,$element);
 
+	# event control is as configured or all true.
+	my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
+
 	if (getbool($C->{db_events_sql})) {
 		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
 	} else {
@@ -1419,7 +1422,7 @@ sub eventAck {
 				logEvent(node => $ET->{$event_hash}{node}, event => "deleted event: $ET->{$event_hash}{event}", 
 								 level => "Normal", element => $ET->{$event_hash}{element})
 						# log the deletion meta-event iff the original event had logging enabled
-						if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
+						if (getbool($thisevent_control->{Log}));
 
 				delete $ET->{$event_hash};
 				$delete_event = 1;
@@ -1427,7 +1430,7 @@ sub eventAck {
 			else {
 				logEvent(node => $node, event => $event, level => "Normal", element => $element, details => "acknowledge=true ($user)")
 						# log the ack meta-event iff the original event had logging enabled
-						if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
+						if (getbool($thisevent_control->{Log}));
 				
 				$ET->{$event_hash}{ack} = "true";
 				$ET->{$event_hash}{user} = $user;
@@ -1435,7 +1438,7 @@ sub eventAck {
 		}
 		elsif ( getbool($ack,"invert") and getbool($ET->{$event_hash}{ack})) {
 			logEvent(node => $node, event => $event, level => $ET->{$event_hash}{level}, element => $element, details => "acknowledge=false ($user)")
-					if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}));
+					if (getbool($thisevent_control->{Log}));
 			$ET->{$event_hash}{ack} = "false";
 			$ET->{$event_hash}{user} = $user;
 		}
@@ -2234,8 +2237,10 @@ sub cleanEvent {
 	{
 		if ( exists $ET->{$event_hash} and $ET->{$event_hash}{node} eq "$node" )
 		{
+			# event control is as configured or all true.
+			my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
 			# log the deletion meta-event iff the original event had logging enabled
-			if (defined $events_config->{$ET->{$event_hash}->{event}} and getbool($events_config->{$ET->{$event_hash}->{event}}->{Log}))
+			if (getbool($thisevent_control->{Log}))
 			{
 				logEvent(node => "$ET->{$event_hash}{node}", event => "$caller: deleted event: $ET->{$event_hash}{event}", level => "Normal", element => "$ET->{$event_hash}{element}", details => "$ET->{$event_hash}{details}");
 			}
