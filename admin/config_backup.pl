@@ -133,9 +133,11 @@ if (defined $keep && $keep > 0)
 {
 	# ...then look at expiring older backups if there are too many
 	opendir(D,$backupdir) or die "Cannot open directory $backupdir: $!\n";
-	my @candidates = sort { my $first = $a; $first =~ s/[a-zA-Z\.-]//g; 
-													my $second = $b; $second =~ s/[a-zA-Z\.-]//g;
-													$second <=> $first  } grep(/^$backupprefix.*tgz$/, readdir(D));
+	my @candidates = sort { my $first = $a; 
+				$first =~ s/[a-zA-Z\.-]//g; 
+				my $second = $b; 
+				$second =~ s/[a-zA-Z\.-]//g;
+				return $second <=> $first  } grep(/^$backupprefix.*(tgz|tar.gz)$/i, readdir(D));
 	closedir(D);
 	
 	for my $rip (@candidates[$keep..$#candidates])
