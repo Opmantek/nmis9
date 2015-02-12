@@ -2,7 +2,7 @@ NMIS 8.x README
 ---------------
 
 1. Copyright and licensing
-NMIS Copyright (C) 1999-2011 Opmantek Ltd (www.opmantek.com)
+NMIS Copyright (C) Opmantek Ltd (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 This is free software licensed under GNU GPL, and you are welcome to 
 redistribute it under certain conditions; see www.opmantek.com or email
@@ -26,7 +26,8 @@ information, as well as high level reporting for executive reports.
 3. Additional modules
 Additional modules are available under low cost commercial licenses for:
 NetFlow, Application Flow, Advanced IPSLA, Mapping, Advanced Reporting, 
-Database Integration, High Availability and more. 
+Database Integration, Event Management, Configuration Management,
+High Availability and more. 
 Contact Opmantek - contact@opmantek.com
 
 4. Documentation
@@ -36,6 +37,3 @@ All documentation can be found @ https://community.opmantek.com/
 Commercial support available from Opmantek - www.opmantek.com or 
 contact@opmantek.com
 Community support available @ http://community.opmantek.com/
-
-
-
