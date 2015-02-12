@@ -319,7 +319,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'Description' => 'A modem is dead and probably shouldn't be used any more.',
+    'Description' => 'A modem is dead and probably should be put out to pasture.',
   },
   'Proactive Interface LOW Input Utilisation' => {
     'Event' => 'Proactive Interface LOW Input Utilisation',
