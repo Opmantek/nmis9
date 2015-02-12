@@ -3749,8 +3749,10 @@ sub runServer {
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
-						### 2012-12-20 keiths, adding Server Memory to Health Calculations.
-						push(@{$S->{reach}{diskList}},($Val{hrDiskSize}{value} - $Val{hrDiskUsed}{value}) / $Val{hrDiskSize}{value} * 100);
+						### 2012-12-20 keiths, adding Server Disk to Health Calculations.
+						my $diskUtil = $Val{hrDiskUsed}{value} / $Val{hrDiskSize}{value} * 100;
+						dbg("Disk List updated with Util=$diskUtil Size=$Val{hrDiskSize}{value} Used=$Val{hrDiskUsed}{value}",1);
+						push(@{$S->{reach}{diskList}},$diskUtil);
 
 						$D->{hrStorageDescr} =~ s/,/ /g;	# lose any commas.
 						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrdisk",index=>$index))) {
