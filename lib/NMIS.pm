@@ -61,7 +61,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.5G";
+$VERSION = "8.5.6G";
 
 @ISA = qw(Exporter);
 
@@ -364,7 +364,11 @@ sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
 
-sub loadWindowStateTable {
+sub loadWindowStateTable 
+{
+	my $C = loadConfTable();
+
+	return {} if (not -r getFileName(file => "$C->{'<nmis_var>'}/nmis-windowstate"));
 	return loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 
