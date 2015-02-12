@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.3";
+our $VERSION = "1.2.4";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1991,6 +1991,9 @@ sub checkDirectoryFiles {
 	}
 }
 
+# checks and adjusts the ownership and permissions on given dir X
+# and all files directly within it. if recurse is given, then
+# subdirs below X are also checked recursively.
 sub setFileProtDirectory {
 	my $dir = shift;
 	my $recurse = shift;
@@ -2004,6 +2007,7 @@ sub setFileProtDirectory {
 	
 	dbg("setFileProtDirectory $dir, recurse=$recurse",1);
 
+	setFileProt($dir);						# the dir itself must be checked and fixed, too!
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;

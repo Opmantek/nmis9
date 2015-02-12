@@ -49,10 +49,8 @@ use version 0.77;
 
 
 ## Setting Default Install Options.
-my $defaultSite = "/usr/local/nmis8";
 my $defaultFping = "/usr/local/sbin/fping";
 
-my $installLog = "./install.log";
 my $nmisModules;			# local modules used in our scripts
 
 if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
@@ -63,7 +61,7 @@ if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
 # Get some command line arguements.
 my %arg = getArguements(@ARGV);
 
-my $site = $arg{site} ? $arg{site} : $defaultSite;
+my $site = $arg{site} ? $arg{site} : "/usr/local/nmis8";
 my $fping = $arg{fping} ? $arg{fping} : $defaultFping;
 my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 
@@ -74,6 +72,17 @@ die "This installer must be run with root privileges, terminating now!\n"
 		if ($> != 0);
 
 system("clear");
+my ($installLog, $mustmovelog);
+if ( -d $site )
+{
+	$installLog = "$site/install.log";
+}
+else
+{
+	$installLog = "/tmp/install.log";
+	$mustmovelog = 1;
+}
+
 
 ###************************************************************************###
 printBanner("NMIS Installation Script");
@@ -115,14 +124,11 @@ for further info.\n\n");
 	my $x = <STDIN>;
 }
 
-###************************************************************************###
-printBanner("Getting installation source location...");
-
-# try the current dir first, otherwise check the dirname of 
-# this command's invocation
+# try the current dir first, check the dirname of this command's invocation, or give up
 my $src = cwd();
 $src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
-$src = input_str("Full path to distribution folder:", $src);
+die "Cannot determine installation source directory!\n" if (!-f "$src/LICENSE");
+
 logInstall("Installation source is $src");
 
 ###************************************************************************###
@@ -243,29 +249,40 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 			
 			for my $pkg (@rhpackages)
 			{
-				if (`rpm -qa $pkg 2>/dev/null` ne "")
+				my $installcmd = "yum -y install $pkg";
+				my $ispresent = 0;
+
+				# special handling for messy rrdtool situation in centos 6
+				if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
 				{
-					echolog("Required package $pkg is already installed.");
+					$installcmd = "yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool";
+					if (`rpm -qa $pkg 2>/dev/null` =~ /^\S+-(\d+\.\d+\.\d+)/m
+							and version->parse($1) >= version->parse("1.4.4"))
+					{
+						$ispresent = 1;
+						echolog("Sufficient version of required package $pkg is already installed.");
+					}
 				}
 				else
+				{
+					if (`rpm -qa $pkg 2>/dev/null` ne "")
+					{
+						echolog("Required package $pkg is already installed.");
+						$ispresent = 1;
+					}
+				}
+
+				if (!$ispresent)
 				{
 					echolog("\nRequired package $pkg is NOT installed!");
 					if (input_yn("Do you want to install the package $pkg with yum now?"))
 					{
-						if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
+						echolog("Installing $pkg with yum");
+						execPrint($installcmd);
+						
+						if ($pkg eq "httpd")
 						{
-							echolog("Installing $pkg with yum");
-							execPrint("yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool");
-						}
-						else
-						{
-							echolog("Installing $pkg with yum");
-							execPrint("yum -y install $pkg");
-							
-							if ($pkg eq "httpd")
-							{
-								execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
-							}
+							execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
 						}
 						print "\n\n";			# yum is pretty noisy
 					}
@@ -372,10 +389,17 @@ for further info.\n\n";
 }
 
 ###************************************************************************###
-printBanner("Configuring installation path...");
-$site = input_str("Folder to install NMIS in", $defaultSite, 1);
-logInstall("Installation destination is $site");
+printBanner("Checking Installation Target");
+print "The standard NMIS installation target is \"$site\".
+To install NMIS into a different directory please answer the question below
+with \"no\" and restart the installer with the argument site=<custom_dir>,
+e.g. ./install.pl site=/opt/nmis8\n\n";
 
+if (!input_yn("OK to start installation/upgrade to $site?"))
+{
+	echolog("Exiting installation as directed.\n");
+	exit  0;
+}
 
 ###************************************************************************###
 if ( -d $site ) {
@@ -393,28 +417,34 @@ if ( -d $site ) {
 	}
 }
 
-###************************************************************************###
-printBanner("Copying NMIS system files...");
-
-if (!input_yn("Ready to start installation/upgrade to $site?"))
-{
-	echolog("Exiting installation as directed.\n");
-	exit  0;
-}
-
-echolog("Copying source files from $src to $site...\n");
-
-# lock nmis first
-open(F,">$site/conf/NMIS_IS_LOCKED");
-print F "$0 is operating, started at ".localtime."\n";
-close F;
-
 my $isnewinstall;
 if ( not -d $site ) 
 {
 	$isnewinstall=1;
 	mkdir($site,0755) or die "cannot mkdir $site: $!\n";
 }
+
+# now switch to the install.log in the final location
+if ($mustmovelog)
+{
+	my $newlog = "$site/install.log";
+	system("mv $installLog $newlog");
+	$installLog = $newlog;
+}
+
+# before copying anything, lock nmis...
+open(F,">$site/conf/NMIS_IS_LOCKED");
+print F "$0 is operating, started at ".localtime."\n";
+close F;
+
+# ...and kill any currently running fpingd 
+if ( -f $fping ) {
+	execPrint("$site/bin/fpingd.pl kill=true");
+}
+
+printBanner("Copying NMIS files...");
+echolog("Copying source files from $src to $site...\n");
+
 # fixme: this fails benignly but noisyly if there are 
 # (convenience) symlinks in the nmis dir, e.g. var or database
 execPrint("cp -r $src/* $site");
@@ -450,6 +480,7 @@ if ($isnewinstall)
 }
 else
 {
+	# copy over missing plugins if allowed
 	opendir(D,"$site/install/plugins") or warn "cannot open directory install/plugins: $!\n";
 	my @candidates = grep(/\.pm$/, readdir(D));
 	closedir(D);
@@ -482,14 +513,16 @@ else
 		}
 	}
 
-	printBanner("Copying optional new NMIS config files");
-	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis","Customers.nmis")
+	printBanner("Copying new and updated NMIS config files");
+	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis",
+							 "Customers.nmis", "Events.nmis")
 	{
 		if (-f "$site/install/$cff" && !-f "$site/conf/$cff")
 		{
-			execPrint("cp $site/install/$cff $site/conf/$cff");
+			execPrint("cp -a $site/install/$cff $site/conf/$cff");
 		}
 	}
+	execPrint("cp -fa $site/install/Tables.nmis $site/install/Table-*.nmis $site/conf/");
 	
 	###************************************************************************###
 	printBanner("Updating the config files with any new options...");
@@ -746,7 +779,7 @@ The installer can install this default schedule in /etc/cron.d/nmis,
 which immediately activates it.
 
 Please note that if you already have an NMIS schedule in your per-user
-root crontab, then you need decide on using either the system-wide cron 
+root crontab, then you need to decide on using either the system-wide cron 
 files in /etc/cron.d or the per-user crontab but not both!\n\n";
 
 my $crongood = (-f "/etc/cron.d/nmis");
@@ -759,7 +792,9 @@ if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /et
 	{
 		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
 		print "\nA new default cron was created in /etc/cron.d/nmis, 
-but feel free to adjust it.\n\nPlease hit <Enter> to continue:\n";
+but feel free to adjust it.\n
+If you already have an NMIS schedule in your per-user
+root crontab, then you should remove that using \"crontab -e\".\n\nPlease hit <Enter> to continue:\n";
 		my $x = <STDIN>;
 		$crongood = 1;
 	}
@@ -882,7 +917,8 @@ EOF
 				if ( -e "$path/$mFile" ) 
 				{
 					my $thisversion = moduleVersion("$path/$mFile");
-					if (!defined $nmisModules->{$mod}{version} 
+					if (!$nmisModules->{$mod}{version}
+							or !$thisversion
 							or version->parse($thisversion) >= version->parse($nmisModules->{$mod}{version}))
 					{
 						$nmisModules->{$mod}{file} = "$path/$mFile";
@@ -909,12 +945,12 @@ sub moduleVersion {
 		if ( /(?:our\s+\$VERSION|my\s+\$VERSION|\$VERSION|\s+version|::VERSION)/i ) {
 			/(\d+\.\d+(?:\.\d+)?)/;
 			if ( defined $1 and $1 ne '' ) {
-				return " $1";
+				return "$1";
 			}
 		}
 	}
 	close FH;
-	return ' ';
+	return '';
 }
 
 # returns (1) if no critical modules missing, (0,critical) otherwise
@@ -1108,14 +1144,14 @@ NMIS Install Script
 NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-usage: $0 [site=$defaultSite] [fping=$defaultFping] [listdeps=(true|false)]
+usage: $0 [site=$site] [fping=$defaultFping] [listdeps=(true|false)]
 
 Options:  
   listdeps Only show (missing) dependencies, do not install NMIS
-  site	Target site for installation, default is $defaultSite 
+  site	Target site for installation, default is $site 
   fping	Location of the fping program, default is $defaultFping 
 
-eg: $0 site=$defaultSite fping=$defaultFping cpan=true
+eg: $0 site=$site fping=$defaultFping cpan=true
 
 /;	
 }
