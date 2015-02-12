@@ -34,20 +34,25 @@ package NMIS::uselib;
 use strict;
 use base qw(Exporter);
 
-our $VERSION = "1.01";
+our $VERSION = "1.1.0";
 our $rrdtool_lib;
 our @EXPORT_OK = qw($rrdtool_lib);
 
-# the last is really just a fallback to silence the 'empty compile time value' warning
-# that use lib emits with rrdtool_lib being undef, and in that case we simply let
-# perl look for the rrd modules in the standard include path
-for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl /usr/lib/perl5/ /usr/lib64/perl5))
+for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl))
 {
-	if (-d $knownloc)
+	# but do NOT add any lib dirs that are already in INC, because use lib 
+	# adds to the FRONT of  INC, which makes it impossible to find a 
+	# cpan'd newer version of a module if the system perl came with an 
+	# older version...
+	if (-d $knownloc and !grep($_ eq $knownloc, @INC))
 	{
 		$rrdtool_lib = $knownloc;
 		last;
 	}
 }
+
+# so, if nothing matched and to silence the compile warning,
+# duplicate the first element of INC...
+$rrdtool_lib ||= $INC[0];
 
 1;
