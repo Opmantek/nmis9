@@ -299,7 +299,7 @@ sub	runThreads
 		{
 			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
 			my $event = "NMIS runtime exceeded";
-			my $thisevent_control = $eventconfig->{$event};
+			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Event => "true", Status => "true"};
 
 			# if not told otherwise, shoot the others politely
 			for my $pid (keys %{$others})
@@ -3749,8 +3749,10 @@ sub runServer {
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
-						### 2012-12-20 keiths, adding Server Memory to Health Calculations.
-						push(@{$S->{reach}{diskList}},($Val{hrDiskSize}{value} - $Val{hrDiskUsed}{value}) / $Val{hrDiskSize}{value} * 100);
+						### 2012-12-20 keiths, adding Server Disk to Health Calculations.
+						my $diskUtil = $Val{hrDiskUsed}{value} / $Val{hrDiskSize}{value} * 100;
+						dbg("Disk List updated with Util=$diskUtil Size=$Val{hrDiskSize}{value} Used=$Val{hrDiskUsed}{value}",1);
+						push(@{$S->{reach}{diskList}},$diskUtil);
 
 						$D->{hrStorageDescr} =~ s/,/ /g;	# lose any commas.
 						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrdisk",index=>$index))) {
@@ -5245,7 +5247,9 @@ sub runEscalate {
 		next if getbool($ET->{$event_hash}{current});
 
 		# if the event is configured for no notify, do nothing
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}};
+
+		# event control is as configured or all true.
+		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if (getbool($thisevent_control->{Notify}))
@@ -5330,6 +5334,7 @@ sub runEscalate {
 										 level => "Normal", element => $ET->{$event_hash}{element}, 
 										 details => $ET->{$event_hash}{details})
 								if (getbool($thisevent_control->{Log}));
+								
 						
 						dbg("Escalation $type UP Notification node=$ET->{$event_hash}{node} target=$target level=$ET->{$event_hash}{level} event=$ET->{$event_hash}{event} element=$ET->{$event_hash}{element} details=$ET->{$event_hash}{details} group=$NT->{$ET->{$event_hash}{node}}{group}");
 					}
@@ -5450,7 +5455,8 @@ LABEL_ESC:
 	foreach $event_hash ( keys %{$ET} )  
 	{
 		dbg("process event with event_hash=$event_hash");
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || {};
+		# set event control to policy or default of enabled.
+		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
 
 		my $nd = $ET->{$event_hash}{node};
 		# lets start with checking that we have a valid node -the node may have been deleted.
@@ -7129,14 +7135,15 @@ sub doThreshold {
 					my $eventKey = $S->{info}{status}{$statusKey}{event}; 
 					$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
 					
-					my $thisevent_control = $events_config->{$eventKey};
+					# event control is as configured or all true.
+					my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Event => "true", Status => "true"};
 
 					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 					if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
 						delete $S->{info}{status}{$statusKey};
 					}
 					# in case of Status being off for this event, we don't have to include it in the calculations
-					elsif ( defined $thisevent_control->{Status} and not getbool($thisevent_control->{Status}) ) {
+					elsif (getbool($thisevent_control->{Status}) ) {
 						dbg("DEBUG: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
 						$S->{info}{status}{$statusKey}{status} = "ignored";
 						++$count;

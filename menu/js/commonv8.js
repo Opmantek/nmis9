@@ -947,11 +947,12 @@ function selectNodeOpen() {
 										});
 	
 	// define some additional content
+	//<div class="tiny">&nbsp;</div>\
+
 	var mycontent = '\
 <div class="heading">Select Device by Context</div>\
 <div id="nsContextMenu"></div>\
 <form name="nsFormFilter">\
-<div class="tiny">&nbsp;</div>\
 <div class="heading">Filter Device list by input string</div>\
 <input type="text" id="nsInputMatch" onkeyup="nsInputMatchKey(this.value)" size="20">\
 <div id="nsInputMatchResult"></div>\

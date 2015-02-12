@@ -330,33 +330,31 @@ sub menu_bar_site {
 
 		my (@systemitems, @setupitems);
 
-		if ($AU->CheckAccess("table_config_view","check"))
-		{
-			@setupitems = (qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|,
-											qq|------|,
-											qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|);
-		}
 
-		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
-				if ($AU->CheckAccess("Table_Nodes_view","check"));
-
-		push @setupitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
-				if ($AU->CheckAccess("table_nodeconf_view","check"));
-
-		push @setupitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu&amp;section=system">System Configuration</a>|
-				if ($AU->CheckAccess("table_config_view","check"));
-
-		push @setupitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
-				if ($AU->CheckAccess("Table_Escalations_view","check"));
-				
-		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Events">Event Configuration</a>| 
-				if ($AU->CheckAccess("Table_Events_view","check"));
-				
-		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alerts</a>| 
-				if ($AU->CheckAccess("table_models_view","check"));				
-
-		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
-				if ($AU->CheckAccess("table_models_view","check"));				
+		#if ($AU->CheckAccess("table_config_view","check"))
+		#{
+		#	push @systemitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|;
+		#}
+    #
+		#push @systemitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
+		#		if ($AU->CheckAccess("Table_Nodes_view","check"));
+    #
+		#push @systemitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
+		#		if ($AU->CheckAccess("table_nodeconf_view","check"));
+    #
+		#push @systemitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu&amp;section=system">System Configuration</a>|
+		#		if ($AU->CheckAccess("table_config_view","check"));
+    #
+		#push @systemitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
+		#		if ($AU->CheckAccess("Table_Escalations_view","check"));
+		#		
+		#push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alerts</a>| 
+		#		if ($AU->CheckAccess("table_models_view","check"));				
+    #
+		#push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
+		#		if ($AU->CheckAccess("table_models_view","check"));				
+    #
+		#push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
 		push @systemitems, qq|Configuration Check|,
@@ -381,7 +379,40 @@ sub menu_bar_site {
 		}		
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
 
-		push @menu_site, "Setup", \@setupitems if (@setupitems);
+		my @setupitems;
+
+		push 	@setupitems, qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @setupitems, qq|           | if (@setupitems); # no separator if there's nothing to separate...
+
+		push @setupitems, qq|--- Advanced Setup ---| if (@setupitems); # no separator if there's nothing to separate...
+		
+		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));
+
+		push @setupitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
+				if ($AU->CheckAccess("table_nodeconf_view","check"));
+
+		push @setupitems, qq|<a id="cfg_Contacts" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Contacts">Contact Setup</a>| 
+				if ($AU->CheckAccess("Table_Escalations_view","check"));
+				
+		push @setupitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
+				if ($AU->CheckAccess("Table_Escalations_view","check"));
+				
+		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Events">Event Configuration</a>| 
+				if ($AU->CheckAccess("Table_Events_view","check"));
+				
+		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alert Tuning</a>| 
+				if ($AU->CheckAccess("table_models_view","check"));				
+
+		#push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
+		#		if ($AU->CheckAccess("table_models_view","check"));				
+
+		push @menu_site, qq|Setup|, \@setupitems if (@setupitems);
 
 		push @menu_site, qq|System|, \@systemitems if (@systemitems);
 
