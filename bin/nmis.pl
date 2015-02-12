@@ -87,7 +87,13 @@ my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
 if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
-	my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+	my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
+	if (!-d $varsysdir)
+	{
+		createDir($varsysdir); 
+		setFileProt($varsysdir);
+	}
+	my $selftest_cache = "$varsysdir/selftest";
 
 	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false', 
 																			 report_database_status => \$selftest_dbdir_status);
@@ -185,7 +191,14 @@ sub	runThreads
 	if (!$node_select and $type ne "services")
 	{
 		info("Starting selftest (takes about 5 seconds)...");
-		my $selftest_cache = $C->{'<nmis_var>'}."/nmis_system/selftest";
+		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
+		if (!-d $varsysdir)
+		{
+			createDir($varsysdir); 
+			setFileProt($varsysdir);
+		}
+		
+		my $selftest_cache = "$varsysdir/selftest";
 		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
 																				 report_database_status => \$selftest_dbdir_status);
 		writeHashtoFile(file => $selftest_cache, json => 1,

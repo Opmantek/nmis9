@@ -49,10 +49,8 @@ use version 0.77;
 
 
 ## Setting Default Install Options.
-my $defaultSite = "/usr/local/nmis8";
 my $defaultFping = "/usr/local/sbin/fping";
 
-my $installLog = "./install.log";
 my $nmisModules;			# local modules used in our scripts
 
 if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
@@ -63,7 +61,7 @@ if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
 # Get some command line arguements.
 my %arg = getArguements(@ARGV);
 
-my $site = $arg{site} ? $arg{site} : $defaultSite;
+my $site = $arg{site} ? $arg{site} : "/usr/local/nmis8";
 my $fping = $arg{fping} ? $arg{fping} : $defaultFping;
 my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 
@@ -74,6 +72,17 @@ die "This installer must be run with root privileges, terminating now!\n"
 		if ($> != 0);
 
 system("clear");
+my ($installLog, $mustmovelog);
+if ( -d $site )
+{
+	$installLog = "$site/install.log";
+}
+else
+{
+	$installLog = "/tmp/install.log";
+	$mustmovelog = 1;
+}
+
 
 ###************************************************************************###
 printBanner("NMIS Installation Script");
@@ -115,14 +124,11 @@ for further info.\n\n");
 	my $x = <STDIN>;
 }
 
-###************************************************************************###
-printBanner("Getting installation source location...");
-
-# try the current dir first, otherwise check the dirname of 
-# this command's invocation
+# try the current dir first, check the dirname of this command's invocation, or give up
 my $src = cwd();
 $src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
-$src = input_str("Full path to distribution folder:", $src);
+die "Cannot determine installation source directory!\n" if (!-f "$src/LICENSE");
+
 logInstall("Installation source is $src");
 
 ###************************************************************************###
@@ -372,10 +378,17 @@ for further info.\n\n";
 }
 
 ###************************************************************************###
-printBanner("Configuring installation path...");
-$site = input_str("Folder to install NMIS in", $defaultSite, 1);
-logInstall("Installation destination is $site");
+printBanner("Checking Installation Target");
+print "The standard NMIS installation target is \"$site\".
+To install NMIS into a different directory please answer the question below
+with \"no\" and restart the installer with the argument site=<custom_dir>,
+e.g. ./install.pl site=/opt/nmis8\n\n";
 
+if (!input_yn("OK to start installation/upgrade to $site?"))
+{
+	echolog("Exiting installation as directed.\n");
+	exit  0;
+}
 
 ###************************************************************************###
 if ( -d $site ) {
@@ -393,28 +406,34 @@ if ( -d $site ) {
 	}
 }
 
-###************************************************************************###
-printBanner("Copying NMIS system files...");
-
-if (!input_yn("Ready to start installation/upgrade to $site?"))
-{
-	echolog("Exiting installation as directed.\n");
-	exit  0;
-}
-
-echolog("Copying source files from $src to $site...\n");
-
-# lock nmis first
-open(F,">$site/conf/NMIS_IS_LOCKED");
-print F "$0 is operating, started at ".localtime."\n";
-close F;
-
 my $isnewinstall;
 if ( not -d $site ) 
 {
 	$isnewinstall=1;
 	mkdir($site,0755) or die "cannot mkdir $site: $!\n";
 }
+
+# now switch to the install.log in the final location
+if ($mustmovelog)
+{
+	my $newlog = "$site/install.log";
+	system("mv $installLog $newlog");
+	$installLog = $newlog;
+}
+
+# before copying anything, lock nmis...
+open(F,">$site/conf/NMIS_IS_LOCKED");
+print F "$0 is operating, started at ".localtime."\n";
+close F;
+
+# ...and kill any currently running fpingd 
+if ( -f $fping ) {
+	execPrint("$site/bin/fpingd.pl kill=true");
+}
+
+printBanner("Copying NMIS files...");
+echolog("Copying source files from $src to $site...\n");
+
 # fixme: this fails benignly but noisyly if there are 
 # (convenience) symlinks in the nmis dir, e.g. var or database
 execPrint("cp -r $src/* $site");
@@ -450,6 +469,7 @@ if ($isnewinstall)
 }
 else
 {
+	# copy over missing plugins if allowed
 	opendir(D,"$site/install/plugins") or warn "cannot open directory install/plugins: $!\n";
 	my @candidates = grep(/\.pm$/, readdir(D));
 	closedir(D);
@@ -482,14 +502,16 @@ else
 		}
 	}
 
-	printBanner("Copying optional new NMIS config files");
-	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis","Customers.nmis")
+	printBanner("Copying new and updated NMIS config files");
+	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis",
+							 "Customers.nmis", "Events.nmis")
 	{
 		if (-f "$site/install/$cff" && !-f "$site/conf/$cff")
 		{
-			execPrint("cp $site/install/$cff $site/conf/$cff");
+			execPrint("cp -a $site/install/$cff $site/conf/$cff");
 		}
 	}
+	execPrint("cp -fa $site/install/Tables.nmis $site/install/Table-*.nmis $site/conf/");
 	
 	###************************************************************************###
 	printBanner("Updating the config files with any new options...");
@@ -1109,14 +1131,14 @@ NMIS Install Script
 NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-usage: $0 [site=$defaultSite] [fping=$defaultFping] [listdeps=(true|false)]
+usage: $0 [site=$site] [fping=$defaultFping] [listdeps=(true|false)]
 
 Options:  
   listdeps Only show (missing) dependencies, do not install NMIS
-  site	Target site for installation, default is $defaultSite 
+  site	Target site for installation, default is $site 
   fping	Location of the fping program, default is $defaultFping 
 
-eg: $0 site=$defaultSite fping=$defaultFping cpan=true
+eg: $0 site=$site fping=$defaultFping cpan=true
 
 /;	
 }
