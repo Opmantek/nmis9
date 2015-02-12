@@ -249,29 +249,40 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 			
 			for my $pkg (@rhpackages)
 			{
-				if (`rpm -qa $pkg 2>/dev/null` ne "")
+				my $installcmd = "yum -y install $pkg";
+				my $ispresent = 0;
+
+				# special handling for messy rrdtool situation in centos 6
+				if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
 				{
-					echolog("Required package $pkg is already installed.");
+					$installcmd = "yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool";
+					if (`rpm -qa $pkg 2>/dev/null` =~ /^\S+-(\d+\.\d+\.\d+)/m
+							and version->parse($1) >= version->parse("1.4.4"))
+					{
+						$ispresent = 1;
+						echolog("Sufficient version of required package $pkg is already installed.");
+					}
 				}
 				else
+				{
+					if (`rpm -qa $pkg 2>/dev/null` ne "")
+					{
+						echolog("Required package $pkg is already installed.");
+						$ispresent = 1;
+					}
+				}
+
+				if (!$ispresent)
 				{
 					echolog("\nRequired package $pkg is NOT installed!");
 					if (input_yn("Do you want to install the package $pkg with yum now?"))
 					{
-						if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
+						echolog("Installing $pkg with yum");
+						execPrint($installcmd);
+						
+						if ($pkg eq "httpd")
 						{
-							echolog("Installing $pkg with yum");
-							execPrint("yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool");
-						}
-						else
-						{
-							echolog("Installing $pkg with yum");
-							execPrint("yum -y install $pkg");
-							
-							if ($pkg eq "httpd")
-							{
-								execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
-							}
+							execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
 						}
 						print "\n\n";			# yum is pretty noisy
 					}
@@ -768,7 +779,7 @@ The installer can install this default schedule in /etc/cron.d/nmis,
 which immediately activates it.
 
 Please note that if you already have an NMIS schedule in your per-user
-root crontab, then you need decide on using either the system-wide cron 
+root crontab, then you need to decide on using either the system-wide cron 
 files in /etc/cron.d or the per-user crontab but not both!\n\n";
 
 my $crongood = (-f "/etc/cron.d/nmis");
@@ -781,7 +792,9 @@ if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /et
 	{
 		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
 		print "\nA new default cron was created in /etc/cron.d/nmis, 
-but feel free to adjust it.\n\nPlease hit <Enter> to continue:\n";
+but feel free to adjust it.\n
+If you already have an NMIS schedule in your per-user
+root crontab, then you should remove that using \"crontab -e\".\n\nPlease hit <Enter> to continue:\n";
 		my $x = <STDIN>;
 		$crongood = 1;
 	}
