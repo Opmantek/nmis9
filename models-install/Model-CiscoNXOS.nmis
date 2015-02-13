@@ -210,7 +210,11 @@
   					},
             'oid' => 'entSensorType',
             'title' => 'Status'
-          }
+          },
+          'currentTemp' => {
+            'oid' => 'entSensorValue',
+            'title' => 'Current Temp'
+          },
         },
       }
     },
