@@ -33,7 +33,7 @@
 				{ 'Log' => { mandatory => 'true', header => 'Log on Event', display => 'header,popup', value => ["true", "false"] }},
 				{ 'Status' => { mandatory => 'true', header => 'Status Summary', display => 'header,popup', value => ["true", "false"] }},
 				{ 'Stateful' => { mandatory => 'false', header => 'Stateful', display => 'header,popup', value => ["true", "false"] }},
-				{ 'CancelingEvent' => { mandatory => 'false', header => 'Canceling Event', display => 'header,popup', value => [''] }},
+				{ 'CancelingEvent' => { mandatory => 'false', header => 'Canceling Event', display => 'header,text', value => [''] }},
 				{ 'Description' => { mandatory => 'false', header => 'Description', display => 'header,text', value => [''] }},
 			]
 );
