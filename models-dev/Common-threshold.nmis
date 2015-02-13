@@ -86,8 +86,8 @@
               'critical' => '85',
               'fatal' => '95',
               'major' => '75',
-              'minor' => '20',
-              'warning' => '15'
+              'minor' => '60',
+              'warning' => '50'
             }
           },
           '5' => {

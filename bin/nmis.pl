@@ -299,7 +299,7 @@ sub	runThreads
 		{
 			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
 			my $event = "NMIS runtime exceeded";
-			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Event => "true", Status => "true"};
+			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 			# if not told otherwise, shoot the others politely
 			for my $pid (keys %{$others})
@@ -5249,7 +5249,8 @@ sub runEscalate {
 		# if the event is configured for no notify, do nothing
 
 		# event control is as configured or all true.
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
+		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
+		print Dumper $thisevent_control;
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if (getbool($thisevent_control->{Notify}))
@@ -5413,7 +5414,8 @@ sub runEscalate {
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
 									if ( getbool($EST->{$esc_key}{UpNotify}) 
-											 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+											 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+										) {
 										my $ct = "$type:$contact";
 										my @l = split(',',$ET->{$event_hash}{notify});
 										if (not grep { $_ eq $ct } @l ) {
@@ -5456,7 +5458,7 @@ LABEL_ESC:
 	{
 		dbg("process event with event_hash=$event_hash");
 		# set event control to policy or default of enabled.
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Event => "true", Status => "true"};
+		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
 
 		my $nd = $ET->{$event_hash}{node};
 		# lets start with checking that we have a valid node -the node may have been deleted.
@@ -5687,7 +5689,9 @@ LABEL_ESC:
 										# check if UpNotify is true, and save with this event
 										# and send all the up event notifies when the event is cleared.
 										if ( getbool($EST->{$esc_key}{UpNotify}) 
-												 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+												 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+												 and getbool($thisevent_control->{Notify})
+										 ) {
 											my $ct = "$type:$contact";
 											my @l = split(',',$ET->{$event_hash}{notify});
 											if (not grep { $_ eq $ct } @l ) {
@@ -5726,7 +5730,9 @@ LABEL_ESC:
 											# check if UpNotify is true, and save with this event
 											# and send all the up event notifies when the event is cleared.
 											if ( getbool($EST->{$esc_key}{UpNotify}) 
-													 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+													 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+													 and getbool($thisevent_control->{Notify})
+												) {
 												my $ct = "$type:$contact";
 												my @l = split(',',$ET->{$event_hash}{notify});
 												if (not grep { $_ eq $ct } @l ) {
@@ -5849,7 +5855,9 @@ LABEL_ESC:
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
 								if ( getbool($EST->{$esc_key}{UpNotify}) 
-										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+										 and getbool($thisevent_control->{Notify})
+								 ) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -5876,7 +5884,9 @@ LABEL_ESC:
 							elsif ( $type eq "json" ) 
 							{
 								if ( getbool($EST->{$esc_key}{UpNotify}) 
-										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+										 and getbool($thisevent_control->{Notify})
+								 ) {
 									my $ct = "$type:server";
 									my @l = split(',',$ET->{$event_hash}{notify});
 									if (not grep { $_ eq $ct } @l ) {
@@ -5924,7 +5934,8 @@ LABEL_ESC:
 												# check if UpNotify is true, and save with this event
 												# and send all the up event notifies when the event is cleared.
 												if ( getbool($EST->{$esc_key}{UpNotify})
-														 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i) {
+														 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+												 ) {
 													my $ct = "$type:$contact";
 													my @l = split(',',$ET->{$event_hash}{notify});
 													if (not grep { $_ eq $ct } @l ) {
@@ -7136,15 +7147,15 @@ sub doThreshold {
 					$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
 					
 					# event control is as configured or all true.
-					my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Event => "true", Status => "true"};
+					my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
 
 					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
 					if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
 						delete $S->{info}{status}{$statusKey};
 					}
 					# in case of Status being off for this event, we don't have to include it in the calculations
-					elsif (getbool($thisevent_control->{Status}) ) {
-						dbg("DEBUG: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
+					elsif (not getbool($thisevent_control->{Status}) ) {
+						dbg("Status Summary Ignoring: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
 						$S->{info}{status}{$statusKey}{status} = "ignored";
 						++$count;
 						++$countOk;

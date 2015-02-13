@@ -1,3 +1,37 @@
+#
+# THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND LICENSED 
+# BY OPMANTEK.  
+# 
+# YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
+# 
+# This code is NOT Open Source
+# 
+# IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER 
+# LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE 
+# SOFTWARE  YOU ACKNOWLEDGE THAT (1) YOU HAVE READ AND REVIEWED THE LICENSE 
+# AGREEMENT IN ITS ENTIRETY, (2) YOU AGREE TO BE BOUND BY THE AGREEMENT, (3) 
+# THE INDIVIDUAL USING THE SOFTWARE HAS THE POWER, AUTHORITY AND LEGAL RIGHT 
+# TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR 
+# OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE, THIS 
+# AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU AND 
+# OPMANTEK LTD. 
+# 
+# Opmantek is a passionate, committed open source software company - we really 
+# are.  This particular piece of code was taken from a commercial module and 
+# thus we can't legally supply under GPL. It is supplied in good faith as 
+# source code so you can get more out of NMIS.  According to the license 
+# agreement you can not modify or distribute this code, but please let us know 
+# if you want to and we will certainly help -  in most cases just by emailing 
+# you a different agreement that better suits what you want to do but covers 
+# Opmantek legally too. 
+# 
+# contact opmantek by emailing code@opmantek.com
+# 
+# All licenses for all software obtained from Opmantek (GPL and commercial) 
+# are viewable at http://opmantek.com/licensing
+#   
+# *****************************************************************************
+
 %hash = (
   'Access' => {
     'CaseSensitiveKey' => 'false',
@@ -5,11 +39,23 @@
     'DisplayName' => 'Access Policy',
     'Table' => 'Access'
   },
+  'BusinessServices' => {
+    'CaseSensitiveKey' => 'true',
+    'Description' => 'A list of Business Services which nodes can be associated to.',
+    'DisplayName' => 'Business Services',
+    'Table' => 'BusinessServices'
+  },
   'Contacts' => {
     'CaseSensitiveKey' => 'false',
     'Description' => 'Contacts used for escalations and notifications.',
     'DisplayName' => 'Contacts',
     'Table' => 'Contacts'
+  },
+  'Customers' => {
+    'CaseSensitiveKey' => 'true',
+    'Description' => 'Customer list, used to associate nodes and groups with.',
+    'DisplayName' => 'Customers',
+    'Table' => 'Customers'
   },
   'Enterprise' => {
     'CaseSensitiveKey' => 'false',
