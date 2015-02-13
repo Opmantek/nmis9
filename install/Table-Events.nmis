@@ -30,9 +30,10 @@
 			Events => [
 				{ 'Event' => { mandatory => 'true', header => 'Event', display => 'key,header,text', value => [ '' ] }},
 				{ 'Notify' => { mandatory => 'true', header => 'Notify on Event', display => 'header,popup', value => ["true", "false"] }},
-				{ 'Status' => { mandatory => 'true', header => 'Use in Status Summary', display => 'header,popup', value => ["true", "false"] }},
 				{ 'Log' => { mandatory => 'true', header => 'Log on Event', display => 'header,popup', value => ["true", "false"] }},
+				{ 'Status' => { mandatory => 'true', header => 'Status Summary', display => 'header,popup', value => ["true", "false"] }},
 				{ 'Stateful' => { mandatory => 'false', header => 'Stateful', display => 'header,popup', value => ["true", "false"] }},
+				{ 'CancelingEvent' => { mandatory => 'false', header => 'Canceling Event', display => 'header,popup', value => [''] }},
 				{ 'Description' => { mandatory => 'false', header => 'Description', display => 'header,text', value => [''] }},
 			]
 );

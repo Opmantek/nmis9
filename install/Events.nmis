@@ -6,6 +6,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: BGP Peer Up',
     'Description' => 'A BGP Routing Protocol Peer has been detected to be down.',
   },
   'Alert: GE Alarm Active' => {
@@ -14,6 +15,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: GE Alarm Active Closed',
     'Description' => 'A GE Alarm is active on the node.',
   },
   'Alert: High Disk Usage' => {
@@ -22,6 +24,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High Disk Usage Closed',
     'Description' => 'The node has high disk usage (disk is getting full)',
   },
   'Alert: High Memory Usage' => {
@@ -30,6 +33,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High Memory Usage Closed',
     'Description' => 'The node has high memory utilisation.',
   },
   'Alert: High Number of System Processes' => {
@@ -38,6 +42,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High Number of System Processes Closed',
     'Description' => 'A high number of system processes has been detected on the node.',
   },
   'Alert: High Oper Completion Time' => {
@@ -46,6 +51,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High Oper Completion Time Closed',
     'Description' => 'The Cisco IPSLA operation has high completion time.',
   },
   'Alert: High Swap Usage' => {
@@ -54,6 +60,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High Swap Usage Closed',
     'Description' => 'The node has high SWAP Memory utilisation.',
   },
   'Alert: High TCP Connection Count' => {
@@ -62,6 +69,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: High TCP Connection Count Closed',
     'Description' => 'The node has a high number of TCP connections.',
   },
   'Alert: RTT Completion Status Not OK' => {
@@ -70,6 +78,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: RTT Completion Status Not OK Closed',
     'Description' => 'The Cisco IPSLA operation has not completed correctly.',
   },
   'Alert: Virtual Machine not Powered On' => {
@@ -78,6 +87,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Alert: Virtual Machine not Powered On Closed',
     'Description' => 'The Virtual Machine is NOT powered on, this may or may not be a desirable state.',
   },
   'NMIS runtime exceeded' => {
@@ -87,6 +97,7 @@
 		'Log' => 'true',
 		'Status' => 'true',
 		'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
     'Description' => 'Indicating that the NMIS polling cycle is going too long.',
   },
   'Interface Down' => {
@@ -95,15 +106,8 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Interface Up',
     'Description' => 'An interface NMIS is managing has gone down (physical or logical outage).',
-  },
-  'Interface Up' => {
-    'Event' => 'Interface Up',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'Description' => 'An interface NMIS is managing is UP, working normally.',
   },
   'Node Down' => {
     'Event' => 'Node Down',
@@ -111,6 +115,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Node Up',
     'Description' => 'A node is down, stopped responding to ICMP or SNMP packets for longer than the timeout.',
   },
   'Node Reset' => {
@@ -119,6 +124,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
     'Description' => 'A node reset has been detected, the operating system has restarted.',
   },
   'Node Failover' => {
@@ -126,16 +132,9 @@
     'Notify' => 'true',
     'Status' => 'true',
     'Log' => 'true',
-    'Stateful' => 'true',
+    'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
     'Description' => 'A redundant node pair has failed over, typically a Cisco PIX or ASA.',
-  },
-  'Node Up' => {
-    'Event' => 'Node Up',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'Description' => 'The node is now responding to ICMP or SNMP packets.',
   },
   'Node Configuration Change' => {
     'Event' => 'Node Configuration Change',
@@ -143,6 +142,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'false',
+    'CancelingEvent' => 'N/A',
     'Description' => 'A configuration change has been detected on this node.',
   },
   'RPS Fail' => {
@@ -151,6 +151,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'RPS Up',
     'Description' => 'The redundant power supply has failed.',
   },
   'SNMP Down' => {
@@ -159,15 +160,8 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'SNMP Up',
     'Description' => 'SNMP communication to the node has a problem.',
-  },
-  'SNMP Up' => {
-    'Event' => 'SNMP Up',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'Description' => 'SNMP communication to the node has been restored.',
   },
   'Service Down' => {
     'Event' => 'Service Down',
@@ -175,15 +169,8 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Service Up',
     'Description' => 'A service NMIS is managing has failed to respond.',
-  },
-  'Service Up' => {
-    'Event' => 'Service Up',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'Description' => 'A service NMIS is managing is available again.',
   },
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
@@ -191,6 +178,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Response Time Closed',
     'Description' => 'The response time threshold of the node has been exceeded.',
   },
   'Proactive Reachability' => {
@@ -199,6 +187,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Reachability Closed',
     'Description' => 'The response time threshold of the node has been exceeded',
   },
   'Proactive CPU' => {
@@ -207,6 +196,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive CPU Closed',
     'Description' => 'The configured CPU threshold of the node has been exceeded.',
   },
   'Proactive Interface Availability' => {
@@ -215,6 +205,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Availability Closed',
     'Description' => 'The configured interface availability threshold of the node has been exceeded.',
   },
   'Proactive Interface Input Utilisation' => {
@@ -223,6 +214,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Input Utilisation Closed',
     'Description' => 'The configured interface INPUT utilisation threshold of the node has been exceeded.',
   },
   'Proactive Interface Output Utilisation' => {
@@ -231,6 +223,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Output Utilisation Closed',
     'Description' => 'The configured interface OUTPUT utilisation threshold of the node has been exceeded.',
   },
   'Proactive Interface Discards Input Packets' => {
@@ -239,6 +232,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Discards Input Packets Closed',
     'Description' => 'The configured threshold for INPUT packets being discarded by the interface.',
   },
   'Proactive Interface Discards Output Packets' => {
@@ -247,6 +241,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Discards Output Packets Closed',
     'Description' => 'The configured threshold for OUTPUT packets being discarded by the interface.',
   },
   'Proactive Temp' => {
@@ -255,6 +250,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Temp Closed',
     'Description' => 'The configured threshold for temperature of the node has been exceeded.',
   },
   'Proactive Modem Utilisation' => {
@@ -263,6 +259,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Modem Utilisation Closed',
     'Description' => 'The modems are being overused, and should probably be retired now.',
   },
   'Proactive Buffer Utilisation' => {
@@ -271,6 +268,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Buffer Utilisation Closed',
     'Description' => 'The buffers are overloaded.',
   },
   'Proactive Calls Utilisation' => {
@@ -279,6 +277,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Calls Utilisation Closed',
     'Description' => 'There are too many calls, and you need more lines.',
   },
   'Proactive CPU User' => {
@@ -287,6 +286,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive CPU User Closed',
     'Description' => 'The User CPU utilisation threshold has been exceeded.',
   },
   'Proactive Heap Utilisation' => {
@@ -295,6 +295,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Heap Utilisation Closed',
     'Description' => 'The heap utilisation has exceeded the configured threshold.',
   },
   'Proactive Memory Free' => {
@@ -303,6 +304,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Memory Free Closed',
     'Description' => 'The available free memory is below the configured threshold.',
   },
   'Proactive Memory Utilisation' => {
@@ -311,6 +313,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Memory Utilisation Closed',
     'Description' => 'The memory utilisation has exceeded the configured threshold.',
   },
   'Proactive Dead Modem' => {
@@ -319,6 +322,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Dead Modem Closed',
     'Description' => 'A modem is dead and probably should be put out to pasture.',
   },
   'Proactive Interface LOW Input Utilisation' => {
@@ -327,6 +331,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface LOW Input Utilisation Closed',
     'Description' => 'The interface has very LOW INPUT utilisation.',
   },
   'Proactive Interface LOW Output Utilisation' => {
@@ -335,6 +340,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface LOW Output Utilisation Closed',
     'Description' => 'The interface has very LOW OUTPUT utilisation.',
   },
   'Proactive CPU IO Wait' => {
@@ -343,6 +349,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive CPU IO Wait Closed',
     'Description' => 'The IO (Input/Output) Waiting for CPU threshold has been exceeded.',
   },
   'Proactive CPU System' => {
@@ -351,6 +358,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive CPU System Closed',
     'Description' => 'The System CPU utilisation threshold has been exceeded.',
   },
   'Proactive CPU Idle' => {
@@ -359,6 +367,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive CPU Idle Closed',
     'Description' => 'The Idle CPU utilisation has fallen below the configured threshold.',
   },
   'Proactive Interface Error Input Packets' => {
@@ -367,6 +376,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Error Input Packets Closed',
     'Description' => 'The configured threshold has been exceeded for INPUT packets with errors being received by the interface.',
   },
   'Proactive Interface Error Output Packets' => {
@@ -375,6 +385,7 @@
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
+    'CancelingEvent' => 'Proactive Interface Error Output Packets Closed',
     'Description' => 'The configured threshold has been exceeded for OUTPUT packets with errors being sent by the interface.',
   },
 );
