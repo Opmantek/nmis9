@@ -5250,7 +5250,6 @@ sub runEscalate {
 
 		# event control is as configured or all true.
 		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
-		print Dumper $thisevent_control;
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if (getbool($thisevent_control->{Notify}))
