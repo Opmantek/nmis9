@@ -641,7 +641,7 @@
             'title' => 'Current Temp'
           },
         },
-      }
+      },
       'vtpVlan' => {
         'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
         'index_regex' => '\\.(\\d+\.\\d+)$',
