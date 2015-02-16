@@ -749,25 +749,40 @@ Please hit <Enter> to continue:\n";
 	}
 }
 
-###************************************************************************###
-printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
-
-# now offer to run an (initial) update to get nmis' state initialised
-# and/or updated
-if ( input_yn("NMIS Update: This may take up to 30 seconds (or a very long time with MANY nodes)...
-Ok to run an NMIS type=update action?"))
+# logrotate 3.8.X wants different rotation config options...
+printBanner("NMIS Log Rotation Setup");
+my $lrver = `logrotate -v 2>&1`;
+if ($lrver =~ /^logrotate (\d+\.\d+\.\d+)/m)
 {
-	execPrint("$site/bin/nmis.pl type=update");
+	my $version = version->parse("$1");
+	echolog("Found logrotate version $version");
+	my $lrfile =  "$site/install/" . ($version >= version->parse("3.8.0")? "logrotate.380.conf" : "logrotate.conf");
+	my $lrtarget = "/etc/logrotate.d/nmis";
+
+	my $havechange = system("diff -q $lrfile $lrtarget >/dev/null 2>&1") >> 8;
+	if (!-f $lrtarget or $havechange)
+	{
+		if (input_yn("OK to install updated log rotation configuration file\n\t$lrfile in /etc/logrotate.d?"))
+		{
+			execPrint("cp $lrfile $lrtarget");
+		}
+		else
+		{
+			echolog("Not installing updated $lrfile as requested.");
+		}
+	}
+	else 
+	{
+		echolog("Log rotation file $lrtarget present and same as default");
+	}
 }
 else
 {
-	print "Ok, continuing without the update run as directed.\n\n
-It's highly recommended to run nmis.pl type=update once initially
-and after every NMIS upgrade - you should do this manually.\n
-Please hit <Enter> to continue: ";
-
-	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
-	
+	print "Cannot determine logrotate's version!\n
+The installer could not determine the version of your \"logrotate\" tool,
+and you will have to configure log rotation manually. There are two default
+log rotation configuration files in $site/install 
+that you should use as the basis for your setup.\n\nPlease hit <Enter> to continue:\n";
 	my $x = <STDIN>;
 }
 
@@ -813,6 +828,29 @@ view /tmp/somefile. NMIS will require some scheduling setup
 to work correctly.\n\nPlease hit <Enter> to continue:\n";
 	my $x = <STDIN>;
 }
+
+###************************************************************************###
+printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
+
+# now offer to run an (initial) update to get nmis' state initialised
+# and/or updated
+if ( input_yn("NMIS Update: This may take up to 30 seconds (or a very long time with MANY nodes)...
+Ok to run an NMIS type=update action?"))
+{
+	execPrint("$site/bin/nmis.pl type=update");
+}
+else
+{
+	print "Ok, continuing without the update run as directed.\n\n
+It's highly recommended to run nmis.pl type=update once initially
+and after every NMIS upgrade - you should do this manually.\n
+Please hit <Enter> to continue: ";
+
+	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
+	
+	my $x = <STDIN>;
+}
+
 
 
 ###************************************************************************###
