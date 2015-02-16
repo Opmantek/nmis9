@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.1";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -43,12 +43,10 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 use Exporter;
 
 use RRDs 1.000.490; # from Tobias
-use Statistics::Lite qw(min max range sum count mean median mode variance stddev statshash statsinfo);
+use Statistics::Lite;
+
 use func;
 use Sys;
-#use Data::Dumper;
-#$Data::Dumper::Ident=1;
-#$Data::Dumper::SortKeys=1;
 
 @ISA = qw(Exporter);
 
@@ -245,16 +243,13 @@ sub getRRDStats {
 			$time = $time + $step;
 		}
 
-		foreach my $m (sort keys %s) {
-			$s{$m}{stddev} = sprintf("%.3f",stddev(@{$s{$m}{values}}));
-			$s{$m}{mean} = sprintf("%.3f",mean(@{$s{$m}{values}}));
-			$s{$m}{median} = sprintf("%.3f",median(@{$s{$m}{values}}));
-			$s{$m}{min} = sprintf("%.3f",min(@{$s{$m}{values}}));
-			$s{$m}{max} = sprintf("%.3f",max(@{$s{$m}{values}}));
-			$s{$m}{range} = sprintf("%.3f",range(@{$s{$m}{values}}));
-			$s{$m}{sum} = sprintf("%.3f",sum(@{$s{$m}{values}}));
-			$s{$m}{count} = sprintf("%.3f",count(@{$s{$m}{values}}));
-			$s{$m}{variance} = sprintf("%.3f",variance(@{$s{$m}{values}}));
+		foreach my $m (sort keys %s) 
+		{
+			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
+			for my $key (qw(mean min max median range sum count variance stddev))
+			{
+				$s{$m}{$key} = sprintf("%.3f", $statsinfo{$key});
+			}
 		}
 		return \%s;
 	} else {
