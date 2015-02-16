@@ -1472,11 +1472,15 @@ sub getIntfInfo {
 				push @ifIndexNum,$ifIndexTable->{$oid};
 			}
 		} else {
-			logMsg("ERROR ($S->{name}) on get interface index table");
+			if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+				info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");						
+			}
 			# failed by snmp
-			if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+			else {
+				logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
 				snmpNodeDown(sys=>$S);
 			}
+
 			info("Finished");
 			return 0;
 		}
@@ -2041,9 +2045,12 @@ sub getEnvInfo {
 							}
 						}
 					} else {
-						logMsg("ERROR ($S->{name}) on get environment $section index table");
+						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+						}
 						# failed by snmp
-						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+						else {
+							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -2112,9 +2119,12 @@ sub getEnvInfo {
 							dbg("environment section=$section index=$index is found");
 						}
 					} else {
-						logMsg("ERROR ($S->{name}) on get environment $section index table");
+						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+						}
 						# failed by snmp
-						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+						else {
+							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -2317,9 +2327,12 @@ sub getSystemHealthInfo {
 						dbg("section=$section index=$index is found");
 					}
 				} else {
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
+					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");						
+					}
 					# failed by snmp
-					if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+					else {
+						logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
 						snmpNodeDown(sys=>$S);
 					}
 				}
