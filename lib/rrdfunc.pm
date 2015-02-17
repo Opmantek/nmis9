@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.1.1";
+our $VERSION = "2.1.2";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -80,6 +80,8 @@ sub getUpdateStats {
 
 # returns the rrd data for a given rrd type as a hash
 # this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
+# returns: hash of time->dsname=value and list of dsnames (plus 'time', 'date')
+# NOTE: this function does NOT support hours_from and hours_to, only start and end!
 sub getRRDasHash {
 	my %args = @_;
 	my $S = $args{sys};
@@ -195,12 +197,16 @@ sub getRRDasHashTesting {
 # args: hour_from hour_to define the daily period [from,to].
 # if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
 # for midnight use either 0 or 24, depending on whether you want the inside or outside interval
+#
+# optional argument: truncate (defaults to 3), if >0 then results are reformatted as %.NNNf
+# if -1 then untruncated values are returned.
 sub getRRDStats {
 	my %args = @_;
 	my $S = $args{sys};
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
 	my $item = $args{item};
+	my $wanttruncate = (defined $args{truncate})? $args{truncate}: 3;
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
@@ -246,9 +252,10 @@ sub getRRDStats {
 		foreach my $m (sort keys %s) 
 		{
 			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
-			for my $key (qw(mean min max median range sum count variance stddev))
+			$s{$m}{count} = $statsinfo{count};
+			for my $key (qw(mean min max median range sum variance stddev))
 			{
-				$s{$m}{$key} = sprintf("%.3f", $statsinfo{$key});
+				$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
 			}
 		}
 		return \%s;
