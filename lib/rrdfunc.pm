@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.1.2";
+our $VERSION = "2.1.3";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -80,7 +80,9 @@ sub getUpdateStats {
 
 # returns the rrd data for a given rrd type as a hash
 # this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
-# returns: hash of time->dsname=value and list of dsnames (plus 'time', 'date')
+# returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
+# metadata hash: actual begin and end as per rrd, and step
+#
 # NOTE: this function does NOT support hours_from and hours_to, only start and end!
 sub getRRDasHash {
 	my %args = @_;
@@ -124,7 +126,8 @@ sub getRRDasHash {
 		$f = 0;
 		$time = $time + $step;
 	}
-	return (\%s,\@h);
+	# actual data, the ds cols, and the meta data
+	return (\%s, \@h, { step => $step, start => $begin, end => $time });
 }
 
 sub getRRDasHashTesting {
@@ -200,6 +203,10 @@ sub getRRDasHashTesting {
 #
 # optional argument: truncate (defaults to 3), if >0 then results are reformatted as %.NNNf
 # if -1 then untruncated values are returned.
+#
+# stats also include the ds's values, as an ordered list under the 'values' key.
+#
+# returns: hashref of the stats
 sub getRRDStats {
 	my %args = @_;
 	my $S = $args{sys};
