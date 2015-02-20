@@ -257,9 +257,9 @@ sub displayNodeConf {
 					$speed = $NCT->{$node}{$ifDescr}{ifSpeed};
 					$speedIn = $NCT->{$node}{$ifDescr}{ifSpeedIn};
 					$speedOut = $NCT->{$node}{$ifDescr}{ifSpeedOut};
-					$collect = $NCT->{$node}{$ifDescr}{collect} || 'not';
-					$event = $NCT->{$node}{$ifDescr}{event} || 'not';
-					$threshold = $NCT->{$node}{$ifDescr}{threshold} || 'not';
+					$collect = $NCT->{$node}{$ifDescr}{collect};
+					$event = $NCT->{$node}{$ifDescr}{event};
+					$threshold = $NCT->{$node}{$ifDescr}{threshold};
 				}
 	
 				my $NCT_Description = exists $IF->{$intf}{nc_Description} ? $IF->{$intf}{nc_Description} : $IF->{$intf}{Description};
