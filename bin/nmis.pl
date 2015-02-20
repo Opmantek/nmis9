@@ -1472,11 +1472,15 @@ sub getIntfInfo {
 				push @ifIndexNum,$ifIndexTable->{$oid};
 			}
 		} else {
-			logMsg("ERROR ($S->{name}) on get interface index table");
+			if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+				info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");						
+			}
 			# failed by snmp
-			if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+			else {
+				logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
 				snmpNodeDown(sys=>$S);
 			}
+
 			info("Finished");
 			return 0;
 		}
@@ -2041,9 +2045,12 @@ sub getEnvInfo {
 							}
 						}
 					} else {
-						logMsg("ERROR ($S->{name}) on get environment $section index table");
+						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+						}
 						# failed by snmp
-						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+						else {
+							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -2112,9 +2119,12 @@ sub getEnvInfo {
 							dbg("environment section=$section index=$index is found");
 						}
 					} else {
-						logMsg("ERROR ($S->{name}) on get environment $section index table");
+						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+						}
 						# failed by snmp
-						if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+						else {
+							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
 							snmpNodeDown(sys=>$S);
 						}
 					}
@@ -2317,9 +2327,12 @@ sub getSystemHealthInfo {
 						dbg("section=$section index=$index is found");
 					}
 				} else {
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table");
+					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");						
+					}
 					# failed by snmp
-					if ( $SNMP->{error} !~ /is empty or does not exist/ ) {
+					else {
+						logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
 						snmpNodeDown(sys=>$S);
 					}
 				}
@@ -6652,9 +6665,9 @@ sub printCrontab
 # Run the update once a day
 30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
 ######################################################
-# Check to rotate the logs 4am every day UTC
-5 20 * * * $usercol /usr/sbin/logrotate $C->{'<nmis_base>'}/conf/logrotate.conf
-##################################################
+# Log Rotation is now handled with /etc/logrotate.d/nmis, which 
+# the installer offers to setup using install/logrotate*.conf
+#
 # backup configuration, models and crontabs once a day, and keep 30 backups
 22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################

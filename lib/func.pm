@@ -2166,7 +2166,7 @@ sub selftest
 		next if (!-d $dir);
 		my $testname = "Free space in $dir";
 
-		my @df = `df -mlP $dir 2>/dev/null`;
+		my @df = `df -mP $dir 2>/dev/null`;
 		if ($? >> 8)
 		{
 			push @details, [$testname, "Could not determine free space: $!"];

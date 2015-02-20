@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.3";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -43,12 +43,10 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 use Exporter;
 
 use RRDs 1.000.490; # from Tobias
-use Statistics::Lite qw(min max range sum count mean median mode variance stddev statshash statsinfo);
+use Statistics::Lite;
+
 use func;
 use Sys;
-#use Data::Dumper;
-#$Data::Dumper::Ident=1;
-#$Data::Dumper::SortKeys=1;
 
 @ISA = qw(Exporter);
 
@@ -82,6 +80,10 @@ sub getUpdateStats {
 
 # returns the rrd data for a given rrd type as a hash
 # this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
+# returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
+# metadata hash: actual begin and end as per rrd, and step
+#
+# NOTE: this function does NOT support hours_from and hours_to, only start and end!
 sub getRRDasHash {
 	my %args = @_;
 	my $S = $args{sys};
@@ -124,7 +126,8 @@ sub getRRDasHash {
 		$f = 0;
 		$time = $time + $step;
 	}
-	return (\%s,\@h);
+	# actual data, the ds cols, and the meta data
+	return (\%s, \@h, { step => $step, start => $begin, end => $time });
 }
 
 sub getRRDasHashTesting {
@@ -197,12 +200,20 @@ sub getRRDasHashTesting {
 # args: hour_from hour_to define the daily period [from,to].
 # if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
 # for midnight use either 0 or 24, depending on whether you want the inside or outside interval
+#
+# optional argument: truncate (defaults to 3), if >0 then results are reformatted as %.NNNf
+# if -1 then untruncated values are returned.
+#
+# stats also include the ds's values, as an ordered list under the 'values' key.
+#
+# returns: hashref of the stats
 sub getRRDStats {
 	my %args = @_;
 	my $S = $args{sys};
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
 	my $item = $args{item};
+	my $wanttruncate = (defined $args{truncate})? $args{truncate}: 3;
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
@@ -245,16 +256,14 @@ sub getRRDStats {
 			$time = $time + $step;
 		}
 
-		foreach my $m (sort keys %s) {
-			$s{$m}{stddev} = sprintf("%.3f",stddev(@{$s{$m}{values}}));
-			$s{$m}{mean} = sprintf("%.3f",mean(@{$s{$m}{values}}));
-			$s{$m}{median} = sprintf("%.3f",median(@{$s{$m}{values}}));
-			$s{$m}{min} = sprintf("%.3f",min(@{$s{$m}{values}}));
-			$s{$m}{max} = sprintf("%.3f",max(@{$s{$m}{values}}));
-			$s{$m}{range} = sprintf("%.3f",range(@{$s{$m}{values}}));
-			$s{$m}{sum} = sprintf("%.3f",sum(@{$s{$m}{values}}));
-			$s{$m}{count} = sprintf("%.3f",count(@{$s{$m}{values}}));
-			$s{$m}{variance} = sprintf("%.3f",variance(@{$s{$m}{values}}));
+		foreach my $m (sort keys %s) 
+		{
+			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
+			$s{$m}{count} = $statsinfo{count};
+			for my $key (qw(mean min max median range sum variance stddev))
+			{
+				$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
+			}
 		}
 		return \%s;
 	} else {
