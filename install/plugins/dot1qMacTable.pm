@@ -62,6 +62,11 @@ sub update_plugin
 			$changesweremade = 1;
 		}
 		
+		if ( defined $IF->{$ifIndex}{Description} ) {
+			$entry->{ifAlias} = $IF->{$ifIndex}{Description};
+			$changesweremade = 1;
+		}
+
 		my @octets;
 		if ( @octets = split(/\./,$entry->{index}) ) {
 			$entry->{vlan} = shift(@octets);

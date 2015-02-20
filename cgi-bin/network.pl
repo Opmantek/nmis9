@@ -536,9 +536,14 @@ sub selectNetworkHealth {
 # subtitle: All Groups Status
 #============================
 
+###
+### No one seems to use this anymore.......
+###
 sub selectSmall {
 
-	my @h=qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
+	my @h=qw/Group Status NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
+
+	@h=qw(Group Status NodeDn NodeDeg Metric Reach IntfAvail Health RespTime) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	print
 	start_table( {class=>"dash" }),
@@ -551,6 +556,11 @@ sub selectSmall {
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup(group => $group);
 
+		my $classDegraded = "Normal";
+		if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+			$classDegraded = "Error";
+		}
+
 		my $percentDown = 0;
 		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
@@ -561,10 +571,12 @@ sub selectSmall {
 			{class=>'info Plain'},
 			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},"All Groups Status"),
 		),
-		td({class=>"info $overallStatus"},"$overallStatus"),
-		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-		td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-		td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
+		td({class=>"info $overallStatus"},"$overallStatus");
+		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
+		print td({class=>'info Plain'},"$groupSummary->{average}{countup} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and not getbool($C->{display_status_summary}));		
+		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
+		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+
 		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
 
 		my @h = qw/metric reachable available health response/;
@@ -601,6 +613,9 @@ sub selectAllGroups {
 	#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
 
 	my @h=qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
+	
+	@h=qw(Group Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	
 	print Tr(th({class=>"header"},\@h));
 
 	foreach $group (sort keys %{$GT} ) {
@@ -616,7 +631,9 @@ sub selectAllGroups {
 #====================================================
 #
 # network_summary_group & group=xxxxx
-
+###
+### No one seems to use this anymore.......
+###
 sub selectGroup {
 
 	my $group = shift;
@@ -625,6 +642,8 @@ sub selectGroup {
 	return unless $AU->InGroup($group);
 	
 	my @h=qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
+
+	@h=qw(Group Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	print
 		start_table( {class=>"dash" }),

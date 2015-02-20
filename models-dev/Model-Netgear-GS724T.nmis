@@ -362,10 +362,10 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'dot1qMacTable',
+    'sections' => 'macTable',
     'sys' => {
-      'dot1qMacTable' => {
-        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+      'macTable' => {
+        'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
         'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
         'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
         'indexed' => 'dot1qTpFdbPort',
@@ -386,6 +386,15 @@
               '5' => 'mgmt',
             },
             'title' => 'Status'
+          },
+          'dot1qTpFdbAddress' => {
+            'title' => 'Address'
+          },
+          'vlan' => {
+            'title' => 'VLAN'
+          },
+          'ifAlias' => {
+            'title' => 'Description'
           },
         }
       },
