@@ -71,14 +71,14 @@
 			'CDEF:bgpPeerInUpdatesSplit=bgpPeerInUpdates,$split,*',
 			'CDEF:bgpPeerInTotMsgsSplit=bgpPeerInTotMsgs,$split,*',
 
-			'LINE2:bgpPeerInUpdatesSplit#0000ff: Input Updates',
-			'GPRINT:bgpPeerInUpdates:AVERAGE:Avg. %1.2lf\t',
-			'LINE2:bgpPeerInTotMsgsSplit#0000aa: Input Messages',
+			'LINE2:bgpPeerInUpdatesSplit#0000ff: In Updates',
+			'GPRINT:bgpPeerInUpdates:AVERAGE:Avg. %1.2lf',
+			'LINE2:bgpPeerInTotMsgsSplit#0000aa: In Msgs',
 			'GPRINT:bgpPeerInTotMsgs:AVERAGE:Avg. %1.2lf\n',
 
-			'LINE2:bgpPeerOutUpdates#00ff00: Output Updates',
-			'GPRINT:bgpPeerOutUpdates:AVERAGE:Avg. %1.2lf\t',
-			'LINE2:bgpPeerOutTotMsgs#00aa00: Output Messages',
+			'LINE2:bgpPeerOutUpdates#00ff00: Out Updates',
+			'GPRINT:bgpPeerOutUpdates:AVERAGE:Avg. %1.2lf',
+			'LINE2:bgpPeerOutTotMsgs#00aa00: Out Msgs',
 			'GPRINT:bgpPeerOutTotMsgs:AVERAGE:Avg. %1.2lf\n',
 
 			'LINE2:bgpPeerFsmEstTran#ff0000: BGP Peer Transition',
