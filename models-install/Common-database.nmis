@@ -119,7 +119,6 @@
       'hrwin' => '/nodes/$node/health/hrwin.rrd',
       'akcp_temp' => '/nodes/$node/misc/akcp-temp-$index.rrd',
       'akcp_hum' => '/nodes/$node/misc/akcp-hum-$index.rrd',
-      'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'sessions' => '/nodes/$node/misc/sessions.rrd',
       'ccpu' => '/nodes/$node/health/health.rrd',
       'cssgroup' => '/nodes/$node/health/group-$index.rrd',
@@ -145,6 +144,8 @@
       'jnxOperations' => '/nodes/$node/health/jnxOperations-$index.rrd',
       'bgpPeer' => '/nodes/$node/health/bgpPeer-$index.rrd',
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
+      'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',
+      'env-temp' => '/nodes/$node/misc/env-temp-$index.rrd',
     }
   }
 );

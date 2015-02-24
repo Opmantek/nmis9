@@ -61,6 +61,60 @@
       }
     }
   },
+  'alerts' => {
+    'bgpPeer' => {
+      'bgpPeerStateDown' => {
+        'element' => 'index',
+        'event' => 'BGP Peer Down',
+        'level' => 'Warning',
+        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+      }
+    },
+    'env-temp' => {
+      'tempStatus' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '50',
+          'Warning' => '60',
+          'Minor' => '70',
+          'Major' => '75',
+          'Critical' => '80',
+          'Fatal' => '85',
+        },
+        'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device).+temp/',
+        'element' => 'tempDescr',
+        'event' => 'High Temperature',
+        'test' => '',
+        'unit' => 'celsius',
+        'value' => 'CVAR1=currentTemp;$CVAR1 * 1'
+      }
+    },
+    'fanStatus' => {
+      'fanValue' => {
+        'element' => 'FanStatusDescr',
+        'event' => 'FAN Status Problem',
+        'level' => 'Warning',
+        'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+      }
+    },
+    'psuStatus' => {
+      'psuStatus' => {
+        'element' => 'SupplyStatusDescr',
+        'event' => 'PSU Status Problem',
+        'level' => 'Warning',
+        'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+      }
+    },
+  },
   'system' => {
     'nodeType' => 'switch',
     'nodeModel' => 'Cisco7600',
@@ -551,8 +605,75 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp,env_temp,vtpVlan,fanStatus,psuStatus,tempStatus',
+    'sections' => 'bgpPeer,cdp,env-temp,vtpVlan,fanStatus,psuStatus',
     'sys' => {
+      'bgpPeer' => {
+        'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',
+        'index_oid' => '1.3.6.1.2.1.15.3.1.1',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'bgpPeerIdentifier',
+        'snmp' => {
+          'bgpPeerAdminStatus' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.3',
+            'replace' => {
+              '1' => 'stop',
+              '2' => 'start'
+            },
+            'title' => 'BGP Peer Admin Status'
+          },
+          'bgpPeerFsmEstTran' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.15',
+            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions',
+            'title' => 'BGP Peer Transitions'
+          },
+          'bgpPeerIdentifier' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.1',
+            'title' => 'BGP Peer Identifier'
+          },
+          'bgpPeerInTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.12',
+            'sysObjectName' => 'bgpPeerInTotalMessages',
+            'title' => 'BGP Peer In Messages'
+          },
+          'bgpPeerInUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.10',
+            'title' => 'BGP Peer In Updates'
+          },
+          'bgpPeerOutTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.13',
+            'sysObjectName' => 'bgpPeerOutTotalMessages',
+            'title' => 'BGP Peer Out Messages'
+          },
+          'bgpPeerOutUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.11',
+            'title' => 'BGP Peer Out Updates'
+          },
+          'bgpPeerRemoteAddr' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.7',
+            'title' => 'BGP Peer Remote Address'
+          },
+          'bgpPeerRemoteAs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.9',
+            'title' => 'BGP Peer Remote AS'
+          },
+          'bgpPeerState' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'title' => 'BGP Peer State'
+          },
+          'bgpPeerStateName' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'replace' => {
+              '1' => 'idle',
+              '2' => 'connect',
+              '3' => 'active',
+              '4' => 'opensent',
+              '5' => 'openconfirm',
+              '6' => 'established'
+            },
+            'title' => 'BGP Peer State'
+          }
+        }
+      },
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
         'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
@@ -598,10 +719,9 @@
           },
         }
       },
-      'env_temp' => {
+      'env-temp' => {
         'indexed' => 'entSensorStatus',
-        'headers' => 'tempDescr',
-        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        'headers' => 'tempDescr,currentTemp',
         'snmp' => {
           'tempDescr' => {
             'oid' => 'entPhysicalDescr',
@@ -749,31 +869,49 @@
           },
         },
       }, 
-      'tempStatus' => {
-        'control' => '$sysObjectName =~ /./',
-        'headers' => 'TemperatureStatusDescr',
-        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
-        'snmp' => {
-          'TemperatureStateName' => {
-            'oid' => 'ciscoEnvMonTemperatureState',
-            'replace' => {
-              '1' => 'normal',
-              '2' => 'warning',
-              '3' => 'critical',
-              '4' => 'shutdown',
-              '5' => 'notPresent',
-              '6' => 'notFunctioning'
-            },
-            'title' => 'Temperature State'
-          },
-          'TemperatureStatusDescr' => {
-            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
-            'title' => 'Temperature Status Descr'
-          }
-        }
-      }
     },
     'rrd' => {
+      'bgpPeer' => {
+        'graphtype' => 'bgpPeer,bgpPeerStats',
+        'indexed' => 'true',
+        'snmp' => {
+          'bgpPeerFsmEstTran' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.15',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions'
+          },
+          'bgpPeerInTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.12',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerInTotalMessages'
+          },
+          'bgpPeerInUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.10',
+            'option' => 'counter,0:U'
+          },
+          'bgpPeerOutTotMsgs' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.13',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'bgpPeerOutTotalMessages'
+          },
+          'bgpPeerOutUpdates' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.11',
+            'option' => 'counter,0:U'
+          },
+          'bgpPeerState' => {
+            'oid' => '1.3.6.1.2.1.15.3.1.2',
+            'replace' => {
+              '1' => '0',
+              '2' => '20',
+              '3' => '40',
+              '4' => '60',
+              '5' => '80',
+              '6' => '100'
+            },
+            'title' => 'BGP Peer State'
+          }
+        }
+      },
       'fanStatus' => {
         'control' => '$sysObjectName =~ /./',
         'graphtype' => 'fan-status',
@@ -810,29 +948,11 @@
           },
         },
       },
-      'tempStatus' => {
-        'control' => '$sysObjectName =~ /./',
-        'graphtype' => 'temp-status',
+      'env-temp' => {
         'indexed' => 'true',
-        'snmp' => {
-          'tempValue' => {
-            'oid' => 'ciscoEnvMonTemperatureState',
-            'replace' => {
-              '1' => '100',
-              '2' => '75',
-              '3' => '0',
-              '4' => '50',
-              '5' => '50',
-              '6' => '25'
-            }
-          }
-        }
-      },
-      'env_temp' => {
-        'indexed' => 'true',
-        'threshold' => 'env_temp',
         'graphtype' => 'env-temp',
-        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        #'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device).+temp/',
         'snmp' => {
           'currentTemp' => {
             'oid' => 'entSensorValue',
