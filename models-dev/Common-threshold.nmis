@@ -216,6 +216,21 @@
           }
         }
       },
+      'jnx_buffer' => {
+        'event' => 'Proactive Buffer Utilisation',
+        'item' => 'jnxOperatingBuffer',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '90',
+              'fatal' => '95',
+              'major' => '80',
+              'minor' => '70',
+              'warning' => '60'
+            }
+          }
+        }
+      },
       'jnx_cpu' => {
         'event' => 'Proactive CPU',
         'item' => 'jnxOper5MinLoadAvg',
@@ -252,26 +267,11 @@
           },
           'default' => {
             'value' => {
-              'fatal' => '80',
               'critical' => '70',
+              'fatal' => '80',
               'major' => '60',
               'minor' => '50',
               'warning' => '40'
-            }
-          }
-        }
-      },
-      'jnx_buffer' => {
-        'event' => 'Proactive Buffer Utilisation',
-        'item' => 'jnxOperatingBuffer',
-        'select' => {
-          'default' => {
-            'value' => {
-              'fatal' => '95',
-              'critical' => '90',
-              'major' => '80',
-              'minor' => '70',
-              'warning' => '60'
             }
           }
         }
@@ -282,8 +282,8 @@
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '95',
               'critical' => '90',
+              'fatal' => '95',
               'major' => '80',
               'minor' => '70',
               'warning' => '60'
@@ -297,8 +297,8 @@
         'select' => {
           'default' => {
             'value' => {
-              'fatal' => '85',
               'critical' => '80',
+              'fatal' => '85',
               'major' => '75',
               'minor' => '70',
               'warning' => '60'
@@ -306,7 +306,6 @@
           }
         }
       },
-
       'mem-proc' => {
         'event' => 'Proactive Memory Free',
         'item' => 'ProcMemFree',
@@ -374,8 +373,8 @@
           '10' => {
             'control' => '$node eq "meatball"',
             'value' => {
-              'fatal' => '5.0',
               'critical' => '3.00',
+              'fatal' => '5.0',
               'major' => '2.0',
               'minor' => '1.0',
               'warning' => '0.5'
@@ -452,13 +451,13 @@
             }
           },
           '10' => {
-            'control' => '$group =~ /Sales/',
+            'control' => '$group =~ /Cloud/',
             'value' => {
               'critical' => '2000',
               'fatal' => '3000',
               'major' => '1000',
-              'minor' => '150',
-              'warning' => '100'
+              'minor' => '500',
+              'warning' => '250'
             }
           },
           'default' => {

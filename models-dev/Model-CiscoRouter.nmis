@@ -42,6 +42,57 @@
         'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
       }
     },
+    'env-temp' => {
+      'tempStatus' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '40',
+          'Warning' => '60',
+          'Minor' => '70',
+          'Major' => '75',
+          'Critical' => '80',
+          'Fatal' => '85',
+        },
+        'element' => 'index',
+        'event' => 'High Temperature',
+        'test' => '',
+        'unit' => 'celsius',
+        'value' => 'CVAR1=currentTemp;$CVAR1 * 1'
+      }
+    },
+    'fanStatus' => {
+      'fanValue' => {
+        'element' => 'index',
+        'event' => 'FAN Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+      }
+    },
+    'psuStatus' => {
+      'psuStatus' => {
+        'element' => 'index',
+        'event' => 'PSU Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+      }
+    },
+    'tempStatus' => {
+      'tempStatus' => {
+        'element' => 'index',
+        'event' => 'Temperature Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
+      }
+    },
     'rttMonLatestRtt' => {
       'HighOperCompletionTime' => {
         'type' => 'threshold-rising',

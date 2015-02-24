@@ -67,7 +67,6 @@
       'diskIOTable' => '/health/$nodeType/$node-diskiotable-$index.rrd',
       'ds3Errors' => '/health/$nodeType/$node-ds3errors-$index.rrd',
       'env_temp' => '/misc/$nodeType/$node-env-temp-$index.rrd',
-      'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
       'gsm_status_2g' => '/health/$nodeType/$node-gsm_status_2g.rrd',
       'gsm_status_3g' => '/health/$nodeType/$node-gsm_status_3g.rrd',
       'health' => '/health/$nodeType/$node-reach.rrd',
@@ -93,7 +92,6 @@
       'pkts' => '/interface/$nodeType/$node/$node-$ifDescr-pkts.rrd',
       'pkts_hc' => '/interface/$nodeType/$node/$node-$ifDescr-pkts_hc.rrd',
       'power' => '/health/$nodeType/$node-power.rrd',
-      'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
       'pvc' => '/interface/$nodeType/$node/$node-pvc-$item.rrd',
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
       'service' => '/health/$nodeType/$node-$item.rrd',
@@ -105,7 +103,6 @@
       'statistics' => '/health/$nodeType/$node-statistics.rrd',
       'systemStats' => '/health/$nodeType/$node-systemstats.rrd',
       'tcp' => '/health/$nodeType/$node-tcp.rrd',
-      'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
       'upsbat' => '/misc/$nodeType/$node-apc-ups-bat.rrd',
       'upscur' => '/misc/$nodeType/$node-apc-ups-cur.rrd',
       'upsload' => '/misc/$nodeType/$node-apc-ups-load.rrd',
@@ -115,6 +112,9 @@
       'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
       'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
       'ppxAtm' => '/interface/$nodeType/$node-ppxAtm-$index.rrd',
+      'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
+      'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
+      'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
     }
   }
 );

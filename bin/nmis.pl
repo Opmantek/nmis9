@@ -7105,7 +7105,8 @@ sub doThreshold {
 						if ($ts eq 'rrd') { 									# thresholds only in RRD subsection
 							foreach my $type (keys %{$M->{$s}{$ts}}) { 			# name/type of subsection
 								my $control = $M->{$s}{$ts}{$type}{control}; 	# check if skipped by control
-								if ($control ne "") {
+								### control was skipping indexed controls, which are already handled by graphtype
+								if ($control ne "" and getbool($M->{$s}{$ts}{$type}{indexed}) ) {
 									dbg("control found:$control for s=$s ts=$ts type=$type",1);
 									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts, index => ) ne "1") {
 										dbg("threshold of type $type skipped by control=$control");
@@ -7128,6 +7129,7 @@ sub doThreshold {
 													dbg("skipping disabled threshold type $type for index $index");
 													next;
 											}
+											#
 											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 										}
 									} else {
