@@ -25,6 +25,7 @@ sub extractNetwork {
 	my $C = shift;
 	
 	my $nodeNet;
+	my $gotOneIp = 0;
 	
 	my $NI = $S->ndinfo;
 	# anything to do?
@@ -48,7 +49,27 @@ sub extractNetwork {
 			$nodeNet->{ip}{$ifIndex}{Description} = $IF->{$ifIndex}{Description};
 			$nodeNet->{ip}{$ifIndex}{ifSpeed} = $IF->{$ifIndex}{ifSpeed};
 			$nodeNet->{ip}{$ifIndex}{ifType} = $IF->{$ifIndex}{ifType};
+			$gotOneIp = 1;
 		}
+	}
+	
+	if ( not $gotOneIp ) {
+		my $ip = $NI->{system}{host};
+		# is the address a host name not a handy IP address
+		if ( $ip !~ /\d+\.\d+\.\d+\.\d+/ )  {
+			$ip = resolveDNStoAddr($ip);
+		}
+		my $ifIndex = 0;
+		$nodeNet->{ip}{$ifIndex}{ipSubnet} = undef;
+		$nodeNet->{ip}{$ifIndex}{ipAdEntAddr1} = $ip;
+		$nodeNet->{ip}{$ifIndex}{ipAdEntNetMask1} = undef;
+		$nodeNet->{ip}{$ifIndex}{ifDescr} = "en0";
+		$nodeNet->{ip}{$ifIndex}{ifIndex} = $ifIndex;
+		$nodeNet->{ip}{$ifIndex}{ifAdminStatus} = "up";
+		$nodeNet->{ip}{$ifIndex}{Description} = "Synthetic IP Interface";
+		$nodeNet->{ip}{$ifIndex}{ifSpeed} = 1000000000;
+		$nodeNet->{ip}{$ifIndex}{ifType} = "ethernetCsmacd";
+		$gotOneIp = 1;		
 	}	
 	
 	my $dir = "$C->{'<nmis_var>'}/network";
