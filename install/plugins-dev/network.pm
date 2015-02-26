@@ -5,6 +5,7 @@ our $VERSION = "1.0.0";
 
 use strict;
 use func;												# for the conf table extras, and beautify_physaddress
+use NMIS;												# for the conf table extras, and beautify_physaddress
 use JSON::XS;
 
 sub update_plugin
