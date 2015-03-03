@@ -19,6 +19,17 @@ sub update_plugin
 	return ($changesweremade,undef); # report if we changed anything
 }
 
+sub collect_plugin
+{
+	my (%args) = @_;
+	my ($node,$S,$C) = @args{qw(node sys config)};
+	my $changesweremade = 0;
+	
+	extractNetwork($node,$S,$C);
+	
+	return ($changesweremade,undef); # report if we changed anything
+}
+
 
 sub extractNetwork {
 	my $node = shift;
@@ -50,6 +61,7 @@ sub extractNetwork {
 			$nodeNet->{ip}{$ifIndex}{Description} = $IF->{$ifIndex}{Description};
 			$nodeNet->{ip}{$ifIndex}{ifSpeed} = $IF->{$ifIndex}{ifSpeed};
 			$nodeNet->{ip}{$ifIndex}{ifType} = $IF->{$ifIndex}{ifType};
+			$nodeNet->{ip}{$ifIndex}{collect} = $IF->{$ifIndex}{collect};
 			$gotOneIp = 1;
 		}
 	}
