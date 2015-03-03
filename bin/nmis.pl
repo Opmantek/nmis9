@@ -5463,12 +5463,21 @@ sub runEscalate {
 	}
 
 	#===========================================
+	my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
 
 	# now handle escalations
 LABEL_ESC:
 	foreach $event_hash ( keys %{$ET} )  
 	{
 		dbg("process event with event_hash=$event_hash");
+		
+		# checking if event is stateless and dampen time has passed.
+		if ( getbool($ET->{$event_hash}{stateless}) and time() > $ET->{$event_hash}{startdate} + $stateless_event_dampening ) {
+			# yep, reset the event completely.
+			dbg("stateless event $ET->{$event_hash}{event} has exceeded dampening time of $stateless_event_dampening seconds.");
+			delete $ET->{$event_hash};
+		}
+				
 		# set event control to policy or default of enabled.
 		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
 

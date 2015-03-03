@@ -42,6 +42,7 @@ use Sys;
 use NMIS::Timing;
 use NMIS::Connect;
 use Data::Dumper;
+use Devel::Size qw(size total_size);
 
 my %nvp;
 
@@ -55,6 +56,7 @@ my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 my $node = "wanedge1";
 
 my $LNT = loadLocalNodeTable();
+print "Total size of LNT ". total_size($LNT) ."\n";
 
 foreach my $node (sort keys %$LNT) {
 	#print $t->markTime(). " Create System $node\n";
@@ -78,6 +80,8 @@ foreach my $node (sort keys %$LNT) {
 	$S->init(name=>$node,snmp=>'false');
 	my $NI = $S->{info};
 	my $M = $S->mdl();
+	
+	print "Total size of $node: ". total_size($S) ."\n";
 
 	my @instances = $S->getTypeInstances(section => "hrsmpcpu");
 	if ( exists $M->{system}{rrd}{nodehealth}{snmp}{avgBusy5}{oid} ) {
