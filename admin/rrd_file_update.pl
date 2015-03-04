@@ -17,7 +17,7 @@
 #	License along with NMIS. If not, see <http://www.gnu.org/licenses/>.
 #
 # *****************************************************************************
-
+our $VERSION = "1.0.1";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -25,6 +25,9 @@ use strict;
 use func;
 use lib "/usr/local/rrdtool/lib/perl"; 
 use RRDs 1.000.490; # from Tobias
+use File::Basename;
+
+print basename($0)." $VERSION starting up.\n\n";
 
 # Variables for command line munging
 my %ARG = getArguements(@ARGV);
@@ -77,7 +80,7 @@ print " Upgrade all RRD files to last RRD version, this takes some time\n";
 
 print "Done.  Processed $file_count RRD files.\n";
 
-exit 1;
+exit ($file_count? 0 : 1);
 
 sub processDir {
 	my %args = @_;
