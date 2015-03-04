@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: t_system.pl,v 1.1 2012/08/13 05:09:18 keiths Exp $
+## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
@@ -38,11 +38,8 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use func;
 use NMIS;
-use Sys;
 use NMIS::Timing;
 use NMIS::Connect;
-use Data::Dumper;
-use Devel::Size qw(size total_size);
 
 my %nvp;
 
@@ -51,53 +48,52 @@ my $t = NMIS::Timing->new();
 print $t->elapTime(). " Begin\n";
 
 print $t->elapTime(). " loadConfTable\n";
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+my $C = loadConfTable(conf=>$nvp{conf},debug=>"true");
 
-my $node = "wanedge1";
+# Code Node
+my $node_core = "bones";
+my $node_dist = "meatball";
+my $node_acc = "golden";
 
-my $LNT = loadLocalNodeTable();
-print "Total size of LNT ". total_size($LNT) ."\n";
+configChange($node_dist);
+nodeReset($node_dist);
 
-foreach my $node (sort keys %$LNT) {
-	#print $t->markTime(). " Create System $node\n";
-	#print "  done in ".$t->deltaTime() ."\n";	
-	
-	#print $t->markTime(). " Load Some Data\n";
-	
-	#foreach my $inf (sort keys %{$NI}) {
-	#	print "NI $inf=$NI->{inf}\n";	
-	#	if ($inf eq "system") {
-	#		foreach my $sys (sort keys %{$NI->{$inf}}) {
-	#			print "  $sys = $NI->{$inf}{$sys}\n";
-	#		}
-	#	}
-	#}
-	
-	
-	
-	
+runEscalate();
+
+print $t->elapTime(). " End\n";
+
+sub configChange {
+	my $node = shift;
+		
+	print $t->elapTime(). " configChange Create System $node\n";
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$node,snmp=>'false');
-	my $NI = $S->{info};
-	my $M = $S->mdl();
 	
-	print "Total size of $node: ". total_size($S) ."\n";
-
-	my @instances = $S->getTypeInstances(section => "hrsmpcpu");
-	if ( exists $M->{system}{rrd}{nodehealth}{snmp}{avgBusy5}{oid} ) {
-		print "$node supports CPU Stats\n";
-	}
-	elsif ( @instances) {
-		print "$node supports CPU Stats\n";
-	}
-	else {
-		print "$node NO CPU Stats support\n";
-	}
-
-	if ( $node eq "nmisdev64" ) {
-		#print Dumper $S;
-	}
-
+	print $t->elapTime(). " Load Some Data\n";
+	my $NI = $S->{info};
+	
+	notify(sys=>$S,event=>"Node Configuration Change",element=>"",details=>"Changed at ".$NI->{system}{configLastChanged} );
+		
+	print $t->elapTime(). " configChange done\n";
 }
 
-print "  done in ".$t->deltaTime() ."\n";	
+sub nodeReset {
+	my $node = shift;
+		
+	print $t->elapTime(). " nodeReset Create System $node\n";
+	my $S = Sys::->new; # create system object
+	$S->init(name=>$node,snmp=>'false');
+	
+	print $t->elapTime(). " Load Some Data\n";
+	my $NI = $S->{info};
+	
+	notify(sys=>$S, event=>"Node Reset",element=>"",
+				 details => "Old_sysUpTime=$NI->{system}{sysUpTime} New_sysUpTime=$NI->{system}{sysUpTime}");
+		
+	print $t->elapTime(). " nodeReset done\n";
+}
+
+sub runEscalate {
+	my $out = `/usr/local/nmis8/bin/nmis.pl type=escalate debug=true`;
+	print "$out\n";	
+}

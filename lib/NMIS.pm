@@ -1143,6 +1143,11 @@ sub notify {
 			# Push the event onto the event table if it is a stateful one
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 		}
+		else {
+			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details,stateless=>"true");
+			# a stateless event should escalate to a level and then be automatically deleted.
+			# configuration for stateless dampening?  e.g. delete stateless events at level 3?
+		}
 		
 		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/
 				and getbool($thisevent_control->{Log})) 
@@ -1342,6 +1347,7 @@ sub eventAdd {
 	my $element = $args{element};
 	my $level = $args{level};
 	my $details = $args{details};
+	my $stateless = $args{stateless} || "false";
 
 	my $C = loadConfTable();
 
@@ -1356,9 +1362,20 @@ sub eventAdd {
 		($ET,$handle) = loadEventStateLock();
 	}
 
+	# is this a stateless event, they will reset after the dampening time, default dampen of 15 minutes.
+	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{stateless}) ) {
+		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
+		# if the stateless time is greater than the dampening time, reset the escalate.
+		if ( time() > $ET->{$event_hash}{startdate} + $stateless_event_dampening ) {
+			$ET->{$event_hash}{current} = 'true';
+			$ET->{$event_hash}{startdate} = time();
+			$ET->{$event_hash}{escalate} = -1;
+			$ET->{$event_hash}{ack} = 'false';			
+			dbg("event stateless, node=$node, event=$event, level=$level, element=$element, details=$details");
+		}
+	}
 	# before we log check the state table if there is currently an event outstanding.
-	### 2014-09-01 keiths, fixing up an autovification problem.
-	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
+	elsif ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
 		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
 		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
 	}
@@ -1373,6 +1390,7 @@ sub eventAdd {
 		$ET->{$event_hash}{ack} = 'false';
 		$ET->{$event_hash}{escalate} = -1;
 		$ET->{$event_hash}{notify} = "";
+		$ET->{$event_hash}{stateless} = $stateless;
 		$new_event = 1;
 		dbg("event added, node=$node, event=$event, level=$level, element=$element, details=$details");
 		##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");

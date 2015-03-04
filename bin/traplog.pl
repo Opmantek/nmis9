@@ -59,6 +59,12 @@ my $filename = $ARGV[0] || "$FindBin::Bin/../logs/trap.log";
 my @buffer;
 my $hostname = <STDIN>;
 my $ipaddress = <STDIN>;
+
+# some relayed traps appearing with the hostname of <UNKNOWN>
+if ( $hostname eq "<UNKNOWN>" and $ipaddress =~ /\[(\d+\.\d+\.\d+\.\d+)\]/ ) {
+	$hostname = $1;
+}
+
 chomp ($hostname, $ipaddress);
 
 # the remainder is all variables 

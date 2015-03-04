@@ -661,8 +661,8 @@
               'critical' => '90',
               'fatal' => '95',
               'major' => '80',
-              'minor' => '2',
-              'warning' => '1'
+              'minor' => '70',
+              'warning' => '60'
             }
           },
           '10' => {
