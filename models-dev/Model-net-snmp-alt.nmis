@@ -469,9 +469,7 @@ at least on linux 100% used is common with lots of buffers/cache',
             'oid' => 'hrSWInstalledDate',
             'title' => 'hrSWInstalledDate',
             #unpack("C*", pack("H*", $macstring));
-            'calculate' => 'my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
-            #'calculate' => 'my @date = unpack("nC6aC2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
-            #'calculate' => 'my @date = unpack("nC6aC2", $r); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
+            'calculate' => '$r =~ s/^0x//; my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
           },
         }
       },
