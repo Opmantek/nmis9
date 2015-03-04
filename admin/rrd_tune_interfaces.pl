@@ -29,7 +29,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.1.1";
+our $VERSION = "1.1.2";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -191,90 +191,94 @@ foreach my $node (sort keys %{$LNT})
 		}
 		
 		#Are there any packet RRDs?
-		print "  ". $t->elapTime(). " Looking for pkts databases\n";
-		my @pktinstances = $S->can("getTypeInstances")? $S->getTypeInstances(section => "pkts") 
-				: keys %{$NI->{database}{pkts}};
-				
-		foreach my $intf (@pktinstances) 
+		# check both pkts and pkts_hc!
+		for my $datatype ("pkts","pkts_hc")
 		{
-				++$sum->{count}{pkts};
-				my $rrd = $S->can("getTypeInstances") ? S->getDBName(graphtype => "pkts", index => $intf) :
-						$NI->{database}{pkts}{$intf};
-				print "    ". $t->elapTime(). " Found $rrd\n";
-
-				# Get the ifSpeed
-				my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
+		    print "  ". $t->elapTime(). " Looking for $datatype databases\n";
+		    my @pktinstances = $S->can("getTypeInstances")? $S->getTypeInstances(section => $datatype) 
+			: keys %{$NI->{database}{$datatype}};
+		    
+		    foreach my $intf (@pktinstances) 
+		    {
+			++$sum->{count}{pkts};
+			my $rrd = $S->can("getTypeInstances") ? $S->getDBName(graphtype => $datatype, index => $intf) :
+			    $NI->{database}{$datatype}{$intf};
+			print "    ". $t->elapTime(). " Found $rrd\n";
+			
+			# Get the ifSpeed
+			my $ifSpeed = $NI->{interface}{$intf}{ifSpeed};
+			
+			# only proceed if the ifSpeed is correct
+			if ( $ifSpeed ) {
+			    my $maxBytes = int($ifSpeed/4);
+			    my $maxPackets = int($maxBytes/50);
+			    
+			    # Get the RRD info on the Interface
+			    my $hash = RRDs::info($rrd);
+			    
+			    # Recurse over the hash to see what you can find.
+			    foreach my $key (sort keys %$hash){
 				
-				# only proceed if the ifSpeed is correct
-				if ( $ifSpeed ) {
-					my $maxBytes = int($ifSpeed/4);
-					my $maxPackets = int($maxBytes/50);
-	
-					# Get the RRD info on the Interface
-					my $hash = RRDs::info($rrd);
+				# Is this an RRD DS (data source)
+				if ( $key =~ /^ds/ ) {
+				    
+				    # Is this the DS's we are intersted in?
+				    #PKTS, with ifInOctets, ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors and ifOutOctets, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
+				    if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)\]\.max/ ) {
+					my $dsname = $1;
+					print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
 					
-					# Recurse over the hash to see what you can find.
-					foreach my $key (sort keys %$hash){
-
-						# Is this an RRD DS (data source)
-						if ( $key =~ /^ds/ ) {
-						
-							# Is this the DS's we are intersted in?
-							#PKTS, with ifInOctets, ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors and ifOutOctets, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
-							if ( $key =~ /ds\[(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)\]\.max/ ) {
-								my $dsname = $1;
-								print "      ". $t->elapTime(). " Got $key, dsname=$dsname value = \"$hash->{$key}\"\n";
-	
-								my $maxValue = $maxPackets;
-								my $maxType = "maxPackets";
-								if ( $dsname =~ /ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets/ ) {
-									$maxValue = $maxBytes;
-									$maxType = "maxBytes";
-								}
-							
-								# Is the value blank (which means in RRD U, unbounded).
-								if ( $hash->{$key} eq "" or $hash->{$key} != $maxValue) {
-									# We need to tune this RRD
-									print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
-																
-									# Got everything we need
-									#print qq|RRDs::tune($rrd, "--maximum", "$dsname:$maxValue")\n| if $debug;
-									
-									# Only make the change if change is set to true
-									if ($arg{change} eq "true" ) {
-										print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
-										#Execute the RRDs::tune API.
-										RRDs::tune($rrd, "--maximum", "$dsname:$maxValue");
-										
-										# Check for errors.
-										my $ERROR = RRDs::error;
-										if ($ERROR) {
-											print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
-										}
-										else {
-											# All GOOD!
-											print "      ". $t->elapTime(). " RRD Tune Successful\n";
-											++$sum->{count}{'tune-pkts'};
-										}
-									}
-									else {
-										print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
-									}
-								}
-								# MAX is already set to something
-								else {
-									print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
-								}
-							}
-						}
+					my $maxValue = $maxPackets;
+					my $maxType = "maxPackets";
+					if ( $dsname =~ /ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets/ ) {
+					    $maxValue = $maxBytes;
+					    $maxType = "maxBytes";
 					}
+					
+					# Is the value blank (which means in RRD U, unbounded).
+					if ( $hash->{$key} eq "" or $hash->{$key} != $maxValue) {
+					    # We need to tune this RRD
+					    print "      ". $t->elapTime(). " RRD Tune Required for $dsname\n";
+					    
+					    # Got everything we need
+					    #print qq|RRDs::tune($rrd, "--maximum", "$dsname:$maxValue")\n| if $debug;
+					    
+					    # Only make the change if change is set to true
+					    if ($arg{change} eq "true" ) {
+						print "      ". $t->elapTime(). " Tuning RRD, updating maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
+						#Execute the RRDs::tune API.
+						RRDs::tune($rrd, "--maximum", "$dsname:$maxValue");
+						
+						# Check for errors.
+						my $ERROR = RRDs::error;
+						if ($ERROR) {
+						    print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
+						}
+						else {
+						    # All GOOD!
+						    print "      ". $t->elapTime(). " RRD Tune Successful\n";
+						    ++$sum->{count}{'tune-pkts'};
+						}
+					    }
+					    else {
+						print "      ". $t->elapTime(). " RRD SHOULD be tuned with change=true, maximum for $dsname, ifIndex $intf to maxType=$maxType, maxValue=$maxValue\n";
+					    }
+					}
+					# MAX is already set to something
+					else {
+					    print "      ". $t->elapTime(). " RRD Tune NOT Required, $key=$hash->{$key}\n";
+					}
+				    }
 				}
-				# no valid ifSpeed found.
-				else {
-					print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
-				}
+			    }
+			}
+			# no valid ifSpeed found.
+			else {
+			    print STDERR "ERROR $node, a valid ifSpeed not found for interface index $intf $NI->{interface}{$intf}{ifDescr} ifSpeed=\"$ifSpeed\"\n";
+			}
+		    }
 		}
-
+		    
 
 		#Are there any CBQoS RRDs?
 		print "  ". $t->elapTime(). " Looking for CBQoS databases\n";
