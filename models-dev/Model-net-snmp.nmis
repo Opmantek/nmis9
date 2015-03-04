@@ -436,8 +436,36 @@ at least on linux 100% used is common with lots of buffers/cache',
     }
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,addressTable',
+    'sections' => 'diskIOTable,addressTable,software',
     'sys' => {
+      'software' => {
+        'headers' => 'hrSWInstalledIndex,hrSWInstalledName,hrSWInstalledID,hrSWInstalledType,hrSWInstalledDate',
+        #'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'hrSWInstalledIndex',
+        'snmp' => {
+          'hrSWInstalledIndex' => {
+            'oid' => 'hrSWInstalledIndex',
+            'title' => 'hrSWInstalledIndex'
+          },
+          'hrSWInstalledName' => {
+            'oid' => 'hrSWInstalledName',
+            'title' => 'hrSWInstalledName'
+          },
+          'hrSWInstalledID' => {
+            'oid' => 'hrSWInstalledID',
+            'title' => 'hrSWInstalledID'
+          },
+          'hrSWInstalledType' => {
+            'oid' => 'hrSWInstalledType',
+            'title' => 'hrSWInstalledType'
+          },
+          'hrSWInstalledDate' => {
+            'oid' => 'hrSWInstalledDate',
+            'title' => 'hrSWInstalledDate'
+          },
+        }
+      },
+
       'addressTable' => {
         'headers' => 'ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
         'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
