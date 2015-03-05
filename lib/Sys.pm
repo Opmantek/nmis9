@@ -265,10 +265,10 @@ sub open {
 	return 0;
 }
 
-# close snmp session
+# close snmp session - if it's open
 sub close {
 	my $self = shift;
-	return $self->{snmp}->close;
+	return $self->{snmp}->close if (defined($self->{snmp}));
 }
 
 
