@@ -50,19 +50,24 @@ sub extractNetwork {
 
 	for my $ifIndex (keys %{$IF})
 	{
-		#print Dumper $IF->{$ifIndex};
-		if ( $IF->{$ifIndex}{ifAdminStatus} eq "up" and defined $IF->{$ifIndex}{ipAdEntAddr1} and $IF->{$ifIndex}{ipAdEntAddr1} ne "" ) {
-			$nodeNet->{ip}{$ifIndex}{ipSubnet} = $IF->{$ifIndex}{ipSubnet1};
-			$nodeNet->{ip}{$ifIndex}{ipAdEntAddr1} = $IF->{$ifIndex}{ipAdEntAddr1};
-			$nodeNet->{ip}{$ifIndex}{ipAdEntNetMask1} = $IF->{$ifIndex}{ipAdEntNetMask1};
-			$nodeNet->{ip}{$ifIndex}{ifDescr} = $IF->{$ifIndex}{ifDescr};
-			$nodeNet->{ip}{$ifIndex}{ifIndex} = $IF->{$ifIndex}{ifIndex};
-			$nodeNet->{ip}{$ifIndex}{ifAdminStatus} = $IF->{$ifIndex}{ifAdminStatus};
-			$nodeNet->{ip}{$ifIndex}{Description} = $IF->{$ifIndex}{Description};
-			$nodeNet->{ip}{$ifIndex}{ifSpeed} = $IF->{$ifIndex}{ifSpeed};
-			$nodeNet->{ip}{$ifIndex}{ifType} = $IF->{$ifIndex}{ifType};
-			$nodeNet->{ip}{$ifIndex}{collect} = $IF->{$ifIndex}{collect};
-			$gotOneIp = 1;
+		if ( $IF->{$ifIndex}{ifAdminStatus} eq "up" ) {
+			my $cnt = 1;
+			while (defined $IF->{$ifIndex}{"ipAdEntAddr$cnt"} ) { 				
+				my $ifIdx = $ifIndex;
+				$ifIdx = "$ifIndex.$cnt" if $cnt > 1;
+				$nodeNet->{ip}{$ifIdx}{ipSubnet} = $IF->{$ifIndex}{"ipSubnet$cnt"};
+				$nodeNet->{ip}{$ifIdx}{ipAdEntAddr} = $IF->{$ifIndex}{"ipAdEntAddr$cnt"};
+				$nodeNet->{ip}{$ifIdx}{ipAdEntNetMask} = $IF->{$ifIndex}{"ipAdEntNetMask$cnt"};
+				$nodeNet->{ip}{$ifIdx}{ifDescr} = $IF->{$ifIndex}{ifDescr};
+				$nodeNet->{ip}{$ifIdx}{ifIndex} = $IF->{$ifIndex}{ifIndex};
+				$nodeNet->{ip}{$ifIdx}{ifAdminStatus} = $IF->{$ifIndex}{ifAdminStatus};
+				$nodeNet->{ip}{$ifIdx}{Description} = $IF->{$ifIndex}{Description};
+				$nodeNet->{ip}{$ifIdx}{ifSpeed} = $IF->{$ifIndex}{ifSpeed};
+				$nodeNet->{ip}{$ifIdx}{ifType} = $IF->{$ifIndex}{ifType};
+				$nodeNet->{ip}{$ifIdx}{collect} = $IF->{$ifIndex}{collect};
+				$gotOneIp = 1;
+				$cnt++;
+			}
 		}
 	}
 	
