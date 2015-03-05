@@ -159,6 +159,8 @@ for my $fn (@candidates)
 			if (my $ERROR = RRDs::error) 
 			{
 				print "Error: restoring with range check failed: $ERROR\n\n";
+				rename("$fn.bak",$fn);	# revert to the old file
+				next;										# don't remove the xml file!
 			}
 			setFileProt($fn);
 			unlink($xmlfile, "$fn.bak");
