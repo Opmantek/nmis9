@@ -440,24 +440,23 @@ at least on linux 100% used is common with lots of buffers/cache',
     'sys' => {
       'software' => {
         'headers' => 'hrSWInstalledIndex,hrSWInstalledName,hrSWInstalledID,hrSWInstalledType,hrSWInstalledDate',
-        #'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'hrSWInstalledIndex',
         'snmp' => {
           'hrSWInstalledIndex' => {
             'oid' => 'hrSWInstalledIndex',
-            'title' => 'hrSWInstalledIndex'
+            'title' => 'Index'
           },
           'hrSWInstalledName' => {
             'oid' => 'hrSWInstalledName',
-            'title' => 'hrSWInstalledName'
+            'title' => 'Name'
           },
           'hrSWInstalledID' => {
             'oid' => 'hrSWInstalledID',
-            'title' => 'hrSWInstalledID'
+            'title' => 'ID'
           },
           'hrSWInstalledType' => {
             'oid' => 'hrSWInstalledType',
-            'title' => 'hrSWInstalledType',
+            'title' => 'Type',
             'replace' => {
               '1' => 'unknown',
               '2' => 'operatingSystem',
@@ -467,8 +466,7 @@ at least on linux 100% used is common with lots of buffers/cache',
           },
           'hrSWInstalledDate' => {
             'oid' => 'hrSWInstalledDate',
-            'title' => 'hrSWInstalledDate',
-            #unpack("C*", pack("H*", $macstring));
+            'title' => 'Date',
             'calculate' => '$r =~ s/^0x//; my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
           },
         }
@@ -522,8 +520,7 @@ at least on linux 100% used is common with lots of buffers/cache',
           #  'title' => 'TCP Process ID'
           #},
         },
-      },
-                
+      },        
       'tcpConn' => {        
         'indexed' => 'tcpConnState',
         #'control' => 'CVAR=tcpConnState;$CVAR =~ /2/',
