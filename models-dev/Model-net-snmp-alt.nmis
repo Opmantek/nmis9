@@ -436,8 +436,43 @@ at least on linux 100% used is common with lots of buffers/cache',
     }
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,addressTable,tcpConn,tcpConnection',
+    'sections' => 'diskIOTable,software,addressTable,tcpConn,tcpConnection',
     'sys' => {
+      'software' => {
+        'headers' => 'hrSWInstalledIndex,hrSWInstalledName,hrSWInstalledID,hrSWInstalledType,hrSWInstalledDate',
+        #'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'hrSWInstalledIndex',
+        'snmp' => {
+          'hrSWInstalledIndex' => {
+            'oid' => 'hrSWInstalledIndex',
+            'title' => 'hrSWInstalledIndex'
+          },
+          'hrSWInstalledName' => {
+            'oid' => 'hrSWInstalledName',
+            'title' => 'hrSWInstalledName'
+          },
+          'hrSWInstalledID' => {
+            'oid' => 'hrSWInstalledID',
+            'title' => 'hrSWInstalledID'
+          },
+          'hrSWInstalledType' => {
+            'oid' => 'hrSWInstalledType',
+            'title' => 'hrSWInstalledType',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'operatingSystem',
+              '3' => 'deviceDriver',
+              '4' => 'application',
+            },
+          },
+          'hrSWInstalledDate' => {
+            'oid' => 'hrSWInstalledDate',
+            'title' => 'hrSWInstalledDate',
+            #unpack("C*", pack("H*", $macstring));
+            'calculate' => '$r =~ s/^0x//; my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
+          },
+        }
+      },
       'tcpConnection' => {        
         'indexed' => 'tcpConnectionState',        
         'index_oid' => '1.3.6.1.2.1.6.19.1.7',
