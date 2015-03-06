@@ -79,8 +79,8 @@ sub extractNetwork {
 		}
 		my $ifIndex = 0;
 		$nodeNet->{ip}{$ifIndex}{ipSubnet} = undef;
-		$nodeNet->{ip}{$ifIndex}{ipAdEntAddr1} = $ip;
-		$nodeNet->{ip}{$ifIndex}{ipAdEntNetMask1} = undef;
+		$nodeNet->{ip}{$ifIndex}{ipAdEntAddr} = $ip;
+		$nodeNet->{ip}{$ifIndex}{ipAdEntNetMask} = undef;
 		$nodeNet->{ip}{$ifIndex}{ifDescr} = "en0";
 		$nodeNet->{ip}{$ifIndex}{ifIndex} = $ifIndex;
 		$nodeNet->{ip}{$ifIndex}{ifAdminStatus} = "up";
