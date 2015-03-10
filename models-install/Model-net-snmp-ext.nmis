@@ -1,0 +1,758 @@
+#
+## $Id: Model-net-snmp.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'net-snmp-ext',
+    'nodeVendor' => 'net-snmp',
+    'nodeType' => 'server',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'sys' => {
+      'standard' => {        
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime'
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime'
+          }
+        }
+      },
+      'laLoad' => {
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+          }
+        }
+      },
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 100',
+              'event' => 'High TCP Connection Count',
+              'unit' => 'connections',
+              'level' => 'Warning'
+            }
+          },
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses',
+            'title' => 'System Processes',
+            'alert' => {
+              'test' => '$r > 150',
+              'event' => 'High Number of System Processes',
+              'unit' => 'processes',
+              'level' => 'Warning'
+            }
+          }
+        }
+      },
+    },
+    'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'snmp' => {
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
+          },
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
+          },
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
+          }
+        },
+      },
+      'laload' => {
+        'graphtype' => 'laload',
+        'snmp' => {
+          'laLoad1' => {
+            'oid' => 'laLoad.1',
+            'option' => 'gauge,0:U'
+          },
+          'laLoad5' => {
+            'oid' => 'laLoad.2',
+            'option' => 'gauge,0:U'
+          }
+        }
+      },
+      'systemStats' => {        
+        'graphtype' => 'ss-cpu,ss-blocks,ss-intcon',
+        'threshold' => 'ssCpuRawUser,ssCpuRawSystem,ssCpuRawWait,ssCpuRawIdle',
+        'snmp' => {
+          'ssCpuRawUser' => {
+            'oid' => 'ssCpuRawUser',
+            'title' => 'ssCpuRawUser',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawUser.0 = Counter32: 114857779'
+          },
+          'ssCpuRawNice' => {
+            'oid' => 'ssCpuRawNice',
+            'title' => 'ssCpuRawNice',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawNice.0 = Counter32: 1294466'
+          },
+          'ssCpuRawSystem' => {
+            'oid' => 'ssCpuRawSystem',
+            'title' => 'ssCpuRawSystem',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSystem.0 = Counter32: 15958442'
+          },
+          'ssCpuRawIdle' => {
+            'oid' => 'ssCpuRawIdle',
+            'title' => 'ssCpuRawIdle',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawIdle.0 = Counter32: 336740221'
+          },
+          'ssCpuRawWait' => {
+            'oid' => 'ssCpuRawWait',
+            'title' => 'ssCpuRawWait',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawWait.0 = Counter32: 17718957'
+          },
+          'ssCpuRawKernel' => {
+            'oid' => 'ssCpuRawKernel',
+            'title' => 'ssCpuRawKernel',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawKernel.0 = Counter32: 0'
+          },
+          'ssCpuRawInterrupt' => {
+            'oid' => 'ssCpuRawInterrupt',
+            'title' => 'ssCpuRawInterrupt',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawInterrupt.0 = Counter32: 93048'
+          },
+          'ssCpuRawSoftIRQ' => {
+            'oid' => 'ssCpuRawSoftIRQ',
+            'title' => 'ssCpuRawSoftIRQ',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssCpuRawSoftIRQ.0 = Counter32: 4101707'
+          },
+          'ssIORawSent' => {
+            'oid' => 'ssIORawSent',
+            'title' => 'ssIORawSent',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawSent.0 = Counter32: 2246167484'
+          },
+          'ssIORawReceived' => {
+            'oid' => 'ssIORawReceived',
+            'title' => 'ssIORawReceived',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssIORawReceived.0 = Counter32: 15277366'
+          },
+          'ssRawInterrupts' => {
+            'oid' => 'ssRawInterrupts',
+            'title' => 'ssRawInterrupts',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawInterrupts.0 = Counter32: 1995002251'
+          },
+          'ssRawContexts' => {
+            'oid' => 'ssRawContexts',
+            'title' => 'ssRawContexts',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawContexts.0 = Counter32: 1623525406'
+          },
+          'ssRawSwapIn' => {
+            'oid' => 'ssRawSwapIn',
+            'title' => 'ssRawSwapIn',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapIn.0 = Counter32: 1580'
+          },
+          'ssRawSwapOut' => {
+            'oid' => 'ssRawSwapOut',
+            'title' => 'ssRawSwapOut',
+            'option' => 'counter,0:U',
+            'info' => 'UCD-SNMP-MIB::ssRawSwapOut.0 = Counter32: 10695'
+          },
+        },
+      },      
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    }
+  },
+  'alerts' => {
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '70',
+          'Warning' => '75',
+          'Minor' => '80',
+          'Major' => '90',
+          'Critical' => '94',
+          'Fatal' => '94.5',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '99.3',
+          'Warning' => '0',
+          'Minor' => '0',
+          'Major' => '99.4',
+          'Critical' => '99.6',
+          'Fatal' => '100',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /^(Virtual )?Memory/',
+      },
+      'HighSwapUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '11',
+          'Warning' => '15',
+          'Minor' => '20',
+          'Major' => '30',
+          'Critical' => '50',
+          'Fatal' => '75',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Swap Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Swap/',
+			},
+    },
+  },
+  'systemHealth' => {
+    'sections' => 'diskIOTable,software',
+    'sys' => {
+      'software' => {
+        'headers' => 'hrSWInstalledIndex,hrSWInstalledName,hrSWInstalledID,hrSWInstalledType,hrSWInstalledDate',
+        'indexed' => 'hrSWInstalledIndex',
+        'snmp' => {
+          'hrSWInstalledIndex' => {
+            'oid' => 'hrSWInstalledIndex',
+            'title' => 'Index'
+          },
+          'hrSWInstalledName' => {
+            'oid' => 'hrSWInstalledName',
+            'title' => 'Name'
+          },
+          'hrSWInstalledID' => {
+            'oid' => 'hrSWInstalledID',
+            'title' => 'ID'
+          },
+          'hrSWInstalledType' => {
+            'oid' => 'hrSWInstalledType',
+            'title' => 'Type',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'operatingSystem',
+              '3' => 'deviceDriver',
+              '4' => 'application',
+            },
+          },
+          'hrSWInstalledDate' => {
+            'oid' => 'hrSWInstalledDate',
+            'title' => 'Date',
+            'calculate' => '$r =~ s/^0x//; my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
+          },
+        }
+      },
+      'diskIOTable' => {        
+        'indexed' => 'diskIOIndex',        
+        'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
+        'headers' => 'diskIODevice',
+        'snmp' => {
+          'diskIOIndex' => {
+            'oid' => 'diskIOIndex',
+            'title' => 'IO Device Index'
+          },
+          'diskIODevice' => {
+            'oid' => 'diskIODevice',
+            'title' => 'IO Device Name'
+          },
+        },
+      },      
+    },
+    'rrd' => {
+      'diskIOTable' => {
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /sd|sr|disk|xvda|dm\-/',
+        'indexed' => 'true',
+        'graphtype' => 'diskio-rw,diskio-rwbytes',
+        'snmp' => {
+          'diskIONReadX' => {
+            'oid' => 'diskIONReadX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes read from this device since boot'
+          },
+          'diskIONWrittenX' => {
+            'oid' => 'diskIONWrittenX',
+            'option' => 'counter,0:U',
+            'title' => 'The number of bytes written from this device since boot'
+          },
+          'diskIOReads' => {
+            'oid' => 'diskIOReads',
+            'option' => 'counter,0:U',
+            'title' => 'The number of read accesses from this device since boot'
+          },
+          'diskIOWrites' => {
+            'oid' => 'diskIOWrites',
+            'option' => 'counter,0:U',
+            'title' => 'The number of write accesses to this device since boot'
+          },
+        },
+      },
+    }
+  },
+  'device' => {
+    'sys' => {
+      'cpu' => {
+        'snmp' => {
+          'hrCpuLoad' => {
+            'oid' => 'laLoad.2'
+          }
+        }
+      },
+      'device' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      }
+    }
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+      'pkts_hc' => {
+        'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'snmp' => {
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+    'noevent' => {
+      'ifDescr' => 'null',
+      'Description' => '^!',
+      'ifType' => 'other'
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer|null',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'other|softwareloopback|isdn'
+    }
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
+    }
+  },
+);
