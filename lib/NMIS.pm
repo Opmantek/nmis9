@@ -1146,7 +1146,6 @@ sub notify {
 		else {
 			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details,stateless=>"true");
 			# a stateless event should escalate to a level and then be automatically deleted.
-			# configuration for stateless dampening?  e.g. delete stateless events at level 3?
 		}
 		
 		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/
