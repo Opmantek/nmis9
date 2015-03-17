@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-my $VERSION = "1.4.0";
+my $VERSION = "1.4.1";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n"; 
 
@@ -237,6 +237,29 @@ sub collect_evidence
 
 		my $thisnode = $args{node};
 
+		# report the NMIS version and the support tool version, too.
+		open(F, ">$targetdir/nmis_version") or die "cannot write to $targetdir/nmis_version: $!\n";
+		my $nmisversion = `$basedir/bin/nmis.pl 2>/dev/null`;
+		if ($nmisversion =~ /^NMIS version (\S+)$/m)
+		{
+			print F "NMIS Version $1\n";
+		}
+		else
+		{
+			open(G, "$basedir/lib/NMIS.pm");
+			for  my $line (<G>)
+			{
+				if ($line =~ /^\$VERSION\s*=\s*"(.+)";\s*$/)
+				{
+					print F "NMIS Version $1\n";
+					last;
+				}
+			}
+			close G;
+		}
+		print  F "Support Tool Version $VERSION\n";
+		close F;
+		
 		mkdir("$targetdir/system_status");
 		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 		system("find -L $basedir -type d | xargs ls -laH > $targetdir/system_status/filelist.txt") == 0

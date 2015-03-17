@@ -30,7 +30,7 @@
 # rrd files if the data contains spikes that exceed the set limits
 # meant primarily for interface counters, but should work for any RRD.
 
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -38,17 +38,20 @@ use strict;
 use File::Basename;
 use File::Find;
 use Data::Dumper;
+use Cwd;
 
 use func;
 use RRDs 1.000.490;
 
-die "Usage: ".basename($0). " [examine=N] [dir=/some/dir] [change=true] [match=regex]\n
+die "Usage: ".basename($0). " [examine=N] [dir=/some/dir] [change=false] [precise=true] [match=regex]\n
 examine: check last N days for values outside of min/max. default 30.
 dir: dir to cover (incl. subdirs). default is NMIS database dir.
 change: no changes are made if change isn't 'true'.
+precise: update RRDs only if values outside of min/max are found (default true)
+ if set to false, ALL RRD files will be updated.
 match: regex to select only particular RRD files, e.g. match=pkts_hc
 or match=interface/\n\n"
-		if (@ARGV == 1 && $ARGV[0] =~ /^(help|--?h(elp)?)$/);
+		if (@ARGV == 1 && $ARGV[0] =~ /^(help|--?h(elp)?|--?\?)$/);
 
 print basename($0)." $VERSION starting up.\n\n";
 
@@ -67,17 +70,19 @@ my $examine = $ARG{examine} || 30;
 $examine *= 86400;
 $examine = int($examine);
 
-my $dir = $ARG{dir}? $ARG{dir} : $C->{database_root};
+my $dir = $ARG{dir}? Cwd::abs_path($ARG{dir}) : $C->{database_root};
 die "cannot operate on $dir, not a directory or not readable!\n" if (!-d $dir 
 																																		 or !-x $dir 
 																																		 or !-r $dir);
 my @candidates;
 find({ follow => 1, wanted => sub 
 			 { 
-				 my ($full,$relative) = ($File::Find::name, $_); 
-				 push (@candidates, $full) if (-f $full and $full =~ $onlythese and $relative =~ /\.rrd$/i); 
+				 my ($full,$relative) = ($File::Find::name, $_);
+				 push (@candidates, $full)
+						 if (-f $full and $full =~ $onlythese and $relative =~ /\.rrd$/i);
 			 }
 		 }, $dir);
+
 
 for my $fn (@candidates)
 {
@@ -107,30 +112,44 @@ for my $fn (@candidates)
 		next;
 	}
 
-	my $now = time;
-	my ($begin,$step,$names,$data) = RRDs::fetch($fn, "AVERAGE", "--start" => $now-$examine, "--end" => $now);
+	my $rrdstep = $rrdinfo->{step};
+	$rrdstep ||= 300;
+	my $precise = $ARG{precise}? getbool($ARG{precise}): 1;
 
- ROWS:
-	for my $row (@$data)
+	if ($precise)
 	{
-		for my $idx (0..$#{$row})
+		my $now = time;
+		$now = $now - ($now % $rrdstep);
+		my ($begin,$step,$names,$data) = RRDs::fetch($fn, "AVERAGE", "--start" => $now-$examine, "--end" => $now);
+		print "Warning: RRD has step $rrdstep, but fetch returned step $step.\n" if ($step != $rrdstep);
+		
+		
+	ROWS:
+		for my $row (@$data)
 		{
-			my $thisdsname = $names->[$idx];
-			my $value = sprintf("%f", $row->[$idx]);
-			
-			if (defined($ds{$thisdsname}->{max}) and $value > $ds{$thisdsname}->{max})
+			for my $idx (0..$#{$row})
 			{
-				print "$thisdsname has value above max ($value > ".$ds{$thisdsname}->{max}."), needs rework\n";
-				$needsrework = 1;
-				last ROWS;
-			}
-			if (defined($ds{$thisdsname}->{min}) and $value < $ds{$thisdsname}->{min})
-			{
-				print "$thisdsname has value below min ($value < ".$ds{$thisdsname}->{min}."), needs rework\n";
-				$needsrework = 1;
-				last ROWS;
+				my $thisdsname = $names->[$idx];
+				my $value = sprintf("%f", $row->[$idx]);
+				
+				if (defined($ds{$thisdsname}->{max}) and $value > $ds{$thisdsname}->{max})
+				{
+					print "$thisdsname has value above max ($value > ".$ds{$thisdsname}->{max}."), needs rework\n";
+					$needsrework = 1;
+					last ROWS;
+				}
+				if (defined($ds{$thisdsname}->{min}) and $value < $ds{$thisdsname}->{min})
+				{
+					print "$thisdsname has value below min ($value < ".$ds{$thisdsname}->{min}."), needs rework\n";
+					$needsrework = 1;
+					last ROWS;
+				}
 			}
 		}
+	}
+	else
+	{
+		$needsrework = 1;
 	}
 
 	if ($needsrework)

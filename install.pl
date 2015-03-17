@@ -87,7 +87,20 @@ else
 ###************************************************************************###
 printBanner("NMIS Installation Script");
 my $hostname = `hostname -f`; chomp $hostname;
-logInstall("Installation on host '$hostname' started at ".scalar localtime(time));
+
+my $nmisversion;
+open(G, "./lib/NMIS.pm");
+for  my $line (<G>)
+{
+	if ($line =~ /^\$VERSION\s*=\s*"(.+)";\s*$/)
+	{
+		$nmisversion = $1;
+		last;
+	}
+}
+close G;
+logInstall("Installation of NMIS $nmisversion on host '$hostname' started at ".scalar localtime(time));
+
 
 # there are some slight but annoying differences
 my $osflavour;
