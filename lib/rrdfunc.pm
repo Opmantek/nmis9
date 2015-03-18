@@ -29,12 +29,10 @@
 #  
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.1.3";
+our $VERSION = "2.2.0";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
-
-require 5;
 
 use strict;
 
@@ -44,6 +42,7 @@ use Exporter;
 
 use RRDs 1.000.490; # from Tobias
 use Statistics::Lite;
+use POSIX qw();									# for strftime
 
 use func;
 use Sys;
@@ -83,54 +82,11 @@ sub getUpdateStats {
 # returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
 # metadata hash: actual begin and end as per rrd, and step
 #
+# optional: hours_from and hours_to (default: no restriction)
+#
 # NOTE: this function does NOT support hours_from and hours_to, only start and end!
-sub getRRDasHash {
-	my %args = @_;
-	my $S = $args{sys};
-	my $graphtype = $args{graphtype};
-	my $index = $args{index};
-	my $item = $args{item};
-
-	if (!$S) {
-		$S = Sys::->new(); # get base Model containing database info
-		$S->init;
-	}
-
-	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
-
-	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
-	my %s;
-	my @h;
-	my $f = 1;
-	my $date;
-	my $d;
-	my $time = $begin;
-	for(my $a = 0; $a <= $#{$data}; ++$a) {
-		$d = 0;
-		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) {
-			if ($f) { push(@h,$name->[$b]) }
-			$s{$time}{$name->[$b]} = $data->[$a][$b];
-			if ( defined $data->[$a][$b] ) { $d = 1; }
-		}
-		if ($d) {
-			$date = returnDateStamp($time);
-			$s{$time}{time} = $time;
-			$s{$time}{date} = $date;
-		}
-		if ($f) { 
-			push(@h,"time");
-			push(@h,"date");
-		}
-		$f = 0;
-		$time = $time + $step;
-	}
-	# actual data, the ds cols, and the meta data
-	return (\%s, \@h, { step => $step, start => $begin, end => $time });
-}
-
-sub getRRDasHashTesting {
+sub getRRDasHash
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $graphtype = $args{graphtype};
@@ -139,7 +95,7 @@ sub getRRDasHashTesting {
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
-	
+	my $mustcheckhours = ($minhr != 0  and $maxhr != 24);
 	my $invertperiod = $minhr > $maxhr;
 
 	if (!$S) {
@@ -151,49 +107,58 @@ sub getRRDasHashTesting {
 	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
 	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
 
-	my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
+	my ($begin,$step,$name,$data) = RRDs::fetch($db, $args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
 	my @h;
-	my $f = 1;
 	my $date;
 	my $d;
 	my $time = $begin;
+	# loop over the readings over time
 	for(my $a = 0; $a <= $#{$data}; ++$a) {
 		$d = 0;
+		# loop over the datasets per individual reading
+		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) 
+		{
+			push(@h, $name->[$b]) if ($a == 0); # populate ds header names on first reading
+			$s{$time}{$name->[$b]} = $data->[$a][$b];
 
-		my $date = returnDateStamp($time);
-		my $hour = $date;
-		$hour =~ s/\d+-[a-zA-Z]+-\d+ (\d+):\d+:\d+/$1/;		
-
-		for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) {
-			if ($f) { push(@h,$name->[$b]) }
-			if ( defined $data->[$a][$b] 
-					 and 
-					 ( 
-						 # between from (incl) and to (excl) hour if not inverted 
-						 ( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
-						 or
-						 # before to (excl) or after from (incl) hour if inverted,
-						 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
+			if ( defined $data->[$a][$b] ) { $d = 1; } 
+		}
+		# compute date and time only if at least on ds col has defined data
+		if ($d) 
+		{
+			my @timecomponents = localtime($time);
+			my $hour = $timecomponents[2];
+			if (!$mustcheckhours or
+					( 
+						# between from (incl) and to (excl) hour if not inverted 
+						( !$invertperiod and $hour >= $minhr and $hour < $maxhr )
+						or
+						# before to (excl) or after from (incl) hour if inverted,
+						( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
 			{
-				$s{$time}{$name->[$b]} = $data->[$a][$b];
-				if ( defined $data->[$a][$b] ) { $d = 1; }
+				$s{$time}{time} = $time;
+				# we DON'T want to rerun localtime() again, so no func::returnDateStamp()
+				# want 24-Mar-2014 11:22:33, regardless of LC_*, so %b isn't good.
+				my $mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$timecomponents[4]];
+				$s{$time}{date} = POSIX::strftime("%d-$mon-%Y %H:%M:%S", @timecomponents);
+			}
+			else
+			{
+				delete $s{$time};				# out of specified hours
 			}
 		}
-		if ($d) {
-			$date = returnDateStamp($time);
-			$s{$time}{time} = $time;
-			$s{$time}{date} = $date;
-		}
-		if ($f) { 
-			push(@h,"time");
-			push(@h,"date");
-		}
-		$f = 0;
 		$time = $time + $step;
 	}
-	return (\%s,\@h);
+	
+	# two artificial ds header cols
+	push(@h,"time","date");
+
+	# actual data, the ds cols, and the meta data
+	return (\%s, \@h, { step => $step, start => $begin, end => $time });
 }
+
+
 
 # retrieves rrd data and computes a number of descriptive stats 
 # this uses the sys object to translate from graphtype to section (Sys::getTypeName)
@@ -235,6 +200,7 @@ sub getRRDStats {
 		my %s;
 		my $time = $begin;
 		for(my $a = 0; $a <= $#{$data}; ++$a) {
+			# fixme: ditch this, inefficient!
 			my $date = returnDateStamp($time);
 			my $hour = $date;
 			$hour =~ s/\d+-[a-zA-Z]+-\d+ (\d+):\d+:\d+/$1/;		
