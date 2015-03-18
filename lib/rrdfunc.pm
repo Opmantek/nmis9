@@ -173,7 +173,7 @@ sub getRRDasHash
 # but NOT the original timestamps (relevant if filtered with hour_from/to)!
 #
 # returns: hashref of the stats
-sub getRRDStats 
+sub getRRDStats
 {
 	my %args = @_;
 	my $S = $args{sys};
@@ -224,7 +224,8 @@ sub getRRDStats
 		foreach my $m (sort keys %s) 
 		{
 			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
-			$s{$m}{count} = $statsinfo{count};
+			$s{$m}{count} = $statsinfo{count}; # count of records, NOT all data - see hours from/to filtering
+			$s{$m}{step} = $step;
 			for my $key (qw(mean min max median range sum variance stddev))
 			{
 				$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
