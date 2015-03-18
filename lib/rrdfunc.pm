@@ -169,10 +169,12 @@ sub getRRDasHash
 # optional argument: truncate (defaults to 3), if >0 then results are reformatted as %.NNNf
 # if -1 then untruncated values are returned.
 #
-# stats also include the ds's values, as an ordered list under the 'values' key.
+# stats also include the ds's values, as an ordered list under the 'values' key,
+# but NOT the original timestamps (relevant if filtered with hour_from/to)!
 #
 # returns: hashref of the stats
-sub getRRDStats {
+sub getRRDStats
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $graphtype = $args{graphtype};
@@ -200,10 +202,8 @@ sub getRRDStats {
 		my %s;
 		my $time = $begin;
 		for(my $a = 0; $a <= $#{$data}; ++$a) {
-			# fixme: ditch this, inefficient!
-			my $date = returnDateStamp($time);
-			my $hour = $date;
-			$hour =~ s/\d+-[a-zA-Z]+-\d+ (\d+):\d+:\d+/$1/;		
+			my @timecomponents = localtime($time);
+			my $hour = $timecomponents[2];
 			for(my $b = 0; $b <= $#{$data->[$a]}; ++$b) 
 			{
 					if ( defined $data->[$a][$b] 
@@ -215,7 +215,6 @@ sub getRRDStats {
 								 # before to (excl) or after from (incl) hour if inverted,
 								 ( $invertperiod and ($hour < $maxhr or $hour >= $minhr )) ))
 					{
-#							print STDERR ("accepting hour $hour, from $minhr, to $maxhr, inverted $invertperiod\n");
 							push(@{$s{$name->[$b]}{values}},$data->[$a][$b]);
 					}
 			}
@@ -225,7 +224,8 @@ sub getRRDStats {
 		foreach my $m (sort keys %s) 
 		{
 			my %statsinfo = Statistics::Lite::statshash(@{$s{$m}{values}});
-			$s{$m}{count} = $statsinfo{count};
+			$s{$m}{count} = $statsinfo{count}; # count of records, NOT all data - see hours from/to filtering
+			$s{$m}{step} = $step;
 			for my $key (qw(mean min max median range sum variance stddev))
 			{
 				$s{$m}{$key} = $wanttruncate>=0 ? sprintf("%.${wanttruncate}f", $statsinfo{$key}) : $statsinfo{$key};
