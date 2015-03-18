@@ -1256,7 +1256,7 @@ sub getNodeInfo {
 		}
 	}
 
-	$NI->{system}{nodedown} = $NI->{system}{snmpdown} = $exit ? 'false' : 'true';
+	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
 
 	info("Finished with exit=$exit nodedown=$NI->{system}{nodedown}");
 	return $exit;
@@ -2537,7 +2537,7 @@ sub updateNodeInfo {
 		$RI->{snmpresult} = 0;
 	}
 
-	$NI->{system}{nodedown} = $NI->{system}{snmpdown} = $exit ? 'false' : 'true';
+	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
 
 	### 2012-12-03 keiths, adding some model testing and debugging options.
 	if ( $model ) {

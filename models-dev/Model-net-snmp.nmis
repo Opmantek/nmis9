@@ -290,7 +290,7 @@
             'alert' => {
               'event' => 'High Number of System Processes',
               'level' => 'Warning',
-              'test' => '$r > 160',
+              'test' => '$r > 200',
               'unit' => 'processes'
             },
             'oid' => 'hrSystemProcesses',
