@@ -316,22 +316,8 @@
     'nodegraph' => 'health,response,cpu,ip,mem-router,topo,routenumber'
   },
   'systemHealth' => {
-  	'sections' => 'macTable,vtpVlan,dot1dBase,cdp,addressTable,psuStatus,fanStatus',
+  	'sections' => 'macTable,vtpVlan,cdp,addressTable,psuStatus,fanStatus',
     'sys' => {
-      'dot1dBase' => {
-        'headers' => 'dot1dBasePort,dot1dBasePortIfIndex',
-        'indexed' => 'dot1dBasePortIfIndex',
-        'snmp' => {
-          'dot1dBasePort' => {
-            'oid' => 'dot1dBasePort',
-            'title' => 'Bridge Port'
-          },
-          'dot1dBasePortIfIndex' => {
-            'oid' => 'dot1dBasePortIfIndex',
-            'title' => 'Bridge ifIndex'
-          },
-        }
-      },
       'vtpVlan' => {
         'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
         'index_regex' => '\\.(\\d+\.\\d+)$',
@@ -383,7 +369,7 @@
         }
       },
       'macTable' => {
-        'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus',
+        'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus,updateDate',
         #'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
         #'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
         'indexed' => 'dot1qTpFdbPort',
