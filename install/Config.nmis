@@ -142,6 +142,7 @@
     'disable_interfaces_summary' => 'false',
 		'interface_util_period' => '-6 hours',
 		'interface_util_label' => 'Util. 6hrs',
+    'interface_max_number' => '5000',
     'snpp_server' => '<server_name>',
     'snmp_timeout' => 5,
     'snmp_retries' => 1,
