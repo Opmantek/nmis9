@@ -83,8 +83,6 @@ sub getUpdateStats {
 # metadata hash: actual begin and end as per rrd, and step
 #
 # optional: hours_from and hours_to (default: no restriction)
-#
-# NOTE: this function does NOT support hours_from and hours_to, only start and end!
 sub getRRDasHash
 {
 	my %args = @_;

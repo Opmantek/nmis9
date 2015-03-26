@@ -33,3 +33,13 @@ my ($data, $names, $meta) = getRRDasHash(sys => $S, graphtype => "cpu",
 																				 hour_to => 4);
 
 print Dumper($meta, $names, $data);
+
+# and now also check getrrdstats
+
+my $statval = getRRDStats(sys => $S, graphtype => "cpu",
+													mode => "AVERAGE",
+													start => time-86400,
+													end =>  time-6000,
+													hour_from => 19,
+													hour_to => 4);
+print Dumper($statval);
