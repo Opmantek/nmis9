@@ -30,7 +30,7 @@
 # rrd files if the data contains spikes that exceed the set limits
 # meant primarily for interface counters, but should work for any RRD.
 
-our $VERSION = "1.1.0";
+our $VERSION = "1.1.1";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -41,6 +41,8 @@ use Data::Dumper;
 use Cwd;
 
 use func;
+use NMIS::uselib;
+use lib "$NMIS::uselib::rrdtool_lib";
 use RRDs 1.000.490;
 
 die "Usage: ".basename($0). " [examine=N] [dir=/some/dir] [change=false] [precise=true] [match=regex]\n
