@@ -750,7 +750,7 @@ sub typeStats {
 
 	print start_table;
 
-	print Tr(td({class=>'header',colspan=>'10'},"NMIS RRD Graph Stats $NI->{system}{name} $IF->{$Q->{intf}}{ifDescr} $Q->{item} $starttime to $endtime"));
+	print Tr(td({class=>'header',colspan=>'11'},"NMIS RRD Graph Stats $NI->{system}{name} $IF->{$Q->{intf}}{ifDescr} $Q->{item} $starttime to $endtime"));
 
 	foreach my $m (sort keys %{$statval}) {
 		if ($f) {

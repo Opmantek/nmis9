@@ -806,9 +806,9 @@ and provides an example/default Cron schedule.
 The installer can install this default schedule in /etc/cron.d/nmis,
 which immediately activates it.
 
-Please note that if you already have an NMIS schedule in your per-user
-root crontab, then you need to decide on using either the system-wide cron 
-files in /etc/cron.d or the per-user crontab but not both!\n\n";
+If you already have NMIS entries in your root crontab, 
+then the installer will comment out all NMIS entries in
+that crontab.\n\n";
 
 my $crongood = (-f "/etc/cron.d/nmis");
 if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /etc/cron.d/nmis?"))
@@ -818,13 +818,35 @@ if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /et
 	
 	if (0 == $res>>8)
 	{
+		echolog("Cleaning up old per-user crontab");
+		# now clean up the old per-user cron
+		execPrint("crontab -l > $site/conf/crontab.root");
+		echolog("Old crontab was saved in $site/conf/crontab.root");
+
+		open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
+		my @crondata = <F>;
+		close F;
+		for my $line (@crondata)
+		{
+			$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
+			$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+		}
+		open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
+		print G @crondata;
+		close G;
+		echolog("Cleaned-up crontab was installed.");
 		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
+
 		print "\nA new default cron was created in /etc/cron.d/nmis, 
-but feel free to adjust it.\n
-If you already have an NMIS schedule in your per-user
-root crontab, then you should remove that using \"crontab -e\".\n\nPlease hit <Enter> to continue:\n";
+but feel free to adjust it.
+
+Any NMIS entries in root's crontab were commented out,
+but a backup of the crontab was saved in $site/cronf/crontab.root.\n\n
+
+Please hit <Enter> to continue:\n";
 		my $x = <STDIN>;
 		$crongood = 1;
+		logInstall("New system crontab was installed in /etc/cron.d/nmis");
 	}
 	else
 	{

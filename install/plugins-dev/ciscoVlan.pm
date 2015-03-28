@@ -70,14 +70,6 @@ sub update_plugin
 
 	my $max_repetitions = $LNT->{$node}{max_repetitions} || $C->{snmp_max_repetitions};
 	
-	my $session = mysnmpsession( $LNT->{$node}{host}, $LNT->{$node}{community}, $LNT->{$node}{version}, $LNT->{$node}{port}, $C);
-	my $basePort = 0;
-	my $baseIndex;
-	my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
-	if ( $baseIndex = mygettable($session,$dot1dBasePortIfIndex,$max_repetitions) ) {
-		$basePort = 1;
-		print Dumper $baseIndex;
-	}
 	
 	for my $key (keys %{$NI->{vtpVlan}})
 	{
@@ -104,6 +96,20 @@ sub update_plugin
 			#The community string is 
 			my $community = "$LNT->{$node}{community}\@$entry->{vtpVlanIndex}";
 			my $session = mysnmpsession( $LNT->{$node}{host}, $community, $LNT->{$node}{version}, $LNT->{$node}{port}, $C);
+
+			my $basePort = 0;
+			my $baseIndex;
+			my $snmpBaseIndex;
+			my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
+			if ( $snmpBaseIndex = mygettable($session,$dot1dBasePortIfIndex,$max_repetitions) ) {
+				$basePort = 1;
+				foreach my $key (keys %$snmpBaseIndex ) {
+					my $baseKey = $key;
+					$baseKey =~ s/1.3.6.1.2.1.17.1.4.1.2\.//;
+					$baseIndex->{$baseKey} = $snmpBaseIndex->{$key};
+				}
+				#print Dumper $baseIndex;
+			}
 			
 			my $addresses;
 			my $ports;
@@ -153,9 +159,11 @@ sub update_plugin
 					$NI->{macTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
 					$NI->{macTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
 					$NI->{macTable}->{$macAddress}{updated} = time();
+					$NI->{macTable}->{$macAddress}{updateDate} = returnDateStamp();
 					
 					if ( exists $ports->{$portKey} ) {
-						my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
+						#my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
+						my $addressIfIndex = $baseIndex->{$ports->{$portKey}};
 						$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
 					}
 				

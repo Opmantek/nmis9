@@ -76,7 +76,7 @@
       'order' => '9',
       'name' => 'Open-AudIT Enterprise',
       'base' => 'omk',
-      'file' => '/install/oae.cron',
+      'file' => '/bin/oae-tasks.sh',
       'link' => '/omk/oae',
       'description' => "Open-AudIT intelligently scans an organization's network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).",
     },

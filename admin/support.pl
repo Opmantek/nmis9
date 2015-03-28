@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
+our $VERSION = "1.4.2";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -36,10 +36,7 @@ use POSIX qw();
 use Cwd;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use func;
-use NMIS;
 
-my $VERSION = "1.4.1";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n"; 
 
@@ -59,12 +56,31 @@ my $tail = 4000;																# last 4000 lines
 
 my %options;										# dummy-ish, for input_yn and friends
 
-# first, load the global config
-my $globalconf = loadConfTable(conf => $configname);
+# let's try to live without NMIS and func, for the truly desperate situations
+my $globalconf = { '<nmis_base>' => Cwd::abs_path("$FindBin::RealBin/../"), 
+}; # fixme log files
+
+eval { require NMIS; NMIS->import(); require func; func->import(); };
+if ($@)
+{
+	warn "Attention: The NMIS modules could not be loaded: '$@'\n
+The support tool will fall back to assuming that your NMIS
+installation is in $globalconf->{'<nmis_base>'}.\n\n";
+	print STDERR "\n\nHit enter to contine:\n";
+	my $x = <STDIN>;
+
+	$args{node} = '*' if ($args{node}); # no loadLocalNodeTable(), so we can only collect them all
+}
+else
+{
+	# load the global config
+	$globalconf = &loadConfTable(conf => $configname);
+}
+
 # make tempdir
 my $td = File::Temp::tempdir("/tmp/nmis-support.XXXXXX", CLEANUP => 1);
 
-if (func->can("selftest"))
+if (!$@ && func->can("selftest"))
 {
 	# run the selftest in interactive mode - if our nmis is new enough
 	print "Performing Selftest, please wait...\n";
@@ -342,6 +358,11 @@ sub collect_evidence
 		# collect all defined log files
 		mkdir("$targetdir/logs");
 		my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
+		if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
+		{
+			@logfiles = map { "$globalconf->{'<nmis_base>'}/logs/$_" } 
+			(qw(nmis.log auth.log fpingd.log event.log slave_event.log trap.log"));
+		}
 		for my $aperrlog ("/var/log/httpd/error_log", "/var/log/apache/error.log", "/var/log/apache2/error.log")
 		{
 				push @logfiles, $aperrlog if (-f $aperrlog);
@@ -397,26 +418,26 @@ sub collect_evidence
 		}
 		elsif ($thisnode)
 		{
-				my $lnt = loadLocalNodeTable;
-				for my $nextnode (split(/\s*,\s*/,$thisnode))
+			my $lnt = &loadLocalNodeTable;
+			for my $nextnode (split(/\s*,\s*/,$thisnode))
+			{
+				if ($lnt->{$nextnode})
 				{
-						if ($lnt->{$nextnode})
-						{
-								my $fileprefix = "$basedir/var/".lc($nextnode);
-								my @files_to_copy = (-r "$fileprefix-node.json")?
-										("$fileprefix-node.json", "$fileprefix-view.json") :
-										("$fileprefix-node.nmis", "$fileprefix-view.nmis");
-										
-								system("cp", @files_to_copy, "$targetdir/var/") == 0
-										or warn "can't copy node ${nextnode}'s node files: $!\n";
-						}
-						else
-						{
-								warn("ATTENTION: the requested node \"$nextnode\" isn't known to NMIS!\n");
-						}
+					my $fileprefix = "$basedir/var/".lc($nextnode);
+					my @files_to_copy = (-r "$fileprefix-node.json")?
+							("$fileprefix-node.json", "$fileprefix-view.json") :
+							("$fileprefix-node.nmis", "$fileprefix-view.nmis");
+					
+					system("cp", @files_to_copy, "$targetdir/var/") == 0
+							or warn "can't copy node ${nextnode}'s node files: $!\n";
 				}
+				else
+				{
+					warn("ATTENTION: the requested node \"$nextnode\" isn't known to NMIS!\n");
+				}
+			}
 		}
-
+		
 		return undef;
 }
 
@@ -439,4 +460,18 @@ sub input_yn
 
 		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
 	}
+}
+
+# so that we don't need to "use func"
+sub getArguements {
+	my @argue = @_;
+	my (%nvp, $name, $value, $line, $i);
+	for ($i=0; $i <= $#argue; ++$i) {
+	        if ($argue[$i] =~ /.+=/) {
+	                ($name,$value) = split("=",$argue[$i]);
+	                $nvp{$name} = $value;
+	        } 
+	        else { print "Invalid command argument: $argue[$i]\n"; }
+	}
+	return %nvp;
 }

@@ -29,14 +29,15 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.4";
+our $VERSION = "1.2.5";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
 use File::Path;
 use File::stat;
-use Time::ParseDate;
-use Time::Local;
+use Time::ParseDate; # fixme: actually NOT used by func
+use Time::Local;		 # fixme: actuall NOT used by func
+use POSIX qw();			 # we want just strftime
 use CGI::Pretty qw(:standard);
 use version 0.77;
 
@@ -302,23 +303,20 @@ sub shortInterface {
 	return($shortint);
 }
 
-#Function which returns the time
+# Function which returns the time, formatted, NON-locale-capable
 sub returnDateStamp {
 	my $time = shift;
 	if ( $time == 0 ) { $time = time; }
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
-	if ($year > 70) { $year=$year+1900; }
-	        else { $year=$year+2000; }
-	if ($hour<10) {$hour = "0$hour";}
-	if ($min<10) {$min = "0$min";}
-	if ($sec<10) {$sec = "0$sec";}
-	# Do some sums to calculate the time date etc 2 days ago
-	$wday=('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$wday];
-	$mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$mon];
-	return "$mday-$mon-$year $hour:$min:$sec";
+
+	my @timecomps = localtime($time);
+	# want 24-Mar-2014 11:22:33, regardless of LC_*, so %b isn't good.
+	my $mon=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[$timecomps[4]];
+	return POSIX::strftime("%d-$mon-%Y %H:%M:%S", localtime($time));
 }
 
-sub returnDate{
+# return just the date component
+sub returnDate
+{
 	my $time = shift;
 	if ( $time == 0 ) { $time = time; }
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
@@ -328,16 +326,12 @@ sub returnDate{
 	return "$mday-$mon-$year";
 }
 
-sub returnTime{
+# and just the time part
+sub returnTime
+{
 	my $time = shift;
 	if ( $time == 0 ) { $time = time; }
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
-	if ($year > 70) { $year=$year+1900; }
-	        else { $year=$year+2000; }
-	if ($hour<10) {$hour = "0$hour";}
-	if ($min<10) {$min = "0$min";}
-	if ($sec<10) {$sec = "0$sec";}
-	return "$hour:$min:$sec";
+	return POSIX::strftime("%H:%M:%S", localtime($time));
 }
 
 sub get_localtime {
@@ -376,42 +370,15 @@ sub convertMonth {
 	return $number;
 }
 
+# number of seconds into format: HH:MM:SS
 sub convertSecsHours {
-	my $seconds = shift ;
-	my $timestamp;
-	my $hours;
-	my $minutes;
-	my $minutes2;
-	my $seconds2;
+	my $seconds = shift;
 
-	if ($seconds == 0) {
-		$timestamp = "00:00:00";
-	}# Print Seconds
-	elsif ($seconds < 60) {
-		$seconds =~ s/(^[0-9]$)/0$1/g;
-		$timestamp = "00:00:$seconds";
-	}# Print Seconds
-	elsif ($seconds < 3600) {
-		$seconds2 = $seconds % 60;
-		$minutes = ($seconds - $seconds2) / 60;
-		$seconds2 =~ s/(^[0-9]$)/0$1/g;
-		$minutes =~ s/(^[0-9]$)/0$1/g;
-		$timestamp = "00:$minutes:$seconds2";
-	}# Calculate and print minutes.
-	else { 
-		$seconds2 = $seconds % 60;
-		$minutes = ($seconds - $seconds2) / 60;
-		$minutes2 = $minutes % 60;
-		$hours = ($minutes - $minutes2) / 60;
-		$seconds2 =~ s/(^[0-9]$)/0$1/g;
-		$minutes2 =~ s/(^[0-9]$)/0$1/g;
-		if ( $hours < 10 ) { $hours = "0$hours"; }
-		$timestamp = "$hours:$minutes2:$seconds2";
-	}# Calculate and print hours.
-
-	return $timestamp;
-
-} # end convertSecsHours
+	return sprintf("%02d:%02d:%02d",
+								 int($seconds/3600),
+								 int(($seconds % 3600) / 60),
+								 int($seconds % 60));
+}
 
 # 3 Mar 02 - Integrating Trent O'Callaghan's changes for granular graphing.
 sub convertTime {
