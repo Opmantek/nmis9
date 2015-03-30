@@ -788,21 +788,24 @@
     'sections' => 'cdp,addressTable,bgpPeer,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
     'sys' => {
       'addressTable' => {
-        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'ipNetToMediaIfIndex',
         'snmp' => {
+          'ifDescr' => {
+            'title' => 'Interface'
+          },
           'ipNetToMediaIfIndex' => {
             'oid' => 'ipNetToMediaIfIndex',
-            'title' => 'ipNetToMediaIfIndex'
+            'title' => 'ifIndex'
           },
           'ipNetToMediaNetAddress' => {
             'oid' => 'ipNetToMediaNetAddress',
-            'title' => 'ipNetToMediaNetAddress'
+            'title' => 'IP Address'
           },
           'ipNetToMediaPhysAddress' => {
             'oid' => 'ipNetToMediaPhysAddress',
-            'title' => 'ipNetToMediaPhysAddress'
+            'title' => 'MAC Address'
           },
           'ipNetToMediaType' => {
             'oid' => 'ipNetToMediaType',
@@ -812,7 +815,7 @@
               '3' => 'dynamic',
               '4' => 'static'
             },
-            'title' => 'ipNetToMediaType'
+            'title' => 'Media Type'
           }
         }
       },

@@ -615,8 +615,40 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'bgpPeer,cdp,fanStatus,psuStatus,tempStatus',
+    'sections' => 'addressTable,bgpPeer,cdp,fanStatus,psuStatus,tempStatus',
     'rrd' => {
+      'addressTable' => {
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ipNetToMediaIfIndex',
+        'snmp' => {
+          'ifDescr' => {
+            'title' => 'Interface'
+          },
+          'ipNetToMediaIfIndex' => {
+            'oid' => 'ipNetToMediaIfIndex',
+            'title' => 'ifIndex'
+          },
+          'ipNetToMediaNetAddress' => {
+            'oid' => 'ipNetToMediaNetAddress',
+            'title' => 'IP Address'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'MAC Address'
+          },
+          'ipNetToMediaType' => {
+            'oid' => 'ipNetToMediaType',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'dynamic',
+              '4' => 'static'
+            },
+            'title' => 'Media Type'
+          }
+        }
+      },
       'bgpPeer' => {
         'graphtype' => 'bgpPeer,bgpPeerStats',
         'indexed' => 'true',

@@ -167,8 +167,6 @@ sub update_plugin
 						$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
 						$NI->{macTable}->{$macAddress}{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$addressIfIndex&node=$node";
 						$NI->{macTable}->{$macAddress}{ifDescr_id} = "node_view_$node";
-
-						#$NI->{macTable}->{$macAddress}{Description} = $IF->{$addressIfIndex}{Description};
 					}
 				
 					#dot1dTpFdbAddress
