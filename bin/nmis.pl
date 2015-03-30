@@ -1256,7 +1256,7 @@ sub getNodeInfo {
 		}
 	}
 
-	$NI->{system}{nodedown} = $NI->{system}{snmpdown} = $exit ? 'false' : 'true';
+	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
 
 	info("Finished with exit=$exit nodedown=$NI->{system}{nodedown}");
 	return $exit;
@@ -1453,9 +1453,9 @@ sub getIntfInfo {
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 
-
-	if ( defined $S->{mdl}{interface}{sys}{standard} ) {
+	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
 		info("Starting");
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -1869,6 +1869,9 @@ sub getIntfInfo {
 		}
 
 		info("Finished");
+	}
+	elsif ( $NI->{system}{ifNumber} > $interface_max_number ) {
+		info("Skipping, interface count $NI->{system}{ifNumber} exceeds configured maximum $interface_max_number");
 	}
 	else {
 		info("Skipping, interfaces not defined in Model");
@@ -2461,7 +2464,12 @@ sub updateNodeInfo {
 			getIntfInfo(sys=>$S); # get new interface table
 		}
 
-			# Read the uptime from the node info file from the last time it was polled
+		my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
+		if ($ifNumber > $interface_max_number ) {
+			info("INFO ($NI->{system}{name}) has $ifNumber interfaces, no interface data will be collected, to collect interface data increase the configured interface_max_number $interface_max_number, we recommend to test thoroughly");
+		}
+
+		# Read the uptime from the node info file from the last time it was polled
 		$NI->{system}{sysUpTimeSec} = int($NI->{system}{sysUpTime}/100); # seconds
 		$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec});
 
@@ -2537,7 +2545,7 @@ sub updateNodeInfo {
 		$RI->{snmpresult} = 0;
 	}
 
-	$NI->{system}{nodedown} = $NI->{system}{snmpdown} = $exit ? 'false' : 'true';
+	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
 
 	### 2012-12-03 keiths, adding some model testing and debugging options.
 	if ( $model ) {

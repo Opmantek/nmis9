@@ -492,7 +492,7 @@ sub debug {
 	print STDOUT "\tfpinger: $_[0]\n" if $debug;
 	if ( $nvp{logging} ) {
 		open LOG, ">>$logfile" or warn "Can't write to $logfile: $!";
-		print LOG $_[0] ."\n";
+		print LOG returnDateStamp(). " ". $_[0] ."\n";
 		close LOG;
 	}
 }

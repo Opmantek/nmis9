@@ -1770,7 +1770,8 @@ sub viewInterface {
 		print Tr(td({class=>'Critical', colspan=>'2'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print start_Tr;
@@ -1906,7 +1907,8 @@ sub viewAllIntf {
 		print Tr(td({class=>'Critical'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
@@ -2035,7 +2037,8 @@ sub viewActivePort {
 		print Tr(td({class=>'Critical'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
@@ -2143,7 +2146,8 @@ sub viewStorage {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Storage of node $NI->{system}{name}"));
@@ -2196,7 +2200,8 @@ sub viewService {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
@@ -2279,7 +2284,8 @@ sub viewServiceList {
 		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 
 	print Tr(th({class=>'title',colspan=>'6'},"List of Services on node $NI->{system}{name}"));
@@ -2377,7 +2383,8 @@ sub viewStatus {
 		print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 
 	my $color = colorPercentHi($NI->{system}{status_summary}) if $NI->{system}{status_summary};
@@ -2475,7 +2482,8 @@ sub viewEnvironment {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 	
 	print Tr(th({class=>'title',colspan=>'3'},"Environment of node $NI->{system}{name}"));
@@ -2582,7 +2590,8 @@ sub viewSystemHealth {
 				print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable')); 
 			}						
 			elsif ( nodeStatus(NI => $NI) == -1 ) {
-				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, status=$NI->{system}{status_summary}")); 	
+				my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 			}
 			
 			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
@@ -2677,7 +2686,8 @@ sub viewCSSGroup {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
@@ -2717,7 +2727,8 @@ sub viewCSSContent {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
 	}						
 	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, status=$NI->{system}{status_summary}")); 	
+		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}")); 	
 	}
 		
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));
