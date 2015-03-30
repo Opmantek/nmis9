@@ -617,38 +617,6 @@
   'systemHealth' => {
     'sections' => 'addressTable,bgpPeer,cdp,fanStatus,psuStatus,tempStatus',
     'rrd' => {
-      'addressTable' => {
-        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
-        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
-        'indexed' => 'ipNetToMediaIfIndex',
-        'snmp' => {
-          'ifDescr' => {
-            'title' => 'Interface'
-          },
-          'ipNetToMediaIfIndex' => {
-            'oid' => 'ipNetToMediaIfIndex',
-            'title' => 'ifIndex'
-          },
-          'ipNetToMediaNetAddress' => {
-            'oid' => 'ipNetToMediaNetAddress',
-            'title' => 'IP Address'
-          },
-          'ipNetToMediaPhysAddress' => {
-            'oid' => 'ipNetToMediaPhysAddress',
-            'title' => 'MAC Address'
-          },
-          'ipNetToMediaType' => {
-            'oid' => 'ipNetToMediaType',
-            'replace' => {
-              '1' => 'other',
-              '2' => 'invalid',
-              '3' => 'dynamic',
-              '4' => 'static'
-            },
-            'title' => 'Media Type'
-          }
-        }
-      },
       'bgpPeer' => {
         'graphtype' => 'bgpPeer,bgpPeerStats',
         'indexed' => 'true',
@@ -746,6 +714,38 @@
       }
     },
     'sys' => {
+      'addressTable' => {
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ipNetToMediaIfIndex',
+        'snmp' => {
+          'ifDescr' => {
+            'title' => 'Interface'
+          },
+          'ipNetToMediaIfIndex' => {
+            'oid' => 'ipNetToMediaIfIndex',
+            'title' => 'ifIndex'
+          },
+          'ipNetToMediaNetAddress' => {
+            'oid' => 'ipNetToMediaNetAddress',
+            'title' => 'IP Address'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'MAC Address'
+          },
+          'ipNetToMediaType' => {
+            'oid' => 'ipNetToMediaType',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'dynamic',
+              '4' => 'static'
+            },
+            'title' => 'Media Type'
+          }
+        }
+      },
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
         'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',

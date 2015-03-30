@@ -437,21 +437,24 @@
         }
       },
       'addressTable' => {
-        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
-        'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'ipNetToMediaIfIndex',
         'snmp' => {
+          'ifDescr' => {
+            'title' => 'Interface'
+          },
           'ipNetToMediaIfIndex' => {
             'oid' => 'ipNetToMediaIfIndex',
-            'title' => 'ipNetToMediaIfIndex'
-          },
-          'ipNetToMediaPhysAddress' => {
-            'oid' => 'ipNetToMediaPhysAddress',
-            'title' => 'ipNetToMediaPhysAddress'
+            'title' => 'ifIndex'
           },
           'ipNetToMediaNetAddress' => {
             'oid' => 'ipNetToMediaNetAddress',
-            'title' => 'ipNetToMediaNetAddress'
+            'title' => 'IP Address'
+          },
+          'ipNetToMediaPhysAddress' => {
+            'oid' => 'ipNetToMediaPhysAddress',
+            'title' => 'MAC Address'
           },
           'ipNetToMediaType' => {
             'oid' => 'ipNetToMediaType',
@@ -459,10 +462,10 @@
               '1' => 'other',
               '2' => 'invalid',
               '3' => 'dynamic',
-              '4' => 'static',
+              '4' => 'static'
             },
-            'title' => 'ipNetToMediaType'
-          },
+            'title' => 'Media Type'
+          }
         }
       },
       'psuStatus' => {        
