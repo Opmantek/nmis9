@@ -29,7 +29,7 @@
 #
 # To make sense of Cisco VLAN Bridge information.
 
-package ciscoVlan;
+package ciscoMacTable;
 our $VERSION = "1.0.0";
 
 use strict;
@@ -64,7 +64,7 @@ sub update_plugin
 	#dot1dBase
 	#vtpVlan
 	
-	info("Working on $node ciscoVlan");
+	info("Working on $node ciscoMacTable");
 
 	my $changesweremade = 0;
 
@@ -165,6 +165,8 @@ sub update_plugin
 						#my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
 						my $addressIfIndex = $baseIndex->{$ports->{$portKey}};
 						$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
+						$NI->{macTable}->{$macAddress}{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$addressIfIndex&node=$node";
+						$NI->{macTable}->{$macAddress}{ifDescr_id} = "node_view_$node";
 					}
 				
 					#dot1dTpFdbAddress

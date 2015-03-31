@@ -87,6 +87,8 @@ sub update_plugin
 			$entry->{cdpCacheDeviceIndex} = shift(@parts);
 			if ( defined $IF->{$entry->{cdpCacheIfIndex}}{ifDescr} ) {
 				$entry->{ifDescr} = $IF->{$entry->{cdpCacheIfIndex}}{ifDescr};
+				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
+				$entry->{ifDescr_id} = "node_view_$node";
 			}
 			$changesweremade = 1;
 		}
