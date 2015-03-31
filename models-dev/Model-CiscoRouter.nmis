@@ -193,7 +193,7 @@
         'threshold' => 'util_in,util_out'
       },
       'pkts_hc' => {
-        'graphtype' => 'pkts_hc,errpkts_hc',
+        'graphtype' => 'pkts_hc,errpkts_hc,pkutil',
         'indexed' => 'true',
         'snmp' => {
           'ifHCInBcastPkts' => {
