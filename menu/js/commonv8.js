@@ -246,6 +246,10 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				position : [ 560, 420 ]
 				});
 		}
+
+		// draw the quick search widget after the others.
+		selectNodeOpen();	
+
 	}
 	
 	if ( ! registered ) {
@@ -258,9 +262,6 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			});
 	}
 	
-	// draw the quick search widget after the others.
-	selectNodeOpen();	
-
 	// except that the setup window should be the topmost dialog if active
 	if ( displaySetupWidget ) 
 	{
