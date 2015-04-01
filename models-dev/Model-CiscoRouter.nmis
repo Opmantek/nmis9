@@ -42,6 +42,17 @@
         'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
       }
     },
+    'ospfNbr' => {
+      'ospfNbrStateDown' => {
+        'element' => 'index',
+        'event' => 'OSPF Neighbor Down',
+        'level' => 'Warning',
+        'test' => 'CVAR1=ospfNbrState;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=ospfNbrState;$CVAR1 * 1'
+      }
+    },
     'env-temp' => {
       'tempStatus' => {
         'element' => 'index',
@@ -718,6 +729,31 @@
           }
         }
       },
+      'ospfNbr' => {
+        'graphtype' => 'ospfNbr,ospfNbrStats',
+        'indexed' => 'true',
+        'snmp' => {
+          'ospfNbrState' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.6',
+            'sysObjectName' => 'ospfNbrState',
+            'replace' => {
+              '1' => '0',
+              '2' => '20',
+              '3' => '40',
+              '4' => '60',
+              '5' => '70',
+              '6' => '80',
+              '7' => '90',
+              '8' => '100'
+            },
+          },
+          'ospfNbrEvents' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.7',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'ospfNbrEvents',
+          },
+        }
+      },
       'fanStatus' => {
         'control' => '$sysObjectName =~ /./',
         'graphtype' => 'fan-status',
@@ -785,7 +821,7 @@
         }
       }
     },
-    'sections' => 'cdp,addressTable,bgpPeer,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
+    'sections' => 'cdp,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
     'sys' => {
       'addressTable' => {
         'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
@@ -884,6 +920,77 @@
             },
             'title' => 'BGP Peer State'
           }
+        }
+      },
+      'ospfNbr' => {
+        'headers' => 'ospfNbrIpAddr,ospfNbrRtrId,ospfNbrPriority,ospfNbrState,ospfNbrStateName,ospfNbrEvents',
+        'index_oid' => '1.3.6.1.2.1.14.10.1.1',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
+        'indexed' => 'ospfNbrIpAddr',
+        'snmp' => {
+          'ospfNbrIpAddr' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.1',
+            'sysObjectName' => 'ospfNbrIpAddr',
+            'title' => 'OSPF Neighbor IP'
+          },
+          'ospfNbrRtrId' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.3',
+            'sysObjectName' => 'ospfNbrRtrId',
+            'title' => 'OSPF Neighbor Router ID'
+          },
+          'ospfNbrPriority' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.5',
+            'sysObjectName' => 'ospfNbrPriority',
+            'title' => 'ospfNbrPriority'
+          },
+          'ospfNbrState' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.6',
+            'sysObjectName' => 'ospfNbrState',
+            'title' => 'OSPF Neighbor State'
+          },
+          'ospfNbrStateName' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.6',
+            'sysObjectName' => 'ospfNbrState',
+            'replace' => {
+              '1' => 'down',
+              '2' => 'attempt',
+              '3' => 'init',
+              '4' => 'twoWay',
+              '5' => 'exchangeStart',
+              '6' => 'exchange',
+              '7' => 'loading',
+              '8' => 'full',
+            },
+            'title' => 'OSPF Neighbor State'
+          },
+          'ospfNbrEvents' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.7',
+            'sysObjectName' => 'ospfNbrEvents',
+            'title' => 'ospfNbrEvents'
+          },
+          'ospfNbrLSRetransQLen' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.8',
+            'sysObjectName' => 'ospfNbrLSRetransQLen',
+            'title' => 'ospfNbrLSRetransQLen'
+          },
+          'ospfNbmaNbrPermanence' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.9',
+            'sysObjectName' => 'ospfNbmaNbrPermanence',
+            'replace' => {
+              '1' => 'dynamic',
+              '2' => 'permanent',
+            },
+            'title' => 'ospfNbmaNbrPermanence'
+          },
+          'ospfNbrHelloSuppressed' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.10',
+            'sysObjectName' => 'ospfNbrHelloSuppressed',
+            'replace' => {
+              '1' => 'true',
+              '2' => 'false',
+            },
+            'title' => 'ospfNbrHelloSuppressed'
+          },
         }
       },
       'cdp' => {

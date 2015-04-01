@@ -41,7 +41,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:bgpPeerState=$database:bgpPeerState:AVERAGE',
-			'LINE2:bgpPeerState#00ff00: BGP Peer State',
+			'LINE2:bgpPeerState#4daef6: BGP Peer State',
 			'GPRINT:bgpPeerState:AVERAGE:Avg. %1.2lf%%\\n',
 			'COMMENT:100%=established, 80%=openconfirm, 60%=opensent, 40%=active, 20%=connect, 0%=idle\\n'
 		],
@@ -50,7 +50,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:bgpPeerState=$database:bgpPeerState:AVERAGE',
-			'LINE2:bgpPeerState#00ff00: BGP Peer State',
+			'LINE2:bgpPeerState#4daef6: BGP Peer State',
 			'GPRINT:bgpPeerState:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}

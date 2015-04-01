@@ -53,6 +53,7 @@
       'akcp_hum' => '/misc/$nodeType/$node-akcp-hum-$index.rrd',
       'akcp_temp' => '/misc/$nodeType/$node-akcp-temp-$index.rrd',
       'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
+      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
       'calls' => '/interface/$nodeType/$node/$node-$ifDescr-calls.rrd',
       'cbqos-in' => '/interface/$nodeType/$node/$node-$ifDescr-in-$item.rrd',
       'cbqos-out' => '/interface/$nodeType/$node/$node-$ifDescr-$item.rrd',

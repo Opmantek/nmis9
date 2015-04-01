@@ -295,8 +295,8 @@ if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user}
 
 # show the setup if not hidden and user sufficiently authorized
 my $showsetup = (getbool($C->{'hide_setup_widget'}) 
-		or !$AU->CheckAccess("Table_Config_rw") 
-		or !$AU->CheckAccess("table_config_view"))? 'false' : 'true';
+		or !$AU->CheckAccess("table_config_rw","check") 
+		or !$AU->CheckAccess("table_config_view","check"))? 'false' : 'true';
 
 ### 2012-02-22 keiths, added widget_refresh timer, and passing through to jQuery
 print <<EOF;

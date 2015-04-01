@@ -18,8 +18,6 @@
       'acpu' => 'CPU Utilisation',
       'autil' => 'Interface $ifDescr Utilisation Including Availability',
       'bgpPeer' => 'BGP Peer Status',
-      'bgpPeer' => 'BGP Peer Status',
-      'bgpPeerStats' => 'BGP Peer Stats',
       'bgpPeerStats' => 'BGP Peer Stats',
       'bits' => 'Interface $ifDescr Bits/Second Utilisation',
       'buffer' => 'Buffer Utilisation',
@@ -128,6 +126,8 @@
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
+      'ospfNbr' => 'OSPF Neighbor Status',
+      'ospfNbrStats' => 'OSPF Neighbor Stats',
     }
   }
 );
