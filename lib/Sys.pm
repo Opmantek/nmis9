@@ -164,6 +164,7 @@ sub init {
 	elsif (getbool($self->{cfg}{node}{ping}) and !getbool($self->{cfg}{node}{collect}) and $self->{update}) {
 		$condition = "PingOnly";
 		$exit = $self->loadModel(model=>"Model-PingOnly");
+		$snmp = 0;
 	} 
 	else {
 		$condition = "default";
@@ -233,36 +234,42 @@ sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->aler
 sub open {
 	my $self = shift;
 	my %args = @_;
-	# check if numeric ip address is available for speeding up, conversion done by type=update
-	my $host = ($self->{info}{system}{host_addr} ne "") ? $self->{info}{system}{host_addr} : 
-					($self->{cfg}{node}{host} ne "") ? $self->{cfg}{node}{host} : $self->{cfg}{node}{name};
-
-	my $timeout = $args{timeout} || 5;
-	my $retries = $args{retries} || 1;
-	my $oidpkt = $args{oidpkt} || 10;
-	my $max_msg_size = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
-
-	if ($self->{snmp}->open(
-				host => stripSpaces($host),
-				version => $self->{cfg}{node}{version},
-				community => stripSpaces($self->{cfg}{node}{community}),
-				username => stripSpaces($self->{cfg}{node}{username}),
-				privpassword => stripSpaces($self->{cfg}{node}{privpassword}),
-				privkey => stripSpaces($self->{cfg}{node}{privkey}),
-				privprotocol => stripSpaces($self->{cfg}{node}{privprotocol}),
-				authpassword => stripSpaces($self->{cfg}{node}{authpassword}),
-				authkey => stripSpaces($self->{cfg}{node}{authkey}),
-				authprotocol => stripSpaces($self->{cfg}{node}{authprotocol}),
-				port => stripSpaces($self->{cfg}{node}{port}),
-				timeout => $timeout,
-				retries => $retries,
-				max_msg_size => $max_msg_size,
-				oidpkt => $oidpkt,
-				debug => $self->{debug})) {
-		$self->{info}{system}{snmpVer} = $self->{snmp}{version}; # back info
-		return 1;
+	#if ( 1 ) {	
+	if ( getbool($self->{cfg}{node}{collect}) ) {
+		# check if numeric ip address is available for speeding up, conversion done by type=update
+		my $host = ($self->{info}{system}{host_addr} ne "") ? $self->{info}{system}{host_addr} : 
+						($self->{cfg}{node}{host} ne "") ? $self->{cfg}{node}{host} : $self->{cfg}{node}{name};
+	
+		my $timeout = $args{timeout} || 5;
+		my $retries = $args{retries} || 1;
+		my $oidpkt = $args{oidpkt} || 10;
+		my $max_msg_size = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
+	
+		if ($self->{snmp}->open(
+					host => stripSpaces($host),
+					version => $self->{cfg}{node}{version},
+					community => stripSpaces($self->{cfg}{node}{community}),
+					username => stripSpaces($self->{cfg}{node}{username}),
+					privpassword => stripSpaces($self->{cfg}{node}{privpassword}),
+					privkey => stripSpaces($self->{cfg}{node}{privkey}),
+					privprotocol => stripSpaces($self->{cfg}{node}{privprotocol}),
+					authpassword => stripSpaces($self->{cfg}{node}{authpassword}),
+					authkey => stripSpaces($self->{cfg}{node}{authkey}),
+					authprotocol => stripSpaces($self->{cfg}{node}{authprotocol}),
+					port => stripSpaces($self->{cfg}{node}{port}),
+					timeout => $timeout,
+					retries => $retries,
+					max_msg_size => $max_msg_size,
+					oidpkt => $oidpkt,
+					debug => $self->{debug})) {
+			$self->{info}{system}{snmpVer} = $self->{snmp}{version}; # back info
+			return 1;
+		}
+		return 0;
 	}
-	return 0;
+	else {
+		return 1;		
+	}
 }
 
 # close snmp session - if it's open
@@ -1158,9 +1165,15 @@ sub writeNodeInfo {
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
 	### 2013-08-27 keiths, the system object should not exist for nmis-system
-	if ( $name eq "nmis-system" and defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
-		dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}",2);
-		delete $self->{info}{system};
+	if ( $name eq "nmis-system" ) {
+		if ( defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
+			dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}",2);
+			delete $self->{info}{system};
+		}
+		if ( defined $self->{info}{graphtype}{health} and $self->{info}{graphtype}{health} ne "" ) {
+			dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{graphtype}{health}",2);
+			delete $self->{info}{graphtype}{health};
+		}
 	}
 
 	writeTable(dir=>'var',name=>$name,data=>$self->{info}); # write node info

@@ -44,19 +44,22 @@
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:loss=$database:loss:AVERAGE',
 			'LINE2:health#ff9900:Health',
+			'GPRINT:health:AVERAGE:Avg %1.2lf%%',
 			'LINE2:reach#0000ff:Reachability',
-			'LINE2:loss#ff00ff:Ping_loss\\l',
-			'GPRINT:health:AVERAGE:Avg Health %1.2lf',
-			'GPRINT:reach:AVERAGE:Avg Reachable %1.2lf',
-			'GPRINT:loss:AVERAGE:Avg Ping loss %1.2lf'
+			'GPRINT:reach:AVERAGE:Avg %1.2lf%%',
+			'LINE2:loss#ff00ff:Ping loss',
+			'GPRINT:loss:AVERAGE:Avg %1.2lf%%\\l'
 		],
 		'small' => [
 			'DEF:reach=$database:reachability:AVERAGE',
 			'DEF:health=$database:health:AVERAGE',
 			'DEF:loss=$database:loss:AVERAGE',
 			'LINE2:health#ff9900:Health',
+			'GPRINT:health:AVERAGE:Avg %1.2lf%%',
 			'LINE2:reach#0000ff:Reachability',
-			'LINE2:loss#ff00ff:Ping_loss\\l'
+			'GPRINT:reach:AVERAGE:Avg %1.2lf%%\\l',
+			'LINE2:loss#ff00ff:Ping loss',
+			'GPRINT:loss:AVERAGE:Avg %1.2lf%%\\l'
 		]
 	}
 );

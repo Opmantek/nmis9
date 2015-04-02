@@ -85,6 +85,12 @@ if ($AU->Require) {
 
 my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
+
+### unless told otherwise, and this is not JQuery call, widget is false!
+if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
 my $wantwidget = ($widget eq "true");
 
 ### 2013-11-23 keiths adding some timing debug
@@ -224,6 +230,7 @@ elsif ( $select eq 'business' and $business ne "" ) { selectLarge(business => $b
 elsif ( $select eq 'allgroups' ) { selectAllGroups();}
 
 print "<!-- typeSummary select=$select end-->\n";
+
 pageEnd() if (!$wantwidget);
 
 logMsg("TIMING: ".$t->elapTime()." END $Q->{act}") if $timing;
@@ -1493,7 +1500,11 @@ EO_HTML
 	
 	print start_table({class=>'dash'});
 	
-	print Tr(th({class=>'title', colspan=>'2'},"Node Details - $NI->{system}{name} - $editnode - $editconf"));
+	my $nodeDetails = ("Node Details - $NI->{system}{name}");
+	$nodeDetails .= " - $editnode" if $editnode;
+	$nodeDetails .= " - $editconf" if $editconf;
+	
+	print Tr(th({class=>'title', colspan=>'2'},$nodeDetails));
 	print start_Tr;
 	# first column
 	print td({valign=>'top'},table({class=>'dash'},
