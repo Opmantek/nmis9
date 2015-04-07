@@ -81,6 +81,15 @@
       'description' => "Open-AudIT intelligently scans an organization's network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).",
     },
 
+	  'opReports 3.0' => {
+	    'order' => '10',
+	    'name' => 'opReports 3.0',
+	    'base' => 'omk',
+	    'file' => '/bin/opreports-cli.pl',
+	    'link' => '/omk/opReports',
+	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.'
+	  },
+
 
 	  'More Modules' => {
 	    'order' => '99',
