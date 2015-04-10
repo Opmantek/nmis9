@@ -34,43 +34,50 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
 use strict;
-use Data::UUID;
 
 use NMIS;
 use func;
+use UUID::Tiny qw(:std);
 use NMIS::UUID;
 
-my %arg;
+my %arg = getArguements(@ARGV); 
 my $debug = 1;
-
-
-use Data::UUID;
 
 my $namespace = "NMIS SERVER";
 my $name1 = "routera";
 my $name2 = "routerb";
 
-my $ug    = new Data::UUID;
-
-my $uuid1 = $ug->create_str();
+my $uuid1 = create_uuid_as_string(UUID_V5, $name1);
 print "UUID1 = $uuid1\n";
 
-my $uuid2 = $ug->create_from_name_str($namespace, $name1);
+my $uuid2 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name1);
 print "UUID2 = $uuid2\n";
 
-my $res   = $ug->compare($uuid1, $uuid2);
+my $res   = equal_uuids($uuid1, $uuid2);
 print "Result1  = $res\n";
 
-my $uuid3 = $ug->create_from_name_str($namespace, $name2);
+my $uuid3 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name2);
 print "UUID3 = $uuid3\n";
 
-my $res   = $ug->compare($uuid2, $uuid3);
+my $res   = equal_uuids($uuid2, $uuid3);
 print "Result2  = $res\n";
 
+# this doesn't test much - note that namespaces must be typed!
+my $uuid4 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace . $name1);
+print "UUID4 = $uuid4\n";
+
+my $res   = equal_uuids($uuid1, $uuid4);
+
+print "Result = ". ($res? "equal" : "not equal")."\n";
 
 my $C = loadConfTable(conf=>$arg{conf},debug=>"true");
 
-auditUUID();
-createUUID();
+# for Table-Nodes.opha.nmis, which doesn't have a node name at that time
+print "another one ".getUUID."\ntwo ".getUUID."\n";
+
+if ($arg{"createuuids"})
+{
+	createNodeUUID();
+}
+auditNodeUUID();

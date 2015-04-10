@@ -1,5 +1,4 @@
 #
-## $Id: UUID.pm,v 1.6 2012/08/13 05:05:00 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
@@ -29,18 +28,15 @@
 #
 # *****************************************************************************
 package NMIS::UUID;
-
-require 5;
+our $VERSION  = "1.1.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
 use NMIS;
 use func;
-use Data::UUID;
+use UUID::Tiny qw(:std);
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION );
-
-$VERSION = "1";
+use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS );
 
 use Exporter;
 @ISA = qw(Exporter);
@@ -60,8 +56,6 @@ sub auditNodeUUID {
 	my $UUID_INDEX;
 	foreach my $node (sort keys %{$LNT}) {
 	  if ( $LNT->{$node}{uuid} eq "" ) {	  	
-	    #'uuid_namespace_type' => 'NameSpace_URL',
-	    #'uuid_namespace' => 'www.domain.com'
 	    print "ERROR: $node does not have a UUID\n";
 		}
 		else {
@@ -79,6 +73,13 @@ sub auditNodeUUID {
 	return $success;
 }
 
+# translate between data::uuid and uuid::tiny namespace constants
+# namespace_<X> (url,dns,oid,x500) in data::uuid correspond to UUID_NS_<X> in uuid::tiny
+my %known_namespaces = map { my $varname = "UUID_NS_$_"; 
+														 ("NameSpace_$_" => UUID::Tiny->$varname, 
+															$varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500));
+
+
 sub createNodeUUID {
 	#load nodes
 	#foreach node
@@ -90,19 +91,27 @@ sub createNodeUUID {
 	my $C = loadConfTable();
 	my $success = 1;
 	my $LNT = loadLocalNodeTable();
-	my $ug = new Data::UUID;
+
 	my $UUID_INDEX;
 	foreach my $node (sort keys %{$LNT}) {
 	  if ( $LNT->{$node}{uuid} eq "" ) {
 			print "CREATE UUID for $node\n" if $C->{debug};
-	    #'uuid_namespace_type' => 'NameSpace_URL',
-	    #'uuid_namespace' => 'www.domain.com'
+			
+	    #'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
+	    #'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
+			# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
 	    my $uuid;
-	    if ( $C->{'uuid_namespace_type'} ne "" and $C->{'uuid_namespace_name'} ne "" and $C->{'uuid_namespace_name'} ne "www.domain.com" ) {
-		    $uuid = $ug->create_from_name_str($C->{'uuid_namespace_type'}, $C->{'uuid_namespace_name'});
+			
+	    if ( $known_namespaces{$C->{'uuid_namespace_type'}}
+					 and defined($C->{'uuid_namespace_name'})
+					 and $C->{'uuid_namespace_name'} ne ""
+					 and $C->{'uuid_namespace_name'} ne "www.domain.com" ) 
+			{
+				$uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{uuid_namespace_type}}, 
+																			$C->{uuid_namespace_name}.$node);
 			}
 			else {
-		    $uuid = $ug->create_str();
+		    $uuid = create_uuid_as_string(UUID_V1); # fixme UUID_RANDOM would be better, but the old module used V1
 			}
 			$LNT->{$node}{uuid} = $uuid;
 		}
@@ -121,18 +130,26 @@ sub createNodeUUID {
 	return $success;
 }
 
-sub getUUID {
-	my $ug = new Data::UUID;
+#  this function doesn't take any args, or know a nodename to pass in (is run pre node-creation),
+# so we add a random component to make the namespaced uuid work
+sub getUUID 
+{
   my $uuid;
 	my $C = loadConfTable();
-  if ( $C->{'uuid_namespace_type'} ne "" and $C->{'uuid_namespace_name'} ne "" and $C->{'uuid_namespace_name'} ne "www.domain.com" ) {
-    $uuid = $ug->create_from_name_str($C->{'uuid_namespace_type'}, $C->{'uuid_namespace_name'});
+	
+	if ($known_namespaces{$C->{"uuid_namespace_type"}}
+			and defined($C->{'uuid_namespace_name'})
+			and $C->{'uuid_namespace_name'} ne "" 
+			and $C->{'uuid_namespace_name'} ne "www.domain.com" )
+	{
+		# namespace prefix plus random 
+    $uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{'uuid_namespace_type'}}, 
+																	$C->{'uuid_namespace_name'}.create_uuid(UUID_RANDOM));
 	}
 	else {
-    $uuid = $ug->create_str();
+    $uuid = create_uuid_as_string(UUID_V1); # fixme: UUID_RANDOM would be better, but the old module used V1
 	}
 	return $uuid;
 }
 
 1;
-                                                                                                                                                                                                                                                        
