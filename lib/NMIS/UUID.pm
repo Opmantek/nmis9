@@ -80,8 +80,6 @@ my %known_namespaces = map { my $varname = "UUID_NS_$_";
 															$varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500));
 
 
-# fixme: this will ALWAYS return THE SAME UUID if uuid_namespace_name is set!
-# this DOES NOT work for nodes, unless further input is provided.
 sub createNodeUUID {
 	#load nodes
 	#foreach node
@@ -100,8 +98,8 @@ sub createNodeUUID {
 			print "CREATE UUID for $node\n" if $C->{debug};
 			
 	    #'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
-	    #'uuid_namespace_name' => 'www.domain.com' BUT we need to add something to make it unique!
-			# if namespaced, then name is the ONLY thing controlling the resulting uuid!
+	    #'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
+			# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
 	    my $uuid;
 			
 	    if ( $known_namespaces{$C->{'uuid_namespace_type'}}
@@ -110,7 +108,7 @@ sub createNodeUUID {
 					 and $C->{'uuid_namespace_name'} ne "www.domain.com" ) 
 			{
 				$uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{uuid_namespace_type}}, 
-																			$C->{uuid_namespace_name});
+																			$C->{uuid_namespace_name}.$node);
 			}
 			else {
 		    $uuid = create_uuid_as_string(UUID_V1); # fixme UUID_RANDOM would be better, but the old module used V1
@@ -132,8 +130,8 @@ sub createNodeUUID {
 	return $success;
 }
 
-# fixme: this will ALWAYS return THE SAME UUID if uuid_namespace_name is set!
-# this DOES NOT work for nodes, unless further input is provided.
+#  this function doesn't take any args, or know a nodename to pass in (is run pre node-creation),
+# so we add a random component to make the namespaced uuid work
 sub getUUID 
 {
   my $uuid;
@@ -144,8 +142,9 @@ sub getUUID
 			and $C->{'uuid_namespace_name'} ne "" 
 			and $C->{'uuid_namespace_name'} ne "www.domain.com" )
 	{
+		# namespace prefix plus random 
     $uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{'uuid_namespace_type'}}, 
-																	$C->{'uuid_namespace_name'});
+																	$C->{'uuid_namespace_name'}.create_uuid(UUID_RANDOM));
 	}
 	else {
     $uuid = create_uuid_as_string(UUID_V1); # fixme: UUID_RANDOM would be better, but the old module used V1
