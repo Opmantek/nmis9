@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
+## $Id: t_system.pl,v 1.1 2012/08/13 05:09:18 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
@@ -36,41 +36,45 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
-use Data::UUID;
-
-use NMIS;
 use func;
-use NMIS::UUID;
+use NMIS;
+use Sys;
+use NMIS::Timing;
+use NMIS::Connect;
+use Data::Dumper;
 
-my %arg;
-my $debug = 1;
+my %nvp;
+
+my $t = NMIS::Timing->new();
+
+print $t->elapTime(). " Begin\n";
+
+print $t->elapTime(). " loadConfTable\n";
+my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+
+my $LNT = loadLocalNodeTable();
+
+my $maxUpTime = 0;
+my $maxUpTimeNode = undef;
+
+foreach my $node (sort keys %$LNT) {
+
+	my $S = Sys::->new; # create system object
+	$S->init(name=>$node,snmp=>'false');
+	my $NI = $S->{info};
+
+	if ( $NI->{system}{sysUpTimeSec} > $maxUpTime and $NI->{system}{nodedown} eq "false" and $NI->{system}{active} eq "true" ) {
+		$maxUpTime = $NI->{system}{sysUpTimeSec};
+	
+		print "$node has highest uptime $NI->{system}{sysUpTimeSec}\n";
+		$maxUpTimeNode = $node;
+
+	}
+
+}
+my $timeThingToPrintForHumans = convUpTime($maxUpTime);
+
+print "$maxUpTimeNode has the max uptime of $timeThingToPrintForHumans!\n";
 
 
-use Data::UUID;
-
-my $namespace = "NMIS SERVER";
-my $name1 = "routera";
-my $name2 = "routerb";
-
-my $ug    = new Data::UUID;
-
-my $uuid1 = $ug->create_str();
-print "UUID1 = $uuid1\n";
-
-my $uuid2 = $ug->create_from_name_str($namespace, $name1);
-print "UUID2 = $uuid2\n";
-
-my $res   = $ug->compare($uuid1, $uuid2);
-print "Result1  = $res\n";
-
-my $uuid3 = $ug->create_from_name_str($namespace, $name2);
-print "UUID3 = $uuid3\n";
-
-my $res   = $ug->compare($uuid2, $uuid3);
-print "Result2  = $res\n";
-
-
-my $C = loadConfTable(conf=>$arg{conf},debug=>"true");
-
-auditUUID();
-createUUID();
+print "  done in ".$t->elapTime() ."\n";	

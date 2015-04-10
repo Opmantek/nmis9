@@ -45,32 +45,57 @@ use NMIS::UUID;
 my %arg;
 my $debug = 1;
 
+use Net::Ping;
 
-use Data::UUID;
+my $host = "meatball";
+my @host_array = qw(meatball bones asgard);
 
-my $namespace = "NMIS SERVER";
-my $name1 = "routera";
-my $name2 = "routerb";
+my $p = Net::Ping->new();
 
-my $ug    = new Data::UUID;
+print "$host is alive.\n" if $p->ping($host);
+$p->close();
 
-my $uuid1 = $ug->create_str();
-print "UUID1 = $uuid1\n";
+$p = Net::Ping->new("icmp");
+#$p->bind($my_addr); # Specify source interface of pings
+foreach my $host (@host_array)
+{
+    print "$host is ";
+    print "NOT " unless $p->ping($host, 2);
+    print "reachable.\n";
+    sleep(1);
+}
+$p->close();
 
-my $uuid2 = $ug->create_from_name_str($namespace, $name1);
-print "UUID2 = $uuid2\n";
+$p = Net::Ping->new("tcp", 2);
+# Try connecting to the www port instead of the echo port
+$p->port_number(scalar(getservbyname("http", "tcp")));
+my $stop_time = time()-600;
+while ($stop_time > time())
+{
+    print "$host not reachable ", scalar(localtime()), "\n"
+        unless $p->ping($host);
+    sleep(300);
+}
+undef($p);
 
-my $res   = $ug->compare($uuid1, $uuid2);
-print "Result1  = $res\n";
+# Like tcp protocol, but with many hosts
+$p = Net::Ping->new("syn");
+$p->port_number(getservbyname("http", "tcp"));
+foreach $host (@host_array) {
+	print "SYN PING $host\n";
+  $p->ping($host);
+}
+while (my ($host,$rtt,$ip) = $p->ack) {
+  print "HOST: $host [$ip] ACKed in $rtt seconds.\n";
+}
 
-my $uuid3 = $ug->create_from_name_str($namespace, $name2);
-print "UUID3 = $uuid3\n";
+# High precision syntax (requires Time::HiRes)
+$p = Net::Ping->new();
+$p->hires();
+my ($ret, $duration, $ip) = $p->ping($host, 5.5);
+printf("$host [ip: $ip] is alive (packet return time: %.2f ms)\n", 1000 * $duration)
+  if $ret;
+$p->close();
 
-my $res   = $ug->compare($uuid2, $uuid3);
-print "Result2  = $res\n";
-
-
-my $C = loadConfTable(conf=>$arg{conf},debug=>"true");
-
-auditUUID();
-createUUID();
+# For backward compatibility
+print "$host is alive.\n" if pingecho($host);
