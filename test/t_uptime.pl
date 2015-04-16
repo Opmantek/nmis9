@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
+## $Id: t_system.pl,v 1.1 2012/08/13 05:09:18 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
@@ -34,50 +34,47 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+# 
 use strict;
-
-use NMIS;
 use func;
-use UUID::Tiny qw(:std);
-use NMIS::UUID;
+use NMIS;
+use Sys;
+use NMIS::Timing;
+use NMIS::Connect;
+use Data::Dumper;
 
-my %arg = getArguements(@ARGV); 
-my $debug = 1;
+my %nvp;
 
-my $namespace = "NMIS SERVER";
-my $name1 = "routera";
-my $name2 = "routerb";
+my $t = NMIS::Timing->new();
 
-my $uuid1 = create_uuid_as_string(UUID_V5, $name1);
-print "UUID1 = $uuid1\n";
+print $t->elapTime(). " Begin\n";
 
-my $uuid2 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name1);
-print "UUID2 = $uuid2\n";
+print $t->elapTime(). " loadConfTable\n";
+my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 
-my $res   = equal_uuids($uuid1, $uuid2);
-print "Result1  = $res\n";
+my $LNT = loadLocalNodeTable();
 
-my $uuid3 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name2);
-print "UUID3 = $uuid3\n";
+my $maxUpTime = 0;
+my $maxUpTimeNode = undef;
 
-my $res   = equal_uuids($uuid2, $uuid3);
-print "Result2  = $res\n";
+foreach my $node (sort keys %$LNT) {
 
-# this doesn't test much - note that namespaces must be typed!
-my $uuid4 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace . $name1);
-print "UUID4 = $uuid4\n";
+	my $S = Sys::->new; # create system object
+	$S->init(name=>$node,snmp=>'false');
+	my $NI = $S->{info};
 
-my $res   = equal_uuids($uuid1, $uuid4);
+	if ( $NI->{system}{sysUpTimeSec} > $maxUpTime and $NI->{system}{nodedown} eq "false" and $NI->{system}{active} eq "true" ) {
+		$maxUpTime = $NI->{system}{sysUpTimeSec};
+	
+		print "$node has highest uptime $NI->{system}{sysUpTimeSec}\n";
+		$maxUpTimeNode = $node;
 
-print "Result = ". ($res? "equal" : "not equal")."\n";
+	}
 
-my $C = loadConfTable(conf=>$arg{conf},debug=>"true");
-
-# for Table-Nodes.opha.nmis, which doesn't have a node name at that time
-print "another one ".getUUID."\ntwo ".getUUID."\n";
-
-if ($arg{"createuuids"})
-{
-	createNodeUUID();
 }
-auditNodeUUID();
+my $timeThingToPrintForHumans = convUpTime($maxUpTime);
+
+print "$maxUpTimeNode has the max uptime of $timeThingToPrintForHumans!\n";
+
+
+print "  done in ".$t->elapTime() ."\n";	

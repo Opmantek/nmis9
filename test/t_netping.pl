@@ -34,50 +34,68 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+# 
 use strict;
+use Data::UUID;
 
 use NMIS;
 use func;
-use UUID::Tiny qw(:std);
 use NMIS::UUID;
 
-my %arg = getArguements(@ARGV); 
+my %arg;
 my $debug = 1;
 
-my $namespace = "NMIS SERVER";
-my $name1 = "routera";
-my $name2 = "routerb";
+use Net::Ping;
 
-my $uuid1 = create_uuid_as_string(UUID_V5, $name1);
-print "UUID1 = $uuid1\n";
+my $host = "meatball";
+my @host_array = qw(meatball bones asgard);
 
-my $uuid2 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name1);
-print "UUID2 = $uuid2\n";
+my $p = Net::Ping->new();
 
-my $res   = equal_uuids($uuid1, $uuid2);
-print "Result1  = $res\n";
+print "$host is alive.\n" if $p->ping($host);
+$p->close();
 
-my $uuid3 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace, $name2);
-print "UUID3 = $uuid3\n";
-
-my $res   = equal_uuids($uuid2, $uuid3);
-print "Result2  = $res\n";
-
-# this doesn't test much - note that namespaces must be typed!
-my $uuid4 = create_uuid_as_string(UUID_V5, UUID_NS_URL, $namespace . $name1);
-print "UUID4 = $uuid4\n";
-
-my $res   = equal_uuids($uuid1, $uuid4);
-
-print "Result = ". ($res? "equal" : "not equal")."\n";
-
-my $C = loadConfTable(conf=>$arg{conf},debug=>"true");
-
-# for Table-Nodes.opha.nmis, which doesn't have a node name at that time
-print "another one ".getUUID."\ntwo ".getUUID."\n";
-
-if ($arg{"createuuids"})
+$p = Net::Ping->new("icmp");
+#$p->bind($my_addr); # Specify source interface of pings
+foreach my $host (@host_array)
 {
-	createNodeUUID();
+    print "$host is ";
+    print "NOT " unless $p->ping($host, 2);
+    print "reachable.\n";
+    sleep(1);
 }
-auditNodeUUID();
+$p->close();
+
+$p = Net::Ping->new("tcp", 2);
+# Try connecting to the www port instead of the echo port
+$p->port_number(scalar(getservbyname("http", "tcp")));
+my $stop_time = time()-600;
+while ($stop_time > time())
+{
+    print "$host not reachable ", scalar(localtime()), "\n"
+        unless $p->ping($host);
+    sleep(300);
+}
+undef($p);
+
+# Like tcp protocol, but with many hosts
+$p = Net::Ping->new("syn");
+$p->port_number(getservbyname("http", "tcp"));
+foreach $host (@host_array) {
+	print "SYN PING $host\n";
+  $p->ping($host);
+}
+while (my ($host,$rtt,$ip) = $p->ack) {
+  print "HOST: $host [$ip] ACKed in $rtt seconds.\n";
+}
+
+# High precision syntax (requires Time::HiRes)
+$p = Net::Ping->new();
+$p->hires();
+my ($ret, $duration, $ip) = $p->ping($host, 5.5);
+printf("$host [ip: $ip] is alive (packet return time: %.2f ms)\n", 1000 * $duration)
+  if $ret;
+$p->close();
+
+# For backward compatibility
+print "$host is alive.\n" if pingecho($host);
