@@ -31,6 +31,7 @@
 # TODO:
 # * support for completely unattended install (silencing confirmations)
 # e.g. install.pl site=/usr/local/nmis8 fping=/usr/local/sbin/fping cpan=true
+use 5.10.1;
 
 # Load the necessary libraries
 use FindBin;

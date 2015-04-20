@@ -4352,6 +4352,7 @@ sub runAlerts {
 						my $level=$CA->{$sect}{$alrt}{level};
 
 						# check the thresholds
+						# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
 						if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
 						{
 								if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
@@ -4362,7 +4363,7 @@ sub runAlerts {
 										else {
 												my @levels = qw(Warning Minor Major Critical Fatal);
 												foreach my $lvl (@levels) {
-														if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+														if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
 																$test_result = 1;
 																$level = $lvl;
 																last;
@@ -4376,9 +4377,9 @@ sub runAlerts {
 												$level = "Normal";
 										}
 										else {
-												my @levels = qw(Warning Minor Major Critical Fatal);
+												my @levels = qw(Fatal Critical Major Minor Warning);
 												foreach my $lvl (@levels) {
-														if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+														if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
 																$test_result = 1;
 																$level = $lvl;
 																last;
