@@ -43,6 +43,8 @@ use notify;
 # Variables for command line munging
 my %nvp = getArguements(@ARGV);
 
+my $debug = getbool($nvp{debug});
+
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 my $CT = loadContactsTable();
@@ -74,7 +76,10 @@ my ($status, $code, $errmsg) = sendEmail(
 
 	subject => "Normal Priority Test Email from NMIS8",
 	body => "This is a Normal Priority Test Email from NMIS8",
-	priority => "Normal"
+	priority => "Normal",
+
+	debug => $C->{debug}
+
 		);
 
 if (!$status)
@@ -95,6 +100,7 @@ else
 	serverport => $C->{mail_server_port},
 	hello => $C->{mail_domain},
 	usetls => $C->{mail_use_tls},
+	ipproto =>  $C->{mail_server_ipproto},
 						
 	username => $C->{mail_user},
 	password => $C->{mail_password},
@@ -105,7 +111,9 @@ else
 
 	subject => "High Priority Test Email from NMIS8",
 	body => "This is a High Priority Test Email from NMIS8",
-	priority => "High"
+	priority => "High",
+
+	debug => $C->{debug}
 		);
 
 if (!$status)
