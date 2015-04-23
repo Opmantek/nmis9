@@ -35,7 +35,7 @@
 # 
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use strict;
 use File::Copy;
@@ -74,7 +74,6 @@ my $newlayout = readFiletoHash(file => $newdbf);
 die "Structure of newlayout not recognizable as Common-database.nmis!\n"
 		if (ref($newlayout) ne "HASH" or ref($newlayout->{database}) ne "HASH");
 
-
 $SIG{__DIE__} = sub {
 	die @_ if $^S;								# within eval 
 
@@ -100,6 +99,33 @@ STDOUT->autoflush(1);
 print STDERR "Version $VERSION of ".basename($0)." starting\nReading local node table\n";
 my $LNT = loadLocalNodeTable();
 my (%rrdfiles,$countfiles);
+
+
+# verify that the current common-database doesn't have anything custom that
+# the new shipped version does not have
+my $curlayout = readFiletoHash(file => $C->{'<nmis_models>'}."/Common-database.nmis");
+if (ref($curlayout) ne "HASH" or ref($curlayout->{database}) ne "HASH")
+{
+	print STDERR "Cannot fine a current database layout file (Common-database.nmis), cannot proceed with migration!\n";
+	exit 1;
+}
+
+print STDERR "Checking compatibility of current and new database layout files...\n";
+for my $oldtypekey (sort keys %{$curlayout->{database}->{type}})
+{
+	if (!$newlayout->{database}->{type}->{$oldtypekey})
+	{
+		print STDERR "\n\nError: Your current database layout file contains custom entries!\n
+There is an entry for the RRD type \"$oldtypekey\", which is not present
+in the new database layout. This is likely caused by local custom models. 
+This script cannot perform any database migration until all custom types
+are merged into $newdbf, and will abort now.\n\n";
+		exit 1;
+	}
+}
+	
+
+
 
 print STDERR "Identifying RRD files to rename\n";
 # find all rrd files for all nodes with sys() objects based on 

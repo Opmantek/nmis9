@@ -255,7 +255,7 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 				# centos 6 ships an ancient rrdtool, repoforge-extras has what we're after
 				execPrint("yum -y install http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el$rhver.rf.x86_64.rpm");
 			}
-			if (!grep(/^epel\s+/, @repos) and $rhver == 6)
+			if (!grep(/^\*?epel\s+/, @repos) and $rhver == 6)
 			{
 				echolog("Adding EPEL Repository for glib and Net-SNMP");
 				execPrint("yum -y install http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm");
@@ -642,18 +642,32 @@ in your current Common-database configuration file.\n\n");
 		
 		if (input_yn("OK to run rrd migration script?"))
 		{
-			echolog("Performing RRD migration operation...\n");
-			my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis");
-
+			echolog("Running RRD migration script in test mode first...");
+			my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis simulate=true");
 			if ($error)
 			{
-				echolog("Error: RRD migration failed! Please use the rollback script
-listed above to revert to the original status!\nHit <Enter> to continue:\n");
+				echolog("Error: RRD migration script detected problems!
+The RRD migration script could not complete its test run successfully.
+The RRD migration will therefore NOT be performed. 
+
+Please check the installation log and diagnostic output for details.\nHit <Enter> to continue:\n");
 				my $x = <STDIN>;
 			}
 			else
 			{
-				echolog("RRD migration completed successfully.");
+				echolog("Performing the actual RRD migration operation...\n");
+				my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis");
+				
+				if ($error)
+				{
+					echolog("Error: RRD migration failed! Please use the rollback script
+listed above to revert to the original status!\nHit <Enter> to continue:\n");
+					my $x = <STDIN>;
+				}
+				else
+				{
+					echolog("RRD migration completed successfully.");
+				}
 			}
 		}
 		else
