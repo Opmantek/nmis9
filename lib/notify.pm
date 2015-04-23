@@ -132,6 +132,7 @@ sub sendEmail
 
 	# if dossl isn't on then this just opens a normal unauthed socket
 	my @connargs=($arg{mailserver},
+								Debug => $arg{debug},
 								Port => $arg{serverport},
 								doSSL => $arg{usetls},
 								"Hello" => $arg{hello},
@@ -139,7 +140,7 @@ sub sendEmail
 								SSL_verify_mode => $arg{ssl_verify_mode});
 	my $smtp = Net::SMTPS->new( @connargs );
 		
-	return (0,999,"connection to $arg{mailserver}, port $arg{serverport} failed: $!")
+	return (0,999,"connection to $arg{mailserver}, port $arg{serverport}, ipproto $ipproto, failed: $!")
 			if (!$smtp);
 
 	# auth is done whenever both mail_user and mail_password are both set to non-blank
