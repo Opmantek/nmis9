@@ -249,7 +249,7 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 
 			echolog("Checking yum repository list, please wait...");
 			my @repos=`yum repolist 2>/dev/null`;
-			if (!grep(/^rpmforge\s+/, @repos))
+			if (!grep(/^\*?rpmforge\s+/, @repos))
 			{
 				echolog("Adding RepoForge Repository for suitable RRDTool version");
 				# centos 6 ships an ancient rrdtool, repoforge-extras has what we're after
