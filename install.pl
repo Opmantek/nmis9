@@ -167,7 +167,7 @@ libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping snmp snmpd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
-libcrypt-unixcrypt-perl libdata-uuid-perl libproc-processtable-perl
+libcrypt-unixcrypt-perl libuuid-tiny-perl libproc-processtable-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl));
@@ -177,7 +177,7 @@ pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-Net-SSLeay perl-JSON-XS httpd fping
 make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
-perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL uuid-perl perl-Time-modules
+perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 perl-rrdtool perl-Test-Deep));
