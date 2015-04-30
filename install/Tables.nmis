@@ -57,12 +57,6 @@
     'DisplayName' => 'Customers',
     'Table' => 'Customers'
   },
-  'Enterprise' => {
-    'CaseSensitiveKey' => 'false',
-    'Description' => 'Enterprise numbers for defining new vendors',
-    'DisplayName' => 'Enterprise Numbers',
-    'Table' => 'Enterprise'
-  },
   'Escalations' => {
     'CaseSensitiveKey' => 'false',
     'Description' => 'Escalation Policy for apply business policies to notifications.',
