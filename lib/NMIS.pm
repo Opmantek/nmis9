@@ -2908,7 +2908,7 @@ sub createHrButtons {
 			if (!getbool($widget));
 
 	push @out, td({class=>'header litehead'},'Node ',
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$NI->{system}{name}));
+			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if (scalar keys %{$NI->{module}}) {
 		push @out, td({class=>'header litehead'},

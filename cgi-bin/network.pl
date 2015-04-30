@@ -1484,14 +1484,14 @@ EO_HTML
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
 	if ( $AU->CheckAccessCmd("Table_Nodes_rw") ) {
-		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=".uri_escape($NI->{system}{name});
+		my $url = "$C->{'<cgi_url_base>'}/tables.pl?conf=$Q->{conf}&act=config_table_edit&table=Nodes&widget=$widget&key=".uri_escape($node);
 		$editnode = qq| <a href="$url" id="cfg_nodes" style="color:white;">Edit Node</a>|;
 	}
 
 	my $editconf;
 	if ( $AU->CheckAccessCmd("table_nodeconf_view") ) {
 		my $url = "$C->{'<cgi_url_base>'}/nodeconf.pl?conf=$Q->{conf}&act=config_nodeconf_view&widget=$widget&node=".
-				uri_escape($NI->{system}{name});
+				uri_escape($node);
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
 	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
@@ -1500,7 +1500,7 @@ EO_HTML
 	
 	print start_table({class=>'dash'});
 	
-	my $nodeDetails = ("Node Details - $NI->{system}{name}");
+	my $nodeDetails = ("Node Details - $node");
 	$nodeDetails .= " - $editnode" if $editnode;
 	$nodeDetails .= " - $editconf" if $editconf;
 	
