@@ -626,6 +626,15 @@ sub doUpdate {
 
 	dbg("================================");
 	dbg("Starting update, node $name");
+	
+	#Check for update LOCK
+	if ( existsPollLock(type => "update", node => $name) ) {
+		print STDERR "Error: update lock exists for $name which has not finished!\n";
+		logMsg("ERROR update lock exists for $name which has not finished!");
+		return;
+	}
+	# create the poll lock now.
+	my $lockHandle = createPollLock(type => "update", node => $name);
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
@@ -718,6 +727,8 @@ sub doUpdate {
 	# fixme: deprecated, to be removed once all model-level custom plugins are converted to new plugin infrastructure
 	# and when the remaining customers using this have upgraded
 	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
+
+	releasePollLock(handle => $lockHandle, type => "update", node => $name);
 
 	dbg("Finished");
 	return;
