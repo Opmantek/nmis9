@@ -477,6 +477,15 @@
       'Description' => ''
     }
   },
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrsmpcpu',
+        'threshold' => 'hrsmpcpu',
+       }
+     }
+  },
   'device' => {
     'sys' => {
       'device' => {

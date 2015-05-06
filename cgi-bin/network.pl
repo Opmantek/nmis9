@@ -1495,6 +1495,17 @@ EO_HTML
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
 	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
+
+	my $remote;
+	if ( defined $NT->{$node}{remote_connection_name} and $NT->{$node}{remote_connection_name} ne "" ) {		
+		my $url = $NT->{$node}{remote_connection_url} if $NT->{$node}{remote_connection_url};
+		# substitute any known parameters
+		$url =~ s/\$host/$NT->{$node}{host}/g;
+		$url =~ s/\$name/$NT->{$node}{name}/g;
+		$url =~ s/\$node/$NT->{$node}{name}/g;
+		
+		$remote = qq| <a href="$url" target="remote_$node" style="color:white;">$NT->{$node}{remote_connection_name}</a>|;
+	}
 	
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
 	
@@ -1503,6 +1514,7 @@ EO_HTML
 	my $nodeDetails = ("Node Details - $node");
 	$nodeDetails .= " - $editnode" if $editnode;
 	$nodeDetails .= " - $editconf" if $editconf;
+	$nodeDetails .= " - $remote" if $remote;
 	
 	print Tr(th({class=>'title', colspan=>'2'},$nodeDetails));
 	print start_Tr;
@@ -1751,6 +1763,7 @@ sub viewInterface {
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
 
 	print header($headeropts);
 	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
@@ -1806,6 +1819,9 @@ sub viewInterface {
 					}
 					elsif ( $k eq "ifPhysAddress" and $value =~ /^0x[0-9a-f]+$/i ) {
 						$value = beautify_physaddress($value);
+					}
+					elsif ( $k eq "ifLastChange" ) {
+						$value = convUpTime($NI->{system}{sysUpTimeSec} - $IF->{$intf}{ifLastChangeSec});
 					}
 					push @out,Tr(td({class=>'info Plain'},$title),
 					td({class=>'info Plain',style=>getBGColor($color)},$value));
@@ -1877,6 +1893,7 @@ sub viewAllIntf {
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -1963,6 +1980,9 @@ sub viewAllIntf {
 					#0x00cfda005ebf
 					elsif ( $k eq 'ifPhysAddress' and $view{$intf}{ifPhysAddress}{value} =~ /^0x[0-9a-f]+$/i ) {
 						$line = beautify_physaddress($view{$intf}{ifPhysAddress}{value});
+					}
+					elsif ( $k eq "ifLastChange" ) {
+						$line = convUpTime($NI->{system}{sysUpTimeSec} - $IF->{$intf}{ifLastChangeSec});
 					}
 					else {
 						$line = $view{$intf}{$k}{value};

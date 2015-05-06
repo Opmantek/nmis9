@@ -7280,6 +7280,9 @@ sub runThrHld {
 	elsif ($index ne '' and $thrname eq "env_temp" ) {
 		$element = $ET->{$index}{tempDescr};
 	}
+	elsif ($index ne '' and $thrname eq "hrsmpcpu" ) {
+		$element = "CPU $index";
+	}
 	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}

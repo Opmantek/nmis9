@@ -29,6 +29,7 @@
 
 use NMIS;
 use Auth;
+use NMIS::UUID;
 
 my $C = loadConfTable();
 # variables used for the security mods
@@ -53,9 +54,15 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 }
 closedir(MDL);
 
+my $uuid;
+if ( $C->{uuid_add_with_node} eq "true" ) {
+	$uuid = getUUID();
+}
+
 %hash = (
 	Nodes => [ # using an array for fixed order of fields
 		{ name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""] }},
+		{ uuid => { header => 'UUID',display => 'header,readonly',value => ["$uuid"] }},
 
 		{ host => { mandatory => 'true', header => 'Name/IP Address',display => 'header,text',value => [""] }},
 		{ group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups] }},
@@ -64,6 +71,9 @@ closedir(MDL);
 		{ customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{loadGenericTable('Customers')}] }},
 		{ businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
 		{ serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
+		{ extra_options => { special => 'separator', header => 'Remote Connection'}},
+		{ remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
+		{ remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
 		{ extra_options => { special => 'separator', header => 'Extra Options'}},
 		{ notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
 		{ roleType => { header => 'Role Type', display => 'popup',value => ["core", "distribution", "access"] }},

@@ -2984,9 +2984,18 @@ sub createHrButtons {
 			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+	
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
 			if (getbool($C->{view_telnet}));
+	
+	if (getbool($C->{view_ssh})) {
+		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
+		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
+		push @out, td({class=>'header litehead'},
+				a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",target=>'_blank'},"ssh")); 
+	}
+	
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
 			if getbool($C->{view_ping});

@@ -115,6 +115,21 @@
           }
         }
       },
+      'hrsmpcpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'hrCpuLoad',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
+            }
+          }
+        }
+      },
       'cpuUtil' => {
         'item' => 'cpuUtil',
         'event' => 'Proactive CPU',
