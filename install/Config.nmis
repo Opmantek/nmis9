@@ -310,6 +310,9 @@
     'server_user' => 'nmismst'
   },
   'tools' => {
+    'view_ssh' => 'true',
+    'ssh_port' => '',
+    'ssh_url' => 'ssh://',
     'view_ping' => 'true',
     'view_trace' => 'true',
     'view_telnet' => 'true',
