@@ -77,7 +77,7 @@ sub after_collect_plugin(nodes => list of nodes that were handled,
 
 the sys object is the 'global' one used for calculating system-wide metrics
 and so on. the plugin can modify any attributes via sys where required. it 
-may call other nmis code (but care needs to be taken of nmmis config/table 
+may call other nmis code (but care needs to be taken of nmis config/table 
 caching if that is done). neither the local config object nor the 
 global nmis config must be modified by a plugin.
 
