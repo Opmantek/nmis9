@@ -628,13 +628,13 @@ sub doUpdate {
 	dbg("Starting update, node $name");
 	
 	#Check for update LOCK
-	if ( existsPollLock(type => "update", node => $name) ) {
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
-		logMsg("ERROR update lock exists for $name which has not finished!");
+		logMsg("WARNING update lock exists for $name which has not finished!");
 		return;
 	}
 	# create the poll lock now.
-	my $lockHandle = createPollLock(type => "update", node => $name);
+	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
@@ -728,7 +728,7 @@ sub doUpdate {
 	# and when the remaining customers using this have upgraded
 	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
-	releasePollLock(handle => $lockHandle, type => "update", node => $name);
+	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
 
 	dbg("Finished");
 	return;
@@ -822,6 +822,15 @@ sub doCollect {
 
 	info("================================");
 	info("Starting collect, node $name");
+
+	#Check for update LOCK
+	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) ) {
+		print STDERR "Error: update lock exists for $name which has not finished!\n";
+		logMsg("WARNING update lock exists for $name which has not finished!");
+		return;
+	}
+	# create the poll lock now.
+	my $lockHandle = createPollLock(type => "collect", conf => $C->{conf}, node => $name);
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-collect-$name";
@@ -944,6 +953,8 @@ sub doCollect {
 			dbg("Plugin $plugin indicated no changes");
 		}
 	}
+
+	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
 
 	$S->close;
 	info("Finished");
@@ -4904,7 +4915,15 @@ sub runReach {
 	$reachVal{intfColUp}{option} = "gauge,0:U";
 
 	my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"); # database name is 'reach'
-	$NI->{graphtype}{health} = $NI->{system}{nodeModel} eq 'PingOnly' ? "health-ping,response" : "health,kpi,response,numintf";
+	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
+		$NI->{graphtype}{health} = "health-ping,response";
+	}
+	elsif ( $NI->{system}{nodeModel} eq 'ServiceOnly' ) {
+		$NI->{graphtype}{health} = "";
+	}
+	else {
+		$NI->{graphtype}{health} = "health,kpi,response,numintf";
+	}
 
 END_runReach:
 	info("Finished");

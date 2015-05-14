@@ -2915,6 +2915,11 @@ sub createHrButtons {
 			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
 	}
 
+	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
+		push @out, td({class=>'header litehead'},
+			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+	}
+
 	if (getbool($NI->{system}{collect})) {
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
@@ -2935,10 +2940,6 @@ sub createHrButtons {
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 
-		if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
-		}
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if (defined $NI->{services} && keys %{$NI->{services}}) {
 					push @out, td({class=>'header litehead'},

@@ -93,6 +93,17 @@
         'value' => 'CVAR1=psuValue;$CVAR1 * 1'
       }
     },
+    'tempStatus' => {
+      'tempStatus' => {
+        'element' => 'index',
+        'event' => 'Temperature Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
+      }
+    },
     'rttMonLatestRtt' => {
       'HighOperCompletionTime' => {
         'element' => 'index',
@@ -120,17 +131,6 @@
         'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1'
       }
     },
-    'tempStatus' => {
-      'tempStatus' => {
-        'element' => 'index',
-        'event' => 'Temperature Status',
-        'level' => 'Warning',
-        'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
-        'type' => 'test',
-        'unit' => '',
-        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
-      }
-    }
   },
   'interface' => {
     'collect' => {

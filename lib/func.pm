@@ -2500,10 +2500,11 @@ sub beautify_physaddress
 sub getFilePollLock {
 	my %args = @_;
 	my $type = $args{type};
+	my $conf = $args{conf};
 	my $node = $args{node};
 	my $C = loadConfTable();
 
-	my $lockFile = $C->{'<nmis_var>'}."/".lc($node)."-$type.lock";
+	my $lockFile = $C->{'<nmis_var>'}."/".lc($node)."-$conf-$type.lock";
 
 	return($lockFile);
 }
@@ -2512,11 +2513,12 @@ sub getFilePollLock {
 sub existsPollLock {
 	my %args = @_;
 	my $type = $args{type};
+	my $conf = $args{conf};
 	my $node = $args{node};
 	my $PID = undef;
 	my $handle = undef;
 	
-	my $lockFile = getFilePollLock(type => $type, node => $node);
+	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
 	
 	if ( -f $lockFile ) {
 		open($handle, "$lockFile") or warn "existsPollLock: ERROR cannot open $lockFile: $!\n";
@@ -2536,10 +2538,11 @@ sub existsPollLock {
 sub createPollLock {
 	my %args = @_;
 	my $type = $args{type};
+	my $conf = $args{conf};
 	my $node = $args{node};
 	my $handle = undef;
 
-	my $lockFile = getFilePollLock(type => $type, node => $node);
+	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
 	
 	if ( not existsPollLock(%args) ) {	
 		my $PID = $$;
@@ -2554,10 +2557,11 @@ sub createPollLock {
 sub releasePollLock {
 	my %args = @_;
 	my $type = $args{type};
+	my $conf = $args{conf};
 	my $node = $args{node};
 	my $handle = $args{handle};
 
-	my $lockFile = getFilePollLock(type => $type, node => $node);
+	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
 
 	if (defined $handle) {
 		flock($handle, LOCK_UN) or warn "releasePollLock: ERROR Cannot unlock $lockFile - $!\n";
