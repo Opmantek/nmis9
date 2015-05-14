@@ -1478,9 +1478,31 @@ sub getIntfInfo {
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
+		# Check if the ifTableLastChange has changed.  If it has not changed, no need to go any further.
+		if (
+			getbool($C->{update_use_ifTableLastChange}) 
+			and my $result = $SNMP->get('ifTableLastChange.0')
+		) {
+			$result = $result->{'1.3.6.1.2.1.31.1.5.0'};
+			if ( defined $result and not defined $NI->{system}{ifTableLastChange} ) {
+				info("$NI->{system}{name} using ifTableLastChange for interface updates");
+				$NI->{system}{ifTableLastChange} = $result; 			
+			}
+			elsif ( $NI->{system}{ifTableLastChange} != $result ) {
+				info("$NI->{system}{name} ifTableLastChange has changed old=$NI->{system}{ifTableLastChange} new=$result");
+				$NI->{system}{ifTableLastChange} = $result; 
+			}
+			else {
+				info("$NI->{system}{name} ifTableLastChange NO change, skipping ");
+				# returning 1 as we can do the rest of the updates.
+				return 1;
+			}
+		}
+		# else node may not have this variable so keep on doing in the hard way.
+
 		info("Starting");
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
-
+		
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
 
