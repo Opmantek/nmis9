@@ -172,6 +172,9 @@
         '75' => {
           'CiscoASA' => 'Cisco Adaptive Security Appliance'
         },
+        '80' => {
+          'CiscoVG' => 'Cisco IOS.+vg\d+'
+        },
         '90' => {
           'CiscoRouter' => 'IOS'
         },

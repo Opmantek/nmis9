@@ -436,7 +436,6 @@
           }
         },
         'graphtype' => 'pkts,errpkts',
-        'control' => '$sysObjectName =~ /cisco72|17\\d+|36\\d+|576/'
       }
     },
     'noevent' => {
@@ -446,9 +445,9 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null|controller',
+      'ifDescr' => 'prilan|priwan|rbtpipe|null|controller',
       'Description' => '^#',
-      'noDescription' => 'true',
+      'noDescription' => 'false',
       'ifType' => 'ds0|ds1|other|softwareloopback'
     }
   },

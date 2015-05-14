@@ -117,7 +117,7 @@
             'oid' => 'tcpCurrEstab',
             'title' => 'TCP Established Sessions',
             'alert' => {
-              'test' => '$r > 100',
+              'test' => '$r > 150',
               'event' => 'High TCP Connection Count',
               'unit' => 'connections',
               'level' => 'Warning'
@@ -127,7 +127,7 @@
             'oid' => 'hrSystemProcesses',
             'title' => 'System Processes',
             'alert' => {
-              'test' => '$r > 150',
+              'test' => '$r > 200',
               'event' => 'High Number of System Processes',
               'unit' => 'processes',
               'level' => 'Warning'

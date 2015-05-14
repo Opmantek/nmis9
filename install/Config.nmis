@@ -74,7 +74,7 @@
     'display_status_summary' => 'false',
     
 		# to have additional fields in the node summary data.
-    'node_summary_field_list' => 'customer,businessService,serviceStatus',
+    'node_summary_field_list' => 'uuid,customer,businessService,serviceStatus',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -310,6 +310,9 @@
     'server_user' => 'nmismst'
   },
   'tools' => {
+    'view_ssh' => 'true',
+    'ssh_port' => '',
+    'ssh_url' => 'ssh://',
     'view_ping' => 'true',
     'view_trace' => 'true',
     'view_telnet' => 'true',

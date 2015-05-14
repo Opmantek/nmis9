@@ -602,6 +602,15 @@
     #  },
     #}
   #},
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrsmpcpu',
+        'threshold' => 'hrsmpcpu',
+       }
+     }
+  },
   'storage' => {
     'sys' => {
       'storage' => {
