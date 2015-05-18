@@ -48,6 +48,9 @@ use Cwd;
 use POSIX qw(:sys_wait_h);
 use version 0.77;
 
+# relax an overly strict umask but for the duration of the installation only
+# otherwise dirs and files that are created end up inaccessible for the nmis user...
+umask(0022);
 
 ## Setting Default Install Options.
 my $defaultFping = "/usr/local/sbin/fping";
