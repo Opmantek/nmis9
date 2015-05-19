@@ -76,10 +76,31 @@ sub update_plugin
 		
 		my $cdpNeighbour = $entry->{cdpCacheDeviceId};
 
-		if ( defined $LNT->{$cdpNeighbour}{name} and $LNT->{$cdpNeighbour}{name} eq $cdpNeighbour ) {
-			$changesweremade = 1;
-			$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$cdpNeighbour";
-			$entry->{cdpCacheDeviceId_id} = "node_view_$cdpNeighbour";
+		# some cdp data includes Serial numbers and FQDN's
+		my @possibleNames;
+		push(@possibleNames,$cdpNeighbour);
+		push(@possibleNames,lc($cdpNeighbour));
+		if ( $cdpNeighbour =~ /\(\w+\)$/ ) {
+			my $name = $cdpNeighbour;
+			$name =~ s/\(\w+\)$//g;
+			push(@possibleNames,$name);
+			push(@possibleNames,lc($name));
+		}
+		if ( $cdpNeighbour =~ /\./ ) {
+			my @fqdn = split(/\./,$cdpNeighbour);
+			push(@possibleNames,$fqdn[0]);
+			push(@possibleNames,lc($fqdn[0]));
+		}
+		
+		foreach my $cdpNeighbour (@possibleNames) {
+			if ( defined $LNT->{$cdpNeighbour} and defined $LNT->{$cdpNeighbour}{name} and $LNT->{$cdpNeighbour}{name} eq $cdpNeighbour ) {
+				$changesweremade = 1;
+				$entry->{cdpCacheDeviceId_raw} = $entry->{cdpCacheDeviceId};
+				$entry->{cdpCacheDeviceId} = $cdpNeighbour;
+				$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$cdpNeighbour";
+				$entry->{cdpCacheDeviceId_id} = "node_view_$cdpNeighbour";
+				last;
+			}
 		}
 		
 		if ( @parts = split(/\./,$entry->{index}) ) {

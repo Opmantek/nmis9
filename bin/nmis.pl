@@ -653,7 +653,7 @@ sub doUpdate {
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
 			if (getNodeInfo(sys=>$S)) {
-				# getnodeinfo has deleted the interface info, need to rebuild from scratch
+				# fgetnodeinfo has deleted the interface info, need to rebuild from scratch
 				if ( getbool($NC->{node}{collect}) ) {
 					if (getIntfInfo(sys=>$S)) {
 						#print Dumper($S)."\n";
@@ -1236,8 +1236,9 @@ sub getNodeInfo {
 	#####################
 
 	# process status
-	if ($exit) {
-		delete $NI->{interface}; # reset intf info
+	if ($exit) {          
+		# why delete this here?
+		#delete $NI->{interface}; # reset intf info
 
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
@@ -1478,7 +1479,8 @@ sub getIntfInfo {
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
-		# Check if the ifTableLastChange has changed.  If it has not changed, no need to go any further.
+		# Check if the ifTableLastChange has changed.  If it has not changed, the 
+		# interface table has had no interfaces added or removed, no need to go any further.
 		if (
 			getbool($C->{update_use_ifTableLastChange}) 
 			and my $result = $SNMP->get('ifTableLastChange.0')
@@ -1502,6 +1504,9 @@ sub getIntfInfo {
 
 		info("Starting");
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+		
+		# lets delete what we have in memory and start from scratch.
+		delete $NI->{interface}; # reset intf info
 		
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
@@ -1694,6 +1699,24 @@ sub getIntfInfo {
 		my $intfTotal = 0;
 		my $intfCollect = 0; # reset counters
 
+		info("Checking interfaces for duplicate ifDescr");
+		my $ifDescrIndx;
+		foreach my $i (keys %{$IF}) {
+			# ifDescr must always be filled
+			if ($IF->{$i}{ifDescr} eq "") { $IF->{$i}{ifDescr} = $i; }
+
+			if ( exists $ifDescrIndx->{$IF->{$i}{ifDescr}} and $ifDescrIndx->{$IF->{$i}{ifDescr}} ne "" ) {
+				# ifDescr is duplicated.
+				$IF->{$i}{ifDescr} = "$IF->{$i}{ifDescr}-$i"; # add index to string
+				$V->{interface}{"${i}_ifDescr_value"} = $IF->{$i}{ifDescr}; # update
+				info("Interface ifDescr changed to $IF->{$i}{ifDescr}");
+			}
+			else {
+				$ifDescrIndx->{$IF->{$i}{ifDescr}} = $i;
+			}
+		}
+		info("Completed duplicate ifDescr processing");
+
 		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 		foreach my $index (@ifIndexNum) {
 			next if ($intf_one ne '' and $intf_one ne $index);
@@ -1705,16 +1728,6 @@ sub getIntfInfo {
 				$IF->{$index}{real} = 'true';
 			}
 
-			# ifDescr must always be filled
-			if ($IF->{$index}{ifDescr} eq "") { $IF->{$index}{ifDescr} = $index; }
-			# check for duplicated ifDescr
-			foreach my $i (keys %{$IF}) {
-				if ($index ne $i and $IF->{$index}{ifDescr} eq $IF->{$i}{ifDescr}) {
-					$IF->{$index}{ifDescr} = "$IF->{$index}{ifDescr}-${index}"; # add index to string
-					$V->{interface}{"${index}_ifDescr_value"} = $IF->{$index}{ifDescr}; # update
-					info("Interface Description changed to $IF->{$index}{ifDescr}");
-				}
-			}
 			### add in anything we find from nodeConf - allows manual updating of interface variables
 			### warning - will overwrite what we got from the device - be warned !!!
 			### 2013-09-26 keiths, fix for nodes with Capital Letters!
@@ -2502,7 +2515,7 @@ sub updateNodeInfo {
 			$exit = getNodeInfo(sys=>$S);
 			goto END_updateNodeInfo; # ready with new info
 		}
-		# nodeinfo will have deleted the interface section, need to recreate from scratch
+		# if ifNumber has changed, then likely an interface has been added or removed.
 		if ($ifNumber != $NI->{system}{ifNumber}) {
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
@@ -2762,6 +2775,13 @@ sub getIntfData {
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
 
 	# check first if admin status of interfaces changed
+	# so this is checking all the interfaces and seeing if there is a change.
+	# to stop the node being checked for ifAdminStatus, e.g. HIGH INTERFACE COUNT, add this
+	#  'custom' => {
+  #    'interface' => {
+  #      'ifAdminStatus' => 'false',
+  #    }   
+  #  },   
 	if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus} 
 			 or ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} 
 						and !getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert")) ) {
@@ -2782,11 +2802,46 @@ sub getIntfData {
 			}
 		}
 	}
-	# Start a loop which go through the interface table
+	# so get the ifLastChange for each interface and see if it has changed, if it has
+	#my $ifLastChangeTable;
+	#if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions)) {
+	#	for my $index (keys %{$ifLastChangeTable}) {
+	#		logMsg("INFO ($S->{name}) entry ifLastChange for index=$index not found in interface table") if not exists $IF->{$index}{ifLastChange};
+	#		my $ifLastChangeSec = int($ifLastChangeTable->{$index}/100);
+	#		my $ifDidChange = 0;
+	#		if ( $ifLastChangeSec != $IF->{$index}{ifLastChangeSec} ) {
+	#			$ifDidChange = 1;
+	#			info("$IF->{$index}{ifDescr}: Interface Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
+	#		}
+	#		
+	#		#if the interface was already up and being collected, remaining polling will handle it.
+	#		# we want to find interfaces which were previously NOT ifAdmin up and see if we should manage them.
+	#		if ( $ifDidChange and $IF->{$index}{ifAdminStatus} ne 'up' ) 
+	#			($ifAdminTable->{$index} == 1 and )
+	#			or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') ) {
+	#			### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
+	#			getIntfInfo(sys=>$S,index=>$index); # update this interface
+	#		}
+	#	}
+	#}
 
+	# Start a loop which go through the interface table
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
 		if ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 			info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
+			
+			# check the ifLastChange of all interfaces to see if the interface has changed state.
+			# if we do this, it polls every interface with a single packet, we know the indexes, we should pack up some SNMP and send those packets.
+			#my $snmpquery = "ifLastChange.$index";
+			#my $result = $SNMP->get($snmpquery);
+			#my $ifLastChange = $result->{'1.3.6.1.2.1.2.2.1.9.$index'};
+			#my $ifLastChangeSec = int($ifLastChange/100);
+			#if ( $ifLastChangeSec != $IF->{$index}{ifLastChangeSec} ) {
+			#	info("Interface Changed: ifLastChangeSec=$ifLastChangeSec, was => $IF->{$index}{ifLastChangeSec}");
+			#}
+			#else {
+			#	info("Interface Same: ifLastChangeSec=$ifLastChangeSec");																
+			#}
 
 			# only collect on interfaces that are defined, with collection turned on globally
 			if ( getbool($IF->{$index}{collect}) ) {
@@ -2796,6 +2851,8 @@ sub getIntfData {
 				if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
 					processAlerts( S => $S );
 					if ( $rrdData->{error} eq "" ) {
+
+
 						foreach my $sect (keys %{$rrdData}) {
 
 							my $D = $rrdData->{$sect}{$index};
