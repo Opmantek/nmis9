@@ -48,6 +48,9 @@ use Cwd;
 use POSIX qw(:sys_wait_h);
 use version 0.77;
 
+# relax an overly strict umask but for the duration of the installation only
+# otherwise dirs and files that are created end up inaccessible for the nmis user...
+umask(0022);
 
 ## Setting Default Install Options.
 my $defaultFping = "/usr/local/sbin/fping";
@@ -138,6 +141,7 @@ for further info.\n\n");
 	my $x = <STDIN>;
 }
 
+
 # try the current dir first, check the dirname of this command's invocation, or give up
 my $src = cwd();
 $src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
@@ -156,6 +160,31 @@ supported version 5.10.1. Please upgrade to at least Perl 5.10.1");
 }
 else {
 	echolog("The version of Perl installed on your server is $^V and OK");
+}
+
+printBanner("Checking SELinux Status");
+my $rawstatus = system("selinuxenabled");
+if (WIFEXITED($rawstatus))
+{
+	if (WEXITSTATUS($rawstatus) == 0)
+	{
+		echolog("SELinux is enabled!");
+		print "\nThe installer has detected that SELinux is enabled on your system.
+SELinux needs extensive configuration to work properly.\n
+In its default configuration it is known to interfere with NMIS,
+and we do therefore recommend that you disable SELinux for NMIS.
+
+See \"man 8 selinux\" for details.\n\nHit <Enter> to continue:\n";
+		my $x = <STDIN>;
+	}
+	else
+	{
+		echolog("SELinux is not enabled.");
+	}
+}
+else
+{
+	echolog("Could not determine SELinux status, exit code was $rawstatus");
 }
 
 ###************************************************************************###
