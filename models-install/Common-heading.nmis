@@ -164,6 +164,7 @@
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
+      'checkpoint' => "Checkpoint Stats",
     }
   }
 );

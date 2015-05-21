@@ -146,6 +146,7 @@
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
       'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'env-temp' => '/nodes/$node/misc/env-temp-$index.rrd',
+      'checkpoint' => '/nodes/$node/health/checkpoint.rrd',
     }
   }
 );
