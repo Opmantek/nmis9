@@ -56,7 +56,7 @@
     'nodeModel' => 'net-snmp-alt',
     'nodeType' => 'server',
     'nodeVendor' => 'net-snmp',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,ss-blocks,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     'rrd' => {
       'nodehealth' => {
         'graphtype' => 'hrsystem',
