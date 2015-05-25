@@ -240,10 +240,10 @@ sub collect_plugin
 	}
 	$psValue = $NI->{system}{dtpsStatShortDescr};
 
-	$V->{system}{"ps_status_value"} = $psStatus;
-	$V->{system}{"ps_status_title"} = 'PS Status';
-	$V->{system}{"ps_status_color"} = '#00FF00';
-	$V->{system}{"ps_status_color"} = '#FF0000' if $psStatus ne "OK";
+	$V->{system}{"dtps_status_value"} = $psStatus;
+	$V->{system}{"dtps_status_title"} = 'PS Status';
+	$V->{system}{"dtps_status_color"} = '#00FF00';
+	$V->{system}{"dtps_status_color"} = '#FF0000' if $psStatus ne "OK";
 
 	# store the results for the Status Display
 	$NI->{status}{"$psEvent--$psElement"} = {
