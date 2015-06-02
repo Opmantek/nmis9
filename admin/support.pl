@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.4.2";
+our $VERSION = "1.4.3";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -249,7 +249,11 @@ sub shrinkfile
 sub collect_evidence
 {
 		my ($targetdir,$args) = @_;
+
 		my $basedir = $globalconf->{'<nmis_base>'};
+		# these two are relevant and commonly outside of basedir, occasionally without symlink...
+		my $vardir = $globalconf->{'<nmis_var>'};
+		my $dbdir = $globalconf->{'database_root'};
 
 		my $thisnode = $args{node};
 
@@ -275,15 +279,22 @@ sub collect_evidence
 		}
 		print  F "Support Tool Version $VERSION\n";
 		close F;
-		
+
+		# dirs to check: the basedir, PLUS the database_root PLUS the nmis_var
+		my $dirstocheck=$basedir;
+		$dirstocheck .= " $vardir" if ($vardir !~ /^$basedir/);
+		$dirstocheck .= " $dbdir" if ($dbdir !~ /^$basedir/);
+
 		mkdir("$targetdir/system_status");
 		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
-		system("find -L $basedir -type d | xargs ls -laH > $targetdir/system_status/filelist.txt") == 0
+		# this needs to cover dbdir and vardir if outside
+		system("find -L $dirstocheck -type d | xargs ls -laH > $targetdir/system_status/filelist.txt") == 0
 				or warn "can't list nmis dir: $!\n";
 		
 		# get md5 sums of the relevant installation files
+		# no need to checksum dbdir or vardir
 		print "please wait while we collect file status information...\n";
-		system("find -L $basedir -type f |grep -v -e /.git/ -e /database/ -e /logs/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
+		system("find -L $basedir -type f |grep -v -e /.git/ -e /database/ -e /logs/ -e /var/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
 		
 		# verify the relevant users and groups, dump groups and passwd (not shadow)
 		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
@@ -403,17 +414,17 @@ sub collect_evidence
 
 		# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
-		opendir(D,"$basedir/var") or warn "can't read var dir: $!\n";
+		opendir(D,"$vardir") or warn "can't read var dir $vardir: $!\n";
 		my @generics = grep(/^nmis[-_]/, readdir(D));
 		closedir(D);
-		system("cp", "-r", (map { "$basedir/var/$_" } (@generics)), 
+		system("cp", "-r", (map { "$vardir/$_" } (@generics)), 
 					 "$targetdir/var") == 0 or warn "can't copy var files: $!\n";
 
 		# if node info requested copy those files as well
 		# special case: want ALL nodes
 		if ($thisnode eq "*")
 		{
-				system("cp $basedir/var/* $targetdir/var/") == 0 
+				system("cp $vardir/* $targetdir/var/") == 0 
 						or warn "can't copy all nodes' files: $!\n";
 		}
 		elsif ($thisnode)
@@ -423,7 +434,7 @@ sub collect_evidence
 			{
 				if ($lnt->{$nextnode})
 				{
-					my $fileprefix = "$basedir/var/".lc($nextnode);
+					my $fileprefix = "$vardir/".lc($nextnode);
 					my @files_to_copy = (-r "$fileprefix-node.json")?
 							("$fileprefix-node.json", "$fileprefix-view.json") :
 							("$fileprefix-node.nmis", "$fileprefix-view.nmis");
