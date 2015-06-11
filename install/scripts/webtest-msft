@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+# a small helper script for testing microsoft federated authentication
+#
+# args: url
+# -c expected content (regex, case-insensitive)
+# -s expected status code (regex)
+# exits with 100 if ok, 10..40 if any of the chained form submissions fails,
+# 0 otherwise
+use strict;
+use WWW::Mechanize;
+use Getopt::Std;
+
+my %opts;
+die "Usage: $0 [-c content-regex] [-s status-regex] [-N][-d] {-u username} {-p password} <url>
+-N: do NOT check ssl certificates
+-d: produce debug output on STDERR
+\n\n"
+		if (!getopts("c:s:f:u:p:Nd",\%opts) or @ARGV != 1);
+
+my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
+my $okbody = $opts{c} &&  qr/$opts{c}/i;
+my $redirs = defined $opts{f}? $opts{f} : 0;
+my $url = $ARGV[0];
+my $username = $opts{u};
+my $password = $opts{p};
+
+# don't die on request errors, we know what we're doing and do check results
+my @mechargs = (autocheck => 0);
+# disable ssl verification only if requested to
+push @mechargs, (ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }) if ($opts{N});
+
+my $ua = WWW::Mechanize->new(@mechargs);
+my $exitcode = 0;
+
+# get the first (form or landing) page
+my $response = $ua->get($url);
+if (!$ua->success)
+{
+	print STDERR "First page load failed: "
+			.$response->status_line."\n" if ($opts{d});
+	exit $exitcode;
+}
+elsif ($ua->content !~ /loginForm/)
+{
+	print STDERR "First page loaded but has no matching form!\n";
+	exit $exitcode;
+}
+
+$exitcode = 10;
+
+if ($opts{d})
+{
+	my @forms =$ua->forms();
+	print STDERR "first form submission is to: ".$forms[0]->action."\n";
+}
+# now submit the login form
+$response = $ua->submit_form(
+	form_id => "loginForm",
+	fields      => {
+		UserName    => $username, 
+		Password    => $password,
+		kmsiInput => 'true',
+	} );
+if (!$ua->success)
+{
+	print STDERR "First Form submission failed: ".$response->status_line."\n"
+			if ($opts{d});
+	exit $exitcode;
+} 
+# if and only if the user/password combo works, 
+# do we get that msisauthenticatd cookie
+# the status code doesn't reflect auth success, at all :-(
+elsif ($response->headers->as_string !~ /Set-Cookie: MSISAuthenticated/)
+{
+	print STDERR "First Form submission succeeded but bad data!\n" if ($opts{d});
+	exit $exitcode;
+}
+
+$exitcode = 20;
+if ($opts{d})
+{
+	my @forms =$ua->forms();
+	print STDERR "second form submission is to: ".$forms[0]->action."\n";
+}
+# first form returns another form
+$response = $ua->submit_form(form_number => 1);
+if (!$ua->success)
+{
+	print STDERR "Second Form submission failed: "
+			.$response->status_line."\n" if ($opts{d});
+	exit $exitcode;
+}
+
+$exitcode = 30;
+if ($opts{d})
+{
+	my @forms =$ua->forms();
+	print STDERR "Third Form submission is to: ".$forms[0]->action."\n";
+}
+
+# second form /also/ returns another form
+$response = $ua->submit_form(form_number => 1);
+if (!$ua->success)
+{
+	print STDERR "Third Form submission failed: "
+			.$response->status_line."\n" if ($opts{d});
+	exit $exitcode;
+}
+
+if ($ua->content !~ $okbody)
+{
+	$exitcode = 40;
+}
+else
+{
+	$exitcode = 100;
+}
+exit $exitcode;
