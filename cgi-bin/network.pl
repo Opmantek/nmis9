@@ -339,6 +339,7 @@ sub selectMetrics
 				$showmetrics=0;
 				
 				print "<h3>NMIS Selftest failed!</h3>",
+				"<small>(Click on the links below for details.)</small>",
 				start_table({width => "100%"});
 				for my $test (@{$selfteststatus->{tests}})
 				{
