@@ -2129,7 +2129,7 @@ sub selftest
 	$allok = 0 if ($result);
 
 	# check the main/involved directories AND /tmp and /var
-	my $minfreepercent = fixme$config->{selftest_min_diskfree_percent} || 10;
+	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
 	# do tmp and var last as we skip already seen ones
 	my %fs_ids;
