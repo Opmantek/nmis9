@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.5";
+our $VERSION = "1.2.6";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -2131,13 +2131,17 @@ sub selftest
 	# check the main/involved directories AND /tmp and /var
 	my $minfreepercent = $config->{selftest_min_diskfree_percent} || 10;
 	my $minfreemegs = $config->{selftest_min_diskfree_mb} || 25;
-	for my $dir ("/tmp","/var",
-							 @{$config}{'<nmis_base>','<nmis_var>',
-													'<nmis_logs>','database_root'})
+	# do tmp and var last as we skip already seen ones
+	my %fs_ids;
+	for my $dir (@{$config}{'<nmis_base>','<nmis_var>',
+													'<nmis_logs>','database_root'}, "/tmp","/var","/xyz")
 	{
-		next if (!-d $dir);
-		my $testname = "Free space in $dir";
+		my $statresult = stat($dir);
+		# nonexistent dir or seen that filesystem? ignore
+		next if (!$statresult or $fs_ids{$statresult->dev}); 
+		$fs_ids{$statresult->dev} = 1;
 
+		my $testname = "Free space in $dir";
 		my @df = `df -mP $dir 2>/dev/null`;
 		if ($? >> 8)
 		{
@@ -2151,13 +2155,13 @@ sub selftest
 		$usedpercent =~ s/%$//;
 		if (100-$usedpercent < $minfreepercent)
 		{
-			push @details, [$testname, "Only ".(100-$usedpercent)."% available!"];
+			push @details, [$testname, "Only ".(100-$usedpercent)."% free in $dir!"];
 			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
 		}
 		elsif ($remaining < $minfreemegs)
 		{
-			push @details, [$testname, "Only $remaining Megabytes available!"];
+			push @details, [$testname, "Only $remaining Megabytes free in $dir!"];
 			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
 		}

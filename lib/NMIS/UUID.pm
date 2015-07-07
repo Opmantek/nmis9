@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 package NMIS::UUID;
-our $VERSION  = "1.1.0";
+our $VERSION  = "1.1.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
@@ -55,7 +55,11 @@ sub auditNodeUUID {
 	my $LNT = loadLocalNodeTable();
 	my $UUID_INDEX;
 	foreach my $node (sort keys %{$LNT}) {
-	  if ( $LNT->{$node}{uuid} eq "" ) {	  	
+		if (!keys %{$LNT->{$node}})
+		{
+			print "ERROR: $node is completely blank!\n";
+		}
+	  elsif ( $LNT->{$node}{uuid} eq "" ) {	  	
 	    print "ERROR: $node does not have a UUID\n";
 		}
 		else {
@@ -94,6 +98,7 @@ sub createNodeUUID {
 
 	my $UUID_INDEX;
 	foreach my $node (sort keys %{$LNT}) {
+		next if (!keys %{$LNT->{$node}});  # auto-vivified blank zombie node
 	  if ( $LNT->{$node}{uuid} eq "" ) {
 			print "CREATE UUID for $node\n" if $C->{debug};
 			

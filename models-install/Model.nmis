@@ -419,7 +419,20 @@
         }
       }
     },
-  
+    'Acme Packet' => {
+      'order' => {
+        '10' => {
+          'ACME-Packet' => 'Acme Packet'
+        }
+      }
+    },
+		'American Power Conversion Corp.' => {
+			'order' => {
+				'10' => {
+					'APC-ups' => 'PowerNet',
+				},
+			},
+		},
   },
   'system' => {
     'nodeModel' => 'Default',

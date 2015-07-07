@@ -148,6 +148,7 @@
       'env-temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'checkpoint' => '/nodes/$node/health/checkpoint.rrd',
       'fkGponOnu' => '/nodes/$node/health/fkGponOnu-$index.rrd',
+      'apSys' => '/nodes/$node/health/apSys.rrd',
     }
   }
 );
