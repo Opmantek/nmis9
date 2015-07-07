@@ -147,6 +147,7 @@
       'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'env-temp' => '/nodes/$node/misc/env-temp-$index.rrd',
       'checkpoint' => '/nodes/$node/health/checkpoint.rrd',
+      'apSys' => '/nodes/$node/health/apSys.rrd',
     }
   }
 );
