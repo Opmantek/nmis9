@@ -2516,7 +2516,15 @@ sub updateNodeInfo {
 			goto END_updateNodeInfo; # ready with new info
 		}
 		# if ifNumber has changed, then likely an interface has been added or removed.
-		if ($ifNumber != $NI->{system}{ifNumber}) {
+
+		my $doIfNumberCheck = 1;
+		if ( defined $S->{mdl}{custom}{interface}{ifNumber} 
+				and not getbool($S->{mdl}{custom}{interface}{ifNumber}) 
+		) {
+			$doIfNumberCheck = 0;
+		}			
+						
+		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber}) {
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
 		}

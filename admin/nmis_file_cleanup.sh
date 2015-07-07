@@ -23,19 +23,19 @@ else
 fi
 
 # purge old RRD files
-find $DIR/database/ -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/database/ -follow -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # and also get rid of definitely corrupt zero-byte-size RRD files
-find $DIR/database/ -name "*.rrd" -type f -size 0c -exec rm -f {} \;
+find $DIR/database/ -follow -name "*.rrd" -type f -size 0c -exec rm -f {} \;
 
 # purge the NMIS files
-find $DIR/var/ -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/ -follow -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # purge the JSON files
-find $DIR/var/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/ -follow -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # same for the operations timestamps, which have no file extension
-find $DIR/var/nmis_system/timestamps -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/nmis_system/timestamps -follow -mtime +$DAYS -type f -exec rm -f {} \;
 
 # purge the JSON log files
-find $DIR/logs/ -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/logs/ -follow -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;

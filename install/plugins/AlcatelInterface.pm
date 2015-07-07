@@ -53,11 +53,16 @@ sub update_plugin
 	#asamSoftwareVersion1 OSWP/66.98.63.71/OSWPAA41.363/OSWPAA41.363
 	#asamSoftwareVersion2 OSWP/66.98.63.71/OSWPAA41.353/OSWPAA41.353
 	
-	### 2013-08-09 keiths, Coverting for new version strings.
-	#my $asamVersion41 = qr/OSWPAA41.353|OSWPAA37.432|OSWPAA41.363/;
-	#my $asamVersion42 = qr/OSWPAA42.413|L6GPAA42.413/;			
-	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37/;
-	my $asamVersion42 = qr/OSWPAA42|L6GPAA42/;
+	### 2015-06-12 New Version strings.
+	#asamSoftwareVersion1 OSWP/66.98.63.71/OSWPAA42.676/OSWPAA42.676
+	#asamSoftwareVersion2 10.58.10.137/OSWP/OSWPAA46.588
+
+	### 2015-06-17 New Version strings.
+	#asamSoftwareVersion1 OSWP/OSWPAA43.322/OSWPRA43.322
+	#asamSoftwareVersion2 OSWPRA41.353
+
+	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
+	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46|OSWPRA43/;
 	
 	my $rack_count = 1;
 	my $shelf_count = 1;
