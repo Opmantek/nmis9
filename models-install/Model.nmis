@@ -426,6 +426,13 @@
         }
       }
     },
+		'American Power Conversion Corp.' => {
+			'order' => {
+				'10' => {
+					'APC-ups' => 'PowerNet',
+				},
+			},
+		},
   },
   'system' => {
     'nodeModel' => 'Default',

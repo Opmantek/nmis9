@@ -3,23 +3,28 @@
 # args: url
 # -c expected content (regex, case-insensitive)
 # -s expected status code (regex)
+# -N makes the script ignore SSL certificate issues completely
 # exits with 100 if ok, 50 if the code is ok but the body is wrong, 0 otherwise
 use strict;
 use LWP::UserAgent;
 use Getopt::Std;
 
 my %opts;
-die "Usage: $0 [-c content-regex] [-s status-regex] [-f #redirs ] <url>
+die "Usage: $0 [-c content-regex] [-s status-regex] [-f #redirs] [-N] <url>
 -f N: follow up to N redirections
+-N: do NOT verify SSL certificates
 \n\n"
-		if (!getopts("c:s:f:",\%opts) or @ARGV != 1);
+		if (!getopts("c:s:f:N",\%opts) or @ARGV != 1);
 
 my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
 my $okbody = $opts{c} &&  qr/$opts{c}/i;
 my $redirs = defined $opts{f}? $opts{f} : 0;
 my $url = $ARGV[0];
 
-my $ua = LWP::UserAgent->new();
+my @ua_args;
+push @ua_args, 
+		(ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }) if ($opts{N});
+my $ua = LWP::UserAgent->new(@ua_args);
 # mostly we want to receive the redirect, not follow it
 $ua->max_redirect($redirs); 					
 $ua->env_proxy(0);							# no proxying for end-to-end testing

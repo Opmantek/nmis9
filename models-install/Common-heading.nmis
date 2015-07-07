@@ -167,6 +167,11 @@
       'checkpoint' => "Checkpoint Stats",
       'apSys' => 'ACME System Stats',
       'apSession' => 'ACME Sessions',
+      'APCCapacity' => "UPS Capacity",
+      'APCBattTemp' => 'UPS Battery Temperature',
+      'APCLoad' => "UPS Output Load",
+      'APCCurrent' => "UPS Current",
+      'APCVoltage' => "UPS Voltage",
     }
   }
 );
