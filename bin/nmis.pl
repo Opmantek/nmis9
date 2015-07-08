@@ -607,12 +607,14 @@ sub catch_zap
 	my $pending_ints = func::interrupt_pending; # scalar ref
 	if (func::in_critical_section && !$$pending_ints)
 	{
-		logMsg("INFO process in critical section, marking as signal $rs pending");
+		# do NOT lock the logfile
+		logMsg("INFO process in critical section, marking as signal $rs pending", 1);
 		++$$pending_ints;
 	}
 	else
 	{
-		logMsg("INFO Process $$ ($0) was killed by signal $rs");
+		# do NOT lock the logfile
+		logMsg("INFO Process $$ ($0) was killed by signal $rs", 1);
 		die "Process $$ ($0) was killed by signal $rs\n";
 	}
 }

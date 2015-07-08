@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.6";
+our $VERSION = "1.2.7";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1252,15 +1252,21 @@ sub htmlElementValues{};
 #}
 
 
-# message with (class::)method names and line number
-sub logMsg {
-	my $msg = shift;
+# this function logs to nmis_log in a safe, locked fashion
+# args: string, required; extended with (class::)method names and line number
+# optional: do_not_lock (default: false), to be used in signal handler ONLY!
+# returns: nothing
+sub logMsg 
+{
+	my ($msg, $do_not_lock) = @_;
+	$do_not_lock = getbool($do_not_lock); # ie. true only if explicitely set
+
 	my $C = $C_cache; # local scalar
 	my $handle;
 	
 	if ($C eq '') {
 		# no config loaded
-		die "FATAL logMsg, NO Config Loaded: $msg";
+		die "FATAL logMsg, NO Config Loaded: $msg\n";
 	}
 	### 2012-01-25 keiths, updated so using better cache
 	elsif ( not -f $nmis_log and not -d $nmis_logs ) {
@@ -1294,9 +1300,14 @@ sub logMsg {
 	$string .= "<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
-	open($handle,">>$nmis_log") or warn returnTime." logMsg, Couldn't open log file $nmis_log. $!\n";
-	flock($handle, LOCK_EX)  or warn "logMsg, can't lock filename: $!";
-	print $handle returnDateStamp().",$string\n" or warn returnTime." logMsg, can't write file $nmis_log. $!\n";
+	open($handle,">>$nmis_log") 
+			or warn returnTime." logMsg, Couldn't open log file $nmis_log. $!\n";
+	if (!$do_not_lock)
+	{
+		flock($handle, LOCK_EX)  or warn "logMsg, can't lock filename: $!";
+	}
+	print $handle returnDateStamp().",$string\n" 
+			or warn returnTime." logMsg, can't write file $nmis_log. $!\n";
 	close $handle or warn "logMsg, can't close filename: $!";
 	setFileProt($nmis_log);
 }
