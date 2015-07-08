@@ -30,7 +30,7 @@
 # a small update plugin for adding links to the vmware guests if they're managed by nmis
 
 package VirtMachines;
-our $VERSION = "1.0.0";
+our $VERSION = "1.0.1";
 
 use strict;
 use func;												# for the conf table extras
@@ -55,7 +55,7 @@ sub update_plugin
 		my $entry = $NI->{VirtMachines}{$vm};
 		my $vmName = 	$entry->{vmwVmDisplayName};
 				
-		if ( defined $LNT->{$vmName}{name} and $LNT->{$vmName}{name} eq $vmName ) {
+		if ( defined $LNT->{$vmName} and defined $LNT->{$vmName}{name} and $LNT->{$vmName}{name} eq $vmName ) {
 			$changesweremade = 1;
 			$entry->{vmwVmDisplayName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$vmName";
 			$entry->{vmwVmDisplayName_id} = "node_view_$vmName";

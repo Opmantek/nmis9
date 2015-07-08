@@ -30,7 +30,7 @@
 # a small update plugin for converting the cdp index into interface name.
 
 package cdpTable;
-our $VERSION = "1.0.0";
+our $VERSION = "1.0.1";
 
 use strict;
 

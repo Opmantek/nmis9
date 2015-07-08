@@ -28,14 +28,35 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Common-database.nmis select the correct style for this file.
-#      'fkGponOnu' => '/nodes/$node/health/fkGponOnu-$index.rrd',
-#      'fkGponOnu' => '/health/$nodeType/$node-fkGponOnu-$index.rrd',
-#
-# Common-heading.nmis
-#      'fkGponOnuStatus' => 'GPON ONU Status',
-#
 
+# Common-heading.nmis
+#      'apSys' => 'ACME System Stats',
+#      'apSession' => 'ACME Sessions',
+#------------------
+# Common-database.nmis
+#      'apSys' => '/health/$nodeType/$node-apSys.rrd',
+#
+#------------------
+# Model.nmis
+#    'Acme Packet' => {
+#      'order' => {
+#        '10' => {
+#          'ACME-Packet' => 'Acme Packet'
+#        }
+#      }
+#    },
+#
+#------------------
+# nmis_mibs.oid
+#"apNetNet4250"	"1.3.6.1.4.1.9148.1.1.1"
+#"apNetNet4500"	"1.3.6.1.4.1.9148.1.1.2"
+#"apNetNet9200"	"1.3.6.1.4.1.9148.1.2.1"
+#"apNetNet3800"	"1.3.6.1.4.1.9148.1.3.1"
+#"apNetNet3820"	"1.3.6.1.4.1.9148.1.3.2"
+#"apNetNetOS"	"1.3.6.1.4.1.9148.1.4.1"
+#"apNetNetOSVM"	"1.3.6.1.4.1.9148.1.4.2"
+#"apNetNet6300"	"1.3.6.1.4.1.9148.1.5.1"
+ 
 %hash = (
   '-common-' => {
     'class' => {
@@ -60,10 +81,9 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'Furukawa-OLT',
-    'nodeVendor' => 'Furukawa Industrial S.A. - Curitiba',
-    'nodeType' => 'switch',
+    'nodegraph' => 'health,response,ip,apSys,apSession',
+    'nodeModel' => 'ACME-Packet',
+    'nodeType' => 'generic',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -100,9 +120,119 @@
             'oid' => 'sysName'
           }
         }
-      }
+      },
+      'apSys' => {
+        'snmp' => {
+          'apSysCPUUtil' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.1.0',
+            'sysObjectName' => 'apSysCPUUtil',
+            'title' => 'AP CPU Util'
+          },
+          'apSysMemoryUtil' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.2.0',
+            'sysObjectName' => 'apSysMemoryUtil',
+            'title' => 'AP Memory Util'
+          },
+          'apSysHealthScore' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.3.0',
+            'sysObjectName' => 'apSysHealthScore',
+            'title' => 'AP Health Score'
+          },
+          #'apSysRedundancyName' => {
+          #  'oid' => '1.3.6.1.4.1.9148.3.2.1.1.4.0',
+          #  'sysObjectName' => 'apSysRedundancy',
+          #  'title' => 'AP Redundancy Name'
+          #  'replace' => {
+          #    '0' => 'unknown',
+          #    '1' => 'initial',
+          #    '2' => 'active',
+          #    '3' => 'standby',
+          #    '4' => 'outOfService',
+          #    '5' => 'unassigned',
+          #    '6' => 'activePending',
+          #    '7' => 'standbyPending',
+          #    '8' => 'outOfServicePending',
+          #    '9' => 'recovery'              
+          #  },
+          #},
+          #'apSysRedundancy' => {
+          #  'oid' => '1.3.6.1.4.1.9148.3.2.1.1.4.0',
+          #  'sysObjectName' => 'apSysRedundancy',
+          #  'title' => 'AP Redundancy'
+          #  'replace' => {
+          #    '0' => '0',
+          #    '1' => '25',
+          #    '2' => '100',
+          #    '3' => '75',
+          #    '4' => '0',
+          #    '5' => '25',
+          #    '6' => '50',
+          #    '7' => '50',
+          #    '8' => '25',
+          #    '9' => '25'              
+          #  },
+          #},          
+          'apSysGlobalConSess' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.5.0',
+            'sysObjectName' => 'apSysGlobalConSess',
+            'title' => 'AP Global Sessions'
+          },
+          'apSysLicCapacity' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.10.0',
+            'sysObjectName' => 'apSysLicenseCapacity',
+            'title' => 'AP License Capacity'
+          },
+        },
+      },
     },
     'rrd' => {
+      'apSys' => {
+        'snmp' => {
+          'apSysCPUUtil' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.1.0',
+            'sysObjectName' => 'apSysCPUUtil',
+            'option' => 'gauge,0:100'
+          },
+          'apSysMemoryUtil' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.2.0',
+            'sysObjectName' => 'apSysMemoryUtil',
+            'option' => 'gauge,0:100'
+          },
+          'apSysHealthScore' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.3.0',
+            'sysObjectName' => 'apSysHealthScore',
+            'option' => 'gauge,0:100'
+          },
+          'apSysRedundancy' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.4.0',
+            'sysObjectName' => 'apSysRedundancy',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '0' => '0',
+              '1' => '25',
+              '2' => '100',
+              '3' => '75',
+              '4' => '0',
+              '5' => '25',
+              '6' => '50',
+              '7' => '50',
+              '8' => '25',
+              '9' => '25'              
+            },
+          },
+          'apSysGlobalConSess' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.5.0',
+            'sysObjectName' => 'apSysGlobalConSess',
+            'option' => 'gauge,0:U'
+          },
+          'apSysLicCapacity' => {
+            'oid' => '1.3.6.1.4.1.9148.3.2.1.1.10.0',
+            'sysObjectName' => 'apSysLicenseCapacity',
+            'option' => 'gauge,0:100'
+          },
+        },
+        'graphtype' => 'apSys,apSession'
+      },
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {
@@ -353,10 +483,10 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'ifDescr' => 'anything|butthis',
       'Description' => '^#',
-      'noDescription' => 'true',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
+      'noDescription' => 'false',
+      'ifType' => 'ethernetCsmacd|softwareLoopback'
     },
     'noevent' => {
       'Description' => '^!',
@@ -364,95 +494,39 @@
       'ifType' => 'other'
     }
   },
-  'alerts' => {
-    'fkGponOnu' => {
-      'fkGponOnuStatus' => {
-        'element' => 'index',
-        'event' => 'ONU Down',
-        'level' => 'Critical',
-        'test' => 'CVAR1=fkGponOnuStatus;$CVAR1 == 0',
-        'type' => 'test',
-        'unit' => '',
-        'value' => 'CVAR1=fkGponOnuStatus;$CVAR1 * 1'
-      }
+  'systemHealth' => {
+    'sections' => 'entityMib',
+    'sys' => {
+      'entityMib' => {
+        'indexed' => 'entPhysicalDescr',
+        'headers' => 'entPhysicalDescr,entPhysicalName,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
+        'snmp' => {
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Physical Descr'
+          },
+          'entPhysicalName' => {
+            'oid' => 'entPhysicalName',
+            'title' => 'Physical Name'
+          },
+          'entPhysicalHardwareRev' => {
+            'oid' => 'entPhysicalHardwareRev',
+            'title' => 'Hardware Rev'
+          },
+          'entPhysicalFirmwareRev' => {
+            'oid' => 'entPhysicalFirmwareRev',
+            'title' => 'Firmware Rev'
+          },
+          'entPhysicalSoftwareRev' => {
+            'oid' => 'entPhysicalSoftwareRev',
+            'title' => 'Software Rev'
+          },
+          'entPhysicalSerialNum' => {
+            'oid' => 'entPhysicalSerialNum',
+            'title' => 'Serial Num'
+          },
+        },
+      },
     },
   },
-  'systemHealth' => {
-    'sections' => 'fkGponOnu',
-    'sys' => {
-      'fkGponOnu' => {
-        'headers' => 'fkGponOnuId,fkGponOnuStatusName,fkGponOnuDistance',
-        'index_oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.1',
-        'index_regex' => '\\.(\\d+\\.\\d+)$',
-        'indexed' => 'fkGponOnuId',
-        'snmp' => {
-          'fkGponOnuId' => {
-            'oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.1',
-            'sysObjectName' => 'fkGponOnuId',
-            'title' => 'GPON ONU ID'
-          },
-          'fkGponOnuStatusName' => {
-            'oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.2',
-            'sysObjectName' => 'fkGponOnuStatus',
-            'replace' => {
-              '0' => 'invalid',
-              '1' => 'inactive',
-              '2' => 'active',
-              '3' => 'running',
-              '4' => 'activePending',
-              '5' => 'deactivePending',
-              '6' => 'disablePending',
-              '7' => 'disable',
-              '255' => 'unknown',
-            },
-            'title' => 'GPON ONU Status'
-          },       
-          'fkGponOnuStatus' => {
-            'oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.2',
-            'sysObjectName' => 'fkGponOnuStatus',
-            'title' => 'GPON ONU Status'
-          },       
-          'fkGponOnuDistance' => {
-            'oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.10',
-            'sysObjectName' => 'fkGponOnuDistance',
-            'title' => 'GPON Distance'
-          },
-        }
-      },
-    },
-    'rrd' => {
-      'fkGponOnu' => {
-        'graphtype' => 'fkGponOnuStatus',
-        'indexed' => 'true',
-        'snmp' => {
-          'fkGponOnuStatus' => {
-            'oid' => '1.3.6.1.4.1.10428.9.1.101.23.3.1.1.2',
-            'sysObjectName' => 'fkGponOnuStatus',
-            'replace' => {
-              '0' => '0',
-              '1' => '0',
-              '2' => '100',
-              '3' => '100',
-              '4' => '80',
-              '5' => '50',
-              '6' => '50',
-              '7' => '50',
-              '255' => '50',
-            },
-            #'replace' => {
-            #  '0' => 'invalid',
-            #  '1' => 'inactive',
-            ##  '2' => 'active',
-            ##  '3' => 'running',
-            #  '4' => 'activePending',
-            #  '5' => 'deactivePending',
-            #  '6' => 'disablePending',
-            #  '7' => 'disable',
-            #  '255' => 'unknown',
-            #},
-          },       
-        }
-      },
-    }
-  }
 );

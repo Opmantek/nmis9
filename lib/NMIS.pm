@@ -843,6 +843,7 @@ sub loadNodeSummary {
 	my $nodesum = "nmis-nodesum";
 	# I should now have an up to date file, if I don't log a message
 	if (existFile(dir=>'var',name=>$nodesum) ) {
+		dbg("Loading $nodesum");
 		my $NS = loadTable(dir=>'var',name=>$nodesum);
 		for my $node (keys %{$NS}) {
 			if ( $group eq "" or $group eq $NS->{$node}{group} ) {
@@ -876,7 +877,6 @@ sub loadNodeSummary {
 			}
 		}
 	}
-	
 	return $SUM;
 }	
 	
