@@ -1,7 +1,11 @@
+admin/NMIS-Dependancies.csv
+admin/NMIS-Dependancies.gml
 archive/*
 backups/*
+bin/webtest*
 conf/*
 models/*
+models-pack/*
 logs/*
 logs
 var/*
