@@ -129,6 +129,7 @@ sub sendNotification {
 				element => $event->{element},
 				details => $details
 			);
+			logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details.") if $extraLogging;
 		}
 		else {
 			logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;
