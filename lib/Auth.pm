@@ -65,7 +65,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 
-our $VERSION = "1.1.0";
+our $VERSION = "1.1.1";
 
 @ISA = qw(Exporter);
 
@@ -738,9 +738,13 @@ sub _ms_ldap_verify {
 
 		my $results = $ldap->search(scope=>'sub',base=>"$C->{'auth_ms_ldap_base'}",filter=>"($attr=$u)",attrs=>['distinguishedName']);
 
-		##
-		writeTable(dir=>'var',name=>"nmis-ldap-debug",data=>$results) if $C->{auth_ms_ldap_debug};
-		##
+		# if full debugging dumps are requested, put it in a separate log file
+		if ($C->{auth_ms_ldap_debug})
+		{
+			open(F, ">>", $C->{'<nmis_logs>'}."/auth-ms-ldap-debug.log");
+			print F returnDateStamp(). Dumper($results) ."\n";
+			close(F);
+		}
 
 		if (($entry = $results->entry(0))) {
 			$dn = $entry->get_value('distinguishedName');
