@@ -186,10 +186,11 @@ sub updateNmisConfigAfter {
 		exit 1;
 	}
 	
-	if ( not exists $conf->{'system'}{'use_json'} ) { 
-		$conf->{'system'}{'use_json'} = "true";
-	}
-	if ( not exists $conf->{'system'}{'use_json_pretty'} ) { 
+	# reconfigure nmis to use json 
+	$conf->{'system'}{'use_json'} = "true";
+	# but set json_pretty only if not present already
+	if ( not exists $conf->{'system'}{'use_json_pretty'} ) 
+	{ 
 		$conf->{'system'}{'use_json_pretty'} = "true";
 	}
 	$conf->{'system'}{'global_collect'} = "true";
