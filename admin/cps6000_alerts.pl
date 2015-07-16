@@ -575,77 +575,21 @@ sub processCondition {
 	print "node=$node, event=$event, level=$level, element=$element, details=$details\n" if $info or $debug;
 }
 									
-		
-sub deleteEvent {		
-	my $node = shift;
-	my $event = shift;
-	my $element = shift;
+
+# globally removes all events called "something Closed"
+sub cleanEvents 
+{
+	my %allevents = loadAllEvents;
 	
-	#print "DEBUG deleteEvent: $node,$event,$element\n";
-
-	my $event_hash = eventHash($node,$event,$element);
-
-	#print "DEBUG deleteEvent: $event_hash\n";
-
-	my ($ET,$handle);
-	if ($C->{db_events_sql} eq 'true') {
-		$ET = DBfunc::->select(table=>'Events');
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-
-	# remove this entry
-	if ($C->{db_events_sql} eq 'true') {
-		DBfunc::->delete(table=>'Events',index=>$event_hash);
-	} else {
-		if ( exists $ET->{$event_hash}{node} and $ET->{$event_hash}{node} ne "" ) {
-			delete $ET->{$event_hash};
-		}
-		else {
-			print STDERR "ERROR no event found for: $event_hash\n";
+	foreach my $key (keys %allevents)
+	{
+		my $thisevent = $allevents{$key};
+		if ( $thisevent->{event} =~ /Closed/ ) 
+		{
+			print "Cleaning event $thisevent->{node} $thisevent->{event}\n";
+			eventDelete(event => $thisevent);
 		}
 	}
-
-	if ($C->{db_events_sql} ne 'true') {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-
-}
-
-sub cleanEvents {		
-
-	my ($ET,$handle);
-	if ($C->{db_events_sql} eq 'true') {
-		$ET = DBfunc::->select(table=>'Events');
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-	
-	foreach my $key (keys %$ET) {
-		if ( $ET->{$key}{event} =~ /Closed/ ) {
-			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
-			delete($ET->{$key});
-		}
-		if ( not $circuitAlerts and $ET->{$key}{event} =~ /^Alert: Tarjeta|^Alert: Corto|^Alert: Pares|^Alert: Circuitos/ ) {
-			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
-			delete($ET->{$key});
-		}
-
-		if ( $ET->{$key}{element} eq "GR000" or $ET->{$key}{element} eq "Unknown" ) {
-			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event} $ET->{$key}{details}\n";
-			delete($ET->{$key});
-		}
-
-		if ( $ET->{$key}{details} =~ /Unknown|^:/ ) {
-			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event} $ET->{$key}{details}\n";
-			delete($ET->{$key});
-		}
-	}
-
-	if ($C->{db_events_sql} ne 'true') {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-
 }
 
 # message with (class::)method names and line number

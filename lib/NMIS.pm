@@ -47,6 +47,8 @@ use ip;
 use Sys;
 use DBfunc;
 use URI::Escape;
+use JSON::XS;
+use File::Basename;
 
 # added for authentication
 use CGI::Pretty qw(:standard *table *Tr *td *Select *form escape);
@@ -61,7 +63,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.10a";
+$VERSION = "8.5.10b";
 
 @ISA = qw(Exporter);
 
@@ -98,20 +100,16 @@ $VERSION = "8.5.10a";
 
 		checkNodeName
 
-		loadEventStateNoLock
-		loadEventStateLock
-		writeEventStateLock
-		runEventDebug
-
 		eventLevel
-		eventHash
 		eventExist
-		checkEvent
+    eventLoad eventAdd eventUpdate eventDelete
+		cleanEvent loadAllEvents
 		logEvent
-		eventAdd
 		eventAck
+		checkEvent
 		notify
-		cleanEvent
+
+
 		nodeStatus
 
 		getSummaryStats
@@ -175,8 +173,7 @@ my $GT_cache = undef; # group table
 my $GT_modtime;
 my $ST_cache = undef; # server table
 my $ST_modtime;
-my $ET_cache = undef; # event table
-my $ET_modtime;
+
 my $SUM8_cache = undef; # summary table
 my $SUM8_modtime;
 my $SUM16_cache = undef; # summary table
@@ -761,76 +758,6 @@ sub loadServersTable {
 	return loadTable(dir=>'conf',name=>'Servers');
 }
 
-# !! this sub intended for write on var/nmis-event.xxxx only with a previously open filehandle !!
-# The lock on the open file must be maintained while the hash is being updated
-# to prevent another thread from opening and writing some other changes before we write our thread's hash copy back
-# we also need to make sure that we process the hash quickly, to avoid multithreading becoming singlethreading,
-# because of the lock being maintained on nmis-event.xxxx
-
-sub writeEventStateLock {
-	my %args = @_;
-	my $ET = $args{table};
-	my $handle = $args{handle};
-
-	writeTable(dir=>'var',name=>'nmis-event',data=>$ET,handle=>$handle);
-
-#	$ET_cache = undef;
-
-	return;
-}
-
-# improved locking on var/nmis-event.xxxx
-# this sub intended for read on nmis-event.xxxx only
-
-sub loadEventStateNoLock {
-	my %args = @_;
-	my $type = $args{type};
-	
-	my $table = defined $args{table} ? $args{table} : "nmis-event";
-
-	my @eventdetails;
-	my $node;
-	my $event;
-	my $level;
-	my $details;
-	my $event_hash;
-	my %eventTable;
-	my $modtime;
-
-	my $C = loadConfTable();
-
-	if (getbool($C->{db_events_sql})) {
-		if ($type eq 'Node_Down') {	# used by fpingd
-			return DBfunc::->select(table=>'Events',column=>'event,node,element',where=>'event=\'Node Down\'');
-		} else {
-			return DBfunc::->select(table=>'Events');	# full table
-		}
-	} else {
-		# does the file exist
-		if ( not -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) {
-			my %hash = ();
-			writeTable(dir=>'var',name=>"$table",data=>\%hash); # create an empty file
-		}
-		my $ET = loadTable(dir=>'var',name=>"$table");
-		return $ET;
-	}
-}
-
-# !!!this sub intended for read and LOCK on nmis-event.xxxx only - MUST use writeEventStateLock to write the hash back from this call!!!
-# need to maintain a lock on the file while the event hash is being processed by this thread
-# must pass our filehandle back to writeEventStateLock
-sub loadEventStateLock {
-
-	my $C = loadConfTable();
-
-	if (getbool($C->{db_events_sql})) {
-		logMsg("ERROR (nmis) loadEventStateLock not supported by SQL active");
-		return (undef,undef);
-	} else {
-		return loadTable(dir=>'var',name=>'nmis-event',lock=>'true');
-	}
-}
-
 ### 2011-01-06 keiths, loading node summary from cached files!
 sub loadNodeSummary {
 	my %args = @_;
@@ -880,307 +807,8 @@ sub loadNodeSummary {
 	return $SUM;
 }	
 	
-sub runEventDebug {
-	my ($ET,$handle);
-	($ET,$handle) = loadEventStateLock();
-	writeEventStateLock(table=>$ET,handle=>$handle);
-}
 
-sub eventHash {
-	# Calculate the event hash the same way everytime.
- 	#build an event hash string
-	my $node = shift;
-	my $event = shift;
-	my $element = shift;
 
-	# MD - remove code that trimmed the event, it was causing issues and 
-	# we have no idea why it was there in the first place
-	#
-	my $hash = lc "${node}-${event}-${element}";
-	$hash =~ s#[ /:]#_#g;
-	return $hash; 
-}
-
-sub eventExist {
-	my $node = shift;
-	my $event = shift;
-	my $element = shift;
-
-	my $C = loadConfTable();
-
-	my $event_hash = eventHash($node,$event,$element);
-	my $ET;
-
-	if (getbool($C->{db_events_sql})) {
-		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
-	} else {
-		$ET = loadEventStateNoLock();
-	}
-
-	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
-		return 1;
-	}
-	else {
-		return 0; 
-	} 
-}
-
-sub checkEvent {	
-	# Check event is called after determining that something is up!
-	# Check event sees if an event for this node/interface exists 
-	# if it exists it deletes it from the event state table/log
-	# and then calls notify with the Up event including the time of the outage
-	my %args = @_;
-	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $node = $S->{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $details = $args{details};
-	my $level = $args{level};
-	my $log;
-	my $syslog;
-	
-	my $C = loadConfTable();
-
-	# events.nmis controls which events are active/logging/notifying
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-	
-	# just in case this is blank.
-	if ( $C->{'non_stateful_events'} eq '' ) {
-	 $C->{'non_stateful_events'} = 'Node Configuration Change, Node Reset';
-	}
-
-	if ( $C->{'threshold_falling_reset_dampening'} eq '' ) {
-	 $C->{'threshold_falling_reset_dampening'} = 1.1;
-	}
-
-	if ( $C->{'threshold_rising_reset_dampening'} eq '' ) {
-	 $C->{'threshold_rising_reset_dampening'} = 0.9;
-	}
-
-	my $event_hash = eventHash($node,$event,$element);
-
-	# load the event State for reading only.
-	my $ET;
-	if ($S->{ET} ne '') {
-		# event table already loaded in sys object
-		$ET = $S->{ET};
-	} else {
-		if (getbool($C->{db_events_sql})) {
-			$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
-		} else {
-			$ET = loadEventStateNoLock();
-		}
-	}
-	
-
-	my $outage;
-
-	if (exists $ET->{$event_hash} 
-			and getbool($ET->{$event_hash}{current})) {
-		# The opposite of this event exists, so log an UP and delete the original event
-
-		# save some stuff, as we cant rely on the hash after the write 
-		my $escalate = $ET->{$event_hash}{escalate};
-		# the event length for logging
-		$outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
-
-		# Just log an up event now.
-		if ( $event eq "Node Down" ) {
-			$event = "Node Up";
-		}
-		elsif ( $event eq "Interface Down" ) {
-			$event = "Interface Up";
-		}
-		elsif ( $event eq "RPS Fail" ) {
-			$event = "RPS Up";
-		}
-		elsif ( $event =~ /Proactive/ ) {
-			# but only if we have cleared the threshold by 10%
-			# for thresholds where high = good (default 1.1)
-			if ( defined($args{value}) and defined($args{reset}) ) {
-				if ( $args{value} >= $args{reset} ) {
-					return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
-				} else {
-				# for thresholds where low = good (default 0.9)
-					return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
-				}
-			}
-			$event = "$event Closed";
-		}
-		elsif ( $event =~ /^Alert/ ) {
-			# A custom alert is being cleared.
-			$event = "$event Closed";
-		}
-		elsif ( $event =~ /down/i ) {
-			$event =~ s/down/Up/i;
-		}
-		
-		# event was renamed/inverted/massaged, need to get the right control record
-		# this is likely not needed
-		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-		$details = "$details Time=$outage";
-		$ET->{$event_hash}{current} = 'false'; # next processing by escalation routine
-
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>'Normal');
-
-		my $OT = loadOutageTable();
-		
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
-		if ($otg eq 'current') {
-			$details = "$details change=$OT->{$key}{change}";
-		}
-
-		if (getbool($C->{db_events_sql})) {
-			dbg("event $event_hash marked for UP notify and delete");
-			DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
-		} else {
-			# re-open the file with a lock, as we to wish to update
-			my ($ETL,$handle) = loadEventStateLock();
-			# make sure we still have a valid event
-			if ( getbool($ETL->{$event_hash}{current})) {
-				dbg("event $event_hash marked for UP notify and delete");
-				$ETL->{$event_hash}{current} = 'false';
-				### 2013-02-07 keiths, fixed stateful event properties not clearing.
-				$ETL->{$event_hash}{event} = $event;
-				$ETL->{$event_hash}{details} = $details;
-				$ETL->{$event_hash}{level} = $level;
-			}
-			writeEventStateLock(table=>$ETL,handle=>$handle);
-		}
-
-		if (getbool($log) and getbool($thisevent_control->{Log})) {
-			logEvent(node=>$S->{name},event=>$event,level=>$level,element=>$element,details=>$details);
-		}
-
-		# Syslog must be explicitly enabled in the config and will escalation is not being used.
-		if (getbool($C->{syslog_events}) and getbool($syslog)
-				and getbool($thisevent_control->{Log})
-				and !getbool($C->{syslog_use_escalation})) {
-			sendSyslog(
-				server_string => $C->{syslog_server},
-				facility => $C->{syslog_facility},
-				nmis_host => $C->{server_name},
-				time => time(),
-				node => $S->{name},
-				event => $event,
-				level => $level,
-				element => $element,
-				details => $details
-			);
-		}
-	}
-}
-
-sub notify {
-	### notify is write to current event state table !!!!! regardless of outage status
-	my %args = @_;
-	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $M = $S->mdl;
-
-	my $event = $args{event};
-	my $element = $args{element};
-	my $details = $args{details};
-	my $level = $args{level};
-	my $node = $S->{name};
-	my $log;
-	my $syslog;
-
-	my $C = loadConfTable();
-
-	dbg("Start of Notify");
-	
-	# events.nmis controls which events are active/logging/notifying
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-	my $event_hash = eventHash($S->{name},$event,$element);
-	my $ET;
-
-	if ($S->{ET} ne '') {
-		# event table already loaded in sys object
-		$ET = $S->{ET};
-	} else {
-		if (getbool($C->{db_events_sql})) {
-			$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
-		} else {
-			$ET = loadEventStateNoLock();
-		}
-	}
-
-	### 2014-09-01 keiths, fixing up an autovification problem.
-	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
-		# event exists, maybe a level change of proactive threshold
-		if ($event =~ /Proactive|Alert\:/ ) {
-			if ($ET->{$event_hash}{level} ne $level) {
-				# change of level
-				$ET->{$event_hash}{level} = $level; # update cache
-				if (getbool($C->{db_events_sql})) {
-					DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
-				} else {
-					my ($ETL,$handle) = loadEventStateLock();
-					$ETL->{$event_hash}{level} = $level;
-					### 2014-08-27 keiths, update the details as well when changing the level
-					$ETL->{$event_hash}{details} = $details;
-					writeEventStateLock(table=>$ETL,handle=>$handle);
-				}
-				my $tmplevel;
-				($tmplevel,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-				$details .= " Updated";
-			}
-		} else {
-			dbg("Event node=$node event=$event element=$element already in Event table");
-		}
-	} else {
-		# get level(if not defined) and log status from Model
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S,event=>$event,level=>$level);
-
-		if ($C->{non_stateful_events} !~ /$event/ or getbool($thisevent_control->{Stateful})) {
-			# Push the event onto the event table if it is a stateful one
-			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
-		}
-		else {
-			eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details,stateless=>"true");
-			# a stateless event should escalate to a level and then be automatically deleted.
-		}
-		
-		if (getbool($C->{log_node_configuration_events}) and $C->{node_configuration_events} =~ /$event/
-				and getbool($thisevent_control->{Log})) 
-		{
-			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
-										 element=>$element, details=>$details, host => $NI->{system}{host}, 
-										 nmis_server => $C->{nmis_host} );			
-		}
-	}
-	# log events
-	if ( getbool($log) and getbool($thisevent_control->{Log})) {
-		logEvent(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
-	}
-
-	# Syslog must be explicitly enabled in the config and will escalation is not being used.
-	if (getbool($C->{syslog_events}) 
-			and getbool($syslog)
-			and getbool($thisevent_control->{Log})
-			and !getbool($C->{syslog_use_escalation})) {
-		sendSyslog(
-			server_string => $C->{syslog_server},
-			facility => $C->{syslog_facility},
-			nmis_host => $C->{server_name},
-			time => time(),
-			node => $node,
-			event => $event,
-			level => $level,
-			element => $element,
-			details => $details
-		);
-	}
-
-	dbg("Finished");
-} # end notify
 
 # this is the most official reporter of node status, and should be
 # used instead of just looking at local system info nodedown
@@ -1188,14 +816,9 @@ sub notify {
 # reason: underlying events state can change asynchronously (eg. fpingd),
 # and the per-node status from the node file cannot be guaranteed to
 # be up to date if that happens.
-#
-# note: nodestatus DOES LOCK UP EVERYTHING HARD if used while
-# an exclusive lock on the event state file is held!
-# (ie. between loadEventStateLock and writeEventStateLock)
 sub nodeStatus {
 	my %args = @_;
 	my $NI = $args{NI};
-
 	my $C = loadConfTable();
 
 	# 1 for reachable
@@ -1313,164 +936,9 @@ sub getLevelLogEvent {
 	return ($level,$log,$syslog);
 }
 
-# Throw an Event to the event log
-sub logEvent {	
-	my %args = @_;
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	$details =~ s/,//g; # strip any commas
 
-	if ( $node eq "" or $event eq "" or $level eq "" ) {
-		logMsg("ERROR with event, something is NULL node=$node, event=$event, level=$level"); 
-	}
 
-	my $time = time();
-	my $C = loadConfTable();
-	
-	sysopen(DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT)
-		 or warn returnTime." logEvent, Couldn't open file $C->{event_log}. $!\n";
-	flock(DATAFILE, LOCK_EX) or warn "logEvent, can't lock filename: $!";
-	print DATAFILE "$time,$node,$event,$level,$element,$details\n";
-	close(DATAFILE) or warn "logEvent, can't close filename: $!"; 
-	#
-	setFileProt($C->{event_log}); # set file owner/permission, default: nmis, 0775
-}
 
-sub eventAdd {
-	my %args = @_;
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	my $stateless = $args{stateless} || "false";
-
-	my $C = loadConfTable();
-
-	my $ET;
-	my $handle;
-	my $new_event = 0;
-	my $event_hash = eventHash($node,$event,$element);
-
-	if (getbool($C->{db_events_sql})) {
-		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-
-	# is this a stateless event, they will reset after the dampening time, default dampen of 15 minutes.
-	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{stateless}) ) {
-		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
-		# if the stateless time is greater than the dampening time, reset the escalate.
-		if ( time() > $ET->{$event_hash}{startdate} + $stateless_event_dampening ) {
-			$ET->{$event_hash}{current} = 'true';
-			$ET->{$event_hash}{startdate} = time();
-			$ET->{$event_hash}{escalate} = -1;
-			$ET->{$event_hash}{ack} = 'false';			
-			dbg("event stateless, node=$node, event=$event, level=$level, element=$element, details=$details");
-		}
-	}
-	# before we log check the state table if there is currently an event outstanding.
-	elsif ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
-		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
-		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
-	}
-	else {
-		$ET->{$event_hash}{current} = 'true';
-		$ET->{$event_hash}{startdate} = time();
-		$ET->{$event_hash}{node} = $node;
-		$ET->{$event_hash}{event} = $event;
-		$ET->{$event_hash}{level} = $level;
-		$ET->{$event_hash}{element} = $element;
-		$ET->{$event_hash}{details} = $details;
-		$ET->{$event_hash}{ack} = 'false';
-		$ET->{$event_hash}{escalate} = -1;
-		$ET->{$event_hash}{notify} = "";
-		$ET->{$event_hash}{stateless} = $stateless;
-		$new_event = 1;
-		dbg("event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-		##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
-	}
-
-	if (getbool($C->{db_events_sql})) {
-		if ($new_event) {
-			$ET->{$event_hash}{index} = $event_hash;
-			DBfunc::->insert(table=>'Events',data=>$ET->{$event_hash}) ;
-		}
-	} else {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-	return;
-} # eventAdd
-
-sub eventAck {
-	my %args = @_;
-	my $node = $args{node};
-	my $event = $args{event};
-	my $element = $args{element};
-	my $level = $args{level};
-	my $details = $args{details};
-	my $ack = $args{ack};
-	my $user = $args{user};
-	my $event_hash;
-
-	my $C = loadConfTable();
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-
-	my $delete_event = 0;
-	my ($ET,$handle);
-	$event_hash = eventHash($node,$event,$element);
-
-	# event control is as configured or all true.
-	my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
-
-	if (getbool($C->{db_events_sql})) {
-		$ET = DBfunc::->select(table=>'Events',index=>$event_hash);
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-	# make sure we still have a valid event
-	if ( exists $ET->{$event_hash} and getbool($ET->{$event_hash}{current})) {
-		if ( getbool($ack) and getbool($ET->{$event_hash}{ack},"invert")) {
-			### if a TRAP type event, then trash when ack. event record will be in event log if required
-			if ( $ET->{$event_hash}{event} eq "TRAP" ) {
-				logEvent(node => $ET->{$event_hash}{node}, event => "deleted event: $ET->{$event_hash}{event}", 
-								 level => "Normal", element => $ET->{$event_hash}{element})
-						# log the deletion meta-event iff the original event had logging enabled
-						if (getbool($thisevent_control->{Log}));
-
-				delete $ET->{$event_hash};
-				$delete_event = 1;
-			}
-			else {
-				logEvent(node => $node, event => $event, level => "Normal", element => $element, details => "acknowledge=true ($user)")
-						# log the ack meta-event iff the original event had logging enabled
-						if (getbool($thisevent_control->{Log}));
-				
-				$ET->{$event_hash}{ack} = "true";
-				$ET->{$event_hash}{user} = $user;
-			}
-		}
-		elsif ( getbool($ack,"invert") and getbool($ET->{$event_hash}{ack})) {
-			logEvent(node => $node, event => $event, level => $ET->{$event_hash}{level}, element => $element, details => "acknowledge=false ($user)")
-					if (getbool($thisevent_control->{Log}));
-			$ET->{$event_hash}{ack} = "false";
-			$ET->{$event_hash}{user} = $user;
-		}
-	}
-	if (getbool($C->{db_events_sql})) {
-		if ($delete_event) {
-			DBfunc::->delete(table=>'Events',index=>$event_hash);
-		} else {
-			DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
-		}
-	} else {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-} # eventAck
 
 
 sub getSummaryStats{
@@ -1578,7 +1046,6 @@ sub getNodeSummary {
 	my $group = $args{group};
 	
 	my $NT = loadLocalNodeTable();
-	my $ET = loadEventStateNoLock();
 	my $OT = loadOutageTable();
 	my %nt;
 	
@@ -1614,10 +1081,16 @@ sub getNodeSummary {
 			$nt{$nd}{$property} = $NI->{system}{$property};
 		}
 		
-		#
 		$nt{$nd}{nodedown} = $NI->{system}{nodedown};
-		my $event_hash = eventHash($nd, "Node Down", "Node");
-		$nt{$nd}{escalate} = $ET->{$event_hash}{escalate};
+		# find out if a node down event exists, and if so store
+		# its escalate setting
+		my $curescalate = undef;
+		if (my $eventexists = eventExist($nd, "Node Down", undef))
+		{
+			my $erec = eventLoad(filename => $eventexists);
+			$curescalate = $erec->{escalate} if ($erec);
+		}
+		$nt{$nd}{escalate} = $curescalate;
 
 		### adding node_status to the summary data
 		# check status from event db
@@ -1749,7 +1222,7 @@ sub getGroupSummary {
 			}
 			
 			# The other way to get node status is to ask Event State DB. 
-			if ( eventExist($node, "Node Down", "") ) {
+			if ( eventExist($node, "Node Down", undef) ) {
 				$SUM->{$node}{nodedown} = "true";
 			}
 			else {
@@ -2218,56 +1691,10 @@ sub colorResponseTimeStatic {
 	return $color;
 }
 	
-sub eventLevel {
-	my $event = shift;
-	my $role = shift;
 
-	my $event_level;
-	my $event_color;
 
-	if ( $event eq 'Node Down' ) {
-	 	if ( $role eq "core" ) { $event_level = "Critical"; }
-	 	elsif ( $role eq "distribution" ) { $event_level = "Major"; }
-	 	elsif ( $role eq "access" ) { $event_level = "Minor"; }
-	}
-	elsif ( $event =~ /up/i ) {
-		$event_level = "Normal";
-	}
-	# colour all other events the same, based on role, to get some consistency across the network
-	else {
-	 	if ( $role eq "core" ) { $event_level = "Major"; }
-	 	elsif ( $role eq "distribution" ) { $event_level = "Minor"; }
-	 	elsif ( $role eq "access" ) { $event_level = "Warning";	}
-	}
-	$event_color = eventColor($event_level);
-	return ($event_level,$event_color);
-} # eventLevel
-
-# clean all events for a node - used if editing or deleting nodes via Config
-sub cleanEvent {
-	my $node=shift;
-	my $caller=shift;
-
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my ($ET,$handle) = loadEventStateLock();
-
-	foreach my $event_hash ( sort keys %{$ET})  
-	{
-		if ( exists $ET->{$event_hash} and $ET->{$event_hash}{node} eq "$node" )
-		{
-			# event control is as configured or all true.
-			my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
-			# log the deletion meta-event iff the original event had logging enabled
-			if (getbool($thisevent_control->{Log}))
-			{
-				logEvent(node => "$ET->{$event_hash}{node}", event => "$caller: deleted event: $ET->{$event_hash}{event}", level => "Normal", element => "$ET->{$event_hash}{element}", details => "$ET->{$event_hash}{details}");
-			}
-			delete $ET->{$event_hash};
-		}
-	}
-	writeEventStateLock(table=>$ET,handle=>$handle);
-}
-
+# fixme: az looks like this function should be reworked with
+# or ditched in favour of nodeStatus()
 sub overallNodeStatus {
 	my %args = @_;
 	my $group = $args{group};
@@ -2292,7 +1719,6 @@ sub overallNodeStatus {
 
 	my $C = loadConfTable();
 	my $NT = loadNodeTable();
-	my $ET = loadEventStateNoLock();
 	my $NS = loadNodeSummary();
 
 	#print STDERR &returnDateStamp." overallNodeStatus: netType=$netType roleType=$roleType\n";
@@ -2306,9 +1732,9 @@ sub overallNodeStatus {
 					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 					my $down_event = "Node Down";
 					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-					my $event_hash = eventHash($node,$down_event,"");
+					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+					
 					($outage,undef) = outageCheck(node=>$node,time=>time());
-					$nodedown = exists $ET->{$event_hash}{node};
 				}
 				else {
 					$outage = $NS->{$node}{outage};
@@ -2335,13 +1761,14 @@ sub overallNodeStatus {
 				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
 					my $nodedown = 0;
 					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} ) {
+					if ( $NT->{$node}{server} eq $C->{server_name} ) 
+					{
 						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 						my $down_event = "Node Down";
 						$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-						my $event_hash = eventHash($node,$down_event,"");
+						$nodedown = eventExist($node, $down_event, undef)? 1 : 0;
+
 						($outage,undef) = outageCheck(node=>$node,time=>time());
-						$nodedown = exists $ET->{$event_hash}{node};
 					}
 					else {
 						$outage = $NS->{$node}{outage};
@@ -2374,13 +1801,14 @@ sub overallNodeStatus {
 			) {
 				my $nodedown = 0;
 				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) {
+				if ( $NT->{$node}{server} eq $C->{server_name} ) 
+				{
 					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 					my $down_event = "Node Down";
 					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-					my $event_hash = eventHash($node,$down_event,"");
+
+					$nodedown = eventExist($node, $down_event, undef)? 1:0;
 					($outage,undef) = outageCheck(node=>$node,time=>time());
-					$nodedown = exists $ET->{$event_hash}{node};
 				}
 				else {
 					$outage = $NS->{$node}{outage};
@@ -2714,17 +2142,21 @@ sub outageRemove {
 
 	writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
 
+	my @problems;
+
 	if ($string ne '') {
-		# log this action
+		# log this action but DON'T DEADLOCK - logMsg locks, too!
 		if ( open($handle,">>$C->{outage_log}") ) {
 			if ( flock($handle, LOCK_EX) ) { 
 				if ( not print $handle returnDateStamp()." $string\n" ) {
-					logMsg("ERROR (nmis) cannot write file $C->{outage_log}: $!");
+					push(@problems, "cannot write file $C->{outage_log}: $!");
 				}
 			} else {
-				logMsg("ERROR (nmis) cannot lock file $C->{outage_log}: $!");
+				push(@problems, "cannot lock file $C->{outage_log}: $!");
 			}
 			close $handle;
+			map { logMsg("ERROR (nmis) $_") } (@problems);
+
 			setFileProt($C->{outage_log});
 		} else {
 			logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
@@ -3394,6 +2826,851 @@ sub loadCBQoS
 } # end loadCBQos
 
 
+# all event handling routines follow below
+
+
+# small helper that translates event data into a severity level
+# args: event, role.
+sub eventLevel {
+	my $event = shift;
+	my $role = shift;
+
+	my $event_level;
+	my $event_color;
+
+	if ( $event eq 'Node Down' ) {
+	 	if ( $role eq "core" ) { $event_level = "Critical"; }
+	 	elsif ( $role eq "distribution" ) { $event_level = "Major"; }
+	 	elsif ( $role eq "access" ) { $event_level = "Minor"; }
+	}
+	elsif ( $event =~ /up/i ) {
+		$event_level = "Normal";
+	}
+	# colour all other events the same, based on role, to get some consistency across the network
+	else {
+	 	if ( $role eq "core" ) { $event_level = "Major"; }
+	 	elsif ( $role eq "distribution" ) { $event_level = "Minor"; }
+	 	elsif ( $role eq "access" ) { $event_level = "Warning";	}
+	}
+	$event_color = eventColor($event_level);
+	return ($event_level,$event_color);
+} # eventLevel
+
+# this function checks if a particular event exists 
+# in the list of current event, NOT the history list!
+#
+# args: node, event(name), element (element may be missing)
+# returns event file name if present, 0/undef otherwise
+sub eventExist
+{
+	my ($node, $eventname, $element) = @_;
+
+	my $efn = event_to_filename(event => { node => $node,
+																				 event => $eventname,
+																				 element => $element },
+															category => "current" );
+	return ($efn and -f $efn)? $efn : 0;
+}
+
+# returns the detailed event record for the given CURRENT event
+# args: node, event(name), element OR filename
+# returns event hash or undef
+sub eventLoad
+{
+	my (%args) = @_;
+	
+	my $efn = $args{filename} 
+	|| event_to_filename( event => { node => $args{node},
+																	 event => $args{event},
+																	 element => $args{element} },
+												category => "current" );
+	return undef if (!$efn or !-f $efn);
+	if (!open(F, "$efn"))
+	{
+		logMsg("ERROR cannot open event file $efn: $!");
+		return undef;
+	}
+	my $erec = eval { decode_json(join("", <F>)) };
+	close(F);
+	if (ref($erec) ne "HASH" or $@)
+	{
+		logMsg("ERROR event file $efn has malformed data: $@");
+		return undef;
+	}
+	
+	return $erec;
+}
+
+# deletes ONE event, does NOT (event-)log anything
+# args: event (=record suitably filled in to find the file)
+# returns undef if ok, error message otherwise
+sub eventDelete
+{
+	my (%args) = @_;
+
+	return "Cannot remove unnamed event!" if (!$args{event});
+	my $efn = event_to_filename( event => $args{event},
+															 category => "current" );
+
+	return "Cannot find event file for node=$args{event}->{node}, event=$args{event}->{event}, element=$args{event}->{element}" if (!$efn or !-f $efn);
+
+	# be polite and robust, fix up any dir perm messes
+	setFileProtParents(dirname($efn));
+	
+	my $hfn = event_to_filename( event => $args{event},
+															 category => "history" ); # file to dir is a bit of a hack
+	my $historydirname = dirname($hfn) if ($hfn);
+	createDir($historydirname) if ($historydirname and !-d $historydirname);
+	setFileProtParents($historydirname) if (-d $historydirname);
+
+	# now move the event into the history section if we can
+	if ($historydirname and -d $historydirname)
+	{
+		my $newfn = "$historydirname/".time."-".basename($efn);
+			rename($efn, $newfn) 
+					or return"could not move event file $efn to history: $!";
+	}
+	else
+	{
+		unlink($efn) 
+				or return "could not remove event file $efn: $!";
+	}
+	return undef;
+}
+
+# replaces the event data for one given EXISTING event 
+# or CREATES a new event with option create_if_missing
+#
+# args: event (=full record, for finding AND updating)
+# create_if_missing (default false)
+# 
+# the node, event name and elements of an event CANNOT be changed,
+# because they are part of the naming components!
+#
+# returns undef if ok, error message otherwise
+sub eventUpdate
+{
+	my (%args) = @_;
+
+	return "Cannot update unnamed event!" if (!$args{event});
+	my $efn = event_to_filename( event => $args{event},
+															 category => "current" );
+	return "Cannot find event file for node=$args{event}->{node}, event=$args{event}->{event}, element=$args{event}->{element}" if (!$efn or (!-f $efn and !$args{create_if_missing}));
+
+	my $dirname = dirname($efn);
+	if (!-d $dirname)
+	{
+		func::createDir($dirname);
+		func::setFileProtParents($dirname); # which includes the parents up to nmis_base
+	}
+
+	my $filemode = (-f $efn)? "+<": ">"; # clobber if nonex
+
+	my @problems;
+	if (!open(F, $filemode, $efn))
+	{
+		return "Cannot open event file $efn ($filemode): $!";
+	}
+	flock(F, LOCK_EX)  or push(@problems, "Cannot lock file $efn: $!");
+	func::enter_critical;
+	seek(F, 0, 0);
+	truncate(F, 0) or push(@problems, "Cannot truncate file $efn: $!");
+	print F encode_json($args{event});
+	close(F) or push(@problems, "Cannot close file $efn: $!");
+	func::leave_critical;
+
+	setFileProt($efn);
+	if (@problems)
+	{
+		return join("\n", @problems);
+	}
+	return undef;
+}
+
+# looks up all events (for one node or all), 
+# in current or history section
+#
+# args: node (optional, if not there all are loaded),
+# category (optional: default is "current") 
+# returns hash of: event file name (=full path!) => the event's record
+sub loadAllEvents
+{
+	my (%args) = @_;
+
+	my $C = loadConfTable();			# cached
+
+	my @wantednodes = $args{node}? ($args{node}) : (keys %{loadLocalNodeTable()});
+	my $category  = $args{category} || "current";
+	my %results = ();
+	
+	for my $node (@wantednodes)
+	{
+		# find the relevant dir via a dummy event and suck them all in
+		my $efn = event_to_filename( event => { node => $node, 
+																						event => "dummy", 
+																						element => "dummy" },
+																 category => $category );
+		my $dirname = dirname($efn) if ($efn);
+		next if (!$dirname or !-d $dirname);
+
+		opendir(D, $dirname) or logMsg("ERROR could not opendir $dirname: $!");
+		my @candidates = readdir(D);
+		closedir(D);
+		
+		for my $efn (@candidates)
+		{
+			next if ($efn =~ /^\./ or $efn !~ /\.json$/);
+
+			$efn = "$dirname/$efn";		# for loading and storage
+			my $erec = eventLoad(filename => $efn);
+			next if (ref($erec) ne "HASH"); # eventLoad already logs errors
+			$results{$efn} = $erec;
+		}
+	}
+	return %results;
+}
+
+# removes all current events for a node 
+# this is normally used after editing/deleting nodes to clean the slate and
+# make sure there's no lingering phantom events
+# 
+# note: logs if allowed to
+# args: node, caller (for logging)
+# return nothing
+sub cleanEvent 
+{
+	my ($node, $caller) = @_;
+
+	# find the relevant dir via a dummy event and empty it
+	my $efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
+															 category => "current" );
+	my $dirname = dirname($efn) if ($efn);
+	return if (!$dirname or !-d $dirname);
+	func::setFileProtParents($dirname);
+
+	$efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
+														category => "history" );
+	my $historydirname = dirname($efn) if $efn; # shouldn't fail but BSTS
+	func::createDir($historydirname) 
+			if ($historydirname and !-d $historydirname);
+	func::setFileProtParents($historydirname) if (-d $historydirname);
+	
+	# get the event configuration which controls logging
+	my $C = loadConfTable();			# cached
+	my $events_config = loadTable(dir => 'conf', name => 'Events');
+
+	opendir(D, $dirname) or logMsg("ERROR could not opendir $dirname: $!");
+	my @candidates = readdir(D);
+	closedir(D);
+
+	for my $moriturus (@candidates)
+	{
+		next if ($moriturus =~ /^\./ or -d $moriturus or $moriturus !~ /\.json$/);
+
+		# load it so that we can determine whether to log its deletion
+		my $erec = eventLoad(filename => "$dirname/$moriturus");
+		if (ref($erec) ne "HASH")
+		{
+			logMsg("ERROR failed to load event file $dirname/$moriturus!");
+		}
+		my $eventname = $erec->{event} if $erec;
+
+		# log the deletion meta-event iff the original event had logging enabled			
+		# event logging: true unless overridden by event_config
+		if (!$eventname or ref($events_config->{$eventname}) ne "HASH" 
+				or !getbool($events_config->{$eventname}->{Log}, "invert") )
+		{
+			logEvent( node => $node, 
+								event => "$caller: deleted event: $eventname", 
+								level => "Normal", 
+								element => $erec->{element}||'', 
+								details => $erec->{details}||'');
+		}
+		# now move the event into the history section if we can
+		if ($historydirname and -d $historydirname)
+		{
+			my $newfn = "$historydirname/".time."-$moriturus";
+			rename("$dirname/$moriturus", $newfn) 
+					or  logMsg("ERROR could not move event file $dirname/$moriturus to history: $!");
+		}
+		else
+		{
+			unlink("$dirname/$moriturus") 
+					or logMsg("ERROR could not remove event file $dirname/$moriturus: $!");
+		}
+	}
+	return;
+}
+
+# write a record for a given event to the event log file
+# args: node, event, element (may be missing), level, details (may be missing)
+# logs errors
+# returns: undef if ok, error message otherwise
+sub logEvent 
+{
+	my %args = @_;
+
+	my $node = $args{node};
+	my $event = $args{event};
+	my $element = $args{element};
+	my $level = $args{level};
+	my $details = $args{details};
+	$details =~ s/,//g; # strip any commas
+
+	if (!$node  or !$event or !$level) 
+	{
+		logMsg("ERROR logging event, required argument missing: node=$node, event=$event, level=$level");
+		return "required argument missing: node=$node, event=$event, level=$level";
+	}
+
+	my $time = time();
+	my $C = loadConfTable();
+	
+	my @problems;
+
+	# MUST NOT logMsg while holding that lock, as logmsg locks, too!
+	sysopen(DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT)
+			or push(@problems, "Cannot open $C->{event_log}: $!");
+	flock(DATAFILE, LOCK_EX) 
+			or push(@problems,"Cannot lock $C->{event_log}: $!");
+	func::enter_critical;
+	# it's possible we shouldn't write if we can't lock it...
+	print DATAFILE "$time,$node,$event,$level,$element,$details\n";
+	close(DATAFILE) or push(@problems, "Cannot close $C->{event_log}: $!");
+	func::leave_critical;
+	setFileProt($C->{event_log}); # set file owner/permission, default: nmis, 0775
+	
+	if (@problems)
+	{
+		my $msg = join("\n", @problems);
+		logMsg("ERROR $msg");
+		return $msg;
+	}
+	return undef;
+}
+
+# this function (un)acknowledges an existing event
+# if configured to it also (event-)logs the activity
+#
+# args: node, event, element, level, details, ack, user;
+# returns: undef if ok, error message otherwise
+sub eventAck 
+{
+	my %args = @_;
+	
+	my $node = $args{node};
+	my $event = $args{event};
+	my $element = $args{element};
+	my $level = $args{level};
+	my $details = $args{details};
+	my $ack = $args{ack};
+	my $user = $args{user};
+
+	my $C = loadConfTable();
+	my $events_config = loadTable(dir => 'conf', name => 'Events');
+
+	# first, find the event
+	my $erec = eventLoad(node => $node, event => $event, element => $element);
+	if (ref($erec) ne "HASH")
+	{
+		logMsg("ERROR cannot find event for node=$node, event=$event, element=$element");
+		return "cannot find event for node=$node, event=$event, element=$element";
+	}
+
+	# event control for logging:  as configured or default true, ie. only off if explicitely configured off.
+	my $wantlog = (!$events_config or !$events_config->{$event} 
+								 or !getbool($events_config->{$event}->{Log}, "invert"))? 1 : 0;
+	
+	# events are only acknowledgeable while they are current (ie. not in the process of
+	# being deleted)!
+	return undef if (!getbool($erec->{current}));
+	
+	### if a TRAP type event, then trash when ack. event record will be in event log if required
+	if (getbool($ack) and getbool($erec->{ack},"invert") and $event eq "TRAP")
+	{
+		if (my $error = eventDelete(event => $erec))
+		{
+			logMsg("ERROR: $error");
+		}
+		logEvent(node => $node, event => "deleted event: $event", 
+						 level => "Normal", element => $element) if ($wantlog);
+	}
+	else	# a 'normal' event
+	{
+		# nothing to do if requested ack and saved ack the same...
+		if (getbool($ack) != getbool($erec->{ack}))
+		{
+			my $newack = getbool($ack)? 'true' : 'false';
+
+			$erec->{ack} = $newack;
+			$erec->{user} = $user;
+			if (my $error = eventUpdate(event => $erec))
+			{
+				logMsg("ERROR: $error");
+			}
+			
+			logEvent(node => $node, event => $event, 
+							 level => "Normal", element => $element, 
+							 details => "acknowledge=$newack ($user)")
+					if $wantlog;
+		}
+	}
+	return undef;
+}
+
+# this adds one new event OR updates an existing stateless event
+# this is a HIGHLEVEL function, doing all kinds of nmis-related stuff!
+# to JUST create an event record, use eventUpdate() w/create_if_missing
+#
+# args: node, event, element (may be missing), level, 
+# details (may be missing), stateless (optional, default false)
+#
+# returns: undef if ok, error message otherwise
+sub eventAdd 
+{
+	my %args = @_;
+
+	my $node = $args{node};
+	my $event = $args{event};
+	my $element = $args{element};
+	my $level = $args{level};
+	my $details = $args{details};
+	my $stateless = $args{stateless} || "false";
+
+	my $C = loadConfTable();
+
+	my $efn = event_to_filename( event => { node => $node,
+																					event => $event, 
+																					element => $element },
+															 category => "current" );
+	return "Cannot create event with missing parameters, node=$node, event=$event, element=$element!"
+			if (!$efn);
+
+	my $existing = eventLoad(filename => $efn) if (-f $efn);
+
+	# is this an already EXISTING stateless event?
+	# they will reset after the dampening time, default dampen of 15 minutes.	
+	if ( $existing and getbool($existing->{stateless}) ) 
+	{
+		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
+		
+		# if the stateless time is greater than the dampening time, reset the escalate.
+		if ( time() > $existing->{startdate} + $stateless_event_dampening ) 
+		{
+			$existing->{current} = 'true';
+			$existing->{startdate} = time();
+			$existing->{escalate} = -1;
+			$existing->{ack} = 'false';
+			dbg("event stateless, node=$node, event=$event, level=$level, element=$element, details=$details");
+			if (my $error = eventUpdate(event => $existing))
+			{
+				logMsg("ERROR $error");
+				return $error;
+			}
+		}
+	}
+	# before we log, check the state if there is an event and if it's current
+	elsif ( $existing and getbool($existing->{current}) ) 
+	{
+		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+	}
+	# doesn't exist or isn't current
+	# fixme: existing  but not current isn't cleanly handled here
+	else 
+	{
+		$existing ||= {};
+		
+		$existing->{current} = 'true';
+		$existing->{startdate} = time();
+		$existing->{node} = $node;
+		$existing->{event} = $event;
+		$existing->{level} = $level;
+		$existing->{element} = $element;
+		$existing->{details} = $details;
+		$existing->{ack} = 'false';
+		$existing->{escalate} = -1;
+		$existing->{notify} = "";
+		$existing->{stateless} = $stateless;
+
+		if (my $error = eventUpdate(event => $existing, create_if_missing => !(-f $efn)))
+		{
+			logMsg("ERROR $error");
+			return $error;
+		}
+		dbg("event added, node=$node, event=$event, level=$level, element=$element, details=$details");
+		##	logMsg("INFO event added, node=$node, event=$event, level=$level, element=$element, details=$details");
+	}
+
+	return undef;
+}
+
+# Check event is called after determining that something is back up!
+# Check event checks if the given event exists - args are the DOWN event!
+# if it exists it deletes it from the event state table/log
+#
+# and then calls notify with a new Up event including the time of the outage
+# args: a LIVE sys object for the node, event(name);
+#  element, details and level are optional 
+#
+# returns: nothing
+sub checkEvent
+{
+	my %args = @_;
+
+	my $S = $args{sys}; 
+	my $node = $S->{node};
+	my $event = $args{event};
+	my $element = $args{element};
+	my $details = $args{details};
+	my $level = $args{level};
+	my $log;
+	my $syslog;
+	
+	my $C = loadConfTable();
+
+	# events.nmis controls which events are active/logging/notifying
+	# cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); 
+	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
+	
+	# set defaults just in case any are blank.
+	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Reset';
+	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
+	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
+
+	# check if the event exists and load its details
+	my $event_exists = eventExist($node, $event, $element);
+	my $erec = eventLoad(filename => $event_exists) if $event_exists;
+
+	if ($event_exists
+			and getbool($erec->{current})) 
+	{
+		# a down event exists, so log an UP and delete the original event
+
+		# cmpute the event period for logging
+		my $outage = convertSecsHours(time() - $erec->{startdate});
+
+		# Just log an up event now.
+		if ( $event eq "Node Down" ) 
+		{
+			$event = "Node Up";
+		}
+		elsif ( $event eq "Interface Down" ) 
+		{
+			$event = "Interface Up";
+		}
+		elsif ( $event eq "RPS Fail" ) 
+		{
+			$event = "RPS Up";
+		}
+		elsif ( $event =~ /Proactive/ ) 
+		{
+			# but only if we have cleared the threshold by 10%
+			# for thresholds where high = good (default 1.1)
+			if ( defined($args{value}) and defined($args{reset}) ) 
+			{
+				if ( $args{value} >= $args{reset} ) 
+				{
+					return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
+				} 
+				else 
+				{
+				# for thresholds where low = good (default 0.9)
+					return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
+				}
+			}
+			$event = "$event Closed";
+		}
+		elsif ( $event =~ /^Alert/ ) 
+		{
+			# A custom alert is being cleared.
+			$event = "$event Closed";
+		}
+		elsif ( $event =~ /down/i ) 
+		{
+			$event =~ s/down/Up/i;
+		}
+		
+		# event was renamed/inverted/massaged, need to get the right control record
+		# this is likely not needed
+		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+		$details .= " Time=$outage";
+
+		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
+
+		my $OT = loadOutageTable();
+		
+		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		if ($otg eq 'current') {
+			$details .= " change=$OT->{$key}{change}";
+		}
+
+		# now we save the new up event, and move the old down event into history
+		my $newevent = { %$erec };
+		$newevent->{current} = 'false'; # next processing by escalation routine
+		$newevent->{event} = $event;
+		$newevent->{details} = $details;
+		$newevent->{level} = $level;
+		
+		# make the new one FIRST
+		if (my $error = eventUpdate(event => $newevent, create_if_missing => 1))
+		{
+			logMsg("ERROR $error");
+		}
+		# then delete/move the old one, but only if all is well
+		else
+		{
+			if ($error = eventDelete(event => $erec))
+			{
+				logMsg("ERROR $error");
+			}
+		}
+
+		dbg("event node=$erec->{node}, event=$erec->{event}, element=$erec->{element} marked for UP notify and delete");
+		if (getbool($log) and getbool($thisevent_control->{Log})) 
+		{
+			logEvent( node=>$S->{name}, 
+								event=>$event, 
+								level=>$level,
+								element=>$element,
+								details=>$details);
+		}
+
+		# Syslog must be explicitly enabled in the config and will escalation is not being used.
+		if (getbool($C->{syslog_events}) and getbool($syslog)
+				and getbool($thisevent_control->{Log})
+				and !getbool($C->{syslog_use_escalation})) 
+		{
+			sendSyslog(
+				server_string => $C->{syslog_server},
+				facility => $C->{syslog_facility},
+				nmis_host => $C->{server_name},
+				time => time(),
+				node => $S->{name},
+				event => $event,
+				level => $level,
+				element => $element,
+				details => $details
+			);
+		}
+	}
+}
+
+# notify creates new events 
+# OR updates level changes for existing threshold/alert ones
+# note that notify ignores any outage configuration.
+#
+# args: LIVE sys for this node, event(=name), element (optional),
+# details, level (all optional)
+# returns: nothing
+sub notify 
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
+
+	my $event = $args{event};
+	my $element = $args{element};
+	my $details = $args{details};
+	my $level = $args{level};
+	my $node = $S->{name};
+	my $log;
+	my $syslog;
+
+	my $C = loadConfTable();
+
+	dbg("Start of Notify");
+	
+	# events.nmis controls which events are active/logging/notifying
+	# cannot use loadGenericTable as that checks and clashes with db_events_sql
+	my $events_config = loadTable(dir => 'conf', name => 'Events'); 
+	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+	
+	my $event_exists = eventExist($S->{name},$event,$element);
+	my $erec = eventLoad(filename => $event_exists) if $event_exists;
+
+
+	if ( $event_exists and getbool($erec->{current})) 
+	{
+		# event exists, maybe a level change of proactive threshold?
+		if ($event =~ /Proactive|Alert\:/ ) 
+		{
+			if ($erec->{level} ne $level) 
+			{
+				# change of level; must update the event record
+				# note: 2014-08-27 keiths, update the details as well when changing the level
+				$erec->{level} = $level;
+				$erec->{details} = $details;
+				if (my $error = eventUpdate(event => $erec))
+				{
+					logMsg("ERROR $error");
+				}
+
+				(undef, $log, $syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
+				$details .= " Updated";
+			}
+		}
+		else # not an proactive/alert event - no changes are supported
+		{
+			dbg("Event node=$node event=$event element=$element already exists");
+		}
+	} 
+	else # event doesn't exist OR is set to non-current
+	{
+		# get level(if not defined) and log status from Model
+		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
+
+		my $is_stateless = ($C->{non_stateful_events} !~ /$event/ 
+												or getbool($thisevent_control->{Stateful}))? "false": "true";
+		# Create and store this new event; record whether stateful or not
+		# a stateless event should escalate to a level and then be automatically deleted.
+		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level, 
+															element=>$element, details=>$details, stateless => $is_stateless))
+		{
+			logMsg("ERROR: $error");
+		}
+		
+		if (getbool($C->{log_node_configuration_events}) 
+				and $C->{node_configuration_events} =~ /$event/
+				and getbool($thisevent_control->{Log}))
+		{
+			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
+										 element=>$element, details=>$details, host => $NI->{system}{host}, 
+										 nmis_server => $C->{nmis_host} );			
+		}
+	}
+
+	# log events if allowed
+	if ( getbool($log) and getbool($thisevent_control->{Log})) 
+	{
+		logEvent(node=>$node, event=>$event, level=>$level, element=>$element, details=>$details);
+	}
+
+	# Syslog must be explicitly enabled in the config and 
+	# is used only if escalation isn't
+	if (getbool($C->{syslog_events}) 
+			and getbool($syslog)
+			and getbool($thisevent_control->{Log})
+			and !getbool($C->{syslog_use_escalation})) 
+	{
+		sendSyslog(
+			server_string => $C->{syslog_server},
+			facility => $C->{syslog_facility},
+			nmis_host => $C->{server_name},
+			time => time(),
+			node => $node,
+			event => $event,
+			level => $level,
+			element => $element,
+			details => $details
+				);
+	}
+
+	dbg("Finished");
+}
+
+# translates a full event structure into a filename
+# args: event (= hashref), category (optional, current or history; 
+# otherwise taken from event - event with current=false go into history)
+#
+# returns: file name or undef if inputs make no sense
+sub event_to_filename
+{
+	my (%args) = @_;
+	my $C = loadConfTable();			# likely cached
+	
+	my $erec = $args{event};
+	return undef if (!$erec or ref($erec) ne "HASH" or !$erec->{node}
+									 or !$erec->{event}); # element is optional
+
+	# note: at this time there are just three spots where the location of this structure 
+	# is known: here, in the upgrade_events_structure function (assumes under var), and 
+	# in nmis_file_cleanup.sh.
+	#
+	# structure: var/events/lcNODENAME/{current,history}/EVENTNAME.json
+	my $eventbasedir = $C->{'<nmis_var>'}."/events";
+
+	# overridden, or not current then history, or 
+	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/? 
+			$args{category} : getbool($erec->{current})? "current" : "history";
+	
+	my $nodecomp = lc($erec->{node}); 
+	$nodecomp =~ s![ :/]!_!g; # no slashes possible, no colons and spaces just for backwards compat
+	
+	my $eventcomp = lc($erec->{event}."-".($erec->{element}? $erec->{element} : ''));
+	$eventcomp =~ s![ :/]!_!g;			#  backwards compat
+	
+	my $result = "$eventbasedir/$nodecomp/$category/$eventcomp.json";
+	return $result;
+}
+	
+# this reads an old-style nmis-events file if present,
+# and splits the events out into the desired new dir structure
+# when done it renames the nmis-events file.
+# returns undef if everything is done, error message otherwise
+sub upgrade_events_structure
+{
+	my $C = loadConfTable();			# likely cached
+
+	# we're clearly done if no nmis-events.{nmis,json} exists
+	my $oldeventfile = func::getFileName(file => $C->{'<nmis_var>'}."/nmis-event");
+	return undef if (!-f $oldeventfile);
+
+	# load and lock the existing events file
+	my ($old, $fh) = loadTable( dir=>'var', name=>'nmis-event', lock=>'true');
+
+	for my $eventkey (keys %$old)
+	{
+		my $eventrec = $old->{$eventkey};
+		next if (!$eventrec or !%$eventrec);				# deal with incorrectly vivified dud blank events
+
+		my $newfn = event_to_filename(event => $eventrec);
+		if (!$newfn)
+		{
+			close $fh;
+			return "Error: no file name for eventkey $eventkey!";
+		}
+		
+		my $dirname = dirname($newfn);
+		if (!-d $dirname)
+		{
+			func::createDir($dirname);
+			func::setFileProt($dirname);
+		}
+
+		if (!open(F, ">$newfn"))
+		{
+			my $problem = $!;
+			close $fh;
+			return "cannot write to $newfn: $problem";
+		}
+		print F encode_json($eventrec);
+		close(F);
+		# now be nice: update the file modification (and access) timestamps to match the startdate property,
+		# the file creation time we CANNOT change...
+		utime($eventrec->{startdate}, $eventrec->{startdate}, $newfn); #ignore problems, not important
+	}
+
+	# and now that we're mostly done, ensure the permissiones make sense
+	# fixme: this assumes that events is under var; must align with event_to_filename!
+	func::setFileProtDirectory($C->{'<nmis_var>'}, 1);
+
+	# finally, renmae the event file away
+	if (!rename($oldeventfile, "$oldeventfile.disabled"))
+	{
+		my $problem = $!;
+		close $fh;
+		return "cannot rename $oldeventfile: $problem";
+	}
+	close $fh;
+	logMsg("INFO NMIS has successfully converted the nmis-event data structure, and the old event file was renamed to \"$oldeventfile.disabled\".");
+
+	return undef;
+}
 
 
 

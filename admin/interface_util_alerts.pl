@@ -161,7 +161,9 @@ foreach my $node (sort keys %{$LNT}) {
 				if ( $eventExists and $level =~ /Normal/i) {
 					# Proactive Closed.
 					$condition = 1;
-					deleteEvent($node,$event,$element);
+					eventDelete(event => { node => $node, 
+																 event => $event, 
+																 element => $element });
 					$event = "$event Closed" if $event !~ /Closed/;
 					$sendSyslog = 1;
 				}
@@ -213,60 +215,19 @@ foreach my $node (sort keys %{$LNT}) {
 	}
 }
 		
-sub deleteEvent {		
-	my $node = shift;
-	my $event = shift;
-	my $element = shift;
+
+# globally removes all events called "something Closed"
+sub cleanEvents 
+{
+	my %allevents = loadAllEvents;
 	
-	#print "DEBUG deleteEvent: $node,$event,$element\n";
-
-	my $event_hash = eventHash($node,$event,$element);
-
-	#print "DEBUG deleteEvent: $event_hash\n";
-
-	my ($ET,$handle);
-	if ($C->{db_events_sql} eq 'true') {
-		$ET = DBfunc::->select(table=>'Events');
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-
-	# remove this entry
-	if ($C->{db_events_sql} eq 'true') {
-		DBfunc::->delete(table=>'Events',index=>$event_hash);
-	} else {
-		if ( exists $ET->{$event_hash}{node} and $ET->{$event_hash}{node} ne "" ) {
-			delete $ET->{$event_hash};
-		}
-		else {
-			print STDERR "ERROR no event found for: $event_hash\n";
+	foreach my $key (keys %allevents)
+	{
+		my $thisevent = $allevents{$key};
+		if ( $thisevent->{event} =~ /Closed/ ) 
+		{
+			print "Cleaning event $thisevent->{node} $thisevent->{event}\n";
+			eventDelete(event => $thisevent);
 		}
 	}
-
-	if ($C->{db_events_sql} ne 'true') {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-
-}
-
-sub cleanEvents {		
-
-	my ($ET,$handle);
-	if ($C->{db_events_sql} eq 'true') {
-		$ET = DBfunc::->select(table=>'Events');
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-	
-	foreach my $key (keys %$ET) {
-		if ( $ET->{$key}{event} =~ /Closed/ ) {
-			print "Cleaning event $ET->{$key}{node} $ET->{$key}{event}\n";
-			delete($ET->{$key});
-		}
-	}
-
-	if ($C->{db_events_sql} ne 'true') {
-		writeEventStateLock(table=>$ET,handle=>$handle);
-	}
-
 }

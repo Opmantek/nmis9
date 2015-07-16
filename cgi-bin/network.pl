@@ -182,7 +182,6 @@ logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
 
 my $NT = loadNodeTable();
 my $GT = loadGroupTable();
-#my $ET = loadEventStateNoLock; # load by file or db
 
 # graph request
 my $ntwrk = ($select eq 'large') ? 'network' : ($Q->{group} eq '') ? 'network' : $Q->{group} ;
@@ -1438,7 +1437,6 @@ EO_HTML
   	return;
 	}
 	
-	my $ET = loadEventStateNoLock();
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 	
 	# fallback/default order and set of propertiess for displaying all information
@@ -1582,18 +1580,22 @@ EO_HTML
 					}
 				}
 			}
-			# display events
-			if ( grep { $ET->{$_}{node} eq $node } keys %{$ET}) {
+			# display events for this one node
+			if (my %nodeevents = loadAllEvents(node => $node))
+			{
 				push @out,Tr(td({class=>'header',colspan=>'2'},'Events'));
-				for (sort keys %{$ET}) {
-					if ($ET->{$_}{node} eq $node) {
-						my $state = getbool($ET->{$_}{ack},"invert") ? 'active' : 'inactive';
-						my $details = $ET->{$_}{details};
-						$details = "$ET->{$_}{element} $details" if $ET->{$_}{event} =~ /^Proactive|^Alert/ ;
-						$details = $ET->{$_}{element} if $details eq "";
-						push @out,Tr(td({class=>'info Plain'},'Event'),
-						td({class=>'info Plain'},"$ET->{$_}{event} - $details, Escalate $ET->{$_}{escalate}, $state"));
-					}
+
+				for my $eventkey (sort keys %nodeevents) 
+				{
+					my $thisevent = $nodeevents{$eventkey};
+
+					my $state = getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
+					my $details = $thisevent->{details};
+					$details = "$thisevent->{element} $details" if ($thisevent->{event} =~ /^Proactive|^Alert/) ;
+					$details = $thisevent->{element} if (!$details);
+					push @out,Tr(td({class=>'info Plain'},'Event'),
+											 td({class=>'info Plain'},
+													"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"));
 				}
 			}
 		
@@ -2340,7 +2342,7 @@ uri_escape($node);
 			td({class=>'header'},a({href=>"$url&sort=CPU",class=>"wht"},"Total CPU Time")),
 			td({class=>'header'},a({href=>"$url&sort=Memory",class=>"wht"},"Allocated Memory"))
 		);	
-		foreach my $service (sort { sortServiceList($sort,$a,$b) } keys %{$NI->{services}} ) {
+		foreach my $service (sort { sortServiceList($sort, $sortField, $NI, $a,$b) } keys %{$NI->{services}} ) {
 			my $color;
 			$color = colorPercentHi(100) if $NI->{services}{$service}{hrSWRunStatus} =~ /running|runnable/;
 			$color = colorPercentHi(0) if $color eq "red";
@@ -2364,11 +2366,11 @@ uri_escape($node);
 	}
 	print end_table;
 	pageEnd() if (!$wantwidget);
+}
 
-	sub sortServiceList {
-		my $sort = shift;
-		my $a = shift;
-		my $b = shift;
+sub sortServiceList 
+{
+	my ($sort, $sortField, $NI, $a, $b) = @_;
 		
 		if ( $sort eq "Service" ) {
 			return $NI->{services}{$a}{$sortField} cmp $NI->{services}{$b}{$sortField};
@@ -2376,8 +2378,8 @@ uri_escape($node);
 		else {
 			return $NI->{services}{$b}{$sortField} <=> $NI->{services}{$a}{$sortField};		
 		}
-	}	
-}
+}	
+
 
 sub viewStatus {
 	
@@ -2449,7 +2451,7 @@ sub viewStatus {
 			td({class=>'header'},a({href=>"$url&sort=status",class=>"wht"},"Status")),
 			td({class=>'header'},"Updated"),
 		);	
-		foreach my $status (sort { sortStatus($sort,$a,$b) } keys %{$NI->{status}} ) {
+		foreach my $status (sort { sortStatus($sort, $sortField, $NI, $a, $b) } keys %{$NI->{status}} ) {
 			if ( exists $NI->{status}{$status}{updated} and $NI->{status}{$status}{updated} > time - 3600) {
 				my $updated = returnDateStamp($NI->{status}{$status}{updated});
 				my $elementLink = $NI->{status}{$status}{element};
@@ -2475,19 +2477,17 @@ sub viewStatus {
 	}
 	print end_table;
 	pageEnd() if (!$wantwidget);
+}
 
-	sub sortStatus {
-		my $sort = shift;
-		my $a = shift;
-		my $b = shift;
-		
-		if ( $sort =~ "(property|level|element|status|method)" ) {
-			return $NI->{status}{$a}{$sortField} cmp $NI->{status}{$b}{$sortField};
-		}
-		else {
-			return $NI->{status}{$b}{$sortField} <=> $NI->{status}{$a}{$sortField};		
-		}
-	}	
+sub sortStatus {
+	my ($sort , $sortField, $NI, $a, $b) = @_;
+	
+	if ( $sort =~ "(property|level|element|status|method)" ) {
+		return $NI->{status}{$a}{$sortField} cmp $NI->{status}{$b}{$sortField};
+	}
+	else {
+		return $NI->{status}{$b}{$sortField} <=> $NI->{status}{$a}{$sortField};		
+	}
 }
 
 sub viewEnvironment {
@@ -2674,7 +2674,7 @@ sub viewSystemHealth {
 			# use 2/3 width so fits a little better.
 			my $thiswidth = int(2/3*$smallGraphWidth);
 
-			split /,/, $M->{system}{nodegraph};
+			# fixme: this code does nothing: split /,/, $M->{system}{nodegraph};
 			my @graphtypes = split /,/, $graphtype;
 	
 			push(@cells, start_td);

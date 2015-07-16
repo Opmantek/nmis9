@@ -23,16 +23,19 @@ else
 fi
 
 # purge old RRD files
-find $DIR/database/ -follow -name "*rrd" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/database/ -follow -name "*.rrd" -mtime +$DAYS -type f -exec rm -f {} \;
 
 # and also get rid of definitely corrupt zero-byte-size RRD files
 find $DIR/database/ -follow -name "*.rrd" -type f -size 0c -exec rm -f {} \;
 
 # purge the NMIS files
-find $DIR/var/ -follow -name "*nmis" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/ -follow -name "*.nmis" -mtime +$DAYS -type f -exec rm -f {} \;
 
-# purge the JSON files
-find $DIR/var/ -follow -name "*json" -mtime +$DAYS -type f -exec rm -f {} \;
+# purge old JSON files, but not essential data!
+find $DIR/var/ -follow -maxdepth 1 -name "*.json" -mtime +$DAYS -type f -exec rm -f {} \;
+find $DIR/var/nmis_system/ -follow -name "*.json" -mtime +$DAYS -type f -exec rm -f {} \;
+# similar: event history records, not current events
+find $DIR/var/events/ -follow -path "*/history/*.json" -type f -mtime +$DAYS -exec rm -f {} \;
 
 # same for the operations timestamps, which have no file extension
 find $DIR/var/nmis_system/timestamps -follow -mtime +$DAYS -type f -exec rm -f {} \;

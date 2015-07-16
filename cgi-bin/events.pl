@@ -85,15 +85,22 @@ my $wantwidget = $widget eq 'true';
 
 # select function
 
-if ($Q->{act} eq 'event_table_view') {			viewEvent();
-} elsif ($Q->{act} eq 'event_table_list') {		listEvent();
-} elsif ($Q->{act} eq 'event_table_update') {	updateEvent(); listEvent();
-} else { notfound(); }
-
-sub notfound {
+if ($Q->{act} eq 'event_table_view') 
+{	
+	viewEvent();
+} elsif ($Q->{act} eq 'event_table_list') 
+{		
+	listEvent();
+} 
+elsif ($Q->{act} eq 'event_table_update') 
+{
+	updateEvent(); listEvent();
+} 
+else 
+{ 
 	print header($headeropts);
 	print "Tables: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
-	print "Request not found\n";
+	print "Requested data not found!\n";
 }
 
 exit 1;
@@ -102,16 +109,14 @@ exit 1;
 #
 #
 
-sub viewEvent {
-
+sub viewEvent 
+{
 	my $node = $Q->{node};
-
+	
 	#start of page
 	print header($headeropts);
 	pageStartJscript(title => "NMIS View Event $node",refresh => 86400) 
 			if (!$wantwidget);
-
-	my $ET = loadEventStateNoLock();
 
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -131,43 +136,43 @@ sub viewEvent {
 		});
 
 	# print data
-	my $cnt = 0;
-	for my $event_hash (sorthash($ET,['startdate'],'fwd')) {
-		if ($ET->{$event_hash}{node} eq $node) {
-			$cnt++;
-			my $state = getbool($ET->{$event_hash}{ack},"invert") ? 'active' : 'inactive';
-			print Tr( eval { my $line;
-				$line .= td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
-				my $outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
-				$line .= td({class=>'info Plain'},$outage);
-				$line .= td({class=>'info Plain'},returnDateStamp($ET->{$event_hash}{startdate}));
-				$line .= td({class=>'info Plain'},$ET->{$event_hash}{event});
-				$line .= td({class=>'info Plain'},$ET->{$event_hash}{level});
-				$line .= td({class=>'info Plain'},$ET->{$event_hash}{element});
-				$line .= td({class=>'info Plain'},$ET->{$event_hash}{details});
-				$line .= td({class=>'info Plain',align=>'center'},$ET->{$event_hash}{escalate});
-				$line .= td({class=>'info Plain',align=>'center'},$state);
-				return $line;
-			});
-		}
-	}
+	my %nodeevents = loadAllEvents(node => $node);
+	my $cnt = keys %nodeevents;
+	for my $eventkey (sorthash(\%nodeevents,['startdate'],'fwd')) 
+	{
+		my $thisevent = $nodeevents{$eventkey};
 
-	if ($cnt == 0) {
-		print Tr(td({class=>'info Plain',colspan=>'4'},"No events current of Node $node"));
+		my $state = getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
+		print Tr( eval { my $line;
+										 $line .= td({class=>'info Plain'},
+																 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
+										 my $outage = convertSecsHours(time() - $thisevent->{startdate});
+										 $line .= td({class=>'info Plain'},$outage);
+										 $line .= td({class=>'info Plain'}, returnDateStamp($thisevent->{startdate}));
+										 $line .= td({class=>'info Plain'}, $thisevent->{event});
+										 $line .= td({class=>'info Plain'}, $thisevent->{level});
+										 $line .= td({class=>'info Plain'}, $thisevent->{element});
+										 $line .= td({class=>'info Plain'}, $thisevent->{details});
+										 $line .= td({class=>'info Plain',align=>'center'}, $thisevent->{escalate});
+										 $line .= td({class=>'info Plain',align=>'center'}, $state);
+										 return $line;
+							});
+	}
+	
+	if (!$cnt) 
+	{
+		print Tr(td({class=>'info Plain',colspan=>'4'},"No events current for Node $node"));
 	}
 	print end_table,end_td,end_Tr;
 	print end_table;
 	pageEnd() if (!$wantwidget);
 }
 
-
 ###
-sub listEvent {
-
+sub listEvent 
+{
 	print header($headeropts);
 	pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
-
-	my $ET = loadEventStateNoLock();
 
 	# verify access to this command/tool bar/button
 	#
@@ -184,7 +189,8 @@ sub listEvent {
 
 	print start_table;
 
-	displayEvents($ET,$C->{'server_name'}); #single server
+	my %localevents = loadAllEvents;
+	displayEvents(\%localevents, $C->{'server_name'}); #single server
 
 	if (getbool($C->{server_master})) {
 		# check modify of remote node tables
@@ -194,10 +200,12 @@ sub listEvent {
 			next if $srv eq "localhost";
 			
 			my $table = "nmis-$srv-event";       
-			  
-			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) {	
-				my $SET = loadEventStateNoLock(table=>$table);
-				displayEvents($SET,"Slave Server $srv"); #single server
+			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) 
+			{
+				# this is: either an old-style eventhash->event table file,
+				# or a new-style eventfilename->event structure. fortunately the guts are compatible.
+				my $remote_events = loadTable(table=>$table);
+				displayEvents($remote_events, "Slave Server $srv"); #single server
 			}
 		}
 	}
@@ -209,11 +217,12 @@ sub listEvent {
 
 }
 
-sub displayEvents {
-	my $ET = shift; # eventTable
-	my $server = shift; # name of server
+# this receives one of two flavours of event hash:
+# new-style, eventfilename => event data, or old-style, eventhash => event data
+sub displayEvents 
+{
+	my ($eventdata, $server) = @_;
 
-	my $event_hash;
 	my $style;
 	my $button;
 	my $color;
@@ -239,20 +248,25 @@ sub displayEvents {
 	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
        
 	# only display the table if there are any events.
-	if (not scalar keys %{$ET}) {
+	if (not keys %{$eventdata}) {
 		print Tr(td({class=>'info Plain'},"No Events Current"));
 		return; # ready
 	}
 
 	# rip thru the table once and count all the events by node....helps heaps later.
-	foreach $event_hash ( keys %{$ET})  {
-		if ( getbool($ET->{$event_hash}{ack}) ) {
-			$eventackcount{$ET->{$event_hash}{node}} +=1;
+	for my $eventkey ( keys %{$eventdata})  
+	{
+		my $thisevent = $eventdata->{$eventkey};
+		
+		if ( getbool($thisevent->{ack}) ) 
+		{
+			++$eventackcount{$thisevent->{node}};
 		}
-		else {
-			$eventnoackcount{$ET->{$event_hash}{node}} +=1;
+		else 
+		{
+			++$eventnoackcount{$thisevent->{node}};
 		}
-		$eventcount{$ET->{$event_hash}{node}} +=1;
+		++$eventcount{$thisevent->{node}};
 	}
 
 	# always print the active event table header
@@ -264,33 +278,33 @@ sub displayEvents {
 
 	my $event_cnt = 0; # index for update routine eventAck()
 
-	foreach $event_hash ( sort {
-			$ET->{$a}{ack} cmp  $ET->{$b}{ack} or
-			$ET->{$a}{node} cmp $ET->{$b}{node} or
-			$ET->{$b}{startdate} cmp $ET->{$a}{startdate} or
-			$ET->{$a}{escalate} cmp $ET->{$b}{escalate}
-		} keys %{$ET})  {
-
-		next if $ET->{$event_hash}{node} eq '';
+	for my $eventkey ( sort { $eventdata->{$a}{ack} cmp  $eventdata->{$b}{ack} 
+														 or $eventdata->{$a}{node} cmp $eventdata->{$b}{node} 
+														 or $eventdata->{$b}{startdate} cmp $eventdata->{$a}{startdate} 
+														 or $eventdata->{$a}{escalate} cmp $eventdata->{$b}{escalate}
+											} keys %{$eventdata})  
+	{
+		my $thisevent = $eventdata->{$eventkey};
+		next if (!$thisevent->{node}); # should not ever be hit
 		# check auth
-		next unless $AU->InGroup($NT->{$ET->{$event_hash}{node}}{group});
+		next unless $AU->InGroup($NT->{$thisevent->{node}}{group});
 
 		# print all events
 
 		# print header if ack changed
-		if ($tempnodeack ne $ET->{$event_hash}{ack}) {
-			$tempnodeack = $ET->{$event_hash}{ack};
+		if ($tempnodeack ne $thisevent->{ack}) {
+			$tempnodeack = $thisevent->{ack};
 			typeHeader();
 		}
 
-		if (!getbool($tmpack,"invert") and getbool($ET->{$event_hash}{ack},"invert")) {
+		if (!getbool($tmpack,"invert") and getbool($thisevent->{ack},"invert")) {
 			$tmpack = 'false';
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'false$server')",-checked=>'',override=>'1'),
 					")"));
 		}
 
-		if (!getbool($tmpack) and getbool($ET->{$event_hash}{ack})) {
+		if (!getbool($tmpack) and getbool($thisevent->{ack})) {
 			$tmpack = 'true';
 			$display ='none';
 			$node_cnt = 0;
@@ -299,29 +313,29 @@ sub displayEvents {
 					")"));
 		}
 
-		if ( $tempnode ne $ET->{$event_hash}{node} ) {
-			$tempnode = $ET->{$event_hash}{node};
+		if ( $tempnode ne $thisevent->{node} ) {
+			$tempnode = $thisevent->{node};
 			$node_cnt = 0;
 
 			active($server,$tempnode,$tempnodeack,\%eventnoackcount) 
-					if (getbool($ET->{$event_hash}{ack},"invert"));
+					if (getbool($thisevent->{ack},"invert"));
 			inactive($server,$tempnode,$tempnodeack,\%eventackcount) 
-					if (getbool($ET->{$event_hash}{ack}));
+					if (getbool($thisevent->{ack}));
 
 		}
 
 		# now write the events, hidden or not hidden
-		if ( getbool($ET->{$event_hash}{ack},"invert") ) {
-			$color = eventColor($ET->{$event_hash}{level});
+		if ( getbool($thisevent->{ack},"invert") ) {
+			$color = eventColor($thisevent->{level});
 		}
 		else {
 			$color = "white";
 		}
-		$start = returnDateStamp($ET->{$event_hash}{startdate});
-		$last = returnDateStamp($ET->{$event_hash}{lastchange});
-		$outage = convertSecsHours(time() - $ET->{$event_hash}{startdate});
+		$start = returnDateStamp($thisevent->{startdate});
+		$last = returnDateStamp($thisevent->{lastchange});
+		$outage = convertSecsHours(time() - $thisevent->{startdate});
 		# User logic, hmmmm how will users interpret this!
-		if ( getbool($ET->{$event_hash}{ack},"invert") ) {
+		if ( getbool($thisevent->{ack},"invert") ) {
 			$button = "true";
 		}
 		else {
@@ -329,28 +343,28 @@ sub displayEvents {
 		}
 		# print row , Tr with id for set hidden
 		### 2012-10-02 keiths, changed color to be done by CSS
-		print Tr({id=>"$ET->{$event_hash}{ack}$tempnode$node_cnt",style=>"display:$display;"},
-			td({class=>"info $ET->{$event_hash}{level}"},
+		print Tr({id=>"$thisevent->{ack}$tempnode$node_cnt",style=>"display:$display;"},
+			td({class=>"info $thisevent->{level}"},
 				eval {
 					return $AU->CheckAccess("src_events","check")
-						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$ET->{$event_hash}{node}&sort=descending&widget=$widget"},$ET->{$event_hash}{node})
-							: "$ET->{$event_hash}{node}";
+						? a({href=>"logs.pl?&conf=$Q->{conf}&act=log_file_view&logname=Event_Log&search=$thisevent->{node}&sort=descending&widget=$widget"},$thisevent->{node})
+							: "$thisevent->{node}";
 					}),
-			td({class=>"info $ET->{$event_hash}{level}"},$outage),
-			td({class=>"info $ET->{$event_hash}{level}"},$start),
-			td({class=>"info $ET->{$event_hash}{level}"},$ET->{$event_hash}{event}),
-			td({class=>"info $ET->{$event_hash}{level}"},$ET->{$event_hash}{level}),
-			td({class=>"info $ET->{$event_hash}{level}"},$ET->{$event_hash}{element}),
-			td({class=>"info $ET->{$event_hash}{level}"},$ET->{$event_hash}{details}),
-			td({class=>"info $ET->{$event_hash}{level}",align=>'center'},
-				checkbox(-name=>"$ET->{$event_hash}{ack}$server$tempnode",-value=>"$event_cnt",-label=>'',override=>'1')),
-			td({class=>"info $ET->{$event_hash}{level}",align=>'right'},$ET->{$event_hash}{escalate}),
-			td({class=>"info $ET->{$event_hash}{level}"},$ET->{$event_hash}{user})
+			td({class=>"info $thisevent->{level}"},$outage),
+			td({class=>"info $thisevent->{level}"},$start),
+			td({class=>"info $thisevent->{level}"},$thisevent->{event}),
+			td({class=>"info $thisevent->{level}"},$thisevent->{level}),
+			td({class=>"info $thisevent->{level}"},$thisevent->{element}),
+			td({class=>"info $thisevent->{level}"},$thisevent->{details}),
+			td({class=>"info $thisevent->{level}",align=>'center'},
+				checkbox(-name=>"$thisevent->{ack}$server$tempnode",-value=>"$event_cnt",-label=>'',override=>'1')),
+			td({class=>"info $thisevent->{level}",align=>'right'},$thisevent->{escalate}),
+			td({class=>"info $thisevent->{level}"},$thisevent->{user})
 			);
 
-		print hidden(-name=>"node",-default=>"$ET->{$event_hash}{node}",override=>'1');
-		print hidden(-name=>"event",-default=>"$ET->{$event_hash}{event}",override=>'1');
-		print hidden(-name=>"element",-default=>"$ET->{$event_hash}{element}",override=>'1');
+		print hidden(-name=>"node",-default=>"$thisevent->{node}",override=>'1');
+		print hidden(-name=>"event",-default=>"$thisevent->{event}",override=>'1');
+		print hidden(-name=>"element",-default=>"$thisevent->{element}",override=>'1');
 		print hidden(-name=>"ack",-default=>"$button",override=>'1');
 
 		$event_cnt++;
@@ -411,41 +425,35 @@ sub displayEvents {
 
 } # sub displayEvents
 
-# change ack from Event
-sub updateEvent {
-
-#	my $C = loadConfTable();
-#	my $NT = loadNodeTable();
-
+# change ack for the matching events
+sub updateEvent 
+{
 	my @par = $q->param(); # parameter names
 	my @nm = $q->param('node'); # node names
 	my @elmnt = $q->param('element'); # event details
 	my @ack = $q->param('ack'); # event ack status
 	my @evnt = $q->param('event'); # event type
 
-	#print STDERR "DEBUG: par=@par\n";
-	#print STDERR "DEBUG: nm=@nm\n";
-	#print STDERR "DEBUG: elmnt=@elmnt\n";
-	#print STDERR "DEBUG: ack=@ack\n";
-	#print STDERR "DEBUG: evnt=@evnt\n";
-	#print STDERR "DEBUG: $ENV{REQUEST_URI}\n";
-	
-
 	# the value of the checkbox is equal to the index of arrays
 	my $i = 0;
 	# the value of the checkbox is equal to the index of arrays
-	for my $par (@par) {
-		if ($par =~ /false|true/) { 		# false|true is part of the checkbox name
+	for my $par (@par) 
+	{
+		if ($par =~ /false|true/) 
+		{ 		# false|true is part of the checkbox name
 			my @a = $q->param($par);		# get the values (numbers) of the checkboxes
-			foreach my $i (@a) {
+			foreach my $i (@a) 
+			{
 				# check for change of event
 				if ($i ne "" and ((getbool($ack[$i]) and $par =~ /false/) 
 													or (getbool($ack[$i],"invert") and $par =~ /true/))) 
 				{
 					# event changes
-					eventAck(ack=>$ack[$i],node=>$nm[$i],event=>$evnt[$i],element=>$elmnt[$i],user=>$AU->User());
-					#print STDERR "DEBUG: eventAck(ack=>$ack[$i],node=>$nm[$i],event=>$evnt[$i],element=>$elmnt[$i],user=>$AU->User())\n";
-					
+					eventAck( ack=>$ack[$i], 
+										node=>$nm[$i],
+										event=>$evnt[$i],
+										element=>$elmnt[$i],
+										user=>$AU->User() );
 				}
 			}
 		}

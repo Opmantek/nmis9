@@ -152,6 +152,10 @@ NMIS version $NMIS::VERSION
 / if $C->{debug} or $C->{info};
 
 
+# the first thing we do is to upgrade up the event
+# data structure - it's a nop if it was already done.
+&NMIS::upgrade_events_structure;
+
 if ($type =~ /^(collect|update|services)$/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
 }
@@ -212,11 +216,6 @@ sub	runThreads
 
 	loadNodeConfTable(); # load in cache
 	dbg("table Node Config loaded",2);
-
-	if (!getbool($C->{db_events_sql})) {
-		loadEventStateNoLock(); # load in cache
-		dbg("table Event loaded",2);
-	}
 
 	my $NT = loadLocalNodeTable(); 	# only local nodes
 	dbg("table Local Node loaded",2);
@@ -1051,10 +1050,10 @@ sub runPing {
 				$RI->{pingloss} = $ping_loss;
 				info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 
-				# reset event only if snmp was not the reason of down
-				if (!getbool($NI->{system}{snmpdown})) {
-					checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-				}
+				# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the 
+				# frontend nodeStatus() takes proper care of. 
+				checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+
 				$exit = 1;
 				# info for web page
 				$V->{system}{lastUpdate_value} = returnDateStamp();
@@ -2769,10 +2768,6 @@ sub getIntfData {
 	my $IFCACHE;
 
 	my $C = loadConfTable();
-	my $ET = loadEventStateNoLock();
-
-	$S->{ET} = $ET; # save in object for speeding up checkevent
-
 	my $NCT = loadNodeConfTable();
 
 	my $createdone = "false";
@@ -3060,9 +3055,14 @@ sub getIntfData {
 				$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs'; # backwards compat
 
 				# check escalation if event is on
-				if (getbool($IF->{$index}{event})) {
-					my $event_hash = eventHash($S->{node}, "Interface Down", $IF->{$index}{ifDescr});
-					my $escalate = exists $ET->{$event_hash}{escalate} ? $ET->{$event_hash}{escalate} : 'none';
+				if (getbool($IF->{$index}{event})) 
+				{
+					my $escalate = 'none';
+					if (my $event_exist = eventExist($S->{node}, "Interface Down", $IF->{$index}{ifDescr}))
+					{
+						my $erec = eventLoad(filename => $event_exist);
+						$escalate = $erec->{escalate} if ($erec and defined($erec->{escalate}));
+					}
 					$V->{interface}{"${index}_escalate_title"} = 'Esc.';
 					$V->{interface}{"${index}_escalate_value"} = $escalate;
 				}
@@ -3073,7 +3073,6 @@ sub getIntfData {
 		}
 	} # FOR LOOP
 
-	$S->{ET} = '';
 	info("Finished");
 } # getIntfData
 
@@ -4058,20 +4057,22 @@ sub runServices {
 		$NI->{services} = \%services;
 	
 		# now clear events that applied to processes that no longer exist
-		$S->{ET} ||= loadEventStateNoLock();
-		for my $eventkey (keys %{$S->{ET}})
+		my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
+		for my $eventkey (keys %nodeevents)
 		{
-			my $event = $S->{ET}->{$eventkey};
-			next if ($event->{node} ne $NI->{system}{name});
+			my $thisevent = $nodeevents{$eventkey};
+
 			# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
 			# until then we trigger on the element format plus event name
-			if ($event->{element} =~ /^\S+:\d+$/ 
-					&& $event->{event} =~ /process memory/i
-					&& !exists $services{$event->{element}})
+			if ($thisevent->{element} =~ /^\S+:\d+$/ 
+					&& $thisevent->{event} =~ /process memory/i
+					&& !exists $services{$thisevent->{element}})
 			{
-				dbg("clearing event $eventkey as process ".$event->{element}." no longer exists");
-				checkEvent(sys => $S, event => $event->{event}, level => $event->{level}, 
-									 element=>$event->{element}, details=>$event->{details});		
+				dbg("clearing event $thisevent->{event} for node $thisevent->{node} as process "
+						.$thisevent->{element}." no longer exists");
+				checkEvent(sys => $S, event => $thisevent->{event}, level => $thisevent->{level}, 
+									 element => $thisevent->{element}, 
+									 details=>$thisevent->{details});
 			}
 		}
 	}
@@ -5368,34 +5369,31 @@ sub runEscalate {
 	# the events configuration table, controls active/notify/logging for each known event
 	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 
-
-	# Load the event table into the hash
-	# have to maintain a lock over all of this
-	# we are out of threading code now, so no great problem with holding the lock.
-	my ($ET,$handle);
-	if ( getbool($C->{db_events_sql}) ) {
-		$ET = DBfunc::->select(table=>'Events');
-	} else {
-		($ET,$handle) = loadEventStateLock();
-	}
-
 	# add a full format time string for emails and message notifications
 	# pull the system timezone and then the local time
 	my $msgtime = get_localtime();
 
-	# send UP events to all those contacts notified as part of the escalation procedure
-	foreach $event_hash ( sort keys %{$ET} )  {
-		next if getbool($ET->{$event_hash}{current});
+	# first load all non-historic events for all nodes
+	my %allevents = loadAllEvents;
+
+	# then send UP events to all those contacts to be notified as part of the escalation procedure
+	# this loop skips ALL marked-as-current events!
+  # current flag in event means: DO NOT TOUCH IN ESCALATE, STILL ALIVE AND ACTIVE
+	# we might rename that transition t/f, and have this function handle only the ones with transition true.
+	my @mustupnotify = grep(!getbool($allevents{$_}->{current}), keys %allevents);
+	for my $eventkey (@mustupnotify)
+	{
+		my $thisevent = $allevents{$eventkey};
 
 		# if the event is configured for no notify, do nothing
-
-		# event control is as configured or all true.
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
+		my $thisevent_control = $events_config->{$thisevent->{event}} 
+		|| { Log => "true", Notify => "true", Status => "true"};
+		
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if (getbool($thisevent_control->{Notify}))
 		{
-			foreach my $field ( split(',',$ET->{$event_hash}{notify}) ) # field = type:contact
+			foreach my $field ( split(',', $thisevent->{notify}) ) # field = type:contact
 			{ 
 				$target = "";
 				my @x = split /:/ , $field;
@@ -5436,7 +5434,8 @@ sub runEscalate {
 							my $priority;
 							if ( $type eq "pager" ) 
 							{
-								$msgTable{$type}{$trgt}{$serial_ns}{message} = "NMIS: UP Notify $ET->{$event_hash}{node} Normal $ET->{$event_hash}{event} $ET->{$event_hash}{element}";
+								$msgTable{$type}{$trgt}{$serial_ns}{message} = 
+										"NMIS: UP Notify $thisevent->{node} Normal $thisevent->{event} $thisevent->{element}";
 								$serial_ns++ ;
 							} 
 							else 
@@ -5445,11 +5444,11 @@ sub runEscalate {
 									$message = "FOR INFORMATION ONLY\n";
 									$priority = &eventToSMTPPri("Normal");
 								} else {
-									$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
+									$priority = &eventToSMTPPri($thisevent->{level}) ;
 								}
-								$event_age = convertSecsHours(time - $ET->{$event_hash}{startdate});
+								$event_age = convertSecsHours(time - $thisevent->{startdate});
 								
-								$message .= "Node:\t$ET->{$event_hash}{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\n\n";
+								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\n\n";
 								
 								if ( getbool($C->{mail_combine}) ) 
 								{
@@ -5462,7 +5461,7 @@ sub runEscalate {
 								}
 								else 
 								{
-									$msgTable{$type}{$trgt}{$serial}{subject} = "$ET->{$event_hash}{node} $ET->{$event_hash}{event} - $ET->{$event_hash}{element} - $ET->{$event_hash}{details} at $msgtime" ;
+									$msgTable{$type}{$trgt}{$serial}{subject} = "$thisevent->{node} $thisevent->{event} - $thisevent->{element} - $thisevent->{details} at $msgtime" ;
 									$msgTable{$type}{$trgt}{$serial}{message} = $message ;
 									$msgTable{$type}{$trgt}{$serial}{priority} = $priority ;
 									$msgTable{$type}{$trgt}{$serial}{count} = 1;
@@ -5471,26 +5470,26 @@ sub runEscalate {
 							}
 						}
 						# log the meta event, ONLY if both Log (and Notify) are enabled
-						logEvent(node => $ET->{$event_hash}{node}, event => "$type to $target UP Notify", 
-										 level => "Normal", element => $ET->{$event_hash}{element}, 
-										 details => $ET->{$event_hash}{details})
+						logEvent(node => $thisevent->{node}, event => "$type to $target UP Notify", 
+										 level => "Normal", element => $thisevent->{element}, 
+										 details => $thisevent->{details})
 								if (getbool($thisevent_control->{Log}));
 								
 						
-						dbg("Escalation $type UP Notification node=$ET->{$event_hash}{node} target=$target level=$ET->{$event_hash}{level} event=$ET->{$event_hash}{event} element=$ET->{$event_hash}{element} details=$ET->{$event_hash}{details} group=$NT->{$ET->{$event_hash}{node}}{group}");
+						dbg("Escalation $type UP Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}");
 					}
 				} # end email,ccopy,pager
 				# now the netsends
 				elsif ( $type eq "netsend" ) 
 				{
-					my $message = "UP Event Notification $ET->{$event_hash}{node} Normal $ET->{$event_hash}{event} $ET->{$event_hash}{element} $ET->{$event_hash}{details} at $msgtime";
+					my $message = "UP Event Notification $thisevent->{node} Normal $thisevent->{event} $thisevent->{element} $thisevent->{details} at $msgtime";
 					foreach my $trgt ( @x ) 
 					{
 						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
 						$serial_ns++;
 						dbg("NetSend $message to $trgt");
 						# log the meta event, ONLY if both Log (and Notify) are enabled
-						logEvent(node => $ET->{$event_hash}{node}, event => "NetSend $message to $trgt UP Notify", level => "Normal", element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details})
+						logEvent(node => $thisevent->{node}, event => "NetSend $message to $trgt UP Notify", level => "Normal", element => $thisevent->{element}, details => $thisevent->{details})
 								if (getbool($thisevent_control->{Log}));
 					} #foreach
 				} # end netsend
@@ -5499,8 +5498,8 @@ sub runEscalate {
 					if (getbool($C->{syslog_use_escalation})) # syslog action 
 					{
 						my $timenow = time();
-						my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-						my $priority = eventToSyslog($ET->{$event_hash}{level});
+						my $message = "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},$thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
+						my $priority = eventToSyslog($thisevent->{level});
 						
 						foreach my $trgt ( @x ) {
 							$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
@@ -5511,32 +5510,38 @@ sub runEscalate {
 					}
 				} # end syslog
 				elsif ( $type eq "json" ) 
-				{
-					# make it an up event
-					my $event = $ET->{$event_hash};
-					my $node = $NT->{$event->{node}};
-					$event->{nmis_server} = $C->{server_name};
-					$event->{customer} = $node->{customer};
-					$event->{location} = $LocationsTable->{$node->{location}}{Location};
-					$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+				{ 
+					# log the event as json file, AND save those updated bits back into the
+					# soon-to-be-deleted/archived event record.
+					my $node = $NT->{$thisevent->{node}};
+					$thisevent->{nmis_server} = $C->{server_name};
+					$thisevent->{customer} = $node->{customer};
+					$thisevent->{location} = $LocationsTable->{$node->{location}}{Location};
+					$thisevent->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 					
 					if ( $useServiceStatusTable ) {
-						$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-						$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+						$thisevent->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+						$thisevent->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 					}
 					
 					if ( $useBusinessServicesTable ) {
-						$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
-						$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+						$thisevent->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+						$thisevent->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 					}
 					
 					# Copy the fields from nodes to the event
 					my @nodeFields = split(",",$C->{'json_node_fields'});
 					foreach my $field (@nodeFields) {
-						$event->{$field} = $node->{$field};
+						$thisevent->{$field} = $node->{$field};
 					}
 				
-					logJsonEvent(event => $event, dir => $C->{'json_logs'});
+					logJsonEvent(event => $thisevent, dir => $C->{'json_logs'});
+					# may sound silly to update-then-archive but i'd rather have the historic event record contain
+					# the full story
+					if (my $err = eventUpdate(event => $thisevent))
+					{
+						logMsg("ERROR $err");
+					}
 				} # end json
 				# any custom notification methods?
 				else
@@ -5547,26 +5552,26 @@ sub runEscalate {
 						
 						my $timenow = time();
 						my $datenow = returnDateStamp();
-						my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+						my $message = "$datenow: $thisevent->{node}, $thisevent->{event}, $thisevent->{level}, $thisevent->{element}, $thisevent->{details}";
 						foreach $contact (@x) {
 							if ( exists $CT->{$contact} ) {
 								if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
 									if ( getbool($EST->{$esc_key}{UpNotify}) 
-											 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+											 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										) {
 										my $ct = "$type:$contact";
-										my @l = split(',',$ET->{$event_hash}{notify});
+										my @l = split(',',$thisevent->{notify});
 										if (not grep { $_ eq $ct } @l ) {
 											push @l, $ct;
-											$ET->{$event_hash}{notify} = join(',',@l);
+											$thisevent->{notify} = join(',',@l); # note: updated only for msgtable below, NOT saved!
 										}
 									}
 									#$serial
 									$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
 									$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
-									$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+									$msgTable{$type}{$contact}{$serial_ns}{event} = $thisevent;
 									$serial_ns++;
 								}
 							}
@@ -5576,51 +5581,55 @@ sub runEscalate {
 						}
 					}
 					else {
-						dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+						dbg("ERROR runEscalate problem with escalation target unknown at level$thisevent->{escalate} $level type=$type");
 					}
 				}
 			}
 		}
-		# remove this entry
-		if ( getbool($C->{db_events_sql}) ) {
-			DBfunc::->delete(table=>'Events',index=>$event_hash);
-		} else {
-			delete $ET->{$event_hash};
+		# now remove this event
+		if (my $err = eventDelete(event => $thisevent))
+		{
+			logMsg("ERROR $err");
 		}
-		dbg("event entry $event_hash deleted");
+		delete $allevents{$eventkey}; # ditch the removed event in the in-mem snapshot, too.
 	}
 
 	#===========================================
 	my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
 
-	# now handle escalations
+	# now handle the actual escalations; only events marked-as-current are left now.
 LABEL_ESC:
-	foreach $event_hash ( keys %{$ET} )  
+	for my $eventkey (keys %allevents)
 	{
-		dbg("process event with event_hash=$event_hash");
+		my $thisevent = $allevents{$eventkey};
+		my $mustupdate = undef;			# live changes to thisevent are ok, but saved back ONLY if this is set
+		dbg("processing event $eventkey");
 		
 		# checking if event is stateless and dampen time has passed.
-		if ( getbool($ET->{$event_hash}{stateless}) and time() > $ET->{$event_hash}{startdate} + $stateless_event_dampening ) {
-			# yep, reset the event completely.
-			dbg("stateless event $ET->{$event_hash}{event} has exceeded dampening time of $stateless_event_dampening seconds.");
-			delete $ET->{$event_hash};
+		if ( getbool($thisevent->{stateless}) and time() > $thisevent->{startdate} + $stateless_event_dampening ) {
+			# yep, remove the event completely.
+			dbg("stateless event $thisevent->{event} has exceeded dampening time of $stateless_event_dampening seconds.");
+			eventDelete(event => $thisevent);
 		}
 				
-		# set event control to policy or default of enabled.
-		my $thisevent_control = $events_config->{$ET->{$event_hash}->{event}} || { Log => "true", Notify => "true", Status => "true"};
+		# set event control to policy or default=enabled.
+		my $thisevent_control = $events_config->{$thisevent->{event}} 
+		|| { Log => "true", Notify => "true", Status => "true"};
 
-		my $nd = $ET->{$event_hash}{node};
-		# lets start with checking that we have a valid node -the node may have been deleted.
-		if ( getbool($ET->{$event_hash}{current}) and ( !$NT->{$nd} or getbool($NT->{$nd}{active},"invert")) ) 
+		my $nd = $thisevent->{node};
+		# lets start with checking that we have a valid node - the node may have been deleted.
+		# note: loadAllEvents() doesn't return events for vanished nodes (but for inactive ones it does)
+		if (!$NT->{$nd} or getbool($NT->{$nd}{active},"invert"))
 		{
-			if (getbool($thisevent_control->{Log}) and getbool($thisevent_control->{Notify})) # meta-events are subject to both Notify and Log
+			if (getbool($thisevent_control->{Log}) 
+					and getbool($thisevent_control->{Notify})) # meta-events are subject to both Notify and Log
 			{
-				logEvent(node => $nd, event => "Deleted Event: $ET->{$event_hash}{event}", level => $ET->{$event_hash}{level}, 
-								 element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details});
+				logEvent(node => $nd, event => "Deleted Event: $thisevent->{event}", level => $thisevent->{level}, 
+								 element => $thisevent->{element}, details => $thisevent->{details});
 
 				my $timenow = time();
-				my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},Deleted Event: $ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-				my $priority = eventToSyslog($ET->{$event_hash}{level});
+				my $message = "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},Deleted Event: $thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
+				my $priority = eventToSyslog($thisevent->{level});
 				sendSyslog(
 					server_string => $C->{syslog_server},
 					facility => $C->{syslog_facility},
@@ -5629,41 +5638,32 @@ LABEL_ESC:
 						);
 			}
 
-			logMsg("INFO ($nd) Node not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
-
-			delete $ET->{$event_hash};
-			if ( getbool($C->{db_events_sql}) ) {
-				DBfunc::->delete(table=>'Events',index=>$event_hash);
-			}
-
-			my $dbgmsg = "event_hash=$event_hash nd=$nd node=$ET->{$event_hash}{node} active=$NT->{$nd}{active}";
-			dbg($dbgmsg);
+			logMsg("INFO ($nd) Node not active, deleted Event=$thisevent->{event} Element=$thisevent->{element}");
+			eventDelete(event => $thisevent);
 
 			next LABEL_ESC;
 		}
 
-		### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
-		if ( $ET->{$event_hash}{event} =~ /interface/i
-				 and $ET->{$event_hash}{event} !~ /proactive/i )
+		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
+		if ( $thisevent->{event} =~ /interface/i
+				 and $thisevent->{event} !~ /proactive/i )
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys::->new; # node object
 			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
 				my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-				if ( !getbool($IFD->{$ET->{$event_hash}{element}}{collect}) ) 
+				if ( !getbool($IFD->{$thisevent->{element}}{collect}) ) 
 				{
 					# meta events are subject to both Log and Notify controls
 					if (getbool($thisevent_control->{Log}) and getbool($thisevent_control->{Notify}))
 					{
-						logEvent(node => $ET->{$event_hash}{node}, event => "Deleted Event: $ET->{$event_hash}{event}", 
-										 level => $ET->{$event_hash}{level}, 
-										 element => " no matching interface or no collect Element=$ET->{$event_hash}{element}");
+						logEvent(node => $thisevent->{node}, event => "Deleted Event: $thisevent->{event}", 
+										 level => $thisevent->{level}, 
+										 element => " no matching interface or no collect Element=$thisevent->{element}");
 					}
-					logMsg("INFO ($ET->{$event_hash}{node}) Interface not active, deleted Event=$ET->{$event_hash}{event} Element=$ET->{$event_hash}{element}");
-					delete $ET->{$event_hash};
-					if ( getbool($C->{db_events_sql}) ) {
-						DBfunc::->delete(table=>'Events',index=>$event_hash);
-					}
+					logMsg("INFO ($thisevent->{node}) Interface not active, deleted Event=$thisevent->{event} Element=$thisevent->{element}");
+				
+					eventDelete(event => $thisevent);
 					next LABEL_ESC;
 				}
 			}
@@ -5671,41 +5671,48 @@ LABEL_ESC:
 
 		# if an planned outage is in force, keep writing the start time of any unack event to the current start time
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
-		my ($outage,undef) = outageCheck(node=>$ET->{$event_hash}{node},time=>time());
-		dbg("Outage for $ET->{$event_hash}{node} is $outage");
-		if ( $outage eq "current" and getbool($ET->{$event_hash}{ack},"invert") ) {
-			$ET->{$event_hash}{startdate} = time();
-			if ( getbool($C->{db_events_sql}) ) {
-				DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
+		my ($outage,undef) = outageCheck(node=>$thisevent->{node},time=>time());
+		dbg("Outage for $thisevent->{node} is $outage");
+		if ( $outage eq "current" and getbool($thisevent->{ack},"invert") ) 
+		{
+			$thisevent->{startdate} = time();
+			if (my $err = eventUpdate(event => $thisevent))
+			{
+				logMsg("ERROR $err");
 			}
 		}
 		# set the current outage time
-		$outage_time = time() - $ET->{$event_hash}{startdate};
+		$outage_time = time() - $thisevent->{startdate};
 
 		# if we are to escalate, this event must not be part of a planned outage and un-ack.
-		if ( $outage ne "current" and getbool($ET->{$event_hash}{ack},"invert")) 
+		if ( $outage ne "current" and getbool($thisevent->{ack},"invert")) 
 		{
 			# we have list of nodes that this node depends on in $NT->{$runnode}{depend}
 			# if any of those have a current Node Down alarm, then lets just move on with a debug message
 			# should we log that we have done this - maybe not....
 			
-			if ( $NT->{$ET->{$event_hash}{node}}{depend} ne '') {
-				foreach my $node_depend ( split /,/ , $NT->{$ET->{$event_hash}{node}}{depend} ) {
+			if ( $NT->{$thisevent->{node}}{depend} ne '') {
+				foreach my $node_depend ( split /,/ , $NT->{$thisevent->{node}}{depend} ) {
 					next if $node_depend eq "N/A" ;		# default setting
-					next if $node_depend eq $ET->{$event_hash}{node};	# remove the catch22 of self dependancy.
+					next if $node_depend eq $thisevent->{node};	# remove the catch22 of self dependancy.
 					#only do dependancy if node is active.
-					if (defined $NT->{$node_depend}{active} and getbool($NT->{$node_depend}{active})) {
-						my $eh = eventHash($node_depend,"Node Down","");
-						if ( exists $ET->{$eh}{current} ) {
-							dbg("NOT escalating $ET->{$event_hash}{node} $ET->{$event_hash}{event} as dependant $node_depend is reported as down");
-							next LABEL_ESC;
+					if (defined $NT->{$node_depend}{active} and getbool($NT->{$node_depend}{active})) 
+					{
+						if (my $event_exists = eventExist($node_depend, "Node Down", undef))
+						{
+							my $erec = eventLoad(filename => $event_exists) if ($event_exists);
+							if (ref($erec) eq "HASH" and $erec->{current})
+							{
+								dbg("NOT escalating $thisevent->{node} $thisevent->{event} as dependant $node_depend is reported as down");
+								next LABEL_ESC;
+							}
 						}
 					}
 				}
 			}
 
 			undef %keyhash;		# clear this every loop
-			$escalate = $ET->{$event_hash}{escalate};	# save this as a flag
+			$escalate = $thisevent->{escalate};	# save this as a flag
 
 			# now depending on the event escalate the event up a level or so depending on how long it has been active
 			# now would be the time to notify as to the event. node down every 15 minutes, interface down every 4 hours?
@@ -5715,16 +5722,13 @@ LABEL_ESC:
 			# core, distrib and access could escalate at different rates.
 
 			# note - all sent to lowercase here to get a match
-			my $NI = loadNodeInfoTable($ET->{$event_hash}{node}, suppress_errors => 1);
+			my $NI = loadNodeInfoTable($thisevent->{node}, suppress_errors => 1);
 			$group = lc($NI->{system}{group});
 			$role = lc($NI->{system}{roleType});
 			$type = lc($NI->{system}{nodeType});
+			$event = lc($thisevent->{event}); 
 
-			# NO LONGER trim the (proactive) event down to the first 4 keywords or less.
-			# see NMIS::eventHash 
-			$event = lc($ET->{$event_hash}{event}); 
-
-			dbg("looking for Event to Escalation Table match for Event[ Node:$ET->{$event_hash}{node} Event:$event Element:$ET->{$event_hash}{element} ]");
+			dbg("looking for Event to Escalation Table match for Event[ Node:$thisevent->{node} Event:$event Element:$thisevent->{element} ]");
 			dbg("and node values node=$NI->{system}{name} group=$group role=$role type=$type");
 			# Escalation_Key=Group:Role:Type:Event
 			my @keylist = (
@@ -5759,8 +5763,8 @@ LABEL_ESC:
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
 					if ($klst eq $esc_short
-							and $ET->{$event_hash}{node} =~ /$EST->{$esc}{Event_Node}/i
-							and $ET->{$event_hash}{element} =~ /$EST->{$esc}{Event_Element}/i
+							and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
+							and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i
 							) {
 						$keyhash{$esc} = $klst;
 						dbg("match found for escalation key=$esc");
@@ -5772,41 +5776,40 @@ LABEL_ESC:
 			}
 
 			my $cnt_hash = keys %keyhash;
-			dbg("$cnt_hash match(es) found for $ET->{$event_hash}{node}");
+			dbg("$cnt_hash match(es) found for $thisevent->{node}");
 
 			foreach $esc_key ( keys %keyhash ) 
 			{
 				dbg("Matched Escalation Table Group:$EST->{$esc_key}{Group} Role:$EST->{$esc_key}{Role} Type:$EST->{$esc_key}{Type} Event:$EST->{$esc_key}{Event} Event_Node:$EST->{$esc_key}{Event_Node} Event_Element:$EST->{$esc_key}{Event_Element}");
-				dbg("Pre Escalation : $ET->{$event_hash}{node} Event $ET->{$event_hash}{event} is $outage_time seconds old escalation is $ET->{$event_hash}{escalate}");
+				dbg("Pre Escalation : $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old escalation is $thisevent->{escalate}");
 
 				# default escalation for events
 				# 28 apr 2003 moved times to nmis.conf
-				if (    $outage_time >= $C->{escalate10} ) { $ET->{$event_hash}{escalate} = 10; }
-				elsif ( $outage_time >= $C->{escalate9} ) { $ET->{$event_hash}{escalate} = 9; }
-				elsif ( $outage_time >= $C->{escalate8} ) { $ET->{$event_hash}{escalate} = 8; }
-				elsif ( $outage_time >= $C->{escalate7} ) { $ET->{$event_hash}{escalate} = 7; }
-				elsif ( $outage_time >= $C->{escalate6} ) { $ET->{$event_hash}{escalate} = 6; }
-				elsif ( $outage_time >= $C->{escalate5} ) { $ET->{$event_hash}{escalate} = 5; }
-				elsif ( $outage_time >= $C->{escalate4} ) { $ET->{$event_hash}{escalate} = 4; }
-				elsif ( $outage_time >= $C->{escalate3} ) { $ET->{$event_hash}{escalate} = 3; }
-				elsif ( $outage_time >= $C->{escalate2} ) { $ET->{$event_hash}{escalate} = 2; }
-				elsif ( $outage_time >= $C->{escalate1} ) { $ET->{$event_hash}{escalate} = 1; }
-				elsif ( $outage_time >= $C->{escalate0} ) { $ET->{$event_hash}{escalate} = 0; }
+				for my $esclevel (reverse(0..10))
+				{
+					if ($outage_time >= $C->{"escalate$esclevel"})
+					{
+						$mustupdate = 1 if ($thisevent->{escalate} != $esclevel); # if level has changed
+						$thisevent->{escalate} = $esclevel;
+						last;
+					}
+				}
 				
-				dbg("Post Escalation: $ET->{$event_hash}{node} Event $ET->{$event_hash}{event} is $outage_time seconds old escalation is $ET->{$event_hash}{escalate}");
-				if ($C->{debug} and $escalate == $ET->{$event_hash}{escalate}) {
-					my $level= "Level".($ET->{$event_hash}{escalate} + 1);
+				dbg("Post Escalation: $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old, escalation is $thisevent->{escalate}");
+				if ($C->{debug} and $escalate == $thisevent->{escalate}) {
+					my $level= "Level".($thisevent->{escalate} + 1);
 					dbg("Next Notification Target would be $level");
 					dbg("Contact: ".$EST->{$esc_key}{$level});
 				}
 				# send a new email message as the escalation again.
 				# ehg 25oct02 added win32 netsend message type (requires SAMBA on this host)
-				if ( $escalate != $ET->{$event_hash}{escalate} ) {
-					$event_age = convertSecsHours(time - $ET->{$event_hash}{startdate});
+				if ( $escalate != $thisevent->{escalate} ) {
+					$event_age = convertSecsHours(time - $thisevent->{startdate});
 					$time = &returnDateStamp;
 
-					# get the string of type email:contact1:contact2,netsend:contact1:contact2,pager:contact1:contact2,email:sysContact
-					$level = lc($EST->{$esc_key}{'Level'.$ET->{$event_hash}{escalate}});
+					# get the string of type email:contact1:contact2,netsend:contact1:contact2,\
+					# pager:contact1:contact2,email:sysContact
+					$level = lc($EST->{$esc_key}{'Level'.$thisevent->{escalate}});
 
 					if ( $level ne "")
 					{
@@ -5827,7 +5830,7 @@ LABEL_ESC:
 									if ( $contact eq "syscontact") {
 										if ($NI->{sysContact} ne '') {
 											$contact = lc $NI->{sysContact};
-											dbg("Using node $ET->{$event_hash}{node} sysContact $NI->{sysContact}");
+											dbg("Using node $thisevent->{node} sysContact $NI->{sysContact}");
 										} else {
 											$contact = 'default';
 										}
@@ -5838,14 +5841,15 @@ LABEL_ESC:
 										# check if UpNotify is true, and save with this event
 										# and send all the up event notifies when the event is cleared.
 										if ( getbool($EST->{$esc_key}{UpNotify}) 
-												 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+												 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 												 and getbool($thisevent_control->{Notify})
 										 ) {
 											my $ct = "$type:$contact";
-											my @l = split(',',$ET->{$event_hash}{notify});
+											my @l = split(',',$thisevent->{notify});
 											if (not grep { $_ eq $ct } @l ) {
 												push @l, $ct;
-												$ET->{$event_hash}{notify} = join(',',@l);
+												$thisevent->{notify} = join(',',@l);
+												$mustupdate = 1;
 											}
 										}
 									}
@@ -5859,12 +5863,12 @@ LABEL_ESC:
 												dbg("SEND Contact $contact no filtering by Level defined");
 												$contactLevelSend = 1;
 											}
-											elsif ( $ET->{$event_hash}{level} =~ /$CT->{$contact}{Level}/i ) {
-												dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $ET->{$event_hash}{level}");
+											elsif ( $thisevent->{level} =~ /$CT->{$contact}{Level}/i ) {
+												dbg("SEND Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $thisevent->{level}");
 												$contactLevelSend = 1;
 											}
-											elsif ( $ET->{$event_hash}{level} !~ /$CT->{$contact}{Level}/i ) {
-												dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $ET->{$event_hash}{level}");
+											elsif ( $thisevent->{level} !~ /$CT->{$contact}{Level}/i ) {
+												dbg("STOP Contact $contact filtering by Level: $CT->{$contact}{Level}, event level is $thisevent->{level}");
 												$contactLevelSend = 0;
 											}
 										}
@@ -5879,17 +5883,17 @@ LABEL_ESC:
 											# check if UpNotify is true, and save with this event
 											# and send all the up event notifies when the event is cleared.
 											if ( getbool($EST->{$esc_key}{UpNotify}) 
-													 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+													 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 													 and getbool($thisevent_control->{Notify})
 												) {
 												my $ct = "$type:$contact";
-												my @l = split(',',$ET->{$event_hash}{notify});
+												my @l = split(',',$thisevent->{notify});
 												if (not grep { $_ eq $ct } @l ) {
 													push @l, $ct;
-													$ET->{$event_hash}{notify} = join(',',@l);
+													$thisevent->{notify} = join(',',@l);
+													$mustupdate = 1;
 												}
 											}
-
 										}
 										else {
 											dbg("STOP Contact duty time: $contactDutyTime, contact level: $contactLevelSend");
@@ -5900,9 +5904,11 @@ LABEL_ESC:
 									}
 								} #foreach
 
-								# no email targets found, and if default contact not found, assume we are not covering 24hr dutytime in this slot, so no mail.
+								# no email targets found, and if default contact not found, assume we are not 
+								# covering 24hr dutytime in this slot, so no mail.
 								# maybe the next levelx escalation field will fill in the gap
-								if ( !$target ) {
+								if ( !$target ) 
+								{
 									if ( $type eq "pager" ) {
 										$target = $CT->{default}{Pager};
 									} else {
@@ -5910,8 +5916,7 @@ LABEL_ESC:
 									}
 									dbg("No $type contact matched (maybe check DutyTime and TimeZone?) - looking for default contact $target");
 								}
-
-								if ( $target ) 
+								else						# have target
 								{
 									foreach my $trgt ( split /,/, $target ) {
 										my $message;
@@ -5920,7 +5925,7 @@ LABEL_ESC:
 										{
 											if (getbool($thisevent_control->{Notify}))
 											{
-												$msgTable{$type}{$trgt}{$serial_ns}{message} = "NMIS: Esc. $ET->{$event_hash}{escalate} $event_age $ET->{$event_hash}{node} $ET->{$event_hash}{level} $ET->{$event_hash}{event} $ET->{$event_hash}{details}";
+												$msgTable{$type}{$trgt}{$serial_ns}{message} = "NMIS: Esc. $thisevent->{escalate} $event_age $thisevent->{node} $thisevent->{level} $thisevent->{event} $thisevent->{details}";
 												$serial_ns++ ;
 											}
 										} 
@@ -5930,20 +5935,20 @@ LABEL_ESC:
 												$message = "FOR INFORMATION ONLY\n";
 												$priority = &eventToSMTPPri("Normal");
 											} else {
-												$priority = &eventToSMTPPri($ET->{$event_hash}{level}) ;
+												$priority = &eventToSMTPPri($thisevent->{level}) ;
 											}
 
 											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
-											$message .= "Node:\t$ET->{$event_hash}{node}\nNotification at Level$ET->{$event_hash}{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$ET->{$event_hash}{level}\nEvent:\t$ET->{$event_hash}{event}\nElement:\t$ET->{$event_hash}{element}\nDetails:\t$ET->{$event_hash}{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$ET->{$event_hash}{node}\n";
-											if ( $ET->{$event_hash}{event} =~ /Interface/ ) {
+											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
+											if ( $thisevent->{event} =~ /Interface/ ) {
 												my $ifIndex = undef;
 												my $S = Sys::->new; # node object
-												if (($S->init(name=>$ET->{$event_hash}{node},snmp=>'false'))) { # get all info of node
+												if (($S->init(name=>$thisevent->{node},snmp=>'false'))) { # get all info of node
 													my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-													if ( getbool($IFD->{$ET->{$event_hash}{element}}{collect}) ) {
-														$ifIndex = $IFD->{$ET->{$event_hash}{element}}{ifIndex};
-														$message .= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$ET->{$event_hash}{node}&intf=$ifIndex\n";
+													if ( getbool($IFD->{$thisevent->{element}}{collect}) ) {
+														$ifIndex = $IFD->{$thisevent->{element}}{ifIndex};
+														$message .= "Link to Interface:\t$C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_interface_view&widget=false&node=$thisevent->{node}&intf=$ifIndex\n";
 													}
 												}
 											}
@@ -5959,7 +5964,7 @@ LABEL_ESC:
 														$msgTable{$type}{$trgt}{$serial}{priority} = $priority ;
 													}
 												} else {
-													$msgTable{$type}{$trgt}{$serial}{subject} = "$ET->{$event_hash}{node} $ET->{$event_hash}{event} - $ET->{$event_hash}{element} - $ET->{$event_hash}{details} at $msgtime" ;
+													$msgTable{$type}{$trgt}{$serial}{subject} = "$thisevent->{node} $thisevent->{event} - $thisevent->{element} - $thisevent->{details} at $msgtime" ;
 													$msgTable{$type}{$trgt}{$serial}{message} = $message ;
 													$msgTable{$type}{$trgt}{$serial}{priority} = $priority ;
 													$msgTable{$type}{$trgt}{$serial}{count} = 1;
@@ -5970,12 +5975,12 @@ LABEL_ESC:
 									}
 
 									# meta-events are subject to Notify and Log
-									logEvent(node => $ET->{$event_hash}{node}, 
-													 event => "$type to $target Esc$ET->{$event_hash}{escalate} $ET->{$event_hash}{event}", 
-													 level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, details => $ET->{$event_hash}{details})
+									logEvent(node => $thisevent->{node}, 
+													 event => "$type to $target Esc$thisevent->{escalate} $thisevent->{event}", 
+													 level => $thisevent->{level}, element => $thisevent->{element}, details => $thisevent->{details})
 											if (getbool($thisevent_control->{Notify}) and getbool($thisevent_control->{Log}));
 										
-										dbg("Escalation $type Notification node=$ET->{$event_hash}{node} target=$target level=$ET->{$event_hash}{level} event=$ET->{$event_hash}{event} element=$ET->{$event_hash}{element} details=$ET->{$event_hash}{details} group=$NT->{$ET->{$event_hash}{node}}{group}");
+										dbg("Escalation $type Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}");
 								} # if $target
 							} # end email,ccopy,pager
 
@@ -5984,17 +5989,17 @@ LABEL_ESC:
 							{
 								if (getbool($thisevent_control->{Notify}))
 								{
-									my $message = "Escalation $ET->{$event_hash}{escalate} $ET->{$event_hash}{node} $ET->{$event_hash}{level} $ET->{$event_hash}{event} $ET->{$event_hash}{element} $ET->{$event_hash}{details} at $msgtime";
+									my $message = "Escalation $thisevent->{escalate} $thisevent->{node} $thisevent->{level} $thisevent->{event} $thisevent->{element} $thisevent->{details} at $msgtime";
 									foreach my $trgt ( @x ) {
 										$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
 										$serial_ns++;
 										dbg("NetSend $message to $trgt");
 
 										# meta-events are subject to both
-										logEvent(node => $ET->{$event_hash}{node}, 
-														 event => "NetSend $message to $trgt $ET->{$event_hash}{event}", 
-														 level => $ET->{$event_hash}{level}, element => $ET->{$event_hash}{element}, 
-														 details => $ET->{$event_hash}{details})
+										logEvent(node => $thisevent->{node}, 
+														 event => "NetSend $message to $trgt $thisevent->{event}", 
+														 level => $thisevent->{level}, element => $thisevent->{element}, 
+														 details => $thisevent->{details})
 												if (getbool($thisevent_control->{Log}));
 									} #foreach
 								}
@@ -6004,22 +6009,23 @@ LABEL_ESC:
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
 								if ( getbool($EST->{$esc_key}{UpNotify}) 
-										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+										 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										 and getbool($thisevent_control->{Notify})
 								 ) {
 									my $ct = "$type:server";
-									my @l = split(',',$ET->{$event_hash}{notify});
+									my @l = split(',',$thisevent->{notify});
 									if (not grep { $_ eq $ct } @l ) {
 										push @l, $ct;
-										$ET->{$event_hash}{notify} = join(',',@l);
+										$thisevent->{notify} = join(',',@l);
+										$mustupdate = 1;
 									}
 								}
 								
 								if (getbool($thisevent_control->{Notify}))
 								{
 									my $timenow = time();
-									my $message = "NMIS_Event::$C->{server_name}::$timenow,$ET->{$event_hash}{node},$ET->{$event_hash}{event},$ET->{$event_hash}{level},$ET->{$event_hash}{element},$ET->{$event_hash}{details}";
-									my $priority = eventToSyslog($ET->{$event_hash}{level});
+									my $message = "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},$thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
+									my $priority = eventToSyslog($thisevent->{level});
 									if ( getbool($C->{syslog_use_escalation}) ) {
 										foreach my $trgt ( @x ) {
 											$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
@@ -6033,41 +6039,43 @@ LABEL_ESC:
 							elsif ( $type eq "json" ) 
 							{
 								if ( getbool($EST->{$esc_key}{UpNotify}) 
-										 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+										 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										 and getbool($thisevent_control->{Notify})
 								 ) {
 									my $ct = "$type:server";
-									my @l = split(',',$ET->{$event_hash}{notify});
+									my @l = split(',',$thisevent->{notify});
 									if (not grep { $_ eq $ct } @l ) {
 										push @l, $ct;
-										$ET->{$event_hash}{notify} = join(',',@l);
+										$thisevent->{notify} = join(',',@l);
+										$mustupdate = 1;
 									}
 								}
-								# amend the event - attention: this changes the live $ET!
-								my $event = $ET->{$event_hash};
-								my $node = $NT->{$event->{node}};
-								$event->{nmis_server} = $C->{server_name};
-								$event->{customer} = $node->{customer};
-								$event->{location} = $LocationsTable->{$node->{location}}{Location};
-								$event->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
+								# amend the event - attention: this changes the live event,
+								# and will be saved back!
+								$mustupdate = 1;
+								my $node = $NT->{$thisevent->{node}};
+								$thisevent->{nmis_server} = $C->{server_name};
+								$thisevent->{customer} = $node->{customer};
+								$thisevent->{location} = $LocationsTable->{$node->{location}}{Location};
+								$thisevent->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
 
 								if ( $useServiceStatusTable ) {
-									$event->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
-									$event->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
+									$thisevent->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
+									$thisevent->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 								}
 
 								if ( $useBusinessServicesTable ) {
-									$event->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
-									$event->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
+									$thisevent->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
+									$thisevent->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 								}
 
 								# Copy the fields from nodes to the event
 								my @nodeFields = split(",",$C->{'json_node_fields'});
 								foreach my $field (@nodeFields) {
-									$event->{$field} = $node->{$field};
+									$thisevent->{$field} = $node->{$field};
 								}
 								
-								logJsonEvent(event => $event, dir => $C->{'json_logs'})
+								logJsonEvent(event => $thisevent, dir => $C->{'json_logs'})
 										if (getbool($thisevent_control->{Notify}));
 							} # end json
 							elsif (getbool($thisevent_control->{Notify})) 
@@ -6076,26 +6084,27 @@ LABEL_ESC:
 									dbg("Notify::$type $contact");
 									my $timenow = time();
 									my $datenow = returnDateStamp();
-									my $message = "$datenow: $ET->{$event_hash}{node}, $ET->{$event_hash}{event}, $ET->{$event_hash}{level}, $ET->{$event_hash}{element}, $ET->{$event_hash}{details}";
+									my $message = "$datenow: $thisevent->{node}, $thisevent->{event}, $thisevent->{level}, $thisevent->{element}, $thisevent->{details}";
 									foreach $contact (@x) {
 										if ( exists $CT->{$contact} ) {
 											if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
 												# check if UpNotify is true, and save with this event
 												# and send all the up event notifies when the event is cleared.
 												if ( getbool($EST->{$esc_key}{UpNotify})
-														 and $ET->{$event_hash}{event} =~ /$C->{upnotify_stateful_events}/i
+														 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 												 ) {
 													my $ct = "$type:$contact";
-													my @l = split(',',$ET->{$event_hash}{notify});
+													my @l = split(',',$thisevent->{notify});
 													if (not grep { $_ eq $ct } @l ) {
 														push @l, $ct;
-														$ET->{$event_hash}{notify} = join(',',@l);
+														$thisevent->{notify} = join(',',@l); # fudged up 
+														$mustupdate = 1;
 													}
 												}
 												#$serial
 												$msgTable{$type}{$contact}{$serial_ns}{message} = $message;
 												$msgTable{$type}{$contact}{$serial_ns}{contact} = $CT->{$contact};
-												$msgTable{$type}{$contact}{$serial_ns}{event} = $ET->{$event_hash};
+												$msgTable{$type}{$contact}{$serial_ns}{event} = $thisevent;
 												$serial_ns++;
 											}
 										}
@@ -6105,7 +6114,7 @@ LABEL_ESC:
 									}
 								}
 								else {
-									dbg("ERROR runEscalate problem with escalation target unknown at level$ET->{$event_hash}{escalate} $level type=$type");
+									dbg("ERROR runEscalate problem with escalation target unknown at level$thisevent->{escalate} $level type=$type");
 								}
 							}
 						} # foreach field
@@ -6114,18 +6123,22 @@ LABEL_ESC:
 			} # foreach esc_key
 		} # end of outage check
 
-		if ( getbool($C->{db_events_sql}) ) {
-			DBfunc::->update(table=>'Events',data=>$ET->{$event_hash},index=>$event_hash);
+		# now we're done with this event, let's update it if we have to - and if nobody has deleted the event since the start of this update run (as we're not locking this globally) - eventkey is the full filename
+		if ($mustupdate && -f $eventkey)
+		{
+			if (my $err = eventUpdate(event => $thisevent))
+			{
+				logMsg("ERROR $err");
+			}
 		}
-	} # foreach $event_hash
-	# now write the hash back and release the lock
-	if ( !getbool($C->{db_events_sql}) ) {
-		writeEventStateLock(table=>$ET,handle=>$handle);
 	}
+
 	# Cologne, send the messages now
 	sendMSG(data=>\%msgTable);
 	dbg("Finished");
-	func::update_operations_stamp(type => "escalate", start => $C->{starttime}, stop => time())
+	func::update_operations_stamp(type => "escalate", 
+																start => $C->{starttime}, 
+																stop => time())
 			if ($type eq "escalate");	# not if part of collect
 } # end runEscalate
 
@@ -7052,8 +7065,8 @@ EO_TEXT
 sub runThreshold {
 	my $node = shift;
 
-	# fixme: logic here, depends only on global_threshold being not equal false, so first clause should go away
-	if ( getbool($C->{global_threshold}) or !getbool($C->{global_threshold},"invert") ) {
+	# check global_threshold not explicitely set to false
+	if (!getbool($C->{global_threshold},"invert")) {
 		my $node_select;
 		if ($node ne "") {
 			if (!($node_select = checkNodeName($node))) {
@@ -7211,8 +7224,6 @@ sub doThreshold {
 
 	my $S = Sys::->new; # create system object
 
-	$S->{ET} = loadEventStateNoLock(); # for speeding up, from file or DB
-
 	foreach my $nd (sort keys %{$NT}) {
 		next if $node ne "" and $node ne lc($nd); # check for single node thresholds
 		### 2012-09-03 keiths, changing as pingonly nodes not being thresholded, found by Lenir Santiago
@@ -7344,7 +7355,6 @@ sub doThreshold {
 			}
 		}
 	}
-	$S->{ET} = ''; # done
 	dbg("Finished");
 	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => time())
 			if ($type eq "threshold");	# not if part of collect
