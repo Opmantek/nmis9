@@ -50,11 +50,17 @@ my $timenow = time();
 my $message = "NMIS_Event::$C->{server_name}::$timenow,$C->{server_name},Test Event,Normal,,";
 my $priority = "info";
 
-sendSyslog(
+my $success = sendSyslog(
 	server_string => $C->{syslog_server},
 	facility => $C->{syslog_facility},
 	message => $message,
 	priority => $priority
 );
 
+if ( $success ) {
+	print "SUCCESS: syslog message appears to have been sent (udp is not reliable)\n";
+}
+else {
+	print "ERROR: sending syslog message to $C->{syslog_server}\n";
+}
 

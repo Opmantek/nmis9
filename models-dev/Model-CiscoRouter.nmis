@@ -821,8 +821,38 @@
         }
       }
     },
-    'sections' => 'cdp,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
+    'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
     'sys' => {
+      'entityMib' => {
+        'indexed' => 'entPhysicalDescr',
+        'headers' => 'entPhysicalDescr,entPhysicalName,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
+        'snmp' => {
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Physical Descr'
+          },
+          'entPhysicalName' => {
+            'oid' => 'entPhysicalName',
+            'title' => 'Physical Name'
+          },
+          'entPhysicalHardwareRev' => {
+            'oid' => 'entPhysicalHardwareRev',
+            'title' => 'Hardware Rev'
+          },
+          'entPhysicalFirmwareRev' => {
+            'oid' => 'entPhysicalFirmwareRev',
+            'title' => 'Firmware Rev'
+          },
+          'entPhysicalSoftwareRev' => {
+            'oid' => 'entPhysicalSoftwareRev',
+            'title' => 'Software Rev'
+          },
+          'entPhysicalSerialNum' => {
+            'oid' => 'entPhysicalSerialNum',
+            'title' => 'Serial Num'
+          },
+        },
+      },
       'addressTable' => {
         'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',

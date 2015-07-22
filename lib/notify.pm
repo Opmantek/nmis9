@@ -222,12 +222,15 @@ sub sendSyslog
 	my $debug = $arg{debug};
 	my $server_string = $arg{server_string};
 	my $facility = $arg{facility};
+	
+	# we can handle a return if this is TCP
+	my $success = 1;
 
 	my $message = "NMIS_Event::$arg{nmis_host}::$arg{time},$arg{node},$arg{event},$arg{level},$arg{element},$arg{details}";
 	if ( $arg{nmis_host} eq "" and $arg{node} eq "" and $arg{message} ne "" ) {
 		$message = $arg{message};
 	}
-	return if (!$message);
+	return 0 if (!$message);
 
 	my $priority = eventToSyslog($arg{level});
 	$priority = 'notice' if $priority eq "";
@@ -241,7 +244,10 @@ sub sendSyslog
 			my $server = $1;
 			my $protocol = $2;
 			my $port = $3;
-
+			
+			if ( $protocol eq "tcp" ) {
+				$success = 0;
+			}
 
 			# don't bother waiting, especially not with udp
 			# sys::syslog has a silly bug: host option is overwritten by "path" for udp and tcp :-/
@@ -262,11 +268,14 @@ sub sendSyslog
 				{
 					logMsg("ERROR: could not send message to syslog server \"$server\", $protocol port $port!");
 				}
+				else {
+					$success = 1;
+				}
 				closelog;
 			}
 			else
 			{
-				logMsg("ERROR: could connect to syslog server \"$server\", $protocol port $port!");
+				logMsg("ERROR: could not connect to syslog server \"$server\", $protocol port $port!");
 			}
 			# reset to defaults, for future use
 			Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]); 			
@@ -276,6 +285,7 @@ sub sendSyslog
 			logMsg("ERROR: syslog server \"$server\" not configured correctly, should be in the format 'localhost:udp:514'");
 		}
 	}
+	return $success;
 }
 
 # convert event level to syslog priority

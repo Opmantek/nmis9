@@ -188,7 +188,7 @@
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive Reachability Closed',
-    'Description' => 'The response time threshold of the node has been exceeded',
+    'Description' => 'The overall reachability of the node has has fallen below the threshold.',
   },
   'Proactive CPU' => {
     'Event' => 'Proactive CPU',

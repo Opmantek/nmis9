@@ -1,0 +1,7 @@
+%hash = (
+  'syslog' => {
+    'syslog_facility' => 'local3',
+    'syslog_server' => 'localhost:udp:514',
+    'extra_logging' => 1,
+  }
+);

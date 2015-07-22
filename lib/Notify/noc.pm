@@ -30,7 +30,7 @@
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
 
-my $extraLogging = 1;
+my $extraLogging = 0;
 
 # *****************************************************************************
 package Notify::noc;
@@ -63,8 +63,15 @@ sub sendNotification {
 	my $message = $arg{message};
 	my $C = $arg{C};
 
-	my $blackListFile = "$C->{'<nmis_conf>'}/nocBlackList.txt";
+	# get syslog config from config file.
+	if (existFile(dir=>'conf',name=>'nocSyslog')) {
+		my $syslogConfig = loadTable(dir=>'conf',name=>'nocSyslog');
+		$syslog_facility = $syslogConfig->{syslog}{syslog_facility};
+		$syslog_server = $syslogConfig->{syslog}{syslog_server};
+		$extraLogging = getbool($syslogConfig->{syslog}{extra_logging});
+	}
 
+	my $blackListFile = "$C->{'<nmis_conf>'}/nocBlackList.txt";
 	my @blackList = loadBlackList($blackListFile);
 	
 	# is there a valid event coming in?
@@ -118,7 +125,7 @@ sub sendNotification {
 			
 			dbg("sendSyslog $syslog_server $syslog_facility");
 		
-			sendSyslog(
+			my $success = sendSyslog(
 				server_string => $syslog_server,
 				facility => $syslog_facility,
 				nmis_host => $C->{server_name},
@@ -129,7 +136,12 @@ sub sendNotification {
 				element => $event->{element},
 				details => $details
 			);
-			logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details.") if $extraLogging;
+			if ( $success ) {
+				logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details") if $extraLogging;
+			}
+			else {
+				logMsg("ERROR: syslog failed to $syslog_server: $event->{node} $event->{event} $event->{element} $details");
+			}			
 		}
 		else {
 			logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;

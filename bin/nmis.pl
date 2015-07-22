@@ -626,6 +626,8 @@ sub doUpdate {
 	my $name = $args{name};
 	my $C = loadConfTable();
 
+	my $pollTimer = NMIS::Timing->new;
+
 	dbg("================================");
 	dbg("Starting update, node $name");
 	
@@ -733,6 +735,12 @@ sub doUpdate {
 	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
 
 	dbg("Finished");
+
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		my $polltime = $pollTimer->elapTime();
+		logMsg("Update Poll: $name, $NI->{system}{nodeModel}, $polltime");
+	}	
+
 	return;
 } # end runUpdate
 
@@ -821,6 +829,8 @@ sub doServices
 sub doCollect {
 	my %args = @_;
 	my $name = $args{name};
+
+	my $pollTimer = NMIS::Timing->new;
 
 	info("================================");
 	info("Starting collect, node $name");
@@ -957,9 +967,15 @@ sub doCollect {
 	}
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
-
+	
 	$S->close;
 	info("Finished");
+
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		my $polltime = $pollTimer->elapTime();
+		logMsg("Collect Poll: $name, $NI->{system}{nodeModel}, $polltime");
+	}	
+
 	return;
 } # end runCollect
 
@@ -1434,7 +1450,8 @@ sub checkNodeConfiguration {
 
 	### If it is newer, someone changed it!
 	if( $configLastChanged > $configLastChanged_prev ) {
-		$V->{system}{configChangeCount_value}++;
+		$NI->{system}{configChangeCount}++;
+		$V->{system}{configChangeCount_value} = $NI->{system}{configChangeCount};
 		$V->{system}{configChangeCount_title} = "Configuration change count";
 
 		notify(sys=>$S,event=>"Node Configuration Change",element=>"",details=>"Changed at ".$V->{system}{configLastChanged_value} );
@@ -1469,6 +1486,11 @@ sub getIntfInfo {
 	my $SNMP = $S->snmp;
 	my $IF = $S->ifinfo; # interface info table
 	my $NC = $S->ndcfg; # node config table
+	
+	my $singleInterface = 0;
+	if (defined $intf_one and $intf_one ne "") {
+		$singleInterface = 1;
+	}
 
 	#print "DEBUG: max_repetitions=$max_repetitions system_max_repetitions=$NI->{system}{max_repetitions}\n";
 	
@@ -1483,8 +1505,10 @@ sub getIntfInfo {
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
 		# Check if the ifTableLastChange has changed.  If it has not changed, the 
 		# interface table has had no interfaces added or removed, no need to go any further.
+		### does this need to be defined per model?
 		if (
-			getbool($C->{update_use_ifTableLastChange}) 
+			not $singleInterface
+			and getbool($C->{update_use_ifTableLastChange}) 
 			and my $result = $SNMP->get('ifTableLastChange.0')
 		) {
 			$result = $result->{'1.3.6.1.2.1.31.1.5.0'};
@@ -1508,7 +1532,10 @@ sub getIntfInfo {
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 		
 		# lets delete what we have in memory and start from scratch.
-		delete $NI->{interface}; # reset intf info
+		# BUT only if this is for all interfaces.........
+		if ( not $singleInterface ) {
+			delete $NI->{interface}; # reset intf info
+		}
 		
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
@@ -1536,7 +1563,7 @@ sub getIntfInfo {
 			return 0;
 		}
 
-		if ($intf_one eq "") {
+		if (not $singleInterface) {
 			# remove unknown interfaces, found in previous runs, from table
 			### possible vivification
 			for my $i (keys %{$IF}) {
@@ -1552,7 +1579,7 @@ sub getIntfInfo {
 
 		# Loop to get interface information, will be stored in {ifinfo} table => $IF
 		foreach my $index (@ifIndexNum) {
-			next if ($intf_one ne '' and $intf_one ne $index); # only one interface
+			next if ($singleInterface and $intf_one ne $index); # only one interface
 			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
 				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
 				$IF = $S->ifinfo; # renew pointer
@@ -1569,7 +1596,7 @@ sub getIntfInfo {
 		# port information optional
 		if ($M->{port} ne "") {
 			foreach my $index (@ifIndexNum) {
-				next if ($intf_one ne '' and $intf_one ne $index);
+				next if ($singleInterface and $intf_one ne $index);
 				# get the VLAN info: table is indexed by port.portnumber
 				if ( $IF->{$index}{ifDescr} =~ /\d{1,2}\/(\d{1,2})$/i ) { # FastEthernet0/1
 					my $port = '1.' . $1;
@@ -1608,7 +1635,7 @@ sub getIntfInfo {
 			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
 				foreach my $addr (keys %{$ifAdEntTable}) {
 					my $index = $ifAdEntTable->{$addr};
-					next if ($intf_one ne '' and $intf_one ne $index);
+					next if ($singleInterface and $intf_one ne $index);
 					$ifCnt{$index} += 1;
 					info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
 					$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
@@ -1703,7 +1730,8 @@ sub getIntfInfo {
 
 		info("Checking interfaces for duplicate ifDescr");
 		my $ifDescrIndx;
-		foreach my $i (keys %{$IF}) {
+		foreach my $i (@ifIndexNum) {
+		#foreach my $i (keys %{$IF}) {
 			# ifDescr must always be filled
 			if ($IF->{$i}{ifDescr} eq "") { $IF->{$i}{ifDescr} = $i; }
 
@@ -1721,7 +1749,7 @@ sub getIntfInfo {
 
 		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 		foreach my $index (@ifIndexNum) {
-			next if ($intf_one ne '' and $intf_one ne $index);
+			next if ($singleInterface and $intf_one ne $index);
 
 			my $ifDescr = $IF->{$index}{ifDescr};
 				$intfTotal++;
@@ -2812,7 +2840,14 @@ sub getIntfData {
 			}
 		}
 	}
-	# so get the ifLastChange for each interface and see if it has changed, if it has
+	# so get the ifLastChange for each interface and see if it has changed, if it has then check admin and oper status.
+	# this can be enabled on a model by model basis is false by default.  Handy for HIGH INTERFACE COUNT.
+	#  'custom' => {
+  #    'interface' => {
+  #      'ifLastChange' => 'true',
+  #    }   
+  #  },
+  #
 	#my $ifLastChangeTable;
 	#if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions)) {
 	#	for my $index (keys %{$ifLastChangeTable}) {
@@ -2824,6 +2859,8 @@ sub getIntfData {
 	#			info("$IF->{$index}{ifDescr}: Interface Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
 	#		}
 	#		
+	#So the interface did change state so just get ifAdminStatus and ifOperStatus for that interface.
+	#
 	#		#if the interface was already up and being collected, remaining polling will handle it.
 	#		# we want to find interfaces which were previously NOT ifAdmin up and see if we should manage them.
 	#		if ( $ifDidChange and $IF->{$index}{ifAdminStatus} ne 'up' ) 

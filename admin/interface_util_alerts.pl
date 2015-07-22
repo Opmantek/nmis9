@@ -57,6 +57,8 @@ my $includeGroup = 1;
 # the seperator for the details field.
 my $detailSep = "-- ";
 
+my $extraLogging = 0;
+
 # *****************************************************************************
 
 use FindBin;
@@ -83,6 +85,14 @@ my $debug = setDebug($arg{debug});
 my $info = setDebug($arg{info});
 
 my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
+
+# get syslog config from config file.
+if (existFile(dir=>'conf',name=>'nocSyslog')) {
+	my $syslogConfig = loadTable(dir=>'conf',name=>'nocSyslog');
+	$syslog_facility = $syslogConfig->{syslog}{syslog_facility};
+	$syslog_server = $syslogConfig->{syslog}{syslog_server};
+	$extraLogging = getbool($syslogConfig->{syslog}{extra_logging});
+}
 
 my $LNT = loadLocalNodeTable();
 
@@ -183,7 +193,7 @@ foreach my $node (sort keys %{$LNT}) {
 				}
 
 				if ( $sendSyslog ) {
-					sendSyslog(
+					my $success = sendSyslog(
 						server_string => $syslog_server,
 						facility => $syslog_facility,
 						nmis_host => $C->{server_name},
@@ -194,6 +204,12 @@ foreach my $node (sort keys %{$LNT}) {
 						element => $element,
 						details => $details
 					);
+					if ( $success ) {
+						logMsg("INFO: syslog sent: $node $event $element $details") if $extraLogging;
+					}
+					else {
+						logMsg("ERROR: syslog failed to $syslog_server:  $node $event $element $details");
+					}
 				}
 				
 				# This section will enable normal NMIS processing of the event in addition to the custom syslog above.
