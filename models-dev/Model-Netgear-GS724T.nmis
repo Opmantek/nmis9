@@ -52,6 +52,13 @@
       }
     }
   },
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false',
+      'ifLastChange' => 'true',
+      'ifTableLastChange' => 'true',
+    }
+  },
   'system' => {
     'nodegraph' => 'health,response,ip',
     'nodeModel' => 'Netgear-GS724T',

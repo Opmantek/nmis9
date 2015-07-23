@@ -38,6 +38,7 @@ event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
 editor=/bin/vi
 DEBUG="debug=false"
+MODEL="model=false"
 
 taillines=50
 
@@ -73,6 +74,11 @@ if [ -z "$1" ]
 then
 	echo No arguements given:
 	helptext
+fi
+
+if [ "$3" = "model" ]
+then
+	MODEL="model=true"
 fi
 
 if [ "$3" = "debug" ]
@@ -228,13 +234,13 @@ fi
 
 if [ "$2" = "collect" ]
 then
-	$nmis type=collect "$node" info=true $DEBUG
+	$nmis type=collect "$node" info=true $DEBUG $MODEL
 	exit 0
 fi
 
 if [ "$2" = "update" ]
 then
-	$nmis type=update "$node" info=true $DEBUG
+	$nmis type=update "$node" info=true $DEBUG $MODEL
 	exit 0
 fi
 
