@@ -29,12 +29,13 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.2.7";
+our $VERSION = "1.3.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
 use File::Path;
 use File::stat;
+use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
 use Time::Local;		 # fixme: actuall NOT used by func
 use POSIX qw();			 # we want just strftime
@@ -98,6 +99,7 @@ use Exporter;
 		writeTable
 		setFileProt
 		setFileProtDirectory
+    setFileProtParents
 		existFile
 		mtimeFile
 		getFileName
@@ -824,6 +826,31 @@ sub setFileProt {
 	}
 }
 
+# fix up the file permissions for given directory,
+# and all its parents up to (but excluding) the given top (or nmis_base)
+# args: directory in question, topdir
+# returns nothing
+sub setFileProtParents
+{
+	my ($thisdir, $topdir) = @_;
+	my $C = loadConfTable();
+
+	$topdir ||= $C->{'<nmis_base>'};
+	$topdir = File::Spec->canonpath($topdir);
+	$thisdir = File::Spec->canonpath($thisdir);
+
+	my $relative = File::Spec->abs2rel($thisdir, $topdir);
+	my $curdir = $topdir;
+
+	for my $component (File::Spec->splitdir($relative))
+	{
+		next if !$component;
+		$curdir.="/$component";
+		setFileProt($curdir);
+	}
+	return;
+}
+
 ### 2012-01-16 keiths, C_cache gets overwritten when using loadConfTable for multiple configs.
 sub getDir {
 	my %args = @_;
@@ -956,7 +983,11 @@ sub writeTable {
 }
 
 # attention: this function name clashes with a function in rrdfunc.pm!
-sub getFileName {
+# ATTENTION: this function FAILS if json mode is on and both dir+(relative) file name
+# are given!
+# args: file (relative) and dir, or file (full path)
+sub getFileName 
+{
 	my %args = @_;
 	my $json = $args{json};
 	my $file = $args{file};
@@ -1732,6 +1763,8 @@ sub getKernelName {
 	return $kernel;
 }
 
+# creates the dir in question, and all missing intermediate 
+# directories in the path.
 sub createDir {
 	my $dir = shift;
 	my $C = loadConfTable();

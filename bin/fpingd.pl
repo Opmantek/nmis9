@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.5.6";
+our $VERSION = "8.5.10a";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -44,24 +44,26 @@ use Test::Deep::NoTest;
 
 # Variables for command line munging
 my (  $restart, $fpingexit, $debug) = ();
-my %nvp = map { split /=/ } @ARGV;
+my %nvp = getArguements(@ARGV);
 my %INFO;
 my $qripaddr = qr/\d+\.\d+\.\d+\.\d+/;
 
-if ( ! %nvp or (@ARGV == 1 and $ARGV[0] =~ /^-{1,2}(h(elp)?|\?)$/ )) {
+if (!getbool($nvp{kill}) and !getbool($nvp{restart})
+		or (@ARGV == 1 and $ARGV[0] =~ /^-{1,2}(h(elp)?|\?)$/ )) {
 	my $ext = getExtension();
 	my $base = basename($0);
 	die "$base Version $VERSION
 
-Usage: $base [restart|kill]=[true|false] [debug=true|false] [logging=true|false] [conf=alt.config]
+Usage: $base <restart|kill]=[true|false]>[debug=true|false] [logging=true|false] [conf=alt.config]
 
 Command line options are:
- restart=true   - kill any running daemon(s) and restart
+ restart=true   - kill any running daemon(s) and restarts!
  debug=true     - print status to console and logfile
  kill=true      - kill any running daemon(s) and exit. Does not launch a new daemon!
  logging=true   - creates a log file 'fpingd.log' in the standard nmis log directory
  conf=*.$ext    - specify an alternative Conf.$ext file.
 
+a new daemon is started ONLY with restart=true
 default is no logging, no debug\n";
 }
 
@@ -74,17 +76,21 @@ my $logfile     = $C->{'fpingd_log'};
 my $runfile     = "/var/run/nmis-fpingd.pid";
 
 #----------------------------------------
-# figure out if we have fping installed or not
-my ( undef, $fpingbin , undef ) = split /\s+/, qx|whereis -b fping|;
-chomp $fpingbin;
-if ( -x $fpingbin and qx|$fpingbin -v| ) {
-	&debug("fping binary executable found: $fpingbin");
-}
-else {
+# check that fping is available!
+my $fpingver = `fping -v`;
+if ($? >> 8)
+{
 	&debug("fping binary executable not found, please install fping utility");
 	logMsg("ERROR fping binary executable not found, please install fping utility");
 	exit(1);
 }
+else
+{
+	$fpingver =~ s/^.*Version (\d+\.\d+).*$/$1/s;
+	&debug("found fping version $fpingver");
+}
+
+
 #----------------------------------------
 
 # Process Control
@@ -124,11 +130,11 @@ my $fpingcmd;
 # use this command for fping if script run as user root
 if ( $< == 0 )  {
 	# root user
-	$fpingcmd = $fpingbin . ' -t timeout -C count -i 1 -p 1 -q -r retries -b length' ;
+	$fpingcmd = 'fping -t timeout -C count -i 1 -p 1 -q -r retries -b length' ;
 } else {
 	# use this command for fping if ruunning as non-root.
 	# fping: You need i >= 10, p >= 20, r < 20, and t >= 50
-	$fpingcmd = $fpingbin . ' -t timeout -C count -i 10 -p 20 -q -r retries -b length';
+	$fpingcmd = 'fping -t timeout -C count -i 10 -p 20 -q -r retries -b length';
 }
 
 # set fping defaults, equal to ping.pm
@@ -170,13 +176,18 @@ $SIG{HUP} = \&catch_zap;
 POSIX::setsid() or die "Can't start new session: $!";
 chdir('/') or die "Can't chdir to /: $!";
 
-## Reopen stdout, stdin to /dev/null
-# attach stderr to the fpingd logfile
-# !! if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang !!
-open(STDIN,  "+>/dev/null");
-open(STDOUT, "+>&STDIN");
-open(STDERR, ">>$logfile");
-fork && exit;										# parent exits, child continues with the actual work
+
+# for debugging, undocumented: argument foreground=true
+if (!getbool($nvp{"foreground"}))
+{
+	## Reopen stdout, stdin to /dev/null
+	# attach stderr to the fpingd logfile
+	# !! if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang !!
+	open(STDIN,  "+>/dev/null");
+	open(STDOUT, "+>&STDIN");
+	open(STDERR, ">>$logfile");
+	fork && exit(0);										# parent exits, child continues with the actual work
+}
 
 # Announce our presence via a PID file
 open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
@@ -203,24 +214,24 @@ my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
 # set our name so that rc scripts can figure out who we are.
 $0 = $FindBin::Script;
 $restart = 1;
-#-----------------------------------------------------------
 
-# Wrap the code in a loop here, and exit if a SIG set $fpingexit
-while (!$fpingexit) { fastping() }
-#
-# ------------------------------------------------------------
 
-sub fastping {
+# loop until a sighandler set $fpingexit
+# normally fastping does NOT return anyway, so that while is pretty unnecessary
+fastping() while (!$fpingexit);
+exit 0;
 
+
+# loop over nodes, ping them; wait a little then continue
+sub fastping 
+{
 	my $nodelist;
 	my $read_cnt = 0;
-	my $eventTable;
-	my %ping_result = ();
 	my $start_time;
 	my $prevlnt;
+
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
 	my $oldeventconfig = loadTable(dir => 'conf', name => 'Events'); 
-
 	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
 	while(1)
@@ -243,9 +254,10 @@ sub fastping {
 			$read_cnt = 10;
 		}
 
-		%ping_result = (); # clear hash
+		my %ping_result = (); # clear hash
 		
-		foreach my $row (sort keys %{$nodelist}) {
+		foreach my $row (sort keys %{$nodelist}) 
+		{
 			my $nodes = $nodelist->{$row};
 			&debug("\nfping $row about to ping :\t$nodes");
 			if ( open(IN, "$fpingcmd  $nodes  2>&1 |") ) { 
@@ -331,32 +343,32 @@ sub fastping {
 				close IN;
 				
 				### logMsg("INFO run time of fping is ".(time()-$start_time)." sec. pinged ".(scalar keys %ping_result)." nodes");
-			} else {
+			} 
+			else 
+			{
 				logMsg("ERROR could not open pipe to fping: $!");
-				exit;
+				exit 1;
 			}
-		}# foreach row in nodelist
+		} # foreach row in nodelist
 
 		# Loop over results and send out up or down events
-		# 23 Dec 2009 nmisdev
-		if (!$restart) {
-			$eventTable = getEventTable();
-		}
-		foreach my $nd ( keys %ping_result ) {
-			my $event_hash = eventHash($nd,'Node Down','');
 
+		foreach my $nd ( keys %ping_result ) 
+		{
 			# write raw events if requested - regardless of state change or not!
+			# note that this is a debugging aid only.
 			if ($raweventlog ne '')
 			{
+				my @problems;
 				if (!open(RF,">>$raweventlog"))
 				{
-					logMsg("ERROR could not open $raweventlog: $!");
+					push @problems, "ERROR could not open $raweventlog: $!";
 				}
 				else
 				{
 					if (!flock(RF, LOCK_EX))
 					{
-						logMsg("ERROR could not lock $raweventlog: $!");
+						push @problems, "ERROR could not lock $raweventlog: $!";
 					}
 					else
 					{
@@ -366,52 +378,73 @@ sub fastping {
 						my $details = $down? "Ping failed" : "Ping succeeded, loss=$ping_result{$nd}{'loss'}%";
 
 						print RF join(",", time, $nd, $event, $level, '', $details),"\n";
-						close RF or logMsg("ERROR could now write to or close $raweventlog: $!");
+						close RF or push(@problems,"ERROR could now write to or close $raweventlog: $!");
 					}
 				}
+				map { logMsg($_) } (@problems); # DO NOT run logMsg inside a critical section or while holding a lock!
 			}
 			
-			# only post a change in status to the main event system, or post all if restart
-			if ( $ping_result{$nd}{'loss'} == 100 ) {
-				&debug( "[" . localtime( time() ) . "]\tPinging Failed $nd is NOT REACHABLE, returned loss=$ping_result{$nd}{'loss'}%");
+			# only submit changes in status to the event system, or submit all if restart
+			if ( $ping_result{$nd}{'loss'} == 100 )
+			{
+				&debug( "[" . localtime( time() ) . 
+								"]\tPinging Failed $nd is NOT REACHABLE, returned loss=$ping_result{$nd}{'loss'}%");
 				$INFO{$nd}{name} = ''; # maybe DNS changed
 
-				if ($INFO{$nd}{postpone_time} >= $INFO{$nd}{postpone}) {
-					if ( $restart ) {
+				# hold-off time is past?
+				if ($INFO{$nd}{postpone_time} >= $INFO{$nd}{postpone}) 
+				{
+					if ( $restart )
+					{
 						fpingNotify($nd);
 					}
-					elsif ( not exists $eventTable->{$event_hash}  ) {
+					elsif ( not eventExist($nd, "Node Down", undef) ) 
+					{
 						# Device is DOWN, was up, as no entry in event database
 						&debug("\t$nd is now DOWN, was UP, Updating event database");
 						fpingNotify($nd);
 					}
-					elsif ( exists $eventTable->{$event_hash} ) {
+					else
+					{
 						# was down, and still is down...
 						# uncomment this if you want to force an update each run - intensive !!!
 						# fpingNotify($nd);
 					}
-				} else {
+				} 
+				else 										# still within the hold-off period
+				{
 					$ping_result{$nd}{'loss'} = 0; # simulate ok until postpone time elapsed
 				}
 				$INFO{$nd}{postpone_time} += 70; # add minute
-			} else {
+			}
+			else 											# not 100% loss
+			{
 				# node pingable
 				$INFO{$nd}{postpone_time} = 0; # reset
 				&debug( "[" . localtime( time() ) . "]\t$nd is PINGABLE: returned min/avg/max = $ping_result{$nd}{'min'}/$ping_result{$nd}{'avg'}/$ping_result{$nd}{'max'} ms loss=$ping_result{$nd}{'loss'}%");
-				if ( $restart ) {
+
+				if ( $restart ) 
+				{
 					fpingCheckEvent($nd);
 				}
-				elsif ( exists $eventTable->{$event_hash} and 
-								getbool($eventTable->{$event_hash}{current})) {
-					# Device was down is now UP!
-					# Only post the status if the event database records as currently down
-					&debug("\t$nd is now UP, was DOWN, Updating event database");
-					fpingCheckEvent($nd);
-				}
-				elsif ( not exists $eventTable->{$event_hash} ) {
-					# was up, and still is up...
-					# uncomment this if you want to force an update each run - intensive !!!
-					# fpingCheckEvent($nd);
+				else
+				{
+					# check the event existence AND its currency!
+					my $event_exists = eventExist($nd, "Node Down", undef);
+					my $erec = eventLoad(filename => $event_exists) if ($event_exists);
+
+					if ($event_exists and $erec and getbool($erec->{current}))
+					{
+						# Device was down is now UP!
+						# Only post the status if the event database records as currently down
+						&debug("\t$nd is now UP, was DOWN, Updating event database");
+						fpingCheckEvent($nd);
+					}
+					elsif ( !$event_exists ) {
+						# was up, and still is up...
+						# uncomment this if you want to force an update each run - intensive !!!
+						# fpingCheckEvent($nd);
+					}
 				}
 			}
 		}
@@ -423,9 +456,12 @@ sub fastping {
 		# check if the config is still unchanged, if not restart (but only after firstrun)
 		# ditto for the events config
 		my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
-		my $eventconfig = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 
-		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ? "Events List" : !eq_deeply($C,$newconf) ? "Config" : undef;
+		# cannot use loadGenericTable as that checks and clashes with db_events_sql
+		my $eventconfig = loadTable(dir => 'conf', name => 'Events'); 
+
+		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ? 
+				"Events List" : !eq_deeply($C,$newconf) ? "Config" : undef;
 		if ($whichchanged)
 		{
 			debug("$whichchanged has changed, will restart after this sleep");
@@ -446,38 +482,44 @@ sub fastping {
 
 		sleep(int(5-rand(10)) + $sleep);
 
-	} # while 1
-}
-
-sub fpingCheckEvent {
-	my $node = shift;
-	&debug("\tUpdating event database via sub checkEvent() host: $node event: Node Up");
-	my $S = Sys::->new; # create system object
-	$S->init(name=>$node,snmp=>0);
-	my $NI = $S->ndinfo; # pointer to node info table
-	if (!getbool($NI->{system}{snmpdown})) {
-		checkEvent(
-				sys		=> $S,
-				event   => "Node Down",
-				element => "",
-				level   => "Normal",
-				details => "Ping failed"
-		);
 	}
 }
+
+# check-and-remove existing node down event
+# args: node name
+# returns: nothing
+sub fpingCheckEvent 
+{
+	my $node = shift;
+	&debug("\tUpdating event database via sub checkEvent() host: $node event: Node Up");
+
+	my $S = Sys::->new;
+	$S->init(name => $node, snmp => 'false');
+	my $NI = $S->ndinfo; # pointer to node info table
+	
+	checkEvent( sys		=> $S,
+							event   => "Node Down",
+							element => "",
+							level   => "Normal",
+							details => "Ping failed" );
+}
+
+# create a new node down event
+# args: node name
+# returns: nothing
 sub fpingNotify 
 {
 	my $node = shift;
 
 	&debug("\tUpdating event database via sub notify() host: $node event: Node Down");
-	my $S = Sys::->new; # create system object
-	$S->init(name=>$node,snmp=>0);
-	notify(
-			sys		=> $S,
-			event   => "Node Down",
-			element => "",
-			details => "Ping failed"
-	);
+
+	my $S = Sys::->new;
+	$S->init(name=>$node, snmp=>'false');
+
+	notify(	sys		=> $S,
+					event   => "Node Down",
+					element => "",
+					details => "Ping failed" );
 }
 
 sub trim {
@@ -500,7 +542,8 @@ sub debug {
 sub catch_zap {
 	$fpingexit++;
 	&debug("I was killed by $_[0]");
-	logMsg("INFO daemon fpingd killed by $_[0]");
+	logMsg("INFO daemon fpingd killed by $_[0]", 
+				 do_not_lock => 1);
 	unlink $runfile;
 	die "I was killed by $_[0]: $!\n";
 }
@@ -572,7 +615,7 @@ sub readNodes
 	if ( ! @hosts ) {
 		&debug("No nodes found to ping");
 		logMsg("INFO no nodes found in Node table to ping, exit daemon");
-		exit;
+		exit 1;
 	} else {
 		&debug("Read Nodelist, @hosts");
 	}
@@ -603,8 +646,3 @@ sub readNodes
 }
 
 
-sub getEventTable {
-	# get hash table of current 'Node Down' events only
-	return loadEventStateNoLock(type=>'Node_Down'); # from file or DB
-
-}

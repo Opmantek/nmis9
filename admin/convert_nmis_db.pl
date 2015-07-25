@@ -53,7 +53,7 @@ my $dirlevel = 0;
 my $maxrecurse = 200;
 my $maxlevel = 10;
 
-my $bad_file;
+my $bad_file = qr/nmis-ldap-debug/; # incorrectly located file
 my $bad_dir;
 my $file_count;
 my $extension = "nmis";
@@ -71,14 +71,9 @@ print "Using configured var directory $C->{'<nmis_var>'}\n";
 # 3. Change config to use JSON
 # 4. Start NMIS polling.
 
-if ( $debug ) {
-	&processDir(dir => "/tmp/models");
-}
-else {
-	&updateNmisConfigBefore();
-	&processDir(dir => $C->{'<nmis_var>'});
-	&updateNmisConfigAfter();
-}
+&updateNmisConfigBefore();
+&processDir(dir => $C->{'<nmis_var>'});
+&updateNmisConfigAfter();
 
 print "Done.  Processed $file_count NMIS files.\n";
 
@@ -120,7 +115,7 @@ sub processDir {
 			@filename = split(/\./,"$dir/$dirlist[$index]");
 			if ( -f "$dir/$dirlist[$index]"
 				and $extension =~ /$filename[$#filename]/i
-				and $bad_file !~ /$dirlist[$index]/i
+				and $dirlist[$index] !~ $bad_file
 			) {
 				if ($debug>1) { print "\t\t$index file $dir/$dirlist[$index]\n"; }
 				&processNmisFile(file => "$dir/$dirlist[$index]", pretty => $pretty)
@@ -186,10 +181,11 @@ sub updateNmisConfigAfter {
 		exit 1;
 	}
 	
-	if ( not exists $conf->{'system'}{'use_json'} ) { 
-		$conf->{'system'}{'use_json'} = "true";
-	}
-	if ( not exists $conf->{'system'}{'use_json_pretty'} ) { 
+	# reconfigure nmis to use json 
+	$conf->{'system'}{'use_json'} = "true";
+	# but set json_pretty only if not present already
+	if ( not exists $conf->{'system'}{'use_json_pretty'} ) 
+	{ 
 		$conf->{'system'}{'use_json_pretty'} = "true";
 	}
 	$conf->{'system'}{'global_collect'} = "true";

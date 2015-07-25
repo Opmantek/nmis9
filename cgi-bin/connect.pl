@@ -239,23 +239,25 @@ sub doSend{
 
 		printTail if ($format eq "html");
 
-	} elsif ($func eq "eventtable") {
-		my $ET = loadEventStateNoLock();
+	} 
+	elsif ($func eq "eventtable") 
+	{
+		my %allevents = loadAllEvents;
+		
 		printTextHead if ($format eq "text");
 		printHead if ($format eq "html");
 
-		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($ET);
-		}	
-		elsif ( getbool($C->{use_json}) ) {
-			print encode_json($ET);
-		}	
-		else {
-			print Data::Dumper->Dump([$ET], [qw(*hash)]);
+		if (getbool($C->{use_json})) 
+		{
+			print JSON::XS->new
+					->pretty(getbool($C->{use_json_pretty}))
+					->encode(\%allevents);
 		}
-
+		else 
+		{
+			print Data::Dumper->Dump([\%allevents], [qw(*hash)]);
+		}
 		printTail if ($format eq "html");
-
 	} elsif ($func eq "summary") {
 		my %summaryHash = ();
 		my $reportStats;

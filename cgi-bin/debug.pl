@@ -369,9 +369,9 @@ loadInterfaceInfo;
 print "<h2>InterfaceInfo Table ( all node interfaces)</h2>";
 print dumper_html(\%NMIS::interfaceInfo);
 
-my $ET = loadEventStateNoLock; # load by file or db
 print "<h2>Current Events</h2>";
-print dumper_html($ET);
+my %allevents = loadAllEvents;
+print dumper_html(\%allevents);
 
 my $OT = loadOutageTable();
 print "<h2>Outage Table</h2>";
