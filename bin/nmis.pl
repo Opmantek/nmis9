@@ -738,7 +738,7 @@ sub doUpdate {
 
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
-		logMsg("Update Poll: $name, $NI->{system}{nodeModel}, $polltime");
+		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
 	}	
 
 	return;
@@ -973,7 +973,7 @@ sub doCollect {
 
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
-		logMsg("Collect Poll: $name, $NI->{system}{nodeModel}, $polltime");
+		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
 	}	
 
 	return;
@@ -5273,6 +5273,8 @@ sub nmisMaster {
 sub nmisSummary {
 	my %args = @_;
 
+	my $pollTimer = NMIS::Timing->new;
+
 	dbg("Calculating NMIS network stats for cgi cache");
 	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => undef)
 			if ($type eq "summary");	# not if part of collect
@@ -5292,6 +5294,11 @@ sub nmisSummary {
 	dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
 	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => time())
 			if ($type eq "summary");	# not if part of collect
+
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		my $polltime = $pollTimer->elapTime();
+		logMsg("Poll Time: $polltime");
+	}	
 
 	sub summaryCache {
 		my %args = @_;
@@ -5329,6 +5336,7 @@ sub nmisSummary {
 		}
 
 		writeTable(dir=>'var',name=>$file,data=>\%summaryHash );
+
 		return (scalar keys %summaryHash);
 	}
 }
