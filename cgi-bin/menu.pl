@@ -369,8 +369,10 @@ sub menu_bar_site {
 			qq|<a id='nmis_poll' href="network.pl?conf=$Q->{conf}&amp;act=nmis_polling_summary">NMIS Polling Summary</a>|,
 			qq|<a id='nmis_run' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=nmis_runtime_view">NMIS Runtime Graph</a>|;
 		};
-
 		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
+
+		push @hostdiags, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));		
 
 		for my $cmd (qw(date df ps iostat vmstat who))
 		{
@@ -381,10 +383,13 @@ sub menu_bar_site {
 
 		my @setupitems;
 
-		push 	@setupitems, qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|
+		push @setupitems, qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
-		push @setupitems, qq|           | if (@setupitems); # no separator if there's nothing to separate...
+		# no separator if there's nothing to separate...
+		push @setupitems, qq|           | if (@setupitems);
+		push @setupitems, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>|
+				if ($AU->CheckAccess("Table_Nodes_view","check"));		
 
 		push @setupitems, qq|--- Advanced Setup ---| if (@setupitems); # no separator if there's nothing to separate...
 		

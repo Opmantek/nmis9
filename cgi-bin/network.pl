@@ -128,6 +128,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_summary_customer') {	$select = 'customer';
 } elsif ($Q->{act} eq 'network_summary_business') {	$select = 'business';
 } elsif ($Q->{act} eq 'network_summary_metrics') {	$select = 'metrics';
+} elsif ($Q->{act} eq 'node_admin_summary') {	nodeAdminSummary(); exit;
 } elsif ($Q->{act} eq 'network_metrics_graph') {	viewMetrics(); exit;
 } elsif ($Q->{act} eq 'network_top10_view') {	viewTop10(); exit;
 } elsif ($Q->{act} eq 'network_node_view') {	viewNode(); exit;
@@ -3057,6 +3058,222 @@ sub viewTop10 {
 	pageEnd() if (!$wantwidget);
 
 }
+
+#============================
+# Desc: displays a summary of nodes, by default only nodes with issues, e.g. unreachable nodes.
+# Menu: Node Admin Summary
+# url: node_admin_summary
+# Title: Node Admin Summary
+#============================'
+sub nodeAdminSummary {
+	my %args = @_;
+
+	my $group = $Q->{group};
+	my $filter = $Q->{filter};
+	if ($filter eq "") {
+		$filter = 0;
+	}
+	print header($headeropts);
+	pageStart(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
+
+	if ($group ne "" and !$AU->InGroup($group)) {
+		print 'You are not authorized for this request';
+	}
+	else {
+		my $LNT = loadLocalNodeTable();
+		
+		#print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
+		my @headers = (
+					"name",
+					"group",
+					"summary",
+					"active",
+					"last updated",
+					"ping (icmp)",
+					"icmp working",
+					"collect (snmp)",
+					"snmp working",
+					"community",
+					"version",
+					"nodeVendor",
+					"nodeModel",
+					"nodeType",
+					"sysObjectID",
+					"sysObjectName",
+					"sysDescr",
+					"intCount",
+					"intCollect"
+				);
+
+		my $extra = " for $group" if $group ne "";
+		my $cols = @headers;
+		print start_table({class=>'dash', width=>'100%'});
+		print Tr(th({class=>'title',colspan=>$cols},
+				"Node Admin Summary$extra ",
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"},"All Nodes"),
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
+			));
+		print Tr( eval {
+			my $line;
+			foreach my $h (@headers) {
+				$line .= td({class=>'header',align=>'center'},$h);
+			} return $line;
+		} );
+		
+		foreach my $node (sort keys %{$LNT}) {
+			#if ( $LNT->{$node}{active} eq "true" ) {
+			if ( 1 ) {
+				if ( $AU->InGroup($LNT->{$node}{group}) and ($group eq "" or $group eq $LNT->{$node}{group}) ) {
+					my $intCollect = 0;
+					my $intCount = 0;
+					my $S = Sys::->new; # get system object
+					$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+					my $NI = $S->ndinfo;
+					my $IF = $S->ifinfo;
+					my $exception = 0;
+					my @issueList;
+				
+					# Is the node active and are we doing stats on it.
+					if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {		
+						for my $ifIndex (keys %{$IF}) {
+							++$intCount;
+							if ( $IF->{$ifIndex}{collect} eq "true") {
+								++$intCollect;
+								#print "$IF->{$ifIndex}{ifIndex}\t$IF->{$ifIndex}{ifDescr}\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}\n";
+							}
+						}
+					}
+					my $sysDescr = $NI->{system}{sysDescr};
+					$sysDescr =~ s/[\x0A\x0D]/\\n/g;
+					$sysDescr =~ s/,/;/g;
+	
+					my $community = "OK";
+					my $commClass = "info Plain";
+
+					my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
+					my $lastClass = "info Plain";
+
+					my $pingable = "unknown";
+					my $pingClass = "info Plain";
+
+					my $snmpable = "unknown";
+					my $snmpClass = "info Plain";
+
+					my $actClass = "info Plain Minor";
+					if ( $LNT->{$node}{active} eq "false" ) {
+						push(@issueList,"Node is not active");
+					}
+					else {
+						$actClass = "info Plain";		
+						if ( not defined $NI->{system}{lastUpdateSec} ) {
+							$lastUpdate = "unknown";
+							$lastClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Last update is unknown");
+						}
+						elsif ( $NI->{system}{lastUpdateSec} < (time - 60*15) ) {
+							$lastClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Last update was over 5 minutes ago");
+						}
+						
+						$pingable = "true";
+						$pingClass = "info Plain";
+						if ( not defined $NI->{system}{nodedown} ) {
+							$pingable = "unknown";	
+							$pingClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Node state is unknown");
+						}
+						elsif ( $NI->{system}{nodedown} eq "true" ) {
+							$pingable = "false";
+							$pingClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Node is currently down");
+						}
+		
+						if ( $LNT->{$node}{collect} eq "false" ) {
+							$snmpable = "N/A";
+							$community = "N/A";								
+						}
+						else {
+							$snmpable = "true";
+
+							if ( not defined $NI->{system}{snmpdown} ) {
+								$snmpable = "unknown";	
+								$snmpClass = "info Plain Minor";
+								$exception = 1;
+								push(@issueList,"SNMP state is unknown");
+							}
+							elsif ( $NI->{system}{snmpdown} eq "true" ) {
+								$snmpable = "false";
+								$snmpClass = "info Plain Major";
+								$exception = 1;
+								push(@issueList,"SNMP access is currently down");
+							}
+
+							if ( $LNT->{$node}{community} eq "" ) {
+								$community = "BLANK";
+								$commClass = "info Plain Major";   
+								$exception = 1;
+								push(@issueList,"SNMP Community is blank");
+							}
+							
+							if ( $LNT->{$node}{community} eq "public" ) {
+								$community = "DEFAULT";	
+								$commClass = "info Plain Minor";
+								$exception = 1;
+								push(@issueList,"SNMP Community is default (public)");
+							}
+						}
+					}
+		
+					#print qq|"$LNT->{$node}{name}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$NI->{system}{roleType}","$NI->{system}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
+					my $wd = 850;
+					my $ht = 700;
+					my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
+	
+					my $nodelink = a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
+					my $issues = join("<br/>",@issueList);
+					                   
+					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) {
+						print Tr(
+							td({class => "info Plain"},$nodelink),
+							td({class => 'info Plain'},
+								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$LNT->{$node}{group}&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
+							),
+							td({class => 'infolft Plain'},$issues),
+							td({class => $actClass},$LNT->{$node}{active}),
+							td({class => $lastClass},$lastUpdate),
+
+							td({class => 'info Plain'},$LNT->{$node}{ping}),							             
+							td({class => $pingClass},$pingable),
+
+							td({class => 'info Plain'},$LNT->{$node}{collect}),
+							td({class => $snmpClass},$snmpable),
+							td({class => $commClass},$community),
+							td({class => 'info Plain'},$LNT->{$node}{version}),
+
+							td({class => 'info Plain'},$NI->{system}{nodeVendor}),
+							td({class => 'info Plain'},$NI->{system}{nodeModel}),
+							td({class => 'info Plain'},$NI->{system}{nodeType}),
+							td({class => 'info Plain'},$NI->{system}{sysObjectID}),
+							td({class => 'info Plain'},$NI->{system}{sysObjectName}),
+							td({class => 'info Plain'},$sysDescr),
+							td({class => 'info Plain'},$intCount),
+							td({class => 'info Plain'},$intCollect)					
+						);
+					}
+				}
+			}
+		}
+	}
+	print end_table;
+	
+	pageEnd() if (!$wantwidget);
+}  # end sub nodeAdminSummary
+
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
