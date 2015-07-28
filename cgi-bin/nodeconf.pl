@@ -81,9 +81,16 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 #======================================================================
 
 # select function
-if ($Q->{act} eq 'config_nodeconf_view') {			displayNodemenu();
-} elsif ($Q->{act} eq 'config_nodeconf_update') {	if (updateNodeConf()){ displayNodemenu(); }
-} else { notfound(); }
+if ($Q->{act} eq 'config_nodeconf_view') {			
+	displayNodemenu();
+} 
+elsif ($Q->{act} eq 'config_nodeconf_update') {	
+	if (updateNodeConf()){ displayNodemenu(); }
+} 
+else {
+	displayNodemenu();
+	#notfound(); 
+}
 
 sub notfound {
 	print header(-status=>400, %$headeropts);
@@ -125,6 +132,9 @@ sub displayNodemenu{
 	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group}) 
 														 and getbool($NT->{$_}{active}) } sort keys %{$NT});
 	print start_Tr;
+	print td({class=>"header"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
+			if (!getbool($Q->{widget}));
+
 	print td({class=>"header",width=>'25%'},
 			"Select node<br>".
 				popup_menu(-name=>"node", -override=>'1',

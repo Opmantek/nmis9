@@ -3107,8 +3107,11 @@ sub nodeAdminSummary {
 
 		my $extra = " for $group" if $group ne "";
 		my $cols = @headers;
+		my $nmisLink = a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;" if (!getbool($widget));
+
 		print start_table({class=>'dash', width=>'100%'});
 		print Tr(th({class=>'title',colspan=>$cols},
+				$nmisLink,
 				"Node Admin Summary$extra ",
 				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"},"All Nodes"),
 				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
