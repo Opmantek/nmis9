@@ -1028,7 +1028,11 @@ sub selectLarge {
 			
 			if ( $printGroupHeader ) {
 				$printGroupHeader = 0;
-				print Tr(th({class=>'title',colspan=>'15'},"$group Node List and Status"));
+				print Tr(th({class=>'title',colspan=>'15'},
+					"$group Node List and Status",
+					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
+				
+					));
 				print Tr( eval {
 					my $line;
 					foreach my $h (@headers) {
@@ -3081,6 +3085,7 @@ sub nodeAdminSummary {
 	}
 	else {
 		my $LNT = loadLocalNodeTable();
+		my $noExceptions = 1;
 		
 		#print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
 		my @headers = (
@@ -3099,10 +3104,8 @@ sub nodeAdminSummary {
 					"nodeModel",
 					"nodeType",
 					"sysObjectID",
-					"sysObjectName",
 					"sysDescr",
-					"intCount",
-					"intCollect"
+					"Int. Collect of Total",
 				);
 
 		my $extra = " for $group" if $group ne "";
@@ -3235,12 +3238,26 @@ sub nodeAdminSummary {
 					#print qq|"$LNT->{$node}{name}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$NI->{system}{roleType}","$NI->{system}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 					my $wd = 850;
 					my $ht = 700;
-					my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
+
+					my $idsafenode = $node; 
+					$idsafenode = (split(/\./,$idsafenode))[0];
+					$idsafenode =~ s/[^a-zA-Z0-9_:\.-]//g;
 	
-					my $nodelink = a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
+					my $nodelink = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node), id=>"node_view_$idsafenode"},$LNT->{$node}{name});
+					#my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
+					#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
 					my $issues = join("<br/>",@issueList);
+
+					my $sysObject = "$NI->{system}{sysObjectName} $NI->{system}{sysObjectID}";
+					my $intNums = "$intCollect/$intCount";
+					
+					if ( length($sysDescr) > 40 ) { 
+						my $shorter = substr($sysDescr,0,40);
+						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>"; 
+					}
 					                   
 					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) {
+						$noExceptions = 0;
 						print Tr(
 							td({class => "info Plain"},$nodelink),
 							td({class => 'info Plain'},
@@ -3259,21 +3276,21 @@ sub nodeAdminSummary {
 							td({class => 'info Plain'},$LNT->{$node}{version}),
 
 							td({class => 'info Plain'},$NI->{system}{nodeVendor}),
-							td({class => 'info Plain'},$NI->{system}{nodeModel}),
+							td({class => 'info Plain'},"$NI->{system}{nodeModel} ($LNT->{$node}{model})"),
 							td({class => 'info Plain'},$NI->{system}{nodeType}),
-							td({class => 'info Plain'},$NI->{system}{sysObjectID}),
-							td({class => 'info Plain'},$NI->{system}{sysObjectName}),
+							td({class => 'info Plain'},$sysObject),
 							td({class => 'info Plain'},$sysDescr),
-							td({class => 'info Plain'},$intCount),
-							td({class => 'info Plain'},$intCollect)					
+							td({class => 'info Plain'},$intNums),
 						);
 					}
 				}
 			}
 		}
-	}
-	print end_table;
-	
+		if ( $filter eq "exceptions" and $noExceptions ) {
+			print Tr(td({class=>'info Plain',colspan=>$cols},"No node admin exceptions were found"));
+		}
+		print end_table;
+	}	
 	pageEnd() if (!$wantwidget);
 }  # end sub nodeAdminSummary
 

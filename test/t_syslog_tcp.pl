@@ -76,7 +76,10 @@ if (!$@)
 }
 else
 {
-	print("ERROR: could not connect to syslog server \"$server\", $protocol port $port!\n");
+	my $errors = join("",$@);
+	$errors =~ s/\n|\t/ /g;
+	$errors =~ s/  / /g;
+	print("ERROR: could not connect to syslog server \"$server\", $protocol port $port: $errors\n");
 }
 # reset to defaults, for future use
 Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]); 			

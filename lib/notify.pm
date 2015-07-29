@@ -275,7 +275,10 @@ sub sendSyslog
 			}
 			else
 			{
-				logMsg("ERROR: could not connect to syslog server \"$server\", $protocol port $port!");
+				my $errors = join("",$@);
+				$errors =~ s/\n|\t/ /g;
+				$errors =~ s/  / /g;
+				logMsg("ERROR: could not connect to syslog server \"$server\", $protocol port $port: $errors");
 			}
 			# reset to defaults, for future use
 			Sys::Syslog::setlogsock([qw(native tcp udp unix pipe stream console)]); 			
