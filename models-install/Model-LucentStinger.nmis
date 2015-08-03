@@ -52,6 +52,15 @@
       }
     }
   },
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false',
+      'ifNumber' => 'false',
+      'ifLastChange' => 'true',
+      'ifTableLastChange' => 'true',
+      'skipIpAddressTableOnSingle' => 'true',
+    }
+  },
   'system' => {
     'nodeVendor' => 'Ascend Communications Inc.',
     'nodegraph' => 'health,response',
@@ -150,14 +159,6 @@
           }
         }
       },
-      'extra' => {
-        'snmp' => {
-          'Description' => {
-            'oid' => 'ifAlias'
-          }
-        },
-        'indexed' => 'true'
-      }
     },
     'rrd' => {
       'interface' => {
@@ -179,6 +180,9 @@
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+          }
           'ifInOctets' => {
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
