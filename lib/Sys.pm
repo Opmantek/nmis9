@@ -551,8 +551,8 @@ sub getValues {
 
 	# create lists
 	foreach my $sect (keys %{$class}) {
-		dbg("section=$section sect=$sect");
 		next if $section ne ''  and $section ne $sect;
+		dbg("section=$section sect=$sect");
 		if ($index ne '' and $class->{$sect}{indexed} eq '') {
 			dbg("collect of type $sect skipped by NON indexed section, check this Model");
 			# we don't mark this as intentional skip, so the no oid error shows up

@@ -41,7 +41,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:ospfNbrState=$database:ospfNbrState:AVERAGE',
-			'LINE2:ospfNbrState#4daef6: OSPF Neighbor State',
+			'AREA:ospfNbrState#4daef6: OSPF Neighbor State',
 			'GPRINT:ospfNbrState:AVERAGE:Avg. %1.2lf%%\\n',
 			'COMMENT:100%=full, 90%=loading, 80%=exchange, 70%=exchangeStart, 60%=twoWay, 40%=init, 20%=attempt, 0%=down\\n'
 		],
@@ -50,7 +50,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:ospfNbrState=$database:ospfNbrState:AVERAGE',
-			'LINE2:ospfNbrState#4daef6: OSPF Neighbor State',
+			'AREA:ospfNbrState#4daef6: OSPF Neighbor State',
 			'GPRINT:ospfNbrState:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}

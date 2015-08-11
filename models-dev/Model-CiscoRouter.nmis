@@ -760,6 +760,11 @@
             'option' => 'counter,0:U',
             'sysObjectName' => 'ospfNbrEvents',
           },
+          'ospfNbrRetransQLen' => {
+            'oid' => '1.3.6.1.2.1.14.10.1.8',
+            'option' => 'gauge,0:U',
+            'sysObjectName' => 'ospfNbrLsRetransQLen',
+          },
         }
       },
       'fanStatus' => {
@@ -961,7 +966,7 @@
         }
       },
       'ospfNbr' => {
-        'headers' => 'ospfNbrIpAddr,ospfNbrRtrId,ospfNbrPriority,ospfNbrState,ospfNbrStateName,ospfNbrEvents',
+        'headers' => 'ospfNbrIpAddr,ospfNbrRtrId,ospfNbrPriority,ospfNbrState,ospfNbrStateName,ospfNbrEvents,ospfNbrRetransQLen',
         'index_oid' => '1.3.6.1.2.1.14.10.1.1',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'ospfNbrIpAddr',
@@ -984,7 +989,7 @@
           'ospfNbrState' => {
             'oid' => '1.3.6.1.2.1.14.10.1.6',
             'sysObjectName' => 'ospfNbrState',
-            'title' => 'OSPF Neighbor State'
+            'title' => 'OSPF Neighbor State Health'
           },
           'ospfNbrStateName' => {
             'oid' => '1.3.6.1.2.1.14.10.1.6',
@@ -1006,7 +1011,7 @@
             'sysObjectName' => 'ospfNbrEvents',
             'title' => 'ospfNbrEvents'
           },
-          'ospfNbrLSRetransQLen' => {
+          'ospfNbrRetransQLen' => {
             'oid' => '1.3.6.1.2.1.14.10.1.8',
             'sysObjectName' => 'ospfNbrLSRetransQLen',
             'title' => 'ospfNbrLSRetransQLen'

@@ -69,74 +69,95 @@ $debug = 1;
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 # Step 1: define you prefered seperator
-my $sep = ",";
+my $sep = "\t";
 if ( $arg{separator} eq "tab" ) {
 	$sep = "\t";
 }
+elsif ( $arg{separator} eq "comma" ) {
+	$sep = ",";
+}
+
+# A cache of Card Indexes.
+my $cardIndex;
 
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name uuid nodeType nodeVendor sysObjectName sysDescr softwareVersion tbd3 serialNum name2 name3 tbd4 group tbd5);
+my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 relayRack location uplink);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
 	name              		=> 'Dslam Name',
 	uuid									=> 'Equipment ID',
-	nodeType							=> 'Type',
+	ossType								=> 'Type',
 	nodeVendor            => 'Name of the Vendor',
-	sysObjectName         => 'Model',
+	ossModel							=> 'Model',
 	sysDescr							=> 'Description of the equipmet',
 	softwareVersion				=> 'SW Version',
-	tbd3									=> 'Status',
+	ossStatus							=> 'Status',
 	serialNum      		    => 'SerialNumber',
 	name2              		=> 'Name of the node in the Network',
 	name3              		=> 'Name in NMS',
-	tbd4									=> 'Relay Rack name',
-	group             		=> 'Location',
-	tbd5									=> 'UpLink',
-	
-	#host              		=> 'Host',
-	#businessService   		=> 'Business Service',
-	#serviceStatus     		=> 'Service Status',
-	#services          		=> 'Services',
-	#netType               => 'Network',
-	#roleType              => 'Role',	
-	#sysDescr      		    => 'Description'
+	relayRack							=> 'Relay Rack name',
+	location           		=> 'Location',
+	uplink								=> 'UpLink',	
 );
 
-      #"2" : {
-      #   "ifOperStatus" : "up",
-      #   "ifPhysAddress" : "0x588d09a4b008",
-      #   "ifDescr" : "FastEthernet0",
-      #   "threshold" : "true",
-      #   "ifAdminStatus" : "up",
-      #   "ifLastChange" : "0:00:46",
-      #   "nocollect" : "Collecting: Collection Policy",
-      #   "ifIndex" : "2",
-      #   "collect" : "true",
-      #   "interface" : "fastethernet0",
-      #   "ifLastChangeSec" : "46",
-      #   "real" : "true",
-      #   "ifHighSpeed" : 100,
-      #   "ifSpeed" : "100000000",
-      #   "event" : "true",
-      #   "index" : "2",
-      #   "Description" : "",
-      #   "ifType" : "ethernetCsmacd"
-      #},
+my @slotHeaders = qw(slotId nodeId position slotName slotNetName name1 name2 ossType);
 
-my @portHeaders = qw(name ifDescr ifType ifOperStatus parent tbd2);
+my %slotAlias = (
+	slotId								=> 'Slot ID',
+	nodeId								=> 'Equipment ID',
+	position							=> 'Position in the equipment',
+	slotName            	=> 'Slot Name',
+	slotNetName						=> 'Slot name in the network',
+	name1									=> 'name of the parent equipment',
+	name2									=> 'name of the parent eq in the network',
+	ossType								=> 'Type of equipment',
+);
+
+#										
+
+my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardStatus cardVendor cardModel cardType name1 name2 slotId);
+
+my %cardAlias = (
+	cardName							=> 'Card name',
+	cardId								=> 'Card ID',
+	cardNetName						=> 'name of the card in the network',
+	cardDescr        			=> 'Card Description',
+	cardStatus						=> 'Status',
+	cardVendor						=> 'Vendor',
+	cardModel							=> 'model',
+	cardType							=> 'Type',
+	name1									=> 'name of the network where the card is installed',
+	name2									=> 'name of the equipment where the card is installed',
+	slotId								=> 'Parent ID/Slot ID where the card is installed',
+);
+
+my @portHeaders = qw(portName portId portType portStatus parent duplex);
 
 my %portAlias = (
+	portName         			=> 'Name of the port in the network',
+	portId								=> 'Port ID',
+	portType							=> 'Type of port',
+	portStatus						=> 'Status',
+	parent								=> 'parent ID /Card ID',
+	duplex								=> 'Duplex full/half',
+);
+
+my @intHeaders = qw(name ifDescr ifType ifOperStatus parent);
+
+my %intAlias = (
 	name            			=> 'Name of the port in the network',
 	ifDescr								=> 'Port ID',
 	ifType								=> 'Type of port',
 	ifOperStatus					=> 'Status',
 	parent								=> 'parent ID /Card ID',
-	tbd2									=> 'Duplex full/half',
 );
 
 # Step 5: For loading only the local nodes on a Master or a Slave
 my $NODES = loadLocalNodeTable();
+
+#What models are we going to process
+my $goodModels = qr/CiscoDSL/;
 
 # Step 6: Run the program!
 
@@ -145,7 +166,10 @@ my $NODES = loadLocalNodeTable();
 if ( not -f $arg{nodes} ) {
 	createNodeUUID();
 	exportNodes("$dir/oss-nodes.csv");
+	exportSlots("$dir/oss-slots.csv");
+	exportCards("$dir/oss-cards.csv");
 	exportPorts("$dir/oss-ports.csv");
+	exportInterfaces("$dir/oss-interfaces.csv");
 }
 else {
 	print "ERROR: $arg{nodes} already exists, exiting\n";
@@ -175,15 +199,25 @@ sub exportNodes {
 	print CSV "$header\n";
 	
 	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
+	  if ( $NODES->{$node}{active} eq "true") {
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
+			
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+
+			#my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 tbd4 group tbd5);
 		    
 		  # clone the name!
 	    $NODES->{$node}{name2} = $NODES->{$node}{name};
 	    $NODES->{$node}{name3} = $NODES->{$node}{name};
-
+	    
+	    # handling OSS values for these fields.
+	    $NODES->{$node}{ossStatus} = $NI->{system}{nodestatus};
+	    $NODES->{$node}{ossModel} = getModel($NI->{system}{sysObjectName});
+	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName});
+	    
 			# get software version for Alcatel ASAM      
       if ( defined $NI->{system}{asamActiveSoftware1} and $NI->{system}{asamActiveSoftware1} eq "active" ) {
       	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion1};
@@ -191,6 +225,21 @@ sub exportNodes {
       elsif ( defined $NI->{system}{asamActiveSoftware2} and $NI->{system}{asamActiveSoftware2} eq "active" ) {
       	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion2};
 			}
+			
+			# Get an uplink address, find any address and put it in a string
+			my $IF = $S->ifinfo;
+			my @ipAddresses;
+			foreach my $ifIndex (sort keys %{$IF}) {
+				my @addresses;
+				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ipAdEntAddr1} ) {
+					push(@ipAddresses,$IF->{$ifIndex}{ipAdEntAddr1});
+				}			
+				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ipAdEntAddr2} ) {
+					push(@ipAddresses,$IF->{$ifIndex}{ipAdEntAddr2});
+				}	
+			}
+			my $joinChar = $sep eq "," ? " " : ",";
+			$NODES->{$node}{uplink} = join($joinChar,@ipAddresses);
 		    
 	    my @columns;
 	    foreach my $header (@nodeHeaders) {
@@ -213,6 +262,166 @@ sub exportNodes {
 	}
 	
 	close CSV;
+}
+
+sub exportSlots {
+	my $file = shift;
+	
+	print "Creating $file\n";
+
+	my $C = loadConfTable();
+		
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+	
+	# print a CSV header
+	my @aliases;
+	foreach my $header (@slotHeaders) {
+		my $alias = $header;
+		$alias = $slotAlias{$header} if $slotAlias{$header};
+		push(@aliases,$alias);
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+	
+	foreach my $node (sort keys %{$NODES}) {
+	  if ( $NODES->{$node}{active} eq "true" ) {
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+
+			# handling for this is device/model specific.
+			my $SLOTS;
+			my $counter = 0;
+			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+				$SLOTS = $S->{info}{entityMib};
+
+				foreach my $slotIndex (sort keys %{$SLOTS}) {
+					if ( defined $SLOTS->{$slotIndex} 
+						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
+						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /container/
+					) {
+						# create a name
+						++$counter;
+						# the slot id is the parent relative position, not the index of the MIB
+						my $slotId = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
+						$SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
+						$SLOTS->{$slotIndex}{nodeId} = $NODES->{$node}{uuid};
+						$SLOTS->{$slotIndex}{position} = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
+						$SLOTS->{$slotIndex}{slotName} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+						$SLOTS->{$slotIndex}{slotNetName} = "$SLOTS->{$slotIndex}{entPhysicalDescr} $slotId";
+										    
+				    # name for the parent node.
+				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
+				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
+				    $SLOTS->{$slotIndex}{ossType} = getType($NI->{system}{sysObjectName});
+						
+				    my @columns;
+				    foreach my $header (@slotHeaders) {
+				    	my $data = undef;
+				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
+				    		$data = $SLOTS->{$slotIndex}{$header};
+				    	}
+				    	else {
+				    		$data = "TBD";
+				    	}
+				    	$data = changeCellSep($data);
+				    	push(@columns,$data);
+				    }
+						my $row = join($sep,@columns);
+				    print CSV "$row\n";
+			  	}
+				}
+			}
+	  }
+	}	
+}
+
+sub exportCards {
+	my $file = shift;
+	
+	print "Creating $file\n";
+
+	my $C = loadConfTable();
+		
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+	
+	# print a CSV header
+	my @aliases;
+	foreach my $header (@cardHeaders) {
+		my $alias = $header;
+		$alias = $cardAlias{$header} if $cardAlias{$header};
+		push(@aliases,$alias);
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+	
+	foreach my $node (sort keys %{$NODES}) {
+	  if ( $NODES->{$node}{active} eq "true" ) {
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+
+			# handling for this is device/model specific.
+			my $SLOTS;
+			my $cardCount = 0;
+			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+				$SLOTS = $S->{info}{entityMib};
+
+				foreach my $slotIndex (sort keys %{$SLOTS}) {
+					if ( defined $SLOTS->{$slotIndex} 
+						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
+						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /module/
+					) {
+						# create a name
+						++$cardCount;
+						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardStatus cardVendor cardModel       cardType name1 name2 slotId);
+
+						my $cardId = "$NODES->{$node}{uuid}_C_$slotIndex";
+
+						$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalDescr});
+						$SLOTS->{$slotIndex}{cardId} = $cardId;
+						
+				    $SLOTS->{$slotIndex}{cardNetName} = "CARD $slotIndex";
+
+				    $SLOTS->{$slotIndex}{cardDescr} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+				    $SLOTS->{$slotIndex}{cardStatus} = getStatus();
+						$SLOTS->{$slotIndex}{cardVendor} = $NI->{system}{nodeVendor};
+						$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+										    
+				    # name for the parent node.
+				    $SLOTS->{$slotIndex}{cardType} = "CARD - ". getType($NI->{system}{sysObjectName});
+				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
+				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
+
+						# what is the parent ID?
+						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
+				    $SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$parentId";
+				    
+				    # get the parent and then determine its ID and 
+						
+				    my @columns;
+				    foreach my $header (@cardHeaders) {
+				    	my $data = undef;
+				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
+				    		$data = $SLOTS->{$slotIndex}{$header};
+				    	}
+				    	else {
+				    		$data = "TBD";
+				    	}
+				    	$data = changeCellSep($data);
+				    	push(@columns,$data);
+				    }
+						my $row = join($sep,@columns);
+				    print CSV "$row\n";
+			  	}
+				}
+			}
+	  }
+	}	
 }
 
 sub exportPorts {
@@ -239,16 +448,91 @@ sub exportPorts {
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+
+			# handling for this is device/model specific.
+			my $SLOTS;
+			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+				$SLOTS = $S->{info}{entityMib};
+
+				foreach my $slotIndex (sort keys %{$SLOTS}) {
+					if ( defined $SLOTS->{$slotIndex} 
+						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
+						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /port/
+					) {
+						# what is the parent ID?
+						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
+						my $cardId = "$NODES->{$node}{uuid}_C_$parentId";
+
+						#my @portHeaders = qw(portName portId portType portStatus parent duplex);
+						
+						# Port ID is the Card ID and an index, relative position.
+						$SLOTS->{$slotIndex}{portName} = $SLOTS->{$slotIndex}{entPhysicalName};
+						$SLOTS->{$slotIndex}{portId} = "$NODES->{$node}{uuid}_P_$slotIndex";
+						$SLOTS->{$slotIndex}{portType} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+						$SLOTS->{$slotIndex}{portStatus} = getStatus();
+						$SLOTS->{$slotIndex}{parent} = $cardId;
+						$SLOTS->{$slotIndex}{duplex} = getPortDuplex($SLOTS->{$slotIndex}{entPhysicalDescr});
+						
+				    my @columns;
+				    foreach my $header (@portHeaders) {
+				    	my $data = undef;
+				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
+				    		$data = $SLOTS->{$slotIndex}{$header};
+				    	}
+				    	else {
+				    		$data = "TBD";
+				    	}
+				    	$data = changeCellSep($data);
+				    	push(@columns,$data);
+				    }
+						my $row = join($sep,@columns);
+				    print CSV "$row\n";
+			  	}
+				}
+			}
+	  }
+	}	
+}
+
+sub exportInterfaces {
+	my $file = shift;
+	
+	print "Creating $file\n";
+
+	my $C = loadConfTable();
+		
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+	
+	# print a CSV header
+	my @aliases;
+	foreach my $header (@intHeaders) {
+		my $alias = $header;
+		$alias = $intAlias{$header} if $intAlias{$header};
+		push(@aliases,$alias);
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+	
+	foreach my $node (sort keys %{$NODES}) {
+	  if ( $NODES->{$node}{active} eq "true" ) {
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
 			my $IF = $S->ifinfo;
 
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+
 			foreach my $ifIndex (sort keys %{$IF}) {
-				if ( defined $IF->{$ifIndex}{ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {
+				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {
 					# create a name
 			    $IF->{$ifIndex}{name} = "$node--$IF->{$ifIndex}{ifDescr}";
 			    $IF->{$ifIndex}{parent} = $NODES->{$node}{uuid};
 					
 			    my @columns;
-			    foreach my $header (@portHeaders) {
+			    foreach my $header (@intHeaders) {
 			    	my $data = undef;
 			    	if ( defined $IF->{$ifIndex}{$header} ) {
 			    		$data = $IF->{$ifIndex}{$header};
@@ -275,6 +559,55 @@ sub changeCellSep {
 	$string =~ s/\r\n/\\n/g;
 	$string =~ s/\n/\\n/g;
 	return $string;
+}
+
+sub getStatus {
+	# no definitions found?
+	return "Installed";		
+}
+
+sub getModel {
+	my $sysObjectName = shift;
+	
+	$sysObjectName =~ s/cisco//g;	
+	
+	return $sysObjectName;		
+}
+
+sub getType {
+	my $sysObjectName = shift;
+	my $type = "TBD";
+	
+	if ( $sysObjectName =~ /cisco61|asam/ ) {
+		$type = "DSLAM";	
+	}
+	
+	return $type;		
+}
+
+sub getPortDuplex {
+	my $thing = shift;
+	my $duplex = "TBD";
+	
+	if ( $thing =~ /SHDSL|ADSL/ ) {
+		$duplex = "N/A";	
+	}
+	
+	return $duplex;		
+}
+
+sub getCardName {
+	my $model = shift;
+	my $name;
+	
+	if ( $model =~ /^.TUC/ ) {
+		$name = "xDSL Card";	
+	}
+	elsif ( $model =~ /^NI\-|C6160 Network/ ) {
+		$name = "Network Intfc  (WRK)";
+	}
+	
+	return $name;		
 }
 
 sub usage {

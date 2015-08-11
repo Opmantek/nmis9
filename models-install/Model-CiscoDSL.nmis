@@ -63,11 +63,37 @@
     'sys' => {
       'entityMib' => {
         'indexed' => 'entPhysicalDescr',
-        'headers' => 'entPhysicalDescr,entPhysicalName,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
+        'headers' => 'index,entPhysicalDescr,entPhysicalContainedIn,entPhysicalName,entPhysicalClass,entPhysicalParentRelPos,entPhysicalName,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
         'snmp' => {
           'entPhysicalDescr' => {
             'oid' => 'entPhysicalDescr',
             'title' => 'Physical Descr'
+          },
+          'entPhysicalContainedIn' => {
+            'oid' => 'entPhysicalContainedIn',
+            'title' => 'Contained In'
+          },
+          'entPhysicalClass' => {
+            'oid' => 'entPhysicalClass',
+            'title' => 'Class',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'unknown',
+              '3' => 'chassis',
+              '4' => 'backplane',
+              '5' => 'container',
+              '6' => 'powerSupply',
+              '7' => 'fan',
+              '8' => 'sensor',
+              '9' => 'module',
+              '10' => 'port',
+              '11' => 'stack',
+              '12' => 'cpu',
+            },
+          },
+          'entPhysicalParentRelPos' => {
+            'oid' => 'entPhysicalParentRelPos',
+            'title' => 'Position'
           },
           'entPhysicalName' => {
             'oid' => 'entPhysicalName',
@@ -88,7 +114,11 @@
           'entPhysicalSerialNum' => {
             'oid' => 'entPhysicalSerialNum',
             'title' => 'Serial Num'
-          },
+          },          
+          #'entAliasMappingIdentifier' => {
+          #  'oid' => 'entAliasMappingIdentifier',
+          #  'title' => 'Mapping ID'
+          #},          
         },
       },
       'cdp' => {
@@ -303,9 +333,17 @@
             'title' => 'Processor Mem',
             'calculate' => '${r}/1000000'
           },
-          'chassisVer' => {
-            'oid' => 'chassisVersion',
-            'title' => 'Chassis Version'
+          'softwareImage' => {
+            'calculate' => '$r =~ /Software \(([\w\-\.]+)\),/; $r = $1',
+            'oid' => 'sysDescr',
+            'snmpObjectName' => 'sysDescr',
+            'title' => 'Software Image'
+          },
+          'softwareVersion' => {
+            'calculate' => '$r =~ /Version ([\w\.\(\)]+),/; $r = $1',
+            'oid' => 'sysDescr',
+            'snmpObjectName' => 'sysDescr',
+            'title' => 'Software Version'
           }
         }
       },

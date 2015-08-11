@@ -40,15 +40,25 @@
 	'option' => {
 		'standard' => [
 			'DEF:ospfNbrEvents=$database:ospfNbrEvents:AVERAGE',
+			'DEF:ospfNbrRetransQLen=$database:ospfNbrRetransQLen:AVERAGE',
 			
-			'LINE2:ospfNbrEvents#0000ff: Neighbor Events',
-			'GPRINT:ospfNbrEvents:AVERAGE:Avg. %1.2lf\n',
+			'LINE2:ospfNbrEvents#40E0D0: Neighbor Events',
+			'GPRINT:ospfNbrEvents:AVERAGE:Avg. %1.2lf',
+			'GPRINT:ospfNbrEvents:MAX:Max. %1.2lf\t',
+			'LINE2:ospfNbrRetransQLen#4daef6: Neighbor RetransQLen',
+			'GPRINT:ospfNbrRetransQLen:AVERAGE:Avg. %1.2lf',
+			'GPRINT:ospfNbrRetransQLen:MAX:Max. %1.2lf\n',
 		],
 		'small' => [
 			'DEF:ospfNbrEvents=$database:ospfNbrEvents:AVERAGE',
+			'DEF:ospfNbrRetransQLen=$database:ospfNbrRetransQLen:AVERAGE',
 			
-			'LINE2:ospfNbrEvents#0000ff: Neighbor Events',
-			'GPRINT:ospfNbrEvents:AVERAGE:Avg. %1.2lf\n',
+			'LINE2:ospfNbrEvents#40E0D0: Neighbor Events',
+			'GPRINT:ospfNbrEvents:AVERAGE:Avg. %1.2lf',
+			'GPRINT:ospfNbrEvents:MAX:Max. %1.2lf\n',
+			'LINE2:ospfNbrRetransQLen#4daef6: Neighbor RetransQLen',
+			'GPRINT:ospfNbrRetransQLen:AVERAGE:Avg. %1.2lf',
+			'GPRINT:ospfNbrRetransQLen:MAX:Max. %1.2lf\n',
 		]
 	}
 );
