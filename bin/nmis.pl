@@ -6857,6 +6857,9 @@ sub printCrontab
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
 
+# some tools like fping reside outside the minimal path
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 ######################################################
 # NMIS8 Config
 ######################################################
