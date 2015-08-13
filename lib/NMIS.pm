@@ -2972,12 +2972,12 @@ sub eventUpdate
 		return "Cannot open event file $efn ($filemode): $!";
 	}
 	flock(F, LOCK_EX)  or push(@problems, "Cannot lock file $efn: $!");
-	func::enter_critical;
+	&func::enter_critical;
 	seek(F, 0, 0);
 	truncate(F, 0) or push(@problems, "Cannot truncate file $efn: $!");
 	print F encode_json($args{event});
 	close(F) or push(@problems, "Cannot close file $efn: $!");
-	func::leave_critical;
+	&func::leave_critical;
 
 	setFileProt($efn);
 	if (@problems)
@@ -3133,11 +3133,11 @@ sub logEvent
 			or push(@problems, "Cannot open $C->{event_log}: $!");
 	flock(DATAFILE, LOCK_EX) 
 			or push(@problems,"Cannot lock $C->{event_log}: $!");
-	func::enter_critical;
+	&func::enter_critical;
 	# it's possible we shouldn't write if we can't lock it...
 	print DATAFILE "$time,$node,$event,$level,$element,$details\n";
 	close(DATAFILE) or push(@problems, "Cannot close $C->{event_log}: $!");
-	func::leave_critical;
+	&func::leave_critical;
 	setFileProt($C->{event_log}); # set file owner/permission, default: nmis, 0775
 	
 	if (@problems)

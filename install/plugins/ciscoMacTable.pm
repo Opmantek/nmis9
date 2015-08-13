@@ -59,7 +59,7 @@ sub update_plugin
 		'5' => 'mgmt',
 	};
 
-	return (0,undef) if (ref($NI->{vtpVlan}) ne "HASH");
+	return (0,undef) if (not defined $S->{mdl}{systemHealth}{sys}{macTable} or ref($NI->{vtpVlan}) ne "HASH");
 	
 	#dot1dBase
 	#vtpVlan

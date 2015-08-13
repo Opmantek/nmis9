@@ -837,8 +837,8 @@ sub doCollect {
 
 	#Check for update LOCK
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) ) {
-		print STDERR "Error: update lock exists for $name which has not finished!\n";
-		logMsg("WARNING update lock exists for $name which has not finished!");
+		print STDERR "Error: collect lock exists for $name which has not finished!\n";
+		logMsg("WARNING collect lock exists for $name which has not finished!");
 		return;
 	}
 	# create the poll lock now.
@@ -1546,25 +1546,29 @@ sub getIntfInfo {
 		# get interface Index table
 		my @ifIndexNum;
 		my $ifIndexTable;
-		if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions))) {
-			foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
-				push @ifIndexNum,$ifIndexTable->{$oid};
-			}
-		} else {
-			if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-				info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");						
-			}
-			# failed by snmp
-			else {
-				logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
-				snmpNodeDown(sys=>$S);
-			}
 
-			info("Finished");
-			return 0;
+		if ( $singleInterface ) {
+			push(@ifIndexNum,$intf_one);
 		}
+		else {
+			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions))) {
+				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
+					push @ifIndexNum,$ifIndexTable->{$oid};
+				}
+			} else {
+				if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
+					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");						
+				}
+				# failed by snmp
+				else {
+					logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
+					snmpNodeDown(sys=>$S);
+				}
+	
+				info("Finished");
+				return 0;
+			}
 
-		if (not $singleInterface) {
 			# remove unknown interfaces, found in previous runs, from table
 			### possible vivification
 			for my $i (keys %{$IF}) {
@@ -1628,31 +1632,39 @@ sub getIntfInfo {
 		}
 
 
-		my $ifAdEntTable;
-		my $ifMaskTable;
-		my %ifCnt;
-		info("Getting Device IP Address Table");
-		if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex',$max_repetitions)) {
-			if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
-				foreach my $addr (keys %{$ifAdEntTable}) {
-					my $index = $ifAdEntTable->{$addr};
-					next if ($singleInterface and $intf_one ne $index);
-					$ifCnt{$index} += 1;
-					info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
-					$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
-					$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
-					($IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
-						$IF->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}) = ipSubnet(address=>$addr, mask=>$ifMaskTable->{$addr});
-					$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
-					$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"} = "$addr / $ifMaskTable->{$addr}";
+		if ( $singleInterface
+			and defined $S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle} 
+			and getbool($S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle}) 
+		) {
+			info("Skipping Device IP Address Table because skipIpAddressTableOnSingle is false");		
+		}
+		else {
+			my $ifAdEntTable;
+			my $ifMaskTable;
+			my %ifCnt;
+			info("Getting Device IP Address Table");
+			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex',$max_repetitions)) {
+				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
+					foreach my $addr (keys %{$ifAdEntTable}) {
+						my $index = $ifAdEntTable->{$addr};
+						next if ($singleInterface and $intf_one ne $index);
+						$ifCnt{$index} += 1;
+						info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
+						$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"} = $addr;
+						$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
+						($IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
+							$IF->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}) = ipSubnet(address=>$addr, mask=>$ifMaskTable->{$addr});
+						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
+						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"} = "$addr / $ifMaskTable->{$addr}";
+					}
+				} else {
+					dbg("ERROR getting Device Ip Address table");
 				}
 			} else {
 				dbg("ERROR getting Device Ip Address table");
 			}
-		} else {
-			dbg("ERROR getting Device Ip Address table");
 		}
-
+		
 		# pre compile regex
 		my $qr_no_collect_ifDescr_gen = qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
 		my $qr_no_collect_ifType_gen = qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
@@ -6844,6 +6856,9 @@ sub printCrontab
 # if you DON'T want any NMIS cron mails to go to root, 
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
+
+# some tools like fping reside outside the minimal path
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
 # NMIS8 Config
