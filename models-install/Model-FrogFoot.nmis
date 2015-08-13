@@ -28,6 +28,13 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+# Common-database.nmis select the correct style for this file.
+#      'mtxrWlRtab' => '/nodes/$node/health/mtxrWlRtab-$index.rrd',
+#      'mtxrWlRtab' => '/health/$nodeType/$node-mtxrWlRtab-$index.rrd',
+#
+# Common-heading.nmis
+#      'mtxrStrength' => 'Wireless Strength & Speed',
+#
 
 %hash = (
   '-common-' => {
@@ -256,5 +263,96 @@
       'ifDescr' => 'null',
       'ifType' => 'other'
 	}
+  },
+  'systemHealth' => {
+    'sections' => 'mtxrWlRtab',
+    'sys' => {
+      'mtxrWlRtab' => {
+        'headers' => 'index,mtxrWlRtabStrength,mtxrWlRtabTxBytes,mtxrWlRtabRxBytes,mtxrWlRtabTxPackets,mtxrWlRtabRxPackets,mtxrWlRtabTxRate,mtxrWlRtabRxRate',
+        'index_oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
+        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',
+        'indexed' => 'mtxrWlRtabStrength',
+        'snmp' => {
+          'mtxrWlRtabStrength' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
+            'sysObjectName' => 'mtxrWlRtabStrength',
+            'title' => 'Strength'
+          },
+          'mtxrWlRtabTxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.4',
+            'sysObjectName' => 'mtxrWlRtabTxBytes',
+            'title' => 'TxBytes'
+          },
+          'mtxrWlRtabRxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.5',
+            'sysObjectName' => 'mtxrWlRtabRxBytes',
+            'title' => 'RxBytes'
+          },
+          'mtxrWlRtabTxPackets' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.6',
+            'sysObjectName' => 'mtxrWlRtabTxPackets',
+            'title' => 'TxPackets'
+          },
+          'mtxrWlRtabRxPackets' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.7',
+            'sysObjectName' => 'mtxrWlRtabRxPackets',
+            'title' => 'RxPackets'
+          },
+          'mtxrWlRtabTxRate' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.8',
+            'sysObjectName' => 'mtxrWlRtabTxRate',
+            'title' => 'TxRate'
+          },
+          'mtxrWlRtabRxRate' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.9',
+            'sysObjectName' => 'mtxrWlRtabRxRate',
+            'title' => 'RxRate'
+          },
+        }
+      },
+    },
+    'rrd' => {
+      'mtxrWlRtab' => {
+        'graphtype' => 'mtxrStrength',
+        'indexed' => 'true',
+        'snmp' => {
+          'mtxrWlRtabStrength' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
+            'sysObjectName' => 'mtxrWlRtabStrength',
+            'option' => 'gauge,U:U'
+          },
+          'mtxrWlRtabTxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.4',
+            'sysObjectName' => 'mtxrWlRtabTxBytes',
+            'option' => 'counter,0:U'
+          },
+          'mtxrWlRtabRxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.5',
+            'sysObjectName' => 'mtxrWlRtabRxBytes',
+            'option' => 'counter,0:U'
+          },
+          'mtxrWlRtabTxPackets' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.6',
+            'sysObjectName' => 'mtxrWlRtabTxPackets',
+            'option' => 'counter,0:U'
+          },
+          'mtxrWlRtabRxPackets' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.7',
+            'sysObjectName' => 'mtxrWlRtabRxPackets',
+            'option' => 'counter,0:U'
+          },
+          'mtxrWlRtabTxRate' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.8',
+            'sysObjectName' => 'mtxrWlRtabTxRate',
+            'option' => 'gauge,0:U'
+          },
+          'mtxrWlRtabRxRate' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.9',
+            'sysObjectName' => 'mtxrWlRtabRxRate',
+            'option' => 'gauge,0:U'
+          },
+        }
+      },
+    }
   }
 );
