@@ -805,6 +805,7 @@ sub load_plugins
 }
 
 
+# this function runs ONLY NON-SNMP services!
 # args: only name (node name)
 # returns: nothing
 sub doServices
@@ -820,7 +821,7 @@ sub doServices
 
 	my $S = Sys->new;
 	$S->init(name => $name);
-	runServices(sys=>$S);
+	runServices(sys=>$S, snmp => 'false');
 	
 	return;
 }
@@ -929,7 +930,7 @@ sub doCollect {
 	### 2012-09-11 keiths, running services even if node down.
 	# Need to poll services even if no ping!
 	# run service avail even if no collect
-	runServices(sys=>$S);
+	runServices(sys=>$S, snmp => 'true');
 
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
@@ -4033,6 +4034,10 @@ sub runServer {
 
 #=========================================================================================
 
+
+# this function runs all services that are directly associated with a given node
+# args: live sys object for the node in question, and optional snmp (true/false) arg
+# attention: when run with snmp false then snmp-based services are NOT checked!
 sub runServices {
 	my %args = @_;
 	my $S = $args{sys};
@@ -4041,6 +4046,7 @@ sub runServices {
 	my $C = loadConfTable();
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
+	my $snmp_allowed = getbool($args{snmp});
 
 	my $node = $NI->{system}{name};
 
@@ -4050,7 +4056,6 @@ sub runServices {
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
-	my $service;
 	my $cpu;
 	my $memory;
 	my $msg;
@@ -4060,24 +4065,31 @@ sub runServices {
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
 
-	# do an snmp service poll first, regardless of specific services being enabled or not
+	my $statusdir = $C->{'<nmis_var>'}."/service_status";
+	if (!-d $statusdir)
+	{
+		createDir($statusdir);
+		setFileProtDirectory($statusdir,1);
+	}
+
+	# do an snmp service poll first, regardless of whether any specific services being enabled or not
 	my %snmpTable;
 	my $timeout = 3;
 	my ($snmpcmd,@ret, $var, $i, $key);
 	my $write=0;
 	
 	my $nodeCheckSnmpServices = 0;
-	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
-		if ( $ST->{$service}{Service_Type} eq "service" and $NI->{system}{nodeType} eq 'server' ) {		
-			info("node has SNMP services to check");
-			$nodeCheckSnmpServices = 1;
-		}
-	}
-
-	# Only do SNMP servics if collect is true
-	if ($nodeCheckSnmpServices 
-			and getbool($NT->{$node}{active}) and getbool($NT->{$node}{collect})) {
+	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
+	if ($snmp_allowed 
+			and $NI->{system}{nodeType} eq 'server'
+			and getbool($NT->{$node}{active})
+			and getbool($NT->{$node}{collect})
+			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service", split(/,/, $NT->{$NI->{system}{name}}->{services})) )
+	{
+		info("node has SNMP services to check");
+		
 		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
+
 		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
 		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
@@ -4131,18 +4143,36 @@ sub runServices {
 	}
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
+	# note that this also covers the snmp-based services
 	my $didRunServices = 0;
-	foreach $service ( split /,/ , lc($NT->{$NI->{system}{name}}{services}) ) {
-		$didRunServices = 1;
+	for my $service ( split /,/ , $NT->{$NI->{system}{name}}{services} )
+	{
+		# check for invalid service table data
+		next if ($service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i);
+
+		# are we supposed to run this service now?
+		my $statusfn = sprintf("%s/%s_%s.json", $statusdir, lc($service), lc($node));
+		my $lastrun = -f $statusfn? (stat($statusfn))[9] : 0;
 		
+		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
+			info("Service $service has service interval \"$serviceinterval\"");
+		if ($serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/)
+		{
+			my ($rawvalue, $unit) = ($1, $3);
+			$serviceinterval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : 86400);
+		}
+		if (time - $lastrun < $serviceinterval)
+		{
+			info("Service last ran at ".returnDateStamp($lastrun).", skipping this time.");
+			next;
+		}
+		
+		$didRunServices = 1;
+	
 		# make sure this gets reinitialized for every service!	
   	my $gotMemCpu = 0;
 		my %Val;
 
-		# check for invalid service table
-		next if $service =~ /n\/a/i;
-		next if $ST->{$service}{Service_Type} =~ /n\/a/i;
-		next if $service eq '';
 		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
 
 		# clear global hash each time around as this is used to pass results to rrd update
@@ -4212,11 +4242,14 @@ sub runServices {
 				dbg("Failed: $msg");
 			}
 		}
-		# now the services !
+		# now the snmp services - but only if snmp is on
 		elsif ( $ST->{$service}{Service_Type} eq "service" 
 						and $NI->{system}{nodeType} eq 'server' 
-						and getbool($NT->{$node}{collect})) {
-			# only do the SNMP checking if you are supposed to!
+						and getbool($NT->{$node}{collect})) 
+		{
+			# only do the SNMP checking if and when you are supposed to!
+			next if (!$snmp_allowed);
+
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
 			if ( getbool($C->{snmp_stop_polling_on_error},"invert") 
 					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown}) 
@@ -4227,7 +4260,6 @@ sub runServices {
 					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
 					next;
 				}
-
 
 				# lets check the service status
 				# NB - may have multiple services with same name on box.
@@ -4338,7 +4370,7 @@ sub runServices {
 												}
 												else
 												{
-														$status{$svc->{Service_Name}}->{extra}->{$k} = $v;
+														$status{$service}->{extra}->{$k} = $v;
 												}
 
 										}
@@ -4370,8 +4402,8 @@ sub runServices {
 
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if (!defined $responsetime);
-		$status{$ST->{$service}{Service_Name}}->{responsetime} = $responsetime;
-		$status{$ST->{$service}{Service_Name}}->{name} = $ST->{$service}{Service_Name};
+		$status{$service}->{responsetime} = $responsetime;
+		$status{$service}->{name} = $ST->{$service}{Service_Name};
 
 		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
@@ -4383,7 +4415,7 @@ sub runServices {
 
 		# external programs return 0..100 directly
 		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100;
-		$status{$ST->{$service}{Service_Name}}->{status} = $serviceValue;
+		$status{$service}->{status} = $serviceValue;
 
 		# lets raise or clear an event
 		if ( $snmpdown ) {
@@ -4423,7 +4455,17 @@ sub runServices {
 				$NI->{graphtype}{$service}{service} = 'service,service-response,service-mem,service-cpu';
 			}
 		}
-	} # foreach
+
+		# now update the per-service status file
+		$status{$service}->{service} ||= $service; # embedded in the filename but for comfort repeated
+		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
+		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
+		$status{$service}->{last_run} ||= time;
+
+		writeHashtoFile(file => $statusfn, data => $status{$service});
+		setFileProt($statusfn);
+
+	}
 
 	if ( $didRunServices ) {
 		# save the service_status node info
@@ -4431,7 +4473,7 @@ sub runServices {
 		### 2014-12-16 keiths, when did the services poll last complete properly.
 		$NI->{system}{lastServicesPoll} = time();
 	}
-END_runServices:
+
 	info("Finished");
 } # end runServices
 
