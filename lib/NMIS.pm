@@ -2908,6 +2908,8 @@ sub eventDelete
 {
 	my (%args) = @_;
 
+	my $C = loadConfTable();
+
 	return "Cannot remove unnamed event!" if (!$args{event});
 	my $efn = event_to_filename( event => $args{event},
 															 category => "current" );
@@ -2915,13 +2917,13 @@ sub eventDelete
 	return "Cannot find event file for node=$args{event}->{node}, event=$args{event}->{event}, element=$args{event}->{element}" if (!$efn or !-f $efn);
 
 	# be polite and robust, fix up any dir perm messes
-	setFileProtParents(dirname($efn));
+	setFileProtParents(dirname($efn), $C->{'<nmis_var>'});
 	
 	my $hfn = event_to_filename( event => $args{event},
 															 category => "history" ); # file to dir is a bit of a hack
 	my $historydirname = dirname($hfn) if ($hfn);
 	createDir($historydirname) if ($historydirname and !-d $historydirname);
-	setFileProtParents($historydirname) if (-d $historydirname);
+	setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
 
 	# now move the event into the history section if we can
 	if ($historydirname and -d $historydirname)
@@ -2952,6 +2954,8 @@ sub eventUpdate
 {
 	my (%args) = @_;
 
+	my $C = loadConfTable();
+
 	return "Cannot update unnamed event!" if (!$args{event});
 	my $efn = event_to_filename( event => $args{event},
 															 category => "current" );
@@ -2961,7 +2965,7 @@ sub eventUpdate
 	if (!-d $dirname)
 	{
 		func::createDir($dirname);
-		func::setFileProtParents($dirname); # which includes the parents up to nmis_base
+		func::setFileProtParents($dirname, $C->{'<nmis_var>'}); # which includes the parents up to nmis_base
 	}
 
 	my $filemode = (-f $efn)? "+<": ">"; # clobber if nonex
@@ -3041,22 +3045,23 @@ sub cleanEvent
 {
 	my ($node, $caller) = @_;
 
+	my $C = loadConfTable();
+
 	# find the relevant dir via a dummy event and empty it
 	my $efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
 															 category => "current" );
 	my $dirname = dirname($efn) if ($efn);
 	return if (!$dirname or !-d $dirname);
-	func::setFileProtParents($dirname);
+	func::setFileProtParents($dirname, $C->{'<nmis_var>'});
 
 	$efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
 														category => "history" );
 	my $historydirname = dirname($efn) if $efn; # shouldn't fail but BSTS
 	func::createDir($historydirname) 
 			if ($historydirname and !-d $historydirname);
-	func::setFileProtParents($historydirname) if (-d $historydirname);
+	func::setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
 	
 	# get the event configuration which controls logging
-	my $C = loadConfTable();			# cached
 	my $events_config = loadTable(dir => 'conf', name => 'Events');
 
 	opendir(D, $dirname) or logMsg("ERROR could not opendir $dirname: $!");
@@ -3587,11 +3592,12 @@ sub event_to_filename
 	return undef if (!$erec or ref($erec) ne "HASH" or !$erec->{node}
 									 or !$erec->{event}); # element is optional
 
-	# note: at this time there are just three spots where the location of this structure 
-	# is known: here, in the upgrade_events_structure function (assumes under var), and 
-	# in nmis_file_cleanup.sh.
+	# note: just a few spots need to know anything about this structure (or its location):
+	# here, in the upgrade_events_structure function (assumes under var), 
+	# eventDelete, eventUpdate and cleanEvent functions (assume under nmis_var) 
+	# and in nmis_file_cleanup.sh.
 	#
-	# structure: var/events/lcNODENAME/{current,history}/EVENTNAME.json
+	# structure: nmis_var/events/lcNODENAME/{current,history}/EVENTNAME.json
 	my $eventbasedir = $C->{'<nmis_var>'}."/events";
 
 	# overridden, or not current then history, or 
