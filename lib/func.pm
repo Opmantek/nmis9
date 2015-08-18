@@ -855,7 +855,6 @@ sub setFileProtParents
 		$curdir.="/$component";
 		setFileProt($curdir);
 	}
-	print STDERR "az sfpp done\n";
 	return;
 }
 
