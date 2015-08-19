@@ -428,12 +428,17 @@ sub editTable {
 						} 
 						elsif ($ref->{$item}{display} =~ /textbox/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-							$line .= td(textarea(-name=> $item, -value=>$value, -style=>"width: 260px; height: 60px;", -size=>'35'));
+							$line .= td(textarea(-name=> $item, -value=>$value, 
+																	 -style=> 'width: 95%;',
+																	 -rows => 3,
+																	 -columns => ($wantwidget? 35 : 70)));
 						} 
 						elsif ($ref->{$item}{display} =~ /text/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
 							#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-							$line .= td(textfield(-name=>$item, -value=>$value, -style=>"width: 260px;", -size=>'35'));
+							$line .= td(textfield(-name=>$item, -value=>$value, 
+																		-style=> 'width: 95%;',
+																		-size=>  ($wantwidget? 35 : 70)));
 						} 
 						elsif ($ref->{$item}{display} =~ /readonly/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
@@ -445,13 +450,13 @@ sub editTable {
 							$line .= td(popup_menu(
 									-name=>"$item", 
 									-values=>$ref->{$item}{value},
-									-style=>'width:100%;',
+									-style=>'width: 95%;',
 									-default=>$T->{$key}{$item}));
 						} 
 						elsif ($ref->{$item}{display} =~ /scrol/) {
 							my @items = split(/,/,$T->{$key}{$item});
 							$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
-									-style=>'width:100%;',
+									-style=>'width: 95%;',
 									-size=>'6',
 									-values=>$ref->{$item}{value},
 									-default=>\@items));
