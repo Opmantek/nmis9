@@ -9,7 +9,7 @@
 				{ 'Args' => { header => "Program Args", display => "header,text",  value => [''] }},
 				{ 'Max_Runtime' => { header => "Max Program Runtime", display => "header,text", value => ['10'] }},
 				{ 'Collect_Output' => { header => "Collect Program Output", display => "header,popup", value => [ 'false','true' ] }},
-				{ 'Description' => { header => "Description", display => "header,text", value => [ '' ] }},
+				{ 'Description' => { header => "Description", display => "header,textbox", value => [ '' ] }},
 			]
 );
 
