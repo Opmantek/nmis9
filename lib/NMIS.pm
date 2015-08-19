@@ -81,6 +81,7 @@ $VERSION = "8.5.10b";
 		loadEscalationsTable
 		loadifTypesTable
 		loadServicesTable
+    loadServiceStatus
 		loadUsersTable
 		loadPrivMapTable
 		loadAccessTable
@@ -2989,6 +2990,84 @@ sub eventUpdate
 		return join("\n", @problems);
 	}
 	return undef;
+}
+
+# loads one or more service status files and returns the status data
+# args: service, node (both optional)
+# if either given, only matching services are returned.
+#
+# note: this loads _only_ active services (= ones that are listed in Services.nmis)!
+# note: this function needs to know status dir and status file name structure!
+# 
+# returns: hash of service -> node -> data; empty if invalid args
+sub loadServiceStatus
+{
+	my (%args) = @_;
+	my $wantnode = $args{node};
+	my $wantservice = $args{service};
+	
+	my $C = loadConfTable();			# generally cached anyway
+	my $ST = loadServicesTable;
+	my $LNT = loadLocalNodeTable;
+
+	my %result;
+	my $statusdir = $C->{'<nmis_var>'}."/service_status";
+	return %result if (!-d $statusdir);
+
+	# figure out which files are relevant, skip dead stuff, then read them
+	my @candidates;
+
+
+	my $safeservice = lc($wantservice) || ''; $safeservice =~ s/[^a-z0-9.-]//g;
+	my $safenode = lc($wantnode) || ''; $safenode =~ s/[^a-z0-9.-]//g;
+
+	# both node and service present? then check just the one service status file
+	if ($wantnode and $wantservice)
+	{
+		my $statusfn = sprintf("%s_%s.json", $safeservice, $safenode);
+		@candidates = $statusfn if (-f "$statusdir/$statusfn" and $LNT->{$wantnode} and $ST->{$wantservice});
+	}
+	else
+	{
+		my $okre = $wantnode? qr/^[a-z0-9.-]+_$safenode\.json$/ : 
+				$wantservice ? qr/^${safeservice}_[a-z0-9.-]+\.json$/ : qr/^[a-z0-9.-]+_[a-z0-9.-]+\.json$/;
+	
+		if (!opendir(D, $statusdir))
+		{
+			logMsg("ERROR: cannot open dir $statusdir: $!");
+			return %result;
+		}
+		@candidates = grep(/$okre/, readdir(D));
+		closedir(D);
+	}
+
+	for my $maybe (@candidates)
+	{
+		if (!open(F, "$statusdir/$maybe"))
+		{
+			logMsg("ERROR: cannot read $statusdir/$maybe: $!");
+			next;
+		}
+		my $raw = join('', <F>);
+		close(F);
+
+		my $sdata = eval { decode_json($raw) };
+		if ($@ or ref($sdata) ne "HASH")
+		{
+			logMsg("ERROR: service status file $maybe contains invalid data: $@");
+			next;
+		}
+
+		my $thisservice = $sdata->{service};
+		my $thisnode = $sdata->{node};
+		if ($thisnode and $LNT->{$thisnode} 
+				and $thisservice and $ST->{$thisservice})
+		{
+			$result{$thisservice}->{$thisnode} = $sdata;
+		}
+	}
+		
+	return %result;
 }
 
 # looks up all events (for one node or all), 

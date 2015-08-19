@@ -4065,6 +4065,7 @@ sub runServices {
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
 
+	# fixme: loadServiceStatus in nmis.pm also needs to know this
 	my $statusdir = $C->{'<nmis_var>'}."/service_status";
 	if (!-d $statusdir)
 	{
@@ -4151,7 +4152,11 @@ sub runServices {
 		next if ($service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i);
 
 		# are we supposed to run this service now?
-		my $statusfn = sprintf("%s/%s_%s.json", $statusdir, lc($service), lc($node));
+		# attention: loadServiceStatus also needs to know this structure!
+		my $safeservice = lc($service); $safeservice =~ s/[^a-z0-9.-]//g;
+		my $safenode = lc($node); $safenode =~ s/[^a-z0-9.-]//g;
+		
+		my $statusfn = sprintf("%s/%s_%s.json", $statusdir, $safeservice, $safenode);
 		my $lastrun = -f $statusfn? (stat($statusfn))[9] : 0;
 		
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
@@ -4161,9 +4166,12 @@ sub runServices {
 			my ($rawvalue, $unit) = ($1, $3);
 			$serviceinterval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : 86400);
 		}
-		if (time - $lastrun < $serviceinterval)
+		# we don't run the service exactly at the same time in the collect cycle,
+		# so allow up to 10% underrun
+		if ($lastrun && ((time - $lastrun) < $serviceinterval * 0.9))
 		{
 			info("Service last ran at ".returnDateStamp($lastrun).", skipping this time.");
+			logMsg("INFO: Service $service on $node last ran at ".returnDateStamp($lastrun).", skipping this time.");
 			next;
 		}
 		
@@ -4528,7 +4536,8 @@ sub runServices {
 		}
 
 		# now update the per-service status file
-		$status{$service}->{service} ||= $service; # embedded in the filename but for comfort repeated
+		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
+		$status{$service}->{node} ||= $node;
 		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
 		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
