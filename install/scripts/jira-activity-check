@@ -35,6 +35,7 @@ my $jql = $opts{j} || 'created >= -24h OR updated >= -24h';
 
 my $jiraurl = URI->new($ARGV[0]);
 
+my $statusmsg = "Unknown Failure";
 my $exitcode = 0;
 
 my $ua = LWP::UserAgent->new;
@@ -54,18 +55,34 @@ print STDERR "response for was ".$res->decoded_content."\n" if ($opts{d});
 
 if ($res->code == 403)
 {
-	$exitcode = 10;								# auth dud
+	print "API Authentication failed!\n";
+	exit 10;
 }
 elsif ($res->is_success)
 {
-	$exitcode = 20;
 	my $rdata = eval { decode_json($res->decoded_content) };
 	if (!$@)
 	{
-		$exitcode = 30 if (!$rdata->{errorMessages});
-		$exitcode = 100 if ($rdata->{total});
+		if ($rdata->{errorMessages})
+		{
+			print "API Access succeeded but query failed: $rdata->{errorMessages}\n";
+			exit 30;
+		}
+		if ($rdata->{total})
+		{
+			print "API Access and query successful.\nactivity_count=$rdata->{total}\n";
+			exit 100;
+		}
+	}
+	else
+	{
+		print "API Access succeeded but content invalid!\n";
+		exit 20;
 	}
 }
-
-exit $exitcode;
+else
+{
+	print "API request failed: ".$res->code." ".$res->message."\n";
+	exit 0;
+}
 

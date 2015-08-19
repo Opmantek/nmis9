@@ -36,7 +36,6 @@ my $username = $opts{u};
 my $password = $opts{p};
 
 my $baseurl = URI->new($ARGV[0]);
-my $exitcode = 0;
 
 my $ua = LWP::UserAgent->new;
 $ua->timeout(10);
@@ -62,9 +61,22 @@ if ($username and $password)
   print STDERR "response for auth check was ".$authresult->decoded_content."\n" if ($opts{d});
 	if ($authresult->is_success)
 	{
-		$exitcode = 40;
 		my $rdata = eval { decode_json($authresult->decoded_content) };
-		$exitcode = 100 if (!$@ and $rdata->{active} and $rdata->{name} eq $username);
+		if (!$@ and $rdata->{active} and $rdata->{name} eq $username)
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
+	}
+	else
+	{
+		print "API Access failed: ".$authresult->code." ".$authresult->message."\n";
+		exit 0;
 	}
 }
 elsif ($username) 
@@ -83,9 +95,22 @@ elsif ($username)
   print STDERR "response for user check was ".$userresult->decoded_content."\n" if ($opts{d});
 	if ($userresult->is_success)
 	{
-		$exitcode = 40;
 		my $rdata = eval { decode_json($userresult->decoded_content) };
-		$exitcode = 100 if (!$@ and $rdata->{active} and $rdata->{name} eq $username);
+		if (!$@ and $rdata->{active} and $rdata->{name} eq $username)
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
+	}
+	else
+	{
+		print "API Access failed: ".$userresult->code." ".$userresult->message."\n";
+		exit 0;
 	}
 }
 else 
@@ -105,12 +130,24 @@ else
   print STDERR "response for config check was ".$basicresult->decoded_content."\n" if ($opts{d});
 	if ($basicresult->is_success)
 	{
-		$exitcode = 40;
 		my $rdata = eval { decode_json($basicresult->decoded_content) };
-		$exitcode = 100 if (!$@ and $rdata->{"domain"});
+		if (!$@ and $rdata->{"domain"})
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
 	}
-
+	else
+	{
+		print "API Access failed: ".$basicresult->code." ".$basicresult->message."\n";
+		exit 0;
+	}
 }
 
-exit $exitcode;
-
+print "Invalid arguments!\n";
+exit 0;

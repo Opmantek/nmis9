@@ -20,12 +20,11 @@ use WWW::Mechanize;
 use Getopt::Std;
 
 my %opts;
-die "Usage: $0 [-c content-regex] [-N][-d][-j] {-u username} {-p password} <url>
+die "Usage: $0 [-c content-regex] [-N][-j] {-u username} {-p password} <url>
 -N: do NOT check ssl certificates
--d: produce debug output on STDERR
 -j: site is Jira (default: Confluence)
 \n\n"
-		if (!getopts("c:s:f:u:p:Ndj",\%opts) 
+		if (!getopts("c:s:f:u:p:Nj",\%opts) 
 				or !$opts{u} 
 				or !$opts{p} 
 				or @ARGV != 1);
@@ -44,23 +43,21 @@ my @mechargs = (autocheck => 0);
 push @mechargs, (ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }) if ($opts{N});
 
 my $ua = WWW::Mechanize->new(@mechargs);
-my $exitcode = 0;
 
 # get the first (form or landing) page
 my $response = $ua->get($url);
 if (!$ua->success)
 {
-	print STDERR "Loading of login page failed: "
-			.$response->status_line."\n" if ($opts{d});
-	exit $exitcode;
+	print "Loading of login page failed: ".$response->status_line."\n";
+	exit 0;
 }
 
 # atlassian's login form is named in confluence, but id'd in jira
-elsif ($ua->content !~  ($isjira? /id="login-form"/: /name="loginform"/))
+elsif ($isjira && $ua->content !~ /id="login-form"/
+			 || !$isjira && $ua->content !~ /name="loginform"/)
 {
-	$exitcode = 10;
-	print STDERR "Login page loaded but has no matching form!\n";
-	exit $exitcode;
+	print "Login page loaded but has no matching form!\n";
+	exit 10;
 }
 
 my %fielddata = ( "os_username"    => $username, 
@@ -71,21 +68,19 @@ my @formid = $isjira? ("form_id" => "login-form" ) : ("form_name" => "loginform"
 $response = $ua->submit_form(@formid, fields => \%fielddata);
 if (!$ua->success)
 {
-	$exitcode = 20;
-	print STDERR "Login form submission failed: ".$response->status_line."\n"
-			if ($opts{d});
-	exit $exitcode;
+	print "Login form submission failed: ".$response->status_line."\n";
+	exit 20;
 }
 
 if ($response->decoded_content =~ $okbody)
 {
-	print STDERR "Login succeeded\n" if ($opts{d});
-	$exitcode = 100;
+	print "Login succeeded.\n";
+	exit 100;
 }
 else
 {
-	print STDERR "Login failed!\n" if ($opts{d});
-	$exitcode = 30;
+	print "Login failed!\n";
+	exit 30;
 }
 
-exit $exitcode;
+

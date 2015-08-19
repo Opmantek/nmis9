@@ -4313,90 +4313,158 @@ sub runServices {
 				}
 		}
 		# 'real' scripts, or more precisely external programs
-		elsif ( $ST->{$service}{Service_Type} eq "program" )
+		# which also covers nagios plugins - https://nagios-plugins.org/doc/guidelines.html
+		elsif ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )
 		{
-				$ret = 0;
-				my $svc = $ST->{$service};
-				if (!$svc->{Program} or !-x $svc->{Program})
+			$ret = 0;
+			my $svc = $ST->{$service};
+			if (!$svc->{Program} or !-x $svc->{Program})
+			{
+				info("ERROR, service $service defined with no working Program to run!");
+				logMsg("ERROR service $service defined with no working Program to run!");
+				next;
+			}
+
+			# exit codes and output handling differ
+			my $flavour_nagios = ($svc->{Service_Type} eq "nagios-plugin");
+			
+			# check the arguments (if given), substitute node.XYZ values
+			my $finalargs;
+			if ($svc->{Args})
+			{
+				$finalargs = $svc->{Args};
+				$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
+				
+				dbg("external program args were $svc->{Args}, now $finalargs");
+			}
+
+			my $programexit = 0;
+			eval
+			{
+				my @responses;
+				
+				local $SIG{ALRM} = sub { die "alarm\n"; };
+				alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
+
+				# run given program with given arguments and possibly read from it
+				# program is disconnected from stdin; stderr ends up wherever nmis's stderr goes.
+				dbg("running external program '$svc->{Program} $finalargs', "
+						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
+				if (!open(PRG,"$svc->{Program} $finalargs </dev/null |"))
 				{
-						info("ERROR, service $service defined with no working Program to run!");
-						logMsg("ERROR service $service defined with no working Program to run!");
-						next;
-				}
-				# check the arguments (if given), substitute node.XYZ values
-				my $finalargs;
-				if ($svc->{Args})
-				{
-						$finalargs = $svc->{Args};
-						$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
-
-						dbg("external program args were $svc->{Args}, now $finalargs");
-				}
-
-				my $programexit = 0;
-				eval
-				{
-						my @responses;
-
-						local $SIG{ALRM} = sub { die "alarm\n"; };
-						alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
-
-						# run given program with given arguments and possibly read from it
-						dbg("running external program '$svc->{Program} $finalargs', "
-								.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-						if (!open(PRG,"$svc->{Program} $finalargs|"))
-						{
-								info("ERROR, cannot start service program $svc->{Program}: $!");
-						}
-						else
-						{
-								@responses = <PRG>; # always check for output but discard it if not required
-								close PRG;
-								$programexit = $?;
-
-								if (getbool($svc->{Collect_Output}))
-								{
-										# now determine how to save the values in question
-										for my $response (@responses)
-										{
-												chomp $response;
-												my ($k,$v) = split(/=/,$response,2);
-												dbg("collected response $k value $v");
-
-												$Val{$k} = {value => $v};
-												if ($k eq "responsetime") # response time is handled specially
-												{
-														$responsetime = $v;
-												}
-												else
-												{
-														$status{$service}->{extra}->{$k} = $v;
-												}
-
-										}
-								}
-						}
-						alarm(0) if ($svc->{Max_Runtime} > 0); # cancel any timeout
-				};
-
-				if ($@ and $@ eq "alarm\n")
-				{
-						info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
-						$ret=0;
+					info("ERROR, cannot start service program $svc->{Program}: $!");
 				}
 				else
 				{
-						# if the external program died abnormally we treat this as 0=dead.
-						$programexit = WIFEXITED($programexit)? WEXITSTATUS($programexit) : 0;
-						dbg("external program terminated with exit code $programexit");
+					@responses = <PRG>; # always check for output but discard it if not required
+					close PRG;
+					$programexit = $?;
+					dbg("service exit code is $programexit");
+							
+					if (getbool($svc->{Collect_Output}))
+					{
+						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
+						if ($flavour_nagios)
+						{
+							my @expandedresponses = map { split /\|/ } (@responses);
+							@responses = @expandedresponses;
+						}
+							
+						# now determine how to save the values in question
+						for my $idx (0..$#responses)
+						{
+							my $response = $responses[$idx];
+							chomp $response;
+							
+							# the first line is special; it sets the textual status
+							if ($idx == 0)
+							{
+								dbg("service status text is \"$response\"");
+								$status{$service}->{status_text} = $response;
+								next;
+							}
+
+							my ($k,$v) = split(/=/,$response,2);
+							if ($flavour_nagios)
+							{
+								$k = $1 if ($k =~ /^'(.+)'$/); # nagios wants single quotes if a key has spaces
+
+								# a plugin can report levels for warning and crit thresholds
+								# and also optionally report possible min and max values;
+								my ($value_with_unit, $lwarn, $lcrit, $lmin, $lmax) = split(/;/, $v, 5);
+								
+								# any of those could be set to zero
+								if (defined $lwarn or defined $lcrit or defined $lmin or defined $lmax)
+								{
+									$status{$service}->{limits}->{$k} = { warning => $lwarn, critical => $lcrit,
+																												min => $lmin, max => $lmax };
+								}
+								
+								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
+								if ($value_with_unit =~ /^(.+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
+								{
+									$v = $1;
+									$status{$service}->{units}->{$k} = $2;
+
+								}
+							}
+ 							dbg("collected response $k value $v");
+							
+							# for rrd storage, but only numeric values can be stored!
+							$Val{$k} = {value => $v};
+							
+							if ($k eq "responsetime") # response time is handled specially
+							{
+								$responsetime = $v;
+							}
+							else
+							{
+								$status{$service}->{extra}->{$k} = $v;
+							}
+							
+						}
+					}
+				}
+				alarm(0) if ($svc->{Max_Runtime} > 0); # cancel any timeout
+			};
+
+			if ($@ and $@ eq "alarm\n")
+			{
+				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+				$ret=0;
+			}
+			else
+			{
+				# now translate the exit code into a service value (0 dead .. 100 perfect)
+				# if the external program died abnormally we treat this as 0=dead.
+				if (WIFEXITED($programexit))
+				{
+					$programexit = WEXITSTATUS($programexit);
+					dbg("external program terminated with exit code $programexit");
+					
+
+					# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
+					# we'll map those to 100, 50 and 0 for everything else.
+					if ($flavour_nagios)
+					{
+						$ret = $programexit == 0? 100: $programexit == 1? 50: 0;
+					}
+					else
+					{
 						$ret = $programexit > 100? 100: $programexit;
-				};
-		}
-		else {
+					}
+				}
+				else
+				{
+					logMsg("WARNING: service program $svc->{Program} terminated abnormally!");
+					$ret = 0;
+				}
+			}
+		}														# end of program/nagios-plugin service type
+		else 
+		{
 			# no service type found
-			dbg("ERROR, service handling not found");
-			$ret = 0;
-			$msg = '';
+			logMsg("ERROR: skipping service $service, invalid service type!");
 			next;			# just do the next one - no alarms
 		}
 
@@ -4405,17 +4473,22 @@ sub runServices {
 		$status{$service}->{responsetime} = $responsetime;
 		$status{$service}->{name} = $ST->{$service}{Service_Name};
 
+		# external programs return 0..100 directly, rest has 0..1
+		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )? 
+				$ret : $ret*100;
+		$status{$service}->{status} = $serviceValue;
+
 		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
-		$V->{system}{"${service}_value"} = $ret ? 'running' : 'down';
+		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0? "degraded" : 'down';
+		# fixme: does that work?
+		$V->{system}{"${service}_color"} =  $serviceValue == 100 ? 'white' : $serviceValue > 0? "orange" : 'red';
+		
 		$V->{system}{"${service}_responsetime"} = $responsetime;
-		$V->{system}{"${service}_color"} =  $ret ? 'white' : 'red';
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
-		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
 
-		# external programs return 0..100 directly
-		my $serviceValue = ( $ST->{$service}{Service_Type} eq "program" )? $ret : $ret*100;
-		$status{$service}->{status} = $serviceValue;
+		# fixme: add per-service view
+		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
 
 		# lets raise or clear an event
 		if ( $snmpdown ) {
@@ -4434,11 +4507,9 @@ sub runServices {
 			notify(sys=>$S,event=>"Service Down",element=>$ST->{$service}{Name},details=>"" );
 		}
 
-		# save result for availability history - one file per service per node
+		# save result for availability history - one rrd file per service per node
 		$Val{service}{value} = $serviceValue;
-		if ( $cpu < 0 ) {
-			$cpu = $cpu * -1;
-		}
+		$cpu = -$cpu 	if ( $cpu < 0 );
 		$Val{responsetime}{value} = $responsetime; # might be a NOP
 		$Val{responsetime}{option} = "GAUGE,0:U";
 
@@ -4464,7 +4535,6 @@ sub runServices {
 
 		writeHashtoFile(file => $statusfn, data => $status{$service});
 		setFileProt($statusfn);
-
 	}
 
 	if ( $didRunServices ) {
