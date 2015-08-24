@@ -116,13 +116,14 @@ my %slotAlias = (
 
 #										
 
-my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardStatus cardVendor cardModel cardType name1 name2 slotId);
+my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel cardType name1 name2 slotId);
 
 my %cardAlias = (
 	cardName							=> 'Card name',
 	cardId								=> 'Card ID',
 	cardNetName						=> 'name of the card in the network',
 	cardDescr        			=> 'Card Description',
+	cardSerial       			=> 'Card Serial',
 	cardStatus						=> 'Status',
 	cardVendor						=> 'Vendor',
 	cardModel							=> 'model',
@@ -169,7 +170,7 @@ if ( not -f $arg{nodes} ) {
 	exportSlots("$dir/oss-slots.csv");
 	exportCards("$dir/oss-cards.csv");
 	exportPorts("$dir/oss-ports.csv");
-	exportInterfaces("$dir/oss-interfaces.csv");
+	#exportInterfaces("$dir/oss-interfaces.csv");
 }
 else {
 	print "ERROR: $arg{nodes} already exists, exiting\n";
@@ -217,6 +218,26 @@ sub exportNodes {
 	    $NODES->{$node}{ossStatus} = $NI->{system}{nodestatus};
 	    $NODES->{$node}{ossModel} = getModel($NI->{system}{sysObjectName});
 	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName});
+
+			# is there a decent serial number!
+			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" ) {
+				my $ASSET;					
+				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
+					$ASSET = $S->{info}{ciscoAsset};
+					
+					if ( defined $ASSET->{1} and $ASSET->{1}{ceAssetSerialNumber} ne "" ) {
+						$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
+					}
+					else {
+						print "ERROR: $node no serial number, not in chassisId or ceAssetSerialNumber\n";						
+					}
+				}
+				else {
+					print "ERROR: $node no Cisco Entity Asset MIB Data available, check the model contains it and run an update on the node.\n";
+				}
+				
+			}
+
 	    
 			# get software version for Alcatel ASAM      
       if ( defined $NI->{system}{asamActiveSoftware1} and $NI->{system}{asamActiveSoftware1} eq "active" ) {
@@ -295,7 +316,13 @@ sub exportSlots {
 			my $SLOTS;
 			my $counter = 0;
 			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
-				$SLOTS = $S->{info}{entityMib};
+				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
+					$SLOTS = $S->{info}{entityMib};
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					next;
+				}
 
 				foreach my $slotIndex (sort keys %{$SLOTS}) {
 					if ( defined $SLOTS->{$slotIndex} 
@@ -367,9 +394,23 @@ sub exportCards {
 
 			# handling for this is device/model specific.
 			my $SLOTS;
+			my $ASSET;
 			my $cardCount = 0;
 			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
-				$SLOTS = $S->{info}{entityMib};
+				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
+					$SLOTS = $S->{info}{entityMib};
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					next;
+				}
+				
+				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
+					$ASSET = $S->{info}{ciscoAsset};
+				}
+				else {
+					print "ERROR: $node no Cisco Entity Asset MIB Data available, check the model contains it and run an update on the node.\n";
+				}
 
 				foreach my $slotIndex (sort keys %{$SLOTS}) {
 					if ( defined $SLOTS->{$slotIndex} 
@@ -378,7 +419,7 @@ sub exportCards {
 					) {
 						# create a name
 						++$cardCount;
-						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardStatus cardVendor cardModel       cardType name1 name2 slotId);
+						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel       cardType name1 name2 slotId);
 
 						my $cardId = "$NODES->{$node}{uuid}_C_$slotIndex";
 
@@ -388,6 +429,8 @@ sub exportCards {
 				    $SLOTS->{$slotIndex}{cardNetName} = "CARD $slotIndex";
 
 				    $SLOTS->{$slotIndex}{cardDescr} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+				    $SLOTS->{$slotIndex}{cardSerial} = $ASSET->{$slotIndex}{ceAssetSerialNumber};
+				    
 				    $SLOTS->{$slotIndex}{cardStatus} = getStatus();
 						$SLOTS->{$slotIndex}{cardVendor} = $NI->{system}{nodeVendor};
 						$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{entPhysicalDescr};
@@ -398,8 +441,18 @@ sub exportCards {
 				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
 
 						# what is the parent ID?
+						# $parentId is the id of the slot the module is inserted into.
 						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
-				    $SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$parentId";
+						
+						# now we want the relative slot number the slot uses
+						my $slotId = $SLOTS->{$parentId}{entPhysicalParentRelPos};
+						
+						# Cisco is using position -1 for the chassis???????
+						if ( $slotId < 0 ) {
+							$slotId = 0;
+						}
+												
+						$SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
 				    
 				    # get the parent and then determine its ID and 
 						
@@ -454,7 +507,13 @@ sub exportPorts {
 			# handling for this is device/model specific.
 			my $SLOTS;
 			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
-				$SLOTS = $S->{info}{entityMib};
+				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
+					$SLOTS = $S->{info}{entityMib};
+				}
+				else {
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					next;
+				}
 
 				foreach my $slotIndex (sort keys %{$SLOTS}) {
 					if ( defined $SLOTS->{$slotIndex} 
@@ -578,7 +637,7 @@ sub getType {
 	my $sysObjectName = shift;
 	my $type = "TBD";
 	
-	if ( $sysObjectName =~ /cisco61|asam/ ) {
+	if ( $sysObjectName =~ /cisco61|cisco62|cisco60|asam/ ) {
 		$type = "DSLAM";	
 	}
 	
@@ -603,7 +662,7 @@ sub getCardName {
 	if ( $model =~ /^.TUC/ ) {
 		$name = "xDSL Card";	
 	}
-	elsif ( $model =~ /^NI\-|C6160 Network/ ) {
+	elsif ( $model =~ /^NI\-|C6... Network/ ) {
 		$name = "Network Intfc  (WRK)";
 	}
 	
