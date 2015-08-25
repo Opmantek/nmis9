@@ -226,7 +226,7 @@ sub rrdDraw {
 		}
 
 		# for type=service, add in any extra DS as a gprint (for now)
-		if ($graphtype eq 'service')
+		if ($graphtype eq 'service' and $size eq "standard")
 		{
 			my $rrdinfo = RRDs::info($db);
 			for my $dslist (grep(/^ds.+\.index$/,keys %$rrdinfo))

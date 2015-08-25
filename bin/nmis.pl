@@ -4495,8 +4495,9 @@ sub runServices {
 		$V->{system}{"${service}_responsetime"} = $responsetime;
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 
-		# now points to the per-service detail view, but non-widgeted in a new window
-		$V->{system}{"${service}_gurl"} = "$C->{'<cgi_url_base>'}/services.pl?conf=$C->{conf}&act=details&widget=false&node="
+		# now points to the per-service detail view. note: no widget info a/v at this time!
+		delete $V->{system}->{"${service}_gurl"};
+		$V->{system}{"${service}_url"} = "$C->{'<cgi_url_base>'}/services.pl?conf=$C->{conf}&act=details&node="
 					.uri_escape($node)."&service=".uri_escape($service);
 
 		# let's raise or clear service events based on the status

@@ -173,13 +173,17 @@ sub display_details
 
 	my $statuslink = $graphlinkbase."&graphtype=service";
 
+	# we certainly want the small graph for the widget; 
+	my ($width, $height) = $wantwidget? (266, 33) : (600, 75);
+	
 	print "<tr>", 
 	$q->td({ -class=>"info Plain" }, 
 				 $q->a( { class=>"islink", target => "Graph-$wantnode",
 									onclick => "viewwndw(\'$wantnode\',\'$statuslink\',$C->{win_width},$C->{win_height} * 1.5)"}, 
-								"Service Status")),
-	$q->td({ -class=>"info $statuscolor" }, $nicestatus), "</tr>";
-	
+								"Last Status")),
+	$q->td({ -class=>"info $statuscolor" }, $nicestatus ), "</tr>";
+
+
 	print "<tr>", 
 	$q->td({ -class=>"info Plain" }, "Last Status Text"),
 	$q->td({ -class=>"info Plain" }, 
@@ -241,7 +245,13 @@ sub display_details
 	}
 	
 	# fixme: how to show links to custom graphs?
-	
+
+	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status History"), "</tr>",
+	"<tr>", $q->td({colspan => 2}, 
+											 htmlGraph( graphtype => "service",
+																	node => $wantnode,
+																	intf => $wantservice, width => $width, height => $height) ), "</tr>";
+		
 	print $q->end_table();
 	pageEnd if (!$wantwidget);
 }

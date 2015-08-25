@@ -45,7 +45,7 @@
 		],
 		'small' => [
 			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:responsetime#FFA500:Service $indx',
+			'LINE2:responsetime#FFA500:$indx',
 			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs\\n',
 		]
 	}

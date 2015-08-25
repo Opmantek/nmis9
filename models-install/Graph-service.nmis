@@ -49,13 +49,13 @@
 			'GPRINT:service:AVERAGE:Avg status %1.3lf\\n',
 			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs'
 		],
+			
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:service=$database:service:AVERAGE',
-			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:service#0000ff:Service $indx',
+			'LINE2:service#0000ff:$indx',
 			'GPRINT:service:AVERAGE:Avg status %1.3lf',
 		]
 	}
