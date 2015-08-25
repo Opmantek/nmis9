@@ -38,6 +38,7 @@ use func;
 use NMIS;
 use Auth;
 use CGI;
+use Data::Dumper;
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
@@ -89,7 +90,162 @@ else
 	exit 1;
 }
 
+# lists a specific service+node combo as a table,
+# including all the optional bits that we might have captured
+# args: service, node (both required); uses globals
+sub display_details
+{
+	my (%args) = @_;
+	my $wantnode = $args{node};
+	my $wantservice = $args{service};
 
+	print $q->header($headeropts);
+	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
+			if (!$wantwidget);
+
+	my $LNT = loadLocalNodeTable;
+	if (!$wantnode or !$LNT->{$wantnode} or !$AU->InGroup($LNT->{$wantnode}->{group}))
+	{
+		print "You are not Authorized to view services on node '$wantnode'!";
+		pageEnd if (!$wantwidget);
+		return;
+	}
+
+	my $ST = loadServicesTable;
+	my %sstatus = loadServiceStatus(node => $wantnode, service => $wantservice);
+
+	if (!keys %sstatus or !$sstatus{$wantservice} or !$sstatus{$wantservice}->{$wantnode})
+	{
+		print "No such service or node!";
+		pageEnd if (!$wantwidget);
+		return;
+	}
+
+	my $homelink = $wantwidget? '' 
+			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;";
+
+	print $q->start_table({class=>"table"}),
+	"<tr>", $q->th({-class=>"title", -colspan => 2}, $homelink, "Service $wantservice on $wantnode"), "</tr>",
+	"<tr>", $q->td({-class=>"header", -colspan => 2}, "Configuration"), "</tr>";
+
+	my $thisservice = $sstatus{$wantservice}->{$wantnode};
+#	print Dumper($thisservice);
+
+	# service config info: name (likely different from service id/key), description, type.
+	for my $row (["Service Name", $thisservice->{name}],
+							 ["Type", $ST->{$wantservice}->{Service_Type}], 
+							 ["Description", $thisservice->{description}])
+	{
+		my ($label,$value) = @$row;
+		$value = "N/A" if (!defined $value);
+
+		print "<tr>", 
+		$q->td({ -class=>"info Plain" }, $label),
+		$q->td({ -class=>"info Plain" }, $value), "</tr>";
+	}
+	
+	# status: when last run, status (translated and numeric), textual status
+	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status Details"), "</tr>",
+	"<tr>", $q->td({ -class=>"info Plain" }, "Last Tested"),
+		$q->td({ -class=>"info Plain" }, returnDateStamp($thisservice->{last_run})), "</tr>";
+	
+	my ($nicestatus, $statuscolor);
+	if ($thisservice->{status} == 100)
+	{
+		$statuscolor = "Normal";
+		$nicestatus = "running (100)";
+	}
+	elsif ($thisservice->{status} > 0)
+	{
+		$statuscolor = "Warning";
+		$nicestatus = "degraded ($thisservice->{status})";
+	}
+	else
+	{
+		$statuscolor = 'Fatal';
+		$nicestatus = "down (0)";
+	}
+	
+	# must add graphtype (service, service-cpu, service-mem, service-response)
+	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?conf=$Q->{conf}&act=network_graph_view"
+			."&node=".uri_escape($wantnode)
+			."&intf=".uri_escape($wantservice);
+
+	my $statuslink = $graphlinkbase."&graphtype=service";
+
+	print "<tr>", 
+	$q->td({ -class=>"info Plain" }, 
+				 $q->a( { class=>"islink", target => "Graph-$wantnode",
+									onclick => "viewwndw(\'$wantnode\',\'$statuslink\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+								"Service Status")),
+	$q->td({ -class=>"info $statuscolor" }, $nicestatus), "</tr>";
+	
+	print "<tr>", 
+	$q->td({ -class=>"info Plain" }, "Last Status Text"),
+	$q->td({ -class=>"info Plain" }, 
+				 ($thisservice->{status_text}? escape($thisservice->{status_text}) : "N/A")), "</tr>";
+
+	# responsetime reading, cpu and mem are at the top level, others are under extras
+	my @extras;
+	my $responselink = $graphlinkbase."&graphtype=service-response";
+	push @extras , [ 
+		$q->a( { target => "Graph-$wantnode",
+						 class=>"islink",
+						 onclick => "viewwndw(\'$wantnode\',\'$responselink\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+					 "Last Response Time" ), escape($thisservice->{responsetime})." s" ] 
+					 if (defined $thisservice->{responsetime});
+	if (defined $thisservice->{cpu})
+	{
+		my $link = $graphlinkbase."&graphtype=service-cpu";
+		push @extras , [ 
+			$q->a( { target => "Graph-$wantnode",
+							 class=>"islink",
+							 onclick => "viewwndw(\'$wantnode\',\'$link\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+						 "Last CPU Utilisation" ), sprintf("%.5f", ($thisservice->{cpu}/100))." CPU-seconds" ];
+	}
+	if (defined $thisservice->{memory})
+	{
+		my $link = $graphlinkbase."&graphtype=service-mem";
+		push @extras , [ 
+			$q->a( { target => "Graph-$wantnode",
+							 class=>"islink",
+							 onclick => "viewwndw(\'$wantnode\',\'$link\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+						 "Last Memory Utilisation" ), $thisservice->{memory}." KBytes" ];
+	}
+
+	
+	# any extra custom readings? for nagios we can have units; if present they're under units
+	if (ref($thisservice->{extra}) eq "HASH")
+	{
+		for my $extrareading (sort keys %{$thisservice->{extra}})
+		{
+			my $value = escape($thisservice->{extra}->{$extrareading});
+			my $unit = $thisservice->{units}->{$extrareading} if (ref($thisservice->{units}) eq "HASH" 
+																														&&  $thisservice->{units}->{$extrareading});
+			$value .= " $unit" if ($unit and $unit ne "c"); # "counter"
+
+			push @extras, [ $extrareading, $value ];
+		}
+	}
+	if (@extras)
+	{
+		for my $row (@extras)
+		{
+			my ($label,$value) = @$row;
+			$value = "N/A" if (!defined $value);
+			
+			print "<tr>", 
+			$q->td({ -class=>"info Plain" }, $label),
+			$q->td({ -class=>"info Plain" }, $value), "</tr>";
+		}
+	}
+	
+	# fixme: how to show links to custom graphs?
+	
+	print $q->end_table();
+	pageEnd if (!$wantwidget);
+}
+	
 # lists all active+visible services as a table
 # active: attached to a node, visible: node is within the current user's allowed groups
 # args: none, uses globals (C, widget stuff etc)
@@ -103,11 +259,15 @@ sub display_overview
 	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
+	# own url for sorting, service url for showing the details page
 	my $url = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=$Q->{act}&widget=$widget";
+	my $serviceurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=details&widget=$widget"; # append node and service query params
+			
 	my $homelink = $wantwidget? '' 
 			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;";
 	# just append the nodename to complete
 	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?conf=$Q->{conf}&act=network_service_view&refresh=$Q->{refresh}&widget=$widget&server=$Q->{server}&node=";
+
 
 	print $q->start_table({class=>"table"}),
 	"<tr>", $q->th({-class=>"title", -colspan => 5}, $homelink, "Monitored Services Overview"), "</tr>",
@@ -141,10 +301,15 @@ sub display_overview
 															: ($a->{$sortcrit} || '') cmp ($b->{$sortcrit} || '') } @statuslist;
 	for my $one (@sortedlist)
 	{
+		my $detailurl = $serviceurl . "&node=".uri_escape($one->{node})
+				."&service=".uri_escape($one->{service});
 		
-		print "<tr>", $q->td({-class=>'info Plain'}, $one->{service}), 
-			$q->td({-class=>'info Plain'}, 
-						 $q->a({-href=>$nodelink.$one->{node}, id=>"node_view_".$one->{node} }, $one->{node}));
+		print "<tr>", $q->td({-class=>'info Plain'}, 
+												 $q->a({ -href => $detailurl, 
+																 id => "service_view_$one->{node}_$one->{service}" },
+															 $one->{service})), 
+		$q->td({-class=>'info Plain'}, 
+					 $q->a({-href=>$nodelink.uri_escape($one->{node}), id=>"node_view_".uri_escape($one->{node}) }, $one->{node}));
 			
 			my $statuscolor = $one->{status} == 100? 'Normal': $one->{status} > 0? 'Warning' : 'Fatal';
 			my $statustext = $one->{status} == 100? 'running': $one->{status} > 0? 'degraded' : 'down';

@@ -170,8 +170,19 @@
     'Log' => 'true',
     'Stateful' => 'true',
     'CancelingEvent' => 'Service Up',
-    'Description' => 'A service NMIS is managing has failed to respond.',
+    'Description' => 'A service NMIS is managing has failed completely.',
+		 },
+
+  'Service Degraded' => {
+    'Event' => 'Service Degraded',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'Service Up',
+    'Description' => 'A service that NMIS is managing is up but not fully working.',
   },
+		 
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
     'Notify' => 'true',

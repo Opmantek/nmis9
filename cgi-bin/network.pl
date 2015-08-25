@@ -2276,9 +2276,12 @@ sub viewService {
 				$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,
 																	intf=>$service,width=>$thiswidth, height=>$smallGraphHeight);
 			}
-																			
+
+			my $serviceurl = "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+					.uri_escape($node)."&service=".uri_escape($service);
+
 			print Tr(
-				td({class=>'info Plain'},$service),
+				td({class=>'info Plain'},a({class => "islink", href=> $serviceurl}, $service)),
 				td({class=>'info Plain',style=>"background-color:".$color},$V->{system}{"${service}_value"}),
 				td({class=>'image'}, $serviceGraphs)
 			);	

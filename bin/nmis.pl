@@ -42,6 +42,7 @@ require 5.008_001;
 
 use strict;
 use csv;				# local
+use URI::Escape;
 use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
@@ -4367,7 +4368,7 @@ sub runServices {
 					@responses = <PRG>; # always check for output but discard it if not required
 					close PRG;
 					$programexit = $?;
-					dbg("service exit code is $programexit");
+					dbg("service exit code is ". ($programexit>>8));
 							
 					if (getbool($svc->{Collect_Output}))
 					{
@@ -4479,7 +4480,7 @@ sub runServices {
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if (!defined $responsetime);
 		$status{$service}->{responsetime} = $responsetime;
-		$status{$service}->{name} = $ST->{$service}{Service_Name};
+		$status{$service}->{name} = $ST->{$service}{Name}; # same as $service
 
 		# external programs return 0..100 directly, rest has 0..1
 		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )? 
@@ -4489,30 +4490,58 @@ sub runServices {
 		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0? "degraded" : 'down';
-		# fixme: does that work?
 		$V->{system}{"${service}_color"} =  $serviceValue == 100 ? 'white' : $serviceValue > 0? "orange" : 'red';
 		
 		$V->{system}{"${service}_responsetime"} = $responsetime;
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 
-		# fixme: add per-service view
-		$V->{system}{"${service}_gurl"} = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=service&node=$NI->{system}{name}&intf=$service";
+		# now points to the per-service detail view, but non-widgeted in a new window
+		$V->{system}{"${service}_gurl"} = "$C->{'<cgi_url_base>'}/services.pl?conf=$C->{conf}&act=details&widget=false&node="
+					.uri_escape($node)."&service=".uri_escape($service);
 
-		# lets raise or clear an event
-		if ( $snmpdown ) {
+		# let's raise or clear service events based on the status
+		if ( $snmpdown ) # only set IFF this is an snmp-based service AND snmp is broken/down.
+		{
 			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
 			$V->{system}{"${service}_value"} = 'unknown';
 			$V->{system}{"${service}_color"} = 'gray';
 			$serviceValue = '';
 		}
-		elsif ( $ret ) {
-			# Service is UP!
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available");
-			checkEvent(sys=>$S,event=>"Service Down",level=>"Normal",element=>$ST->{$service}{Name},details=>"" );
-		} else {
-			# Service is down
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is unavailable");
-			notify(sys=>$S,event=>"Service Down",element=>$ST->{$service}{Name},details=>"" );
+		elsif ( $serviceValue == 100 ) # service is fully up
+		{
+			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available ($serviceValue)");
+
+			# all perfect, so we need to clear both degraded and down events
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", element => $ST->{$service}{Name}, 
+								 details=> ($status{$service}->{status_text}||"") );
+
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+								 details=> ($status{$service}->{status_text}||"") );
+		}
+		elsif ($serviceValue > 0)		# service is up but degraded
+		{
+			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is degraded ($serviceValue)");
+
+			# is this change towards the better or the worse? 
+			# we clear the down (if one exists) as it's not totally dead anymore...
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name}, 
+								 details=> ($status{$service}->{status_text}||"") );
+			# ...and create a degraded
+			notify(sys => $S, event => "Service Degraded", level => "Warning", element => $ST->{$service}{Name},
+						 details=> ($status{$service}->{status_text}||""));
+		}
+		else 			# Service is down
+		{
+			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is down");
+
+			# clear the degraded event
+			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+								 details=> ($status{$service}->{status_text}||"") );
+
+			# and now create a down event
+			notify(sys=>$S, event=>"Service Down", level => "Fatal", element=>$ST->{$service}{Name},
+						 details=> ($status{$service}->{status_text}||"") );
 		}
 
 		# save result for availability history - one rrd file per service per node
@@ -4526,12 +4555,29 @@ sub runServices {
 			$Val{cpu}{option} = "COUNTER,U:U";
 			$Val{memory}{value} = $memory;
 			$Val{memory}{option} = "GAUGE,U:U";
+
+			# cpu is a counter, need to get the delta(counters)/period from rrd
+			$status{$service}->{memory} = $memory;
 		}
 
-		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) {
+		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) 
+		{
 			$NI->{graphtype}{$service}{service} = 'service,service-response';
-			if ($gotMemCpu) {
+			if ($gotMemCpu) 
+			{
 				$NI->{graphtype}{$service}{service} = 'service,service-response,service-mem,service-cpu';
+
+				# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
+				# rrd stores delta * (interval last update - aggregation time) as .value
+				# http://serverfault.com/questions/476925/rrd-pdp-status-value
+				my $infohash =RRDs::info($db);
+				if (defined(my $cpuval = $infohash->{'ds[cpu].value'}))
+				{
+					my $stepsize = $infohash->{step};
+					my $lastupdate = $infohash->{last_update};
+					
+					$status{$service}->{cpu} = $cpuval / ($lastupdate % $stepsize) if ($lastupdate % $stepsize);
+				}
 			}
 		}
 
