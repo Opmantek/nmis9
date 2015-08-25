@@ -84,6 +84,7 @@ use Exporter;
 		eventLevelSet
 		checkHostName
 		getBits
+		getDiskBytes
 
 		colorPercentLo
 		colorPercentHi
@@ -583,6 +584,16 @@ sub getBits {
 	elsif ( $_ > 1000000000 ) { $_ /= 1000000000; /(\d+\.\d\d)/; return "$1 Gb${ps}"; }
 	elsif ( $_ > 1000000 ) { $_ /= 1000000; /(\d+\.\d\d)/; return "$1 Mb${ps}"; }
 	elsif ( $_ > 1000 ) { $_ /= 1000; /(\d+\.\d\d)/; return "$1 Kb${ps}"; }
+	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
+}
+
+sub getDiskBytes {
+	$_ = shift;
+	my $ps = shift; # 'ps'
+	if ( $_ eq "NaN" ) { return "$_" ;}
+	elsif ( $_ > 1073741824 ) { $_ /= 1073741824; /(\d+\.\d\d)/; return "$1 GB${ps}"; }
+	elsif ( $_ > 1048576 ) { $_ /= 1048576; /(\d+\.\d\d)/; return "$1 MB${ps}"; }
+	elsif ( $_ > 1024 ) { $_ /= 1024; /(\d+\.\d\d)/; return "$1 KB${ps}"; }
 	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
 }
 
