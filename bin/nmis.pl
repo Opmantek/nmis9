@@ -1018,6 +1018,13 @@ sub runPing {
 			# notify and checkevent are handled by fpingd
 			if ($ping_loss < 100) {
 				# up
+
+				### ks 2015-08-13, are the nodedown status and event db out of sync?
+				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") ) {
+					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
+        }
+
 				$RI->{pingavg} = $ping_avg; # results for sub runReach
 				$RI->{pingresult} = 100;
 				$RI->{pingloss} = $ping_loss;
@@ -2976,24 +2983,9 @@ sub getIntfData {
 								$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
 
 								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
-									if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus} ) {
-										dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
-										if ($D->{ifOperStatus}{value} eq 'down') {
-											if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
-												# going down
-												getIntfInfo(sys=>$S,index=>$index); # update this interface
-											}
-										}
-										# must be up
-										else {
-											# Check if the status changed
-											if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
-												# going up
-												getIntfInfo(sys=>$S,index=>$index); # update this interface
-											}
-										}
-									}
-									else {
+									if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
+										and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus}) 
+									) {
 										### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
 										# interface now up or down, check and set or clear outstanding event.
 										dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
@@ -3010,7 +3002,24 @@ sub getIntfData {
 										} else {
 											checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 										}
-									}
+									}										
+									else {
+										dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+										if ($D->{ifOperStatus}{value} eq 'down') {
+											if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
+												# going down
+												getIntfInfo(sys=>$S,index=>$index); # update this interface
+											}
+										}
+										# must be up
+										else {
+											# Check if the status changed
+											if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
+												# going up
+												getIntfInfo(sys=>$S,index=>$index); # update this interface
+											}
+										}
+									} 
 
 									# If new ifDescr is different from old ifDescr rebuild interface info table
 									# check if nodeConf modified this inteface
