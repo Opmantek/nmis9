@@ -44,7 +44,7 @@
     'Event_Element' => '',
     'Event_Node' => '',
     'Group' => 'default',
-    'Level0' => 'syslog:localhost,json:localhost',
+    'Level0' => '',
     'Level1' => '',
     'Level10' => '',
     'Level2' => '',
