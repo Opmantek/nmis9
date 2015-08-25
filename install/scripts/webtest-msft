@@ -30,23 +30,19 @@ my @mechargs = (autocheck => 0);
 push @mechargs, (ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }) if ($opts{N});
 
 my $ua = WWW::Mechanize->new(@mechargs);
-my $exitcode = 0;
 
 # get the first (form or landing) page
 my $response = $ua->get($url);
 if (!$ua->success)
 {
-	print STDERR "First page load failed: "
-			.$response->status_line."\n" if ($opts{d});
-	exit $exitcode;
+	print "First page load failed: " .$response->status_line."\n";
+	exit 0;
 }
 elsif ($ua->content !~ /loginForm/)
 {
-	print STDERR "First page loaded but has no matching form!\n";
-	exit $exitcode;
+	print "First page loaded but has no matching form!\n";
+	exit 0;
 }
-
-$exitcode = 10;
 
 if ($opts{d})
 {
@@ -63,35 +59,31 @@ $response = $ua->submit_form(
 	} );
 if (!$ua->success)
 {
-	print STDERR "First Form submission failed: ".$response->status_line."\n"
-			if ($opts{d});
-	exit $exitcode;
+	print "First Form submission failed: ".$response->status_line."\n";
+	exit 10;
 } 
 # if and only if the user/password combo works, 
 # do we get that msisauthenticatd cookie
 # the status code doesn't reflect auth success, at all :-(
 elsif ($response->headers->as_string !~ /Set-Cookie: MSISAuthenticated/)
 {
-	print STDERR "First Form submission succeeded but bad data!\n" if ($opts{d});
-	exit $exitcode;
+	print "First Form submission succeeded but returns bad data!\n";
+	exit 10;
 }
 
-$exitcode = 20;
 if ($opts{d})
 {
 	my @forms =$ua->forms();
 	print STDERR "second form submission is to: ".$forms[0]->action."\n";
 }
-# first form returns another form
+# first form returns another form, which we submit to /again/
 $response = $ua->submit_form(form_number => 1);
 if (!$ua->success)
 {
-	print STDERR "Second Form submission failed: "
-			.$response->status_line."\n" if ($opts{d});
-	exit $exitcode;
+	print "Second Form submission failed: ".$response->status_line."\n";
+	exit 20;
 }
 
-$exitcode = 30;
 if ($opts{d})
 {
 	my @forms =$ua->forms();
@@ -102,17 +94,18 @@ if ($opts{d})
 $response = $ua->submit_form(form_number => 1);
 if (!$ua->success)
 {
-	print STDERR "Third Form submission failed: "
-			.$response->status_line."\n" if ($opts{d});
-	exit $exitcode;
+	print "Third Form submission failed: ".$response->status_line."\n";
+	exit 30;
 }
 
 if ($ua->content !~ $okbody)
 {
-	$exitcode = 40;
+	print "Third Form submission succeeded but invalid authentication data!\n";
+	exit 40;
 }
 else
 {
-	$exitcode = 100;
+	print "Authentication succeeded.\n";
+	exit 100;
 }
-exit $exitcode;
+

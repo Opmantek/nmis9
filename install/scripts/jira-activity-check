@@ -1,0 +1,88 @@
+#!/usr/bin/perl
+# a small NMIS service helper script for testing Atlassian Jira
+# for recent activity
+#
+# args: JIRA BASE url, ie. just schema://host:port/
+# -u, -p user's username and password
+# -j JQL query (optional)
+#
+# exits with 100 if all ok
+# 0 if jira was not reachable at all,
+# 10 if the credentials didn't work
+# 20 if the jql was dud
+# 30 if there was no activity
+our $VERSION = "1.0.0";
+
+use strict;
+use URI;
+use LWP::UserAgent;
+
+use JSON::XS;
+use POSIX;
+use Getopt::Std;
+
+my %opts;
+die "Usage: $0 [-Nd] [-j JQL] {-u user} {-p passwd} <url>
+-N: do NOT check ssl certificates
+-d: produce debug output on STDERR
+-j: use this JQL query
+\n\n"
+		if (!getopts("u:p:Ndj:",\%opts) or !$opts{u} or !$opts{p} or @ARGV != 1);
+
+my $username = $opts{u};
+my $password = $opts{p};
+my $jql = $opts{j} || 'created >= -24h OR updated >= -24h';
+
+my $jiraurl = URI->new($ARGV[0]);
+
+my $statusmsg = "Unknown Failure";
+my $exitcode = 0;
+
+my $ua = LWP::UserAgent->new;
+$ua->timeout(10);
+$ua->env_proxy();
+
+$jiraurl->path("rest/api/2/search");
+$jiraurl->query_form("jql" => $jql, "fields" => "key,id");
+
+my $req = HTTP::Request->new(GET => $jiraurl);
+$req->header("Accept" => "application/json");
+$req->header("Content-Type" => "application/json");
+$req->authorization_basic($username, $password);
+
+my $res = $ua->request($req);
+print STDERR "response for was ".$res->decoded_content."\n" if ($opts{d});
+
+if ($res->code == 403)
+{
+	print "API Authentication failed!\n";
+	exit 10;
+}
+elsif ($res->is_success)
+{
+	my $rdata = eval { decode_json($res->decoded_content) };
+	if (!$@)
+	{
+		if ($rdata->{errorMessages})
+		{
+			print "API Access succeeded but query failed: $rdata->{errorMessages}\n";
+			exit 30;
+		}
+		if ($rdata->{total})
+		{
+			print "API Access and query successful.\nactivity_count=$rdata->{total}\n";
+			exit 100;
+		}
+	}
+	else
+	{
+		print "API Access succeeded but content invalid!\n";
+		exit 20;
+	}
+}
+else
+{
+	print "API request failed: ".$res->code." ".$res->message."\n";
+	exit 0;
+}
+

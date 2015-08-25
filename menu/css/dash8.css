@@ -469,6 +469,7 @@ ul.jd_menu li.jdm_active {
 		margin:0;
 }
 
+a.islink,
 .ui-dialog-content a,
 .ui-dialog-content a:hover,a:visited,a:link,a:active
 {

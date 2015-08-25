@@ -179,6 +179,7 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_view' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_view">Network Metrics and Health</a>|;
 		push @netstatus, qq|<a id='ntw_health' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
 		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
+		push @netstatus, qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">Monitored Services</a>|;
 		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
 				if ($AU->CheckAccess("tls_event_db","check"));
 
@@ -303,6 +304,7 @@ sub menu_bar_site {
 				qq|<a id='find_interface' href="find.pl?conf=$Q->{conf}&amp;act=find_interface_menu">Interface</a>|
 		];
 		push @sdeskstuff, qq|Logs|, \@logstuff if (@logstuff);
+		push @sdeskstuff, qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">Monitored Services</a>|;
 								
 		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 

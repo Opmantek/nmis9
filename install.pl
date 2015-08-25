@@ -188,7 +188,7 @@ else
 }
 
 ###************************************************************************###
-printBanner("Checking Dependencies...");
+my $can_use_web;
 if ($osflavour)
 {
 	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
@@ -215,128 +215,187 @@ perl-rrdtool perl-Test-Deep));
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
 
-	print "The installer can use $pkgmgr to install the software packages 
-that NMIS depends on, if your system has Internet access and if $pkgmgr is 
-configured to use online repositories or a local package source (e.g. an 
-installation DVD).\n\n";
+	# first check if internet/web access is available
+	printBanner("Checking Web access...");
+	
+	# curl is present in most basic redhat install
+	# wget is present on debian/ubuntu via priority:important
+	my $testres = system("curl -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
+	$testres = system("wget -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8 
+			if ($testres);
+	$can_use_web = !$testres;
 
-	if (!input_yn("Does this system have Internet access or is $pkgmgr configured\nwith a local package source?"))
+	if ($can_use_web)
 	{
-		echolog("Instructed NOT to install pre-requisites.");
-		print "NMIS will not work properly until the  following packages are installed:\n\n".join(" ",@$pkglist)
-				."\n\nWe recommend that you stop the installer now, resolve the dependencies, 
-and then restart the installer.\n\n";
-		
-		if (input_yn("Stop the installer?"))
-		{
-			die "\nAborting the installation. Please install the missing packages, then restart the installer.\n";
-		}
+		echolog("Web access is ok.");
 	}
 	else
 	{
-		if ($osflavour eq "debian" or $osflavour eq "ubuntu")
-		{
-			echolog("Updating package status, please wait...");
-			execPrint("apt-get update -qq");
+		echolog("No Web access available!");
+		print "Your system cannot access the web, therefore $pkgmgr will not
+be able to download any missing software packages. If any 
+such missing packages are detected and you don't have
+a local source of packages (e.g. an installation DVD) then the
+installation won't complete successfully.
 
-			for my $pkg (@debpackages)
+We recommend that you check our Wiki article on working around
+package installation without Internet access in that case:
+
+https://community.opmantek.com/x/boSG\n\n";
+		
+		print "Hit <Enter> to continue:\n";
+		my $x = <STDIN>;
+	}
+
+
+	printBanner("Checking Dependencies...");
+	if ($osflavour eq "debian" or $osflavour eq "ubuntu")
+	{
+		printBanner("Updating package status, please wait...");
+		execPrint("apt-get update -qq");
+		
+		for my $pkg (@debpackages)
+		{
+			if (`dpkg -l $pkg 2>/dev/null` =~ /^ii\s*$pkg\s*/m)
 			{
-				if (`dpkg -l $pkg 2>/dev/null` =~ /^ii\s*$pkg\s*/m)
+				echolog("Required package $pkg is already installed.");
+			}
+			else
+			{
+				echolog("\nRequired package $pkg is NOT installed!");
+				if (input_yn("Do you want to install the package $pkg with apt-get now?"))
 				{
-					echolog("Required package $pkg is already installed.");
+					$ENV{"DEBIAN_FRONTEND"}="noninteractive";
+					echolog("\nInstalling $pkg with apt-get");
+					execPrint("apt-get -yq install $pkg");
+					
+					print "\n\n";			# apt is a bit noisy
 				}
 				else
 				{
-					echolog("\nRequired package $pkg is NOT installed!");
-					if (input_yn("Do you want to install the package $pkg with apt-get now?"))
-					{
-						$ENV{"DEBIAN_FRONTEND"}="noninteractive";
-						echolog("Installing $pkg with apt-get");
-						execPrint("apt-get -yq install $pkg");
-
-						print "\n\n";			# apt is a bit noisy
-					}
-					else
-					{
-						echolog("Package $pkg not present but was instructed to NOT install it.");
-						print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
+					echolog("Package $pkg not present but installer instructed to NOT install it.");
+					print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
 dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
-						my $x = <STDIN>;
-					}
+					my $x = <STDIN>;
 				}
 			}
 		}
-		elsif ($osflavour eq "redhat")
+	}
+	elsif ($osflavour eq "redhat")
+	{
+		if ($can_use_web)
 		{
-			# a few packages are only available via the EPEL repo...
-			# and a usable rrdtool version requires the rpmforge repo
-			open(F,"/etc/redhat-release");
-			my $rhver =	<F>; 
-			chomp $rhver;
-			close F;
-			$rhver =~ s/^[^0-9]+(\d)\.\d.*$/$1/;
+			printBanner("Updating YUM metadata cache...");
+			system("yum makecache");
+		}
+		
+		# a few packages are only available via the EPEL repo and others need repoforge/rpmfore, too
+		open(F,"/etc/redhat-release");
+		my $rhver =	<F>; 
+		chomp $rhver;
+		close F;
+		my $iscentos = ($rhver =~ /CentOS/);
+		$rhver =~ s/^[^0-9]+(\d)\.\d.*$/$1/;
 
-			echolog("Checking yum repository list, please wait...");
-			my @repos=`yum repolist 2>/dev/null`;
-			if (!grep(/^\*?rpmforge\s+/, @repos))
+		# check the enabled extra repos
+		my %enabled_repos;
+		open(F, "yum -C -v repolist enabled|") or die "cannot get repository list from yum: $!\n";
+		for my $line (<F>)
+		{
+			if ($line =~ /^Repo-id\s*:\s*(\S+)/)
 			{
-				echolog("Adding RepoForge Repository for suitable RRDTool version");
-				# centos 6 ships an ancient rrdtool, repoforge-extras has what we're after
-				execPrint("yum -y install http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el$rhver.rf.x86_64.rpm");
+				$enabled_repos{$1} = 1;
 			}
-			if (!grep(/^\*?epel\s+/, @repos) and $rhver == 6)
+		}
+		close(F);
+
+		for my $pkg (@rhpackages)
+		{
+			my $installcmd = "yum -y install $pkg";
+			my ($ispresent, $present_version, $repo, $reponame, $repourl);
+
+			if (my $rpmstatus = `rpm -qa $pkg 2>/dev/null`)
 			{
-				echolog("Adding EPEL Repository for glib and Net-SNMP");
-				execPrint("yum -y install http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm");
+				$present_version = version->parse($1) if ($rpmstatus =~ /^\S+-(\d+\.\d+(\.\d+)?)/m);
+				$ispresent = 1;
+		
+				# rrdtool and perl-rrdtool are doubly special - we need a recent enough version
+				$ispresent = 0
+						if (($pkg eq "rrdtool" or $pkg eq "rrdtool-perl") 
+								and $present_version < version->parse("1.4.4"));
 			}
-			
-			for my $pkg (@rhpackages)
+
+			if ($ispresent)
 			{
-				my $installcmd = "yum -y install $pkg";
-				my $ispresent = 0;
+				echolog("Required package $pkg is already installed"
+								. ($present_version? " (version $present_version)." : "."));
+				next;
+			}
 
-				# special handling for messy rrdtool situation in centos 6
-				if ($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
-				{
-					$installcmd = "yum -y --enablerepo=rpmforge-extras install rrdtool perl-rrdtool";
-					if (`rpm -qa $pkg 2>/dev/null` =~ /^\S+-(\d+\.\d+\.\d+)/m
-							and version->parse($1) >= version->parse("1.4.4"))
-					{
-						$ispresent = 1;
-						echolog("Sufficient version of required package $pkg is already installed.");
-					}
-				}
-				else
-				{
-					if (`rpm -qa $pkg 2>/dev/null` ne "")
-					{
-						echolog("Required package $pkg is already installed.");
-						$ispresent = 1;
-					}
-				}
+			# special handling for rpmforge packages
+			if ($pkg eq "fping" or $pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
+			{
+				$installcmd = "yum -y --enablerepo=rpmforge-extras install $pkg";
+				$repo="rpmforge";
+				$reponame="RPMforge";
+				$repourl = "http://repoforge.org/";
+			}
+			# ditto for epel
+			elsif ($pkg eq "perl-Net-SNMP" or $pkg eq "glib" or $pkg eq "glib-devel"
+						 or $pkg eq "perl-Crypt-Rijndael" or $pkg eq "perl-JSON-XS" 
+						 or $pkg eq "perl-Net-SMTPS" or $pkg eq "perl-Net-SNPP" 
+						 or $pkg eq "perl-Proc-ProcessTable")
+			{
+					$installcmd = "yum -y --enablerepo=epel install $pkg";
+					$repo="epel";
+					$reponame="EPEL";
+					$repourl = "https://fedoraproject.org/wiki/EPEL/";
+			}
 
-				if (!$ispresent)
+			echolog("\nRequired package $pkg is NOT installed!");
+			if (input_yn("Do you want to install the package $pkg with yum now?"))
+			{
+
+				if ($repo and !$enabled_repos{$repo})
 				{
-					echolog("\nRequired package $pkg is NOT installed!");
-					if (input_yn("Do you want to install the package $pkg with yum now?"))
+					if (!$can_use_web)
 					{
-						echolog("Installing $pkg with yum");
-						execPrint($installcmd);
-						
-						if ($pkg eq "httpd")
-						{
-							execPrint("chkconfig $pkg on"); # silly redhat doesn't start services on installation
-						}
-						print "\n\n";			# yum is pretty noisy
+						printBanner("Cannot enable repository $reponame!");
+						print "\nThe $reponame repository is required for installing $pkg, but 
+your system does not have web access and thus cannot 
+download anything from that repository. 
+
+You will have to install $pkg manually (downloadable 
+from $repourl).\n\n";
+						exit(1);
 					}
 					else
 					{
-						echolog("Package $pkg not present but was instructed to NOT install it.");
-						print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
-dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
-						my $x = <STDIN>;
+						enable_custom_repo($repo, $iscentos, $rhver);
+						$enabled_repos{$repo} = 1;
 					}
 				}
+
+				echolog("\nInstalling $pkg with yum".($repo? " from repository $reponame": ""));
+				execPrint($installcmd);
+						
+				if ($pkg eq "httpd")
+				{
+					# silly redhat doesn't start services on installation
+					execPrint("chkconfig --add $pkg"); 
+					execPrint("chkconfig $pkg on"); 
+				}
+				print "\n\n";			# yum is pretty noisy
+			}
+			else
+			{
+				echolog("\nPackage $pkg not present but installer instructed to NOT install it.");
+				print "NMIS will not run correctly without $pkg installed. You will 
+have to resolve that dependency manually before NMIS can operate properly.\n";
+
+				print "The Package $pkg can be downloaded\nfrom $repourl\n\n" if ($repourl);
+				print "Hit <Enter> to continue:\n";
+				my $x = <STDIN>;
 			}
 		}
 	}
@@ -350,17 +409,16 @@ if (!$isok)
 	print "The installer can use CPAN to install the missing Perl packages
 that NMIS depends on, if your system has Internet access.\n\n";
 
-	if (!input_yn("Does this system have Internet access for CPAN?") 
-			or !input_yn("OK to use CPAN to install missing modules?"))
+	if (!$can_use_web or !input_yn("OK to use CPAN to install missing modules?"))
 	{
-		echolog("Instructed NOT to install missing CPAN modules.");
-		print "NMIS will not work properly until the following Perl modules are installed:\n\n".join(" ",@missingones)
+		echolog("Cannot install missing CPAN modules.");
+		print "NMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n".join(" ",@missingones)
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies, 
 and then restart the installer.\n\n";
 		
 		if (input_yn("Stop the installer?"))
 		{
-			die "\nAborting the installation. Please install the missing Perl packages, then restart the installer.\n";
+			die "\nAborting the installation. Please install the missing Perl packages\nwith cpan, then restart the installer.\n";
 		}
 	}
 	else
@@ -863,31 +921,41 @@ if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /et
 	if (0 == $res>>8)
 	{
 		echolog("Cleaning up old per-user crontab");
-		# now clean up the old per-user cron
-		execPrint("crontab -l > $site/conf/crontab.root");
-		echolog("Old crontab was saved in $site/conf/crontab.root");
 
-		open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
-		my @crondata = <F>;
-		close F;
-		for my $line (@crondata)
+		my $oldcronfixedup;
+		# now clean up the old per-user cron, if there is one!
+		my $res = system("crontab -l > $site/conf/crontab.root");
+		if (0 == $res>>8)
 		{
-			$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
-			$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+			echolog("Old crontab was saved in $site/conf/crontab.root");
+
+			open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
+			my @crondata = <F>;
+			close F;
+			for my $line (@crondata)
+			{
+				$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
+				$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+			}
+			open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
+			print G @crondata;
+			close G;
+			echolog("Cleaned-up crontab was installed.");
+			$oldcronfixedup = 1;
 		}
-		open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
-		print G @crondata;
-		close G;
-		echolog("Cleaned-up crontab was installed.");
+
 		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
-
+		
 		print "\nA new default cron was created in /etc/cron.d/nmis, 
-but feel free to adjust it.
+but feel free to adjust it.\n\n";
 
-Any NMIS entries in root's crontab were commented out,
-but a backup of the crontab was saved in $site/cronf/crontab.root.\n\n
-
-Please hit <Enter> to continue:\n";
+		if ($oldcronfixedup)
+		{
+			print "Any NMIS entries in root's existing crontab were commented out,
+and a backup of the crontab was saved in $site/cronf/crontab.root.\n\n";
+		}
+		
+		print "Please hit <Enter> to continue:\n";
 		my $x = <STDIN>;
 		$crongood = 1;
 		logInstall("New system crontab was installed in /etc/cron.d/nmis");
@@ -913,7 +981,7 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 
 # now offer to run an (initial) update to get nmis' state initialised
 # and/or updated
-if ( input_yn("NMIS Update: This may take up to 30 seconds (or a very long time with MANY nodes)...
+if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
 	execPrint("$site/bin/nmis.pl type=update");
@@ -1116,7 +1184,7 @@ install/SNMP_Session-1.12.tar.gz.\n\n|;
 to be installed (or upgraded) before NMIS will work correctly:\n\n| . join(" ", @critmissing)."\n\n";
 		}
 		
-		print qq|These modules can be installed with CPAN, if your system has Internet access:
+		print qq|These modules can be installed with CPAN:
 
   perl -MCPAN -e shell
     install [module name]
@@ -1285,3 +1353,33 @@ sub getArguements {
 	}
 	return %nvp;
 }
+
+sub enable_custom_repo
+{
+	my ($reponame, $iscentos, $majorlevel) = @_;
+
+	# epel: comfy for centos, not so for rh
+	# repoforge: uncomfy everywhere
+	if ($reponame eq "epel" )
+	{
+		echolog("\nEnabling EPEL repository\n");
+		if ($iscentos)
+		{
+			execPrint("yum -y install epel-release");
+		}
+		else
+		{
+			execPrint("yum -y install 'https://dl.fedoraproject.org/pub/epel/epel-release-latest-$majorlevel.noarch.rpm'");
+		}
+	}
+	elsif ($reponame =~ /^(repo|rpm)forge$/i)
+	{
+		echolog("\nEnabling RepoForge repository\n");
+		execPrint("yum -y install 'http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el$majorlevel.rf.x86_64.rpm'");
+	}
+	else
+	{
+		die "Cannot enable unknown custom repository \"reponame\"!\n";
+	}
+}
+

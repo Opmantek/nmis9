@@ -849,9 +849,16 @@ sub setFileProtParents
 	$topdir ||= $C->{'<nmis_base>'};
 	$topdir = File::Spec->canonpath($topdir);
 	$thisdir = File::Spec->canonpath($thisdir);
-
+	
 	my $relative = File::Spec->abs2rel($thisdir, $topdir);
 	my $curdir = $topdir;
+
+	# don't make a mess if thisdir is outside of the topdir!
+	if ($thisdir !~ /$topdir/ or $relative =~ m!/\.\./!)
+	{
+		logMsg("ERROR: setFileProtParents called with bad args! thisdir=$thisdir top=$topdir relative=$relative");
+		return;
+	}
 
 	for my $component (File::Spec->splitdir($relative))
 	{

@@ -1,6 +1,5 @@
 #
-#
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -31,22 +30,34 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'Wireless Strength & Speed'
 	},
 	'vlabel' => {
-		'standard' => 'seconds',
-		'short' => 'sec'
+		'standard' => 'Strength & Speed'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:responsetime#FFA500:Service $indx',
-			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs\\n',
+			'DEF:mtxrWlRtabStrength=$database:mtxrWlRtabStrength:AVERAGE',
+			'DEF:mtxrWlRtabTxRate=$database:mtxrWlRtabTxRate:AVERAGE',
+			'DEF:mtxrWlRtabRxRate=$database:mtxrWlRtabRxRate:AVERAGE',						
+			'LINE2:mtxrWlRtabStrength#4daef6: Wireless Strength',
+			'GPRINT:mtxrWlRtabStrength:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:mtxrWlRtabTxRate#FF0000: Tx Rate',
+			'GPRINT:mtxrWlRtabTxRate:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:mtxrWlRtabRxRate#FFFF00: Rx Rate',
+			'GPRINT:mtxrWlRtabRxRate:AVERAGE:Avg. %1.2lf%%',						
 		],
 		'small' => [
-			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:responsetime#FFA500:$indx',
-			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs\\n',
+			'DEF:mtxrWlRtabStrength=$database:mtxrWlRtabStrength:AVERAGE',
+			'DEF:mtxrWlRtabTxRate=$database:mtxrWlRtabTxRate:AVERAGE',
+			'DEF:mtxrWlRtabRxRate=$database:mtxrWlRtabRxRate:AVERAGE',						
+			'LINE2:mtxrWlRtabStrength#4daef6: Wireless Strength',
+			'GPRINT:mtxrWlRtabStrength:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:mtxrWlRtabTxRate#FF0000: Tx Rate',
+			'GPRINT:mtxrWlRtabTxRate:AVERAGE:Avg. %1.2lf%%',
+			'LINE2:mtxrWlRtabRxRate#FFFF00: Rx Rate',
+			'GPRINT:mtxrWlRtabRxRate:AVERAGE:Avg. %1.2lf%%',	
 		]
 	}
 );
+

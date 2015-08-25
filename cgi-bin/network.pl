@@ -1532,7 +1532,17 @@ EO_HTML
 				if ($title ne '') {
 					my $color = $V->{system}{"${k}_color"} || '#FFF';
 					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
-					my $url = $V->{system}{"${k}_url"}; # existing window
+
+					# existing window, possibly widgeted or not 
+					# but that's unknown when nmis.pl creates the view entry!
+					my $url;
+					if ($V->{system}{"${k}_url"})
+					{
+						my $u = URI->new($V->{system}{"${k}_url"});
+						$u->query_param("widget" => ($wantwidget? "true": "false"));
+						$url = $u->as_string;
+					}
+
 					my $value = $V->{system}{"${k}_value"}; # value
 					
 					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
@@ -2250,6 +2260,7 @@ sub viewService {
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
 	
 	my $LNT = loadLocalNodeTable();
+	my $ST = loadServicesTable;
 	
 	if (my @servicelist = split(",",$LNT->{$node}{services})) {
 		print Tr(
@@ -2261,28 +2272,24 @@ sub viewService {
 			my $color = $V->{system}{"${service}_color"};
 			$color = colorPercentHi(100) if $V->{system}{"${service}_value"} eq "running";
 			$color = colorPercentHi(0) if $color eq "red";
-			
-			#print STDERR "DEBUG SERVICE: $service ". $V->{system}{"${service}_cpumem"} .",". $V->{system}{"${service}_value"} .",". $V->{system}{"${service}_color"} ."\n";
-			
-			# use 2/3 width so fits a little better.
+
 			my $thiswidth = int(2/3*$smallGraphWidth);
 
-			#only show response time for polled services, when getting http connect time
-			my $serviceGraphs = htmlGraph(graphtype=>"service",node=>$node,intf=>$service,
+			# we always the service status graph, and a response time graph iff a/v (ie. non-snmp services)
+			my $serviceGraphs = htmlGraph(graphtype => "service", node=>$node, intf=>$service,
 																		width=>$thiswidth, height=>$smallGraphHeight);
-			if ( getbool($V->{system}{"${service}_cpumem"}) ) {
-				$serviceGraphs .= htmlGraph(graphtype=>"service-cpu",node=>$node,intf=>$service,
-																		width=>$thiswidth,height=>$smallGraphHeight)
-						. htmlGraph(graphtype=>"service-mem",node=>$node,intf=>$service,
-												width=>$thiswidth,height=>$smallGraphHeight);
-			}
-			else {
+			
+			if (ref($ST->{$service}) eq "HASH" and $ST->{$service}->{"Service_Type"} ne "service")
+			{
 				$serviceGraphs .= htmlGraph(graphtype => "service-response", node => $node,
-																	intf=>$service,width=>$thiswidth, height=>$smallGraphHeight);
+																		intf => $service, width=>$thiswidth, height=>$smallGraphHeight);
 			}
-																			
+
+			my $serviceurl = "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+					.uri_escape($node)."&service=".uri_escape($service);
+
 			print Tr(
-				td({class=>'info Plain'},$service),
+				td({class=>'info Plain'},a({class => "islink", href=> $serviceurl}, $service)),
 				td({class=>'info Plain',style=>"background-color:".$color},$V->{system}{"${service}_value"}),
 				td({class=>'image'}, $serviceGraphs)
 			);	

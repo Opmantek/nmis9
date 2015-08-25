@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+# a small NMIS service helper script for testing authentication 
+# and other user-related operations with Atlassian Crowd
+#
+# args: crowd BASE url, ie. just schema://host:port/
+# -U, -P app(!) username and password
+# -u, -p user's username and password (password optional)
+#
+# exits with 100 if all ok
+# 0 if crowd was not reachable at all,
+# 10 if the app credentials didn't work out,
+# 20 if the user doesn't exist,
+# 30 if the user credentials didn't work out
+# 40 if the response isn't good
+our $VERSION = "1.0.0";
+
+use strict;
+use URI;
+use LWP::UserAgent;
+
+use JSON::XS;
+use POSIX;
+use Getopt::Std;
+
+my %opts;
+die "Usage: $0 [-Nd] {-U appuser} {-P apppasswd} {-u user} {-p passwd} <url>
+-N: do NOT check ssl certificates
+-d: produce debug output on STDERR
+\n\n"
+		if (!getopts("U:P:u:p:Nd",\%opts) or !$opts{U} or !$opts{P} or @ARGV != 1);
+
+my $crowduser = $opts{U};
+my $crowdpwd = $opts{P};
+
+my $username = $opts{u};
+my $password = $opts{p};
+
+my $baseurl = URI->new($ARGV[0]);
+
+my $ua = LWP::UserAgent->new;
+$ua->timeout(10);
+$ua->env_proxy();
+
+# if we have user name, we list it
+# if both username and password, we check authentication
+# if neither, we ask crowd for something, e.g. its cookie config
+if ($username and $password)
+{
+	my $authurl = $baseurl->clone;
+	$authurl->path("/crowd/rest/usermanagement/1/authentication");
+
+	$authurl->query_form("username" => $username);
+	my $req = HTTP::Request->new(POST => $authurl);
+
+	$req->header("Accept" => "application/json");
+	$req->header("Content-Type" => "application/json");
+	$req->content("{ \"value\": \"$password\" }");
+	$req->authorization_basic($crowduser, $crowdpwd);
+
+	my $authresult = $ua->request($req);
+  print STDERR "response for auth check was ".$authresult->decoded_content."\n" if ($opts{d});
+	if ($authresult->is_success)
+	{
+		my $rdata = eval { decode_json($authresult->decoded_content) };
+		if (!$@ and $rdata->{active} and $rdata->{name} eq $username)
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
+	}
+	else
+	{
+		print "API Access failed: ".$authresult->code." ".$authresult->message."\n";
+		exit 0;
+	}
+}
+elsif ($username) 
+{
+	my $userurl = $baseurl->clone;
+	$userurl->path("/crowd/rest/usermanagement/1/user");
+
+	$userurl->query_form("username" => $username);
+	my $req = HTTP::Request->new(GET => $userurl);
+
+	$req->header("Accept" => "application/json");
+	$req->header("Content-Type" => "application/json");
+	$req->authorization_basic($crowduser, $crowdpwd);
+
+	my $userresult = $ua->request($req);
+  print STDERR "response for user check was ".$userresult->decoded_content."\n" if ($opts{d});
+	if ($userresult->is_success)
+	{
+		my $rdata = eval { decode_json($userresult->decoded_content) };
+		if (!$@ and $rdata->{active} and $rdata->{name} eq $username)
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
+	}
+	else
+	{
+		print "API Access failed: ".$userresult->code." ".$userresult->message."\n";
+		exit 0;
+	}
+}
+else 
+{
+	# ask for the crowd cookie config
+
+	my $neitherurl = $baseurl->clone;
+	$neitherurl->path("/crowd/rest/usermanagement/1/config/cookie");
+
+	my $req = HTTP::Request->new(GET => $neitherurl);
+
+	$req->header("Accept" => "application/json");
+	$req->header("Content-Type" => "application/json");
+	$req->authorization_basic($crowduser, $crowdpwd);
+
+	my $basicresult = $ua->request($req);
+  print STDERR "response for config check was ".$basicresult->decoded_content."\n" if ($opts{d});
+	if ($basicresult->is_success)
+	{
+		my $rdata = eval { decode_json($basicresult->decoded_content) };
+		if (!$@ and $rdata->{"domain"})
+		{
+			print "API Access successful and content ok.\n";
+			exit 100;
+		}
+		else
+		{
+			print "API Access successful but content invalid!\n";
+			exit 40;
+		}
+	}
+	else
+	{
+		print "API Access failed: ".$basicresult->code." ".$basicresult->message."\n";
+		exit 0;
+	}
+}
+
+print "Invalid arguments!\n";
+exit 0;

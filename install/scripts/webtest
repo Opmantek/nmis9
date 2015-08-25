@@ -30,18 +30,22 @@ $ua->max_redirect($redirs);
 $ua->env_proxy(0);							# no proxying for end-to-end testing
 
 my $exitcode = 0;
+my $statusmsg = "Unknown Failure";
 
 my $res = $ua->get($url);
 if ($res->code =~ $okcode)
 {
 	$exitcode = 100;
+	$statusmsg = "Page OK";
 
 	if ($okbody && $res->decoded_content !~ $okbody)
 	{
 		$exitcode = 50;
+		$statusmsg = "Page downloaded OK but content invalid!";
 	}
 }
 
+print "$statusmsg\n";
 # 100 is ok, 0 is 'service is down'
 exit $exitcode;
 
