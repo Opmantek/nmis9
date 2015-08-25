@@ -7347,8 +7347,13 @@ sub doThreshold {
 													dbg("skipping disabled threshold type $type for index $index");
 													next;
 											}
-											#
-											runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+											# verify that there is at least valid interface record
+											if ( defined $NI->{$type} 
+												and defined $NI->{$type}{$index}
+												and defined $NI->{$type}{$index}{ifIndex}
+											) {
+												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+											}
 										}
 									} else {
 										runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname); # single
