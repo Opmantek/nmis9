@@ -2196,7 +2196,10 @@ sub viewStorage {
 		my $graphtype = $D->{hrStorageGraph};
 		my $index = $D->{hrStorageIndex};
 		
-		my $util = sprintf("%.1f%", ( $D->{hrStorageUnits} * $D->{hrStorageUsed} ) / ( $D->{hrStorageUnits} * $D->{hrStorageSize} ) * 100);
+		my $total = $D->{hrStorageUnits} * $D->{hrStorageSize};
+		my $used = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+		
+		my $util = sprintf("%.1f%", $used / $total * 100);
 		
 		print start_Tr;
 		print Tr(td({class=>'header'},'Type'),td({class=>'info header',width=>'40%'},$D->{hrStorageType}),
@@ -2204,8 +2207,9 @@ sub viewStorage {
 		print Tr(td({class=>'header'},'Units'),td({class=>'info Plain'},$D->{hrStorageUnits}),
 		td({class=>'image',rowspan=>'5'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Size'),td({class=>'info Plain'},$D->{hrStorageSize}));
-		print Tr(td({class=>'header'},'Total'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageSize})));
-		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getBits($D->{hrStorageUnits} * $D->{hrStorageUsed}),"($util)"));
+		# disks use crazy multiples to display MB, GB, etc.
+		print Tr(td({class=>'header'},'Total'),td({class=>'info Plain'},getDiskBytes($total)));
+		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getDiskBytes($used),"($util)"));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hrStorageDescr}));
 		print end_Tr;
 	}
