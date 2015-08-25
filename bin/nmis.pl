@@ -1023,7 +1023,7 @@ sub runPing {
 				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") ) {
 					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
 					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
-        }
+				}
 
 				$RI->{pingavg} = $ping_avg; # results for sub runReach
 				$RI->{pingresult} = 100;
