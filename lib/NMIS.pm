@@ -1,6 +1,4 @@
 #
-## $Id: NMIS.pm,v 8.43 2012/10/02 05:45:49 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -3330,7 +3328,13 @@ sub eventAdd
 	return "Cannot create event with missing parameters, node=$node, event=$event, element=$element!"
 			if (!$efn);
 
-	my $existing = eventLoad(filename => $efn) if (-f $efn);
+	# workaround for perl bug(?); the next if's misfire if
+	# we do "my $existing = eventLoad() if (-f $efn);"...
+	my $existing = undef;
+	if (-f $efn) 
+	{
+	    $existing = eventLoad(filename => $efn);
+	}
 
 	# is this an already EXISTING stateless event?
 	# they will reset after the dampening time, default dampen of 15 minutes.	
