@@ -3334,7 +3334,7 @@ sub eventAdd
 
 	# is this an already EXISTING stateless event?
 	# they will reset after the dampening time, default dampen of 15 minutes.	
-	if ( $existing and getbool($existing->{stateless}) ) 
+	if ( ref($existing) eq "HASH" && getbool($existing->{stateless}) ) 
 	{
 		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
 		
@@ -3354,10 +3354,11 @@ sub eventAdd
 		}
 	}
 	# before we log, check the state if there is an event and if it's current
-	elsif ( $existing and getbool($existing->{current}) ) 
+	elsif ( ref($existing) eq "HASH" && getbool($existing->{current}) ) 
 	{
-		dbg("event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
-		##	logMsg("INFO event exist, node=$node, event=$event, level=$level, element=$element, details=$details");
+	    dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
+	    logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
+	    return "cannot add event: already exists, is current and not stateless!";
 	}
 	# doesn't exist or isn't current
 	# fixme: existing  but not current isn't cleanly handled here
