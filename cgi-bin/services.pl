@@ -183,7 +183,6 @@ sub display_details
 								"Last Status")),
 	$q->td({ -class=>"info $statuscolor" }, $nicestatus ), "</tr>";
 
-
 	print "<tr>", 
 	$q->td({ -class=>"info Plain" }, "Last Status Text"),
 	$q->td({ -class=>"info Plain" }, 
@@ -217,35 +216,74 @@ sub display_details
 						 "Last Memory Utilisation" ), $thisservice->{memory}." KBytes" ];
 	}
 
-	
 	# any extra custom readings? for nagios we can have units; if present they're under units
+	my @customgraphs;
 	if (ref($thisservice->{extra}) eq "HASH")
 	{
+		# custom graphs: if there are any that are called service-custom-<safeservice>-<reading>,
+		# then we link the reading title itself
+		@customgraphs = ref($thisservice->{customgraphs}) eq "ARRAY"? 
+				@{$thisservice->{customgraphs}}: ();
+
 		for my $extrareading (sort keys %{$thisservice->{extra}})
 		{
+			my $label = "Last \"".escape($extrareading)."\"";
 			my $value = escape($thisservice->{extra}->{$extrareading});
 			my $unit = $thisservice->{units}->{$extrareading} if (ref($thisservice->{units}) eq "HASH" 
 																														&&  $thisservice->{units}->{$extrareading});
 			$value .= " $unit" if ($unit and $unit ne "c"); # "counter"
 
-			push @extras, [ $extrareading, $value ];
+
+			# note: naming schema is known here, in node.pl and nmis.pl
+			my $safeservice = lc($wantservice); $safeservice =~ s/[^a-z0-9\._]//g;
+			my $safereading = lc($extrareading); $safereading =~ s/[^a-z0-9\._-]//g;
+			my $thisgraphname = "service-custom-$safeservice-$safereading";
+			
+			if (grep($_ eq $thisgraphname, @customgraphs))
+			{
+				my $customlink = $graphlinkbase."&graphtype=$thisgraphname";
+				$label = $q->a( { target => "Graph-$wantnode",
+																 class=>"islink",
+																 onclick => "viewwndw(\'$wantnode\',\'$customlink\',$C->{win_width},$C->{win_height} * 1.5)" }, $label );
+			}
+
+			push @extras, [ $label, $value ];
 		}
 	}
+
 	if (@extras)
 	{
+		
 		for my $row (@extras)
 		{
 			my ($label,$value) = @$row;
 			$value = "N/A" if (!defined $value);
+
 			
 			print "<tr>", 
 			$q->td({ -class=>"info Plain" }, $label),
 			$q->td({ -class=>"info Plain" }, $value), "</tr>";
 		}
 	}
-	
-	# fixme: how to show links to custom graphs?
 
+	# now add a section for all custom graphs
+	if (@customgraphs)
+	{
+		print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Custom Graphs"), "</tr>",
+		"<tr><td colspan = ' 2' class='info Plain'>";
+		for my $graphname (sort @customgraphs)
+		{
+			my $customlink = $graphlinkbase."&graphtype=$graphname";
+			my $label = $graphname;
+			$label =~ s/^service-custom-[a-z0-9\._]+-//;
+
+			print $q->a( { target => "Graph-$wantnode",
+										 class=>"islink",
+										 onclick => "viewwndw(\'$wantnode\',\'$customlink\',$C->{win_width},$C->{win_height} * 1.5)" }, $label ), " &nbsp; ";
+		}
+		print "</td></tr>";
+	}
+	
 	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status History"), "</tr>",
 	"<tr>", $q->td({colspan => 2}, 
 											 htmlGraph( graphtype => "service",

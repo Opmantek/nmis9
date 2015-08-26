@@ -148,7 +148,17 @@ sub typeGraph {
 		'a3traffic'		=> 'Traffic' ,
 		'a3errors'		=> 'Errors'	);
 
-	my $heading = $S->graphHeading(graphtype=>$graphtype,index=>$index,item=>$group);
+	# graphtypes for custom service graphs are fixed and not found in the model system
+	# note: format known here, in services.pl and nmis.pl
+	my $heading;
+	if ($graphtype =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
+	{
+		$heading = $2;
+	}
+	else
+	{
+		$S->graphHeading(graphtype=>$graphtype, index=>$index, item=>$group);
+	}
 
 	print header($headeropts);
 	my $opcharts_scripts = "";
