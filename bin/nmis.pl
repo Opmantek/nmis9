@@ -4580,7 +4580,7 @@ sub runServices {
 			$safeservice =~ s/[^a-z0-9\._]//g;
 			
 			opendir(D, $C->{'<nmis_models>'}) or die "cannot open models dir: $!\n";
-			my @cands = grep(/^Graph-service-custom-[a-z0-9\._]+-[a-z0-9\._-]+\.nmis$/, readdir(D));
+			my @cands = grep(/^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D));
 			closedir(D);
 
 			map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
