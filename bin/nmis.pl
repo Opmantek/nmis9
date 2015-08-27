@@ -4554,13 +4554,18 @@ sub runServices {
 						 details=> ($status{$service}->{status_text}||"") );
 		}
 
+		# figure out which graphs to offer
+		# every service has these; cpu+mem optional, and totally custom extra are possible, too.
+		my @servicegraphs = (qw(service service-response)); 
+		
 		# save result for availability history - one rrd file per service per node
 		$Val{service}{value} = $serviceValue;
 		$cpu = -$cpu 	if ( $cpu < 0 );
 		$Val{responsetime}{value} = $responsetime; # might be a NOP
 		$Val{responsetime}{option} = "GAUGE,0:U";
 
-		if ($gotMemCpu) {
+		if ($gotMemCpu) 
+		{
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
 			$Val{memory}{value} = $memory;
@@ -4568,15 +4573,35 @@ sub runServices {
 
 			# cpu is a counter, need to get the delta(counters)/period from rrd
 			$status{$service}->{memory} = $memory;
+
+			# fixme: should we omit the responsetime graph for snmp-based services??
+			# it doesn't say too much about the service itself...
+			push @servicegraphs, (qw(service-mem service-cpu)); 
 		}
 
-		if (( my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) 
+		if ((my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) 
 		{
-			$NI->{graphtype}{$service}{service} = 'service,service-response';
+			# check what custom graphs exist for this service
+			# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
+			# and servicename gets lowercased and reduced to [a-z0-9\._]
+			# note: this schema is known here, and in cgi-bin/services.pl
+			my $safeservice = lc($service);
+			$safeservice =~ s/[^a-z0-9\._]//g;
+			
+			opendir(D, $C->{'<nmis_models>'}) or die "cannot open models dir: $!\n";
+			my @cands = grep(/^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D));
+			closedir(D);
+
+			map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
+			dbg("found custom graphs for service $service: ".join(" ",  @cands)) if (@cands);
+
+			$status{$service}->{customgraphs} = \@cands;
+			push @servicegraphs, @cands;
+					
+			# and now set up the resulting graph list
+			$NI->{graphtype}{$service}{service} = join(",", @servicegraphs);
 			if ($gotMemCpu) 
 			{
-				$NI->{graphtype}{$service}{service} = 'service,service-response,service-mem,service-cpu';
-
 				# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
 				# rrd stores delta * (interval last update - aggregation time) as .value
 				# http://serverfault.com/questions/476925/rrd-pdp-status-value
