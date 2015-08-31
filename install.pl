@@ -692,18 +692,6 @@ to ensure NMIS performs correctly.");
 
 
 ###************************************************************************###
-if ( -f $fping ) {
-	printBanner("Restart the fping daemon...");
-	execPrint("$site/bin/fpingd.pl restart=true");
-}
-
-if ( -x "$site/bin/opslad.pl" ) {
-	printBanner("Restarting the opSLA Daemon...");
-	execPrint("$site/bin/opslad.pl"); # starts a new one and kills any existing ones
-}
-
-	
-###************************************************************************###
 printBanner("Cache some fonts...");
 execPrint("fc-cache -f -v");
 
@@ -779,6 +767,18 @@ no RRD migration required.");
 
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
+
+# daemon restarting should only be done after nmis is unlocked
+if ( -f $fping ) {
+	printBanner("Restart the fping daemon...");
+	execPrint("$site/bin/fpingd.pl restart=true");
+}
+
+if ( -x "$site/bin/opslad.pl" ) {
+	printBanner("Restarting the opSLA Daemon...");
+	execPrint("$site/bin/opslad.pl"); # starts a new one and kills any existing ones
+}
+
 
 ###************************************************************************###
 printBanner("Checking configuration and fixing file permissions (takes a few minutes) ...");
