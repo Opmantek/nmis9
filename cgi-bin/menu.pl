@@ -359,10 +359,19 @@ sub menu_bar_site {
 		#push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
-		push @systemitems, qq|Configuration Check|,
-		[	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
-			qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>| ]
-					if ($AU->CheckAccess("tls_event_flow","check"));
+
+		if ($AU->CheckAccess("tls_event_flow","check")
+				or $AU->CheckAccess("Table_Nodes_view","check"))
+		{
+			my @submenu;
+			
+			push @submenu, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>| if ($AU->CheckAccess("Table_Nodes_view","check"));
+			
+			push @submenu, 	qq|<a id='tls_event_flow' href="view-event.pl?conf=$Q->{conf}&amp;act=event_flow_view">Check Event Flow</a>|,
+			qq|<a id='tls_event_db' href="view-event.pl?conf=$Q->{conf}&amp;act=event_database_list">Check Event DB</a>| if ($AU->CheckAccess("tls_event_flow","check"));
+
+			push @systemitems, qq|Configuration Check|, \@submenu;
+		}
 
 		my @hostdiags;
 		if ($AU->CheckAccess("tls_nmis_runtime", "check"))
@@ -373,9 +382,6 @@ sub menu_bar_site {
 		};
 		push @hostdiags, qq|<a id='tls_host_info' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_hostinfo">NMIS Host Info</a>|;
 
-		push @hostdiags, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>|
-				if ($AU->CheckAccess("Table_Nodes_view","check"));		
-
 		for my $cmd (qw(date df ps iostat vmstat who))
 		{
 				push @hostdiags, qq|<a id='tls_$cmd' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_$cmd">$cmd</a>|
@@ -383,15 +389,11 @@ sub menu_bar_site {
 		}		
 		push @systemitems, qq|Host Diagnostics|, \@hostdiags if (@hostdiags);
 
-		my @setupitems;
-
 		push @setupitems, qq|<a id='cfg_setup' href="setup.pl?conf=$Q->{conf}&amp;act=setup_menu">Basic Setup</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
 		# no separator if there's nothing to separate...
 		push @setupitems, qq|           | if (@setupitems);
-		push @setupitems, qq|<a id='cfg_setup' href="network.pl?conf=$Q->{conf}&amp;act=node_admin_summary">Node Admin Summary</a>|
-				if ($AU->CheckAccess("Table_Nodes_view","check"));		
 
 		push @setupitems, qq|--- Advanced Setup ---| if (@setupitems); # no separator if there's nothing to separate...
 		

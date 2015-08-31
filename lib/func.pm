@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.3.0";
+our $VERSION = "1.4.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -99,6 +99,7 @@ use Exporter;
 		loadTable
 		writeTable
 		setFileProt
+    setFileProtDiag
 		setFileProtDirectory
     setFileProtParents
 		existFile
@@ -717,124 +718,120 @@ sub alpha {
 	return lc($f) cmp lc($s);
 }
 
+# sets file ownership and permissions, with diagnostic return values
+# note: DO NOT USE setFileProt() from logMsg - use this one!
 #
+# args: file (required), username, permission
+# if run as root, then ownership is changed to username and primary group
+# if NOT root, then just the file group ownership is changed, to config nmis_group (if possible).
+#
+# returns undef if successful, error message otherwise
+sub setFileProtDiag
+{
+	my (%args) = @_;
+	my $C = loadConfTable();
+	
+	my $filename = $args{file};
+	my $username = $args{username} || $C->{'os_username'} || "nmis";
+	my $permission = $args{permission};
+
+	return "file=$filename does not exist"
+			if ( not -r $filename and ! -d $filename );
+	
+	my $currentstatus = stat($filename);
+
+	if (!$permission)
+	{
+		# dirs
+		if (S_ISDIR($currentstatus->mode))
+		{
+			$permission = $C->{'os_execperm'} || "0770";
+		}
+		# files
+		elsif ($filename =~ /$C->{'nmis_executable'}/ 
+					 && $C->{'os_execperm'} )
+		{
+			$permission = $C->{'os_execperm'};
+		}
+		elsif ($C->{'os_fileperm'})
+		{
+			$permission = $C->{'os_fileperm'};
+		}
+		else
+		{
+			$permission = "0660";
+		}
+	}
+
+	my ($login,$pass,$uid,$gid) = getpwnam($username);
+	return "cannot change file owner to unknown user \"$username\"!"
+			if (!$login);
+	my $onlygroup = getgrnam($C->{'nmis_group'}); # for the non-root case
+
+	# we can change file ownership iff running as root
+	my $myuid = $<;
+	if ( $myuid == 0) 
+	{
+		# ownership ok or in need of changing?
+		if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
+		{
+			dbg("setting owner of $filename to $username",3);
+
+			return("Could not change ownership of $filename to $username, $!")
+					if (!chown($uid,$gid,$filename));
+		}
+	}
+	elsif ($currentstatus->uid == $myuid )
+	{
+		# only root can change files that are owned by others, 
+		# but you don't need to be root to set the group and perms IF you're the owner 
+		# and if the target group is one you're a member of
+		# in this case username is IGNORED and we aim for config nmis_group
+	
+		if (defined($onlygroup) && $currentstatus->gid != $onlygroup)
+		{
+			dbg("setting group owner of $filename to $C->{nmis_group}",3);
+			return ("could not set the group of $filename to $C->{'nmis_group'}: $!")
+					if (!chown($myuid, $gid, $filename));
+		}
+	}
+	else
+	{
+		# we complain about this situation only if a change would be required
+		return "Cannot change ownership/permissions of $filename: neither root nor file owner!"
+				if (!defined($onlygroup) or $currentstatus->gid != $onlygroup);
+	}
+
+	# perms need changing?
+	if (($currentstatus->mode & 07777) != oct($permission))
+	{
+		dbg("setting permissions of $filename to $permission",3);
+		return "could not change $filename permissions to $permission, $!"
+				if (!chmod(oct($permission), $filename));
+	}
+
+	return undef;
+}
+
+	
+
+# this is the backwards-compatible version of setfileprotdiag,
+# which doesn't return anything AND uses logmsg.
+
 # set file owner and permission, default nmis and 0775.
 # change the default by conf/nmis.conf parameters "username" and "fileperm".
-#
 sub setFileProt {
 	my $filename = shift;
 	my $username = shift;
 	my $permission = shift;
-	my $login;
-	my $pass;
-	my $uid;
-	my $gid;
-	my $C = loadConfTable();
 
-	if ( not -r $filename and ! -d $filename ) {	# adapted for directory: Till Dierkesmann
-		logMsg("ERROR, file=$filename does not exist");
-		return ;
+	my $errmsg = setFileProtDiag(file => $filename, username => $username,
+															 permission => $permission);
+	if ($errmsg)
+	{
+		logMsg("ERROR, $errmsg");
 	}
-
-	my $currentstatus = stat($filename);
-	
-	# set the permissions. Skip if not running as root
-	if ( $< == 0) { # root
-		if ($username eq '') {
-			if ( $C->{'os_username'} ne "" ) {
-				$username = $C->{'os_username'} ;
-			} 
-			else {
-				$username = "nmis"; # default
-			}
-		}
-		if ($permission eq '') {
-			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
-				$permission = $C->{'os_execperm'} ;
-			}
-			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
-				$permission = $C->{'os_execperm'} ;
-			}
-			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
-				$permission = $C->{'os_fileperm'} ;
-			}
-			elsif ( -d $filename ) {	# Directory permission added by Till Dierkesmann
-				$permission = "0770"; # Default for dirs
-			}
-			else {
-				$permission = "0660"; # default
-			}
-		}
-		
-		if (!(($login,$pass,$uid,$gid) = getpwnam($username))) {
-			logMsg("ERROR, unknown username $username");
-		} else {
-			# ownership ok or in need of changing?
-			if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
-			{
-				dbg("setting owner of $filename to $username",3);
-				if (!chown($uid,$gid,$filename)) {
-					logMsg("ERROR, could not change ownership $filename to $username, $!");
-				}
-			}
-			# perms need changing?
-			if (($currentstatus->mode & 07777) != oct($permission))
-			{
-				dbg("setting permissions of $filename to $permission",3);
-				if (!chmod(oct($permission), $filename)) 
-				{
-					logMsg("ERROR, could not change $filename permissions to $permission, $!");
-				}
-			}
-		}
-	}
-	else {
-		# Get the current UID and GID of the file.
-		my $myuid = $<;
-				
-		# only root can change files that are owned by others, 
-		# you don't need to be root to set the group and perms IF you're the owner 
-		# and if the target group is one you're a member of
-		if ( $currentstatus->uid == $myuid ) {
-			my $gid = getgrnam($C->{'nmis_group'});
-	
-			if ($currentstatus->gid != $gid)
-			{
-				dbg("setting group owner of $filename to $C->{nmis_group}",3);
-				my $cnt = chown($myuid, $gid, $filename);
-				if (not $cnt) {
-					logMsg("ERROR, could not set the group of $filename to $C->{'nmis_group'}: $!");
-				}
-			}
-			
-			if ( -d $filename and $C->{'os_execperm'} ne "" ) {
-				$permission = $C->{'os_execperm'} ;
-			}
-			elsif ( -f $filename and $filename =~ /$C->{'nmis_executable'}/ and $C->{'os_execperm'} ne "" ) {
-				$permission = $C->{'os_execperm'} ;
-			}
-			elsif ( -f $filename and $C->{'os_fileperm'} ne "" ) {
-				$permission = $C->{'os_fileperm'} ;
-			}
-			elsif ( -d $filename ) {	# Directory permission added by Till Dierkesmann
-				$permission = "0770"; # Default for dirs
-			}
-			else {
-				$permission = "0660"; # default
-			}
-			
-			if (($currentstatus->mode & 07777) != oct($permission))
-			{
-				dbg("setting permissions of $filename to $permission",3);
-				if (!chmod(oct($permission), $filename)) {
-					logMsg("ERROR, could not change $filename permissions to $permission: $!");
-				}
-			}
-		}
-		else {
-			dbg("INFO: $filename can not change unless root or you own it.",4);
-		}
-	}
+	return;
 }
 
 # fix up the file permissions for given directory,
@@ -1349,16 +1346,42 @@ sub logMsg
 	$string .= "<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
-	open($handle,">>$nmis_log") 
-			or warn returnTime." logMsg, Couldn't open log file $nmis_log. $!\n";
-	if (!$do_not_lock)
+	# we MUST NOT use setfileprot because it may call logmsg...
+	# instead we use setfileprotdiag, and warn to stderr if need be
+	my $status_is_ok = 1;
+
+	if (!open($handle,">>$nmis_log"))
 	{
-		flock($handle, LOCK_EX)  or warn "logMsg, can't lock filename: $!";
+		$status_is_ok = 0;
+		warn returnTime." logMsg, Couldn't open log file $nmis_log. $!\n";
 	}
-	print $handle returnDateStamp().",$string\n" 
-			or warn returnTime." logMsg, can't write file $nmis_log. $!\n";
-	close $handle or warn "logMsg, can't close filename: $!";
-	setFileProt($nmis_log);
+	else
+	{
+		if (!$do_not_lock)
+		{
+			if (!flock($handle, LOCK_EX))
+			{
+				$status_is_ok = 0;
+				warn "logMsg, can't lock filename: $!";
+			}
+		}
+		
+		if (!print $handle returnDateStamp().",$string\n")
+		{
+			$status_is_ok = 0;
+			warn returnTime." logMsg, can't write file $nmis_log. $!\n";
+		}
+		if (!close $handle)
+		{
+			$status_is_ok = 0;
+			warn "logMsg, can't close filename: $!";
+		}
+		if ($status_is_ok)
+		{
+			my $errmsg = setFileProtDiag(file => $nmis_log);
+			warn "logMsg, cannot set permissions: $errmsg\n" if ($errmsg);
+		}
+	}
 }
 
 my %loglevels = ( "EMERG"=>0,"ALERT"=>1,"CRITICAL"=>2,"ERROR"=>3,"WARNING"=>4,"NOTICE"=>5,"INFO"=>6,"DEBUG"=>7);
@@ -1558,11 +1581,11 @@ sub logDebug {
 	my $handle;
 	
 	if ( -f $file and not -w $file ) {
-		logMsg "ERROR, logDebug can not write file $file\n";
+		logMsg("ERROR, logDebug can not write file $file\n");
 		$fileOK = 0;
 	}
 	elsif ( -d $file ) {
-		logMsg "ERROR, logDebug $file is a directory\n";
+		logMsg("ERROR, logDebug $file is a directory\n");
 		$fileOK = 0;
 	}
 

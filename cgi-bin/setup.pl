@@ -50,6 +50,7 @@ my $Q = $q->Vars; # param values in hash
 my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
 
+# this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 

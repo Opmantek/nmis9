@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.4.3";
+our $VERSION = "1.4.4";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -251,9 +251,10 @@ sub collect_evidence
 		my ($targetdir,$args) = @_;
 
 		my $basedir = $globalconf->{'<nmis_base>'};
-		# these two are relevant and commonly outside of basedir, occasionally without symlink...
+		# these three are relevant and often outside of basedir, occasionally without symlink...
 		my $vardir = $globalconf->{'<nmis_var>'};
-		my $dbdir = $globalconf->{'database_root'};
+		my $dbdir = $globalconf->{'database_root'};		
+		my $logdir = $globalconf->{'<nmis_logs>'};
 
 		my $thisnode = $args{node};
 
@@ -284,6 +285,7 @@ sub collect_evidence
 		my $dirstocheck=$basedir;
 		$dirstocheck .= " $vardir" if ($vardir !~ /^$basedir/);
 		$dirstocheck .= " $dbdir" if ($dbdir !~ /^$basedir/);
+		$dirstocheck .= " $logdir" if ($logdir !~ /^$basedir/);
 
 		mkdir("$targetdir/system_status");
 		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
@@ -371,7 +373,7 @@ sub collect_evidence
 		my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
 		if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
 		{
-			@logfiles = map { "$globalconf->{'<nmis_base>'}/logs/$_" } 
+			@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" } 
 			(qw(nmis.log auth.log fpingd.log event.log slave_event.log trap.log"));
 		}
 		for my $aperrlog ("/var/log/httpd/error_log", "/var/log/apache/error.log", "/var/log/apache2/error.log")

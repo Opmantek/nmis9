@@ -80,6 +80,7 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 my $formid = $Q->{table} ? "nmis$Q->{table}" : "nmisTable";
 
+# this cgi script defaults to widget mode ON
 my $widget = getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
 
