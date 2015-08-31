@@ -766,6 +766,7 @@ sub setFileProtDiag
 	my ($login,$pass,$uid,$gid) = getpwnam($username);
 	return "cannot change file owner to unknown user \"$username\"!"
 			if (!$login);
+	my $onlygroup = getgrnam($C->{'nmis_group'}); # for the non-root case
 
 	# we can change file ownership iff running as root
 	my $myuid = $<;
@@ -786,10 +787,8 @@ sub setFileProtDiag
 		# but you don't need to be root to set the group and perms IF you're the owner 
 		# and if the target group is one you're a member of
 		# in this case username is IGNORED and we aim for config nmis_group
-
-		my $gid = getgrnam($C->{'nmis_group'});
-		
-		if (defined($gid) && $currentstatus->gid != $gid)
+	
+		if (defined($onlygroup) && $currentstatus->gid != $onlygroup)
 		{
 			dbg("setting group owner of $filename to $C->{nmis_group}",3);
 			return ("could not set the group of $filename to $C->{'nmis_group'}: $!")
@@ -800,7 +799,7 @@ sub setFileProtDiag
 	{
 		# we complain about this situation only if a change would be required
 		return "Cannot change ownership/permissions of $filename: neither root nor file owner!"
-				if ($currentstatus->uid != $uid or $currentstatus->gid != $gid);
+				if (!defined($onlygroup) or $currentstatus->gid != $onlygroup);
 	}
 
 	# perms need changing?
