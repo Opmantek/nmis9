@@ -56,6 +56,7 @@ $Q = $q->Vars; # values in hash
 # load NMIS configuration table
 $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
+# this cgi script defaults to widget mode ON
 my $widget = getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
 

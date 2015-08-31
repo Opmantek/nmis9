@@ -55,6 +55,7 @@ $Q = $q->Vars; # values in hash
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
+# this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}? 
 		!getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";

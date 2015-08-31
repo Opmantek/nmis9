@@ -46,7 +46,8 @@ my $Q = $q->Vars; # param values in hash
 my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
 
-my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
+# widget mode: default false if not told otherwise, and true if jquery-called
+my $wantwidget = exists $Q->{widget}? getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
@@ -62,13 +63,6 @@ if ($AU->Require)
 															password=>$Q->{auth_password},
 															headeropts=>$headeropts);
 }
-
-# this is readonly, and we base ourselves on the services table first, then node group!
-$AU->CheckAccess("table_services_view","header");
-
-# fixme no idea if this is relevant?
-# check for remote request, fixme - this never exits!
-# if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 # actions: display the overview, or display the per-service-and-node details
 if (!$Q->{act} or $Q->{act} eq 'overview')
@@ -225,9 +219,10 @@ sub display_details
 		@customgraphs = ref($thisservice->{customgraphs}) eq "ARRAY"? 
 				@{$thisservice->{customgraphs}}: ();
 
+		push @extras, undef;						# dummy row for printing the section header
 		for my $extrareading (sort keys %{$thisservice->{extra}})
 		{
-			my $label = "Last \"".escape($extrareading)."\"";
+			my $label = "Last ".escape($extrareading);
 			my $value = escape($thisservice->{extra}->{$extrareading});
 			my $unit = $thisservice->{units}->{$extrareading} if (ref($thisservice->{units}) eq "HASH" 
 																														&&  $thisservice->{units}->{$extrareading});
@@ -253,9 +248,15 @@ sub display_details
 
 	if (@extras)
 	{
-		
 		for my $row (@extras)
 		{
+			if (ref($row) ne "ARRAY")
+			{
+				print "<tr>", $q->td({-class=>"header", -colspan => 2}, 
+														 "Custom Measurements"), "</tr>";
+				next;
+			}
+			
 			my ($label,$value) = @$row;
 			$value = "N/A" if (!defined $value);
 
@@ -266,11 +267,10 @@ sub display_details
 		}
 	}
 
-	# now add a section for all custom graphs
+	# now the custom graphs as one row
 	if (@customgraphs)
 	{
-		print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Custom Graphs"), "</tr>",
-		"<tr><td colspan = ' 2' class='info Plain'>";
+		print "<tr><td class='info Plain'>Custom Graphs</td><td class='info Plain'>";
 		for my $graphname (sort @customgraphs)
 		{
 			my $customlink = $graphlinkbase."&graphtype=$graphname";

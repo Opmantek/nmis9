@@ -134,7 +134,7 @@ if ( $#ARGV > 0 ) {
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# default is thus 1=widgetted.
+# this cgi script defaults to widget mode ON
 my $wantwidget = (!getbool($Q->{widget},"invert")); 
 my $widget = $wantwidget ? "true" : "false";
 

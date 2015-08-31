@@ -73,6 +73,7 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
+# this cgi script defaults to widget mode ON
 my $wantwidget = !getbool($Q->{widget},"invert");
 
 print header($headeropts);

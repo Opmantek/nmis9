@@ -79,6 +79,7 @@ $AU->CheckAccess("tls_event_db","header");
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
+# this cgi script defaults to widget mode ON
 my $widget = getbool($Q->{widget},"invert")? 'false' : 'true';
 my $wantwidget = $widget eq 'true';
 #======================================================================
