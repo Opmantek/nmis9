@@ -1,11 +1,19 @@
 %hash = (
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false',
+      'ifNumber' => 'false',
+      'ifLastChange' => 'true',
+      'ifTableLastChange' => 'true',
+    }
+  },
   'interface' => {
     'collect' => {
       'Description' => '(CNOC|Collection)'
     },
     'nocollect' => {
       'Description' => '^#',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi|serial|monkey',
       'ifOperStatus' => 'other|notPresent',
       'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm',
       'noDescription' => 'false'
@@ -71,7 +79,7 @@
         'threshold' => 'util_in,util_out'
       },
       'pkts_hc' => {
-        'graphtype' => 'pkts_hc,errpkts_hc',
+        'graphtype' => 'pkts_hc,errpkts_hc,pkutil',
         'indexed' => 'true',
         'snmp' => {
           'ifHCInBcastPkts' => {
@@ -207,6 +215,10 @@
               '7' => 'lowerLayerDown'
             },
             'title' => 'Oper Status'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',

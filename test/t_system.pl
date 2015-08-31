@@ -41,8 +41,11 @@ use NMIS;
 use Sys;
 use NMIS::Timing;
 use NMIS::Connect;
+use Data::Dumper;
 
 my %nvp;
+
+$nvp{debug} = 9;
 
 my $t = NMIS::Timing->new();
 
@@ -57,6 +60,8 @@ print $t->markTime(). " Create System $node\n";
 my $S = Sys::->new; # create system object
 $S->init(name=>$node,snmp=>'false');
 print "  done in ".$t->deltaTime() ."\n";	
+
+print Dumper $S;
 
 print $t->markTime(). " Load Some Data\n";
 my $NI = $S->{info};
