@@ -763,15 +763,14 @@ sub setFileProtDiag
 		}
 	}
 
+	my ($login,$pass,$uid,$gid) = getpwnam($username);
+	return "cannot change file owner to unknown user \"$username\"!"
+			if (!$login);
+
 	# we can change file ownership iff running as root
 	my $myuid = $<;
 	if ( $myuid == 0) 
 	{
-		my ($login,$pass,$uid,$gid);
-		
-		return "unknown username $username: $!"
-				if (!(($login,$pass,$uid,$gid) = getpwnam($username)));
-
 		# ownership ok or in need of changing?
 		if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
 		{
@@ -799,7 +798,9 @@ sub setFileProtDiag
 	}
 	else
 	{
-		return "Cannot change ownership/permissions of $filename: neither root nor file owner!";
+		# we complain about this situation only if a change would be required
+		return "Cannot change ownership/permissions of $filename: neither root nor file owner!"
+				if ($currentstatus->uid != $uid or $currentstatus->gid != $gid);
 	}
 
 	# perms need changing?
