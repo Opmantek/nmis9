@@ -2376,6 +2376,22 @@ sub createHrButtons {
 					push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	
+    
+    ### an attempt at a jd menu, needs better JS FU than Keith possesses.
+		#if ( defined $S->{mdl}{systemHealth}{sys} ) {
+		#	my @systemHealth;
+		#	foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
+    #
+		#	push @out, "<td class='header litehead'><ul class='jd_menu'><li><a class='accessible'>System Health</a><ul>";
+		#	foreach my $sysHealth (@systemHealth) {	
+		#		if (defined $NI->{$sysHealth} and ref($NI->{$sysHealth}) eq "HASH") {
+		#			push @out, li(
+		#				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth")
+		#			);
+		#		}
+		#	}
+		#	push @out, "</ul></li></ul></td>";
+		#}
 
 		### 2013-03-06 keiths, adding systemHealth support
 		if ( defined $S->{mdl}{systemHealth}{sys} ) {
@@ -2383,7 +2399,7 @@ sub createHrButtons {
 			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
 			
 			foreach my $sysHealth (@systemHealth) {	
-				if ($NI->{$sysHealth} ne '' or $NI->{$sysHealth} ne '') {
+				if (defined $NI->{$sysHealth} and ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}})) {
 					push @out, td({class=>'header litehead'},
 						a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
 				}

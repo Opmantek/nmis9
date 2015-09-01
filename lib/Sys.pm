@@ -468,8 +468,13 @@ sub getData {
 
 	my $result;
 	$self->{info}{graphtype} = {} if not exists $self->{info}{graphtype};
-	$result = $self->getValues(class=>$self->{mdl}{$class}{rrd},section=>$section,index=>$index,port=>$port,table=>$self->{info}{graphtype});
-
+	
+	# only get RRD data for a section if the model defines it.
+	# FYI, this prevents that annoying debug "no oid loaded for section", when we do sys and no rrd.
+	if ( defined $self->{mdl}{$class}{rrd}{$section} ) {
+		$result = $self->getValues(class=>$self->{mdl}{$class}{rrd},section=>$section,index=>$index,port=>$port,table=>$self->{info}{graphtype});
+	}
+	
 	### 2012-12-03 keiths, adding some model testing and debugging options.
 	if ( $dmodel and $result->{error} eq "") {
 		print "MODEL getData $self->{name} class=$class:\n";
@@ -736,8 +741,8 @@ sub getValues {
 	}
 	else {
 		my @sect = keys %{$class};
-		dbg("no oid loaded for section=@sect");
-		$result->{error} = "no oid loaded for section=@sect";
+		dbg("no oid loaded for section=$section all=@sect");
+		$result->{error} = "no oid loaded for section=$section all=@sect";
 	}
 	return $result;
 }

@@ -45,7 +45,7 @@ use Data::Dumper;
 
 my %nvp;
 
-$nvp{debug} = 9;
+$nvp{debug} = 1;
 
 my $t = NMIS::Timing->new();
 
@@ -54,17 +54,39 @@ print $t->elapTime(). " Begin\n";
 print $t->elapTime(). " loadConfTable\n";
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 
-my $node = "wanedge1";
+my $node = "meatball";
 
 print $t->markTime(). " Create System $node\n";
 my $S = Sys::->new; # create system object
 $S->init(name=>$node,snmp=>'false');
 print "  done in ".$t->deltaTime() ."\n";	
 
-print Dumper $S;
+#print Dumper $S;
 
 print $t->markTime(). " Load Some Data\n";
 my $NI = $S->{info};
+
+foreach my $class (sort keys %{$S->{mdl}}) {
+	print "Model Class: $class\n";
+	if ( 1 or $class !~ /heading|database|stats/ ) {
+		foreach my $function (sort keys %{$S->{mdl}{$class}}) {
+			print "  Function: $function\n";
+			if ( ref($S->{mdl}{$class}{$function}) eq "HASH" ) {
+				foreach my $section (sort keys %{$S->{mdl}{$class}{$function}}) {
+					if ( $function eq "rrd" ) {
+						print "    Thing: {$class}{$function}{$section}\n";
+					}
+					else {
+						print "    Section: $section\n";
+					}
+				}
+			}
+		}
+	}
+	else {
+		print "  skipping\n";
+	}
+}
 
 foreach my $inf (sort keys %{$NI}) {
 	print "NI $inf=$NI->{inf}\n";	
