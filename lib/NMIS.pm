@@ -91,7 +91,9 @@ $VERSION = "8.5.10c";
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
-		loadNodeConfTable
+
+		loadNodeConfTable has_nodeconf get_nodeconf update_nodeconf
+
 		loadOutageTable
 		loadInterfaceTypes
 		loadCfgTable
@@ -193,9 +195,6 @@ sub loadLinkDetails {
 	return \%linkTable;
 } #sub loadLinkDetails
 
-sub loadNodeConfTable {
-	return loadTable(dir=>'conf',name=>'nodeConf');
-}
 
 # load local node table and store also in cache
 sub loadLocalNodeTable {
@@ -1033,7 +1032,7 @@ sub getSummaryStats{
 			}
 		}
 	} else {
-		logMsg("ERROR ($S->{name}) database=$db does not exists or is protected for read");
+		logMsg("ERROR ($S->{name}) database=$db does not exist or is protected for read");
 	}
 	return;
 }
@@ -3778,6 +3777,182 @@ sub upgrade_events_structure
 	return undef;
 }
 
+
+# this reads an old-style nodeconf table file if present,
+# and splits stuff into per-node json files under conf/overrides/
+# when done it renames the nmis-events file.
+# returns undef if everything is done, error message otherwise
+sub upgrade_nodeconf_structure
+{
+	my $C = loadConfTable();			# likely cached
+	my $LNT = loadLocalNodeTable;
+
+	# anything left to do?
+	my $oldncf = func::getFileName(file => $C->{'<nmis_conf>'}."/nodeConf");
+	return undef if (!-f $oldncf);
+
+	# load and lock the old file
+	my ($old, $fh) = loadTable( dir=>'conf', name=>'nodeConf', lock=>'true');
+
+	for my $nodekey (keys %$old)
+	{
+		# skip data for nonexistent nodes
+		next if (!$LNT->{$nodekey});
+
+		# nodeconf data must include the original nodename, as the filename won't necessarily.
+		$old->{$nodekey}->{name} = $nodekey;
+
+		if (my $errormsg = update_nodeconf(node => $nodekey, 
+																			 data => $old->{$nodekey}))
+		{
+			close $fh;
+			return "Error: failed to update nodeconf for $nodekey: $errormsg";
+		}
+	}
+	# move the old nodeconf file away
+	if (!rename($oldncf, "$oldncf.disabled"))
+	{
+		my $problem = $!;
+		close $fh;
+		return "cannot rename $oldncf: $problem";
+	}
+	close $fh;
+	logMsg("INFO NMIS has successfully converted the nodeConf data structure, and the old nodeConf file was renamed to \"$oldncf.disabled\".");
+
+	return undef;
+}
+
+# saves a given nodeconf data structure in the per-node nodeconf file
+# args: node, data (required)
+# data can be undef; in this case the nodeconf for this node is removed.
+#
+# returns: undef if ok, error message otherwise
+sub update_nodeconf
+{
+	my (%args) = @_;
+	my $nodename = $args{node};
+	my $data = $args{data};
+
+	my $C = loadConfTable();			# likely cached
+
+	return "Cannot save nodeconf without nodename argument!" 
+			if (!$nodename);					# note: we don't check (yet) if the node is known
+
+	return "Cannot save nodeconf for $nodename, data is missing!"
+			if (!exists($args{data}));				# present but explicitely undef is ok
+
+	my $safenodename = lc($nodename);
+	$safenodename =~ s/[^a-z0-9_-]/_/g;
+	my $ncdirname = $C->{'<nmis_conf>'}."/nodeconf";
+	if (!-d $ncdirname)
+	{
+		func::createDir($ncdirname);
+		my $errmsg = func::setFileProtDiag(file => $ncdirname);
+		return $errmsg if ($errmsg);
+	}
+		
+	my $ncfn = "$ncdirname/$safenodename.json";
+
+	# the deletion case
+	if (!defined($data))
+	{
+		return "Could not remove nodeconf for $nodename: $!"
+				if (!unlink($ncfn));
+	}
+	# we overwrite whatever may have been there
+	else
+	{
+		# ensure that the nodeconf data includes the nodename, as the filename might not!
+		$data->{name} ||= $nodename;
+
+		# unfortunately this doesn't return errors
+		writeHashtoFile(file => $ncfn, data => $data, json => 1);
+	}
+	return undef;
+}
+
+# small helper that checks if a nodeconf record
+# exists for the given node.
+#
+# args: node (required)
+# returns: filename if it exists, 0 if not, undef if the args are dud
+sub has_nodeconf
+{
+	my (%args) = @_;
+	my $nodename = $args{node};
+	return undef if (!$nodename);
+
+	$nodename = lc($nodename);
+	$nodename =~ s/[^a-z0-9_-]/_/g;
+
+	my $C = loadConfTable();			# likely cached	
+	my $ncfn = $C->{'<nmis_conf>'}."/nodeconf/$nodename.json";
+	return (-f $ncfn? $ncfn : 0);
+}
+
+# returns the nodeconf record for one or all nodes
+# args: node (optional)
+# returns: (undef, hashref) or (errmsg, undef)
+# if asked for a single node, then hashref is JUST the node's settings
+# if asked for all nodes, then hashref is nodename => per-node-settings
+sub get_nodeconf
+{
+	my (%args) = @_;
+	my $nodename = $args{node};
+
+	if (exists($args{node}))
+	{
+		return "Cannot get nodeconf for unnamed node!" if (!$nodename);
+		
+		my $ncfn = has_nodeconf(node => $nodename);
+		return "No nodeconf exists for node $nodename!" if (!$ncfn);
+
+		my $data = readFiletoHash(file => $ncfn, json => 1);
+		return "Failed to read nodeconf for $nodename!"
+				if (ref($data) ne "HASH");
+
+		return (undef, $data );
+	}
+	else
+	{
+		# walk the dir
+		my $C = loadConfTable();			# likely cached
+		my $ncdir = $C->{'<nmis_conf>'}."/nodeconf";
+		opendir(D, $ncdir)
+				or return "Cannot open nodeconf dir: $!";
+		my @cands = grep(/^[a-z0-9_-]+\.json$/, readdir(D));
+		closedir(D);
+
+		my %allofthem;
+		
+		for my $maybe (@cands)
+		{
+			my $data = readFiletoHash(file => "$ncdir/$maybe", json => 1);
+			if (ref($data) ne "HASH" or !keys %$data or !$data->{name})
+			{
+				logMsg("ERROR nodeconf $ncdir/$maybe had invalid data! Skipping.");
+				next;
+			}
+
+			# structure is real_nodename => data for this node
+			$allofthem{$data->{name}} = $data;
+		}
+		return (undef, \%allofthem);
+	}
+}
+
+
+# this is now a backwards-compatibilty wrapper around get_nodeconf()
+sub loadNodeConfTable 
+{
+	my ($error, $data) = get_nodeconf;
+	if ($error)
+	{
+		logMsg("ERROR get_nodeconf failed: $error");
+		return {};
+	}
+	return $data;
+}
 
 
 1;

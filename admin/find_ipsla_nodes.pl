@@ -81,7 +81,6 @@ sub processNode {
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		$S->readNodeView; # from doUpdate  
 		my $NI = $S->ndinfo;
-		my $NCT = loadNodeConfTable();
 		my $NC = $S->ndcfg;
 		my $V = $S->view;
 

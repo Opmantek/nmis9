@@ -22,12 +22,17 @@ sub update_plugin
 												or !getbool($NI->{system}->{collect}));
 
 	my $IFT = loadifTypesTable();
-	my $NCT = loadNodeConfTable();
 	my $NC = $S->ndcfg;
 	my $V = $S->view;
 
 	my $intfCollect;
 	my $intfTotal;
+
+	# load any nodeconf overrides
+	my ($errmsg, $override) = get_nodeconf(node => $node)
+			if (has_nodeconf(node => $node));
+	logMsg("ERROR $errmsg") if $errmsg;
+	$override ||= {};
 
 	# Get the SNMP Session going.
 	# fixme: the local myXX functions should be replaced by $S->open, and $S->{snmp}->xx
@@ -119,20 +124,22 @@ sub update_plugin
 				dbg("Interface Description changed to $S->{info}{interface}{$index}{ifDescr}");
 			}
 		}
+		my $thisintfover = $override->{$ifDescr} || {};
+		
 		### add in anything we find from nodeConf - allows manual updating of interface variables
 		### warning - will overwrite what we got from the device - be warned !!!
-		if ($NCT->{$S->{node}}{$ifDescr}{Description} ne '') {
+		if ($thisintfover->{Description} ne '') {
 			$S->{info}{interface}{$index}{nc_Description} = $S->{info}{interface}{$index}{Description}; # save
-			$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$S->{node}}{$ifDescr}{Description};
+			$S->{info}{interface}{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $thisintfover->{Description};
 			dbg("Manual update of Description by nodeConf");
 		}
 		else {
 			$V->{interface}{"${index}_Description_value"} = $S->{info}{interface}{$index}{Description};
 		}
 		
-		if ($NCT->{$S->{node}}{$ifDescr}{ifSpeed} ne '') {
+		if ($thisintfover->{ifSpeed} ne '') {
 			$S->{info}{interface}{$index}{nc_ifSpeed} = $S->{info}{interface}{$index}{ifSpeed}; # save
-			$S->{info}{interface}{$index}{ifSpeed} = $NCT->{$S->{node}}{$ifDescr}{ifSpeed};
+			$S->{info}{interface}{$index}{ifSpeed} = $thisintfover->{ifSpeed};
 			dbg("Manual update of ifSpeed by nodeConf");
 		}
 		
@@ -144,23 +151,23 @@ sub update_plugin
 		
 		### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 		# modify by node Config ?
-		if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+		if ($thisintfover->{collect} ne '' and $thisintfover->{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 			$S->{info}{interface}{$index}{nc_collect} = $S->{info}{interface}{$index}{collect};
-			$S->{info}{interface}{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
+			$S->{info}{interface}{$index}{collect} = $thisintfover->{collect};
 			dbg("Manual update of Collect by nodeConf");
 			if ($S->{info}{interface}{$index}{collect} eq 'false') {
 				$S->{info}{interface}{$index}{nocollect} = "Manual update by nodeConf";
 			}
 		}
-		if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+		if ($thisintfover->{event} ne '' and $thisintfover->{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 			$S->{info}{interface}{$index}{nc_event} = $S->{info}{interface}{$index}{event};
-			$S->{info}{interface}{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
+			$S->{info}{interface}{$index}{event} = $thisintfover->{event};
 			$S->{info}{interface}{$index}{noevent} = "Manual update by nodeConf" if $S->{info}{interface}{$index}{event} eq 'false'; # reason
 			dbg("Manual update of Event by nodeConf");
 		}
-		if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
+		if ($thisintfover->{threshold} ne '' and $thisintfover->{ifDescr} eq $S->{info}{interface}{$index}{ifDescr}) {
 			$S->{info}{interface}{$index}{nc_threshold} = $S->{info}{interface}{$index}{threshold};
-			$S->{info}{interface}{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
+			$S->{info}{interface}{$index}{threshold} = $thisintfover->{threshold};
 			$S->{info}{interface}{$index}{nothreshold} = "Manual update by nodeConf" if $S->{info}{interface}{$index}{threshold} eq 'false'; # reason
 			dbg("Manual update of Threshold by nodeConf");
 		}

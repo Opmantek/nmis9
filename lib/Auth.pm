@@ -809,6 +809,7 @@ sub do_login {
 	my %args = @_;
 	my $config = $args{conf} || $self->{confname};
 	my $msg = $args{msg};
+	my $listmodules = $args{listmodules};
 
 	# this is sent if auth = y and page = top (or blank),
 	# or if page = login
@@ -859,7 +860,7 @@ EOHTML
 	
 	print qq|
   <div id="login_frame">
-    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-top">
+    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
 |;
 
 	print $self->do_login_banner();
@@ -903,8 +904,22 @@ EOHTML
 
 	print end_form;
 
-	print "    </div>\n";
-	print "  </div>\n";
+
+	if (ref($listmodules) eq "ARRAY" and @$listmodules)
+	{
+		print '<div class="title2">Installed NMIS Modules</div>';
+		print '<table>';
+		for my $entry (@$listmodules)
+		{
+			my ($name, $link) = @$entry;
+			print "<tr><td class='info Plain'><a href=\"$link\" target='_blank'>$name</a></td></tr>";
+		}
+		print "</table></div>";
+	}
+
+	print "</div>";
+
+	print "</div>";
 
 	print end_html;
 }
@@ -1160,6 +1175,8 @@ sub loginout {
 	my $password = $args{password};
 	my $config = $args{conf} || $self->{confname};
 
+	my $listmodules = $args{listmodules};
+
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
@@ -1176,7 +1193,7 @@ sub loginout {
   }
 	
 	if ( lc $type eq 'login' ) {
-		$self->do_login();
+		$self->do_login(listmodules => $listmodules);
 		return 0;
 	}
 
@@ -1192,14 +1209,16 @@ sub loginout {
 			# handle default privileges or not.
 			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq "" 
 																		 or getbool($C->{auth_default_privilege},"invert")) ) { 
-				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator");
+				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator",
+												listmodules => $listmodules);
 				return 0;	
 			}
 
 			# check the name of the NMIS config file specified on url
 			# only bypass for administrator
 			if ($self->{privlevel} gt 1 and $self->{config} ne '' and $config ne $self->{config}) {
-				$self->do_login(msg=>"Invalid config file specified on url");
+				$self->do_login(msg=>"Invalid config file specified on url",
+												listmodules => $listmodules);
 				return 0;
 			}
 
@@ -1207,7 +1226,8 @@ sub loginout {
 			logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $debug;
 
 		} else { # bad login: force it again
-			$self->do_login(msg=>"Invalid username/password combination");
+			$self->do_login(msg=>"Invalid username/password combination",
+											listmodules => $listmodules);
 			return 0;
 		}
 	} 
@@ -1218,7 +1238,7 @@ sub loginout {
 		if( $username eq '' ) { # invalid cookie
 			logAuth("DEBUG: invalid session ") if $debug;		
 			#$self->do_login(msg=>"Session Expired or Invalid Session");
-			$self->do_login(msg=>"");
+			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
 		}
 
@@ -1235,7 +1255,7 @@ sub loginout {
 	# user should be set at this point, if not then redirect
 	unless ($self->{user}) {
 		logAuth("DEBUG: loginout forcing login, shouldn't have gotten this far") if $debug;
-		$self->do_login();
+		$self->do_login(listmodules => $listmodules);
 		return 0;
 	}
 	

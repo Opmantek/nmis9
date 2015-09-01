@@ -46,7 +46,7 @@ my %arg = getArguements(@ARGV);
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
-ERROR: $0 will load nodeConf.nmis and remove bad Node entries.
+ERROR: $0 will load nodeConf data and remove bad Node entries.
 
 usage: $0 run=(true|false) clean=(true|false)
 eg: $0 run=true (will run in test mode)
@@ -72,114 +72,78 @@ if ( $arg{run} eq "true" ) {
 print $t->elapTime(). " End\n" if $debug;
 
 
-sub cleanNodeConf {
+sub cleanNodeConf 
+{
 	my $LNT = loadLocalNodeTable();
-	my $NCT = loadNodeConfTable();
+	my ($errmsg, $overrides) = get_nodeconf();
+	print "Error: $errmsg\n" if ($errmsg);
+	$overrides ||= {};
 	
-	foreach my $node (keys %{$NCT}) {
-		if ( not defined $LNT->{$node}{name} ) {
+	foreach my $node (keys %{$overrides}) 
+	{
+		if ( not defined $LNT->{$node}{name} ) 
+		{
 			print "NodeConf entry found for $node, but nothing in Local Node Table\n";
-			if ( $arg{clean} eq "true" ) {
-				delete $NCT->{$node};
+			if ( $arg{clean} eq "true" ) 
+			{
+				$errmsg = update_nodeconf(node => $node, data => undef);
+				print "Error: $errmsg\n" if ($errmsg);
 			}
 		}
 		# check interface entries.
-		else {
-			foreach my $ifDescr (keys %{$NCT->{$node}}) {
-				if ( ref($NCT->{$node}{$ifDescr}) eq "HASH" ) {
-					my $noDescr = 1;
-					my $noSpeedIn = 1;
-					my $noSpeedOut = 1;
-					my $noCollect = 1;
-					my $noEvent = 1;
-					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{Description} ne "" ) {
-						$noDescr = 0;
-					}
+		else 
+		{
+			my $mustupdate;
+					
+			foreach my $ifDescr (keys %{$overrides->{$node}}) 
+			{
+				next if (ref($overrides->{$node}->{$ifDescr}) ne "HASH"); # the various plain entries
+
+				my $thisintfover = $overrides->{$node}->{$ifDescr};
+
+				my $noDescr = 1;
+				my $noSpeedIn = 1;
+				my $noSpeedOut = 1;
+				my $noCollect = 1;
+				my $noEvent = 1;
+				
+				if ( $thisintfover->{ifDescr} ne "" and $thisintfover->{Description} ne "" ) {
+					$noDescr = 0;
+				}
 	
-					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{collect} ne "" ) {
-						$noCollect = 0;
-					}
+				if ( $thisintfover->{ifDescr} ne "" and $thisintfover->{collect} ne "" ) {
+					$noCollect = 0;
+				}
+				
+				if ( $thisintfover->{ifDescr} ne "" and $thisintfover->{event} ne "" ) {
+					$noEvent = 0;
+				}
 	
-					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{event} ne "" ) {
-						$noEvent = 0;
-					}
+				if ( $thisintfover->{ifDescr} ne "" and $thisintfover->{ifSpeedIn} ne "" ) {
+					$noSpeedIn = 0;
+				}
 	
-					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{ifSpeedIn} ne "" ) {
-						$noSpeedIn = 0;
-					}
+				if ( $thisintfover->{ifDescr} ne "" and $thisintfover->{ifSpeedOut} ne "" ) {
+					$noSpeedOut = 0;
+				}
 	
-					if ( $NCT->{$node}{$ifDescr}{ifDescr} ne "" and $NCT->{$node}{$ifDescr}{ifSpeedOut} ne "" ) {
-						$noSpeedOut = 0;
-					}
-	
-					# if this interface has no other properties, then get rid of it.
-					if ( $noDescr and $noCollect and $noEvent and $noSpeedIn and $noSpeedOut ) {
-						print "Deleting redundant entry for $NCT->{$node}{$ifDescr}{ifDescr}\n";
-						delete $NCT->{$node}->{$ifDescr};
-					}
+				# if this interface has no other properties, then get rid of it.
+				if ( $noDescr and $noCollect and $noEvent and $noSpeedIn and $noSpeedOut ) 
+				{
+					print "Deleting redundant entry for $thisintfover->{ifDescr}\n";
+					delete $overrides->{$node}->{$ifDescr};
+					$mustupdate = 1;
 				}
 			}
-		}
-	}
 
-	my $nct_file = getFileName(file => "nodeConf");
-	$nct_file = "$C->{'<nmis_conf>'}/$nct_file";
-	my $nct_backup = $nct_file .".". getDateThingy();
-	#print "NCT=$nct_file backup=$nct_backup\n";
-
-	if ( $arg{clean} eq "true" ) {
-		print "backing up $nct_file to $nct_backup\n";
-		my $backup = backupFile(file => $nct_file, backup => $nct_backup);
-		if ( $backup ) {
-			writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
-		}
-		else {
-			print "ERROR: could not backup file, skipping save of new file\n";
-		}
-	}
-	
-}
-
-
-sub backupFile {
-	my %arg = @_;
-	my $buff;
-	if ( not -f $arg{backup} ) {			
-		if ( -r $arg{file} ) {
-			open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
-			open(OUT,">$arg{backup}") or warn ("ERROR: problem with file $arg{backup}; $!");
-			binmode(IN);
-			binmode(OUT);
-			while (read(IN, $buff, 8 * 2**10)) {
-			    print OUT $buff;
+			# now save/update/delete the nodeconf entry
+			if (getbool($arg{clean}) and $mustupdate)
+			{
+				print "Saving nodeconf for $node\n";
+				my $errmsg = update_nodeconf(node => $node, data => $overrides->{$node});
+				print "ERROR $errmsg\n" if ($errmsg);
 			}
-			close(IN);
-			close(OUT);
-			return 1;
-		} else {
-			print STDERR "ERROR: backupFile file $arg{file} not readable.\n";
-			return 0;
 		}
-	}
-	else {
-		print STDERR "ERROR: backup target $arg{backup} already exists.\n";
-		return 0;
 	}
 }
 
-#Function which returns the time
-sub getDateThingy {
-	my $time = shift;
-	if ( $time == 0 ) { $time = time; }
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
-	if ($year > 70) { $year=$year+1900; }
-	        else { $year=$year+2000; }
-	++$mon;
-	if ($mon<10) {$mon = "0$mon";}
-	if ($mday<10) {$mday = "0$mday";}
-	if ($hour<10) {$hour = "0$hour";}
-	if ($min<10) {$min = "0$min";}
-	if ($sec<10) {$sec = "0$sec";}
-	# Do some sums to calculate the time date etc 2 days ago
-	return "$year-$mon-$mday-$hour$min$sec";
-}

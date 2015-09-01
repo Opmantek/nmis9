@@ -83,6 +83,13 @@ my $logoutButton;
 my $privlevel = 5;
 my $user;
 
+# the updated login screen code needs to know what modules are available
+my $M = NMIS::Modules->new(module_base => $C->{'<opmantek_base>'}, 
+													 nmis_base => $C->{'<nmis_base>'}, 
+													 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
+my $moduleCode = $M->getModuleCode();
+my $installedModules = $M->installedModules();
+
 # variables used for the security mods
 use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
 # pass in confname ONLY if its not the default
@@ -99,7 +106,8 @@ if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},
 															username=>$Q->{auth_username},
 															password=>$Q->{auth_password},
-															headeropts=>$headeropts) ;
+															headeropts=>$headeropts,
+															listmodules => $M->getModuleLinks) ;
 	$privlevel = $AU->{privlevel};
 	$user = $AU->{user};
 } else {
@@ -134,11 +142,7 @@ my $L = NMIS::License->new();
 my ($licenseValid,$licenseMessage) = $L->checkLicense();
 $registered = "true" if $licenseValid;
 
-my $M = NMIS::Modules->new(module_base=>$C->{'<opmantek_base>'}, nmis_base=>$C->{'<nmis_base>'}, nmis_cgi_url_base=>$C->{'<cgi_url_base>'});
-my $moduleCode = $M->getModuleCode();
-my $installedModules = $M->installedModules();
-
-### 2012-12-06 keiths, added a HTML5 complaint header.
+### 2012-12-06 keiths, added a HTML5 compliant header.
 print $q->header($headeropts);
 startNmisPage(title => 'NMIS by Opmantek');
 

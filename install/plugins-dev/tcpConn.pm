@@ -21,8 +21,6 @@ sub update_plugin_monkey
 	# anything to do?
 
 	return (0,undef) if (ref($NI->{tcpConn}) ne "HASH");
-
-	my $NCT = loadNodeConfTable();
 	my $NC = $S->ndcfg;
 	
 	info("Working on $node tcpConn");
