@@ -50,7 +50,7 @@ EO_TEXT
 	exit 1;
 }
 
-my $modelPolicy = qr/(CiscoDSL)/;
+my $modelPolicy = qr/(Cisco)/;
 
 my $interfacePolicy = qr/(^ATM0\/1$|^IMA0\/1$)/;
 
@@ -65,22 +65,26 @@ my $debug = setDebug($arg{debug});
 my $C = loadConfTable(conf=>$arg{conf});
 
 processNodes();
-
 exit 0;
 
-sub processNodes {
+sub processNodes 
+{
 	my $LNT = loadLocalNodeTable();
-	my $NCT = loadNodeConfTable();
-
 	
-	foreach my $node (sort keys %{$LNT}) {
-		
+	foreach my $node (sort keys %{$LNT}) 
+	{
 		# Is the node active and are we doing stats on it.
-		if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+		if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) 
+		{
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
-			
+
+			# load any existing nodeconf overrides first
+			my ($errmsg, $overrides) = get_nodeconf(node => $node) if (has_nodeconf(node => $node));
+			print STDERR "ERROR $errmsg\n" if ($errmsg);
+			$overrides ||= {};
+
 			if ( $NI->{system}{nodeModel} =~ /$modelPolicy/ ) {
 				print "Processing $node: $NI->{system}{nodeModel}\n";
 				my $IF = $S->ifinfo;
@@ -90,21 +94,22 @@ sub processNodes {
 						my $ifDescr = $IF->{$ifIndex}{ifDescr};
 						print "  MANAGE Interface: $IF->{$ifIndex}{ifIndex}\t$ifDescr\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}\n";
 						
-						$NCT->{$node}{$ifDescr}{ifDescr} = $ifDescr;
-						$NCT->{$node}{$ifDescr}{collect} = "true";
-						$NCT->{$node}{$ifDescr}{event} = "true";
-						$NCT->{$node}{$ifDescr}{threshold} = "true";						
+						$overrides->{$ifDescr}->{ifDescr} = $ifDescr;
+						$overrides->{$ifDescr}->{collect} = "true";
+						$overrides->{$ifDescr}->{event} = "true";
+						$overrides->{$ifDescr}->{threshold} = "true";
 					}
 				}
-			}			
-		}
-	}
+			}
+			print "New nodeconf for $node:\n".Dumper($overrides)
+					if ( getbool($arg{debug}) );
 
-	if ( $arg{debug} eq "true" ) {
-		print Dumper $NCT;
-	}
-	
-	if ( $arg{save} eq "true" ) {
-		writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
+			if ( getbool($arg{save}))
+			{
+				print "Updating nodeconf for $node\n";
+				my $errmsg = update_nodeconf(node => $node, data => $overrides);
+				print STDERR "ERROR $errmsg\n" if ($errmsg);
+			}
+		}
 	}
 }

@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.4.4";
+our $VERSION = "1.4.5";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -406,14 +406,18 @@ sub collect_evidence
 		}
 		mkdir("$targetdir/conf",0755);
 		mkdir("$targetdir/conf/scripts",0755);
+		mkdir("$targetdir/conf/nodeconf",0755);
 
 		# copy all of conf/ and models/ but NOT any stray stuff beneath
 		system("cp","-r","$basedir/models",$targetdir) == 0
 				or warn "can't copy models to $targetdir: $!\n";
 		system("cp $basedir/conf/* $targetdir/conf 2>/dev/null");
-		system("cp $basedir/conf/scripts/* $targetdir/conf/scripts") == 0
-				or warn "can't copy conf to $targetdir/conf/scripts: $!\n";
-
+		for my $oksubdir (qw(scripts nodeconf))
+		{
+			system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0
+					or warn "can't copy conf to $targetdir/conf/$oksubdir: $!\n";
+		}
+		
 		# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
 		opendir(D,"$vardir") or warn "can't read var dir $vardir: $!\n";

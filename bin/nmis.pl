@@ -156,6 +156,8 @@ NMIS version $NMIS::VERSION
 # the first thing we do is to upgrade up the event
 # data structure - it's a nop if it was already done.
 &NMIS::upgrade_events_structure;
+# ditto for nodeconf
+&NMIS::upgrade_nodeconf_structure;
 
 if ($type =~ /^(collect|update|services)$/) {
 	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
@@ -215,22 +217,24 @@ sub	runThreads
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
 	dbg("table Enterprise loaded",2);
 
-	loadNodeConfTable(); # load in cache
-	dbg("table Node Config loaded",2);
-
 	my $NT = loadLocalNodeTable(); 	# only local nodes
 	dbg("table Local Node loaded",2);
 
 	my $C = loadConfTable();		# config table from cache
 
-	if (getbool($C->{daemon_fping_active})) {
+	# check if the fping results look sensible
+	# compare nr of pingable active nodes against the fping results
+	if (getbool($C->{daemon_fping_active})) 
+	{
 		my $pt = loadTable(dir=>'var',name=>'nmis-fping'); # load fping table in cache
-		my $nt = loadNodeConfTable();
 		my $cnt_pt = keys %{$pt};
-		my $cnt_nt = keys %{$nt};
-		# missing more then 10 entries ?
-		if ($cnt_pt+10 < $cnt_nt) {
-			logMsg("ERROR fping table missing to many entries, count fping=$cnt_pt count nodes=$cnt_nt");
+
+		my $active_ping = grep(getbool($_->{active}) && getbool($_->{ping}), values %{$NT});
+
+		# missing more then 10 nodes that should have been pinged?
+		if ($cnt_pt+10 < $active_ping)
+		{
+			logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping");
 			$C->{daemon_fping_failed} = 'true'; # remember for runPing
 		}
 	}
@@ -1135,14 +1139,6 @@ sub getNodeInfo {
 		delete $NI->{graphtype};
 	}
 
-	########################
-	# nmisdev 16Sep2011
-	# update nodeConf with manual overides regardless of collect or snmp status
-	# code copied here for test
-
-	my $NCT = loadNodeConfTable();
-
-
 	if (getbool($NC->{node}{collect})) {
 
 		# if node already down then no snmp logging of node down
@@ -1243,17 +1239,26 @@ sub getNodeInfo {
 		dbg("node $S->{name} is marked collect is 'false'");
 		$exit = 1; # done
 	}
-	# modify results by nodeConf ?
-	my $node = $NI->{system}{name};
-	if ($NCT->{$node}{sysLocation} ne '') {
-		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$NI->{system}{name}}{sysLocation};
+	
+	# get and apply any nodeconf override if such exists for this node
+	my $nodename = $NI->{system}->{name};
+	my ($errmsg, $override) = get_nodeconf(node => $nodename)
+			if (has_nodeconf(node => $nodename));
+	logMsg("ERROR $errmsg") if $errmsg;
+	$override ||= {};
+	
+	if ($override->{sysLocation}) 
+	{
+		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 		$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
 		info("Manual update of sysLocation by nodeConf");
 	} else {
 		$NI->{system}{sysLocation} = $NI->{system}{sysLocation};
 	}
-	if ($NCT->{$node}{sysContact} ne '') {
-		$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$NI->{system}{name}}{sysContact};
+	
+	if ($override->{sysContact})
+	{
+		$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
 		$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
 		dbg("Manual update of sysContact by nodeConf");
 	} else {
@@ -1500,13 +1505,12 @@ sub getIntfInfo {
 	if (defined $intf_one and $intf_one ne "") {
 		$singleInterface = 1;
 	}
-
-	#print "DEBUG: max_repetitions=$max_repetitions system_max_repetitions=$NI->{system}{max_repetitions}\n";
 	
 	my $C = loadConfTable();
+	my $nodename = $NI->{system}->{name};
 
-	### handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-
+	### handling the default value for max-repetitions, 
+	# this controls how many OID's will be in a single request.
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
@@ -1550,8 +1554,11 @@ sub getIntfInfo {
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
 
-		my $NCT = loadNodeConfTable();
-
+		my ($error, $override) = get_nodeconf(node => $nodename) 
+				if (has_nodeconf(node => $nodename));
+		logMsg("ERROR $error") if ($error);
+		$override ||= {};
+		
 		# get interface Index table
 		my @ifIndexNum;
 		my $ifIndexTable;
@@ -1770,11 +1777,12 @@ sub getIntfInfo {
 		info("Completed duplicate ifDescr processing");
 
 		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-		foreach my $index (@ifIndexNum) {
+		foreach my $index (@ifIndexNum) 
+		{
 			next if ($singleInterface and $intf_one ne $index);
-
+			
 			my $ifDescr = $IF->{$index}{ifDescr};
-				$intfTotal++;
+			$intfTotal++;
 			# count total number of real interfaces
 			if ($IF->{$index}{ifType} !~ /$qr_no_collect_ifType_gen/ and $IF->{$index}{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
 				$IF->{$index}{real} = 'true';
@@ -1783,38 +1791,31 @@ sub getIntfInfo {
 			### add in anything we find from nodeConf - allows manual updating of interface variables
 			### warning - will overwrite what we got from the device - be warned !!!
 			### 2013-09-26 keiths, fix for nodes with Capital Letters!
-			my $node = $NI->{system}{name};
-			if ($NCT->{$node}{$ifDescr}{Description} ne '') {
-				$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
-				$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} = $NCT->{$node}{$ifDescr}{Description};
-				info("Manual update of Description by nodeConf");
-			}
-			if ($NCT->{$node}{$ifDescr}{ifSpeed} ne '') {
-				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeed} = $V->{interface}{"${index}_ifSpeed_value"} = $NCT->{$node}{$ifDescr}{ifSpeed};
-				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-				$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
-				info("Manual update of ifSpeed by nodeConf");
-			}
 
-			if ($NCT->{$node}{$ifDescr}{ifSpeedIn} ne '') {
-				$IF->{$index}{nc_ifSpeedIn} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeedIn};
+			if (ref($override->{$ifDescr}) eq "HASH")
+			{
+				my $thisintfover = $override->{$ifDescr};
+				
+				if ($thisintfover->{Description}) 
+				{
+					$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
+					$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} 
+					= $thisintfover->{Description};
+					info("Manual update of Description by nodeConf");
+				}
 
-				$IF->{$index}{nc_ifSpeed} = $IF->{$index}{nc_ifSpeedIn};
-				$IF->{$index}{ifSpeed} = $IF->{$index}{ifSpeedIn};
-
-				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-				$V->{interface}{"${index}_ifSpeedIn_value"} = convertIfSpeed($IF->{$index}{ifSpeedIn});
-				info("Manual update of ifSpeedIn by nodeConf");
-			}
-
-			if ($NCT->{$node}{$ifDescr}{ifSpeedOut} ne '') {
-				$IF->{$index}{nc_ifSpeedOut} = $IF->{$index}{ifSpeed}; # save
-				$IF->{$index}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeedOut};
-				### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-				$V->{interface}{"${index}_ifSpeedOut_value"} = convertIfSpeed($IF->{$index}{ifSpeedOut});
-				info("Manual update of ifSpeedOut by nodeConf");
+				for my $speedname (qw(ifSpeed ifSpeedIn ifSpeedOut))
+				{
+					if ($thisintfover->{$speedname}) 
+					{
+						$IF->{$index}{"nc_$speedname"} = $IF->{$index}{$speedname}; # save
+						$IF->{$index}{$speedname} = $thisintfover->{$speedname};
+						
+						### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
+						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed($IF->{$index}{$speedname});
+						info("Manual update of $speedname by nodeConf");
+					}
+				}
 			}
 
 			# set default for collect, event and threshold: on, possibly overridden later
@@ -1884,32 +1885,44 @@ sub getIntfInfo {
 			$IF->{$index}{ifIndex} = $index;
 
 			### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
+
 			# modify by node Config ?
-			if ($NCT->{$S->{name}}{$ifDescr}{collect} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-				$IF->{$index}{nc_collect} = $IF->{$index}{collect};
-				$IF->{$index}{collect} = $NCT->{$S->{name}}{$ifDescr}{collect};
-				info("Manual update of Collect by nodeConf");
-				### 2014-04-28 keiths, fixing info for GUI
-				if (getbool($IF->{$index}{collect},"invert")) {
-					$IF->{$index}{nocollect} = "Not Collecting: Manual update by nodeConf";
+			if (ref($override->{$ifDescr}) eq "HASH")
+			{
+				my $thisintfover = $override->{$ifDescr};
+				
+				if ($thisintfover->{collect} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+				{
+					$IF->{$index}{nc_collect} = $IF->{$index}{collect};
+					$IF->{$index}{collect} = $thisintfover->{collect};
+					info("Manual update of Collect by nodeConf");
+					
+					### 2014-04-28 keiths, fixing info for GUI
+					if (getbool($IF->{$index}{collect},"invert")) {
+						$IF->{$index}{nocollect} = "Not Collecting: Manual update by nodeConf";
+					}
+					else {
+						$IF->{$index}{nocollect} = "Collecting: Manual update by nodeConf";
+					}
 				}
-				else {
-					$IF->{$index}{nocollect} = "Collecting: Manual update by nodeConf";
+				
+				if ($thisintfover->{event} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+				{
+					$IF->{$index}{nc_event} = $IF->{$index}{event};
+					$IF->{$index}{event} = $thisintfover->{event};
+					$IF->{$index}{noevent} = "Manual update by nodeConf" 
+							if (getbool($IF->{$index}{event},"invert")); # reason
+					info("Manual update of Event by nodeConf");
 				}
-			}
-			if ($NCT->{$S->{name}}{$ifDescr}{event} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-				$IF->{$index}{nc_event} = $IF->{$index}{event};
-				$IF->{$index}{event} = $NCT->{$S->{name}}{$ifDescr}{event};
-				$IF->{$index}{noevent} = "Manual update by nodeConf" 
-						if (getbool($IF->{$index}{event},"invert")); # reason
-				info("Manual update of Event by nodeConf");
-			}
-			if ($NCT->{$S->{name}}{$ifDescr}{threshold} ne '' and $NCT->{$S->{name}}{$ifDescr}{ifDescr} eq $IF->{$index}{ifDescr}) {
-				$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
-				$IF->{$index}{threshold} = $NCT->{$S->{name}}{$ifDescr}{threshold};
-				$IF->{$index}{nothreshold} = "Manual update by nodeConf" 
-						if (getbool($IF->{$index}{threshold},"invert")); # reason
-				info("Manual update of Threshold by nodeConf");
+				
+				if ($thisintfover->{threshold} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+				{
+					$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
+					$IF->{$index}{threshold} = $thisintfover->{threshold};
+					$IF->{$index}{nothreshold} = "Manual update by nodeConf" 
+							if (getbool($IF->{$index}{threshold},"invert")); # reason
+					info("Manual update of Threshold by nodeConf");
+				}
 			}
 
 			# interface now up or down, check and set or clear outstanding event.
@@ -2552,7 +2565,6 @@ sub updateNodeInfo {
 	info("Starting Update Node Info, node $S->{name}");
 	# clear the node reset indication from the last run
 	$NI->{system}->{node_was_reset}=0;
-	my $NCT = loadNodeConfTable();
 
 	# save what we need now for check of this node
 	my $sysObjectID = $NI->{system}{sysObjectID};
@@ -2619,16 +2631,25 @@ sub updateNodeInfo {
 		$V->{system}{lastUpdate_title} = 'Last Update';
 		$NI->{system}{lastUpdateSec} = time();
 
-		# modify by nodeConf ?
+
+		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
-		if ($NCT->{$node}{sysLocation} ne '') {
+		my ($errmsg, $override) = get_nodeconf(node => $node)
+				if (has_nodeconf(node => $node));
+		logMsg("ERROR $errmsg") if $errmsg;
+		$override ||= {};
+
+		# anything to override?
+		if ($override->{sysLocation}) 
+		{
 			$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
-			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $NCT->{$node}{sysLocation};
+			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 			info("Manual update of sysLocation by nodeConf");
 		}
-		if ($NCT->{$node}{sysContact} ne '') {
+		if ($override->{sysContact}) 
+		{
 			$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
-			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $NCT->{$node}{sysContact};
+			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
 			info("Manual update of sysContact by nodeConf");
 		}
 
@@ -2821,8 +2842,14 @@ sub getIntfData {
 	my $IFCACHE;
 
 	my $C = loadConfTable();
-	my $NCT = loadNodeConfTable();
 
+	# get any nodeconf overrides if such exists for this node
+	my $nodename = $NI->{system}->{name};
+	my ($errmsg, $override) = get_nodeconf(node => $nodename)
+			if (has_nodeconf(node => $nodename));
+	logMsg("ERROR $errmsg") if $errmsg;
+	$override ||= {};
+	
 	my $createdone = "false";
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
@@ -3027,8 +3054,17 @@ sub getIntfData {
 									# check if nodeConf modified this inteface
 									my $node = $NI->{system}{name};
 									my $ifDescr = $IF->{$index}{ifDescr};
-									if ($NI->{system}{nodeType} =~ /router|switch/ and $NCT->{$node}{$ifDescr}{ifDescr} eq '' and
-										$D->{ifDescr}{value} ne '' and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
+
+									# nodeconf override for the ifDescr?
+									my $have_overridden_ifdescr = 1
+											if (ref($override->{$ifDescr}) eq "HASH"
+													and $override->{$ifDescr}->{ifDescr});
+									
+									
+									if ($NI->{system}{nodeType} =~ /router|switch/ 
+											and !$have_overridden_ifdescr
+											and $D->{ifDescr}{value} ne '' 
+											and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
 										# Reload the interface config won't get that one right but should get the next one right
 										logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table");
 										getIntfInfo(sys=>$S,index=>$index); # update this interface

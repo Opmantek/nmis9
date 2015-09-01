@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: nodeconf.pl,v 8.8 2012/10/08 08:17:50 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -33,7 +31,6 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
 use strict;
 use NMIS;
 use func;
@@ -161,7 +158,10 @@ sub displayNodemenu{
 
 }
 
-sub displayNodeConf {
+
+# show the config form for a single given node
+sub displayNodeConf 
+{
 	my %args = @_;
 	my $node = $args{node};
 
@@ -185,7 +185,12 @@ sub displayNodeConf {
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-	my $NCT = loadNodeConfTable();
+	# get any existing nodeconf overrides for this node
+	my $nodename = $NI->{system}->{name};
+	my ($errmsg, $override) = get_nodeconf(node => $nodename)
+			if (has_nodeconf(node => $nodename));
+	logMsg("ERROR $errmsg") if $errmsg;
+	$override ||= {};
 
 	print Tr(td({class=>"header",width=>'20%'}),td({class=>"header",width=>'20%'}),
 			td({class=>"header",width=>'20%'},'<b>Original value</b>'),
@@ -226,20 +231,24 @@ sub displayNodeConf {
 	my $NCT_sysContact = $NI->{nodeconf}{sysContact} || $NI->{system}{sysContact};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Contact"),
 			td({class=>'header3'}, $NCT_sysContact),
-			td({class=>"Plain"},textfield(-name=>"contact",-override=>1,-value=>$NCT->{$node}{sysContact}));
+	td({class=>"Plain"},textfield(-name=>"contact",-override=>1,
+																-style => 'width: 95%',
+																-value => $override->{sysContact}||''));
 
 	my $NCT_sysLocation = $NI->{nodeconf}{sysLocation} || $NI->{system}{sysLocation};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Location"),
 			td({class=>'header3'}, $NCT_sysLocation),
-			td({class=>"Plain"},textfield(-name=>"location",-override=>1,-value=>$NCT->{$node}{sysLocation}));
+	td({class=>"Plain"},textfield(-name=>"location",-override=>1,
+																-style => 'width: 95%',
+																-value => $override->{sysLocation}||''));
 
 	if ( !getbool($NI->{system}{collect}) ) {
 		print Tr(td({class=>"header"}),td({class=>"header"},"Collect"),
 				td({class=>'header'},'disabled'));
 	}
 
-	# label for the 'desired state' column, whose 'not' value isn't very helpful
-	my %rglabels = ('not' => 'unchanged', 'false' => 'false', 'true' => 'true');
+	# label for the 'desired state' column
+	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
 	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 	# interfaces
@@ -252,32 +261,41 @@ sub displayNodeConf {
 				
 				# keep the ifDescr to work on.
 				my $ifDescr = $IF->{$intf}{ifDescr};
+				my $thisintfover = ref($override->{$ifDescr}) eq "HASH"? $override->{$ifDescr} : {};
 	
 				# check if interfaces are changed
-				if ($NCT->{$node}{$ifDescr}{ifDescr} ne "" and $IF->{$intf}{ifDescr} ne $NCT->{$node}{$ifDescr}{ifDescr}) {
+				if ($thisintfover->{ifDescr} and $IF->{$intf}{ifDescr} ne $thisintfover->{ifDescr}) 
+				{
 					$collect = $event = $threshold = $description = $speed = "";
-				} else {
-					if ( $NCT->{$node}{$ifDescr}{ifSpeedIn} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
-						$NCT->{$node}{$ifDescr}{ifSpeedIn} = $NCT->{$node}{$ifDescr}{ifSpeed};
+				} 
+				else 
+				{
+					if ( !$thisintfover->{ifSpeedIn} and $thisintfover->{ifSpeed} )
+					{
+						$thisintfover->{ifSpeedIn} = $thisintfover->{ifSpeed};
 					}
-					if ( $NCT->{$node}{$ifDescr}{ifSpeedOut} eq "" and $NCT->{$node}{$ifDescr}{ifSpeed} ne "" ) {
-						$NCT->{$node}{$ifDescr}{ifSpeedOut} = $NCT->{$node}{$ifDescr}{ifSpeed};
+					if (!$thisintfover->{ifSpeedOut} and $thisintfover->{ifSpeed}) 
+					{
+						$thisintfover->{ifSpeedOut} = $thisintfover->{ifSpeed};
 					}
-					$description = $NCT->{$node}{$ifDescr}{Description};
-					$speed = $NCT->{$node}{$ifDescr}{ifSpeed};
-					$speedIn = $NCT->{$node}{$ifDescr}{ifSpeedIn};
-					$speedOut = $NCT->{$node}{$ifDescr}{ifSpeedOut};
-					$collect = $NCT->{$node}{$ifDescr}{collect};
-					$event = $NCT->{$node}{$ifDescr}{event};
-					$threshold = $NCT->{$node}{$ifDescr}{threshold};
+					$description = $thisintfover->{Description};
+					$speed = $thisintfover->{ifSpeed};
+					$speedIn = $thisintfover->{ifSpeedIn};
+					$speedOut = $thisintfover->{ifSpeedOut};
+					$collect = $thisintfover->{collect};
+					$event = $thisintfover->{event};
+					$threshold = $thisintfover->{threshold};
 				}
 	
 				my $NCT_Description = exists $IF->{$intf}{nc_Description} ? $IF->{$intf}{nc_Description} : $IF->{$intf}{Description};
 				print Tr,
 					td({class=>'header'}, $IF->{$intf}{ifDescr}),
 					td({class=>'header'},"Description"),td({class=>'header3'},$NCT_Description),
-					td({class=>"Plain"},textfield(-name=>"descr_${intf}",-override=>1,-value=>$description));
-	
+				td({class=>"Plain"},textfield(-name=>"descr_${intf}",
+																			-style => 'width: 95%',
+																			-override=>1,
+																			-value=>$description));
+				
 				my $NCT_ifSpeed = $IF->{$intf}{nc_ifSpeed} || $IF->{$intf}{ifSpeed};
 				#print Tr,td({class=>'header'}),
 				#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
@@ -299,8 +317,10 @@ sub displayNodeConf {
 				print Tr,td({class=>'header'}),
 					td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
 					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",
-																					-values=>['not',
-																										getbool($NCT_collect) ? 'false':'true'],-default=>$collect,-labels=>\%rglabels));
+																					-values=>['unchanged',
+																										'true',
+																										'false'],
+																					-default=>$collect,-labels=>\%rglabels));
 	
 				if ( getbool($collect) or (!getbool($collect,"invert") 
 																	 and getbool($NCT_collect)) ) 
@@ -309,10 +329,12 @@ sub displayNodeConf {
 					print Tr,td({class=>'header'}),
 						td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
 						td({class=>"Plain"},radio_group(-name=>"event_${intf}",
-																						-values=>['not',
-																											getbool($NCT_event) ? 'false':'true'],-default=>$event,-labels=>\%rglabels));
+																						-values=>['unchanged',
+																											'true',
+																											'false'],
+																						-default=>$event,-labels=>\%rglabels));
 				} else {
-					print hidden(-name=>"event_${intf}", -default=>'not',-override=>'1');
+					print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
 				}
 
 				if (getbool($NI->{system}{threshold}) 
@@ -323,11 +345,12 @@ sub displayNodeConf {
 						td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
 						td({class=>"Plain"},
 							 radio_group(-name=>"threshold_${intf}",
-													 -values=>['not',
-																		 getbool($NCT_threshold) ? 'false':'true'],
+													 -values=>['unchanged',
+																		 'true',
+ 																		 'false'],
 													 -default=>$threshold,-labels=>\%rglabels));
 				} else {
-					print hidden(-name=>"threshold_${intf}", -default=>'not',-override=>'1');
+					print hidden(-name=>"threshold_${intf}", -default=>'unchanged',-override=>'1');
 				}				
 			}
 		}
@@ -338,6 +361,8 @@ sub displayNodeConf {
 	print end_form;
 }
 
+# combine the form data submitted by the user with the current nodeconf (if any)
+# and save the result.
 sub updateNodeConf {
 	my %args = @_;
 
@@ -346,76 +371,77 @@ sub updateNodeConf {
 	my $S = Sys::->new;
 
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-##		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
+		##		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
 		return;
 	}
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-	my $NCT = loadNodeConfTable();
+	# get the current nodeconf overrides
+	my $nodename = $NI->{system}->{name};
+	my ($errmsg, $override) = get_nodeconf(node => $nodename)
+			if (has_nodeconf(node => $nodename));
+	logMsg("ERROR $errmsg") if $errmsg;
+	$override ||= {};
 
 	if  ($Q->{contact} eq "") {
-		delete $NCT->{$node}{sysContact} if exists $NCT->{$node}{sysContact};
+		delete $override->{sysContact};
 	} else {
-		$NCT->{$node}{sysContact} = $Q->{contact};
+		$override->{sysContact} = $Q->{contact};
 	}
 	if  ($Q->{location} eq "") {
-		delete $NCT->{$node}{sysLocation} if exists $NCT->{$node}{sysLocation};
+		delete $override->{sysLocation};
 	} else {
-		$NCT->{$node}{sysLocation} = $Q->{location};
+		$override->{sysLocation} = $Q->{location};
 	}
 
 	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
 	### $intf if the ifIndex, and ifDescr is the ifDescr, and this needs to be done to handle the cross indexing.
-	foreach my $intf (keys %{$IF}) {
+	foreach my $intf (keys %{$IF}) 
+	{
 		my $ifDescr = $IF->{$intf}{ifDescr};
-		$NCT->{$node}{$ifDescr}{ifDescr} = $IF->{$intf}{ifDescr};
-		if  ($Q->{"descr_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{Description} if exists $NCT->{$node}{$ifDescr}{Description};
-		} else {
-			$NCT->{$node}{$ifDescr}{Description} = $Q->{"descr_${intf}"};
-		}
-		if  ($Q->{"speed_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{ifSpeed} if exists $NCT->{$node}{$ifDescr}{ifSpeed};
-		} else {
-			$NCT->{$node}{$ifDescr}{ifSpeed} = $Q->{"speed_${intf}"};
-		}
-		if  ($Q->{"speedIn_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{ifSpeedIn} if exists $NCT->{$node}{$ifDescr}{ifSpeedIn};
-		} else {
-			$NCT->{$node}{$ifDescr}{ifSpeedIn} = $Q->{"speedIn_${intf}"};
-		}
-		if  ($Q->{"speedOut_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{ifSpeedOut} if exists $NCT->{$node}{$ifDescr}{ifSpeedOut};
-		} else {
-			$NCT->{$node}{$ifDescr}{ifSpeedOut} = $Q->{"speedOut_${intf}"};
-		}
-		if  ($Q->{"collect_${intf}"} eq 'not' or $Q->{"collect_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{collect} if exists $NCT->{$node}{$ifDescr}{collect};
-		} else {
-			$NCT->{$node}{$ifDescr}{collect} = $Q->{"collect_${intf}"};
-		}
-		if  ($Q->{"event_${intf}"} eq 'not' or $Q->{"event_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{event} if exists $NCT->{$node}{$ifDescr}{event};
-		} else {
-			$NCT->{$node}{$ifDescr}{event} = $Q->{"event_${intf}"};
-		}
-		if  ($Q->{"threshold_${intf}"} eq 'not' or $Q->{"threshold_${intf}"} eq "") {
-			delete $NCT->{$node}{$ifDescr}{threshold} if exists $NCT->{$node}{$ifDescr}{threshold};
-		} else {
-			$NCT->{$node}{$ifDescr}{threshold} = $Q->{"threshold_${intf}"};
-		}
-		delete $NCT->{$node}{$ifDescr} if scalar keys %{$NCT->{$node}{$ifDescr}} == 1;
-	}
 
-	delete $NCT->{$node} if scalar keys %{$NCT->{$node}} == 0;
+		my $thisintfover = $override->{$ifDescr} ||= {};
+		
+		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr};
+
+		my %tranferrables = ("descr_$intf" => "Description",
+												 "speed_$intf" => "ifSpeed",
+												 "speedIn_$intf" => "ifSpeedIn",
+												 "speedOut_$intf" => "ifSpeedOut",
+												 "collect_$intf" => "collect",
+												 "event_$intf" => "event",
+												 "threshold_$intf" => "threshold"
+				);
+
+		while (my ($source, $target) = each %tranferrables)
+		{
+			# event, collect and threshold are special:
+			# value "unchanged" means remove the override
+			if (($source =~ /^(collect|event|threshold)_/ and $Q->{$source} eq "unchanged")
+					or !$Q->{$source})	# others: no value given means remove
+			{
+				delete $thisintfover->{$target};
+			}
+			else
+			{
+				$thisintfover->{$target} = $Q->{$source};
+			}
+		}
+
+		# don't keep this override if there are no entries except the automatic 'ifDescr'
+		delete $override->{$ifDescr} if (scalar keys %{$thisintfover} == 1);
+	}
 
   # this makes the resulting subsequent node menu into a blank one, 
 	# longterm fixme: instead this should report an 'update done' and show the same node again
 	delete $Q->{node};
 
-	# store result config
-	writeTable(dir=>'conf',name=>'nodeConf',data=>$NCT);
+	# right; anything left to save?
+	# if not, tell update_nodeconf to delete the node's data (data arg undef)
+	undef $override if (!keys %$override);
+	$errmsg = update_nodeconf(node => $node, data => $override);
+	logMsg("ERROR $errmsg") if ($errmsg);
 
 	# signal from button
 	if ( getbool($Q->{update}) ) {
@@ -479,7 +505,6 @@ sub doNodeUpdate {
 	print "\n</pre>\n";
 
 	# see nmis1 form for documentation
-	my $thisurl = url(-absolute => 1)."?";
 	print start_form(-id=>"nmis", -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
