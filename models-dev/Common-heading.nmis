@@ -17,8 +17,6 @@
       'abits' => 'Interface $ifDescr Bits/Second Utilisation',
       'acpu' => 'CPU Utilisation',
       'autil' => 'Interface $ifDescr Utilisation Including Availability',
-      'bgpPeer' => 'BGP Peer Status',
-      'bgpPeerStats' => 'BGP Peer Stats',
       'bits' => 'Interface $ifDescr Bits/Second Utilisation',
       'buffer' => 'Buffer Utilisation',
       'calls' => 'Call Port Stats',
@@ -88,7 +86,6 @@
       'rbt_optimisation' => 'Optimisation',
       'response' => 'Response Time in milliseconds',
       'routenumber' => 'Number of Routes',
-      'rttMonLatestRtt' => 'RTT Monitor Stats',
       'sensorhum' => 'Humidity of sensor',
       'sensortemp' => 'Temperature of sensor',
       'service' => 'Service',
@@ -126,8 +123,6 @@
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
-      'ospfNbr' => 'OSPF Neighbor Status',
-      'ospfNbrStats' => 'OSPF Neighbor Stats',
     }
   }
 );

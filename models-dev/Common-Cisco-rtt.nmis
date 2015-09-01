@@ -1,0 +1,152 @@
+%hash = (
+  'database' => {
+    'type' => {
+      'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'rttMonLatestRtt' => 'RTT Monitor Stats',
+    }
+  },
+  'alerts' => {
+    'rttMonLatestRtt' => {
+      'HighOperCompletionTime' => {
+        'element' => 'index',
+        'event' => 'High Oper Completion Time',
+        'test' => '',
+        'threshold' => {
+          'Critical' => '3000',
+          'Fatal' => '5000',
+          'Major' => '2000',
+          'Minor' => '1000',
+          'Normal' => '300',
+          'Warning' => '600'
+        },
+        'type' => 'threshold-rising',
+        'unit' => 'ms',
+        'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1'
+      },
+      'OperationAlertError' => {
+        'element' => 'index',
+        'event' => 'RTT Completion Status Not OK',
+        'level' => 'Warning',
+        'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
+        'type' => 'test',
+        'unit' => 'OperSense',
+        'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1'
+      }
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'rttMonLatestRtt' => {
+        'graphtype' => 'rttMonLatestRtt',
+        'indexed' => 'true',
+        'snmp' => {
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense'
+          }
+        }
+      },
+    },
+    'sys' => {
+      'rttMonLatestRtt' => {
+        'headers' => 'index,CtrlAdminRttType,EchoAdminTargetAddress,CtrlOperState,OperSense,OperCompletionTime',
+        'indexed' => 'rttMonLatestRttOperCompletionTime',
+        'snmp' => {
+          'CtrlAdminRttType' => {
+            'oid' => 'rttMonCtrlAdminRttType',
+            'replace' => {
+              '1' => 'echo',
+              '10' => 'dlsw',
+              '11' => 'dhcp',
+              '12' => 'ftp',
+              '13' => 'voip',
+              '14' => 'rtp',
+              '15' => 'lspGroup',
+              '16' => 'icmpjitter',
+              '17' => 'lspPing',
+              '18' => 'lspTrace',
+              '19' => 'ethernetPing',
+              '2' => 'pathEcho',
+              '20' => 'ethernetJitter',
+              '21' => 'lspPingPseudowire',
+              '22' => 'video',
+              '3' => 'fileIO',
+              '4' => 'script',
+              '5' => 'udpEcho',
+              '6' => 'tcpConnect',
+              '7' => 'http',
+              '8' => 'dns',
+              '9' => 'jitter'
+            },
+            'title' => 'CtrlAdminRttType'
+          },
+          'CtrlOperState' => {
+            'oid' => 'rttMonCtrlOperState',
+            'replace' => {
+              '1' => 'reset',
+              '2' => 'orderlyStop',
+              '3' => 'immediateStop',
+              '4' => 'pending',
+              '5' => 'inactive',
+              '6' => 'active',
+              '7' => 'restart'
+            },
+            'title' => 'CtrlOperState'
+          },
+          'EchoAdminTargetAddress' => {
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'oid' => 'rttMonEchoAdminTargetAddress',
+            'title' => 'EchoAdminTargetAddress'
+          },
+          'OperCompletionTime' => {
+            'oid' => 'rttMonLatestRttOperCompletionTime',
+            'title' => 'OperCompletionTime'
+          },
+          'OperSense' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'replace' => {
+              '0' => 'other',
+              '1' => 'ok',
+              '10' => 'applicationSpecific',
+              '11' => 'dnsServerTimeout',
+              '12' => 'tcpConnectTimeout',
+              '13' => 'httpTransactionTimeout',
+              '14' => 'dnsQueryError',
+              '15' => 'httpError',
+              '16' => 'error',
+              '17' => 'mplsLspEchoTxError',
+              '18' => 'mplsLspUnreachable',
+              '19' => 'mplsLspMalformedReq',
+              '2' => 'disconnected',
+              '20' => 'mplsLspReachButNotFEC',
+              '3' => 'overThreshold',
+              '4' => 'timeout',
+              '5' => 'busy',
+              '6' => 'notConnected',
+              '7' => 'dropped',
+              '8' => 'sequenceError',
+              '9' => 'verifyError'
+            },
+            'title' => 'OperSense'
+          },
+          'OperSenseValue' => {
+            'oid' => 'rttMonLatestRttOperSense',
+            'title' => 'OperSenseValue'
+          },
+          'OperTime' => {
+            'oid' => 'rttMonLatestRttOperTime',
+            'title' => 'OperTime'
+          }
+        }
+      },
+
+    }
+
+  }
+);

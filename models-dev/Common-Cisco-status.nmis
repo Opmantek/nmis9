@@ -1,0 +1,177 @@
+%hash = (
+  'alerts' => {
+    'fanStatus' => {
+      'fanValue' => {
+        'element' => 'index',
+        'event' => 'FAN Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+      }
+    },
+    'psuStatus' => {
+      'psuStatus' => {
+        'element' => 'index',
+        'event' => 'PSU Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+      }
+    },
+    'tempStatus' => {
+      'tempStatus' => {
+        'element' => 'index',
+        'event' => 'Temperature Status',
+        'level' => 'Warning',
+        'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
+        'type' => 'test',
+        'unit' => '',
+        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
+      }
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'fan-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'fanValue' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      },
+      'psuStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'psu-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'psuValue' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'graphtype' => 'temp-status',
+        'indexed' => 'true',
+        'snmp' => {
+          'tempValue' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => '100',
+              '2' => '75',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50',
+              '6' => '25'
+            }
+          }
+        }
+      },
+    },
+    'sys' => {
+      'fanStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'headers' => 'FanStatusDescr',
+        'indexed' => 'ciscoEnvMonFanStatusDescr',
+        'snmp' => {
+          'FanStateName' => {
+            'oid' => 'ciscoEnvMonFanState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Fan State'
+          },
+          'FanStatusDescr' => {
+            'oid' => 'ciscoEnvMonFanStatusDescr',
+            'title' => 'Fan Status Descr'
+          }
+        }
+      },
+      'psuStatus' => {
+        'control' => '$sysObjectName =~ /./',
+        'headers' => 'SupplyStatusDescr,SupplyStatusSource',
+        'indexed' => 'ciscoEnvMonSupplyStatusDescr',
+        'snmp' => {
+          'SupplyStateName' => {
+            'oid' => 'ciscoEnvMonSupplyState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'PSU State'
+          },
+          'SupplyStatusDescr' => {
+            'oid' => 'ciscoEnvMonSupplyStatusDescr',
+            'title' => 'PSU Status Descr'
+          },
+          'SupplyStatusSource' => {
+            'oid' => 'ciscoEnvMonSupplySource',
+            'replace' => {
+              '1' => 'unknown',
+              '2' => 'ac',
+              '3' => 'dc',
+              '4' => 'externalPowerSupply',
+              '5' => 'internalRedundant'
+            },
+            'title' => 'PSU Source'
+          }
+        }
+      },
+      'tempStatus' => {
+        'control' => '$sysObjectName =~ /cisco8../',
+        'headers' => 'TemperatureStatusDescr',
+        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
+        'snmp' => {
+          'TemperatureStateName' => {
+            'oid' => 'ciscoEnvMonTemperatureState',
+            'replace' => {
+              '1' => 'normal',
+              '2' => 'warning',
+              '3' => 'critical',
+              '4' => 'shutdown',
+              '5' => 'notPresent',
+              '6' => 'notFunctioning'
+            },
+            'title' => 'Temperature State'
+          },
+          'TemperatureStatusDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Temperature Status Descr'
+          }
+        }
+      },
+    }
+  }
+);
