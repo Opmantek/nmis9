@@ -1,6 +1,4 @@
 #
-## $Id: Modules.pm,v 1.6 2012/08/13 05:05:00 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -101,7 +99,8 @@ sub getModules {
 
 sub moduleInstalled {
 	my ($self,%arg) = @_;
-	my $installedModules = $self->installedModules();
+	my $installedModules = $self->installedModules(); # fixme should be an array NOT a commastring
+	# fixme this is imprecise and brittle
 	if ( $installedModules =~ /$arg{module}/ ) {
 		return 1;
 	}
@@ -158,6 +157,7 @@ sub installedModules {
 	}
 }
 
+# returns html for a menu, works only within the main nmis gui
 sub getModuleCode {
 	my $self = shift;
 
@@ -200,6 +200,25 @@ sub getModuleCode {
 		
 	return $modCode;
 }
+
+# returns an array ref of [module title, link] for every currently installed module
+sub getModuleLinks
+{
+	my ($self) = @_;
+	my @links;
+	
+	my $modules = $self->getModules();
+	foreach my $mod 
+			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) 
+	{
+		my $thismod = $modules->{$mod};
+		next if (!$thismod->{base} and !$thismod->{file}); # skip "More Modules" and other fudged up stuff...
+		
+		push @links, [$thismod->{name}, $thismod->{link}];
+	}
+	return \@links;
+}
+
 
 1;
                                                                                                                                                                                                                                                         
