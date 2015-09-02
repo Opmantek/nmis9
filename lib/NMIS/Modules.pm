@@ -157,6 +157,57 @@ sub installedModules {
 	}
 }
 
+sub installedModulesList {
+	my $self = shift;
+	my $installedModules;
+	my @installed;
+	
+	# from the cache
+	if ( defined $self->{installed} ) {
+		return $self->{installed};
+	}
+	else {
+		my $modules = $self->getModules();
+		
+		foreach my $mod (keys %{$modules} ) {
+			if ( $modules->{$mod}{base} eq "opmantek" ) { 
+				print STDERR "DEBUG: module_base=$self->{module_base} base=$modules->{$mod}{base}, $self->{module_base}$modules->{$mod}{file}\n" if $self->{debug};
+				if ( -f "$self->{module_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} eq "omk" ) { 
+				if ( -f "$self->{omk_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} eq "opmojo" ) { 
+				if ( -f "$self->{opmojo_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} eq "open-audit" ) { 
+				if ( -f "$self->{oav2_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+			elsif ( $modules->{$mod}{base} =~ /nmis/ ) {
+				print STDERR "DEBUG: nmis_base=$self->{nmis_base} base=$modules->{$mod}{base}, $self->{nmis_base}$modules->{$mod}{file}\n" if $self->{debug};
+				if ( -f "$self->{nmis_base}$modules->{$mod}{file}" ) {
+					push(@installed,$modules->{$mod}{name});
+				}
+			}
+		}
+		
+		$installedModules = join(",",@installed);
+		
+		# cache this for later use
+		$self->{installed} = $installedModules;
+		return @installed;	
+	}
+}
+
+
 # returns html for a menu, works only within the main nmis gui
 sub getModuleCode {
 	my $self = shift;
@@ -208,13 +259,18 @@ sub getModuleLinks
 	my @links;
 	
 	my $modules = $self->getModules();
+	my @installed = $self->installedModulesList();
 	foreach my $mod 
 			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) 
 	{
 		my $thismod = $modules->{$mod};
-		next if (!$thismod->{base} and !$thismod->{file}); # skip "More Modules" and other fudged up stuff...
 		
-		push @links, [$thismod->{name}, $thismod->{link}];
+		next if (!$thismod->{base} and !$thismod->{file}); # skip "More Modules" and other fudged up stuff...
+
+		my $modInstalled = ( grep { /$mod/ } @installed) ? 1 : 0;		
+		my $link = $modInstalled ? $thismod->{link} : "https://opmantek.com/network-management-system-tools/";
+		
+		push @links, [$thismod->{name}, $link, $thismod->{tagline}];
 	}
 	return \@links;
 }
