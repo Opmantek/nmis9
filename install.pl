@@ -650,8 +650,8 @@ else
 			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
 			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
-			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'");
-
+ 			# which includes enabling uuid
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
 			echolog("\n");
 			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
 			{
@@ -663,6 +663,14 @@ else
 			{
 				printBanner("Moving old WindowState file to new location");
 				execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+			}
+
+			# disable the uuid plugin, which this version doesn't need
+			my $obsolete = "$site/conf/plugins/UUIDPlugin.pm";
+			if (-f $obsolete)
+			{
+				echolog("Disabling obsolete UUID Plugin");
+				rename($obsolete, "$obsolete.disabled");
 			}
 
 			printBanner("Performing Model Updates");
