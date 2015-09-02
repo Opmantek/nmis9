@@ -471,8 +471,11 @@ sub getData {
 	
 	# only get RRD data for a section if the model defines it.
 	# FYI, this prevents that annoying debug "no oid loaded for section", when we do sys and no rrd.
-	if ( defined $self->{mdl}{$class}{rrd}{$section} ) {
+	if ( $class ne "systemHealth" or ( $class ne "systemHealth" and defined $self->{mdl}{$class}{rrd}{$section} ) ) {
 		$result = $self->getValues(class=>$self->{mdl}{$class}{rrd},section=>$section,index=>$index,port=>$port,table=>$self->{info}{graphtype});
+	}
+	else {
+		dbg("SKIPPING NON RRD class=$class section=$section") if $class ne "systemHealth";
 	}
 	
 	### 2012-12-03 keiths, adding some model testing and debugging options.

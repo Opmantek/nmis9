@@ -158,6 +158,9 @@ my %intAlias = (
 my $NODES = loadLocalNodeTable();
 
 #What models are we going to process
+my $goodVendors = qr/Cisco/;
+
+#What models are we going to process
 my $goodModels = qr/CiscoDSL/;
 
 # Step 6: Run the program!
@@ -206,7 +209,12 @@ sub exportNodes {
 			my $NI = $S->ndinfo;
 			
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
+			
+			# check for data prerequisites
+			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} and not defined $S->{info}{ciscoAsset} ) {
+				print "ERROR: $node is Cisco and entityMib or ciscoAsset data missing\n";
+			}
 
 			#my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 tbd4 group tbd5);
 		    
@@ -310,7 +318,7 @@ sub exportSlots {
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
@@ -390,7 +398,7 @@ sub exportCards {
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
@@ -502,7 +510,7 @@ sub exportPorts {
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
@@ -582,7 +590,7 @@ sub exportInterfaces {
 			my $IF = $S->ifinfo;
 
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			foreach my $ifIndex (sort keys %{$IF}) {
 				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {

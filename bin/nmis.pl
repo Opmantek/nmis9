@@ -487,15 +487,24 @@ sub	runThreads
 
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
 		if ( getbool($C->{'nmis_master_poll_cycle'}) or !getbool($C->{'nmis_master_poll_cycle'},"invert") ) {
+			my $pollTimer = NMIS::Timing->new;
+			
 			dbg("Starting nmisMaster");
 			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
-		}		else {
+			
+			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
+		} 
+		else {
 			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
 		}
-
+		
 		if ( getbool($C->{'nmis_summary_poll_cycle'}) or !getbool($C->{'nmis_summary_poll_cycle'},"invert") ) {
+			my $pollTimer = NMIS::Timing->new;
+
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
+
+			logMsg("Poll Time: nmisSummary, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 		}
 		else {
 			dbg("Skipping nmisSummary with configuration 'nmis_summary_poll_cycle' = $C->{'nmis_summary_poll_cycle'}");
@@ -983,7 +992,7 @@ sub doCollect {
 	}	
 
 	return;
-} # end runCollect
+} # end doCollect
 
 #=========================================================================================
 
@@ -2707,7 +2716,7 @@ sub processAlerts {
 	foreach my $alert (@{$alerts})
 	{
 		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
-		dbg("Processing alert ".Dumper($alert),2);
+		dbg("Processing alert ".Dumper($alert),4);
 		#$VAR1 = {
 		#  'ds' => '192.168.1.249',
 		#  'event' => 'BGP Peer Down',
@@ -5605,6 +5614,8 @@ sub nmisSummary {
 sub runEscalate {
 	my %args = @_;
 
+	my $pollTimer = NMIS::Timing->new;
+
 	my $C = loadConfTable();
 	my $NT = loadLocalNodeTable();
 
@@ -6435,6 +6446,10 @@ LABEL_ESC:
 	# Cologne, send the messages now
 	sendMSG(data=>\%msgTable);
 	dbg("Finished");
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		my $polltime = $pollTimer->elapTime();
+		logMsg("Poll Time: $polltime");
+	}
 	func::update_operations_stamp(type => "escalate", 
 																start => $C->{starttime}, 
 																stop => time())
@@ -7526,6 +7541,8 @@ sub doThreshold {
 
 	my $S = Sys::->new; # create system object
 
+	my $pollTimer = NMIS::Timing->new;
+
 	foreach my $nd (sort keys %{$NT}) {
 		next if $node ne "" and $node ne lc($nd); # check for single node thresholds
 		### 2012-09-03 keiths, changing as pingonly nodes not being thresholded, found by Lenir Santiago
@@ -7582,7 +7599,8 @@ sub doThreshold {
 											# verify that there is at least valid interface record
 											if ( defined $NI->{$type} 
 												and defined $NI->{$type}{$index}
-												and defined $NI->{$type}{$index}{ifIndex}
+												and defined $NI->{$type}{$index}{threshold}
+												and $NI->{$type}{$index}{threshold} eq "true"
 											) {
 												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 											}
@@ -7663,6 +7681,10 @@ sub doThreshold {
 		}
 	}
 	dbg("Finished");
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		my $polltime = $pollTimer->elapTime();
+		logMsg("Poll Time: $polltime");
+	}	
 	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => time())
 			if ($type eq "threshold");	# not if part of collect
 }

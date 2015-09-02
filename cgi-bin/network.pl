@@ -3177,6 +3177,8 @@ sub nodeAdminSummary {
 					my $snmpable = "unknown";
 					my $snmpClass = "info Plain";
 
+					my $moduleClass = "info Plain";
+
 					my $actClass = "info Plain Minor";
 					if ( $LNT->{$node}{active} eq "false" ) {
 						push(@issueList,"Node is not active");
@@ -3207,7 +3209,7 @@ sub nodeAdminSummary {
 							$pingable = "false";
 							$pingClass = "info Plain Major";
 							$exception = 1;
-							push(@issueList,"Node is currently down");
+							push(@issueList,"Node is currently unreachable");
 						}
 		
 						if ( $LNT->{$node}{collect} eq "false" ) {
@@ -3243,6 +3245,13 @@ sub nodeAdminSummary {
 								$exception = 1;
 								push(@issueList,"SNMP Community is default (public)");
 							}
+
+							if ( $LNT->{$node}{model} ne "automatic"  ) {
+								$moduleClass = "info Plain Minor";
+								$exception = 1;
+								push(@issueList,"Not using automatic model discovery");
+							}
+
 						}
 					}
 		
@@ -3287,7 +3296,7 @@ sub nodeAdminSummary {
 							td({class => 'info Plain'},$LNT->{$node}{version}),
 
 							td({class => 'info Plain'},$NI->{system}{nodeVendor}),
-							td({class => 'info Plain'},"$NI->{system}{nodeModel} ($LNT->{$node}{model})"),
+							td({class => $moduleClass},"$NI->{system}{nodeModel} ($LNT->{$node}{model})"),
 							td({class => 'info Plain'},$NI->{system}{nodeType}),
 							td({class => 'info Plain'},$sysObject),
 							td({class => 'info Plain'},$sysDescr),

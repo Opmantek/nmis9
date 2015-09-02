@@ -58,7 +58,10 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
     }
   },
   'alerts' => {
@@ -605,7 +608,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'bgpPeer,cdp,env-temp,vtpVlan,fanStatus,psuStatus',
+    'sections' => 'bgpPeer,cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset',
     'sys' => {
       'bgpPeer' => {
         'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',

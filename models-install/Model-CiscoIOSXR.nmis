@@ -50,7 +50,10 @@
   		},
   		'event' => {
   			'common-model' => 'event'
-  		}
+  		},
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
   	}
   },
   'system' => {
@@ -208,7 +211,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'cdp,cpu_cpm,entityMib',
+    'sections' => 'cdp,cpu_cpm,entityMib,ciscoAsset',
     'sys' => {
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
@@ -271,20 +274,6 @@
           'cpmCPUTotal5min' => {
             'oid' => 'cpmCPUTotal5minRev',
             'title' => 'CPU Total 5min'
-          },
-        },
-      },
-      'entityMib' => {
-        'indexed' => 'entPhysicalDescr',
-        'headers' => 'entPhysicalDescr,entPhysicalName',
-        'snmp' => {
-          'entPhysicalDescr' => {
-            'oid' => 'entPhysicalDescr',
-            'title' => 'Physical Descr'
-          },
-          'entPhysicalName' => {
-            'oid' => 'entPhysicalName',
-            'title' => 'Physical Name'
           },
         },
       },

@@ -29,36 +29,39 @@
 # *****************************************************************************
 
 %hash = (
-'-common-' => {
-	'class' => {
-		'database' => {
-			'common-model' => 'database',
-		},
-		'calls' => {
-			'common-model' => 'calls'
-		},
-		'threshold' => {
-			'common-model' => 'threshold'
-		},
-		'cbqos-in' => {
-			'common-model' => 'cbqos-in'
-		},
-		'stats' => {
-			'common-model' => 'stats'
-		},
-		'heading' => {
-			'common-model' => 'heading'
-		},
-		'cbqos-out' => {
-			'common-model' => 'cbqos-out'
-		},
-		'event' => {
-			'common-model' => 'event'
-		}
-	}
-},
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'calls' => {
+        'common-model' => 'calls'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'cbqos-in' => {
+        'common-model' => 'cbqos-in'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
+    }
+  },
   'systemHealth' => {
-    'sections' => 'cdp',
+    'sections' => 'cdp,entityMib,ciscoAsset',
     'sys' => {
       'cdp' => {
         'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',

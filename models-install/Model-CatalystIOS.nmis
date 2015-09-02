@@ -58,7 +58,10 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
     }
   },
   'system' => {
@@ -338,9 +341,6 @@
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
           },
-          'ldescr' => {
-            'oid' => 'enterprises.9.2.2.1.1.28'
-          },
           'Description' => {
             'oid' => 'ifAlias',
             'title' => ' Description'
@@ -551,7 +551,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus',
+    'sections' => 'addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
     'sys' => {
       'addressTable' => {
         'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',

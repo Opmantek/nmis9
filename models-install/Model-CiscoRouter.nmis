@@ -58,7 +58,10 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
     }
   },
   'alerts' => {
@@ -615,7 +618,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'addressTable,bgpPeer,cdp,fanStatus,psuStatus,tempStatus',
+    'sections' => 'addressTable,bgpPeer,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
     'rrd' => {
       'bgpPeer' => {
         'graphtype' => 'bgpPeer,bgpPeerStats',
