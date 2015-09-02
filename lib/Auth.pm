@@ -910,7 +910,7 @@ EOHTML
 
 	if (ref($listmodules) eq "ARRAY" and @$listmodules)
 	{
-		print '<div class="header">Installed NMIS Modules</div>';
+		print '<div class="header">Available NMIS Modules</div>';
 		print '<table>';
 		for my $entry (@$listmodules)
 		{
