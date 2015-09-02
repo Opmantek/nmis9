@@ -612,6 +612,9 @@ function	createDialog(opt) {
 	// ensure that the title is saved for refreshed requests, some of the logic above depends on its presence
 	objData.options.title = opt.title;
 
+	// now re-apply jd-menu handlers, as some widgets make use of this
+	$('ul.jd_menu').jdMenu();
+
 	// special opFlow handing, it needs to load it's javascript a special way
 	// if it's already loaded call refresh, if refresh is already defined then the javascript has already been loaded
 	// the load will kick of a refresh because of the javascript onload section in opCommon.js
