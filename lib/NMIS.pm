@@ -2383,8 +2383,10 @@ sub createHrButtons {
     
 			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
 			foreach my $sysHealth (@systemHealth) 
-			{	
-				if (defined $NI->{$sysHealth} and ref($NI->{$sysHealth}) eq "HASH") {
+			{
+				# don't show spurious blank entries
+				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}})) 
+				{
 					push @out, li(a({ class=>'wht',  href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
 			}
