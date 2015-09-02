@@ -649,7 +649,10 @@ else
 			# update default config options that have been changed:
 			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
 
-			# patch config changes that affect existing entries, which update_config_defaults doesn't handle
+			execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
+
+			# patch config changes that affect existing entries, which update_config_defaults 
+			# doesn't handle
  			# which includes enabling uuid
 			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
 			echolog("\n");
