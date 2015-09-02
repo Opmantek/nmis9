@@ -36,6 +36,7 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use NMIS;
+use NMIS::UUID;
 use Sys;
 use func;
 use csv;
@@ -528,7 +529,7 @@ sub doeditTable {
 	}
 
 	my $V;
-	# store new values in table
+	# store new values in table structure
 	for my $ref ( @{$CT}) {
 		for my $item (keys %{$ref}) {
 		    
@@ -536,6 +537,32 @@ sub doeditTable {
 			$V->{$item} = stripSpaces($Q->{$item});
 		}
 		
+	}
+
+	# some sanity checks BEFORE writing the data out
+	if ($table eq 'Nodes') 
+	{
+		# check host address
+		if ($T->{$key}{host} eq '') {
+			print header($headeropts);
+			print Tr(td({class=>'error'} ,"Field \'host\' must be filled in table $table"));
+			return 0;
+		}
+		
+		### test the DNS for DNS names, if no IP returned, error exit
+		if ( $T->{$key}{host} !~ /\d+\.\d+\.\d+\.\d+/ ) {
+			my $address = resolveDNStoAddr($T->{$key}{host});
+			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
+				print header($headeropts);
+				print Tr(td({class=>'error'} ,"ERROR, cannot resolve IP address \'$T->{$key}{host}\'<br>".
+									"Please correct this item in table $table"));
+				return 0;
+			}
+		}
+
+		# ensure a uuid is present
+		$T->{$key}->{uuid} ||= getUUID($key);
+		$V->{uuid} ||= $T->{$key}->{uuid};
 	}
 
 	my $db = "db_".lc($table)."_sql";
@@ -557,23 +584,8 @@ sub doeditTable {
 	}
 
 	# do update node with new values
-	if ($table eq 'Nodes') {
-		# check host address
-		if ($T->{$key}{host} eq '') {
-			print header($headeropts);
-			print Tr(td({class=>'error'} ,"Field \'host\' must be filled in table $table"));
-			return 0;
-		}
-		### test the DNS for DNS names, if no IP returned, error exit
-		if ( $T->{$key}{host} !~ /\d+\.\d+\.\d+\.\d+/ ) {
-			my $address = resolveDNStoAddr($T->{$key}{host});
-			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
-				print header($headeropts);
-				print Tr(td({class=>'error'} ,"ERROR, cannot resolve IP address \'$T->{$key}{host}\'<br>".
-									"Please correct this item in table $table"));
-				return 0;
-			}
-		}
+	if ($table eq 'Nodes') 
+	{
 		#print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
 		cleanEvent($key,"tables.pl.editNodeTable");
 		if (getbool($Q->{update})) {

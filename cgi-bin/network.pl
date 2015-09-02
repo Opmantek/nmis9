@@ -176,7 +176,7 @@ if (getbool($Q->{http})) {
 	print header($headeropts);
 }
 
-pageStart(title => "NMIS Network Status", refresh => $Q->{refresh}) 
+pageStartJscript(title => "NMIS Network Status", refresh => $Q->{refresh}) 
 		if (!$wantwidget);
 
 logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
@@ -1187,7 +1187,7 @@ sub viewRunTime {
 	if ($AU->CheckAccess("tls_nmis_runtime","header"))
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Run Time") if (!$wantwidget);
+		pageStartJscript(title => "NMIS Run Time") if (!$wantwidget);
 		print start_table({class=>'dash'});
 		print Tr(th({class=>'title'},"NMIS Runtime Graph"));
 		print Tr(td({class=>'image'},htmlGraph(graphtype=>"nmis", node=>"", intf=>"", width=>"600", height=>"150") ));	
@@ -1263,7 +1263,7 @@ sub viewPollingSummary {
 		}
 		
 		print header($headeropts);
-		pageStart(title => "NMIS Polling Summary") if (!$wantwidget);
+		pageStartJscript(title => "NMIS Polling Summary") if (!$wantwidget);
 		print start_table({class=>'dash'});
 		print Tr(th({class=>'title',colspan=>'2'},"NMIS Polling Summary"));
 		print Tr(td({class=>'heading3'},"Node Count"),td({class=>'rht Plain'},$sum->{count}{node}));	
@@ -1311,7 +1311,7 @@ sub viewSelfTest
 			my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true');
 
 			print header($headeropts);
-			pageStart(title => "NMIS Selftest") if (!$wantwidget);
+			pageStartJscript(title => "NMIS Selftest") if (!$wantwidget);
 			print start_table({class=>'dash'}), 
 			Tr(th({class=>'title',colspan=>'2'},"NMIS Selftest")),
 			Tr(td({class=>"heading3"}, "Last Selftest"), td({class=>"rht Plain"}, 
@@ -1336,7 +1336,7 @@ sub viewMetrics {
 	}
 
 	print header($headeropts);
-	pageStart(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
 	
 	if (!$AU->InGroup($group)) {
 		print 'You are not authorized for this request';
@@ -1405,7 +1405,7 @@ sub viewNode {
 	my $NT = loadNodeTable();
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 	
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
@@ -1784,7 +1784,7 @@ sub viewInterface {
 	my $IF = $S->ifinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 
 	if (!$AU->InGroup($NI->{system}{group})) {
@@ -1906,7 +1906,7 @@ sub viewAllIntf {
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
@@ -2037,7 +2037,7 @@ sub viewActivePort {
 	if ($Q->{dir} eq '' or $Q->{dir} eq 'rev'){$dir='fwd';}else{$dir='rev';} # direction of sort
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
 
@@ -2180,7 +2180,7 @@ sub viewStorage {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2236,7 +2236,7 @@ sub viewService {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2317,7 +2317,7 @@ sub viewServiceList {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2416,7 +2416,7 @@ sub viewStatus {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
@@ -2515,7 +2515,7 @@ sub viewEnvironment {
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2583,7 +2583,7 @@ sub viewSystemHealth {
 	my $M = $S->mdl;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2720,7 +2720,7 @@ sub viewCSSGroup {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2762,7 +2762,7 @@ sub viewCSSContent {
 	my $NI = $S->ndinfo;
 	
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
@@ -2803,7 +2803,7 @@ sub viewOverviewIntf {
 	my $text;
 
 	print header($headeropts);
-	pageStart(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $node, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my $NT = loadNodeTable();
 	my $II = loadInterfaceInfo();
@@ -2890,7 +2890,7 @@ sub viewOverviewIntf {
 sub viewTop10 {
 
 	print header($headeropts);
-	pageStart(title => "Top 10", refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => "Top 10", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print '<!-- Top10 report start -->';
 
@@ -3089,7 +3089,7 @@ sub nodeAdminSummary {
 		$filter = 0;
 	}
 	print header($headeropts);
-	pageStart(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
+	pageStartJscript(title => $group, refresh => $Q->{refresh}) if (!$wantwidget);
 
 	if ($group ne "" and !$AU->InGroup($group)) {
 		print 'You are not authorized for this request';

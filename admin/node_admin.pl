@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # a command-line node administration tool for NMIS
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -48,6 +48,7 @@ use JSON::XS;
 
 use func;
 use NMIS;
+use NMIS::UUID;
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
@@ -404,8 +405,13 @@ Use act=rename for renaming nodes.\n"
 	die "Invalid node data, netType is neither 'lan' nor 'wan'\n" if ($mayberec->{netType} !~ /^(lan|wan)$/);
 	die "Invalid node data, roleType is not 'core', 'distribution' or 'access'\n" 
 			if ($mayberec->{roleType} !~ /^(core|distribution|access)$/);
-	
 
+	# no uuid? then we add one
+	if (!$mayberec->{uuid})
+	{
+		$mayberec->{uuid} = getUUID($node);
+	}
+	
 	# ok, looks good enough. save the node info.
 	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
 	$nodeinfo->{$node} = $mayberec;

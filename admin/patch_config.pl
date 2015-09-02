@@ -30,7 +30,7 @@
 # *****************************************************************************
 #
 # this is a small helper that modifies X.nmis-style config file entries
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -52,7 +52,9 @@ my $usage = "Usage: ".basename($0)." [-fb] [-n] <configfile.nmis> <key=newvalue 
 
 key is either 'confkeyname' or '/section/sub1/sub2/keyname'
 
-operation is either = for overwriting scalar, or += for adding to array
+operation is = for overwriting scalar, 
+or += for adding to array (only if missing)
+or ,= for adding to comma-separated list (only if missing)
 newvalue is value to set or \"undef\".
 
 -f: forces conversion of config sections to match key path structure.
@@ -79,7 +81,7 @@ die "Config file \"$config_file\" was not parseable or is empty!\n"
 my @patches;
 for my $token (@ARGV)
 {
-	if ($token =~ /^\s*([^\+=]+)(=|\+=)(.*)$/)
+	if ($token =~ /^\s*([^\+,=]+)(=|\+=|,=)(.*)$/)
 	{
 		my ($key,$op,$value) = ($1,$2,$3);
 		if ($value eq "undef")
@@ -183,14 +185,25 @@ sub patch_config
 					or $curelem eq $patchpath) # or the 'relative' element name matches
 			{
 				print "Patching element $curpath, patch $patchpath\n";
-				# fixme maybe add capability to transmogrify scalar into array/hash, with -f
-				die "op $op not supported for element $curpath!\n"
-						if ($op ne '=');
-				
-				$$curloc = $value;
+				# deal with comma-sep lists
+				if ($op eq ",=")
+				{
+					my @commasep = split(/,/, $$curloc);
+					push @commasep, $value if (!grep($_ eq $value, @commasep));
+					$$curloc = join(",", @commasep);
+				}
+				elsif ($op eq "=")
+				{
+					$$curloc = $value;
+				}
+				else
+				{
+						die "op $op not supported for element $curpath!\n";
+				}
 
 				# patch applied, no longer needed, forget it
 				$patches[$pidx] = undef;
+
 			}
 		}
 	}

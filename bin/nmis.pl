@@ -47,6 +47,7 @@ use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
 use NMIS::Timing;
+use NMIS::UUID;
 use func;				# local
 use ip;					# local
 use sapi;				# local
@@ -220,8 +221,16 @@ sub	runThreads
 	my $NT = loadLocalNodeTable(); 	# only local nodes
 	dbg("table Local Node loaded",2);
 
-	my $C = loadConfTable();		# config table from cache
+	# create uuids for all nodes that might still need them
+	# this changes the local nodes table!
+	if (my $changed_nodes = createNodeUUID())
+	{
+		$NT = loadLocalNodeTable(); 
+		dbg("table Local Node reloaded after uuid updates",2);
+	}
 
+	my $C = loadConfTable();		# config table from cache
+	
 	# check if the fping results look sensible
 	# compare nr of pingable active nodes against the fping results
 	if (getbool($C->{daemon_fping_active})) 
@@ -660,7 +669,7 @@ sub doUpdate {
 
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$name,update=>'true'); # loads old node info, and the DEFAULT(!) model (always)
-	# loads the node config, and updates model and type in node info table but only if missing
+	# uses the node config loaded by init, and updates the node info table (model and nodetype only if missing)
 	$S->copyModelCfgInfo(type=>'all');
 
 	my $NI = $S->ndinfo;
@@ -872,6 +881,9 @@ sub doCollect {
 		info("Finished");
 		return; # next run to collect
 	}
+
+	# update node info data, merge in the node's configuration (which was loaded by sys' init)
+	$S->copyModelCfgInfo(type => 'all');
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
@@ -7548,7 +7560,7 @@ sub doThreshold {
 		### 2012-09-03 keiths, changing as pingonly nodes not being thresholded, found by Lenir Santiago
 		#if ($NT->{$nd}{active} eq 'true' and $NT->{$nd}{collect} eq 'true' and $NT->{$nd}{threshold} eq 'true') {
 		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{threshold}) ) {
-			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
+			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node - BUT NOT its nodes.nmis config!
 				my $NI = $S->ndinfo; # pointer to node info table
 				my $M  = $S->mdl;	# pointer to Model table
 				my $IF = $S->ifinfo;

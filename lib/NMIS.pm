@@ -2376,33 +2376,21 @@ sub createHrButtons {
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}	
     
-    ### an attempt at a jd menu, needs better JS FU than Keith possesses.
-		#if ( defined $S->{mdl}{systemHealth}{sys} ) {
-		#	my @systemHealth;
-		#	foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
-    #
-		#	push @out, "<td class='header litehead'><ul class='jd_menu'><li><a class='accessible'>System Health</a><ul>";
-		#	foreach my $sysHealth (@systemHealth) {	
-		#		if (defined $NI->{$sysHealth} and ref($NI->{$sysHealth}) eq "HASH") {
-		#			push @out, li(
-		#				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth")
-		#			);
-		#		}
-		#	}
-		#	push @out, "</ul></li></ul></td>";
-		#}
-
-		### 2013-03-06 keiths, adding systemHealth support
-		if ( defined $S->{mdl}{systemHealth}{sys} ) {
-			my @systemHealth;
-			foreach (sort keys %{$S->{mdl}{systemHealth}{sys}}) { push @systemHealth, $_; }
-			
-			foreach my $sysHealth (@systemHealth) {	
-				if (defined $NI->{$sysHealth} and ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}})) {
-					push @out, td({class=>'header litehead'},
-						a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"$sysHealth"));
+		# let's show the possibly many systemhealth items in a dropdown menu
+		if ( defined $S->{mdl}{systemHealth}{sys} ) 
+		{
+			my @systemHealth = sort keys %{$S->{mdl}{systemHealth}{sys}};
+    
+			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
+			foreach my $sysHealth (@systemHealth) 
+			{
+				# don't show spurious blank entries
+				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}})) 
+				{
+					push @out, li(a({ class=>'wht',  href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
 			}
+			push @out, "</ul></li></ul></td>";
 		}
 
 		### 2012-12-13 keiths, adding generic temp support
@@ -2431,33 +2419,40 @@ sub createHrButtons {
 			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
 	push @out, td({class=>'header litehead'},
 			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+
+
+	# and let's combine these in a 'diagnostic' menu as well
+	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
 	
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
+	push @out, li(a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
 			if (getbool($C->{view_telnet}));
 	
 	if (getbool($C->{view_ssh})) {
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",target=>'_blank'},"ssh")); 
+		push @out, li(a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
+										 target=>'_blank'},"ssh")); 
 	}
 	
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping")) 
+	push @out, li(a({class=>'wht',
+									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if getbool($C->{view_ping});
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace")) 
-				if getbool($C->{view_trace});
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
+	push @out, li(a({class=>'wht',
+									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+			if getbool($C->{view_trace});
+	push @out, li(a({class=>'wht',
+									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
 			if getbool($C->{view_mtr});
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
-				if getbool($C->{view_lft});
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
-				if getbool($NI->{system}{webserver});
+	
+	push @out, li(a({class=>'wht',
+									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
+			if getbool($C->{view_lft});
+	
+	push @out, li(a({class=>'wht', 
+									 href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
+			if getbool($NI->{system}{webserver});
+	# end of diagnostic menu
+	push @out, "</ul></li></ul></td>";
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
 		push @out, td({class=>'header litehead'},
@@ -2467,7 +2462,6 @@ sub createHrButtons {
 				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
 					if $NI->{system}{sysLocation} ne '';
 	}
-
 
 	push @out, end_Tr,end_table;
 

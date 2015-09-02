@@ -252,7 +252,8 @@ sub getModuleCode {
 	return $modCode;
 }
 
-# returns an array ref of [module title, link] for every currently installed module
+# returns an array ref of [module title, link, tagline] 
+# for every known module (installed or not)
 sub getModuleLinks
 {
 	my ($self) = @_;
@@ -264,8 +265,10 @@ sub getModuleLinks
 			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) 
 	{
 		my $thismod = $modules->{$mod};
-		
-		next if (!$thismod->{base} and !$thismod->{file}); # skip "More Modules" and other fudged up stuff...
+
+		# skip "More Modules" and other fudged up stuff...
+		next if ((!$thismod->{base} and !$thismod->{file})
+						 or $thismod->{name} eq "opService"); # on the way out
 
 		my $modInstalled = ( grep { /$mod/ } @installed) ? 1 : 0;		
 		my $link = $modInstalled ? $thismod->{link} : "https://opmantek.com/network-management-system-tools/";

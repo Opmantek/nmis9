@@ -388,6 +388,36 @@ ul.jd_menu li.jdm_active {
 	  letter-spacing: 1px;
 }
 
+/* when jd_menu is used from createHrButtons: need different styling */
+ul.jd_menu.hr_menu {
+    color: inherit;
+    background-color: inherit;
+    letter-spacing: inherit;
+    height: auto;
+    width: auto;
+    font-size: inherit;
+    font-width: inherit;
+}
+
+ul.jd_menu.hr_menu li,
+ul.jd_menu.hr_menu li.jdm_hover, 
+ul.jd_menu.hr_menu li.jdm_active 
+{
+    color: white;
+    background-color: #777777;
+    letter-spacing: inherit;
+    
+    padding: none;
+    border: none;
+
+    height: auto;
+    width: auto;
+    font-size: inherit;
+    font-width: inherit;
+
+}
+
+
 /* SKIN: These are the "Status Colours". If the boss says nothing should 
          ever be red, this is where you can tone it down. */
 .Normal {

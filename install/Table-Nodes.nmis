@@ -54,10 +54,7 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 }
 closedir(MDL);
 
-my $uuid;
-if ( $C->{uuid_add_with_node} eq "true" ) {
-	$uuid = getUUID();
-}
+my $uuid = getUUID();
 
 %hash = (
 	Nodes => [ # using an array for fixed order of fields

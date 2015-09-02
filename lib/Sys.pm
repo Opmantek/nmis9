@@ -80,7 +80,9 @@ sub new {
 }
 
 # initialise the system object for a given node
-# args: node (required, or name), snmp (defaults to 1)
+# node config is loaded only if snmp is true
+# args: node (required, or name), snmp (defaults to 1), update (defaults to 0)
+# update means ignore model loading errors
 sub init {
 	my $self = shift;
 	my %args = @_;
@@ -141,7 +143,7 @@ sub init {
 		logMsg("ERROR cannot load var/nmis-system.$ext");
 	}
 
-	# load node configuration
+	# load node configuration - attention: only done if snmp is true!
 	if ($exit and $snmp and $self->{name} ne "") {
 		if ($self->{cfg}{node} = getNodeCfg($self->{name})) {
 			dbg("cfg of node=$self->{name} loaded");
@@ -309,6 +311,8 @@ sub ifDescrInfo {
 # copy config and model info into node info table
 # args: type, if type==all then nodeModel and nodeType are only updated from mdl if missing
 # if type==overwrite then nodeModel and nodeType are updated unconditionally
+#
+# attention: if sys wasn't initialized with snmp true, then cfg will be blank!
 # if no type arg, then nodemodel and type aren't touched
 sub copyModelCfgInfo 
 {
