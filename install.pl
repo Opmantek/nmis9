@@ -168,14 +168,26 @@ if (WIFEXITED($rawstatus))
 {
 	if (WEXITSTATUS($rawstatus) == 0)
 	{
-		echolog("SELinux is enabled!");
-		print "\nThe installer has detected that SELinux is enabled on your system.
+		my $flavour = `getenforce 2>/dev/null`;
+		chomp ($flavour);
+
+		if ($flavour =~ /permissive/i)
+		{
+			echolog("SELinux is enabled but in permissive mode.");
+		}
+		else
+		{
+			echolog("SELinux is enabled!");
+			print "\n
+The installer has detected that SELinux is enabled on your system
+and that it is set to enforce its policy.\n
 SELinux needs extensive configuration to work properly.\n
 In its default configuration it is known to interfere with NMIS,
 and we do therefore recommend that you disable SELinux for NMIS.
 
 See \"man 8 selinux\" for details.\n\nHit <Enter> to continue:\n";
-		my $x = <STDIN>;
+			my $x = <STDIN>;
+		}
 	}
 	else
 	{
