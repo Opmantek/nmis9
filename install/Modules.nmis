@@ -6,7 +6,8 @@
 			 'base' => "omk",
 			 'file' => "/install/charts/charts.json",
 			 'link' => "/omk/opCharts",
-			 'description' => "opCharts brings dynamic, interactive charting to NMIS data, including custom dashboards and custom charts combining multiple data sets. This also provides a simplified view of node information from NMIS. opCharts is perfect as a customer portal." ,
+			 'description' => "opCharts brings dynamic, interactive charting to NMIS data, including custom dashboards and custom charts combining multiple data sets. This also provides a simplified view of node information from NMIS. opCharts is perfect as a customer portal.",
+			 'tagline' => "Delivers interactive charts, custom dashboards and network diagrams." ,
 		 },
 
     'opEvents' => {
@@ -16,6 +17,7 @@
       'file' => '/install/opeventsd.init.d',
       'link' => '/omk/opEvents',
       'description' => 'Event Management working like ITIL V3 intended. Managing syslog, SNMP trap, NMIS events and any log content.  Handle event detection, make automated actions, send notifications and manage escalations through to resolution.',
+      'tagline' => 'Event Management processing syslog, SNMP trap, NMIS events and others.',
     },
 
 	  'opConfig' => {
@@ -25,6 +27,7 @@
 	    'file' => '/install/opconfigd.init.d',
 	    'link' => '/omk/opConfig',
 	    'description' => 'opConfig is an easy-to-use, web based network configuration management tool. opConfig allows organisations to simply manage configuration files in multi-vendor environments assisting in disaster recovery, troubleshooting and change management.',
+	    'tagline' => 'Configuration backup, archving and change detection.',
 	  },
 
 	  'opFlow' => {
@@ -33,7 +36,8 @@
 	    'base' => 'opmantek',
 	    'file' => '/cgi-bin/opFlow.pl',
 	    'link' => '/cgi-omk/opFlow.pl',
-	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data.  This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.'
+	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data.  This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.',
+	    'tagline' => 'Application visibility with NetFlow, JFlow and others.'
 	  },
 
 	  'opMaps' => {
@@ -42,7 +46,8 @@
 	    'base' => 'opmantek',
 	    'file' => '/cgi-bin/opMaps.pl',
 	    'link' => '/cgi-omk/opMaps.pl',
-	    'description' => 'The opMaps module, provides enhanced operational capabilities, relating real time data collected by NMIS with a geographical context.  This provides staff and management an common ground for understanding current service and business impact.'
+	    'description' => 'The opMaps module, provides enhanced operational capabilities, relating real time data collected by NMIS with a geographical context.  This provides staff and management an common ground for understanding current service and business impact.',
+	    'tagline' => 'Provides enhanced operational capabilities with a geographical context.'
 	  },
 
 	  'opReports' => {
@@ -51,25 +56,28 @@
 	    'base' => 'opmantek',
 	    'file' => '/cgi-bin/opReports.pl',
 	    'link' => '/cgi-omk/opReports.pl',
-	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.'
+	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.',
+	    'tagline' => 'Enhanced NMIS reports with engineering and business related reports.'
 	  },
 
-	  'opService' => {
+	  'opReports 3.0' => {
 	    'order' => '7',
-	    'name' => 'opService',
-	    'base' => 'opmantek',
-	    'file' => '/cgi-bin/opService.pl',
-	    'link' => '/cgi-omk/opService.pl',
-	    'description' => 'The opService module extends NMIS with Service Management capabilities and includes integration with HP Service Manager for incident creation.'
+	    'name' => 'opReports 3.0',
+	    'base' => 'omk',
+	    'file' => '/bin/opreports-cli.pl',
+	    'link' => '/omk/opReports',
+	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.',
+	    'tagline' => 'Enhanced NMIS reports with engineering and business related reports.'
 	  },
-
+    
 	  'opSLA' => {
 	    'order' => '8',
 	    'name' => 'opSLA',
 	    'base' => 'nmis8',
 	    'file' => '/cgi-bin/opsla.pl',
 	    'link' => '/cgi-nmis8/opsla.pl',
-	    'description' => 'The opSLA module provides significant IPSLA probe scaling over the standard NMIS IPSLA engine.  An important consideration for large IPSLA deployments especially in Service Provider environments.'
+	    'description' => 'The opSLA module provides significant IPSLA probe scaling over the standard NMIS IPSLA engine.  An important consideration for large IPSLA deployments especially in Service Provider environments.',
+	    'tagline' => 'Access to Cisco IPSLA technology for network latency and jitter.'
 	  },
 
     'Open-AudIT Enterprise' => {
@@ -79,17 +87,8 @@
       'file' => '/bin/oae-tasks.sh',
       'link' => '/omk/oae',
       'description' => "Open-AudIT intelligently scans an organization's network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).",
+      'tagline' => "Open-AudIT intelligently scans your network for everything.",
     },
-
-	  'opReports 3.0' => {
-	    'order' => '10',
-	    'name' => 'opReports 3.0',
-	    'base' => 'omk',
-	    'file' => '/bin/opreports-cli.pl',
-	    'link' => '/omk/opReports',
-	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.'
-	  },
-
 
 	  'More Modules' => {
 	    'order' => '99',
@@ -97,6 +96,7 @@
 	    'base' => '',
 	    'file' => '',
 	    'link' => 'https://opmantek.com/network-management-system-tools/',
-	    'description' => 'Opmantek have developed many modules which enhance your organisations the investment in NMIS, extracting more information, or making that information more business and operationally relevant.'
+	    'description' => 'Opmantek have developed many modules which enhance your organisations the investment in NMIS, extracting more information, or making that information more business and operationally relevant.',
+	    'tagline' => 'Opmantek have developed many modules which enhance your organisations the investment in NMIS.'
 	  }
 );

@@ -904,15 +904,18 @@ EOHTML
 
 	print end_form;
 
+	print "</div>";
+		print '<div class="">&nbsp;</div>';
+	print "  <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>\n";
 
 	if (ref($listmodules) eq "ARRAY" and @$listmodules)
 	{
-		print '<div class="title2">Installed NMIS Modules</div>';
+		print '<div class="header">Installed NMIS Modules</div>';
 		print '<table>';
 		for my $entry (@$listmodules)
 		{
-			my ($name, $link) = @$entry;
-			print "<tr><td class='info Plain'><a href=\"$link\" target='_blank'>$name</a></td></tr>";
+			my ($name, $link, $descr) = @$entry;
+			print "<tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>";
 		}
 		print "</table></div>";
 	}

@@ -107,7 +107,7 @@ if ($AU->Require) {
 															username=>$Q->{auth_username},
 															password=>$Q->{auth_password},
 															headeropts=>$headeropts,
-															listmodules => $M->getModuleLinks) ;
+															listmodules => $M->getModuleLinksTagLine) ;
 	$privlevel = $AU->{privlevel};
 	$user = $AU->{user};
 } else {

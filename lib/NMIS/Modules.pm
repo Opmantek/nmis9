@@ -219,6 +219,24 @@ sub getModuleLinks
 	return \@links;
 }
 
+# returns an array ref of [module title, link] for every currently installed module
+sub getModuleLinksTagLine
+{
+	my ($self) = @_;
+	my @links;
+	
+	my $modules = $self->getModules();
+	foreach my $mod 
+			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) 
+	{
+		my $thismod = $modules->{$mod};
+		next if (!$thismod->{base} and !$thismod->{file}); # skip "More Modules" and other fudged up stuff...
+		
+		push @links, [$thismod->{name}, $thismod->{link}, $thismod->{tagline}];
+	}
+	return \@links;
+}
+
 
 1;
                                                                                                                                                                                                                                                         
