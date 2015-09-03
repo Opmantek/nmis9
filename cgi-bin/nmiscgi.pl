@@ -144,7 +144,7 @@ $registered = "true" if $licenseValid;
 
 ### 2012-12-06 keiths, added a HTML5 compliant header.
 print $q->header($headeropts);
-startNmisPage(title => 'NMIS by Opmantek');
+startNmisPage(title => "NMIS by Opmantek - $C->{server_name}");
 
 my $tenantCode = loadTenantCode(conf=>$Q->{conf});
 
@@ -182,7 +182,7 @@ print qq|
 	<div id="header">
 		<div class="nav">
 		  <a href="http://www.opmantek.com"><img height="30px" width="30px" class="logo" src="$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png"/></a>
-			<span class="title">NMIS $NMIS::VERSION</span>
+			<span class="title">NMIS $NMIS::VERSION - $C->{server_name}</span>
 			$tenantCode
 			$serverCode
 			$moduleCode

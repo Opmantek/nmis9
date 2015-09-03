@@ -157,7 +157,7 @@ sub typeGraph {
 	}
 	else
 	{
-		$S->graphHeading(graphtype=>$graphtype, index=>$index, item=>$group);
+		$heading = $S->graphHeading(graphtype=>$graphtype, index=>$index, item=>$group);
 	}
 
 	print header($headeropts);
@@ -168,7 +168,7 @@ sub typeGraph {
 			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
 	}
 	print start_html(
-		-title => "Graph Drill In for $heading @ ".returnDateStamp,
+		-title => "Graph Drill In for $heading @ ".returnDateStamp." - $C->{server_name}",
 		-meta => { 'CacheControl' => "no-cache",
 			'Pragma' => "no-cache",
 			'Expires' => -1 

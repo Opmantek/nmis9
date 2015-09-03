@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.5.10a";
+our $VERSION = "8.5.10c";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -69,6 +69,15 @@ default is no logging, no debug\n";
 
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+
+# check if nmis is locked, if so shut down immediately.
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+{
+	die ("Attention: NMIS is currently disabled, fpingd.pl is terminating!\n"
+			 .(-f $lockoutfile? "Remove the file $lockoutfile to re-enable.\n\n" :
+				 "Set the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n"))
+}
 
 ## setting debug levels
 $debug =  setDebug($nvp{debug});
@@ -456,7 +465,14 @@ sub fastping
 		# check if the config is still unchanged, if not restart (but only after firstrun)
 		# ditto for the events config
 		my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
-
+		# re-check for nmis locked
+		my $lockoutfile = $newconf->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+		if (-f $lockoutfile or getbool($newconf->{global_collect},"invert"))
+		{
+			logMsg("WARN fping is terminating because NMIS is disabled!");
+			die ("Attention: fping is terminating because NMIS is disabled!\n");
+		}
+		
 		# cannot use loadGenericTable as that checks and clashes with db_events_sql
 		my $eventconfig = loadTable(dir => 'conf', name => 'Events'); 
 

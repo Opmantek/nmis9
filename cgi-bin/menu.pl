@@ -572,7 +572,7 @@ Copyright (C) <a href="http://www.opmantek.com">Opmantek Limited (www.opmantek.c
 This program comes with ABSOLUTELY NO WARRANTY;<br/>
 This is free software licensed under GNU GPL, and you are welcome to<br/>
 redistribute it under certain conditions; see <a href="http://www.opmantek.com">www.opmantek.com</a> or email<br/>
- <a href="mailto://contact\@opmantek.com">contact\@opmantek.com<br/>
+ <a href="mailto:contact\@opmantek.com">contact\@opmantek.com<br/>
 
 EO_TEXT
 
