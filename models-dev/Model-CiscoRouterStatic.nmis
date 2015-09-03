@@ -47,7 +47,7 @@
         'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
       }
     },
     'ospfNbr' => {
@@ -58,7 +58,7 @@
         'test' => 'CVAR1=ospfNbrState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=ospfNbrState;$CVAR1 * 1'
+        'value' => 'CVAR1=ospfNbrState;int($CVAR1)'
       }
     },
     'env-temp' => {
@@ -76,7 +76,7 @@
         },
         'type' => 'threshold-rising',
         'unit' => 'celsius',
-        'value' => 'CVAR1=currentTemp;$CVAR1 * 1'
+        'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
     'fanStatus' => {
@@ -87,7 +87,7 @@
         'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+        'value' => 'CVAR1=fanValue;int($CVAR1)'
       }
     },
     'psuStatus' => {
@@ -98,7 +98,7 @@
         'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+        'value' => 'CVAR1=psuValue;int($CVAR1)'
       }
     },
     'tempStatus' => {
@@ -109,7 +109,7 @@
         'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
+        'value' => 'CVAR1=tempValue;int($CVAR1)'
       }
     },
     'rttMonLatestRtt' => {
@@ -127,7 +127,7 @@
         },
         'type' => 'threshold-rising',
         'unit' => 'ms',
-        'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1'
+        'value' => 'CVAR1=OperCompletionTime;int($CVAR1)'
       },
       'OperationAlertError' => {
         'element' => 'index',
@@ -136,7 +136,7 @@
         'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
         'type' => 'test',
         'unit' => 'OperSense',
-        'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1'
+        'value' => 'CVAR1=OperSenseValue;int($CVAR1)'
       }
     },
   },
@@ -370,7 +370,7 @@
       'nocollect' => 'regex for cbqos control'
     },
     'nbarpd_check' => 'true',
-    'nodeModel' => 'CiscoRouter',
+    'nodeModel' => 'CiscoRouterStatic',
     'nodeType' => 'router',
     'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',

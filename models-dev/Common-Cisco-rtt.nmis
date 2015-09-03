@@ -25,7 +25,7 @@
         },
         'type' => 'threshold-rising',
         'unit' => 'ms',
-        'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1'
+        'value' => 'CVAR1=OperCompletionTime;int($CVAR1)'
       },
       'OperationAlertError' => {
         'element' => 'index',
@@ -34,7 +34,7 @@
         'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
         'type' => 'test',
         'unit' => 'OperSense',
-        'value' => 'CVAR1=OperSenseValue;$CVAR1 * 1'
+        'value' => 'CVAR1=OperSenseValue;int($CVAR1)'
       }
     },
   },

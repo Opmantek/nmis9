@@ -8,7 +8,7 @@
         'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+        'value' => 'CVAR1=fanValue;int($CVAR1)'
       }
     },
     'psuStatus' => {
@@ -19,7 +19,7 @@
         'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+        'value' => 'CVAR1=psuValue;int($CVAR1)'
       }
     },
     'tempStatus' => {
@@ -30,7 +30,7 @@
         'test' => 'CVAR1=tempValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=tempValue;$CVAR1 * 1'
+        'value' => 'CVAR1=tempValue;int($CVAR1)'
       }
     },
   },

@@ -73,7 +73,7 @@
         'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
       }
     },
     'env-temp' => {
@@ -92,7 +92,7 @@
         'event' => 'High Temperature',
         'test' => '',
         'unit' => 'celsius',
-        'value' => 'CVAR1=currentTemp;$CVAR1 * 1'
+        'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
     'fanStatus' => {
@@ -103,7 +103,7 @@
         'test' => 'CVAR1=fanValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=fanValue;$CVAR1 * 1'
+        'value' => 'CVAR1=fanValue;int($CVAR1)'
       }
     },
     'psuStatus' => {
@@ -114,7 +114,7 @@
         'test' => 'CVAR1=psuValue;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=psuValue;$CVAR1 * 1'
+        'value' => 'CVAR1=psuValue;int($CVAR1)'
       }
     },
   },
