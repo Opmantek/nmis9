@@ -52,6 +52,10 @@ use vars qw($q $Q $C $AU);
 $q = new CGI; # This processes all parameters passed via GET and POST
 $Q = $q->Vars; # values in hash
 
+# this cgi script defaults to widget mode ON
+my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
+my $widget = $wantwidget ? "true" : "false";
+
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # NMIS Authentication module
@@ -97,8 +101,10 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 
 sub notfound {
 	print header($headeropts);
+	pageStart(title => "View Events - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 	print "View Event: ERROR, act=$Q->{act}<br>\n";
 	print "Request not found\n";
+	pageEnd if (!$wantwidget);
 }
 
 exit 0;
@@ -111,6 +117,7 @@ exit 0;
 sub displayFlow{
 
 	print header($headeropts);
+	pageStart(title => "View Event Flow - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my %events = ( 
 		event => ["Generic Down", "Generic Up", "Interface Down", "Interface Up",
@@ -119,13 +126,20 @@ sub displayFlow{
 		node => [ sort keys %{loadLocalNodeTable()} ]
 	);
 
-	print start_form(-id=>"tls_event_flow_form",-action=>"javascript:get('tls_event_flow_form');",
-				-href=>"view-event.pl?conf=$Q->{conf}&act=event_flow_view");
+	# the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"tls_event_flow_form", -href => url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "event_flow_view")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table;
 
+	# show a link home if not in widget mode
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+
 	# first print header and boxes for event flow analyzing
-	print Tr(td({class=>'header',colspan=>'4'},'View Event Flow'));
+	print Tr(td({class=>'header',colspan=>'4'},"${homelink}View Event Flow"));
 
 	my @headers = ("Event", "Node", "Element","view");
 	print Tr( 
@@ -141,7 +155,11 @@ sub displayFlow{
 			for (@headers) {
 				my $field = lc $_;
 				if ($field eq "view" ) {
-					$line .= td({class=>'info',align=>'center'},button(-name=>'button',onclick=>"get('tls_event_flow_form');",-value=>'Go'));
+					$line .= td({class=>'info',align=>'center'},button(-name=>'button',
+																														 onclick => ($wantwidget? 
+																																				 "get('tls_event_flow_form');"
+																																				 : "submit()" ),
+																														 -value=>'Go'));
 				} else {
 					if ($events{$field} ne '' ) {
 						$line .= td({class=>'info'},
@@ -159,18 +177,23 @@ sub displayFlow{
 	print end_form;
 
 	if ($Q->{event} ne '') { displayEventFlow(); }
+	pageEnd if (!$wantwidget);
 }
 
 sub displayEventList
 {
 	print header($headeropts);
+	pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	# load all events, for all nodes
 	my %allevents = loadAllEvents;
 
 	# second print a list of event database entries
 	print start_table;
-	print Tr(td({class=>'header',colspan=>'3'},'View Event Database'));
+	# show a link home if not in widget mode
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+
+	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
 	foreach my $eventkey (sort keys %allevents)  
 	{
@@ -187,13 +210,14 @@ sub displayEventList
 		my $line = "$date $time $node - $event - $element";
 		$flag++;
 		print Tr(td({class=>'info'},
-								a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_view&node=$node&event=$event&element=$element"},$line)),
-						 td({class=>'info'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node"},'View Node')),
-						 td({class=>'info'},a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_delete&node=$node&event=$event&element=$element"},'Delete Event'))
+								a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_view&node=$node&event=$event&element=$element&widget=$widget"},$line)),
+						 td({class=>'info'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$node&widget=$widget"},'View Node')),
+						 td({class=>'info'},a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_delete&node=$node&event=$event&element=$element&widget=$widget"},'Delete Event'))
 				);
 	}
 	print Tr(td({class=>'info'},"no event current")) if !$flag;
 	print end_table;
+	pageEnd if (!$wantwidget);
 }
 
 #
@@ -202,14 +226,19 @@ sub displayEventList
 sub	displayEvent {
 
 	print header($headeropts);
+	pageStart(title => "View Event Database - $Q->{node} - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print start_table;
 
-	print Tr(td({class=>'header',colspan=>'6'},"View Event database - $Q->{node}"));
+	# show a link home if not in widget mode
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+	
+	print Tr(td({class=>'header',colspan=>'6'},"${homelink}View Event Database - $Q->{node}"));
 	
 	displayEventItems();
 
 	print end_table;
+	pageEnd if (!$wantwidget);
 }
 
 #
@@ -396,7 +425,7 @@ sub displayEventItems {
 		goto DELETE;
 	}
 
-	my $event = lc($event);
+	$event = lc($event);
 	# Escalation_Key=Group:Role:Type:Event
 	my @keylist = (
 						$group."_".$role."_".$type."_".$event ,
@@ -580,7 +609,7 @@ DELETE:
 		# $event has been mangled for the escalation lookup...
 		print Tr(td({class=>'header'},b('Delete this Event ? ')),
 			td(a({href=>"view-event.pl?conf=$Q->{conf}&act=event_database_dodelete&node=$node&event="
-								.$thisevent->{event}."&element=$element"},'DELETE')));
+								.$thisevent->{event}."&element=$element&widget=$widget"},'DELETE')));
 	}
 	#=====================================================
 }
