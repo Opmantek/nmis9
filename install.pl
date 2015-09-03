@@ -223,7 +223,13 @@ perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog));
 
-	
+	# cgi was removed from core in 5.20
+	if (version->parse($^V) >= version->parse("5.19.7"))
+	{
+		push @debpackages, "libcgi-pm-perl";
+		push @rhpackages, "perl-CGI";
+	}
+
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
 
