@@ -2962,11 +2962,6 @@ sub getIntfData {
 		if ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 			info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
 			
-			# remove empty graphtypes from data.
-			#if ( defined $NI->{graphtype}{$index} and not keys ($NI->{graphtype}{$index}) ) {
-			#	delete $NI->{graphtype}{$index};
-			#}
-			
 			# only collect on interfaces that are defined, with collection turned on globally
 			if ( getbool($IF->{$index}{collect}) ) {
 				dbg("collect interface index=$index");

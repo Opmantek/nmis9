@@ -859,8 +859,8 @@ EOHTML
 |;
 	
 	print qq|
-  <div id="login_frame">
-    <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
+    <div id="login_frame">
+      <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
 |;
 
 	print $self->do_login_banner();
@@ -904,25 +904,29 @@ EOHTML
 
 	print end_form;
 
-	print "</div>";
-		print '<div class="">&nbsp;</div>';
-	print "  <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>\n";
+	print "\n      </div>\n";
 
 	if (ref($listmodules) eq "ARRAY" and @$listmodules)
 	{
-		print '<div class="header">Available NMIS Modules</div>';
-		print '<table>';
+		print qq|
+      <div>&nbsp;</div>
+      <div id='login_dialog' class='ui-dialog ui-widget ui-widget-content ui-corner-all'>
+        <div class='header'>Available NMIS Modules</div>
+        <table>
+|;
 		for my $entry (@$listmodules)
 		{
 			my ($name, $link, $descr) = @$entry;
-			print "<tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>";
+			print "          <tr><td class='lft Plain'><a href=\"$link\" target='_blank'>$name</a> - $descr</td></tr>\n";
 		}
-		print "</table></div>";
+		print qq|        </table>
+      </div>
+|;
 	}
 
-	print "</div>";
-
-	print "</div>";
+		print qq|
+    </div>
+|;
 
 	print end_html;
 }
