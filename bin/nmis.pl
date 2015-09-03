@@ -716,7 +716,6 @@ sub doUpdate {
 		$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";		# nmisdev Dec2010 first time model seen, collect, but no snmp answer
 		$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
 	}
-	#print Dumper($S)."\n";
 	runReach(sys=>$S);
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
@@ -960,6 +959,8 @@ sub doCollect {
 
 	runCheckValues(sys=>$S);
 	runReach(sys=>$S);
+
+	#print Dumper($S)."\n" if ( $name eq "meatball") ;
 
 	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
@@ -4713,118 +4714,120 @@ sub runAlerts {
 	info("Running Custom Alerts for node $NI->{system}{name}");
 
 	foreach my $sect (keys %{$CA}) {
-		info("Custom Alerts for $sect");
-		foreach my $index ( keys %{$NI->{$sect}} ) {
-			foreach my $alrt ( keys %{$CA->{$sect}} ) {
-				if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {
-					my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",sys=>$S,index=>$index,type=>$sect,sect=>$sect);
-					dbg("control_result sect=$sect index=$index control_result=$control_result");
-					next if not $control_result;
-				}
-
-				# perform CVARn substitution for these two types of ops
-				if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
-				{
-						my ($test, $value, $alert, $test_value, $test_result);
-
-						# do this for test and value
-						for my $thingie (['test',\$test_result],['value',\$test_value])
-						{
-								my ($key, $target) = @$thingie;
-
-								my $origexpr = $CA->{$sect}{$alrt}{$key};
-								my ($rebuilt,@CVAR);
-								# rip apart expression, rebuild it with var substitutions
-								while ($origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
-								{
-										$rebuilt.=$1;					 # the unmatched, non-cvar stuff at the begin
-										my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
-
-										if (defined $varnum) # cvar declaration
-										{
-												$CVAR[$varnum] = $NI->{$sect}->{$index}->{$decl};
-												logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in \""
-															 .$CA->{$sect}{$alrt}{$key}.'"')
-														if (!exists $NI->{$sect}->{$index}->{$decl});
-										}
-										elsif (defined $varuse) # cvar use
-										{
-												logMsg("ERROR: CVAR$varuse used but not defined in test \""
-															 .$CA->{$sect}{$alrt}{$key}.'"')
-														if (!exists $CVAR[$varuse]);
-
-												$rebuilt .= $CVAR[$varuse]; # sub in the actual value
-										}
-										else 						# shouldn't be reached, ever
-										{
-												logMsg("ERROR: CVAR parsing failure for \"".$CA->{$sect}{$alrt}{$key}.'"');
-												$rebuilt=$origexpr='';
-												last;
-										}
-								}
-								$rebuilt.=$origexpr; # and the non-CVAR-containing remainder.
-
-								$$target = eval { eval $rebuilt; };
-								dbg("substituted $key sect=$sect index=$index, orig=\"".$CA->{$sect}{$alrt}{$key}
-										."\", expr=\"$rebuilt\", result=$$target",2);
-						}
-
-						if ( $test_value =~ /^[\+-]?\d+\.\d+$/ ) {
-								$test_value = sprintf("%.2f",$test_value);
-						}
-
-						my $level=$CA->{$sect}{$alrt}{level};
-
-						# check the thresholds
-						# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
-						if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
-						{
-								if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
-										if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-												$test_result = 0;
-												$level = "Normal";
-										}
-										else {
-												my @levels = qw(Warning Minor Major Critical Fatal);
-												foreach my $lvl (@levels) {
-														if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																$test_result = 1;
-																$level = $lvl;
-																last;
-														}
-												}
-										}
-								}
-								elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
-										if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-												$test_result = 0;
-												$level = "Normal";
-										}
-										else {
-												my @levels = qw(Fatal Critical Major Minor Warning);
-												foreach my $lvl (@levels) {
-														if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																$test_result = 1;
-																$level = $lvl;
-																last;
-														}
-												}
-										}
-								}
-								info("alert result: test_result=$test_result level=$level",2);
-						}
-
-						# and now save the result, for both tests and thresholds (source of level is the only difference)
-						$alert->{type} = $CA->{$sect}{$alrt}{type};
-						$alert->{test} = $CA->{$sect}{$alrt}{value};
-						$alert->{name} = $S->{name};
-						$alert->{unit} = $CA->{$sect}{$alrt}{unit};
-						$alert->{event} = $CA->{$sect}{$alrt}{event};
-						$alert->{level} = $level;
-						$alert->{ds} = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
-						$alert->{test_result} = $test_result;
-						$alert->{value} = $test_value;
-						push( @{$S->{alerts}}, $alert );
+		if ( defined $NI->{$sect} and keys %{$NI->{$sect}} ) {
+			info("Custom Alerts for $sect");
+			foreach my $index ( keys %{$NI->{$sect}} ) {
+				foreach my $alrt ( keys %{$CA->{$sect}} ) {
+					if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {
+						my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",sys=>$S,index=>$index,type=>$sect,sect=>$sect);
+						dbg("control_result sect=$sect index=$index control_result=$control_result");
+						next if not $control_result;
+					}
+	
+					# perform CVARn substitution for these two types of ops
+					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
+					{
+							my ($test, $value, $alert, $test_value, $test_result);
+	
+							# do this for test and value
+							for my $thingie (['test',\$test_result],['value',\$test_value])
+							{
+									my ($key, $target) = @$thingie;
+	
+									my $origexpr = $CA->{$sect}{$alrt}{$key};
+									my ($rebuilt,@CVAR);
+									# rip apart expression, rebuild it with var substitutions
+									while ($origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
+									{
+											$rebuilt.=$1;					 # the unmatched, non-cvar stuff at the begin
+											my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
+	
+											if (defined $varnum) # cvar declaration
+											{
+													$CVAR[$varnum] = $NI->{$sect}->{$index}->{$decl};
+													logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in \""
+																 .$CA->{$sect}{$alrt}{$key}.'"')
+															if (!exists $NI->{$sect}->{$index}->{$decl});
+											}
+											elsif (defined $varuse) # cvar use
+											{
+													logMsg("ERROR: CVAR$varuse used but not defined in test \""
+																 .$CA->{$sect}{$alrt}{$key}.'"')
+															if (!exists $CVAR[$varuse]);
+	
+													$rebuilt .= $CVAR[$varuse]; # sub in the actual value
+											}
+											else 						# shouldn't be reached, ever
+											{
+													logMsg("ERROR: CVAR parsing failure for \"".$CA->{$sect}{$alrt}{$key}.'"');
+													$rebuilt=$origexpr='';
+													last;
+											}
+									}
+									$rebuilt.=$origexpr; # and the non-CVAR-containing remainder.
+	
+									$$target = eval { eval $rebuilt; };
+									dbg("substituted $key sect=$sect index=$index, orig=\"".$CA->{$sect}{$alrt}{$key}
+											."\", expr=\"$rebuilt\", result=$$target",2);
+							}
+	
+							if ( $test_value =~ /^[\+-]?\d+\.\d+$/ ) {
+									$test_value = sprintf("%.2f",$test_value);
+							}
+	
+							my $level=$CA->{$sect}{$alrt}{level};
+	
+							# check the thresholds
+							# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
+							if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
+							{
+									if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
+											if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
+													$test_result = 0;
+													$level = "Normal";
+											}
+											else {
+													my @levels = qw(Warning Minor Major Critical Fatal);
+													foreach my $lvl (@levels) {
+															if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+																	$test_result = 1;
+																	$level = $lvl;
+																	last;
+															}
+													}
+											}
+									}
+									elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
+											if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
+													$test_result = 0;
+													$level = "Normal";
+											}
+											else {
+													my @levels = qw(Fatal Critical Major Minor Warning);
+													foreach my $lvl (@levels) {
+															if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
+																	$test_result = 1;
+																	$level = $lvl;
+																	last;
+															}
+													}
+											}
+									}
+									info("alert result: test_result=$test_result level=$level",2);
+							}
+	
+							# and now save the result, for both tests and thresholds (source of level is the only difference)
+							$alert->{type} = $CA->{$sect}{$alrt}{type};
+							$alert->{test} = $CA->{$sect}{$alrt}{value};
+							$alert->{name} = $S->{name};
+							$alert->{unit} = $CA->{$sect}{$alrt}{unit};
+							$alert->{event} = $CA->{$sect}{$alrt}{event};
+							$alert->{level} = $level;
+							$alert->{ds} = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
+							$alert->{test_result} = $test_result;
+							$alert->{value} = $test_value;
+							push( @{$S->{alerts}}, $alert );
+					}
 				}
 			}
 		}
@@ -5329,7 +5332,7 @@ sub runReach {
 
 END_runReach:
 	info("Finished");
-} # end runHealth
+} # end runReach
 
 #=========================================================================================
 

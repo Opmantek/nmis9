@@ -22,7 +22,7 @@
         'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;$CVAR1 * 1'
+        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
       }
     },
     'ospfNbr' => {
@@ -33,7 +33,7 @@
         'test' => 'CVAR1=ospfNbrState;$CVAR1 ne 100',
         'type' => 'test',
         'unit' => '',
-        'value' => 'CVAR1=ospfNbrState;$CVAR1 * 1'
+        'value' => 'CVAR1=ospfNbrState;int($CVAR1)'
       }
     },
   },

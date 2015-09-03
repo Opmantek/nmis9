@@ -72,7 +72,7 @@
         },
         'type' => 'threshold-rising',
         'unit' => 'celsius',
-        'value' => 'CVAR1=currentTemp;$CVAR1 * 1'
+        'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
   },
