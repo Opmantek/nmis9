@@ -107,7 +107,9 @@ if ($AU->Require) {
 															username=>$Q->{auth_username},
 															password=>$Q->{auth_password},
 															headeropts=>$headeropts,
-															listmodules => $M->getModuleLinks) ;
+															listmodules => 
+															(!getbool($C->{display_module_list}, 'invert')? 
+															 $M->getModuleLinks : undef)) ;
 	$privlevel = $AU->{privlevel};
 	$user = $AU->{user};
 } else {
