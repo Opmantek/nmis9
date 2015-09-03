@@ -69,7 +69,7 @@
         'common-model' => 'Cisco-neighbor'
       },
       'routing' => {
-        'common-model' => 'Cisco-routing'
+        'common-model' => 'routing'
       },
       'status' => {
         'common-model' => 'Cisco-status'
