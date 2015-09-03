@@ -12,21 +12,14 @@
       },
       'threshold' => {
         'common-model' => 'threshold'
-      }
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'jnxOperations' => {
+        'common-model' => 'Juniper-jnxOperations'
+      },
     }
-  },
-  'alerts' => {
-    'bgpPeer' => {
-      'bgpPeerStateDown' => {
-        'element' => 'index',
-        'event' => 'BGP Peer Down',
-        'level' => 'Warning',
-        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
-        'type' => 'test',
-        'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
-      }
-    },
   },
   'interface' => {
     'collect' => {
@@ -423,233 +416,8 @@
       },
     }
   },
-	#JUNIPER-MIB::jnxOperatingContentsIndex.9.1.0.0 = INTEGER: 9
-	#JUNIPER-MIB::jnxOperatingL1Index.9.1.0.0 = INTEGER: 1
-	#JUNIPER-MIB::jnxOperatingL2Index.9.1.0.0 = INTEGER: 0
-	#JUNIPER-MIB::jnxOperatingL3Index.9.1.0.0 = INTEGER: 0
-	#JUNIPER-MIB::jnxOperatingDescr.9.1.0.0 = STRING: Routing Engine
-	#JUNIPER-MIB::jnxOperatingState.9.1.0.0 = INTEGER: running(2)
-	#JUNIPER-MIB::jnxOperatingTemp.9.1.0.0 = Gauge32: 49
-	#JUNIPER-MIB::jnxOperatingCPU.9.1.0.0 = Gauge32: 32
-	#JUNIPER-MIB::jnxOperatingISR.9.1.0.0 = Gauge32: 1
-	#JUNIPER-MIB::jnxOperatingDRAMSize.9.1.0.0 = INTEGER: 0
-	#JUNIPER-MIB::jnxOperatingBuffer.9.1.0.0 = Gauge32: 28
-	#JUNIPER-MIB::jnxOperatingHeap.9.1.0.0 = Gauge32: 0
-	#JUNIPER-MIB::jnxOperatingUpTime.9.1.0.0 = INTEGER: 1941565200
-	#JUNIPER-MIB::jnxOperatingLastRestart.9.1.0.0 = Timeticks: (0) 0:00:00.00
-	#JUNIPER-MIB::jnxOperatingMemory.9.1.0.0 = INTEGER: 2048
-	#JUNIPER-MIB::jnxOperatingStateOrdered.9.1.0.0 = INTEGER: running(1)
-	#JUNIPER-MIB::jnxOperatingChassisId.9.1.0.0 = INTEGER: singleChassis(2)
-	#JUNIPER-MIB::jnxOperatingChassisDescr.9.1.0.0 = STRING: Single Chassis
-	#JUNIPER-MIB::jnxOperatingRestartTime.9.1.0.0 = STRING: 2014-3-19,23:50:1.0,+10:0
-	#JUNIPER-MIB::jnxOperating1MinLoadAvg.9.1.0.0 = Gauge32: 32
-	#JUNIPER-MIB::jnxOperating5MinLoadAvg.9.1.0.0 = Gauge32: 11
-	#JUNIPER-MIB::jnxOperating15MinLoadAvg.9.1.0.0 = Gauge32: 3
   'systemHealth' => {
-    'sections' => 'bgpPeer,jnxOperations',
-    'sys' => {
-      'jnxOperations' => {
-        'headers' => 'jnxOperatingDescr,jnxOperatingState,jnxOperatingTemp,jnxOperatingMemory,jnxOperatingBuffer,jnxOperatingHeap,jnxOper1MinLoadAvg,jnxOper5MinLoadAvg',
-        'index_oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
-        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
-        'indexed' => 'jnxOperatingDescr',
-        'snmp' => {
-          'jnxOperatingDescr' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.5',
-            'sysObjectName' => 'jnxOperatingDescr',
-            'title' => 'Description'
-          }, 		
-          'jnxOperatingState' => {
-            'sysObjectName' => 'jnxOperatingState',
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.6',
-            'replace' => {
-              '1' => 'unknown',
-              '2' => 'running',
-              '3' => 'ready',
-              '4' => 'reset',
-              '5' => 'runningAtFullSpeed',
-              '6' => 'down',
-              '7' => 'standby',
-            },
-            'title' => 'State'
-          },
-          'jnxOperatingTemp' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.7',
-            'sysObjectName' => 'jnxOperatingTemp',
-            'title' => 'Temperature (C)'
-          },          
-          'jnxOperatingBuffer' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.11',
-            'sysObjectName' => 'jnxOperatingBuffer',
-            'title' => 'Buffer Pool Utilization'
-          },
-          'jnxOperatingHeap' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.12',
-            'sysObjectName' => 'jnxOperatingHeap',
-            'title' => 'Heap Utilization'
-          },
-          'jnxOperatingMemory' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.15',
-            'sysObjectName' => 'jnxOperatingMemory',
-            'title' => 'Installed Memory (MB)'
-          },
-          'jnxOper1MinLoadAvg' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.20',
-            'sysObjectName' => 'jnxOperating1MinLoadAvg',
-            'title' => '1 Min CPU Load Average'
-          },
-          'jnxOper5MinLoadAvg' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.21',
-            'sysObjectName' => 'jnxOperating5MinLoadAvg',
-            'title' => '5 Min CPU Load Average'
-          },
-        }
-      },
-      'bgpPeer' => {
-        'headers' => 'bgpPeerIdentifier,bgpPeerState,bgpPeerStateName,bgpPeerAdminStatus,bgpPeerRemoteAddr,bgpPeerRemoteAs',
-        'index_oid' => '1.3.6.1.2.1.15.3.1.1',
-        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+\\.\\d+)$',
-        'indexed' => 'bgpPeerIdentifier',
-        'snmp' => {
-          'bgpPeerAdminStatus' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.3',
-            'replace' => {
-              '1' => 'stop',
-              '2' => 'start'
-            },
-            'title' => 'BGP Peer Admin Status'
-          },
-          'bgpPeerFsmEstTran' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.15',
-            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions',
-            'title' => 'BGP Peer Transitions'
-          },
-          'bgpPeerIdentifier' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.1',
-            'title' => 'BGP Peer Identifier'
-          },
-          'bgpPeerInTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.12',
-            'sysObjectName' => 'bgpPeerInTotalMessages',
-            'title' => 'BGP Peer In Messages'
-          },
-          'bgpPeerInUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.10',
-            'title' => 'BGP Peer In Updates'
-          },
-          'bgpPeerOutTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.13',
-            'sysObjectName' => 'bgpPeerOutTotalMessages',
-            'title' => 'BGP Peer Out Messages'
-          },
-          'bgpPeerOutUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.11',
-            'title' => 'BGP Peer Out Updates'
-          },
-          'bgpPeerRemoteAddr' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.7',
-            'title' => 'BGP Peer Remote Address'
-          },
-          'bgpPeerRemoteAs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.9',
-            'title' => 'BGP Peer Remote AS'
-          },
-          'bgpPeerState' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.2',
-            'title' => 'BGP Peer State'
-          },
-          'bgpPeerStateName' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.2',
-            'replace' => {
-              '1' => 'idle',
-              '2' => 'connect',
-              '3' => 'active',
-              '4' => 'opensent',
-              '5' => 'openconfirm',
-              '6' => 'established'
-            },
-            'title' => 'BGP Peer State'
-          }
-        }
-      }
-    },
-    'rrd' => {
-      'jnxOperations' => {
-        'graphtype' => 'jnxCPU,jnxMem,jnxTemp',
-        'indexed' => 'true',
-        'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
-        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
-        'threshold' => 'jnx_cpu,jnx_temp,jnx_buffer,jnx_heap',
-        'snmp' => {
-          'jnxOperatingTemp' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.7',
-            'sysObjectName' => 'jnxOperatingTemp',
-            'title' => 'Temperature (C)'
-          },          
-          'jnxOperatingBuffer' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.11',
-            'sysObjectName' => 'jnxOperatingBuffer',
-            'title' => 'Buffer Pool Utilization'
-          },
-          'jnxOperatingHeap' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.12',
-            'sysObjectName' => 'jnxOperatingHeap',
-            'title' => 'Heap Utilization'
-          },
-          'jnxOper1MinLoadAvg' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.20',
-            'sysObjectName' => 'jnxOperating1MinLoadAvg',
-            'title' => '1 Min CPU Load Average'
-          },
-          'jnxOper5MinLoadAvg' => {
-            'oid' => '1.3.6.1.4.1.2636.3.1.13.1.21',
-            'sysObjectName' => 'jnxOperating5MinLoadAvg',
-            'title' => '5 Min CPU Load Average'
-          },
-        }
-      },
-      'bgpPeer' => {
-        'graphtype' => 'bgpPeer,bgpPeerStats',
-        'indexed' => 'true',
-        'snmp' => {
-          'bgpPeerFsmEstTran' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.15',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerFsmEstablishedTransitions'
-          },
-          'bgpPeerInTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.12',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerInTotalMessages'
-          },
-          'bgpPeerInUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.10',
-            'option' => 'counter,0:U'
-          },
-          'bgpPeerOutTotMsgs' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.13',
-            'option' => 'counter,0:U',
-            'sysObjectName' => 'bgpPeerOutTotalMessages'
-          },
-          'bgpPeerOutUpdates' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.11',
-            'option' => 'counter,0:U'
-          },
-          'bgpPeerState' => {
-            'oid' => '1.3.6.1.2.1.15.3.1.2',
-            'replace' => {
-              '1' => '0',
-              '2' => '20',
-              '3' => '40',
-              '4' => '60',
-              '5' => '80',
-              '6' => '100'
-            },
-            'title' => 'BGP Peer State'
-          }
-        }
-      },
-    },
+    'sections' => 'bgpPeer,ospfNbr,jnxOperations',
   },
   'stats' => {
   	'type' => {
@@ -684,19 +452,7 @@
         'PRINT:intHealth:AVERAGE:intHealth=%1.2lf',
         'PRINT:diskHealth:AVERAGE:diskHealth=%1.2lf',
         'PRINT:swapHealth:AVERAGE:swapHealth=%1.2lf'
-      ],
-      'jnxOperations' => [
-			  'DEF:jnxOper5MinLoadAvg=$database:jnxOper5MinLoadAvg:AVERAGE',
-			  'DEF:jnxOperatingTemp=$database:jnxOperatingTemp:AVERAGE',
-			  'DEF:jnxOperatingBuffer=$database:jnxOperatingBuffer:AVERAGE',
-			  'DEF:jnxOperatingHeap=$database:jnxOperatingHeap:AVERAGE',
-
-        'PRINT:jnxOper5MinLoadAvg:AVERAGE:jnxOper5MinLoadAvg=%1.2lf',
-        'PRINT:jnxOperatingTemp:AVERAGE:jnxOperatingTemp=%1.2lf',
-        'PRINT:jnxOperatingBuffer:AVERAGE:jnxOperatingBuffer=%1.2lf',
-        'PRINT:jnxOperatingHeap:AVERAGE:jnxOperatingHeap=%1.2lf',
-      ],
-      
+      ],      
       'pkts_hc' => [
         'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
         'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',

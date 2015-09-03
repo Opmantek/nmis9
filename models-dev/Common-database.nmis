@@ -113,6 +113,9 @@
       'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
       'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
       'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
+      'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
+      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
+      'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
     }
   }
 );

@@ -1,14 +1,4 @@
 %hash = (
-  'database' => {
-    'type' => {
-      'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
-    }
-  },
-  'heading' => {
-    'graphtype' => {
-      'rttMonLatestRtt' => 'RTT Monitor Stats',
-    }
-  },
   'alerts' => {
     'rttMonLatestRtt' => {
       'HighOperCompletionTime' => {

@@ -74,6 +74,8 @@ sub update_plugin
 	for my $key (keys %{$NI->{vtpVlan}})
 	{
 		my $entry = $NI->{vtpVlan}->{$key};
+
+		info("processing vtpVlan $entry->{vtpVlanName}");
 	
 		# get the VLAN ID Number from the index
 		if ( my @parts = split(/\./,$entry->{index}) ) {
@@ -96,89 +98,88 @@ sub update_plugin
 			#The community string is 
 			my $community = "$LNT->{$node}{community}\@$entry->{vtpVlanIndex}";
 			my $session = mysnmpsession( $LNT->{$node}{host}, $community, $LNT->{$node}{version}, $LNT->{$node}{port}, $C);
-
-			my $basePort = 0;
-			my $baseIndex;
-			my $snmpBaseIndex;
-			my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
-			if ( $snmpBaseIndex = mygettable($session,$dot1dBasePortIfIndex,$max_repetitions) ) {
-				$basePort = 1;
-				foreach my $key (keys %$snmpBaseIndex ) {
-					my $baseKey = $key;
-					$baseKey =~ s/1.3.6.1.2.1.17.1.4.1.2\.//;
-					$baseIndex->{$baseKey} = $snmpBaseIndex->{$key};
-				}
-				#print Dumper $baseIndex;
-			}
 			
-			my $addresses;
-			my $ports;
-			my $addressStatus;
-
-			my $gotAddresses = 0;
-			my $dot1dTpFdbAddress = "1.3.6.1.2.1.17.4.3.1.1"; #dot1dTpFdbAddress
-			if ( $addresses = mygettable($session,$dot1dTpFdbAddress,$max_repetitions) ) {
-				$gotAddresses = 1;
-			}
-
-			my $gotPorts = 0;
-			my $dot1dTpFdbPort = "1.3.6.1.2.1.17.4.3.1.2"; #dot1dTpFdbPort
-			if ( $ports = mygettable($session,$dot1dTpFdbPort,$max_repetitions) ) {
-				$gotPorts = 1;
-			}
-			
-			my $gotStatus = 0;
-			my $dot1dTpFdbStatus = "1.3.6.1.2.1.17.4.3.1.3"; #dot1dTpFdbStatus
-			if ( $addressStatus = mygettable($session,$dot1dTpFdbStatus,$max_repetitions) ) {
-				$gotStatus = 1;
-			}			
-
-			
-			if ( $gotAddresses and $gotPorts ) {
-				$changesweremade = 1;
-				#print Dumper $addresses;
-				
-				#print Dumper $ports;
-
-				#print Dumper $addressStatus;
-				
-				foreach my $key (keys %$addresses) {
-					#;
-					#my $macAddress = $key;					
-					#$macAddress =~ s/1\.3\.6\.1\.2\.1\.17\.4\.3\.1\.1\.//;
-					my $macAddress = beautify_physaddress($addresses->{$key});
-										
-					# got to use a different OID for the different queries.
-					my $portKey = $key;
-					my $statusKey = $key;
-					$portKey =~ s/17.4.3.1.1/17.4.3.1.2/;
-					$statusKey =~ s/17.4.3.1.1/17.4.3.1.3/;
-
-					$NI->{macTable}->{$macAddress}{dot1dTpFdbAddress} = $macAddress;					
-					$NI->{macTable}->{$macAddress}{dot1dTpFdbPort} = $ports->{$portKey};
-					$NI->{macTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
-					$NI->{macTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
-					$NI->{macTable}->{$macAddress}{updated} = time();
-					$NI->{macTable}->{$macAddress}{updateDate} = returnDateStamp();
-					
-					if ( exists $ports->{$portKey} ) {
-						#my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
-						my $addressIfIndex = $baseIndex->{$ports->{$portKey}};
-						$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
-						$NI->{macTable}->{$macAddress}{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$addressIfIndex&node=$node";
-						$NI->{macTable}->{$macAddress}{ifDescr_id} = "node_view_$node";
+			if ( $session ) {
+				my $basePort = 0;
+				my $baseIndex;
+				my $snmpBaseIndex;
+				my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
+				if ( $snmpBaseIndex = mygettable($session,$dot1dBasePortIfIndex,$max_repetitions) ) {
+					$basePort = 1;
+					foreach my $key (keys %$snmpBaseIndex ) {
+						my $baseKey = $key;
+						$baseKey =~ s/1.3.6.1.2.1.17.1.4.1.2\.//;
+						$baseIndex->{$baseKey} = $snmpBaseIndex->{$key};
 					}
-				
-					#dot1dTpFdbAddress
-					#dot1dTpFdbPort
-					#dot1dTpFdbStatus
-					#vlan
-					#status					
-					
+					#print Dumper $baseIndex;
 				}
-			}			
+				
+				my $addresses;
+				my $ports;
+				my $addressStatus;
+	
+				my $gotAddresses = 0;
+				my $dot1dTpFdbAddress = "1.3.6.1.2.1.17.4.3.1.1"; #dot1dTpFdbAddress
+				if ( $addresses = mygettable($session,$dot1dTpFdbAddress,$max_repetitions) ) {
+					$gotAddresses = 1;
+				}
+	
+				my $gotPorts = 0;
+				my $dot1dTpFdbPort = "1.3.6.1.2.1.17.4.3.1.2"; #dot1dTpFdbPort
+				if ( $ports = mygettable($session,$dot1dTpFdbPort,$max_repetitions) ) {
+					$gotPorts = 1;
+				}
+				
+				my $gotStatus = 0;
+				my $dot1dTpFdbStatus = "1.3.6.1.2.1.17.4.3.1.3"; #dot1dTpFdbStatus
+				if ( $addressStatus = mygettable($session,$dot1dTpFdbStatus,$max_repetitions) ) {
+					$gotStatus = 1;
+				}
+				
+				if ( $gotAddresses and $gotPorts ) {
+					$changesweremade = 1;
+					#print Dumper $addresses;
+					
+					#print Dumper $ports;
+	
+					#print Dumper $addressStatus;
+					
+					foreach my $key (keys %$addresses) {
+						#;
+						#my $macAddress = $key;					
+						#$macAddress =~ s/1\.3\.6\.1\.2\.1\.17\.4\.3\.1\.1\.//;
+						my $macAddress = beautify_physaddress($addresses->{$key});
+											
+						# got to use a different OID for the different queries.
+						my $portKey = $key;
+						my $statusKey = $key;
+						$portKey =~ s/17.4.3.1.1/17.4.3.1.2/;
+						$statusKey =~ s/17.4.3.1.1/17.4.3.1.3/;
+	
+						$NI->{macTable}->{$macAddress}{dot1dTpFdbAddress} = $macAddress;					
+						$NI->{macTable}->{$macAddress}{dot1dTpFdbPort} = $ports->{$portKey};
+						$NI->{macTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
+						$NI->{macTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
+						$NI->{macTable}->{$macAddress}{updated} = time();
+						$NI->{macTable}->{$macAddress}{updateDate} = returnDateStamp();
+						
+						if ( exists $ports->{$portKey} ) {
+							#my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
+							my $addressIfIndex = $baseIndex->{$ports->{$portKey}};
+							$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
+							$NI->{macTable}->{$macAddress}{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$addressIfIndex&node=$node";
+							$NI->{macTable}->{$macAddress}{ifDescr_id} = "node_view_$node";
+						}
+					
+						#dot1dTpFdbAddress
+						#dot1dTpFdbPort
+						#dot1dTpFdbStatus
+						#vlan
+						#status									
+					}
+				}			
+			}
 		}
-
 	}
 	return ($changesweremade,undef); # report if we changed anything
 }

@@ -58,57 +58,19 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'status' => {
+        'common-model' => 'Cisco-status'
+      },
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp,entityMib,ciscoAsset',
-    'sys' => {
-      'cdp' => {
-        'headers' => 'ifDescr,cdpCacheAddress,cdpCacheDeviceId,cdpCacheVersion,cdpCacheDevicePort,cdpCachePlatform',
-        'index_oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
-        'index_regex' => '\\.(\\d+\.\\d+)$',
-        'indexed' => 'cdpCacheDeviceId',
-        'snmp' => {
-          'ifDescr' => {
-            'title' => 'Local Interface'
-          },
-          'cdpCacheAddressType' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
-            'sysObjectName' => 'cdpCacheAddressType',
-            'replace' => {
-              '1' => 'ip',
-            },
-            'title' => 'Neighbor AddressType'
-          },
-          'cdpCacheAddress' => {
-            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.4',
-            'sysObjectName' => 'cdpCacheAddress',
-            'title' => 'Neighbor Address'
-          },
-          'cdpCacheVersion' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.5',
-            'sysObjectName' => 'cdpCacheVersion',
-            'title' => 'Neighbor Version'
-          },
-          'cdpCacheDeviceId' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
-            'sysObjectName' => 'cdpCacheDeviceId',
-            'title' => 'Neighbor DeviceId'
-          },
-          'cdpCacheDevicePort' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.7',
-            'sysObjectName' => 'cdpCacheDevicePort',
-            'title' => 'Neighbor Interface'
-          },
-          'cdpCachePlatform' => {
-            'oid' => '1.3.6.1.4.1.9.9.23.1.2.1.1.8',
-            'sysObjectName' => 'cdpCachePlatform',
-            'title' => 'Neighbor Platform'
-          },
-        }
-      },
-    },
+    'sections' => 'cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   },
 'system' => {
 	'nodeType' => 'router',
@@ -297,69 +259,6 @@
 			'threshold' => 'util_in,util_out',
 			'graphtype' => 'bits,abits,maxbits,util,autil'
 		},
-		#'pkts' => {
-		#	'indexed' => 'true',
-		#	'snmp' => {
-		#		'ifHCOutUcastPkts' => {
-		#			'oid' => 'ifHCOutUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifHCOutOctets' => {
-		#			'oid' => 'ifHCOutOctets',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifOutOctets' => {
-		#			'oid' => 'ifOutOctets',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifInUcastPkts' => {
-		#			'oid' => 'ifInUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifInDiscards' => {
-		#			'oid' => 'ifInDiscards',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifHCInUcastPkts' => {
-		#			'oid' => 'ifHCInUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifOutErrors' => {
-		#			'oid' => 'ifOutErrors',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifInNUcastPkts' => {
-		#			'oid' => 'ifInNUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifOutDiscards' => {
-		#			'oid' => 'ifOutDiscards',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifOutNUcastPkts' => {
-		#			'oid' => 'ifOutNUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifInErrors' => {
-		#			'oid' => 'ifInErrors',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifOutUcastPkts' => {
-		#			'oid' => 'ifOutUcastPkts',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifInOctets' => {
-		#			'oid' => 'ifInOctets',
-		#			'option' => 'counter,0:U'
-		#		},
-		#		'ifHCInOctets' => {
-		#			'oid' => 'ifHCInOctets',
-		#			'option' => 'counter,0:U'
-		#		}
-		#	},
-		#	'threshold' => 'pkt_errors_in,pkt_errors_out',
-		#	'graphtype' => 'pkts,errpkts'
-		#},
 		'pkts_hc' => {
 			'indexed' => 'true',
       'threshold' => 'pkt_errors_in,pkt_errors_out',

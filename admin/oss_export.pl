@@ -39,6 +39,7 @@ use NMIS;
 use Sys;
 use NMIS::UUID;
 use NMIS::Timing;
+use Data::Dumper;
 
 if ( $ARGV[0] eq "" ) {
 	usage();
@@ -99,6 +100,7 @@ my %nodeAlias = (
 	relayRack							=> 'Relay Rack name',
 	location           		=> 'Location',
 	uplink								=> 'UpLink',	
+	comment								=> 'Comment',	
 );
 
 my @slotHeaders = qw(slotId nodeId position slotName slotNetName name1 name2 ossType);
@@ -157,11 +159,15 @@ my %intAlias = (
 # Step 5: For loading only the local nodes on a Master or a Slave
 my $NODES = loadLocalNodeTable();
 
-#What models are we going to process
+#What vendors are we going to process
 my $goodVendors = qr/Cisco/;
 
 #What models are we going to process
 my $goodModels = qr/CiscoDSL/;
+
+#What cards are we going to ignore
+my $badCardDescr = qr/^CPU|^cpu|^host|^jacket|^plimasic|Compact Flash/;
+
 
 # Step 6: Run the program!
 
@@ -204,6 +210,8 @@ sub exportNodes {
 	
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true") {
+	  	my @comments;
+	  	my $comment;
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
@@ -212,41 +220,38 @@ sub exportNodes {
 			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 			
 			# check for data prerequisites
-			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} and not defined $S->{info}{ciscoAsset} ) {
-				print "ERROR: $node is Cisco and entityMib or ciscoAsset data missing\n";
+			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} ) {
+				$comment = "ERROR: $node is Cisco and entityMib data missing";
+				print "$comment\n";
+				push(@comments,$comment);
 			}
-
-			#my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 tbd4 group tbd5);
-		    
-		  # clone the name!
-	    $NODES->{$node}{name2} = $NODES->{$node}{name};
-	    $NODES->{$node}{name3} = $NODES->{$node}{name};
-	    
-	    # handling OSS values for these fields.
-	    $NODES->{$node}{ossStatus} = $NI->{system}{nodestatus};
-	    $NODES->{$node}{ossModel} = getModel($NI->{system}{sysObjectName});
-	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName});
 
 			# is there a decent serial number!
 			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" ) {
-				my $ASSET;					
+				my $SLOTS = undef;					
+				my $ASSET = undef;
+
+				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
+					$SLOTS = $S->{info}{entityMib};
+				}
+
 				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
 					$ASSET = $S->{info}{ciscoAsset};
-					
-					if ( defined $ASSET->{1} and $ASSET->{1}{ceAssetSerialNumber} ne "" ) {
-						$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
-					}
-					else {
-						print "ERROR: $node no serial number, not in chassisId or ceAssetSerialNumber\n";						
-					}
-				}
-				else {
-					print "ERROR: $node no Cisco Entity Asset MIB Data available, check the model contains it and run an update on the node.\n";
 				}
 				
+				if ( defined $SLOTS->{1} and $SLOTS->{1}{entPhysicalSerialNum} ne "" ) {
+					$NI->{system}{serialNum} = $SLOTS->{1}{entPhysicalSerialNum};
+				}
+				elsif ( defined $ASSET->{1} and $ASSET->{1}{ceAssetSerialNumber} ne "" ) {
+					$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
+				}
+				else {
+					$comment = "ERROR: $node no serial number not in chassisId entityMib or ciscoAsset";
+					print "$comment\n";
+					push(@comments,$comment);
+				}				
 			}
 
-	    
 			# get software version for Alcatel ASAM      
       if ( defined $NI->{system}{asamActiveSoftware1} and $NI->{system}{asamActiveSoftware1} eq "active" ) {
       	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion1};
@@ -254,7 +259,12 @@ sub exportNodes {
       elsif ( defined $NI->{system}{asamActiveSoftware2} and $NI->{system}{asamActiveSoftware2} eq "active" ) {
       	$NI->{system}{softwareVersion} = $NI->{system}{asamSoftwareVersion2};
 			}
-			
+
+			# not got anything useful, try and parse it out of the sysDescr.
+			if ( not defined $NI->{system}{softwareVersion} or $NI->{system}{softwareVersion} eq "" ) {
+				$NI->{system}{softwareVersion} = getVersion($NI->{system}{sysDescr});
+			}
+						
 			# Get an uplink address, find any address and put it in a string
 			my $IF = $S->ifinfo;
 			my @ipAddresses;
@@ -269,6 +279,19 @@ sub exportNodes {
 			}
 			my $joinChar = $sep eq "," ? " " : ",";
 			$NODES->{$node}{uplink} = join($joinChar,@ipAddresses);
+
+			#my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 tbd4 group tbd5);
+		    
+		  # clone the name!
+	    $NODES->{$node}{name2} = $NODES->{$node}{name};
+	    $NODES->{$node}{name3} = $NODES->{$node}{name};
+	    
+	    # handling OSS values for these fields.
+	    $NODES->{$node}{ossStatus} = $NI->{system}{nodestatus};
+	    $NODES->{$node}{ossModel} = getModel($NI->{system}{sysObjectName});
+	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
+
+	    $NODES->{$node}{comment} = join($joinChar,@comments);
 		    
 	    my @columns;
 	    foreach my $header (@nodeHeaders) {
@@ -317,13 +340,14 @@ sub exportSlots {
 			my $S = Sys::->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
+
 			# move on if this isn't a good one.
 			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
 			my $counter = 0;
-			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
 				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
 					$SLOTS = $S->{info}{entityMib};
 				}
@@ -350,7 +374,7 @@ sub exportSlots {
 				    # name for the parent node.
 				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
 				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
-				    $SLOTS->{$slotIndex}{ossType} = getType($NI->{system}{sysObjectName});
+				    $SLOTS->{$slotIndex}{ossType} = getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
 						
 				    my @columns;
 				    foreach my $header (@slotHeaders) {
@@ -379,6 +403,8 @@ sub exportCards {
 	print "Creating $file\n";
 
 	my $C = loadConfTable();
+
+	my $vendorOids = loadVendorOids();
 		
 	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
 	
@@ -404,7 +430,7 @@ sub exportCards {
 			my $SLOTS;
 			my $ASSET;
 			my $cardCount = 0;
-			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
 				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
 					$SLOTS = $S->{info}{entityMib};
 				}
@@ -416,14 +442,13 @@ sub exportCards {
 				if ( defined $S->{info}{ciscoAsset} and ref($S->{info}{ciscoAsset}) eq "HASH") {
 					$ASSET = $S->{info}{ciscoAsset};
 				}
-				else {
-					print "ERROR: $node no Cisco Entity Asset MIB Data available, check the model contains it and run an update on the node.\n";
-				}
 
 				foreach my $slotIndex (sort keys %{$SLOTS}) {
 					if ( defined $SLOTS->{$slotIndex} 
 						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
 						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /module/
+						and $SLOTS->{$slotIndex}{entPhysicalDescr} !~ /$badCardDescr/
+						
 					) {
 						# create a name
 						++$cardCount;
@@ -431,20 +456,46 @@ sub exportCards {
 
 						my $cardId = "$NODES->{$node}{uuid}_C_$slotIndex";
 
+						if ( defined $SLOTS->{$slotIndex} and $SLOTS->{$slotIndex}{entPhysicalSerialNum} ne "" ) {
+							$SLOTS->{$slotIndex}{cardSerial} = $SLOTS->{$slotIndex}{entPhysicalSerialNum};
+						}
+						elsif ( defined $ASSET->{$slotIndex} and $ASSET->{$slotIndex}{ceAssetSerialNumber} ne "" ) {
+							$SLOTS->{$slotIndex}{cardSerial} = $ASSET->{$slotIndex}{ceAssetSerialNumber};
+						}
+						else {
+							my $comment = "ERROR: $node no CARD serial number for id $slotIndex $SLOTS->{$slotIndex}{entPhysicalDescr}";
+							print "$comment\n";
+						}				
+
 						$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalDescr});
 						$SLOTS->{$slotIndex}{cardId} = $cardId;
 						
 				    $SLOTS->{$slotIndex}{cardNetName} = "CARD $slotIndex";
 
 				    $SLOTS->{$slotIndex}{cardDescr} = $SLOTS->{$slotIndex}{entPhysicalDescr};
-				    $SLOTS->{$slotIndex}{cardSerial} = $ASSET->{$slotIndex}{ceAssetSerialNumber};
 				    
 				    $SLOTS->{$slotIndex}{cardStatus} = getStatus();
 						$SLOTS->{$slotIndex}{cardVendor} = $NI->{system}{nodeVendor};
-						$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+
+						if ( defined $ASSET->{$slotIndex} and $ASSET->{$slotIndex}{ceAssetOrderablePartNumber} ne "" ) {
+							$SLOTS->{$slotIndex}{cardModel} = $ASSET->{$slotIndex}{ceAssetOrderablePartNumber};
+						}
+						elsif ( defined $SLOTS->{$slotIndex} and $SLOTS->{$slotIndex}{entPhysicalModelName} ne "" ) {
+							$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{entPhysicalModelName};
+						}
+						else {
+							$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{entPhysicalDescr};
+						}
 										    
-				    # name for the parent node.
-				    $SLOTS->{$slotIndex}{cardType} = "CARD - ". getType($NI->{system}{sysObjectName});
+						if ( defined $SLOTS->{$slotIndex}{entPhysicalVendorType} and $vendorOids->{$SLOTS->{$slotIndex}{entPhysicalVendorType}} ne "" ) {
+							$SLOTS->{$slotIndex}{cardType} = $vendorOids->{$SLOTS->{$slotIndex}{entPhysicalVendorType}};
+							$SLOTS->{$slotIndex}{cardType} =~ s/^cev//;
+						}
+						else {
+				    	$SLOTS->{$slotIndex}{cardType} = "CARD - ". getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
+				    }
+				    
+				    # name for the parent node.				    
 				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
 				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
 
@@ -510,11 +561,12 @@ sub exportPorts {
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
 			# move on if this isn't a good one.
+			
 			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
-			if ( $NI->{system}{nodeModel} eq "CiscoDSL" ) {
+			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
 				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
 					$SLOTS = $S->{info}{entityMib};
 				}
@@ -636,17 +688,27 @@ sub getStatus {
 sub getModel {
 	my $sysObjectName = shift;
 	
-	$sysObjectName =~ s/cisco//g;	
+	$sysObjectName =~ s/cisco/Cisco /g;
+	if ( $sysObjectName =~ /cat(\d+)/ ) {
+		$sysObjectName = "Cisco Catalyst $1";	
+	}
 	
 	return $sysObjectName;		
 }
 
 sub getType {
 	my $sysObjectName = shift;
+	my $nodeType = shift;
 	my $type = "TBD";
 	
 	if ( $sysObjectName =~ /cisco61|cisco62|cisco60|asam/ ) {
 		$type = "DSLAM";	
+	}
+	elsif ( $nodeType =~ /router/ ) {
+		$type = "Router";	
+	}
+	elsif ( $nodeType =~ /switch/ ) {
+		$type = "Switch";	
 	}
 	
 	return $type;		
@@ -673,6 +735,9 @@ sub getCardName {
 	elsif ( $model =~ /^NI\-|C6... Network/ ) {
 		$name = "Network Intfc  (WRK)";
 	}
+	elsif ( $model ne "" ) {
+		$name = $model;
+	}
 	
 	return $name;		
 }
@@ -685,4 +750,39 @@ usage: $0 dir=<directory>
 eg: $0 dir=/data debug=true separator=(comma|tab)
 
 EO_TEXT
+}
+
+sub loadVendorOids {
+	my $oids = "$C->{mib_root}/CISCO-ENTITY-VENDORTYPE-OID-MIB.oid";
+	my $vendorOids;
+	
+	print "Loading Vendor OIDs from $oids\n";
+	
+	open(OIDS,$oids) or warn "ERROR could not load $oids: $!\n";
+	
+	my $match = qr/\"(\w+)\"\s+\"([\d+\.]+)\"/;
+	
+	while (<OIDS>) {
+		if ( $_ =~ /$match/ ) {
+			$vendorOids->{$2} = $1;
+		}
+		else {
+			print "ERROR: no match $_\n";
+		}
+	}
+	close(OIDS);
+	
+	return ($vendorOids);
+}
+
+#Cisco IOS XR Software (Cisco CRS-8/S) Version 5.1.3[Default] Copyright (c) 2014 by Cisco Systems Inc.	
+sub getVersion {
+	my $sysDescr = shift;
+	my $version;
+	
+	if ( $sysDescr =~ /Version ([\d\.\[\]\w]+)/ ) {
+		$version = $1;
+	}
+	
+	return $version;
 }

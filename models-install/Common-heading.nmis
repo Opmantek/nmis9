@@ -172,6 +172,8 @@
       'APCLoad' => "UPS Output Load",
       'APCCurrent' => "UPS Current",
       'APCVoltage' => "UPS Voltage",
+      'ospfNbr' => 'OSPF Neighbor Status',
+      'ospfNbrStats' => 'OSPF Neighbor Stats',
     }
   }
 );

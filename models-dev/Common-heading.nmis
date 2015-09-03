@@ -123,6 +123,11 @@
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
+      'bgpPeer' => 'BGP Peer Status',
+      'bgpPeerStats' => 'BGP Peer Stats',
+      'ospfNbr' => 'OSPF Neighbor Status',
+      'ospfNbrStats' => 'OSPF Neighbor Stats',
+      'rttMonLatestRtt' => 'RTT Monitor Stats',
     }
   }
 );
