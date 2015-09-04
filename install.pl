@@ -271,11 +271,12 @@ https://community.opmantek.com/x/boSG\n\n";
 	}
 
 
-	printBanner("Checking Dependencies...");
 	if ($osflavour eq "debian" or $osflavour eq "ubuntu")
 	{
 		printBanner("Updating package status, please wait...");
 		execPrint("apt-get update -qq");
+
+		printBanner("Checking Dependencies...");
 		
 		for my $pkg (@debpackages)
 		{
@@ -311,6 +312,8 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 			printBanner("Updating YUM metadata cache...");
 			system("yum makecache");
 		}
+
+		printBanner("Checking Dependencies...");
 		
 		# a few packages are only available via the EPEL repo and others need repoforge/rpmfore, too
 		open(F,"/etc/redhat-release");

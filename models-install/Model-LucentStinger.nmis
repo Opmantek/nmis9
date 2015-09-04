@@ -182,7 +182,7 @@
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
-          }
+          },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
