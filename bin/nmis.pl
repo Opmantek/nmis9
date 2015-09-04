@@ -7038,14 +7038,6 @@ EO_TEXT
 		checkFile("$C->{'<nmis_logs>'}/auth.log");
 	}
 
-	if ( not existFile(dir=>'var',name=>'nmis-event')) {
-		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-event');
-		writeTable(dir=>'var',name=>'nmis-event',data=>$hsh);
-	}
-	else {
-		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-event"));
-	}
-
 	if ( not existFile(dir=>'var',name=>'nmis-system')) {
 		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-system');
 		$hsh->{startup} = time();
