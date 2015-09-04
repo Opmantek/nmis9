@@ -52,8 +52,6 @@ use version 0.77;
 # otherwise dirs and files that are created end up inaccessible for the nmis user...
 umask(0022);
 
-## Setting Default Install Options.
-my $defaultFping = "/usr/local/sbin/fping";
 
 my $nmisModules;			# local modules used in our scripts
 
@@ -66,7 +64,6 @@ if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
 my %arg = getArguements(@ARGV);
 
 my $site = $arg{site} ? $arg{site} : "/usr/local/nmis8";
-my $fping = $arg{fping} ? $arg{fping} : $defaultFping;
 my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
 
 my $debug = $arg{debug}? 1 : 0;
@@ -565,9 +562,7 @@ print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
 
 # ...and kill any currently running fpingd 
-if ( -f $fping ) {
-	execPrint("$site/bin/fpingd.pl kill=true");
-}
+execPrint("$site/bin/fpingd.pl kill=true");
 
 printBanner("Copying NMIS files...");
 echolog("Copying source files from $src to $site...\n");
@@ -806,10 +801,8 @@ no RRD migration required.");
 unlink("$site/conf/NMIS_IS_LOCKED");
 
 # daemon restarting should only be done after nmis is unlocked
-if ( -f $fping ) {
-	printBanner("Restart the fping daemon...");
-	execPrint("$site/bin/fpingd.pl restart=true");
-}
+printBanner("Restart the fping daemon...");
+execPrint("$site/bin/fpingd.pl restart=true");
 
 if ( -x "$site/bin/opslad.pl" ) {
 	printBanner("Restarting the opSLA Daemon...");
@@ -1366,14 +1359,13 @@ NMIS Install Script
 NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
 This program comes with ABSOLUTELY NO WARRANTY;
 
-usage: $0 [site=$site] [fping=$defaultFping] [listdeps=(true|false)]
+usage: $0 [site=$site] [listdeps=(true|false)]
 
 Options:  
   listdeps Only show (missing) dependencies, do not install NMIS
   site	Target site for installation, default is $site 
-  fping	Location of the fping program, default is $defaultFping 
 
-eg: $0 site=$site fping=$defaultFping cpan=true
+eg: $0 site=$site cpan=true
 
 /;	
 }
