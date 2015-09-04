@@ -3,6 +3,7 @@
     '<opmantek_base>' => '/usr/local/opmantek',
     'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
+		'display_module_list' => 'true',
     'display_network_view' => 'true',
     'display_opmaps_widget' => 'true',
     'display_opflow_widget' => 'false',
