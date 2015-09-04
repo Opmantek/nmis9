@@ -92,6 +92,15 @@ else
 printBanner("NMIS Installation Script");
 my $hostname = `hostname -f`; chomp $hostname;
 
+# figure out where we install from; current dir, check the dirname of this command's invocation, or give up
+my $src = cwd();
+$src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
+die "Cannot determine installation source directory!\n" if (!-f "$src/LICENSE");
+
+die "The installer cannot be run out of the live target directory!
+Please unpack the NMIS sources in a different directory (e.g. /tmp)
+and restart the installer there!\n\n" if ($src eq $site);
+
 my $nmisversion;
 open(G, "./lib/NMIS.pm");
 for  my $line (<G>)
@@ -142,10 +151,6 @@ for further info.\n\n");
 }
 
 
-# try the current dir first, check the dirname of this command's invocation, or give up
-my $src = cwd();
-$src = Cwd::abs_path(dirname($0)) if (!-f "$src/LICENSE");
-die "Cannot determine installation source directory!\n" if (!-f "$src/LICENSE");
 
 logInstall("Installation source is $src");
 
@@ -553,7 +558,7 @@ if ($mustmovelog)
 
 # before copying anything, lock nmis...
 open(F,">$site/conf/NMIS_IS_LOCKED");
-print F "$0 is operating, started at ".localtime."\n";
+print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
 
 # ...and kill any currently running fpingd 
