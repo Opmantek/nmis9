@@ -3065,10 +3065,13 @@ sub loadServiceStatus
 			next;
 		}
 
+		# sanity-check: files could be orphaned (ie. deleted node, or deleted service, or no
+		# longer listed with the node
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
-		if ($thisnode and $LNT->{$thisnode} 
-				and $thisservice and $ST->{$thisservice})
+		if ($thisnode and $LNT->{$thisnode} # known node
+				and $thisservice and $ST->{$thisservice} # known service
+				and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ ) # service still associated with node
 		{
 			$result{$thisservice}->{$thisnode} = $sdata;
 		}
