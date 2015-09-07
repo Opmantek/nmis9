@@ -3695,7 +3695,13 @@ sub event_to_filename
 	#
 	# structure: nmis_var/events/lcNODENAME/{current,history}/EVENTNAME.json
 	my $eventbasedir = $C->{'<nmis_var>'}."/events";
-
+	# make sure the event dir exists, ASAP.
+	if (! -d $eventbasedir)
+	{
+		func::createDir($eventbasedir);
+		func::setFileProt($eventbasedir);
+	}
+	
 	# overridden, or not current then history, or 
 	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/? 
 			$args{category} : getbool($erec->{current})? "current" : "history";
