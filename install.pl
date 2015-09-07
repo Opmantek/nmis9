@@ -267,9 +267,13 @@ https://community.opmantek.com/x/boSG\n\n";
 		my $x = <STDIN>;
 	}
 
-
 	if ($osflavour eq "debian" or $osflavour eq "ubuntu")
 	{
+		my @unresolved;
+
+		# one or two packages are not a/v in wheezy
+		my $osversion = `lsb_release -r`; $version =~ s/^.*:\s*//;
+		
 		printBanner("Updating package status, please wait...");
 		execPrint("apt-get update -qq");
 
@@ -277,33 +281,54 @@ https://community.opmantek.com/x/boSG\n\n";
 		
 		for my $pkg (@debpackages)
 		{
+			next if ($pkg eq "libnet-smtps-perl" # not packaged in wheezy
+							 and $osflavour eq "debian" 
+							 and version->parse($osversion) < version->parse("8.0")); 
+			
 			if (`dpkg -l $pkg 2>/dev/null` =~ /^ii\s*$pkg\s*/m)
 			{
 				echolog("Required package $pkg is already installed.");
 			}
 			else
 			{
-				echolog("\nRequired package $pkg is NOT installed!");
-				if (input_yn("Do you want to install the package $pkg with apt-get now?"))
+				echolog("Required package $pkg is NOT installed!");
+				push @unresolved, $pkg;
+			}
+		}
+
+		if (@unresolved)
+		{
+			my $packages = join(" ",@unresolved);
+			echolog("\n\nSome required packages are missing:
+$packages\n
+The installer can use $pkgmgr to download and install these packages.\n");
+							
+			if (input_yn("Do you want to install these packages with $pkgmgr now?"))
+			{
+				$ENV{"DEBIAN_FRONTEND"}="noninteractive";
+
+				for my $missing (@unresolved)
 				{
-					$ENV{"DEBIAN_FRONTEND"}="noninteractive";
-					echolog("\nInstalling $pkg with apt-get");
-					execPrint("apt-get -yq install $pkg");
-					
-					print "\n\n";			# apt is a bit noisy
+					echolog("\nInstalling $missing with apt-get");
+					execPrint("apt-get -yq install $missing");
 				}
-				else
-				{
-					echolog("Package $pkg not present but installer instructed to NOT install it.");
-					print "NMIS will not run correctly without $pkg installed. You will have to resolve that 
-dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
+				print "\n\n";			# apt is a bit noisy
+			}
+			else
+			{
+				echolog("Required packages not present but installer instructed to NOT install them.");
+				print "\nNMIS will not run correctly without the following packages installed:\n
+$packages\n
+You will have to resolve these 
+dependencies manually before NMIS can operate properly.\n\nHit <Enter> to continue:\n";
 					my $x = <STDIN>;
-				}
 			}
 		}
 	}
 	elsif ($osflavour eq "redhat")
 	{
+		my %unresolved;
+		
 		if ($can_use_web)
 		{
 			printBanner("Updating YUM metadata cache...");
@@ -375,48 +400,74 @@ dependency manually before NMIS can operate properly.\n\nHit <Enter> to continue
 					$repourl = "https://fedoraproject.org/wiki/EPEL/";
 			}
 
-			echolog("\nRequired package $pkg is NOT installed!");
-			if (input_yn("Do you want to install the package $pkg with yum now?"))
+			echolog("Required package $pkg is NOT installed!");
+			$unresolved{$pkg} = { installcmd => $installcmd, 
+														repo => $repo, 
+														reponame => $reponame, 
+														repourl => $repourl };
+		}
+		
+		if (keys %unresolved)
+		{
+			my $packages = join(" ",sort keys %unresolved);
+			echolog("\n\nSome required packages are missing:
+$packages\n
+The installer can use $pkgmgr to download and install these packages.\n");
+							
+			if (input_yn("Do you want to install these packages with $pkgmgr now?"))
 			{
-
-				if ($repo and !$enabled_repos{$repo})
+				for my $missing (keys %unresolved)
 				{
-					if (!$can_use_web)
+					my ($installcmd, $repo, $reponame, $repourl ) = @{$unresolved{$missing}}{qw(installcmd repo reponame repourl)};
+					
+					if ($repo and !$enabled_repos{$repo})
 					{
-						printBanner("Cannot enable repository $reponame!");
-						print "\nThe $reponame repository is required for installing $pkg, but 
+						if (!$can_use_web)
+						{
+							printBanner("Cannot enable repository $reponame!");
+							print "\nThe $reponame repository is required for installing $missing, but 
 your system does not have web access and thus cannot 
 download anything from that repository. 
 
-You will have to install $pkg manually (downloadable 
-from $repourl).\n\n";
-						exit(1);
+You will have to install $missing manually (downloadable 
+from $repourl).\n\nHit <Enter> to continue:\n";
+							my $x = <STDIN>;
+							next;
+						}
+						else
+						{
+							enable_custom_repo($repo, $iscentos, $rhver);
+							$enabled_repos{$repo} = 1;
+						}
 					}
-					else
-					{
-						enable_custom_repo($repo, $iscentos, $rhver);
-						$enabled_repos{$repo} = 1;
-					}
-				}
 
-				echolog("\nInstalling $pkg with yum".($repo? " from repository $reponame": ""));
-				execPrint($installcmd);
+					echolog("\nInstalling $missing with yum".($repo? " from repository $reponame": ""));
+					execPrint($installcmd);
 						
-				if ($pkg eq "httpd")
-				{
-					# silly redhat doesn't start services on installation
-					execPrint("chkconfig --add $pkg"); 
-					execPrint("chkconfig $pkg on"); 
+					if ($missing eq "httpd")
+					{
+						# silly redhat doesn't start services on installation
+						execPrint("chkconfig --add $missing"); 
+						execPrint("chkconfig $missing on"); 
+					}
+					print "\n\n";			# yum is pretty noisy
 				}
-				print "\n\n";			# yum is pretty noisy
 			}
 			else
 			{
-				echolog("\nPackage $pkg not present but installer instructed to NOT install it.");
-				print "NMIS will not run correctly without $pkg installed. You will 
-have to resolve that dependency manually before NMIS can operate properly.\n";
-
-				print "The Package $pkg can be downloaded\nfrom $repourl\n\n" if ($repourl);
+				echolog("Required packages not present but installer instructed to NOT install them.");
+				print "\nNMIS will not run correctly without the following packages installed:\n
+$packages\n
+You will have to resolve these
+dependencies manually before NMIS can operate properly.\n\n";
+			
+				for my $missing (sort keys %unresolved)
+				{
+					print "The Package $missing can be downloaded from "
+							.($unresolved{$missing}->{repourl})."\n" 
+							if ($unresolved{$missing}->{repourl});
+				}
+					
 				print "Hit <Enter> to continue:\n";
 				my $x = <STDIN>;
 			}
