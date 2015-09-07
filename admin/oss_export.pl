@@ -227,7 +227,7 @@ sub exportNodes {
 			}
 
 			# is there a decent serial number!
-			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" ) {
+			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" or $NI->{system}{serialNum} eq "noSuchObject" ) {
 				my $SLOTS = undef;					
 				my $ASSET = undef;
 
@@ -246,6 +246,7 @@ sub exportNodes {
 					$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
 				}
 				else {
+					$NI->{system}{serialNum} = "TBD";
 					$comment = "ERROR: $node no serial number not in chassisId entityMib or ciscoAsset";
 					print "$comment\n";
 					push(@comments,$comment);
@@ -363,13 +364,32 @@ sub exportSlots {
 					) {
 						# create a name
 						++$counter;
-						# the slot id is the parent relative position, not the index of the MIB
-						my $slotId = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
+						
+						# Slot ID's are a pain............
+						# Option 1: the slot id is the parent relative position, not the index of the MIB
+						# con: some chassis this creates duplicate slot id's
+						#my $slotId = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
+						
+						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
+						my $slotId = $SLOTS->{$slotIndex}{index};
+						
+						
 						$SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
 						$SLOTS->{$slotIndex}{nodeId} = $NODES->{$node}{uuid};
 						$SLOTS->{$slotIndex}{position} = $SLOTS->{$slotIndex}{entPhysicalParentRelPos};
-						$SLOTS->{$slotIndex}{slotName} = $SLOTS->{$slotIndex}{entPhysicalDescr};
-						$SLOTS->{$slotIndex}{slotNetName} = "$SLOTS->{$slotIndex}{entPhysicalDescr} $slotId";
+						
+						# assign the default values here.
+						my $slotName = $SLOTS->{$slotIndex}{entPhysicalName};
+						my $slotNetName = $SLOTS->{$slotIndex}{entPhysicalDescr};
+						
+						# different models of Cisco use different methods.........
+						# so if the slot name is empty or just a number make one up, 
+						if ( $SLOTS->{$slotIndex}{entPhysicalName} eq "" or $SLOTS->{$slotIndex}{entPhysicalName} =~ /^\d+$/ ) {
+							$slotName = "$SLOTS->{$slotIndex}{entPhysicalDescr} $slotId";
+						}
+						
+						$SLOTS->{$slotIndex}{slotName} = $slotName;
+						$SLOTS->{$slotIndex}{slotNetName} = $slotNetName;
 										    
 				    # name for the parent node.
 				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
@@ -466,8 +486,14 @@ sub exportCards {
 							my $comment = "ERROR: $node no CARD serial number for id $slotIndex $SLOTS->{$slotIndex}{entPhysicalDescr}";
 							print "$comment\n";
 						}				
-
-						$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalDescr});
+						
+						if ( $SLOTS->{$slotIndex}{entPhysicalName} ne "" ) {
+							$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalName});
+						}
+						else {
+							$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalDescr});
+						}						
+						
 						$SLOTS->{$slotIndex}{cardId} = $cardId;
 						
 				    $SLOTS->{$slotIndex}{cardNetName} = "CARD $slotIndex";
@@ -504,7 +530,13 @@ sub exportCards {
 						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
 						
 						# now we want the relative slot number the slot uses
-						my $slotId = $SLOTS->{$parentId}{entPhysicalParentRelPos};
+
+						# Option 1: the slot id is the parent relative position, not the index of the MIB
+						# con: some chassis this creates duplicate slot id's
+						#my $slotId = $SLOTS->{$parentId}{entPhysicalParentRelPos};
+						
+						# Option 2: the slot id is the entityMib Index, which creates completely Unique id's
+						my $slotId = $SLOTS->{$parentId}{index};
 						
 						# Cisco is using position -1 for the chassis???????
 						if ( $slotId < 0 ) {
@@ -765,6 +797,9 @@ sub loadVendorOids {
 	while (<OIDS>) {
 		if ( $_ =~ /$match/ ) {
 			$vendorOids->{$2} = $1;
+		}
+		elsif ( $_ =~ /^#|^\s+#/ ) {
+			#all good comment
 		}
 		else {
 			print "ERROR: no match $_\n";

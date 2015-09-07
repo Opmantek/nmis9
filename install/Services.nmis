@@ -2,21 +2,35 @@
   'dns' => {
     'Service_Type' => 'dns',
     'Port' => '',
-    'Poll_Interval' => '5m',
+    'Poll_Interval' => '1m',
     'Service_Name' => '',
     'Name' => 'dns'
   },
   'http' => {
     'Service_Type' => 'script',
     'Port' => '80',
-    'Poll_Interval' => '5m',
+    'Poll_Interval' => '1m',
     'Service_Name' => '',
     'Name' => 'http'
+  },
+  'http-redir' => {
+    'Service_Type' => 'script',
+    'Port' => '80',
+    'Poll_Interval' => '1m',
+    'Service_Name' => '',
+    'Name' => 'http-redir'
+  },
+  'http-moved' => {
+    'Service_Type' => 'script',
+    'Port' => '80',
+    'Poll_Interval' => '1m',
+    'Service_Name' => '',
+    'Name' => 'http-moved'
   },
   'pop3' => {
     'Service_Type' => 'script',
     'Port' => '110',
-    'Poll_Interval' => '5m',
+    'Poll_Interval' => '1m',
     'Service_Name' => '',
     'Name' => 'pop3'
   },
