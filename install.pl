@@ -272,7 +272,7 @@ https://community.opmantek.com/x/boSG\n\n";
 		my @unresolved;
 
 		# one or two packages are not a/v in wheezy
-		my $osversion = `lsb_release -r`; $version =~ s/^.*:\s*//;
+		my $osversion = `lsb_release -r`; $osversion =~ s/^.*:\s*//;
 		
 		printBanner("Updating package status, please wait...");
 		execPrint("apt-get update -qq");
