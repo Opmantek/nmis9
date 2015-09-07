@@ -1,0 +1,3 @@
+send: HEAD / HTTP/1.0
+send: 
+expect: 302 Redirect

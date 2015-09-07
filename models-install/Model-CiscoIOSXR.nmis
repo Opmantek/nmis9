@@ -198,6 +198,16 @@
   				}
   			}
   		},
+      'extra' => {
+        'snmp' => {
+          'softwareVersion' => {
+            'calculate' => '$r =~ /Version ([\d\.\[\]\w]+)/; $r = $1',
+            'oid' => 'sysDescr',
+            'snmpObjectName' => 'sysDescr',
+            'title' => 'Software Version'
+          }
+        }
+      },
       'nodeConfiguration' => {
         'snmp' => {
           'configLastChanged' => {
