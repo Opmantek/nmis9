@@ -665,6 +665,13 @@ else
  			# which includes enabling uuid
 			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
 			echolog("\n");
+
+			if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+			{
+				execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
+				echolog("\n");
+			}
+			
 			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
 			{
 				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");

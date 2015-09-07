@@ -3065,10 +3065,13 @@ sub loadServiceStatus
 			next;
 		}
 
+		# sanity-check: files could be orphaned (ie. deleted node, or deleted service, or no
+		# longer listed with the node
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
-		if ($thisnode and $LNT->{$thisnode} 
-				and $thisservice and $ST->{$thisservice})
+		if ($thisnode and $LNT->{$thisnode} # known node
+				and $thisservice and $ST->{$thisservice} # known service
+				and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ ) # service still associated with node
 		{
 			$result{$thisservice}->{$thisnode} = $sdata;
 		}
@@ -3692,7 +3695,13 @@ sub event_to_filename
 	#
 	# structure: nmis_var/events/lcNODENAME/{current,history}/EVENTNAME.json
 	my $eventbasedir = $C->{'<nmis_var>'}."/events";
-
+	# make sure the event dir exists, ASAP.
+	if (! -d $eventbasedir)
+	{
+		func::createDir($eventbasedir);
+		func::setFileProt($eventbasedir);
+	}
+	
 	# overridden, or not current then history, or 
 	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/? 
 			$args{category} : getbool($erec->{current})? "current" : "history";
