@@ -116,6 +116,9 @@
       'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
       'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
+      'echoRtt' => '/health/$nodeType/$node-echoRtt-$index.rrd',
+      'jitterRttMon' => '/health/$nodeType/$node-jitterRttMon-$index.rrd',
+      'icmpjitterRtt' => '/health/$nodeType/$node-icmpjitterRtt-$index.rrd',
     }
   }
 );
