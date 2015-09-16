@@ -65,6 +65,9 @@
       'rtt' => {
         'common-model' => 'Cisco-rtt'
       },
+      'ipsla' => {
+        'common-model' => 'Cisco-ipsla'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -437,7 +440,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'entityMib,ciscoAsset,cdp,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt',
+    'sections' => 'entityMib,ciscoAsset,cdp,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt,echoRtt,jitterRttMon,icmpjitterRtt',
     'sections_help' => 'include the things you want from the common models, and name the sections here.',
   }
 );
