@@ -358,8 +358,9 @@ sub edit_config
 			$Q->{error_message} = "Mail Server Port must be a number between 0 and 65535!";
 			return 0;
 		}
-		# this is crude, using email::valid would be a better choice
-		elsif ($item eq "mail_from" and $value !~ /[^@]+\@([a-zA-Z_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
+		# this is crude, using email::valid would be a better choice; note that _ is actually NOT
+		# allowed in the domain/hostname part but we don't bother.
+		elsif ($item eq "mail_from" and $value !~ /[^@]+\@([a-zA-Z0-9_\.-]+|[0-9\.]+|[0-9a-fA-F\:]+)$/)
 		{
 			$Q->{error_message} = $item2displayname{$item}." is not a valid email address";
 			return 0;
