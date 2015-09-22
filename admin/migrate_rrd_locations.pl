@@ -334,7 +334,10 @@ sub record_rrd
 	
 	if (exists $rrdfiles{$args{node}}->{$fn})
 	{
-		die "error: $fn already known! node=$args{node}, graphtype=$args{graphtype}, index=$args{index}, item=$args{item}\n";
+		my $old = $rrdfiles{$args{node}}->{$fn};
+		die "error: $fn already known!\n
+clash between old node=$old->{node}, graphtype=$old->{graphtype}, index=$old->{index}, item=$old->{item}
+and new node=$args{node}, graphtype=$args{graphtype}, index=$args{index}, item=$args{item}\n";
 	}
 
 	$rrdfiles{$args{node}}->{$fn} = {%args};
