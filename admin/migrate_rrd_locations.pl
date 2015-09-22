@@ -35,7 +35,7 @@
 # 
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 use File::Copy;
