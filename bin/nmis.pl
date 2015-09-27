@@ -588,7 +588,7 @@ sub	runThreads
 				dbg("Plugin $plugin indicated no changes");
 			}
 		}
-		logMsg("Poll Time: After $type Plugins". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
+		logMsg("Poll Time: After $type Plugins ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 	}
 	
 	logMsg("INFO end of $type process");

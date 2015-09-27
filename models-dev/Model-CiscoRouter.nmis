@@ -79,6 +79,9 @@
       },
       'interface' => {
         'common-model' => 'interface-router'
+      },
+      'pkts' => {
+        'common-model' => 'pkts'
       }
     }
   },

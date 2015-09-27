@@ -12,15 +12,15 @@
       }
     },
     'echoRtt' => {
-      'CompletionTime' => {
-        'type' => 'test',
-        'test' => 'CVAR1=OperCompletionTime;$CVAR1 eq 0',
-        'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1',
-        'unit' => 'ms',
-        'element' => 'index',
-        'event' => 'Response time eq 0 Problem with IPSLA',
-        'level' => 'Critical'
-      },
+      #'CompletionTime' => {
+      #  'type' => 'test',
+      #  'test' => 'CVAR1=OperCompletionTime;$CVAR1 eq 0',
+      #  'value' => 'CVAR1=OperCompletionTime;$CVAR1 * 1',
+      #  'unit' => 'ms',
+      #  'element' => 'index',
+      #  'event' => 'Response time eq 0 Problem with IPSLA',
+      #  'level' => 'Critical'
+      #},
       'SenseValue' => {
         'type' => 'test',
         'test' => 'CVAR1=OperSenseValue;$CVAR1 != 1',
