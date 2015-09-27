@@ -29,7 +29,7 @@
 #  
 # *****************************************************************************
 package func;
-our $VERSION = "1.4.0";
+our $VERSION = "1.4.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -2545,6 +2545,11 @@ sub find_nmis_processes
 		my $procname = $procentry->cmndline;
 		my $starttime = $procentry->start;
 		my $execname = $procentry->fname;
+		# some versions of proc::processtable are buggy and show the shortened cmndline as fname
+		if ($procname =~ /^$execname/)
+		{
+			$execname = readlink("/proc/".$procentry->pid."/exe");
+		}
 
 		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
 		{

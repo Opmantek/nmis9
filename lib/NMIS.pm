@@ -45,7 +45,7 @@ use ip;
 use Sys;
 use DBfunc;
 use URI::Escape;
-use JSON::XS;
+use JSON::XS 2.01;
 use File::Basename;
 
 # added for authentication

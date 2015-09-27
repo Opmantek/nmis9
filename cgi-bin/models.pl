@@ -1342,7 +1342,7 @@ sub writeModel {
 	my $hash = $args{hash};
 	if ($model eq '') {
 		# baseModel, no common classes included
-		writeHashtoModel(name=>'Model',data=>$S->{mdl});
+		func::writeHashtoModel(name=>'Model',data=>$S->{mdl});
 	} else {
 		my %mdl;
 		# are we writing a common class of the Model
