@@ -560,7 +560,8 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
+    'sections' => 'addressTable,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
+    'sections_original' => 'addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
     'sys' => {
       'macTable' => {
         'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus,updateDate',

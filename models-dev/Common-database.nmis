@@ -110,15 +110,15 @@
       'QualityOfServiceStat' => '/interface/$nodeType/$node/$node-hwqos-$index.rrd',
       'jnxOperations' => '/health/$nodeType/$node-jnxOperations-$index.rrd',
       'ppxAtm' => '/interface/$nodeType/$node-ppxAtm-$index.rrd',
-      'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
-      'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
-      'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
       'bgpPeer' => '/health/$nodeType/$node-bgpPeer-$index.rrd',
-      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
       'rttMonLatestRtt' => '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd',
       'echoRtt' => '/health/$nodeType/$node-echoRtt-$index.rrd',
       'jitterRttMon' => '/health/$nodeType/$node-jitterRttMon-$index.rrd',
       'icmpjitterRtt' => '/health/$nodeType/$node-icmpjitterRtt-$index.rrd',
+      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
+      'psuStatus' => '/health/$nodeType/$node-psustatus-$index.rrd',
+      'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
+      'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
     }
   }
 );
