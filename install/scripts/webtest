@@ -32,6 +32,8 @@ $ua->env_proxy(0);							# no proxying for end-to-end testing
 my $exitcode = 0;
 my $statusmsg = "Unknown Failure";
 
+$url = "http://$url" if ($url !~ m!^([a-z]+)://!);
+
 my $res = $ua->get($url);
 if ($res->code =~ $okcode)
 {

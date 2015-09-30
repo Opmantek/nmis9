@@ -4681,7 +4681,7 @@ sub runServices {
 		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
-		writeHashtoFile(file => $statusfn, data => $status{$service});
+		writeHashtoFile(file => $statusfn, data => $status{$service}, json => "true");
 		setFileProt($statusfn);
 	}
 
