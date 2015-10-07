@@ -4676,6 +4676,11 @@ sub runServices {
 		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
 		$status{$service}->{node} ||= $node;
 		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
+		# save our server name with the service status, for distributed setups
+		$status{$service}->{server} = $C->{server_name};
+		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, $service, $NI->{system}->{uuid});
+
 		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
