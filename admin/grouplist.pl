@@ -37,6 +37,7 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use func;
+use NMIS;
 
 # load configuration table
 my $C = loadConfTable();
@@ -59,7 +60,7 @@ sub printGroupList {
 
 sub getGroupList {
 	my @groups;
-	my $nodes = readFiletoHash(file=>"$C->{'<nmis_conf>'}/Nodes.nmis");
+	my $nodes = loadNodeTable();
 
 	foreach my $node (keys %$nodes) {
 		my $group = $nodes->{$node}{group};
@@ -70,3 +71,4 @@ sub getGroupList {
 
 	return @groups;
 }
+
