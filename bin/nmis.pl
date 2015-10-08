@@ -2950,6 +2950,7 @@ sub getIntfData {
 				) {
 					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
+					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
 				}
 				else {
 					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");																
