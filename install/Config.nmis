@@ -52,6 +52,7 @@
     'global_nocollect_Description' => '',
     'global_nocollect_noDescription' => '',
     'global_nocollect_ifType' => '',
+    'global_nocollect_interface_down_days' => 30,
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
     'global_noevent_ifType' => '',
