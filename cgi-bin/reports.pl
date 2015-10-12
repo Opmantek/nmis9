@@ -1473,8 +1473,11 @@ sub nodedetailsReport {
 		foreach my $node (sort keys %{$NT}) {
 			if ( $NT->{$node}{group} eq "$group" ) {
 
-				my $NI = readFiletoHash(name=>"$node-node");
-
+				#my $NI = readFiletoHash(name=>"$node-node");
+				my $S = Sys::->new; # get system object
+				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+				my $NI = $S->ndinfo;
+	
 				undef @line;
 
 				push( @line, $NI->{system}{name});

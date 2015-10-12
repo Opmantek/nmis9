@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 package NMIS::UUID;
-our $VERSION  = "1.2.0";
+our $VERSION  = "1.2.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
@@ -170,4 +170,23 @@ sub getUUID
 	return $uuid;
 }
 
+# create a new namespaced uuid from concat of all components that are passed in
+# if there's a configured namespace prefix that is used; otherwise the UUID_NS_URL is used w/o prefix.
+# returns: uuid string
+sub getComponentUUID
+{
+	my @components = @_;
+	
+	my $C = loadConfTable();
+
+	my $uuid_ns = $known_namespaces{"NameSpace_URL"};
+	my $prefix = '';
+	$prefix = $C->{'uuid_namespace_name'} if ( $known_namespaces{$C->{'uuid_namespace_type'}}
+																						 and defined($C->{'uuid_namespace_name'})
+																						 and $C->{'uuid_namespace_name'} ne ""
+																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
+
+	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
+			
 1;

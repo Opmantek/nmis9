@@ -11,7 +11,7 @@
               'fatal' => '35',
               'major' => '50',
               'minor' => '60',
-              'warning' => '70'
+              'warning' => '75'
             }
           }
         }
@@ -19,21 +19,6 @@
       'calls_util' => {
         'event' => 'Proactive Calls Utilisation',
         'item' => 'percIdle',
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'major' => '60',
-              'minor' => '50',
-              'warning' => '40'
-            }
-          }
-        }
-      },
-      'hrsmpcpu' => {
-        'event' => 'Proactive CPU',
-        'item' => 'hrCpuLoad',
         'select' => {
           'default' => {
             'value' => {

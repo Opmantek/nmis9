@@ -40,6 +40,7 @@ use Sys;
 use NMIS::UUID;
 use NMIS::Timing;
 use Data::Dumper;
+use Excel::Writer::XLSX;
 
 if ( $ARGV[0] eq "" ) {
 	usage();
@@ -61,6 +62,12 @@ if ( not defined $arg{dir} ) {
 }
 my $dir = $arg{dir};
 
+# Set Directory level.
+my $xlsFile = "oss_export.xlsx";
+if ( defined $arg{xls} ) {
+	$xlsFile = $arg{xls};
+}
+$xlsFile = "$arg{dir}/$xlsFile";
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
@@ -82,7 +89,7 @@ elsif ( $arg{separator} eq "comma" ) {
 my $cardIndex;
 
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 relayRack location uplink);
+my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 relayRack location uplink comment);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
@@ -166,7 +173,10 @@ my $goodVendors = qr/Cisco/;
 my $goodModels = qr/CiscoDSL/;
 
 #What cards are we going to ignore
-my $badCardDescr = qr/^CPU|^cpu|^host|^jacket|^plimasic|Compact Flash/;
+my $badCardDescr = qr/A901-\w+-FT-D Motherboard|Motherboard with Built|Fixed Module 0|^CPU|^cpu|^host|^jacket|^plimasic|Compact Flash|CPUCtrl|DBCtrl|Line Card host|RSP Card host|BIOS|PHY\d|DIMM\d|SSD|SECtrl|PCIeSwitch|X86CPU\d|IOCtrlHub|IOHub/;
+
+#What devices need to get Max message size updated
+my $fixMaxMsgSize = qr/cat650.|ciscoWSC65..|cisco61|cisco62|cisco60|cisco76/;
 
 
 # Step 6: Run the program!
@@ -175,11 +185,22 @@ my $badCardDescr = qr/^CPU|^cpu|^host|^jacket|^plimasic|Compact Flash/;
 
 if ( not -f $arg{nodes} ) {
 	createNodeUUID();
-	exportNodes("$dir/oss-nodes.csv");
-	exportSlots("$dir/oss-slots.csv");
-	exportCards("$dir/oss-cards.csv");
-	exportPorts("$dir/oss-ports.csv");
-	#exportInterfaces("$dir/oss-interfaces.csv");
+	
+	nodeCheck();
+
+	my $xls;
+	if ($xlsFile) {
+		$xls = start_xlsx(file => $xlsFile);
+	}
+	
+	exportNodes($xls,"$dir/oss-nodes.csv");
+	exportSlots($xls,"$dir/oss-slots.csv");
+	exportCards($xls,"$dir/oss-cards.csv");
+	exportPorts($xls,"$dir/oss-ports.csv");
+	#exportInterfaces($xls,"$dir/oss-interfaces.csv");
+
+	end_xlsx(xls => $xls);
+	print "XLS saved to $xlsFile\n";
 }
 else {
 	print "ERROR: $arg{nodes} already exists, exiting\n";
@@ -190,7 +211,11 @@ print $t->elapTime(). " Begin\n";
 
 
 sub exportNodes {
+	my $xls = shift;
 	my $file = shift;
+	my $title = "Nodes";
+	my $sheet;
+	my $currow;
 
 	print "Creating $file\n";
 
@@ -207,6 +232,14 @@ sub exportNodes {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
 	
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true") {
@@ -242,6 +275,15 @@ sub exportNodes {
 				if ( defined $SLOTS->{1} and $SLOTS->{1}{entPhysicalSerialNum} ne "" ) {
 					$NI->{system}{serialNum} = $SLOTS->{1}{entPhysicalSerialNum};
 				}
+				# this works for ME3800
+				elsif ( defined $SLOTS->{1001} and $SLOTS->{1001}{entPhysicalSerialNum} ne "" ) {
+					$NI->{system}{serialNum} = $SLOTS->{1001}{entPhysicalSerialNum};
+				}
+				# this works for IOSXR, CRS, ASR9K
+				elsif ( defined $SLOTS->{24555730} and $SLOTS->{24555730}{entPhysicalSerialNum} ne "" ) {
+					$NI->{system}{serialNum} = $SLOTS->{24555730}{entPhysicalSerialNum};
+				}
+				# Cisco 61xx DSLAM's
 				elsif ( defined $ASSET->{1} and $ASSET->{1}{ceAssetSerialNumber} ne "" ) {
 					$NI->{system}{serialNum} = $ASSET->{1}{ceAssetSerialNumber};
 				}
@@ -293,7 +335,15 @@ sub exportNodes {
 	    $NODES->{$node}{ossType} = getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
 
 	    $NODES->{$node}{comment} = join($joinChar,@comments);
-		    
+
+	    if ( not defined $NODES->{$node}{relayRack} or $NODES->{$node}{relayRack} eq "" ) {
+	    	$NODES->{$node}{relayRack} = "No Relay Rack Configured";
+	    }
+
+	    if ( not defined $NODES->{$node}{location} or $NODES->{$node}{location} eq "" ) {
+	    	$NODES->{$node}{location} = "No Location Configured";
+	    }
+	    		    
 	    my @columns;
 	    foreach my $header (@nodeHeaders) {
 	    	my $data = undef;
@@ -311,6 +361,11 @@ sub exportNodes {
 	    }
 			my $row = join($sep,@columns);
 	    print CSV "$row\n";
+
+			if ($sheet) {
+				$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+				++$currow;
+			}
 	  }
 	}
 	
@@ -318,7 +373,11 @@ sub exportNodes {
 }
 
 sub exportSlots {
+	my $xls = shift;
 	my $file = shift;
+	my $title = "Slots";
+	my $sheet;
+	my $currow;
 	
 	print "Creating $file\n";
 
@@ -335,7 +394,15 @@ sub exportSlots {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
-	
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
+		
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true" ) {
 			my $S = Sys::->new; # get system object
@@ -353,7 +420,7 @@ sub exportSlots {
 					$SLOTS = $S->{info}{entityMib};
 				}
 				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
 					next;
 				}
 
@@ -410,6 +477,11 @@ sub exportSlots {
 				    }
 						my $row = join($sep,@columns);
 				    print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
 			  	}
 				}
 			}
@@ -418,7 +490,11 @@ sub exportSlots {
 }
 
 sub exportCards {
+	my $xls = shift;
 	my $file = shift;
+	my $title = "Cards";
+	my $sheet;
+	my $currow;
 	
 	print "Creating $file\n";
 
@@ -438,6 +514,14 @@ sub exportCards {
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
 	
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
+		
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true" ) {
 			my $S = Sys::->new; # get system object
@@ -455,7 +539,7 @@ sub exportCards {
 					$SLOTS = $S->{info}{entityMib};
 				}
 				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
 					next;
 				}
 				
@@ -468,7 +552,7 @@ sub exportCards {
 						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
 						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /module/
 						and $SLOTS->{$slotIndex}{entPhysicalDescr} !~ /$badCardDescr/
-						
+						and $SLOTS->{$slotIndex}{entPhysicalDescr} ne ""						
 					) {
 						# create a name
 						++$cardCount;
@@ -487,7 +571,7 @@ sub exportCards {
 							print "$comment\n";
 						}				
 						
-						if ( $SLOTS->{$slotIndex}{entPhysicalName} ne "" ) {
+						if ( $SLOTS->{$slotIndex}{entPhysicalName} ne "" and $SLOTS->{$slotIndex}{entPhysicalName} !~ /^d+$/ ) {
 							$SLOTS->{$slotIndex}{cardName} = getCardName($SLOTS->{$slotIndex}{entPhysicalName});
 						}
 						else {
@@ -561,6 +645,12 @@ sub exportCards {
 				    }
 						my $row = join($sep,@columns);
 				    print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
+
 			  	}
 				}
 			}
@@ -569,7 +659,11 @@ sub exportCards {
 }
 
 sub exportPorts {
+	my $xls = shift;
 	my $file = shift;
+	my $title = "Ports";
+	my $sheet;
+	my $currow;
 	
 	print "Creating $file\n";
 
@@ -586,7 +680,15 @@ sub exportPorts {
 	}
 	my $header = join($sep,@aliases);
 	print CSV "$header\n";
-	
+
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
+		
 	foreach my $node (sort keys %{$NODES}) {
 	  if ( $NODES->{$node}{active} eq "true" ) {
 			my $S = Sys::->new; # get system object
@@ -603,7 +705,7 @@ sub exportPorts {
 					$SLOTS = $S->{info}{entityMib};
 				}
 				else {
-					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n";
+					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
 					next;
 				}
 
@@ -640,6 +742,11 @@ sub exportPorts {
 				    }
 						my $row = join($sep,@columns);
 				    print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
 			  	}
 				}
 			}
@@ -648,6 +755,7 @@ sub exportPorts {
 }
 
 sub exportInterfaces {
+	my $xls = shift;
 	my $file = shift;
 	
 	print "Creating $file\n";
@@ -821,3 +929,106 @@ sub getVersion {
 	
 	return $version;
 }
+
+sub start_xlsx
+{
+	my (%args) = @_;
+
+	my ($xls);
+	if ($args{file})
+	{
+		$xls = Excel::Writer::XLSX->new($args{file});
+		die "Cannot create XLSX file ".$args{file}.": $!\n" if (!$xls);
+	}
+	else {
+		die "ERROR need a file to work on.\n";	
+	}
+	return ($xls);
+}
+
+sub add_worksheet
+{
+	my (%args) = @_;
+	
+	my $xls = $args{xls};
+
+	my $sheet;
+	if ($xls)
+	{
+		my $shorttitle = $args{title};
+		$shorttitle =~ s/[^a-zA-Z0-9 _\.-]+//g; # remove forbidden characters
+		$shorttitle = substr($shorttitle, 0, 31); # xlsx cannot do sheet titles > 31 chars
+		$sheet = $xls->add_worksheet($shorttitle);
+
+		if (ref($args{columns}) eq "ARRAY")
+		{
+			my $format = $xls->add_format();
+			$format->set_bold(); $format->set_color('blue');
+
+			for my $col (0..$#{$args{columns}})
+			{
+				$sheet->write(0, $col, $args{columns}->[$col], $format);
+			}
+		}
+	}
+	return ($xls, $sheet);
+}
+
+# closes the spreadsheet, returns 1 if ok.
+sub end_xlsx
+{
+	my (%args) = @_;
+
+	my $xls = $args{xls};
+
+	if ($xls)
+	{
+		return $xls->close;
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
+	return 1;
+}
+
+sub nodeCheck {
+	
+	my $LNT = loadLocalNodeTable();
+	print "Running nodeCheck for nodes, model use, snmp max_msg_size and update\n";
+	my %updateList;
+
+	foreach my $node (sort keys %{$LNT}) {
+		#print "Processing $node\n";
+		if ( $LNT->{$node}{active} eq "true" ) {			
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
+			
+			if ( $NI->{system}{lastUpdatePoll} < time() - 86400 ) {
+				$updateList{$node} = $NI->{system}{lastUpdatePoll};
+			}
+			
+			
+			if ( $LNT->{$node}{model} ne "automatic" ) {
+				print "WARNING: $node model not automatic; $LNT->{$node}{model} $NI->{system}{sysDescr}\n";
+			}
+
+			#print "updateMaxSnmpMsgSize $node $NI->{system}{sysObjectName}\n";
+
+			
+			if ( $NI->{system}{sysObjectName} =~ /$fixMaxMsgSize/ and $LNT->{$node}{max_msg_size} != 2800) {
+				print "$node Updating Max SNMP Message Size\n";
+				$LNT->{$node}{max_msg_size} = 2800;
+			}
+		}
+	}
+	
+	print "Nodes requiring update:\n";
+	foreach my $node (sort keys %updateList) {
+		print "$node ". returnDateStamp($updateList{$node}) ."\n";
+	}
+
+	writeTable(dir => 'conf', name => "Nodes", data => $LNT);
+}
+
+

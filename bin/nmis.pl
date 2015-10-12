@@ -508,12 +508,8 @@ sub	runThreads
 		}
 		
 		if ( getbool($C->{'nmis_summary_poll_cycle'}) or !getbool($C->{'nmis_summary_poll_cycle'},"invert") ) {
-			my $pollTimer = NMIS::Timing->new;
-
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
-
-			logMsg("Poll Time: nmisSummary, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 		}
 		else {
 			dbg("Skipping nmisSummary with configuration 'nmis_summary_poll_cycle' = $C->{'nmis_summary_poll_cycle'}");
@@ -555,6 +551,7 @@ sub	runThreads
 
 	if ($type eq "collect" or $type eq "update")
 	{
+		my $pollTimer = NMIS::Timing->new;
 		# now run all after_{collect,update}_plugin() functions, regardless of whether 
 		# this was a one-node or all-nodes run
 		for my $plugin (@active_plugins)
@@ -591,6 +588,7 @@ sub	runThreads
 				dbg("Plugin $plugin indicated no changes");
 			}
 		}
+		logMsg("Poll Time: After $type Plugins ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 	}
 	
 	logMsg("INFO end of $type process");
@@ -4688,10 +4686,15 @@ sub runServices {
 		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
 		$status{$service}->{node} ||= $node;
 		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
+		# save our server name with the service status, for distributed setups
+		$status{$service}->{server} = $C->{server_name};
+		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, $service, $NI->{system}->{uuid});
+
 		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
-		writeHashtoFile(file => $statusfn, data => $status{$service});
+		writeHashtoFile(file => $statusfn, data => $status{$service}, json => "true");
 		setFileProt($statusfn);
 	}
 
@@ -6678,6 +6681,8 @@ sub runMetrics {
 	my $group;
 	my $status;
 
+	my $pollTimer = NMIS::Timing->new;
+
 	dbg("Starting");
 
 	# Doing the whole network - this defaults to -8 hours span
@@ -6726,6 +6731,9 @@ sub runMetrics {
 		$db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group);
 	}
 	dbg("Finished");
+
+	logMsg("Poll Time: ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
+
 } # end runMetrics
 
 

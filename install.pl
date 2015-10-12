@@ -218,8 +218,9 @@ libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl di
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
-net-snmp-utils net-snmp-perl perl-Net-SSLeay perl-JSON-XS httpd fping
-make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
+net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay 
+perl-JSON-XS httpd fping make groff perl-CPAN crontabs dejavu* 
+perl-libwww-perl perl-Net-DNS
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
