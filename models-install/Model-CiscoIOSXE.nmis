@@ -57,6 +57,12 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'memory' => {
+        'common-model' => 'Cisco-memory'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -409,7 +415,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   },
   'system' => {
     'nodeModel' => 'CiscoIOSXE',

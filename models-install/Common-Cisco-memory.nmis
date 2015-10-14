@@ -1,0 +1,219 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'alerts' => {
+    'ciscoMemoryPool' => {
+      'memoryUtilisation' => {
+        'control' => 'CVAR=MemPoolName;$CVAR =~ /(processor|reserved)/',
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '75',
+          'Warning' => '80',
+          'Minor' => '85',
+          'Major' => '90',
+          'Critical' => '95',
+          'Fatal' => '99',
+        },
+        'element' => 'MemPoolName',
+        'event' => 'High Memory Utilisation',
+        'unit' => '',
+        'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
+      }
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'ciscoMemoryPool' => {
+        'indexed' => 'true',
+        'graphtype' => 'memoryPool',
+        'snmp' => {
+          'MemPoolUsed' => {
+            'oid' => 'ciscoMemoryPoolUsed',
+          },
+          'MemPoolFree' => {
+            'oid' => 'ciscoMemoryPoolFree',
+          },
+          'MemPoolUtil5M' => {
+            'oid' => 'ciscoMemoryPoolUtilization5Min',
+          },
+        },
+      },
+      'cempMemPool' => {
+        'indexed' => 'true',
+        'graphtype' => 'memoryPool',
+        'snmp' => {
+          'MemPoolUsed' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.18',
+            'sysObjectName' => 'cempMemPoolHCUsed',
+          },
+          'MemPoolFree' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.20',
+            'sysObjectName' => 'cempMemPoolHCFree',
+          },
+        },
+      },
+      'cempMemBuffer' => {
+        'indexed' => 'true',
+        'graphtype' => 'memoryBuffer',
+        'snmp' => {
+          'BufferName' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.3',
+            'sysObjectName' => 'cempMemBufferName',
+            'title' => 'Buffer Name'
+          },
+          'BufferTotal' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.10',
+            'sysObjectName' => 'cempMemBufferTotal',
+            'title' => 'Buffer Total'
+          },
+          'BufferFree' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.11',
+            'sysObjectName' => 'cempMemBufferFree',
+            'title' => 'Buffer Free'
+          },
+          'BufferHit' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.12',
+            'sysObjectName' => 'cempMemBufferHit',
+            'title' => 'Buffer Hit'
+          },
+          'BufferMiss' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.13',
+            'sysObjectName' => 'cempMemBufferMiss',
+            'title' => 'Buffer Miss'
+          },
+        },
+      },
+    },
+    'sys' => {
+      'ciscoMemoryPool' => {
+        'indexed' => 'MemPoolName',        
+        'headers' => 'MemPoolName,MemPoolUsed,MemPoolFree,MemPoolUtil5M',
+        'snmp' => {
+          'MemPoolName' => {
+            'oid' => 'ciscoMemoryPoolName',
+            'title' => 'Memory Pool Name'
+          },
+          'MemPoolUsed' => {
+            'oid' => 'ciscoMemoryPoolUsed',
+            'title' => 'Memory Pool Used'
+          },
+          'MemPoolFree' => {
+            'oid' => 'ciscoMemoryPoolFree',
+            'title' => 'Memory Pool Free'
+          },
+          'MemPoolUtil5M' => {
+            'oid' => 'ciscoMemoryPoolUtilization5Min',
+            'title' => 'Memory Pool Util 5min'
+          },
+        },
+      },
+      'cempMemPool' => {
+        'index_oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.3',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'MemPoolName',        
+        'headers' => 'entPhysicalDescr,MemPoolName,MemPoolUsed,MemPoolFree',
+        'snmp' => {
+          'entPhysicalDescr' => {
+            'title' => 'Physical Descr'
+          },
+          'MemPoolName' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.3',
+            'sysObjectName' => 'cempMemPoolName',
+            'title' => 'Memory Pool Name'
+          },
+          'MemPoolUsed' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.18',
+            'sysObjectName' => 'cempMemPoolHCUsed',
+            'title' => 'Memory Pool Used'
+          },
+          'MemPoolFree' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.20',
+            'sysObjectName' => 'cempMemPoolHCFree',
+            'title' => 'Memory Pool Free'
+          },
+        },
+      },
+
+# http://www.cisco.com/c/en/us/td/docs/wireless/asr_901/mib/reference/asr_mib.pdf
+# Contains entries in this table define entities (buffer pools in this case) which are contained in an entity (memory pool)
+# defined by an entry from cempMemPoolTable. 
+# -- Basic Pool Architecture -- 
+# 
+# 1)Pools are classified as being either Static or Dynamic. Static pools make no attempt to increase
+# the number of buffers contained within them if the number of free buffers (cempMemBufferFree) are less than the
+# number of minimum buffers (cempMemBufferMin). With Dynamic pools, the pool attempts to meet the demands of
+# its users. 
+# 
+# 2)Buffers in a pool are classified as being either Permanent or Temporary. Permanent buffers, as their name
+# suggests, are always in the pool and are never destroyed unless the number of permanent buffers
+# (cempMemBufferPermanent) is changed. Temporary buffers are transient buffers that are created in dynamic
+# pools whenever the free count (cempMemBufferFree) of buffers in the pool drops below the minimum (cempMemBufferMin). 
+# 
+# 3)Buffers pools are classified as either Public or Private. Public pools are available for all
+# users to allocate buffers from. Private pools are primarily used by interface drivers.
+
+      'cempMemBuffer' => {
+        'index_oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.3',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'BufferName',        
+        'headers' => 'BufferName,BufferTotal,BufferFree,BufferHit,BufferMiss',
+        'snmp' => {
+          'BufferName' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.3',
+            'sysObjectName' => 'cempMemBufferName',
+            'title' => 'Buffer Name'
+          },
+          'BufferTotal' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.10',
+            'sysObjectName' => 'cempMemBufferTotal',
+            'title' => 'Buffer Total'
+          },
+          'BufferFree' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.11',
+            'sysObjectName' => 'cempMemBufferFree',
+            'title' => 'Buffer Free'
+          },
+          'BufferHit' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.12',
+            'sysObjectName' => 'cempMemBufferHit',
+            'title' => 'Buffer Hit'
+          },
+          'BufferMiss' => {
+            'oid' => '1.3.6.1.4.1.9.9.221.1.1.2.1.13',
+            'sysObjectName' => 'cempMemBufferMiss',
+            'title' => 'Buffer Miss'
+          },
+        },
+      },
+    }
+  }
+);

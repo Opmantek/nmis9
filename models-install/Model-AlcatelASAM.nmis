@@ -192,12 +192,24 @@
             'oid' => '1.3.6.1.4.1.637.61.1.24.1.1.1.2.2',
             'title' => 'asamSoftwareVersion2',
           },
+          'eqptMaxRacksPerAsam' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.1.3.0',
+            'title' => 'eqptMaxRacksPerAsam',
+          },
+          'eqptMaxShelvesPerRack' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.1.4.0',
+            'title' => 'eqptMaxShelvesPerRack',
+          },
+          'eqptMaxSlotsPerShelf' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.1.5.0',
+            'title' => 'eqptMaxSlotsPerShelf',
+          },
         },
       },
     },
   },
   'systemHealth' => {
-    'sections' => 'eqptHolder,eqptPortMapping,cpuUtil,memUsageUtil',
+    'sections' => 'eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
     'sys' => {
       'cpuUtil' => {
         'indexed' => 'cpuUtil',
@@ -228,27 +240,175 @@
           },
         },
       },
+
+#nuf "eqptHolderId"														"1.3.6.1.4.1.637.61.1.23.2.1.1"
+#nuf "eqptHolderClass"													"1.3.6.1.4.1.637.61.1.23.2.1.2"
+#"eqptHolderPlannedType"										"1.3.6.1.4.1.637.61.1.23.2.1.3"
+#"eqptHolderActualType"										"1.3.6.1.4.1.637.61.1.23.2.1.4"
+#"eqptHolderAdminStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.5"
+#"eqptHolderOperStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.6"
+#"eqptHolderOperError"											"1.3.6.1.4.1.637.61.1.23.2.1.7"
+#"eqptHolderAvailStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.8"
+#"eqptHolderDescription"										"1.3.6.1.4.1.637.61.1.23.2.1.9"
+#"eqptHolderContainerId"										"1.3.6.1.4.1.637.61.1.23.2.1.10"
+#"eqptHolderContainerOffset"								"1.3.6.1.4.1.637.61.1.23.2.1.11"
+#"eqptHolderMode"													"1.3.6.1.4.1.637.61.1.23.2.1.12"
+
       'eqptHolder' => {        
-        'indexed' => 'eqptHolderPlannedType',        
-        'headers' => 'eqptHolderPlannedType',
+        'index_oid' => '1.3.6.1.4.1.637.61.1.23.2.1.10',        
+        'indexed' => 'eqptHolderContainerId',        
+        'headers' => 'index,eqptHolderPlannedType,eqptHolderActualType,eqptHolderContainerId,eqptHolderIndex',
         'snmp' => {
           'eqptHolderPlannedType' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.3',
             'sysObjectName' => 'eqptHolderPlannedType',
-            'title' => 'EQPT Holder Planned Type'
+            'title' => 'Holder Planned Type'
           },
-          'eqptHolderStatus' => {
-            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.6',
-            'sysObjectName' => 'eqptHolderStatus',
-            'title' => 'EQPT Holder Status'
+          'eqptHolderActualType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.4',
+            'sysObjectName' => 'eqptHolderActualType',
+            'title' => 'Holder Actual Type'
           },
+          'eqptHolderContainerId' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.10',
+            'sysObjectName' => 'eqptHolderContainerId',
+            'title' => 'Container ID'
+          },
+          #eqptHolderContainerOffset
           'eqptHolderIndex' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.11',
             'sysObjectName' => 'eqptHolderIndex',
-            'title' => 'EQPT Holder Index'
+            'title' => 'Holder Index'
+          },
+        },
+      },
+
+      'eqptHolderStatus' => {        
+        'index_oid' => '1.3.6.1.4.1.637.61.1.23.2.1.5',        
+        'indexed' => 'eqptHolderAdminStatus',        
+        'headers' => 'index,eqptHolderActualType,eqptHolderAdminStatus,eqptHolderOperStatus,eqptHolderContainerId',
+        'snmp' => {
+          'eqptHolderActualType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.4',
+            'sysObjectName' => 'eqptHolderActualType',
+            'title' => 'Holder Actual Type'
+          },
+          'eqptHolderAdminStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.5',
+            'sysObjectName' => 'eqptHolderAdminStatus',
+            'replace' => {
+              '1' => 'unlock',
+              '2' => 'lock',
+            },
+            'title' => 'Admin Status'
+          },
+          'eqptHolderOperStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.6',
+            'sysObjectName' => 'eqptHolderOperStatus',
+            'replace' => {
+              '1' => 'enabled',
+              '2' => 'disabled',
+            },
+            'title' => 'Oper Status'
+          },
+          'eqptHolderContainerId' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.10',
+            'sysObjectName' => 'eqptHolderContainerId',
+            'title' => 'Container ID'
+          },
+        },
+      },
+
+#"eqptBoardTable"													"1.3.6.1.4.1.637.61.1.23.3"
+#"eqptBoardEntry"													"1.3.6.1.4.1.637.61.1.23.3.1"
+#"eqptSlotId"															"1.3.6.1.4.1.637.61.1.23.3.1.1"
+#"eqptSlotPlannedType"											"1.3.6.1.4.1.637.61.1.23.3.1.2"
+#"eqptSlotActualType"											"1.3.6.1.4.1.637.61.1.23.3.1.3"
+#"eqptSlotPowerStatus"											"1.3.6.1.4.1.637.61.1.23.3.1.4"
+#"eqptBoardAdminStatus"										"1.3.6.1.4.1.637.61.1.23.3.1.5"
+#"eqptBoardOperStatus"											"1.3.6.1.4.1.637.61.1.23.3.1.6"
+#"eqptBoardOperError"											"1.3.6.1.4.1.637.61.1.23.3.1.7"
+#"eqptBoardAvailStatus"										"1.3.6.1.4.1.637.61.1.23.3.1.8"
+#"eqptBoardRestart"												"1.3.6.1.4.1.637.61.1.23.3.1.9"
+#"eqptBoardSwOverruleStatus"								"1.3.6.1.4.1.637.61.1.23.3.1.10"
+#"eqptBoardContainerId"										"1.3.6.1.4.1.637.61.1.23.3.1.11"
+#"eqptBoardContainerOffset"								"1.3.6.1.4.1.637.61.1.23.3.1.12"
+#"eqptBoardInventoryAlcatelCompanyId"			"1.3.6.1.4.1.637.61.1.23.3.1.13"
+#"eqptBoardInventoryTypeName"							"1.3.6.1.4.1.637.61.1.23.3.1.14"
+#"eqptBoardInventoryPBACode"								"1.3.6.1.4.1.637.61.1.23.3.1.15"
+#"eqptBoardInventoryFPBACode"							"1.3.6.1.4.1.637.61.1.23.3.1.16"
+#"eqptBoardInventoryICScode"								"1.3.6.1.4.1.637.61.1.23.3.1.17"
+#"eqptBoardInventoryCLEICode"							"1.3.6.1.4.1.637.61.1.23.3.1.18"
+#"eqptBoardInventorySerialNumber"					"1.3.6.1.4.1.637.61.1.23.3.1.19"
+#"eqptBoardInventoryLastFailedTest"				"1.3.6.1.4.1.637.61.1.23.3.1.20"
+#"eqptSlotPlannedCapabilityProfile"				"1.3.6.1.4.1.637.61.1.23.3.1.22"
+#"eqptBoardCustAlarmProfile"								"1.3.6.1.4.1.637.61.1.23.3.1.23"
+#"eqptBoardLastRestartCause"								"1.3.6.1.4.1.637.61.1.23.3.1.24"
+#"eqptBoardLastRestartTime"								"1.3.6.1.4.1.637.61.1.23.3.1.25"
+#"eqptBoardRestartNumberOfChanges"					"1.3.6.1.4.1.637.61.1.23.3.1.26"
+#"eqptBoardRelatedMgntEntityIPAddress"			"1.3.6.1.4.1.637.61.1.23.3.1.27"
+#"eqptBoardRelatedMgntEntityPairedNumber"	"1.3.6.1.4.1.637.61.1.23.3.1.28"
+#"eqptBoardDualHostIPAddress"							"1.3.6.1.4.1.637.61.1.23.3.1.29"
+#"eqptBoardDualHostLsmLocation"						"1.3.6.1.4.1.637.61.1.23.3.1.30"
+#"eqptBoardIfSlotId"												"1.3.6.1.4.1.637.61.1.23.3.1.32"
+   
+      'eqptBoard' => {        
+        'index_oid' => '1.3.6.1.4.1.637.61.1.23.3.1.2',        
+        'indexed' => 'eqptSlotPlannedType',        
+        'headers' => 'index,eqptSlotPlannedType,eqptSlotActualType,eqptBoardAdminStatus,eqptBoardOperStatus,eqptBoardContainerId,eqptBoardContainerOffset,eqptBoardInventoryTypeName,eqptBoardInventorySerialNumber',
+        'snmp' => {
+          'eqptSlotPlannedType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.2',
+            'sysObjectName' => 'eqptSlotPlannedType',
+            'title' => 'Slot Planned Type'
+          },
+
+          'eqptSlotActualType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.3',
+            'sysObjectName' => 'eqptSlotActualType',
+            'title' => 'Slot Actual Type'
+          },
+          'eqptBoardAdminStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.5',
+            'sysObjectName' => 'eqptBoardAdminStatus',
+            'replace' => {
+              '1' => 'unlock',
+              '2' => 'lock',
+            },            
+            'title' => 'Board Admin Status'
+          },
+          'eqptBoardOperStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.6',
+            'sysObjectName' => 'eqptBoardOperStatus',
+            'replace' => {
+              '1' => 'enabled',
+              '2' => 'disabled',
+            },
+            'title' => 'Board Oper Status'
+          },
+          'eqptBoardContainerId' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.11',
+            'sysObjectName' => 'eqptBoardContainerId',
+            'title' => 'Board Container ID'
+          },
+          'eqptBoardContainerOffset' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.12',
+            'sysObjectName' => 'eqptBoardContainerOffset',
+            'title' => 'Board Container Offset'
+          },
+          'eqptBoardInventoryTypeName' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.14',
+            'sysObjectName' => 'eqptBoardInventoryTypeName',
+            'title' => 'Type Name'
+          },
+          'eqptBoardInventorySerialNumber' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.19',
+            'sysObjectName' => 'eqptBoardInventorySerialNumber',
+            'title' => 'Serial Number'
           },
         },
       },      
+      
       'eqptPortMapping' => {        
         'indexed' => 'eqptPortMappingLogPortType',        
         'headers' => 'eqptPortMappingLogPortType,eqptPortMappingLSMSlot',

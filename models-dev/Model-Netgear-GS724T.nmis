@@ -248,6 +248,18 @@
       'interface' => {
         'indexed' => 'true',
         'snmp' => {
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -261,6 +273,9 @@
             'oid' => 'ifOperStatus',
             'option' => 'gauge,0:100'
           },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange'
+          },
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
@@ -271,18 +286,6 @@
           'ifHCOutOctets' => {
             'oid' => 'ifHCOutOctets',
             'option' => 'counter,0:U'
-          },
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '1' => 'up',
-              '4' => 'unknown',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus'
           },
           'ifOutOctets' => {
             'oid' => 'ifOutOctets',
