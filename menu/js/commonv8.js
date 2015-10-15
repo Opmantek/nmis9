@@ -938,17 +938,16 @@ function setContentTitle(server) {
 // the filtername and list of filter keywords are posted to a select box.
 // when that select box is clicked, the filtername is used as a key to the nsRef hash
 // which returns an object ref to the set of elements that match that filter.
-
-
-function selectNodeOpen() {
-		
+// if given the optional savedpos hash, then width and position are taken from that
+function selectNodeOpen(savedpos)
+{
 	var nodeSelect = createDialog({
-										id		:	'nsWrapper',
-										title	:	'Quick Search',
-										url		:	'',
-										width	:	210,
-										position : [ 10, 355 ]
-										});
+		id		:	'nsWrapper',
+		title	:	'Quick Search',
+		url		:	'',
+		width	:	(savedpos != null? savedpos.width : 210),
+		position : (savedpos != null? savedpos.position : [ 10, 355 ])
+	});
 	
 	// define some additional content
 	//<div class="tiny">&nbsp;</div>\
@@ -1342,17 +1341,27 @@ $(function($) {
 
 function loadWindowState() {	
 	if( userWindowData ) {
-		for( i = 0; i < userWindowData.length; i++ )
+		for( var i = 0; i < userWindowData.length; i++ )
 		{
 			newWindowData = userWindowData[i];
-			createDialog({
-			id		: newWindowData.id,
-			url		: newWindowData.url,
-			title	: newWindowData.title,
-			width : newWindowData.width,
-			height: newWindowData.height,
-			position : newWindowData.position
-			});	
+
+			// quick search dialog needs custom initializer,
+			// not just dialog cration
+			if (newWindowData.id == "nsWrapper")
+			{
+				selectNodeOpen(newWindowData);
+			}
+			else
+			{
+				createDialog({
+					id		: newWindowData.id,
+					url		: newWindowData.url,
+					title	: newWindowData.title,
+					width : newWindowData.width,
+					height: newWindowData.height,
+					position : newWindowData.position
+				});
+			}
 		}
 	}
 }
