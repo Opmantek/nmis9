@@ -3,9 +3,9 @@
     '<opmantek_base>' => '/usr/local/opmantek',
     'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
-		'display_module_list' => 'true',
+    'display_module_list' => 'true',
     'display_network_view' => 'true',
-    'display_opmaps_widget' => 'true',
+    'display_opmaps_widget' => 'false',
     'display_opflow_widget' => 'false',
     'opmaps_widget_width' => '750',
     'opmaps_widget_height' => '450',
@@ -52,6 +52,7 @@
     'global_nocollect_Description' => '',
     'global_nocollect_noDescription' => '',
     'global_nocollect_ifType' => '',
+    'global_nocollect_interface_down_days' => 30,
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
     'global_noevent_ifType' => '',
@@ -75,7 +76,7 @@
     'display_status_summary' => 'false',
     
 		# to have additional fields in the node summary data.
-    'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus',
+    'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -138,7 +139,7 @@
     'ping_packet' => '56',
     'ping_retries' => '3',
     'ping_count' => '3',
-    'wrap_node_names' => 'false',
+    'wrap_node_names' => 'true',
     'nmis_summary_poll_cycle' => 'false',
     'disable_interfaces_summary' => 'false',
 		'interface_util_period' => '-6 hours',

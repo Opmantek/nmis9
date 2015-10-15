@@ -47,7 +47,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 my $LNT = loadLocalNodeTable();
 
-print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
+print qq|"name","host","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
 
 foreach my $node (sort keys %{$LNT}) {
 	
@@ -70,7 +70,6 @@ foreach my $node (sort keys %{$LNT}) {
 	}
 	my $sysDescr = $NI->{system}{sysDescr};
 	$sysDescr =~ s/[\x0A\x0D]/\\n/g;
-	$sysDescr =~ s/,/;/g;
 	
 	my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
 	my $pingable = "true";
@@ -83,6 +82,6 @@ foreach my $node (sort keys %{$LNT}) {
 	$pingable = "unknown" if not defined $NI->{system}{nodedown};
 	$snmpable = "unknown" if not defined $NI->{system}{snmpdown};
 	
-	print qq|"$LNT->{$node}{name}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$NI->{system}{roleType}","$NI->{system}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
+	print qq|"$LNT->{$node}{name}","$LNT->{$node}{host}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$LNT->{$node}{roleType}","$LNT->{$node}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 }
 

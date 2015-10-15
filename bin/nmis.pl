@@ -1534,6 +1534,7 @@ sub getIntfInfo {
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
+	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
 		# Check if the ifTableLastChange has changed.  If it has not changed, the 
@@ -1884,6 +1885,14 @@ sub getIntfInfo {
 			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
 				$IF->{$index}{collect} = "false";
 				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
+			}
+			# if the interface has been down for too many days to be in use now.
+			elsif ( $IF->{$index}{ifAdminStatus} =~ /up/
+				and $IF->{$index}{ifOperStatus} =~ /down/
+				and ($NI->{system}{sysUpTimeSec} - $IF->{$index}{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days  
+			) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "Not Collecting: interface down for more than $nocollect_interface_down_days days"; # reason
 			}
 
 			# send events ?
@@ -2939,6 +2948,7 @@ sub getIntfData {
 				) {
 					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
+					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
 				}
 				else {
 					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");																

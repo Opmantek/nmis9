@@ -150,8 +150,6 @@
       'fkGponOnu' => '/nodes/$node/health/fkGponOnu-$index.rrd',
       'apSys' => '/nodes/$node/health/apSys.rrd',
       'ospfNbr' => '/nodes/$node/health/ospfNbr-$index.rrd',
-
-      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
     }
   }
 );

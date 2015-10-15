@@ -192,7 +192,7 @@ sub processRRDFile {
 			# if there is something todo process the rrd
 			if ( $target != 0 ) {
 				#this is the command line which will be executed
-				my $exec = "$rrdtool resize $rrd $r $FUNCTION $target";
+				my $exec = "$rrdtool resize \"$rrd\" $r $FUNCTION $target";
 				dbg("EXEC: $exec");
 				my $out = `$exec`;
 				# rename the resize.rrd file to the original file.
