@@ -80,6 +80,7 @@ $VERSION = "8.5.10G";
 		loadifTypesTable
 		loadServicesTable
     loadServiceStatus
+    saveServiceStatus
 		loadUsersTable
 		loadPrivMapTable
 		loadAccessTable
@@ -3000,59 +3001,67 @@ sub eventUpdate
 }
 
 # loads one or more service status files and returns the status data
-# args: service, node (both optional)
-# if either given, only matching services are returned.
 #
-# note: this loads _only_ active services (= ones that are listed in Services.nmis)!
-# note: this function needs to know status dir and status file name structure!
-# 
+# args: service, node, server, only_known (all optional)
+# if service or node are given, only matching services are returned.
+# if only_known is set to zero, then all services, active or not are returned.
+# default is to load only active services (= ones that are listed 
+# in Services.nmis, and attached to nodes)
+#
 # returns: hash of service -> node -> data; empty if invalid args
 sub loadServiceStatus
 {
 	my (%args) = @_;
+	my $C = loadConfTable();			# generally cached anyway
+	
 	my $wantnode = $args{node};
 	my $wantservice = $args{service};
+	my $wantserver = $args{server} || $C->{server_name};
+	my $onlyknown = !(getbool($args{only_known}, "invert")); # default is 1
 	
-	my $C = loadConfTable();			# generally cached anyway
+
 	my $ST = loadServicesTable;
 	my $LNT = loadLocalNodeTable;
 
 	my %result;
-	my $statusdir = $C->{'<nmis_var>'}."/service_status";
-	return %result if (!-d $statusdir);
-
+	# ask the one function that knows where this things live
+	my $statusdir = dirname(service_to_filename(service => "dummy", 
+																							node => "dummy",
+																							server => $wantserver));
+	return %result if (!$statusdir or !-d $statusdir);
 	# figure out which files are relevant, skip dead stuff, then read them
 	my @candidates;
 
-
-	my $safeservice = lc($wantservice) || ''; $safeservice =~ s/[^a-z0-9.-]//g;
-	my $safenode = lc($wantnode) || ''; $safenode =~ s/[^a-z0-9.-]//g;
-
-	# both node and service present? then check just the one service status file
+	# both node and service present? then check just the one matching service status file
 	if ($wantnode and $wantservice)
 	{
-		my $statusfn = sprintf("%s_%s.json", $safeservice, $safenode);
-		@candidates = $statusfn if (-f "$statusdir/$statusfn" and $LNT->{$wantnode} and $ST->{$wantservice});
+		my $statusfn = service_to_filename(service => $wantservice,
+																			 node => $wantnode,
+																			 server => $wantserver);
+		# no node or unknown service is ok only if unknowns are allowed
+		@candidates = $statusfn if (-f $statusfn
+																and (!$onlyknown or 
+																		 ($LNT->{$wantnode} 
+																			and $ST->{$wantservice} 
+																			and $C->{server_name} eq $wantserver)));
 	}
+	# otherwise read them all...
 	else
 	{
-		my $okre = $wantnode? qr/^[a-z0-9.-]+_$safenode\.json$/ : 
-				$wantservice ? qr/^${safeservice}_[a-z0-9.-]+\.json$/ : qr/^[a-z0-9.-]+_[a-z0-9.-]+\.json$/;
-	
 		if (!opendir(D, $statusdir))
 		{
 			logMsg("ERROR: cannot open dir $statusdir: $!");
 			return %result;
 		}
-		@candidates = grep(/$okre/, readdir(D));
+		@candidates = map { "$statusdir/$_" } (grep(/\.json$/, readdir(D)));
 		closedir(D);
 	}
 
 	for my $maybe (@candidates)
 	{
-		if (!open(F, "$statusdir/$maybe"))
+		if (!open(F, $maybe))
 		{
-			logMsg("ERROR: cannot read $statusdir/$maybe: $!");
+			logMsg("ERROR: cannot read $maybe: $!");
 			next;
 		}
 		my $raw = join('', <F>);
@@ -3066,18 +3075,83 @@ sub loadServiceStatus
 		}
 
 		# sanity-check: files could be orphaned (ie. deleted node, or deleted service, or no
-		# longer listed with the node
+		# longer listed with the node, or not from this server - all ignored if only_known is false
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
-		if ($thisnode and $LNT->{$thisnode} # known node
-				and $thisservice and $ST->{$thisservice} # known service
-				and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ ) # service still associated with node
+		if (!$onlyknown 
+				or ( $thisnode and $LNT->{$thisnode} # known node
+						 and $thisservice and $ST->{$thisservice} # known service
+						 and $sdata->{server} eq $C->{server_name} # our service
+						 and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ )) # service still associated with node
 		{
 			$result{$thisservice}->{$thisnode} = $sdata;
 		}
 	}
 		
 	return %result;
+}
+
+# takes service, node, and server and translates 
+# that into the file name for service status saving
+# returns: undef if the args were duds, file path otherwise
+sub service_to_filename
+{
+	my (%args) = @_;
+	my $C = loadConfTable();			# likely cached
+	
+	my ($service, $node, $server) = @args{"service","node","server"};
+	return undef if (!$service or !$node or !$server);
+	
+	# structure: nmis_var/service_status/<safed service>_<safed node>_<safed server>.json
+	# assumption is FLAT dir, so that ONLY this function needs to know the layout
+	my $statusdir = $C->{'<nmis_var>'}."/service_status";
+	# make sure the event dir exists, ASAP.
+	if (! -d $statusdir)
+	{
+		func::createDir($statusdir);
+		func::setFileProt($statusdir, 1);
+	}
+
+	my @parts;
+	for my $addon ($node,$service,$server)
+	{
+		my $newcomp = lc($addon);
+		$newcomp =~ s![ :/]!_!g; # no slashes possible, no colons and spaces wanted
+		push @parts, $newcomp;
+	}
+
+	my $result = "$statusdir/".join("_", @parts).".json";
+	return $result;
+}
+
+# saves and overwrites one service status file
+# args: service (= hash of the service data)
+# returns: undef if ok, error message otherwise
+sub saveServiceStatus
+{
+	my (%args) = @_;
+	my $servicerec = $args{service};
+
+	return "Cannot save service status without status data!" 
+			if (ref($servicerec) ne "HASH" or !keys %$servicerec);
+
+	# things that *must* be present - undef isn't cutting it
+	for my $musthave (qw(status name node service server uuid))
+	{
+		return "Required property $musthave is missing."
+				if (!defined $servicerec->{$musthave});
+	}
+
+	my $C = loadConfTable();			# cached
+	my $targetfn = service_to_filename(service => $servicerec->{service},
+																		 node => $servicerec->{node},
+																		 server => $servicerec->{server});
+	return "Cannot translate service record into filename!"
+			if (!$targetfn);
+
+	writeHashtoFile(file => $targetfn, data => $servicerec, json => "true");
+	setFileProt($targetfn);
+	return undef;
 }
 
 # looks up all events (for one node or all), 
