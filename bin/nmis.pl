@@ -4228,12 +4228,10 @@ sub runServices {
 		next if ($service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i);
 
 		# are we supposed to run this service now?
-		# attention: loadServiceStatus also needs to know this structure!
-		my $safeservice = lc($service); $safeservice =~ s/[^a-z0-9.-]//g;
-		my $safenode = lc($node); $safenode =~ s/[^a-z0-9.-]//g;
-		
-		my $statusfn = sprintf("%s/%s_%s.json", $statusdir, $safeservice, $safenode);
-		my $lastrun = -f $statusfn? (stat($statusfn))[9] : 0;
+		# load the service status and check the last run time
+		my %previous = loadServiceStatus(node => $node, service => $service);
+		my $lastrun =  ($previous{$node} && $previous{$node}->{$service})? 
+				$previous{$node}->{$service}->{last_run} : 0;
 		
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
 			info("Service $service has service interval \"$serviceinterval\"");
@@ -4694,8 +4692,8 @@ sub runServices {
 		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
-		writeHashtoFile(file => $statusfn, data => $status{$service}, json => "true");
-		setFileProt($statusfn);
+		my $error = saveServiceStatus(service => $status{$service});
+		logMsg("ERROR: service status saving failed: $error") if ($error);
 	}
 
 	if ( $didRunServices ) {
