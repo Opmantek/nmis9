@@ -2379,8 +2379,8 @@ sub createHrButtons {
 		# let's show the possibly many systemhealth items in a dropdown menu
 		if ( defined $S->{mdl}{systemHealth}{sys} ) 
 		{
-			my @systemHealth = sort keys %{$S->{mdl}{systemHealth}{sys}};
-    
+    	my @systemHealth = split(",",$S->{mdl}{systemHealth}{sections});
+    	
 			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
 			foreach my $sysHealth (@systemHealth) 
 			{

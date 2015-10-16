@@ -150,6 +150,8 @@
       'fkGponOnu' => '/nodes/$node/health/fkGponOnu-$index.rrd',
       'apSys' => '/nodes/$node/health/apSys.rrd',
       'ospfNbr' => '/nodes/$node/health/ospfNbr-$index.rrd',
+      'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
+      'ciscoMemoryPool' => '/nodes/$node/health/ciscoMemoryPool-$index.rrd',
     }
   }
 );

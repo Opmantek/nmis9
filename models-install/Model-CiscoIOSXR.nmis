@@ -236,7 +236,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   },
   #'environment' => {
   #  'sys' => {
