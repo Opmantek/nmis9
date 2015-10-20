@@ -107,7 +107,9 @@ sub display_details
 
 	my $ST = loadServicesTable;
 	my %sstatus = loadServiceStatus(node => $wantnode, service => $wantservice);
-
+	# only interested in this server's services!
+	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
+					
 	if (!keys %sstatus or !$sstatus{$wantservice} or !$sstatus{$wantservice}->{$wantnode})
 	{
 		print "No such service or node!";
@@ -333,6 +335,11 @@ sub display_overview
 	# get all known service statuses, all nodes, all services.
 	# service -> node -> data
 	my %sstatus = loadServiceStatus;
+
+
+	# only interested in this server's services!
+	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
+	
 	my @statuslist;
 
 	for my $sname (keys %sstatus)

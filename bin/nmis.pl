@@ -4141,14 +4141,6 @@ sub runServices {
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
 
-	# fixme: loadServiceStatus in nmis.pm also needs to know this
-	my $statusdir = $C->{'<nmis_var>'}."/service_status";
-	if (!-d $statusdir)
-	{
-		createDir($statusdir);
-		setFileProtDirectory($statusdir,1);
-	}
-
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
 	my %snmpTable;
 	my $timeout = 3;
@@ -4230,8 +4222,9 @@ sub runServices {
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
-		my $lastrun =  ($previous{$node} && $previous{$node}->{$service})? 
-				$previous{$node}->{$service}->{last_run} : 0;
+		my $lastrun =  ($previous{$C->{server_name}}->{$node} 
+										&& $previous{$C->{server_name}}->{$node}->{$service})? 
+				$previous{$C->{server_name}}->{$node}->{$service}->{last_run} : 0;
 		
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
 			info("Service $service has service interval \"$serviceinterval\"");

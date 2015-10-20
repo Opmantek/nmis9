@@ -3008,7 +3008,7 @@ sub eventUpdate
 # default is to load only active services (= ones that are listed 
 # in Services.nmis, and attached to nodes)
 #
-# returns: hash of service -> node -> data; empty if invalid args
+# returns: hash of server -> service -> node -> data; empty if invalid args
 sub loadServiceStatus
 {
 	my (%args) = @_;
@@ -3084,7 +3084,7 @@ sub loadServiceStatus
 						 and $sdata->{server} eq $C->{server_name} # our service
 						 and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ )) # service still associated with node
 		{
-			$result{$thisservice}->{$thisnode} = $sdata;
+			$result{$sdata->{server}}->{$thisservice}->{$thisnode} = $sdata;
 		}
 	}
 		
