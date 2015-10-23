@@ -595,8 +595,6 @@ sub selectSmall {
 		}
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
-		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
-
 		my @h = qw/metric reachable available health response/;
 		foreach my $t (@h) {
 			my $units = $t eq 'response' ? 'ms' : '%' ;
@@ -723,7 +721,6 @@ sub printGroup {
 		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
 	}
 	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
-	
 
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h) {
@@ -822,7 +819,6 @@ sub selectNetworkView {
 			print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
 		}
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
-		#td({class=>'info Plain',style=>"background-color:".colorPercentLo($groupSummary->{average}{countdown})},"$groupSummary->{average}{countdown}");
 
 		#my @h = qw/metric reachable available health response/;
 		my @h = qw/metric reachable health/;
