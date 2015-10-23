@@ -89,7 +89,7 @@ elsif ( $arg{separator} eq "comma" ) {
 my $cardIndex;
 
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 relayRack location uplink comment);
+my @nodeHeaders = qw(name uuid ossType nodeVendor ossModel sysDescr softwareVersion ossStatus serialNum name2 name3 relayRack location uplink);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
@@ -250,13 +250,6 @@ sub exportNodes {
 			# move on if this isn't a good one.
 			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 			
-			# check for data prerequisites
-			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} ) {
-				$comment = "ERROR: $node is Cisco and entityMib data missing";
-				print "$comment\n";
-				push(@comments,$comment);
-			}
-
 			# is there a decent serial number!
 			
 			# NOPE
@@ -481,8 +474,6 @@ sub exportCards {
 	print "Creating $file\n";
 
 	my $C = loadConfTable();
-
-	my $vendorOids = loadVendorOids();
 		
 	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
 	
@@ -658,40 +649,54 @@ sub exportPorts {
 			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
-			my $SLOTS;
+			my $PORTS;
 			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
-				if ( defined $S->{info}{entityMib} and ref($S->{info}{entityMib}) eq "HASH") {
-					$SLOTS = $S->{info}{entityMib};
+				if ( defined $S->{info}{eqptPortMapping} and ref($S->{info}{eqptPortMapping}) eq "HASH") {
+					$PORTS = $S->{info}{eqptPortMapping};
 				}
 				else {
 					print "ERROR: $node no Entity MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
 					next;
 				}
 
-				foreach my $slotIndex (sort keys %{$SLOTS}) {
-					if ( defined $SLOTS->{$slotIndex} 
-						and defined $SLOTS->{$slotIndex}{entPhysicalClass} 
-						and $SLOTS->{$slotIndex}{entPhysicalClass} =~ /port/
+				foreach my $portIndex (sort keys %{$PORTS}) {
+					if ( defined $PORTS->{$portIndex} 
+						and defined $PORTS->{$portIndex}{eqptPortMappingPhyPortNbr} 
 					) {
+						my $portStatus = getStatus();
+						my $portId = $portIndex;
+						my $portName = "$PORTS->{$portIndex}{eqptPortMappingLogPortType}-$portIndex";
+
 						# what is the parent ID?
-						my $parentId = $SLOTS->{$slotIndex}{entPhysicalContainedIn};
+						my $parentId;
+						
+						if ( $PORTS->{$portIndex}{eqptPortMappingPhyPortSlot} != 65535 ) {
+							$parentId = $PORTS->{$portIndex}{eqptPortMappingPhyPortSlot};	
+						}
+						elsif ( $PORTS->{$portIndex}{eqptPortMappingLSMSlot} != 65535 ) {
+							$parentId = $PORTS->{$portIndex}{eqptPortMappingLSMSlot};	
+						}
+						else {
+							# it isn't logical or physical, it must not exist!
+							next();
+						}						
 						my $cardId = "$NODES->{$node}{uuid}_C_$parentId";
 
 						#my @portHeaders = qw(portName portId portType portStatus parent duplex);
 						
 						# Port ID is the Card ID and an index, relative position.
-						$SLOTS->{$slotIndex}{portName} = $SLOTS->{$slotIndex}{entPhysicalName};
-						$SLOTS->{$slotIndex}{portId} = "$NODES->{$node}{uuid}_P_$slotIndex";
-						$SLOTS->{$slotIndex}{portType} = $SLOTS->{$slotIndex}{entPhysicalDescr};
-						$SLOTS->{$slotIndex}{portStatus} = getStatus();
-						$SLOTS->{$slotIndex}{parent} = $cardId;
-						$SLOTS->{$slotIndex}{duplex} = getPortDuplex($SLOTS->{$slotIndex}{entPhysicalDescr});
+						$PORTS->{$portIndex}{portName} = $portName;
+						$PORTS->{$portIndex}{portId} = "$NODES->{$node}{uuid}_P_$portId";
+						$PORTS->{$portIndex}{portType} = $PORTS->{$portIndex}{eqptPortMappingLogPortType};
+						$PORTS->{$portIndex}{portStatus} = $portStatus;
+						$PORTS->{$portIndex}{parent} = $cardId;
+						$PORTS->{$portIndex}{duplex} = "N/A";
 						
 				    my @columns;
 				    foreach my $header (@portHeaders) {
 				    	my $data = undef;
-				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
-				    		$data = $SLOTS->{$slotIndex}{$header};
+				    	if ( defined $PORTS->{$portIndex}{$header} ) {
+				    		$data = $PORTS->{$portIndex}{$header};
 				    	}
 				    	else {
 				    		$data = "TBD";
@@ -713,63 +718,6 @@ sub exportPorts {
 	}	
 }
 
-sub exportInterfaces {
-	my $xls = shift;
-	my $file = shift;
-	
-	print "Creating $file\n";
-
-	my $C = loadConfTable();
-		
-	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
-	
-	# print a CSV header
-	my @aliases;
-	foreach my $header (@intHeaders) {
-		my $alias = $header;
-		$alias = $intAlias{$header} if $intAlias{$header};
-		push(@aliases,$alias);
-	}
-	my $header = join($sep,@aliases);
-	print CSV "$header\n";
-	
-	foreach my $node (sort keys %{$NODES}) {
-	  if ( $NODES->{$node}{active} eq "true" ) {
-			my $S = Sys::->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-			my $NI = $S->ndinfo;
-			my $IF = $S->ifinfo;
-
-			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
-
-			foreach my $ifIndex (sort keys %{$IF}) {
-				if ( defined $IF->{$ifIndex} and defined $IF->{$ifIndex}{ifDescr} ) {
-					# create a name
-			    $IF->{$ifIndex}{name} = "$node--$IF->{$ifIndex}{ifDescr}";
-			    $IF->{$ifIndex}{parent} = $NODES->{$node}{uuid};
-					
-			    my @columns;
-			    foreach my $header (@intHeaders) {
-			    	my $data = undef;
-			    	if ( defined $IF->{$ifIndex}{$header} ) {
-			    		$data = $IF->{$ifIndex}{$header};
-			    	}
-			    	else {
-			    		$data = "TBD";
-			    	}
-			    	$data = changeCellSep($data);
-			    	push(@columns,$data);
-			    }
-					my $row = join($sep,@columns);
-			    print CSV "$row\n";
-		  	}
-			}
-	  }
-	}
-	
-	close CSV;
-}
 
 sub changeCellSep {
 	my $string = shift;
@@ -851,43 +799,6 @@ eg: $0 dir=/data debug=true separator=(comma|tab)
 EO_TEXT
 }
 
-sub loadVendorOids {
-	my $oids = "$C->{mib_root}/CISCO-ENTITY-VENDORTYPE-OID-MIB.oid";
-	my $vendorOids;
-	
-	print "Loading Vendor OIDs from $oids\n";
-	
-	open(OIDS,$oids) or warn "ERROR could not load $oids: $!\n";
-	
-	my $match = qr/\"(\w+)\"\s+\"([\d+\.]+)\"/;
-	
-	while (<OIDS>) {
-		if ( $_ =~ /$match/ ) {
-			$vendorOids->{$2} = $1;
-		}
-		elsif ( $_ =~ /^#|^\s+#/ ) {
-			#all good comment
-		}
-		else {
-			print "ERROR: no match $_\n";
-		}
-	}
-	close(OIDS);
-	
-	return ($vendorOids);
-}
-
-#Cisco IOS XR Software (Cisco CRS-8/S) Version 5.1.3[Default] Copyright (c) 2014 by Cisco Systems Inc.	
-sub getVersion {
-	my $sysDescr = shift;
-	my $version;
-	
-	if ( $sysDescr =~ /Version ([\d\.\[\]\w]+)/ ) {
-		$version = $1;
-	}
-	
-	return $version;
-}
 
 sub start_xlsx
 {

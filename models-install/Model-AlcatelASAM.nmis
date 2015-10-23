@@ -209,7 +209,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
+    'sections' => 'eqptHolderList,eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
     'sys' => {
       'cpuUtil' => {
         'indexed' => 'cpuUtil',
@@ -253,6 +253,24 @@
 #"eqptHolderContainerId"										"1.3.6.1.4.1.637.61.1.23.2.1.10"
 #"eqptHolderContainerOffset"								"1.3.6.1.4.1.637.61.1.23.2.1.11"
 #"eqptHolderMode"													"1.3.6.1.4.1.637.61.1.23.2.1.12"
+
+      'eqptHolderList' => {        
+        'index_oid' => '1.3.6.1.4.1.637.61.1.23.2.1.3',        
+        'indexed' => 'eqptHolderPlannedType',        
+        'headers' => 'index,eqptHolderPlannedType,eqptHolderActualType',
+        'snmp' => {
+          'eqptHolderPlannedType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.3',
+            'sysObjectName' => 'eqptHolderPlannedType',
+            'title' => 'Holder Planned Type'
+          },
+          'eqptHolderActualType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.2.1.4',
+            'sysObjectName' => 'eqptHolderActualType',
+            'title' => 'Holder Actual Type'
+          },
+        },
+      },
 
       'eqptHolder' => {        
         'index_oid' => '1.3.6.1.4.1.637.61.1.23.2.1.10',        
@@ -355,7 +373,7 @@
       'eqptBoard' => {        
         'index_oid' => '1.3.6.1.4.1.637.61.1.23.3.1.2',        
         'indexed' => 'eqptSlotPlannedType',        
-        'headers' => 'index,eqptSlotPlannedType,eqptSlotActualType,eqptBoardAdminStatus,eqptBoardOperStatus,eqptBoardContainerId,eqptBoardContainerOffset,eqptBoardInventoryTypeName,eqptBoardInventorySerialNumber',
+        'headers' => 'index,eqptSlotPlannedType,eqptSlotActualType,eqptBoardAdminStatus,eqptBoardOperStatus,eqptBoardContainerId,eqptBoardContainerOffset,eqptBoardInventoryAlcatelCompanyId,eqptBoardInventoryTypeName,eqptBoardInventoryPBACode,eqptBoardInventoryFPBACode,eqptBoardInventoryICScode,eqptBoardInventoryCLEICode,eqptBoardInventorySerialNumber',
         'snmp' => {
           'eqptSlotPlannedType' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.2',
@@ -396,10 +414,35 @@
             'sysObjectName' => 'eqptBoardContainerOffset',
             'title' => 'Board Container Offset'
           },
+          'eqptBoardInventoryAlcatelCompanyId' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.13',
+            'sysObjectName' => 'eqptBoardInventoryAlcatelCompanyId',
+            'title' => 'Company Id'
+          },
           'eqptBoardInventoryTypeName' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.14',
             'sysObjectName' => 'eqptBoardInventoryTypeName',
             'title' => 'Type Name'
+          },
+          'eqptBoardInventoryPBACode' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.15',
+            'sysObjectName' => 'eqptBoardInventoryPBACode',
+            'title' => 'PBA Code'
+          },
+          'eqptBoardInventoryFPBACode' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.16',
+            'sysObjectName' => 'eqptBoardInventoryFPBACode',
+            'title' => 'FPBA Code'
+          },
+          'eqptBoardInventoryICScode' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.17',
+            'sysObjectName' => 'eqptBoardInventoryICScode',
+            'title' => 'ICS Code'
+          },
+          'eqptBoardInventoryCLEICode' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.1',
+            'sysObjectName' => 'eqptBoardInventoryCLEICode',
+            'title' => 'CLEI Code'
           },
           'eqptBoardInventorySerialNumber' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.3.1.19',
@@ -408,11 +451,24 @@
           },
         },
       },      
+
+#"eqptPortMappingTable"										"1.3.6.1.4.1.637.61.1.23.13"
+#"eqptPortMappingEntry"										"1.3.6.1.4.1.637.61.1.23.13.1"
+#"eqptPortMappingLogPortNbr"								"1.3.6.1.4.1.637.61.1.23.13.1.1"
+#"eqptPortMappingLogPortType"							"1.3.6.1.4.1.637.61.1.23.13.1.2"
+#"eqptPortMappingPhyPortSlot"							"1.3.6.1.4.1.637.61.1.23.13.1.3"
+#"eqptPortMappingPhyPortType"							"1.3.6.1.4.1.637.61.1.23.13.1.4"
+#"eqptPortMappingPhyPortNbr"								"1.3.6.1.4.1.637.61.1.23.13.1.5"
+#"eqptPortMappingLSMSlot"									"1.3.6.1.4.1.637.61.1.23.13.1.6"
+#"eqptPortMappingChanges"									"1.3.6.1.4.1.637.61.1.23.13.1.7"
       
       'eqptPortMapping' => {        
         'indexed' => 'eqptPortMappingLogPortType',        
-        'headers' => 'eqptPortMappingLogPortType,eqptPortMappingLSMSlot',
+        'headers' => 'index,eqptPortMappingLogPortType,eqptPortMappingPhyPortSlot,eqptPortMappingPhyPortType,eqptPortMappingPhyPortNbr,eqptPortMappingLSMSlot',
         'snmp' => {
+          'index' => {
+            'title' => 'eqptPortMappingLogPortNbr'
+          },
           'eqptPortMappingLogPortType' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.2',
             'sysObjectName' => 'eqptPortMappingLogPortType',
@@ -423,6 +479,30 @@
               '3' => 'hostlink',
             },
           },
+          'eqptPortMappingPhyPortSlot' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.3',
+            'sysObjectName' => 'eqptPortMappingPhyPortSlot',
+            'title' => 'eqptPortMappingPhyPortSlot'
+          },
+          'eqptPortMappingPhyPortType' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.4',
+            'sysObjectName' => 'eqptPortMappingPhyPortType',
+            'replace' => {
+              '1' => 'not-applicable',
+              '2' => 'sfp',
+              '3' => 'xfp',
+              '5' => 'vp',
+              '10' => 'eth',
+              '11' => 'mcast',
+            },
+            'title' => 'eqptPortMappingPhyPortType'
+          },
+          'eqptPortMappingPhyPortNbr' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.5',
+            'sysObjectName' => 'eqptPortMappingPhyPortNbr',
+            'title' => 'eqptPortMappingPhyPortNbr'
+          },
+          
           'eqptPortMappingLSMSlot' => {
             'oid' => '1.3.6.1.4.1.637.61.1.23.13.1.6',
             'sysObjectName' => 'eqptPortMappingLSMSlot',
