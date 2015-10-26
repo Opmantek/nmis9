@@ -146,13 +146,13 @@
           'CiscoIOSXR' => 'IOS XR Software'
         },
         '40' => {
-          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G'
+          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x'
         },
         '45' => {
-          'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|Cisco IOS Software, Catalyst 4500'
+          'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|Cisco IOS Software, Catalyst 4500|IOS Software s6523_rp'
         },
         '46' => {
-          'Cisco7600' => 'IOS Software, c7600|Cisco IOS Software c7600s'
+          'Cisco7600' => 'IOS Software, c7600|Cisco IOS Software c7600'
         },
         '50' => {
           'CiscoNXOS' => 'Cisco NX-OS'
