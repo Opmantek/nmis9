@@ -40475,10 +40475,6 @@
     'Enterprise' => 'Digital Microwave Corp.',
     'OID' => '2509'
   },
-  '25049' => {
-    'Enterprise' => 'Opengear Inc.',
-    'OID' => '25049'
-  },
   '251' => {
     'Enterprise' => 'Netcomm, Ltd.',
     'OID' => '251'
@@ -73690,5 +73686,13 @@
   '9999' => {
     'Enterprise' => 'Zerna, Koepper & Partner',
     'OID' => '9999'
-  }
+  },
+  '25049' => {
+    'Enterprise' => 'Opengear Inc.',
+    'OID' => '25049'
+  },
+  '26866' => {
+    'Enterprise' => 'Gigamon Systems LLC',
+    'OID' => '26866'
+  },  
 );
