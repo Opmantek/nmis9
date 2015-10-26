@@ -124,7 +124,6 @@ my %slotAlias = (
 );
 
 #										
-
 my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel cardType name1 name2 slotId);
 
 my %cardAlias = (
@@ -175,17 +174,17 @@ my $goodVendors = qr/Cisco/;
 my $goodModels = qr/CiscoDSL/;
 
 #What slots do we want to ignore
-my $badSlotDescr = qr/CE container|CFP container|SFP container|CFP Container|SFP Container|Port Slot|Transceiver|transceiver|Clock FRU|Container of VTT|VTT-E FRU|VTT FRU|SFP Container|Flash Card/;
+my $badSlotDescr = qr/port container|Port Container|Ethernet.+Container|CE container|CFP container|SFP container|CFP Container|SFP Container|Port Slot|Transceiver|transceiver|Clock FRU|Container of Clock|Container of VTT|VTT-E FRU|VTT FRU|SFP Container|Flash Card/;
+#Gigabit Port Container, SFP port container, GBIC port container
 
 #What cards are we going to ignore
 my $badCardDescr = qr/Gi SFP|^SFP$|^XFP$|ZX SFP|LX SFP|GE LX|GE ZX|GE T|Transceiver|transceiver|Clock FRU|VTT FRU|VTT\-E FRU|A901-\w+-FT-D Motherboard|Motherboard with Built|Fixed Module 0|^CPU|^cpu|^host|^jacket|^plimasic|Compact Flash|CPUCtrl|DBCtrl|Line Card host|RSP Card host|BIOS|PHY\d|DIMM\d|SSD|SECtrl|PCIeSwitch|X86CPU\d|IOCtrlHub|IOHub/;
-my $badCardModel = qr/7600\-ES\+|SPA\-1CHOC3\-CE\-ATM|SFP\-OC3\-.R|SFP\-10G\-.R|SFP\-1000BX\-10\-U|XFP\-10GLR\-OC192SR/;
-
+my $badCardModel = qr/7600\-ES\+|SPA\-1CHOC3\-CE\-ATM|SFP\-OC3\-.R|SFP\-GE\-.|SFP\-10G\-.R|SFP\-1000BX\-10\-U|XFP\-10G.R\-OC192.R|XFP\-10G.R\-192.R|XFP10G.R\-192.R\-L|SFP\-OC..-IR|SFP\-OC..\-SR|CFP\-100G\-.R|GLC\-BX\-.|GBIC TYPE .X/;
+#XFP-10GLR-OC192SR   XFP-10GER-OC192IR   XFP-10GZR-OC192LR   XFP-10GER-192IR+    XFP10GLR-192SR-L  
 
 
 #What devices need to get Max message size updated
 my $fixMaxMsgSize = qr/cat650.|ciscoWSC65..|cisco61|cisco62|cisco60|cisco76/;
-
 
 # Step 6: Run the program!
 
@@ -634,6 +633,10 @@ sub exportCards {
 						else {
 				    	$SLOTS->{$slotIndex}{cardType} = "CARD - ". getType($NI->{system}{sysObjectName},$NI->{system}{nodeType});
 				    }
+				    
+				    # clean up trailing spaces from cardModel.
+				    $SLOTS->{$slotIndex}{cardModel} =~ s/\s+$//;
+				    $SLOTS->{$slotIndex}{cardSerial} =~ s/\s+$//;
 						
 				    # name for the parent node.				    
 				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};

@@ -91,6 +91,10 @@ if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
 	$widget = "false";
 }
 
+if ( not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
 my $wantwidget = ($widget eq "true");
 
 ### 2013-11-23 keiths adding some timing debug

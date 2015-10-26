@@ -153,14 +153,25 @@ my %portAlias = (
 	duplex								=> 'Duplex full/half',
 );
 
-my @intHeaders = qw(name ifDescr ifType ifOperStatus parent);
+my @asamHeaders = qw(name type index eqptSlotPlannedType eqptSlotActualType eqptBoardAdminStatus eqptBoardOperStatus eqptBoardContainerId eqptBoardContainerOffset eqptBoardInventoryAlcatelCompanyId eqptBoardInventoryTypeName eqptBoardInventoryPBACode eqptBoardInventoryFPBACode eqptBoardInventoryICScode eqptBoardInventoryCLEICode eqptBoardInventorySerialNumber);
 
-my %intAlias = (
-	name            			=> 'Name of the port in the network',
-	ifDescr								=> 'Port ID',
-	ifType								=> 'Type of port',
-	ifOperStatus					=> 'Status',
-	parent								=> 'parent ID /Card ID',
+my %asamAlias = (
+	name																=> 'name',
+	type																=> 'type',
+	index																=> 'index',
+	eqptSlotPlannedType									=> 'Slot Planned Type',
+	eqptSlotActualType									=> 'Slot Actual Type',
+	eqptBoardAdminStatus								=> 'Board Admin Status',
+	eqptBoardOperStatus									=> 'Board Oper Status',
+	eqptBoardContainerId								=> 'Board Container ID',
+	eqptBoardContainerOffset						=> 'Board Container Offset',
+	eqptBoardInventoryAlcatelCompanyId	=> 'Company ID',
+	eqptBoardInventoryTypeName					=> 'Type Name',
+	eqptBoardInventoryPBACode						=> 'PBA Code',
+	eqptBoardInventoryFPBACode					=> 'FPBA Code',
+	eqptBoardInventoryICScode						=> 'ICS Code',
+	eqptBoardInventoryCLEICode					=> 'CLEI Code',
+	eqptBoardInventorySerialNumber			=> 'Serial Number',
 );
 
 # Step 5: For loading only the local nodes on a Master or a Slave
@@ -194,8 +205,8 @@ if ( not -f $arg{nodes} ) {
 	exportNodes($xls,"$dir/oss-nodes.csv");
 	exportSlots($xls,"$dir/oss-slots.csv");
 	exportCards($xls,"$dir/oss-cards.csv");
+	exportAsam($xls,"$dir/oss-asam.csv");
 	exportPorts($xls,"$dir/oss-ports.csv");
-	#exportInterfaces($xls,"$dir/oss-interfaces.csv");
 
 	end_xlsx(xls => $xls);
 	print "XLS saved to $xlsFile\n";
@@ -248,7 +259,7 @@ sub exportNodes {
 			my $NI = $S->ndinfo;
 			
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ or $NI->{system}{nodeVendor} !~ /$goodVendors/;
 			
 			# is there a decent serial number!
 			
@@ -366,7 +377,7 @@ sub exportSlots {
 			my $NI = $S->ndinfo;
 
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ or $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
@@ -501,14 +512,23 @@ sub exportCards {
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 			my $NI = $S->ndinfo;
 			# move on if this isn't a good one.
-			next if $NI->{system}{nodeModel} !~ /$goodModels/ and $NI->{system}{nodeVendor} !~ /$goodVendors/;
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ or $NI->{system}{nodeVendor} !~ /$goodVendors/;
 
 			# handling for this is device/model specific.
 			my $SLOTS;
+			my $BOARD;
 			my $cardCount = 0;
 			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
+				if ( defined $S->{info}{eqptHolderList} and ref($S->{info}{eqptHolderList}) eq "HASH") {
+					$SLOTS = $S->{info}{eqptHolderList};
+				}
+				else {
+					print "ERROR: $node no eqptHolderList MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
 				if ( defined $S->{info}{eqptBoard} and ref($S->{info}{eqptBoard}) eq "HASH") {
-					$SLOTS = $S->{info}{eqptBoard};
+					$BOARD = $S->{info}{eqptBoard};
 				}
 				else {
 					print "ERROR: $node no eqptBoard MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
@@ -528,64 +548,165 @@ sub exportCards {
 #         "eqptBoardInventorySerialNumber" : "CB48J664"
 #      },
       
-				foreach my $slotIndex (sort keys %{$SLOTS}) {
-					if ( defined $SLOTS->{$slotIndex} 
-						and defined $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName} 
-						and $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName} ne ""
+				foreach my $boardIndex (sort keys %{$BOARD}) {
+					if ( defined $BOARD->{$boardIndex} 
+						and defined $BOARD->{$boardIndex}{eqptBoardInventoryTypeName} 
+						and $BOARD->{$boardIndex}{eqptBoardInventoryTypeName} ne ""
 					) {
 						# create a name
 						++$cardCount;
 						#my @cardHeaders = qw(cardName cardId cardNetName cardDescr cardSerial cardStatus cardVendor cardModel       cardType name1 name2 slotId);
 
-						my $cardId = "$NODES->{$node}{uuid}_C_$slotIndex";
+						my $cardId = "$NODES->{$node}{uuid}_C_$boardIndex";
 
-						if ( defined $SLOTS->{$slotIndex} and $SLOTS->{$slotIndex}{eqptBoardInventorySerialNumber} ne "" ) {
-							$SLOTS->{$slotIndex}{cardSerial} = $SLOTS->{$slotIndex}{eqptBoardInventorySerialNumber};
+						if ( defined $BOARD->{$boardIndex} 
+							and $BOARD->{$boardIndex}{eqptBoardInventorySerialNumber} ne "" 
+						) {
+							$BOARD->{$boardIndex}{cardSerial} = $BOARD->{$boardIndex}{eqptBoardInventorySerialNumber};
+						}
+						elsif ( $BOARD->{$boardIndex}{eqptSlotPlannedType} !~ /(NOT_ALLOWED|NOT_PLANNED)/ ) {
+							# its ok, don't bother me.
 						}
 						else {
-							my $comment = "ERROR: $node no CARD serial number for id $slotIndex $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName}";
+							my $comment = "ERROR: $node no CARD serial number for id $boardIndex $BOARD->{$boardIndex}{eqptSlotPlannedType}";
 							print "$comment\n";
 						}				
 						
-						if ( $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName} ne "" and $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName} !~ /^d+$/ ) {
-							$SLOTS->{$slotIndex}{cardName} = $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName};
+						if ( $BOARD->{$boardIndex}{eqptBoardInventoryTypeName} ne "" and $BOARD->{$boardIndex}{eqptBoardInventoryTypeName} !~ /^d+$/ ) {
+							$BOARD->{$boardIndex}{cardName} = $BOARD->{$boardIndex}{eqptBoardInventoryTypeName};
 						}
 						
-						$SLOTS->{$slotIndex}{cardId} = $cardId;
+						$BOARD->{$boardIndex}{cardId} = $cardId;
 						
-				    $SLOTS->{$slotIndex}{cardNetName} = "CARD $slotIndex";
+				    $BOARD->{$boardIndex}{cardNetName} = "CARD $boardIndex";
 
-				    $SLOTS->{$slotIndex}{cardDescr} = $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName};
+				    $BOARD->{$boardIndex}{cardDescr} = $BOARD->{$boardIndex}{eqptBoardInventoryTypeName};
 				    
-				    $SLOTS->{$slotIndex}{cardStatus} = $SLOTS->{$slotIndex}{eqptBoardOperStatus};
-						$SLOTS->{$slotIndex}{cardVendor} = $NI->{system}{nodeVendor};
+				    $BOARD->{$boardIndex}{cardStatus} = $BOARD->{$boardIndex}{eqptBoardOperStatus};
+						$BOARD->{$boardIndex}{cardVendor} = $NI->{system}{nodeVendor};
 
-						if ( defined $SLOTS->{$slotIndex} and $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName} ne "" ) {
-							$SLOTS->{$slotIndex}{cardModel} = $SLOTS->{$slotIndex}{eqptBoardInventoryTypeName};
+						if ( defined $BOARD->{$boardIndex} and $BOARD->{$boardIndex}{eqptBoardInventoryTypeName} ne "" ) {
+							$BOARD->{$boardIndex}{cardModel} = $BOARD->{$boardIndex}{eqptBoardInventoryTypeName};
 						}
-										    				    
+
 				    # name for the parent node.				    
-				    $SLOTS->{$slotIndex}{name1} = $NODES->{$node}{name};
-				    $SLOTS->{$slotIndex}{name2} = $NODES->{$node}{name};
+				    $BOARD->{$boardIndex}{name1} = $NODES->{$node}{name};
+				    $BOARD->{$boardIndex}{name2} = $NODES->{$node}{name};
 
-						# Option 1: the slot id is the parent relative position, not the index of the MIB
-						# con: some chassis this creates duplicate slot id's
-						my $slotId = $SLOTS->{$slotIndex}{eqptBoardContainerId};
-												
-						# Cisco is using position -1 for the chassis???????
-						if ( $slotId < 0 ) {
-							$slotId = 0;
-						}
-												
-						$SLOTS->{$slotIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
+				    my $slotId = $BOARD->{$boardIndex}{eqptBoardContainerId};
+				    $BOARD->{$boardIndex}{cardType} = $SLOTS->{$slotId}{eqptHolderActualType};												
+						$BOARD->{$boardIndex}{slotId} = "$NODES->{$node}{uuid}_S_$slotId";
 				    
 				    # get the parent and then determine its ID and 
 						
 				    my @columns;
 				    foreach my $header (@cardHeaders) {
 				    	my $data = undef;
-				    	if ( defined $SLOTS->{$slotIndex}{$header} ) {
-				    		$data = $SLOTS->{$slotIndex}{$header};
+				    	if ( defined $BOARD->{$boardIndex}{$header} ) {
+				    		$data = $BOARD->{$boardIndex}{$header};
+				    	}
+				    	else {
+				    		$data = "TBD";
+				    	}
+				    	$data = changeCellSep($data);
+				    	push(@columns,$data);
+				    }
+						my $row = join($sep,@columns);
+				    print CSV "$row\n";
+
+						if ($sheet) {
+							$sheet->write($currow, 0, [ @columns[0..$#columns] ]);
+							++$currow;
+						}
+
+			  	}
+				}
+			}
+	  }
+	}	
+}
+
+sub exportAsam {
+	my $xls = shift;
+	my $file = shift;
+	my $title = "ASAM";
+	my $sheet;
+	my $currow;
+	
+	print "Creating $file\n";
+
+	my $C = loadConfTable();
+		
+	open(CSV,">$file") or die "Error with CSV File $file: $!\n";
+	
+	# print a CSV header
+	my @aliases;
+	foreach my $header (@asamHeaders) {
+		my $alias = $header;
+		$alias = $asamAlias{$header} if $asamAlias{$header};
+		push(@aliases,$alias);
+	}
+	my $header = join($sep,@aliases);
+	print CSV "$header\n";
+	
+	if ($xls) {
+		$sheet = add_worksheet(xls => $xls, title => $title, columns => \@aliases);
+		$currow = 1;								# header is row 0
+	}
+	else {
+		die "ERROR need an xls to work on.\n";	
+	}
+		
+	foreach my $node (sort keys %{$NODES}) {
+	  if ( $NODES->{$node}{active} eq "true" ) {
+			my $S = Sys::->new; # get system object
+			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+			my $NI = $S->ndinfo;
+			# move on if this isn't a good one.
+			next if $NI->{system}{nodeModel} !~ /$goodModels/ or $NI->{system}{nodeVendor} !~ /$goodVendors/;
+
+			# handling for this is device/model specific.
+			my $SLOTS;
+			my $BOARD;
+			my $cardCount = 0;
+			if ( $NI->{system}{nodeModel} =~ /$goodModels/ or $NI->{system}{nodeVendor} =~ /$goodVendors/ ) {
+				if ( defined $S->{info}{eqptHolderList} and ref($S->{info}{eqptHolderList}) eq "HASH") {
+					$SLOTS = $S->{info}{eqptHolderList};
+				}
+				else {
+					print "ERROR: $node no eqptHolderList MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
+				if ( defined $S->{info}{eqptBoard} and ref($S->{info}{eqptBoard}) eq "HASH") {
+					$BOARD = $S->{info}{eqptBoard};
+				}
+				else {
+					print "ERROR: $node no eqptBoard MIB Data available, check the model contains it and run an update on the node.\n" if $debug > 1;
+					next;
+				}
+
+				foreach my $boardIndex (sort keys %{$BOARD}) {
+					if ( defined $BOARD->{$boardIndex} 
+						and defined $BOARD->{$boardIndex}{eqptSlotPlannedType} 
+						and $BOARD->{$boardIndex}{eqptSlotPlannedType} ne ""
+					) {
+						++$cardCount;
+
+						# get the node name
+				    $BOARD->{$boardIndex}{name} = $NODES->{$node}{name};
+				    
+						# get the name of the container as the type.
+				    my $slotId = $BOARD->{$boardIndex}{eqptBoardContainerId};
+				    $BOARD->{$boardIndex}{type} = $SLOTS->{$slotId}{eqptHolderActualType};
+				    
+				    # get the parent and then determine its ID and 
+						
+				    my @columns;
+				    foreach my $header (@asamHeaders) {
+				    	my $data = undef;
+				    	if ( defined $BOARD->{$boardIndex}{$header} ) {
+				    		$data = $BOARD->{$boardIndex}{$header};
 				    	}
 				    	else {
 				    		$data = "TBD";
