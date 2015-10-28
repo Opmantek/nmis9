@@ -3004,9 +3004,13 @@ sub eventUpdate
 #
 # args: service, node, server, only_known (all optional)
 # if service or node are given, only matching services are returned.
-# if only_known is set to zero, then all services, active or not are returned.
-# default is to load only active services (= ones that are listed 
-# in Services.nmis, and attached to nodes)
+# server defaults to the local server, and is IGNORED unless only_known is 0.
+#
+# only_known is 1 by default, which ensures that only locally known, active services
+# listed in Services.nmis and attached to active nodes are returned.
+#
+# if only_known is set to zero, then all services, remote or local, 
+# active or not are returned.
 #
 # returns: hash of server -> service -> node -> data; empty if invalid args
 sub loadServiceStatus
