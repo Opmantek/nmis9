@@ -80,9 +80,9 @@
       'interface' => {
         'common-model' => 'interface-router'
       },
-      'pkts' => {
-        'common-model' => 'pkts'
-      }
+      #'pkts' => {
+      #  'common-model' => 'pkts'
+      #}
     }
   },
   'custom' => {
