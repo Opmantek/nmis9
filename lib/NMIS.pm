@@ -2330,8 +2330,8 @@ sub createHrButtons {
 	return unless $AU->InGroup($NI->{system}{group});
 
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
-	my $urlsafenode = uri_escape($node);
-
+	my $urlsafenode = uri_escape($node);   
+	
 	push @out, start_table({class=>'table'}),start_Tr;
 	
 	# provide link back to the main dashboard if not in widget mode
