@@ -1209,6 +1209,8 @@ sub getNodeInfo {
 				$V->{system}{status_value} = 'reachable';
 				$V->{system}{status_title} = 'Node Status';
 				$V->{system}{status_color} = '#0F0';
+				$V->{system}{sysName_value} = $NI->{system}{sysName};
+				$V->{system}{sysName_title} = 'System Name';
 				$V->{system}{sysObjectName_value} = $NI->{system}{sysObjectName};
 				$V->{system}{sysObjectName_title} = 'Object Name';
 				$V->{system}{nodeVendor_value} = $NI->{system}{nodeVendor};
@@ -1611,7 +1613,15 @@ sub getIntfInfo {
 			for my $i (keys %{$IF}) {
 				if ( (not grep { $i eq $_ } @ifIndexNum) ) {
 					delete $IF->{$i};
-					delete $NI->{graphtype}{$i};
+					if ( defined $NI->{graphtype}{$i}{interface} ) {
+						delete $NI->{graphtype}{$i}{interface};
+					}	
+					if ( defined $NI->{graphtype}{$i}{pkts} ) {
+						delete $NI->{graphtype}{$i}{pkts};
+					}	
+					if ( defined $NI->{graphtype}{$i}{pkts_hc} ) {
+						delete $NI->{graphtype}{$i}{pkts_hc};
+					}	
 					dbg("Interface ifIndex=$i removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table"); # test info
 				}
@@ -7809,7 +7819,7 @@ sub getThresholdLevel {
 
 	# find subsection with threshold values in Model
 	my $T = $M->{threshold}{name}{$thrname}{select};
-	foreach my $thr (keys %{$T}) {
+	foreach my $thr (sort {$a <=> $b} keys %{$T}) {
 		next if $thr eq 'default'; # skip now the default values
 		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index))){
 			$val = $T->{$thr}{value};
