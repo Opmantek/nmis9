@@ -1,0 +1,328 @@
+#
+## $Id: Model-CatalystIOS.nmis,v 8.5 2012/11/20 00:34:21 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'cbqos-in' => {
+        'common-model' => 'cbqos-in'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
+      'neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'interface' => {
+        'common-model' => 'interface-switch'
+      },
+    }
+  },
+  'system' => {
+    'nodeType' => 'switch',
+    'nodeModel' => 'CatalystIOS',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
+          },
+          #'sysUpTime' => {
+          #  'oid' => 'sysUpTime',
+          #  'title' => 'Uptime'
+          #},
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      },
+      'nodeConfiguration' => {
+        'snmp' => {
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
+            'snmpObject' => 'ccmHistoryRunningLastChanged',
+            'title' => 'Configuration Last Changed'
+          },
+          'configLastSaved' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
+            'snmpObject' => 'ccmHistoryRunningLastSaved',
+            'title' => 'Configuration Last Viewed'
+          },
+          'bootConfigLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
+            'snmpObject' => 'ccmHistoryStartupLastChanged',
+            'title' => 'Boot Configuration Last Changed'
+          },
+        }
+      },
+      'extra' => {
+        'snmp' => {
+          'serialNum' => {
+            'oid' => 'chassisId',
+            'title' => 'Serial Number'
+          },
+          'processorRam' => {
+            'format' => '%1.2f Mb',
+            'oid' => 'processorRam',
+            'title' => 'Processor Mem',
+            'calculate' => '${r}/1000000'
+          },
+          'chassisVer' => {
+            'oid' => 'chassisVersion',
+            'title' => 'Chassis Version'
+          },
+          'softwareImage' => {
+            'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
+            'snmpObjectName' => 'ciscoImageString',
+            'title' => 'Software Image'
+          },
+          'softwareVersion' => {
+            'calculate' => '$r =~ /CW_VERSION\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
+            'snmpObjectName' => 'ciscoVersionString',
+            'title' => 'Software Version'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'nodehealth' => {
+        'snmp' => {
+          'MemoryUsedPROC' => {
+            'oid' => 'ciscoMemoryPoolUsed.1'
+          },
+          'MemoryFreePROC' => {
+            'oid' => 'ciscoMemoryPoolFree.1'
+          },
+          'avgBusy1' => {
+            'oid' => 'avgBusy1'
+          },
+          'avgBusy5' => {
+            'oid' => 'avgBusy5'
+          },
+          'bufferFail' => {
+            'oid' => 'bufferFail',
+            'option' => 'counter,0:U'
+          },
+          'bufferElHit' => {
+            'oid' => 'bufferElHit',
+            'option' => 'counter,0:U'
+          },
+          'MemoryUsedIO' => {
+            'oid' => 'ciscoMemoryPoolUsed.2'
+          },
+          'bufferElFree' => {
+            'oid' => 'bufferElFree'
+          },
+          'MemoryFreeIO' => {
+            'oid' => 'ciscoMemoryPoolFree.2'
+          },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+	        'RouteNumber' => {
+	          'oid' => 'ipCidrRouteNumber'
+	        }
+        },
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,topo,routenumber'
+      },
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    },
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,ip,mem-router,topo,routenumber'
+  },
+  'port' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'portAdminSpeed' => {
+            'replace' => {
+              '1' => 'auto'
+            },
+            'oid' => 'portAdminSpeed',
+            'title' => ' Admin Bandwidth'
+          },
+          'vlanPortVlan' => {
+            'oid' => 'vlanPortVlan',
+            'title' => ' VLAN'
+          },
+          'portDuplex' => {
+            'replace' => {
+              '1' => 'half',
+              '4' => 'auto',
+              '0' => 'null',
+              '3' => 'disagree',
+              'unknown' => 'unknown',
+              '2' => 'full'
+            },
+            'oid' => 'portDuplex',
+            'title' => ' Duplex'
+          },
+          'portSpantreeFastStart' => {
+            'replace' => {
+              '1' => 'enabled',
+              '0' => 'null',
+              'unknown' => 'unknown',
+              '2' => 'disabled'
+            },
+            'oid' => 'portSpantreeFastStart',
+            'title' => ' Port Fast'
+          }
+        },
+        'control' => '$ifType =~ /ethernet/i'
+      }
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'cdp,entityMib,ciscoAsset,bgpPeer,ospfNbr',
+  },
+);

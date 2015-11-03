@@ -1,0 +1,312 @@
+%hash = (
+  'custom' => {
+  	#https://community.opmantek.com/display/NMIS/Managing+Nodes+with+High+Interface+Counts
+    'interface' => {
+      'ifAdminStatus' => 'true', # default = true
+      'ifNumber' => 'true', # default = true
+      'ifLastChange' => 'false', # default = false
+      'ifTableLastChange' => 'false', # default = false
+    }
+  },
+  'interface' => {
+    'noevent' => {
+      'ifDescr' => 'null',
+      'Description' => '^!|^0',
+      'ifType' => 'other'
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other|notPresent',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
+      'noDescription' => 'true',
+      'Description' => '^#',
+      'ifType' => 'voiceEncap|voiceFXO|voiceFXS|voiceOverIp|propPointToPointSerial|lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm'
+    },
+    'rrd' => {
+      'interface' => {
+      	
+      	# optimising the interface polling, put all the interface and packet data in the same RRD and have all polling use this.
+
+        'graphtype' => 'bits,abits,maxbits,util,autil,pkts_hc,errpkts_hc,pkutil',
+        'threshold' => 'util_in,util_out,pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out',
+
+				# the old graph and threshold to use.
+        #'graphtype' => 'bits,abits,maxbits,util,autil',
+        #'threshold' => 'util_in,util_out'
+
+        'indexed' => 'true',
+        'snmp' => {
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange'
+          },
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+        },
+      },
+      #'pkts_hc' => {
+      #  'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out'
+      #  'graphtype' => 'pkts_hc,errpkts_hc,pkutil',
+      #  'indexed' => 'true',
+      #  'snmp' => {
+      #    'ifInOctets' => {
+      #      'oid' => 'ifInOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInOctets' => {
+      #      'oid' => 'ifHCInOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #
+      #    'ifInUcastPkts' => {
+      #      'oid' => 'ifInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInBcastPkts' => {
+      #      'oid' => 'ifInBroadcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInMcastPkts' => {
+      #      'oid' => 'ifInMulticastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInUcastPkts' => {
+      #      'oid' => 'ifHCInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInBcastPkts' => {
+      #      'oid' => 'ifHCInBroadcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInMcastPkts' => {
+      #      'oid' => 'ifHCInMulticastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInDiscards' => {
+      #      'oid' => 'ifInDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInErrors' => {
+      #      'oid' => 'ifInErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #
+      #    'ifOutOctets' => {
+      #      'oid' => 'ifOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutOctets' => {
+      #      'oid' => 'ifHCOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #
+      #    'ifOutUcastPkts' => {
+      #      'oid' => 'ifOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutMcastPkts' => {
+      #      'oid' => 'ifOutMulticastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutBcastPkts' => {
+      #      'oid' => 'ifOutBroadcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    
+      #    'ifHCOutUcastPkts' => {
+      #      'oid' => 'ifHCOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutBcastPkts' => {
+      #      'oid' => 'ifHCOutBroadcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutMcastPkts' => {
+      #      'oid' => 'ifHCOutMulticastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #
+      #    'ifOutDiscards' => {
+      #      'oid' => 'ifOutDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutErrors' => {
+      #      'oid' => 'ifOutErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #  },
+      #}
+    },
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          }
+        }
+      }
+    }
+  },
+);

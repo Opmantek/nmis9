@@ -1,0 +1,233 @@
+## $Id: Model-CiscoNXOS.nmis,v 8.2 2012/11/02 00:37:06 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+  	'class' => {
+  		'database' => {
+  			'common-model' => 'database',
+  		},
+  		'threshold' => {
+  			'common-model' => 'threshold'
+  		},
+  		'cbqos-in' => {
+  			'common-model' => 'cbqos-in'
+  		},
+  		'heading' => {
+  			'common-model' => 'heading'
+  		},
+  		'cbqos-out' => {
+  			'common-model' => 'cbqos-out'
+  		},
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+  		'event' => {
+  			'common-model' => 'event'
+  		},
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
+      'neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'interface' => {
+        'common-model' => 'interface-switch'
+      },
+  	}
+  },
+  'systemHealth' => {
+    'sections' => 'cdp,entityMib,bgpPeer,ospfNbr',
+  },
+  'system' => {
+  	'nodeType' => 'switch',
+  	'nodeModel' => 'CiscoNXOS',
+  	'rrd' => {
+  		'nodehealth' => {
+  			'snmp' => {
+  				'avgBusy1' => {
+  					'oid' => 'cseSysCPUUtilization.0'
+  				},
+  				'avgBusy5' => {
+  					'oid' => 'cpmCPUTotal5minRev.1'
+  				},
+  				'MemoryUsedPROC' => {
+  					'oid' => 'cpmCPUMemoryUsed.1'
+  				},
+  				'MemoryFreePROC' => {
+  					'oid' => 'cpmCPUMemoryFree.1'
+  				},
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          }
+  			},
+  			'threshold' => 'cpu,mem-proc',
+  			'graphtype' => 'cpu,mem-proc,topo,routenumber'
+  		},
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+  	},
+  	'sys' => {
+  		'standard' => {
+  			'snmp' => {
+  				'sysLocation' => {
+  					'replace' => {
+  						'' => 'default'
+  					},
+  					'oid' => 'sysLocation',
+  					'title' => 'Location'
+  				},
+  				'sysDescr' => {
+  					'oid' => 'sysDescr',
+  					'title' => 'Description'
+  				},
+  				'sysObjectID' => {
+  					'oid' => 'sysObjectID'
+  				},
+  				'sysUpTime' => {
+  					'oid' => 'sysUpTime',
+  					'title' => 'Uptime'
+  				},
+  				'ifNumber' => {
+  					'oid' => 'ifNumber',
+  					'title' => 'Interfaces'
+  				},
+  				'sysContact' => {
+  					'replace' => {
+  						'' => 'default'
+  					},
+  					'oid' => 'sysContact',
+  					'title' => 'Contact'
+  				},
+  				'sysName' => {
+  					'oid' => 'sysName'
+  				}
+  			}
+  		}
+  	},
+  	'nodeVendor' => 'Cisco Systems',
+  	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
+  },
+  'stats' => {
+  	'type' => {
+  		'nodehealth' => [
+  		  'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
+  		  'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
+  		  'DEF:MemPUsed=$database:MemoryUsedPROC:AVERAGE',
+  		  'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
+  		  'CDEF:totalPMem=MemPUsed,MemPFree,+',
+  		  'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
+  		  'CDEF:perPFreeMem=MemPFree,totalPMem,/,100,*',
+  		  'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
+  		  'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+  		  'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
+  		  'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf'
+  		],
+  	}
+  },
+);
+
+
