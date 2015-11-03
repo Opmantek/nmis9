@@ -493,12 +493,8 @@ sub selectNetworkHealth {
 		td({class=>"info $overallStatus"},"$overallStatus"),
 		td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
 		print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
-		if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-			print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
-		}
-		else {
-			print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
-		}
+		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( getbool($C->{display_status_summary}));
 
 		my @h = qw/metric reachable available health response/;
@@ -591,12 +587,8 @@ sub selectSmall {
 		td({class=>"info $overallStatus"},"$overallStatus");
 		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
 		print td({class=>'info Plain'},"$groupSummary->{average}{countup} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and not getbool($C->{display_status_summary}));		
-		if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-			print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
-		}
-		else {
-			print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
-		}
+		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 		my @h = qw/metric reachable available health response/;
@@ -718,12 +710,8 @@ sub printGroup {
 	td({class=>"info $overallStatus"},$overallStatus),
 	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
 	print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
-	if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
-	}
-	else {
-		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
-	}
+	### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+	print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
 	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	my @h = qw/metric reachable available health response/;
@@ -816,12 +804,8 @@ sub selectNetworkView {
 		#td({class=>"info $overallStatus"},"$overallStatus"),
 		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
 		#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-		if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-			print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
-		}
-		else {
-			print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
-		}
+		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 		#my @h = qw/metric reachable available health response/;
@@ -885,14 +869,9 @@ sub printGroupView {
 	
 	#td({class=>"info $overallStatus"},$overallStatus),
 	#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-	#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
-	
-	if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
-	}
-	else {
-		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");		
-	}
+	#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),	
+	### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+	print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");		
 	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}")  if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	#my @h = qw/metric reachable available health response/;
@@ -963,12 +942,8 @@ sub printHealth {
 	td({class=>"info $overallStatus"},$overallStatus),
 	td({class=>'info Plain'},"$groupSummary->{average}{counttotal}");
 	print td({class=>'info Plain'},"$groupSummary->{average}{countup}") if ( not getbool($C->{display_status_summary}));
-	if ( exists $C->{overall_node_status_coarse} and getbool($C->{overall_node_status_coarse})) {
-		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
-	}
-	else {
-		print td({class=>'info Plain',style=>"background-color:".colorPercentLo($percentDown)},"$groupSummary->{average}{countdown}");
-	}
+	### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
+	print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown}");
 	print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
 	my @h = qw/metric reachable available health response/;
