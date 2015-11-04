@@ -284,7 +284,19 @@
         'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf'
-      ]
+      ],
+      'cbqos-in' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
+      'cbqos-out' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
     }
   }
 );

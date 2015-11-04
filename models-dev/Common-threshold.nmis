@@ -750,7 +750,37 @@
             }
           }
         }
-      }
+      },
+      'qos_pkt_drop' => {
+        'event' => 'Proactive QoS Packet Drops',
+        'item' => 'DropPkt',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '50',
+              'fatal' => '100',
+              'major' => '10',
+              'minor' => '5',
+              'warning' => '1'
+            }
+          }
+        }
+      },
+      'qos_pkt_drop_no_buf' => {
+        'event' => 'Proactive QoS no buffer Packet Drops',
+        'item' => 'NoBufDropPkt',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '50',
+              'fatal' => '100',
+              'major' => '10',
+              'minor' => '5',
+              'warning' => '1'
+            }
+          }
+        }
+      },
     }
   }
 );
