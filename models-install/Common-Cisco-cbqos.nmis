@@ -1,0 +1,84 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfType.192 = INTEGER: mainInterface(1)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfType.194 = INTEGER: mainInterface(1)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfType.354 = INTEGER: mainInterface(1)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosPolicyDirection.192 = INTEGER: input(1)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosPolicyDirection.194 = INTEGER: output(2)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosPolicyDirection.354 = INTEGER: output(2)
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfIndex.192 = INTEGER: 12
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfIndex.194 = INTEGER: 12
+#CISCO-CLASS-BASED-QOS-MIB::cbQosIfIndex.354 = INTEGER: 22
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+      'Cisco_CBQoS' => {
+        'indexed' => 'cbQosIfType',
+        'headers' => 'ifDescr,Description,cbQosIfIndex,cbQosIfType,cbQosPolicyDirection,index',
+        'snmp' => {
+          'ifDescr' => {
+            'title' => 'ifDescr'
+          },
+          'Description' => {
+            'title' => 'Description'
+          },
+          'cbQosIfType' => {
+            'oid' => 'cbQosIfType',
+            'title' => 'CBQoS Interface Type',
+            'replace' => {
+              '1' => 'mainInterface',
+              '2' => 'subInterface',
+              '3' => 'frDLCI',
+              '4' => 'atmPVC',
+              '5' => 'controlPlane',
+              '6' => 'vlanPort',
+              '7' => 'evc',
+            },
+          },
+          'cbQosPolicyDirection' => {
+            'oid' => 'cbQosPolicyDirection',
+            'title' => 'CBQoS Direction',
+            'replace' => {
+              '1' => 'input',
+              '2' => 'output',
+            },
+          },
+          'cbQosIfIndex' => {
+            'oid' => 'cbQosIfIndex',
+            'title' => 'ifIndex'
+          },
+        },
+      },
+    }
+  }
+);

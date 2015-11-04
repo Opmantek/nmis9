@@ -62,6 +62,9 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
       'rtt' => {
         'common-model' => 'Cisco-rtt'
       },
@@ -443,7 +446,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'entityMib,ciscoAsset,cdp,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt,echoRtt,jitterRttMon,icmpjitterRtt',
+    'sections' => 'entityMib,ciscoAsset,cdp,Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt,echoRtt,jitterRttMon,icmpjitterRtt',
     'sections_help' => 'include the things you want from the common models, and name the sections here.',
   }
 );
