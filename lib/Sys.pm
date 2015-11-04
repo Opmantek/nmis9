@@ -1137,7 +1137,7 @@ sub getDBName {
 			return undef;
 	}
 
-	dbg("returning database name=$db for $sect=$sect, index=$index, item=$item");
+	dbg("returning database name=$db for sect=$sect, index=$index, item=$item");
 	return $db;
 }
 
