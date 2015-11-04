@@ -7533,13 +7533,8 @@ sub doSummaryBuild {
 					next unless getbool($IF->{$index}{collect});
 					my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>time(),index=>$index);
 					foreach (keys %{$sts->{$index}}) { $stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_}; } # save for threshold
-					foreach (keys %{$sts->{$index}}) {
-						$stsintf{"${index}.$S->{name}"}{inputUtil} = $sts->{$index}{inputUtil};
-						$stsintf{"${index}.$S->{name}"}{outputUtil} = $sts->{$index}{outputUtil};
-						$stsintf{"${index}.$S->{name}"}{availability} = $sts->{$index}{availability};
-						$stsintf{"${index}.$S->{name}"}{totalUtil} = $sts->{$index}{totalUtil};
-						$stsintf{"${index}.$S->{name}"}{Description} = $IF->{$index}{Description};
-					}
+					# Jeff Wright update: get all the stats fields into the stts info.
+					foreach (keys %{$sts->{$index}}) { $stsintf{"${index}.$S->{name}"}{$_} = $sts->{$index}{$_}; }
 				}
 			}
 		}
@@ -7629,6 +7624,19 @@ sub doThreshold {
 												and $NI->{$type}{$index}{threshold} eq "true"
 											) {
 												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+											}
+											elsif ( $type =~ /cbqos/
+												and defined $NI->{'interface'} 
+												and defined $NI->{'interface'}{$index}
+												and defined $NI->{'interface'}{$index}{threshold}
+												and $NI->{'interface'}{$index}{threshold} eq "true"
+											) {
+												my ($cbqos,$direction) = split(/\-/,$type);
+												dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
+												foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} ) {
+													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");	
+													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
+												}
 											}
 										}
 									} else {
@@ -7726,8 +7734,12 @@ sub runThrHld {
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $index = $args{index};
+	my $item = $args{item};
+	my $class = $args{class};
 	my $stats;
 	my $element;
+	
+	dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
 
 	my $threshold_period = "-15 minutes";
 	if ( $C->{"threshold_period-default"} ne "" ) {
@@ -7743,7 +7755,7 @@ sub runThrHld {
 	if (exists $sts->{$S->{name}}{$type}) {
 		$stats = $sts->{$S->{name}}{$type};
 	} else {
-		$stats = getSummaryStats(sys=>$S,type=>$type,start=>$threshold_period,end=>'now',index=>$index);
+		$stats = getSummaryStats(sys=>$S,type=>$type,start=>$threshold_period,end=>'now',index=>$index,item=>$item);
 	}
 
 	# get name of element
@@ -7755,6 +7767,9 @@ sub runThrHld {
 	}
 	elsif ($index ne '' and $thrname eq "hrsmpcpu" ) {
 		$element = "CPU $index";
+	}
+	elsif ($type =~ /cbqos/ and defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
+		$element = "$IF->{$index}{ifDescr}: $item";
 	}
 	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
@@ -7796,7 +7811,7 @@ sub runThrHld {
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
 		
-		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index);
+		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index,class=>$class);
 	}
 
 }
@@ -7925,6 +7940,9 @@ sub thresholdProcess {
 				$index = 0;
 			}
 			my $statusKey = "$args{thrname}--$index";
+
+			$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
+
 			$S->{info}{status}{$statusKey} = {
 				method => "Threshold",
 				type => $args{type},
