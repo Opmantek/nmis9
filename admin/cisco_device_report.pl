@@ -63,7 +63,7 @@ if ( not defined $arg{dir} ) {
 my $dir = $arg{dir};
 
 # Set Directory level.
-my $xlsFile = "cisco_nvram.xlsx";
+my $xlsFile = "cisco_device_report.xlsx";
 if ( defined $arg{xls} ) {
 	$xlsFile = $arg{xls};
 }
@@ -94,14 +94,16 @@ elsif ( $arg{separator} eq "comma" ) {
 #      "softwareVersion" : "15.1(1)T1",
 
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name host group location nodeVendor serialNum configurationState softwareVersion softwareImage chassisVer configLastSaved configLastChanged bootConfigLastChanged);
+my @nodeHeaders = qw(name host group location nodeType nodeVendor nodeModel serialNum configurationState softwareVersion softwareImage cbqosInput cbqosOutput ifNumber intfCollect chassisVer configLastSaved configLastChanged bootConfigLastChanged);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
 	name              		=> 'node',
 	host									=> 'host',
 	group									=> 'group',
+	nodeType              => 'nodeType',
 	nodeVendor            => 'nodeVendor',
+	nodeModel             => 'nodeModel',
 	serialNum							=> 'serialNum',
 	chassisVer						=> 'chassisVer',
 	softwareVersion				=> 'softwareVersion',
@@ -110,8 +112,12 @@ my %nodeAlias = (
 	configurationState		=> 'configurationState',
 	configLastSaved       => 'configLastSaved',
 	configLastChanged     => 'configLastChanged',
+	cbqosInput            => 'cbqosInput',
+	cbqosOutput           => 'cbqosOutput',
 	bootConfigLastChanged => 'bootConfigLastChanged',
 	location           		=> 'Location',
+	ifNumber           		=> 'ifNumber',
+	intfCollect           => 'intfCollect',
 );
 
 # Step 5: For loading only the local nodes on a Master or a Slave
@@ -135,7 +141,7 @@ else {
 	exit 1;
 }
 
-print $t->elapTime(). " Begin\n";
+print $t->elapTime(). " End\n";
 
 
 sub checkNodes {
@@ -244,6 +250,20 @@ sub checkNodes {
 					$NI->{system}{"configurationState"} = "Config Saved in NVRAM";
 				}
 			}
+
+	    if ( defined $NI->{Cisco_CBQoS} ) {
+	    	my @input;
+	    	my @output;
+	    	foreach my $cbqos (keys %{$NI->{Cisco_CBQoS}}) {
+		    	push(@input,$NI->{Cisco_CBQoS}{$cbqos}{ifDescr}) if $NI->{Cisco_CBQoS}{$cbqos}{cbQosPolicyDirection} eq "input";
+		    	push(@output,$NI->{Cisco_CBQoS}{$cbqos}{ifDescr}) if $NI->{Cisco_CBQoS}{$cbqos}{cbQosPolicyDirection} eq "output";	
+	    	}
+	    	push(@input,"None found") if not @input;
+	    	push(@output,"None found") if not @output;	    	
+	    	
+	    	$NODES->{$node}{cbqosInput} = join("; ",@input);
+	    	$NODES->{$node}{cbqosOutput} = join("; ",@output);
+	    }
 	    
 	    my @columns;
 	    foreach my $header (@nodeHeaders) {

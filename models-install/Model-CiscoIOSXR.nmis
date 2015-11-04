@@ -60,6 +60,9 @@
       'memory' => {
         'common-model' => 'Cisco-memory'
       },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -236,7 +239,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   },
   #'environment' => {
   #  'sys' => {

@@ -88,6 +88,10 @@
       #}
     }
   },
+  'systemHealth' => {
+    'sections' => 'entityMib,ciscoAsset,cdp,Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt,echoRtt,jitterRttMon,icmpjitterRtt',
+    'sections_help' => 'include the things you want from the common models, and name the sections here.',
+  }
   'custom' => {
     'interface' => {
       'ifAdminStatus' => 'false',
@@ -445,8 +449,4 @@
       }
     }
   },
-  'systemHealth' => {
-    'sections' => 'entityMib,ciscoAsset,cdp,Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,rttMonLatestRtt,echoRtt,jitterRttMon,icmpjitterRtt',
-    'sections_help' => 'include the things you want from the common models, and name the sections here.',
-  }
 );

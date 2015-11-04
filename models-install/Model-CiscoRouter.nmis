@@ -62,6 +62,9 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -614,6 +617,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
+    'sections' => 'Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
   }
 );

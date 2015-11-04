@@ -62,6 +62,9 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -565,7 +568,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'addressTable,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
+    'sections' => 'Cisco_CBQoS,addressTable,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
     'sections_original' => 'addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
     'sys' => {
       'macTable' => {

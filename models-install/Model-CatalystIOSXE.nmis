@@ -57,15 +57,6 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
-      'cpu' => {
-        'common-model' => 'Cisco-cpu'
-      },
-      'memory' => {
-        'common-model' => 'Cisco-memory'
-      },
-      'cbqos' => {
-        'common-model' => 'Cisco-cbqos'
-      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -77,16 +68,24 @@
       },
     }
   },
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false',
+      'ifNumber' => 'false',
+      'ifLastChange' => 'true',
+      'ifTableLastChange' => 'true',
+    }
+  },
   'interface' => {
     'collect' => {
       'Description' => '(CNOC|Collection)'
     },
     'nocollect' => {
-      'Description' => '^#',
-      'ifDescr' => 'sublayer|null|controller',
       'ifOperStatus' => 'null',
-      'ifType' => 'other|softwareloopback|propVirtual|slip',
-      'noDescription' => 'true'
+      'ifDescr' => 'sublayer|null|controller',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'macSecUncontrolledIF|macSecControlledIF|other|softwareloopback|propVirtual|slip'
     },
     'noevent' => {
       'Description' => '^!|^0',
@@ -300,15 +299,43 @@
       'extra' => {
         'indexed' => 'true',
         'snmp' => {
+          'vlanTrunkPortEncapsulationType' => {
+            'replace' => {
+              '1' => 'isl',
+              '4' => 'dot1q',
+              '0' => 'null',
+              '3' => 'lane',
+              'unknown' => 'unknown',
+              '2' => 'dot10',
+              '5' => 'negotiate'
+            },
+            'oid' => 'vlanTrunkPortEncapsulationType',
+            'title' => ' Encapsulation Type'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
           'Description' => {
             'oid' => 'ifAlias',
             'title' => ' Description'
           },
-          'ifHighSpeed' => {
-            'oid' => 'ifHighSpeed'
+          'vlanPortVlan' => {
+            'oid' => 'vlanTrunkPortNativeVlan'
           }
         }
       },
+      #'extra' => {
+      #  'indexed' => 'true',
+      #  'snmp' => {
+      #    'Description' => {
+      #      'oid' => 'ifAlias',
+      #      'title' => ' Description'
+      #    },
+      #    'ifHighSpeed' => {
+      #      'oid' => 'ifHighSpeed'
+      #    }
+      #  }
+      #},
       'standard' => {
         'indexed' => 'true',
         'snmp' => {
@@ -333,7 +360,6 @@
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
           },
-
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => ' Last Change'
@@ -417,23 +443,82 @@
       }
     }
   },
+  #'systemHealth' => {
+  #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+  #},
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib',
+    'sys' => {
+      'vtpVlan' => {
+        'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'vtpVlanState',
+        'snmp' => {
+          'vtpVlanName' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
+            'title' => 'VLAN Name'
+          },
+          'vtpVlanIndex' => {
+            'title' => 'VLAN'
+          },
+          'vtpVlanState' => {
+            'oid' => 'vtpVlanState',
+            'replace' => {
+              '1' => 'operational',
+              '2' => 'suspended',
+              '3' => 'mtuTooBigForDevice',
+              '4' => 'mtuTooBigForTrunk',
+            },
+            'title' => 'VLAN State'
+          },
+          'vtpVlanType' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.3',
+            'replace' => {
+              '1' => 'ethernet',
+              '2' => 'fddi',
+              '3' => 'tokenRing',
+              '4' => 'fddiNet',
+              '5' => 'trNet',
+              '6' => 'deprecated',
+            },
+            'title' => 'VLAN Type'
+          },
+          'vtpVlanMtu' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.5',
+            'title' => 'VLAN MTU'
+          },
+          'vtpVlanIfIndex' => {
+            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.18',
+            'replace' => {
+              '0' => 'N/A',
+            },
+            'title' => 'VLAN ifIndex'
+          },
+          'ifDescr' => {
+            'title' => 'ifDescr'
+          },
+        }
+      },
+    },
   },
   'system' => {
-    'nodeModel' => 'CiscoIOSXE',
+    'nodeModel' => 'CatalystIOSXE',
     'nodeType' => 'router',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber',
+    'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo',
     'rrd' => {
       'nodehealth' => {
-        'graphtype' => 'cpu,mem-proc,routenumber',
+        'graphtype' => 'cpu,mem-proc,routenumber,topo',
         'snmp' => {
           'MemoryFreePROC' => {
             'oid' => 'ciscoMemoryPoolFree.1'
           },
           'MemoryUsedPROC' => {
             'oid' => 'ciscoMemoryPoolUsed.1'
+          },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
           },
           'RouteNumber' => {
             'oid' => 'ipCidrRouteNumber'
@@ -516,9 +601,10 @@
             'oid' => 'sysObjectID'
           },
           'sysUpTime' => {
-            'oid' => 'sysUpTime',
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
             'title' => 'Uptime'
-          }
+          },
         }
       }
     }
