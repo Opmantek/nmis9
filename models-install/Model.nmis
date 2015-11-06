@@ -249,6 +249,9 @@
       'order' => {
         '10' => {
           'Riverbed' => 'rbt'
+        },
+        '20' => {
+          'Riverbed' => 'Linux'
         }
       }
     },
@@ -261,6 +264,9 @@
     },
     'net-snmp' => {
       'order' => {
+        '5' => {
+          'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
+        },
         '10' => {
           'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
         },
@@ -433,6 +439,13 @@
 			'order' => {
 				'10' => {
 					'APC-ups' => 'PowerNet',
+				},
+			},
+		},
+		'Check Point Software Technologies Ltd' => {
+			'order' => {
+				'10' => {
+					'Checkpoint' => 'Linux',
 				},
 			},
 		},
