@@ -35,45 +35,45 @@
       'hbeat' => '900',
       'poll' => '300',
       'size' => {
-        'default' => {
-          'rows_day' => '9216',
+        'reachability' => {
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '3072',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         },
         'interface' => {
-          'rows_day' => '9216',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '4608',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
+        },
+        'default' => {
+          'step_year' => '288',
+          'rows_month' => '2268',
+          'rows_year' => '1890',
+          'step_day' => '1',
+          'step_month' => '24',
+          'step_week' => '6',
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         },
         'metrics' => {
-          'rows_day' => '2304',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '1536',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
-        },
-        'reachability' => {
           'rows_day' => '2304',
-          'rows_month' => '2268',
-          'rows_week' => '1536',
-          'rows_year' => '1890',
-          'step_day' => '1',
-          'step_month' => '24',
-          'step_week' => '6',
-          'step_year' => '288'
+          'rows_week' => '1536'
         }
       }
     },
@@ -153,6 +153,9 @@
       'apSys' => '/health/$nodeType/$node-apSys.rrd',
       'cempMemPool' => '/health/$nodeType/$node-cempMemPool-$index.rrd',
       'ciscoMemoryPool' => '/health/$nodeType/$node-ciscoMemoryPool-$index.rrd',
+      'cempMemBuffer' => '/health/$nodeType/$node-cempMemBuffer-$index.rrd',
+      'memoryBuffer' => '/health/$nodeType/$node-memoryBuffer-$index.rrd',
     }
   }
 );
+
