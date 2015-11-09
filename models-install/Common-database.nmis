@@ -152,6 +152,8 @@
       'ospfNbr' => '/nodes/$node/health/ospfNbr-$index.rrd',
       'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
       'ciscoMemoryPool' => '/nodes/$node/health/ciscoMemoryPool-$index.rrd',
+      'cempMemBuffer' => '/nodes/$node/health/cempMemBuffer-$index.rrd',
+      'memoryBuffer' => '/nodes/$node/health/memoryBuffer-$index.rrd',
     }
   }
 );

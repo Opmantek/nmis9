@@ -54,6 +54,9 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },

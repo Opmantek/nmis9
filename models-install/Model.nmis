@@ -121,6 +121,9 @@
     },
     'Cisco Systems' => {
       'order' => {
+        '2' => {
+          'Cisco10000' => 'Cisco IOS Software, 10000 Software'
+        },
         '10' => {
           'Catalyst6000' => 'WS-C6'
         },

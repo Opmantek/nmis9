@@ -136,6 +136,7 @@
           },
         },
       },
+      # how do we get know if the device supports the HC counters or not?
       'cempMemPool' => {
         'index_oid' => '1.3.6.1.4.1.9.9.221.1.1.1.1.3',
         'index_regex' => '\\.(\\d+\.\\d+)$',
@@ -162,7 +163,6 @@
           },
         },
       },
-
 # http://www.cisco.com/c/en/us/td/docs/wireless/asr_901/mib/reference/asr_mib.pdf
 # Contains entries in this table define entities (buffer pools in this case) which are contained in an entity (memory pool)
 # defined by an entry from cempMemPoolTable. 
