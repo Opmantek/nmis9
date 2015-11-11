@@ -754,6 +754,7 @@
       'qos_pkt_drop' => {
         'event' => 'Proactive QoS Packet Drops',
         'item' => 'DropPkt',
+        'control_regex' => 'class-default$|Voice$|monkey',
         'select' => {
           'default' => {
             'value' => {
@@ -769,6 +770,7 @@
       'qos_pkt_drop_no_buf' => {
         'event' => 'Proactive QoS no buffer Packet Drops',
         'item' => 'NoBufDropPkt',
+        'control_regex' => 'class-default$|Voice$|monkey',
         'select' => {
           'default' => {
             'value' => {

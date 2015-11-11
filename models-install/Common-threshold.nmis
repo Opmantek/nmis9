@@ -745,6 +745,41 @@
           }
         }
       },
+      'qos_pkt_drop' => {
+        'event' => 'Proactive QoS Packet Drops',
+        'item' => 'DropPkt',
+        'control_regex' => 'Critical|Voice|Video',
+        'control_regex_comment' => 'Use the control regex field to limit which CBQoS Classes will match.',
+        'control_regex_example' => 'class-default$|Voice$',
+        'select' => {
+          'select_comment' => 'the values below are number of packets',
+          'default' => {
+            'value' => {
+              'fatal' => '240',
+              'critical' => '80',
+              'major' => '40',
+              'minor' => '20',
+              'warning' => '10'
+            }
+          }
+        }
+      },
+      'qos_pkt_drop_no_buf' => {
+        'event' => 'Proactive QoS no buffer Packet Drops',
+        'item' => 'NoBufDropPkt',
+        'control_regex' => 'Critical|Voice|Video',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '240',
+              'critical' => '80',
+              'major' => '40',
+              'minor' => '20',
+              'warning' => '10'
+            }
+          }
+        }
+      },
     }
   }
 );

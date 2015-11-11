@@ -7784,6 +7784,21 @@ sub runThrHld {
 	my @nm_list = split(/,/,$thrname);
 	foreach my $nm (@nm_list) {
 		dbg("processing threshold $nm");
+
+		# check for control_regex
+		if ( defined $M->{threshold}{name}{$nm}
+			and $M->{threshold}{name}{$nm}{control_regex} ne ""
+			and $item ne ""
+		){
+			if ( $item =~ /$M->{threshold}{name}{$nm}{control_regex}/ ) {
+				dbg("MATCHED threshold $nm control_regex MATCHED $item");
+			}
+			else {
+				dbg("SKIPPING threshold $nm: $item did not match control_regex");
+				next();
+			}
+		}
+		
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);

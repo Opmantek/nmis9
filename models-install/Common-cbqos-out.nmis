@@ -34,6 +34,8 @@
     'rrd' => {
       'cbqos-out' => {
         'indexed' => 'true',
+        'graphtype' => 'cbqos-out',
+        'threshold' => 'qos_pkt_drop,qos_pkt_drop_no_buf',
         'snmp' => {
           'DropPkt' => {
             'oid' => 'cbQosCMDropPkt64',
@@ -60,7 +62,6 @@
             'option' => 'counter,U:U'
           }
         },
-        'graphtype' => 'cbqos-out'
       }
     }
   }
