@@ -39,6 +39,7 @@ use strict;
 use NMIS;
 use func;
 use csv;
+use Data::Dumper;
 
 # load configuration table
 my $C = loadConfTable(conf=>"",debug=>0);
@@ -55,9 +56,14 @@ EO_TEXT
 	exit 1;
 }
 
+#What devices need to get Max message size updated
+my $fixMaxMsgSize = qr/cat650.|ciscoWSC65..|cisco61|cisco62|cisco60|cisco76|cevChassisN6|cevChassisN5|cevChassisN7/;
+
+
 print "The First NMIS nodes file is: $ARGV[0]\n";
 print "The Second NMIS nodes file is: $ARGV[1]\n";
 
+my %nodeIndex;
 
 my $skipgroups = qr/^BANCOP|^KUO/;
 
@@ -85,6 +91,20 @@ sub processNodes {
 		print "ERROR, could not find or read $nodes1\n";
 		exit 0;
 	}
+	
+	# make a node index
+	foreach my $node (sort keys %{$LNT}) {
+		my $lcnode = lc($node);
+		#print "adding $lcnode to index\n";
+		if ( $nodeIndex{$lcnode} ne "" ) {
+			print "DUPLICATE NODE: node $node with $node exists as $nodeIndex{$lcnode}\n";
+		}
+		else {
+			$nodeIndex{$lcnode} = $node;
+		}
+	}
+	#print Dumper $LNT;
+	#print Dumper \%nodeIndex;
 
 	# Load the old CSV first for upgrading to NMIS8 format
 	# copy what we need
@@ -108,10 +128,17 @@ sub processNodes {
 			
 			my @nodebits = split(/\./,$NI->{system}{sysName});
 			my $sysName = $nodebits[0];
+
+			if ( $NI->{system}{sysObjectName} =~ /$fixMaxMsgSize/ and $LNT->{$node}{max_msg_size} != 2800) {
+				print "$node Updating Max SNMP Message Size\n";
+				$LNT->{$node}{max_msg_size} = 2800;
+			}
 			
 			# is the node an IP address and we have a good sysName.
-			if ( $node =~ /^\d+\.\d+\.\d+\.\d+$/ and $NI->{system}{sysName} ne "" ) {
+			my $rename = 0;
+			if ( $node =~ /^\d+\.\d+\.\d+\.\d+$|^\d+\-\d+\-\d+\-\d+$/ and $NI->{system}{sysName} ne "" ) {
 				push(@nameCorrections,"$node,$LNT->{$node}{host},$NI->{system}{sysName}");
+				$rename = 1;
 			}
 			elsif ( $node =~ / / and $NI->{system}{sysName} ne "" ) {
 				push(@nameCorrections,"$node,$LNT->{$node}{host},$NI->{system}{sysName}");
@@ -119,6 +146,29 @@ sub processNodes {
 			elsif ( lc($node) ne lc($sysName) and $NI->{system}{sysName}  ne "" ) {
 				push(@nameCorrections,"$node,$LNT->{$node}{host},$NI->{system}{sysName}");
 			}
+			
+			if ( $rename ) {
+				# check nodeIndex
+				my $lcsysName = lc($sysName);
+				if ( $nodeIndex{$lcsysName} ne "" ) {
+					print "DUPLICATE NODE: node $node with sysName $sysName exists as $nodeIndex{$sysName}\n";
+				}
+				else {
+					print "FIX Name: node $node is IP or spaces, use $sysName $nodeIndex{$lcsysName}\n";
+					#my ($result,$message) = renameNode($node,$sysName);
+					#if ( $result ) {
+					#	$node = $sysName;
+					#}
+					#else {
+					#	print "RENAME FAILED: $message, $node, $sysName\n";
+					#	if ( $message eq "duplicate" ) {
+					#		deleteNode($node);
+					#		next;
+					#	}
+					#}
+				}
+			}
+
 
 			if ( $NI->{system}{nodedown} eq "true" and $NI->{system}{lastUpdateSec} eq "" ) {
 				# run an update.
@@ -172,3 +222,55 @@ sub processNodes {
 	print " NMIS Nodes file $nodes1 converted to $nodes2\n";	
 }
 
+sub renameNode {
+	my $old = shift;
+	my $new = shift;
+	
+	my $success = 1;
+	my $message;
+	
+	if ( $old eq "" or $new eq "" ) {
+		print "ERROR need to know the node to rename\n";
+		return 0;
+	}
+	
+	my $out;
+	my $exec = "/usr/local/nmis8/admin/node_admin.pl act=rename old=\"$old\" new=\"$new\" confirm=YES";
+	my $out = `$exec  2>&1`;
+	
+	#print "EXEC $exec\n";
+	print "$out\n";
+	
+	if ( $out !~ /Successfully renamed/ ) {
+		$success = 0;
+	}
+	
+	print "RENAME $old to $new: $out\n";	
+	
+	if ( $out =~ /$new already exists/ ) {
+		$message = "duplicate";
+	}
+	
+	return ($success,$message);
+}
+
+sub deleteNode {
+	my $node = shift;
+	
+	my $success = 1;
+	
+	if ( $node eq "" ) {
+		print "ERROR need to know the node to delete\n";
+		return 0;
+	}
+	
+	my $exec = "/usr/local/nmis8/admin/node_admin.pl act=delete node=\"$node\" confirm=YES";
+	my $out = `$exec  2>&1`;
+	
+	if ( $out !~ /Successfully deleted/ ) {
+		$success = 0;
+	}
+	
+	print "DELETE $node: $out\n";	
+	return $success;
+}
