@@ -1,4 +1,18 @@
 %hash = (
+  'SNMP_Service' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'snmp.exe',
+    'Name' => 'SNMP_Service'
+  },
+  'SNMP_Daemon' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'snmpd',
+    'Name' => 'SNMP_Daemon'
+  },
   'dns' => {
     'Service_Type' => 'dns',
     'Port' => '',
