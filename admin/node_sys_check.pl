@@ -94,12 +94,13 @@ sub checkNode {
 		my $MDL = $S->mdl;
 				
 		my $changes = 0;
-		my @sections = qw(interface pkts pkts_hc);
+		my @interfaceSections = qw(interface pkts pkts_hc);
+		my @cpuSections = qw(hrsmpcpu);
 		
 		foreach my $indx (sort keys %{$NI->{graphtype}} ) {
 			print "Processing $indx\n" if $debug;
 			if ( ref($NI->{graphtype}{$indx}) eq "HASH" and keys %{$NI->{graphtype}{$indx}} ) {
-				foreach my $section (@sections) {
+				foreach my $section (@interfaceSections) {
 					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{interface}{$indx} ) {
 						# there should be an interface to check
 						print "INFO: $indx for $section and found interface\n" if $debug;
@@ -122,6 +123,22 @@ sub checkNode {
 						delete $NI->{graphtype}{$indx}{$section};							
 						$changes = 1;
 					}
+				}
+
+				foreach my $section (@cpuSections) {
+					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{device}{$indx} ) {
+						# there should be an interface to check
+						print "INFO: $indx for $section and found CPU device\n" if $debug;
+					}
+					elsif ( defined $NI->{graphtype}{$indx}{$section} and not defined $NI->{device}{$indx} ) {
+						print "ERROR: $indx has graphtype $section but no CPU device\n";
+						delete $NI->{graphtype}{$indx}{$section};
+						$changes = 1;
+					}
+					else {
+						# there should be an interface to check
+					}
+					
 				}
 			}
 			
