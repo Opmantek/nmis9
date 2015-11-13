@@ -1630,13 +1630,48 @@ sub getIntfInfo {
 		}
 
 		# Loop to get interface information, will be stored in {ifinfo} table => $IF
+		# keep the ifIndexs we care about.
+		my @ifIndexNumManage;
 		foreach my $index (@ifIndexNum) {
 			next if ($singleInterface and $intf_one ne $index); # only one interface
 			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
 				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
-				$IF = $S->ifinfo; # renew pointer
-				logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
-				info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
+				
+				my $keepInterface = 1;
+				if ( defined $S->{mdl}{custom}{interface}{skipIfType}
+					and $S->{mdl}{custom}{interface}{skipIfType} ne ""
+					and $IF->{$index}{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ 
+				) {
+					$keepInterface = 0;
+					info("SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
+				}	
+				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
+					and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
+					and $IF->{$index}{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ 
+				) {
+					$keepInterface = 0;
+					info("SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
+				}
+								
+				if ( not $keepInterface ) {
+					# not easy.
+					foreach my $key ( keys %{$IF->{$index}} ) {
+						if ( exists $V->{interface}{"${index}_${key}_title"} ) {
+							delete $V->{interface}{"${index}_${key}_title"};
+						}
+						if ( exists $V->{interface}{"${index}_${key}_value"} ) {
+							delete $V->{interface}{"${index}_${key}_value"};
+						}
+					}
+					# easy!
+					delete $IF->{$index};
+				}
+				else {
+					$IF = $S->ifinfo; # renew pointer
+					logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
+					info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
+					push(@ifIndexNumManage,$index);
+				}
 			} else {
 				# failed by snmp
 				snmpNodeDown(sys=>$S);
@@ -1644,6 +1679,9 @@ sub getIntfInfo {
 				return 0;
 			}
 		}
+		# copy the new list back.
+		@ifIndexNum = @ifIndexNumManage;
+		@ifIndexNumManage = ();
 
 		# port information optional
 		if ($M->{port} ne "") {
@@ -7610,20 +7648,22 @@ sub doThreshold {
 										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
 										for my $index (@instances) {
 											# thresholds can be selectively disabled for individual interfaces
-											if (defined $NI->{$type} and defined $NI->{$type}{$index}
+											if ( $type =~ /interface|pkts|pkts_hc/ ) {
+												if (defined $NI->{$type} and defined $NI->{$type}{$index}
+														and defined $NI->{$type}{$index}{threshold}
+														and getbool($NI->{$type}{$index}{threshold},"invert"))
+												{
+														dbg("skipping disabled threshold type $type for index $index");
+														next;
+												}
+												# verify that there is at least valid interface record
+												if ( defined $NI->{$type} 
+													and defined $NI->{$type}{$index}
 													and defined $NI->{$type}{$index}{threshold}
-													and getbool($NI->{$type}{$index}{threshold},"invert"))
-											{
-													dbg("skipping disabled threshold type $type for index $index");
-													next;
-											}
-											# verify that there is at least valid interface record
-											if ( defined $NI->{$type} 
-												and defined $NI->{$type}{$index}
-												and defined $NI->{$type}{$index}{threshold}
-												and $NI->{$type}{$index}{threshold} eq "true"
-											) {
-												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+													and $NI->{$type}{$index}{threshold} eq "true"
+												) {
+													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+												}
 											}
 											elsif ( $type =~ /cbqos/
 												and defined $NI->{'interface'} 
@@ -7637,6 +7677,9 @@ sub doThreshold {
 													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");	
 													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
 												}
+											}
+											else {
+												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 											}
 										}
 									} else {
@@ -7726,6 +7769,7 @@ sub doThreshold {
 sub runThrHld {
 	my %args = @_;
 	my $S = $args{sys};
+	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
 	my $IF = $S->ifinfo;
 	my $ET = $S->{info}{env_temp};
@@ -7774,9 +7818,18 @@ sub runThrHld {
 	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}
-	#else {
-	#	$element = $IF->{$index}{ifDescr};
-	#}
+	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed} 
+		and $M->{systemHealth}{sys}{$type}{indexed} ne "true"
+	) {
+		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
+		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" ) {
+			$element = $NI->{$type}{$index}{$elementVar};
+		}
+	}
+	
+	if ( $element eq "" ) {
+		$element = $index;
+	}
 
 	# walk through threshold names
 	### 2012-04-25 keiths, fixing loop as not processing correctly.
