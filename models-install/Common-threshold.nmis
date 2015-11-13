@@ -655,6 +655,51 @@
           }
         }
       },
+      'memPoolUtil' => {
+        'item' => 'memUtil',
+        'event' => 'Proactive Memory Utilisation',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '99',
+              'critical' => '95',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '80',
+            }
+          }
+        }
+      },
+      'bufferUtil' => {
+        'item' => 'bufferUtil',
+        'event' => 'Proactive Buffer Utilisation',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '100',
+              'critical' => '96',
+              'major' => '94',
+              'minor' => '92',
+              'warning' => '90',
+            }
+          }
+        }
+      },
+      'bufferMissPct' => {
+        'item' => 'bufferMissPct',
+        'event' => 'Proactive Buffer Misses',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '50',
+              'critical' => '40',
+              'major' => '30',
+              'minor' => '20',
+              'warning' => '10',
+            }
+          }
+        }
+      },
       'jnx_cpu' => {
         'event' => 'Proactive CPU',
         'item' => 'jnxOper5MinLoadAvg',

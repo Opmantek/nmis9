@@ -67,8 +67,13 @@
   },
   'custom' => {
     'interface' => {
-      'ifAdminStatus' => 'false',
-      'ifNumber' => 'false',
+      'ifAdminStatus' => 'false', # default = true
+      'ifNumber' => 'false', # default = true
+      'ifLastChange' => 'false', # default = false
+      'ifTableLastChange' => 'false', # default = false
+      'skipIfComment' => 'This is used for mega devices to get rid of unwanted interfaces.  Big SP switches for example.  If skipIfType or skipIfDescr regex is matched, then just skip this interface all together. Must be used with ifNumber = false, ifAdminStatus = false, ifLastChange = false, ifTableLastChange = false',
+      'skipIfType' => 'ppp',
+			'skipIfDescr' => 'PPPoE\d+|PPP\d+|IP\d+|IPLAGL2|noSuchInstance'
     }
   },
   'system' => {
