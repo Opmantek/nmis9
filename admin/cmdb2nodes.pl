@@ -32,7 +32,7 @@
 
 # Fields in use
 # HC-Division
-# Combined IP
+# CombinedIP
 # TYPE Group
 # PCI SITE?
 # CMDB Name
@@ -62,7 +62,7 @@ my @ERROR;
 
 my $basedir = "/root";
 my $cmdbFile = "$basedir/MasterNetworkData.txt";
-my $cmdbKey = "Sort number:Combined IP";
+my $cmdbKey = "Sort number:CombinedIP";
 my $nodesFile = "$basedir/Nodes.nmis";
 my $locationsFile = "$basedir/Locations.nmis";
 
@@ -101,7 +101,7 @@ sub makeNodes {
 	my $nodeSkipped = 0;
 	
 	foreach my $ci (sort keys %{$cmdb}) {
-		#print "key=$ci ip=$cmdb->{$ci}{'Combined IP'}\n";
+		#print "key=$ci ip=$cmdb->{$ci}{'CombinedIP'}\n";
 
 		#which servers should manage this node?
 		my @servers;
@@ -116,8 +116,8 @@ sub makeNodes {
 		$cmdb->{$ci}{'Location State'} =~ s/Virgina/Virginia/;
 		$cmdb->{$ci}{'CMDB Company'} =~ s/\&/and/;
 		
-		if ( $cmdb->{$ci}{'Combined IP'} eq "" ) {
-			print "ERROR: Combined IP is blank key=$ci\n";
+		if ( $cmdb->{$ci}{'CombinedIP'} eq "" ) {
+			print "ERROR: CombinedIP is blank key=$ci\n";
 			++$nodeSkipped;
 			next;
 		}
@@ -158,7 +158,7 @@ sub makeNodes {
 		
 		# if the nodekey is blank, fall back to the IP address.
 		if ( $nodekey eq "" ) {
-			$nodekey = $cmdb->{$ci}{'Combined IP'};
+			$nodekey = $cmdb->{$ci}{'CombinedIP'};
 		}
 		
 		$nodekey =~ s/\/|\\|\?|\&/ /g;
@@ -293,7 +293,7 @@ sub makeNodes {
 				$NODES->{$server}{$nodekey}{collect} = 'false';
 			}
 
-			$NODES->{$server}{$nodekey}{host} = $cmdb->{$ci}{'Combined IP'};
+			$NODES->{$server}{$nodekey}{host} = $cmdb->{$ci}{'CombinedIP'};
 			$NODES->{$server}{$nodekey}{location} = $location || "default";
 			$NODES->{$server}{$nodekey}{depend} = 'N/A';
 			$NODES->{$server}{$nodekey}{services} = undef;

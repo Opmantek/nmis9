@@ -33,6 +33,9 @@
   'cbqos-in' => {
     'rrd' => {
       'cbqos-in' => {
+        'indexed' => 'true',
+        'graphtype' => 'cbqos-in',
+        'threshold' => 'qos_pkt_drop,qos_pkt_drop_no_buf',
         'snmp' => {
           'DropPkt' => {
             'oid' => 'cbQosCMDropPkt64',
@@ -59,8 +62,6 @@
             'option' => 'counter,U:U'
           }
         },
-        'indexed' => 'true',
-        'graphtype' => 'cbqos-in'
       }
     }
   }

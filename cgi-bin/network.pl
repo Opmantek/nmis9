@@ -1757,7 +1757,7 @@ EO_HTML
 			# proces multi graphs
 			if ($graph eq 'hrsmpcpu') {
 				foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
-					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ];
+					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ] if exists $NI->{device}{$index};
 				}
 			} else {
 				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ];

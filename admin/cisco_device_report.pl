@@ -94,14 +94,13 @@ elsif ( $arg{separator} eq "comma" ) {
 #      "softwareVersion" : "15.1(1)T1",
 
 # Step 2: Define the overall order of all the fields.
-my @nodeHeaders = qw(name host group location nodeType nodeVendor nodeModel serialNum configurationState softwareVersion softwareImage cbqosInput cbqosOutput ifNumber intfCollect chassisVer configLastSaved configLastChanged bootConfigLastChanged);
+my @nodeHeaders = qw(name host group location nodeVendor nodeModel serialNum configurationState softwareVersion softwareImage cbqosInput cbqosOutput ifNumber intfCollect chassisVer configLastSaved configLastChanged bootConfigLastChanged);
 
 # Step 4: Define any CSV header aliases you want
 my %nodeAlias = (
 	name              		=> 'node',
 	host									=> 'host',
 	group									=> 'group',
-	nodeType              => 'nodeType',
 	nodeVendor            => 'nodeVendor',
 	nodeModel             => 'nodeModel',
 	serialNum							=> 'serialNum',
@@ -141,7 +140,7 @@ else {
 	exit 1;
 }
 
-print $t->elapTime(). " End\n";
+print $t->elapTime(). " Begin\n";
 
 
 sub checkNodes {

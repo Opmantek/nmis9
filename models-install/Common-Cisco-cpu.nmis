@@ -52,7 +52,7 @@
     'sys' => {
       'cpu_cpm' => {
         'indexed' => 'cpmCPUTotalPhysicalIndex',        
-        'headers' => 'cpmCPUTotal1min,cpmCPUTotal5min',
+        'headers' => 'cpmCPUTotalPhysicalIndex,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
         'index_headers' => 'cpmCPUTotalPhysicalIndex,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
         'snmp' => {
           'cpmCPUTotalPhysicalIndex' => {

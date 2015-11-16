@@ -98,6 +98,9 @@
       'ifNumber' => 'false',
       'ifLastChange' => 'true',
       'ifTableLastChange' => 'true',
+      'skipIfComment' => 'if this skipIfType or skipIfDescr regex is matched, then just skip this interface all together.',
+      'skipIfType' => '',
+      'skipIfDescr' => 'Virtual-Access'
     }
   },
   'alerts' => {

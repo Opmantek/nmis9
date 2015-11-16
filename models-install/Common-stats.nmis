@@ -291,6 +291,44 @@
         'CDEF:memUtil=memUsed,memTotal,/,100,*',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
       ],
+      'cempMemPool' => [
+        'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
+        'DEF:MemFree=$database:MemPoolFree:AVERAGE',
+        'CDEF:memTotal=MemUsed,MemFree,+',
+        'CDEF:memUtil=MemUsed,memTotal,/,100,*',
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+      ],
+      'ciscoMemoryPool' => [
+        'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
+        'DEF:MemFree=$database:MemPoolFree:AVERAGE',
+        'CDEF:memTotal=MemUsed,MemFree,+',
+        'CDEF:memUtil=MemUsed,memTotal,/,100,*',
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+      ],
+      'cempMemBuffer' => [
+        'DEF:BufferTotal=$database:BufferTotal:AVERAGE', 
+        'DEF:BufferFree=$database:BufferFree:AVERAGE',
+        'DEF:BufferHit=$database:BufferHit:AVERAGE',
+        'DEF:BufferMiss=$database:BufferMiss:AVERAGE', 
+        'CDEF:bufferActivity=BufferHit,BufferMiss,+',
+        'CDEF:bufferMissPct=BufferMiss,bufferActivity,0.001,+,/,100,*',
+        'CDEF:bufferUsed=BufferTotal,BufferFree,-',
+        'CDEF:bufferUtil=bufferUsed,BufferTotal,0.001,+,/,100,*',
+        'PRINT:bufferUtil:AVERAGE:bufferUtil=%1.2lf',
+        'PRINT:bufferMissPct:AVERAGE:bufferMissPct=%1.2lf',
+      ],
+      'cbqos-in' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
+      'cbqos-out' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
     }
   }
 );

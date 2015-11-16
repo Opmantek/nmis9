@@ -38,31 +38,46 @@
 		'standard' => 'Buffer Utilisation',
 		'short' => 'Buffer Util.'
 	},
+	
+#Buffer Utilization for ASR 1000:
+#BufferMissPct  = TotalBufferMisses * 100 /(TotalBufferHits + TotalBufferMisses + 0.001);
+#TotalBufferMisses  = cempMemBufferMiss;
+#TotalBufferHits  = cempMemBufferHit;
+#BufferUtilizationPct  = TotalBuffersUsed * 100 / (TotalBuffers + 0.001);
+#where,                                                                  
+#TotalBuffersUsed  = (cempMemBufferTotal - cempMemBufferFree)            
+#TotalBuffers = cempMemBufferTotal;                                      
+	
 	'option' => {
 		'standard' => [
+			'DEF:BufferTotal=$database:BufferTotal:AVERAGE', 
 			'DEF:BufferFree=$database:BufferFree:AVERAGE',
 			'DEF:BufferHit=$database:BufferHit:AVERAGE',
-			'DEF:BufferMiss=$database:BufferMiss:AVERAGE',
-			'LINE2:BufferFree#00BFFF:Buffers Free\\t',
-			'GPRINT:BufferFree:AVERAGE:Avg %8.1lf\\t',
-			'GPRINT:BufferFree:MAX:Max %6.1lf\\n',
-			'LINE2:BufferHit#00FF7F:Buffers Hit\\t',
-			'GPRINT:BufferHit:AVERAGE:Avg %8.1lf\\t',
-			'GPRINT:BufferHit:MAX:Max %6.1lf\\n',
-			'LINE2:BufferMiss#ff0000:Buffers Missed\\t',
-			'GPRINT:BufferMiss:AVERAGE:Avg %8.1lf\\t',
-			'GPRINT:BufferMiss:MAX:Max %6.1lf\\n'
+			'DEF:BufferMiss=$database:BufferMiss:AVERAGE', 
+
+			'CDEF:bufferActivity=BufferHit,BufferMiss,+',
+			'CDEF:bufferMissPct=BufferMiss,bufferActivity,0.001,+,/,100,*',
+			'CDEF:bufferUsed=BufferTotal,BufferFree,-',
+			'CDEF:bufferUtil=bufferUsed,BufferTotal,0.001,+,/,100,*',
+
+			'LINE2:bufferUtil#00BFFF:Buffer Utilization\\t',
+			'GPRINT:bufferUtil:AVERAGE:Avg %8.1lf\\t',
+			'GPRINT:bufferUtil:MAX:Max %6.1lf\\n',
+
+			'LINE2:bufferMissPct#00FF7F:Buffers Miss %\\t',
+			'GPRINT:bufferMissPct:AVERAGE:Avg %8.1lf\\t',
+			'GPRINT:bufferMissPct:MAX:Max %6.1lf\\n',			
 		],
-		'small' => [
-			'DEF:BufferFree=$database:BufferFree:AVERAGE',
-			'DEF:BufferHit=$database:BufferHit:AVERAGE',
-			'DEF:BufferMiss=$database:BufferMiss:AVERAGE',
-			'LINE2:BufferFree#00BFFF:Buffers Free',
-			'GPRINT:BufferFree:AVERAGE:%6.2lf',
-			'LINE2:BufferHit#00FF7F:Buffers Hit',
-			'GPRINT:BufferHit:AVERAGE:%6.2lf',
-			'LINE2:BufferMiss#ff0000:Buffers Missed',
-			'GPRINT:BufferMiss:AVERAGE:%6.2lf\\n',
-		]
+		#'small' => [
+		#	'DEF:BufferFree=$database:BufferFree:AVERAGE',
+		#	'DEF:BufferHit=$database:BufferHit:AVERAGE',
+		#	'DEF:BufferMiss=$database:BufferMiss:AVERAGE',
+		#	'LINE2:BufferFree#00BFFF:Buffers Free',
+		#	'GPRINT:BufferFree:AVERAGE:%6.2lf',
+		#	'LINE2:BufferHit#00FF7F:Buffers Hit',
+		#	'GPRINT:BufferHit:AVERAGE:%6.2lf',
+		#	'LINE2:BufferMiss#ff0000:Buffers Missed',
+		#	'GPRINT:BufferMiss:AVERAGE:%6.2lf\\n',
+		#]
 	}
 );
