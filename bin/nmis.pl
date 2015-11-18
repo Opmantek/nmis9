@@ -1675,8 +1675,10 @@ sub getIntfInfo {
 			} else {
 				# failed by snmp
 				snmpNodeDown(sys=>$S);
-				info("Finished");
-				return 0;
+				if ( getbool($C->{snmp_stop_polling_on_error}) ) {
+					info("Finished");
+					return 0;
+				}				
 			}
 		}
 		# copy the new list back.
