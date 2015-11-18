@@ -151,7 +151,7 @@ sub processNodes {
 				# check nodeIndex
 				my $lcsysName = lc($sysName);
 				if ( $nodeIndex{$lcsysName} ne "" ) {
-					print "DUPLICATE NODE: node $node with sysName $sysName exists as $nodeIndex{$sysName}\n";
+					print "DUPLICATE NODE: node $node with sysName $sysName exists as $nodeIndex{$lcsysName}\n";
 				}
 				else {
 					print "FIX Name: node $node is IP or spaces, use $sysName $nodeIndex{$lcsysName}\n";
