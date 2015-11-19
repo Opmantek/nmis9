@@ -3086,7 +3086,7 @@ sub loadServiceStatus
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service
 						 and $sdata->{server} eq $C->{server_name} # our service
-						 and $LNT->{$thisnode}->{services} =~ /(^|,)$thisservice(,|$)/ )) # service still associated with node
+						 and grep($thisservice eq $_, split(/,/, $LNT->{$thisnode}->{services})))) # service still associated with node
 		{
 			$result{$sdata->{server}}->{$thisservice}->{$thisnode} = $sdata;
 		}
