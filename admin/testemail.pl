@@ -74,8 +74,8 @@ my ($status, $code, $errmsg) = sendEmail(
 	to => $target,
 	from => $C->{mail_from},
 
-	subject => "Normal Priority Test Email from NMIS8",
-	body => "This is a Normal Priority Test Email from NMIS8",
+	subject => "Normal Priority Test Email from NMIS8\@$C->{server_name}",
+	body => "This is a Normal Priority Test Email from NMIS8\@$C->{server_name}",
 	priority => "Normal",
 
 	debug => $C->{debug}
@@ -109,8 +109,8 @@ else
 	to => $target,
 	from => $C->{mail_from},
 
-	subject => "High Priority Test Email from NMIS8",
-	body => "This is a High Priority Test Email from NMIS8",
+	subject => "High Priority Test Email from NMIS8\@$C->{server_name}",
+	body => "This is a High Priority Test Email from NMIS8\@$C->{server_name}",
 	priority => "High",
 
 	debug => $C->{debug}
