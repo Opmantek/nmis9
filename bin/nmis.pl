@@ -7854,7 +7854,7 @@ sub runThrHld {
 			}
 		}
 		
-		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index);
+		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index,item=>$item);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
 
@@ -7895,6 +7895,7 @@ sub getThresholdLevel {
 	my $thrname = $args{thrname};
 	my $stats = $args{stats}; # value of items
 	my $index = $args{index};
+	my $item = $args{item};
 
 	my $val;
 	my $level;
@@ -7906,7 +7907,7 @@ sub getThresholdLevel {
 	my $T = $M->{threshold}{name}{$thrname}{select};
 	foreach my $thr (sort {$a <=> $b} keys %{$T}) {
 		next if $thr eq 'default'; # skip now the default values
-		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index))){
+		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index,item=>$item))){
 			$val = $T->{$thr}{value};
 			dbg("found threshold=$thrname entry=$thr");
 			last;

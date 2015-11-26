@@ -754,15 +754,35 @@
       'qos_pkt_drop' => {
         'event' => 'Proactive QoS Packet Drops',
         'item' => 'DropPkt',
-        'control_regex' => 'class-default$|Voice$|monkey',
+        'control_regex' => 'class-default$|Voice$|Video|Management|Critical_Data',
         'select' => {
+          '10' => {
+            'control' => '$item =~ /Voice|Video|VVSignaling/i',
+            'value' => {
+              'critical' => '500',
+              'fatal' => '1000',
+              'major' => '100',
+              'minor' => '50',
+              'warning' => '2'
+            }
+          },
+          '20' => {
+            'control' => '$item =~ /\-class-default|Management|Critical_Data/i',
+            'value' => {
+              'fatal' => '1500',
+              'critical' => '1000',
+              'major' => '500',
+              'minor' => '100',
+              'warning' => '10'
+            }
+          },
           'default' => {
             'value' => {
-              'critical' => '50',
-              'fatal' => '100',
-              'major' => '10',
-              'minor' => '5',
-              'warning' => '1'
+              'fatal' => '2000000',
+              'critical' => '1000000',
+              'major' => '500000',
+              'minor' => '200000',
+              'warning' => '100000'
             }
           }
         }
@@ -770,15 +790,35 @@
       'qos_pkt_drop_no_buf' => {
         'event' => 'Proactive QoS no buffer Packet Drops',
         'item' => 'NoBufDropPkt',
-        'control_regex' => 'class-default$|Voice$|monkey',
+        'control_regex' => 'class-default$|Voice$|Video|Management|Critical_Data',
         'select' => {
+          '10' => {
+            'control' => '$item =~ /Voice|Video/i',
+            'value' => {
+              'critical' => '500',
+              'fatal' => '1000',
+              'major' => '100',
+              'minor' => '50',
+              'warning' => '2'
+            }
+          },
+          '20' => {
+            'control' => '$item =~ /\-class-default|Management|Critical_Data/i',
+            'value' => {
+              'fatal' => '1500',
+              'critical' => '1000',
+              'major' => '500',
+              'minor' => '100',
+              'warning' => '10'
+            }
+          },
           'default' => {
             'value' => {
-              'critical' => '50',
-              'fatal' => '100',
-              'major' => '10',
-              'minor' => '5',
-              'warning' => '1'
+              'fatal' => '2000000',
+              'critical' => '1000000',
+              'major' => '500000',
+              'minor' => '200000',
+              'warning' => '100000'
             }
           }
         }
