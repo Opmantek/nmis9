@@ -52,6 +52,14 @@ sub update_plugin
 	{
 		my $entry = $NI->{cpu_cpm}{$index};
 		my $entityIndex = $entry->{cpmCPUTotalPhysicalIndex};
+		if ( defined $NI->{entityMib}{$entityIndex}{entPhysicalName} ) {
+			$entry->{entPhysicalName} = $NI->{entityMib}{$entityIndex}{entPhysicalName};
+			$changesweremade = 1;
+		}
+		else {
+			info("WARNING entPhysicalName not available for index $index");
+		}
+
 		if ( defined $NI->{entityMib}{$entityIndex}{entPhysicalDescr} ) {
 			$entry->{entPhysicalDescr} = $NI->{entityMib}{$entityIndex}{entPhysicalDescr};
 			$changesweremade = 1;

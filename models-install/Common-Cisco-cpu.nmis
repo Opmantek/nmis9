@@ -52,15 +52,18 @@
     'sys' => {
       'cpu_cpm' => {
         'indexed' => 'cpmCPUTotalPhysicalIndex',        
-        'headers' => 'cpmCPUTotalPhysicalIndex,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
+        'headers' => 'entPhysicalName,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
         'index_headers' => 'cpmCPUTotalPhysicalIndex,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
         'snmp' => {
-          'cpmCPUTotalPhysicalIndex' => {
-            'oid' => 'cpmCPUTotalPhysicalIndex',
-            'title' => 'Entity Physical Index'
+          'entPhysicalName' => {
+            'title' => 'Physical Name'
           },
           'entPhysicalDescr' => {
             'title' => 'Physical Descr'
+          },
+          'cpmCPUTotalPhysicalIndex' => {
+            'oid' => 'cpmCPUTotalPhysicalIndex',
+            'title' => 'Entity Physical Index'
           },
           'cpmCPUTotal1min' => {
             'oid' => 'cpmCPUTotal1minRev',
