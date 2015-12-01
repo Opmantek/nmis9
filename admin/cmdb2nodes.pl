@@ -165,7 +165,13 @@ sub makeNodes {
 
 		# replace crazy D0 long dash with -
 		$nodekey =~ s/\xD0/-/g;
-				
+		$nodekey =~ s/\xCA//g;
+		$nodekey =~ s/\s+$//g;
+		$nodekey =~ s/^\s+//g;
+		
+		# get rid non-ascii characters
+		#perl -pe 's/[^[:ascii:]]//g;'
+		
 		my $server;
 
   #'Cloud' => {
@@ -184,6 +190,11 @@ sub makeNodes {
   #  'Suburb' => ''
   #},
 
+		# clean up the data!
+		$cmdb->{$ci}{'Location Name'} =~ s/\xD0/-/g;
+		$cmdb->{$ci}{'Location Address'} =~ s/\xD0/-/g;
+		$cmdb->{$ci}{'Miguel LocationID'} = uc($cmdb->{$ci}{'Miguel LocationID'});
+
 		my $location = "$cmdb->{$ci}{'Miguel LocationID'} $cmdb->{$ci}{'Location Name'}" || "Unknown";
 		
 		
@@ -192,6 +203,7 @@ sub makeNodes {
 		$LOCATIONS->{$location}{City} = $cmdb->{$ci}{'Location City'};
 		$LOCATIONS->{$location}{Country} = $cmdb->{$ci}{'Location Country'};
 		$LOCATIONS->{$location}{Geocode} = "$cmdb->{$ci}{'Location Address'}, $cmdb->{$ci}{'Location City'}";
+		
 		
 		my $roleType = "access";
 		my $netType = "lan";

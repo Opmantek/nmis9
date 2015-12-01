@@ -42,6 +42,7 @@ use DirHandle;
 use Data::Dumper;
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
+use File::Copy;
 use File::Find;
 use File::Basename;
 use Cwd;
@@ -210,7 +211,7 @@ libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping snmp snmpd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
-libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl
+libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl));
@@ -218,9 +219,9 @@ libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl di
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
-net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay 
-perl-JSON-XS httpd fping make groff perl-CPAN crontabs dejavu* 
-perl-libwww-perl perl-Net-DNS
+net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
+perl-JSON-XS httpd fping make groff perl-CPAN crontabs dejavu*
+perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
@@ -991,7 +992,41 @@ that you should use as the basis for your setup.\n\nPlease hit <Enter> to contin
 }
 
 printBanner("NMIS Cron Setup");
-print "NMIS relies on Cron to schedule its periodic execution,
+
+(-d "$site/install/cron.d") or mkdir("$site/install/cron.d", 0755) 
+		or die "cannot mkdir $site/install/cron.d/: $!\n";
+my $systemcronfile = "/etc/cron.d/nmis";
+my $newcronfile = "$site/install/cron.d/nmis";
+my $showreminder = 1;
+
+echolog("Creating default Cron schedule with nmis.pl type=crontab");
+my $res = system("$site/bin/nmis.pl type=crontab system=true >$newcronfile");
+if ($res >> 8)
+{
+	echolog("Warning: default Cron schedule generation failed!");
+}
+else
+{
+	my $cronisdifferent = 1;							# not existent yet? that's a difference for sure
+	if (-f $newcronfile && -f $systemcronfile)
+	{
+		$cronisdifferent = system("diff","-q", $systemcronfile, $newcronfile) >> 8;
+		echolog("\nExisting NMIS Cron schedule is different from default.") if ($cronisdifferent);
+	}
+	else
+	{
+		echolog("\nNo NMIS Cron schedule exists on the system.");
+	}
+
+	if (!$cronisdifferent)
+	{
+		echolog("\nExisting NMIS Cron schedule is up to date.");
+		$showreminder = 0;
+	}
+	else
+	{
+		
+		print "NMIS relies on Cron to schedule its periodic execution,
 and provides an example/default Cron schedule.
 
 The installer can install this default schedule in /etc/cron.d/nmis,
@@ -1001,68 +1036,64 @@ If you already have NMIS entries in your root crontab,
 then the installer will comment out all NMIS entries in
 that crontab.\n\n";
 
-my $crongood = (-f "/etc/cron.d/nmis");
-if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /etc/cron.d/nmis?"))
-{
-	echolog("Creating default Cron schedule with nmis.pl type=crontab");
-	my $res = system("$site/bin/nmis.pl type=crontab system=true >/tmp/new-nmis-cron");
-	
-	if (0 == $res>>8)
-	{
-		echolog("Cleaning up old per-user crontab");
-
-		my $oldcronfixedup;
-		# now clean up the old per-user cron, if there is one!
-		my $res = system("crontab -l > $site/conf/crontab.root");
-		if (0 == $res>>8)
+		if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in $systemcronfile?"))
 		{
-			echolog("Old crontab was saved in $site/conf/crontab.root");
-
-			open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
-			my @crondata = <F>;
-			close F;
-			for my $line (@crondata)
+			my $res = File::Copy::copy($newcronfile, $systemcronfile);
+			if (!$res)
 			{
-				$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
-				$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+				echolog("Error: writing to $systemcronfile failed: $!");
 			}
-			open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
-			print G @crondata;
-			close G;
-			echolog("Cleaned-up crontab was installed.");
-			$oldcronfixedup = 1;
-		}
-
-		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
-		
-		print "\nA new default cron was created in /etc/cron.d/nmis, 
+			else
+			{
+				$showreminder = 0;
+				print "\nA new default cron was created in /etc/cron.d/nmis, 
 but feel free to adjust it.\n\n";
-
-		if ($oldcronfixedup)
-		{
-			print "Any NMIS entries in root's existing crontab were commented out,
-and a backup of the crontab was saved in $site/cronf/crontab.root.\n\n";
+				
+				my $oldcronfixedup;
+				# now clean up the old per-user cron, if there is one!
+				echolog("Cleaning up old per-user crontab");
+				my $res = system("crontab -l > $site/conf/crontab.root");
+				if (0 == $res>>8)
+				{
+					echolog("Old crontab was saved in $site/conf/crontab.root");
+					
+					open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
+					my @crondata = <F>;
+					close F;
+					for my $line (@crondata)
+					{
+						$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
+						$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+					}
+					open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
+					print G @crondata;
+					close G;
+					echolog("Cleaned-up crontab was installed.");
+					$oldcronfixedup = 1;
+				}
+			
+				if ($oldcronfixedup)
+				{
+					print "Any NMIS entries in root's existing crontab were commented out,
+and a backup of the crontab was saved in $site/conf/crontab.root.\n\n";
+				}
+			
+				print "Please hit <Enter> to continue:\n";
+				my $x = <STDIN>;
+				logInstall("New system crontab was installed in /etc/cron.d/nmis");
+			}
 		}
-		
-		print "Please hit <Enter> to continue:\n";
-		my $x = <STDIN>;
-		$crongood = 1;
-		logInstall("New system crontab was installed in /etc/cron.d/nmis");
-	}
-	else
-	{
-		echolog("Default Cron schedule generation failed!");
-		$crongood = 0;
 	}
 }
 
-if (!$crongood)
+if ($showreminder)
 {
-	print "\n\nTo see what the suggested default Cron schedule is like,
-simply run \"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\", then
-view /tmp/somefile. NMIS will require some scheduling setup
-to work correctly.\n\nPlease hit <Enter> to continue:\n";
-	my $x = <STDIN>;
+	print "\n\nNMIS will require some scheduling setup to work correctly.\n
+An example default Cron schedule is available 
+in $newcronfile, and you can use 
+\"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\"
+to regenerate that default.\nPlease hit <Enter> to continue:\n";
+			my $x = <STDIN>;
 }
 
 ###************************************************************************###
