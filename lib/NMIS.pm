@@ -3082,13 +3082,14 @@ sub loadServiceStatus
 		# longer listed with the node, or not from this server - all ignored if only_known is false
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
+		my $thisserver = $sdata->{server} || $C->{server_name};
 		if (!$onlyknown 
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service
-						 and $sdata->{server} eq $C->{server_name} # our service
+						 and $thisserver eq $C->{server_name} # our service
 						 and grep($thisservice eq $_, split(/,/, $LNT->{$thisnode}->{services})))) # service still associated with node
 		{
-			$result{$sdata->{server}}->{$thisservice}->{$thisnode} = $sdata;
+			$result{$thisserver}->{$thisservice}->{$thisnode} = $sdata;
 		}
 	}
 		
