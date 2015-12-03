@@ -65,6 +65,9 @@
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
+      'mpls' => {
+        'common-model' => 'mpls'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -617,6 +620,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset',
+    'sections' => 'Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsVpnInterface',
   }
 );

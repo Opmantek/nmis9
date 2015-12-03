@@ -62,6 +62,9 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'mpls' => {
+        'common-model' => 'mpls'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -70,6 +73,9 @@
       },
       'status' => {
         'common-model' => 'Cisco-status'
+      },
+      'vlan' => {
+        'common-model' => 'Cisco-vlan'
       },
     }
   },
@@ -584,7 +590,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr',
+    'sections' => 'cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsVpnInterface',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
@@ -628,56 +634,6 @@
             'title' => 'Current Temp'
           },
         },
-      },
-      'vtpVlan' => {
-        'headers' => 'vtpVlanName,vtpVlanState,vtpVlanType,vtpVlanMtu,vtpVlanIfIndex,ifDescr',
-        'index_regex' => '\\.(\\d+\.\\d+)$',
-        'indexed' => 'vtpVlanState',
-        'snmp' => {
-          'vtpVlanName' => {
-            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.4',
-            'title' => 'VLAN Name'
-          },
-          'vtpVlanIndex' => {
-            'title' => 'VLAN'
-          },
-          'vtpVlanState' => {
-            'oid' => 'vtpVlanState',
-            'replace' => {
-              '1' => 'operational',
-              '2' => 'suspended',
-              '3' => 'mtuTooBigForDevice',
-              '4' => 'mtuTooBigForTrunk',
-            },
-            'title' => 'VLAN State'
-          },
-          'vtpVlanType' => {
-            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.3',
-            'replace' => {
-              '1' => 'ethernet',
-              '2' => 'fddi',
-              '3' => 'tokenRing',
-              '4' => 'fddiNet',
-              '5' => 'trNet',
-              '6' => 'deprecated',
-            },
-            'title' => 'VLAN Type'
-          },
-          'vtpVlanMtu' => {
-            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.5',
-            'title' => 'VLAN MTU'
-          },
-          'vtpVlanIfIndex' => {
-            'oid' => '1.3.6.1.4.1.9.9.46.1.3.1.1.18',
-            'replace' => {
-              '0' => 'N/A',
-            },
-            'title' => 'VLAN ifIndex'
-          },
-          'ifDescr' => {
-            'title' => 'ifDescr'
-          },
-        }
       },
     },
     'rrd' => {

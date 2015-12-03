@@ -63,6 +63,9 @@
       'memory' => {
         'common-model' => 'Cisco-memory'
       },
+      'mpls' => {
+        'common-model' => 'mpls'
+      },
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
@@ -418,7 +421,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsVpnInterface',
   },
   'system' => {
     'nodeModel' => 'CiscoIOSXE',
