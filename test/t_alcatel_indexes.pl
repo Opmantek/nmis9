@@ -15,9 +15,9 @@ my %args = getArguements(@ARGV);
 #
 # 4.1
 #
-# •	Level = 
-# •	0000b for XDSL line, SHDSL Line, Ethernet Line, VoiceFXS Line or IsdnU Line 
-# •	0001b for XDSL Channel  
+# â¢	Level = 
+# â¢	0000b for XDSL line, SHDSL Line, Ethernet Line, VoiceFXS Line or IsdnU Line 
+# â¢	0001b for XDSL Channel  
 
 ###############################################
 sub decode_interface_index_41 {
@@ -32,20 +32,25 @@ sub decode_interface_index_41 {
 	my $slot_mask 		= 0x00FF0000;
 	my $level_mask 		= 0x0000F000;
 	my $circuit_mask 	= 0x00000FFF;
+	
+	my $slot_bitshift = 16;
+
+	print "4.1 Oid value=$oid_value\n";
 
 	my $rack 		= ($oid_value & $rack_mask) 		>> 28;
 	my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
-	my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+	my $slot 		= ($oid_value & $slot_mask) 		>> $slot_bitshift;
 	my $level 	= ($oid_value & $level_mask) 		>> 12;
 	my $circuit = ($oid_value & $circuit_mask);
 
-	print "4.1 Oid value=$oid_value\n";
 	printf( "\t rack=0x%x, %d\n", $rack, $rack);
 	printf( "\t shelf=0x%x, %d\n", $shelf, $shelf);
 	printf( "\t slot=0x%x, %d\n", $slot, $slot);
 	printf( "\t level=0x%x, %d\n", $level, $level);
 	printf( "\t circuit=0x%x, %d\n", $circuit, $circuit);
 	
+	#print "rack=X, shelf=Y, slot=Z, level=A, circuit=B"
+
 	if( $level == 0xb ) {
 		print "XDSL Line\n";
 	}
@@ -54,6 +59,52 @@ sub decode_interface_index_41 {
 	}
 
 }
+
+
+##################################################
+####
+#### 4.1
+####
+#### •	Level = 
+#### •	0000b for XDSL line, SHDSL Line, Ethernet Line, VoiceFXS Line or IsdnU Line 
+#### •	0001b for XDSL Channel  
+###
+##################################################
+###sub decode_interface_index_41 {
+###	my %args = @_;
+###
+###	my $oid_value 		= 285409280;	
+###	if( defined $args{oid_value} ) {
+###		$oid_value = $args{oid_value};
+###	}
+###	my $rack_mask 		= 0x70000000;
+###	my $shelf_mask 		= 0x07000000;
+###	my $slot_mask 		= 0x00FF0000;
+###	my $level_mask 		= 0x0000F000;
+###	my $circuit_mask 	= 0x00000FFF;
+###
+###	my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+###	my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
+###	my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+###	my $level 	= ($oid_value & $level_mask) 		>> 12;
+###	my $circuit = ($oid_value & $circuit_mask);
+###
+###	print "4.1 Oid value=$oid_value\n";
+###	printf( "\t rack=0x%x, %d\n", $rack, $rack);
+###	printf( "\t shelf=0x%x, %d\n", $shelf, $shelf);
+###	printf( "\t slot=0x%x, %d\n", $slot, $slot);
+###	printf( "\t level=0x%x, %d\n", $level, $level);
+###	printf( "\t circuit=0x%x, %d\n", $circuit, $circuit);
+###	
+###	if( $level == 0xb ) {
+###		print "XDSL Line\n";
+###	}
+###	if( $level == 0x1b ) {
+###		print "XDSL Channel\n";
+###	}
+###
+###}  
+
 sub generate_interface_index_41 {
 	my %args = @_;
 	my $rack = $args{rack};
@@ -66,11 +117,12 @@ sub generate_interface_index_41 {
 	$index = ($rack << 28) | ($shelf << 24) | ($slot << 16) | ($level << 12) | ($circuit);
 	return $index;
 }
+
 ###############################################
 #
 # 4.2
 #	XDSL/SHDSL line, voiceFXS, IsdnU, XDSL channel, bonding/IMA interface, ATM/EFM interface, LAG interface
-# •	Level=0000b….0100b, see Table 1
+# â¢	Level=0000bâ¦.0100b, see Table 1
 ###############################################
 sub decode_interface_index_42 {
 	my %args = @_;
@@ -79,11 +131,10 @@ sub decode_interface_index_42 {
 		$oid_value = $args{oid_value};
 	}
 	
-	my $slot_mask 		= 0xFC000000;
-	my $level_mask 		= 0x03C00000;	
+	my $slot_mask 		= 0x7E000000;
+	my $level_mask 		= 0x01E00000;	
 	my $circuit_mask 	= 0x001FE000;
 	
-
 	my $slot 		= ($oid_value & $slot_mask) 		>> 25;
 	my $level 	= ($oid_value & $level_mask) 		>> 21;
 	my $circuit = ($oid_value & $circuit_mask) 	>> 13;
@@ -96,6 +147,37 @@ sub decode_interface_index_42 {
 		print "XDSL/SHDSL line, voiceFXS, IsdnU, XDSL channel, bonding/IMA interface, ATM/EFM interface, LAG interface\n";
 	}
 }
+
+##################################################
+####
+#### 4.2
+####	XDSL/SHDSL line, voiceFXS, IsdnU, XDSL channel, bonding/IMA interface, ATM/EFM interface, LAG interface
+#### •	Level=0000b….0100b, see Table 1
+##################################################
+###sub decode_interface_index_42 {
+###	my %args = @_;
+###	my $oid_value 		= 67108864;
+###	if( $args{oid_value} ne '' ) {
+###		$oid_value = $args{oid_value};
+###	}
+###	
+###	my $slot_mask 		= 0xFC000000;
+###	my $level_mask 		= 0x03C00000;	
+###	my $circuit_mask 	= 0x001FE000;
+###	
+###
+###	my $slot 		= ($oid_value & $slot_mask) 		>> 25;
+###	my $level 	= ($oid_value & $level_mask) 		>> 21;
+###	my $circuit = ($oid_value & $circuit_mask) 	>> 13;
+###
+###	printf("4.2 Oid value=%d, 0x%x, %b\n", $oid_value, $oid_value, $oid_value);
+###	printf( "\t slot=0x%x, %d\n", $slot, $slot);
+###	printf( "\t level/card=0x%x, %d\n", $level, $level);
+###	printf( "\t circuit/port=0x%x, %d\n", $circuit, $circuit);
+###	if( $level >= 0xB && $level <= 0x100B) {
+###		print "XDSL/SHDSL line, voiceFXS, IsdnU, XDSL channel, bonding/IMA interface, ATM/EFM interface, LAG interface\n";
+###	}
+###}
 
 sub generate_interface_index_42 {
 	my %args = @_;
