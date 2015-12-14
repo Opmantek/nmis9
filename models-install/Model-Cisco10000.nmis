@@ -349,7 +349,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+    'sections' => 'cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
     'rrd' => {
       'cempMemPool' => {
         'comment' => 'Cisco 10000 do not use the HC counters so this can not use the common-model',
