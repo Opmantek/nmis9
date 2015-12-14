@@ -1126,9 +1126,11 @@ sub runPing {
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
 		$NI->{system}{nodedown} = 'true';
+		# workaround for opCharts not using right data.
+		$NI->{system}{nodestatus} = 'unreachable';
 	}
 
-	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown}");
+	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown} nodestatus=$NI->{system}{nodestatus}");
 	return $exit;
 } # end runPing
 
@@ -4400,6 +4402,9 @@ sub runServices {
 							$memory = $services{$_}{hrSWRunPerfMem};
 							$gotMemCpu = 1;
 							info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+						}
+						elsif ( $services{$_}{hrSWRunStatus} eq "" ) {
+							logMsg("INFO, $node service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
 						}
 						else {
 							$ret = 0;
