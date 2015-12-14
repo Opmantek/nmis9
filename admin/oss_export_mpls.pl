@@ -123,6 +123,7 @@ my %vrfAlias = (
 	mplsVpnVrfName				=> 'VRF_NAME',
 	location							=> 'LOCALIDAD',
 	vrfRoleInVpn					=> 'ROLE_IN_VPN',
+	#mplsVpnVrfDescription => 'VRF_DESCRIPTION',
 	ifDescr	            	=> 'REF_ASSIGNED_INTERFACE',
 	vrfRefVpnName					=> 'REF_VPN_NAME',
 );
@@ -211,7 +212,7 @@ sub exportVrf {
 	my @aliases;
 	foreach my $header (@vrfHeaders) {
 		my $alias = $header;
-		$alias = $vrfAlias{$header} if $cardAlias{$header};
+		$alias = $vrfAlias{$header} if $vrfAlias{$header};
 		push(@aliases,$alias);
 	}
 	
@@ -292,7 +293,7 @@ sub exportVlan {
 	my @aliases;
 	foreach my $header (@vlanHeaders) {
 		my $alias = $header;
-		$alias = $vlanAlias{$header} if $cardAlias{$header};
+		$alias = $vlanAlias{$header} if $vlanAlias{$header};
 		push(@aliases,$alias);
 	}
 	
