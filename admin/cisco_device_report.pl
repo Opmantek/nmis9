@@ -37,10 +37,12 @@ use strict;
 use func;
 use NMIS;
 use Sys;
+use notify;
 use NMIS::UUID;
 use NMIS::Timing;
 use Data::Dumper;
 use Excel::Writer::XLSX;
+use MIME::Entity;
 
 if ( $ARGV[0] eq "" ) {
 	usage();
@@ -49,7 +51,7 @@ if ( $ARGV[0] eq "" ) {
 
 my $t = NMIS::Timing->new();
 
-print $t->elapTime(). " Begin\n";
+print $t->elapTime(). " Begin ".returnDateStamp() ."\n";
 
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
@@ -66,8 +68,10 @@ my $dir = $arg{dir};
 my $xlsFile = "cisco_device_report.xlsx";
 if ( defined $arg{xls} ) {
 	$xlsFile = $arg{xls};
+	
 }
-$xlsFile = "$arg{dir}/$xlsFile";
+
+my $xlsPath = "$arg{dir}/$xlsFile";
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
@@ -126,14 +130,18 @@ if ( not -f $arg{nodes} ) {
 	createNodeUUID();
 	
 	my $xls;
-	if ($xlsFile) {
-		$xls = start_xlsx(file => $xlsFile);
+	if ($xlsPath) {
+		$xls = start_xlsx(file => $xlsPath);
 	}
 	
 	checkNodes($xls);
 
 	end_xlsx(xls => $xls);
-	print "XLS saved to $xlsFile\n";
+	print "XLS saved to $xlsPath\n";
+	
+	if ( defined $arg{email} and $arg{email} ne "" ) {
+		emailReport($arg{email}, $xlsFile, $xlsPath);
+	}
 }
 else {
 	print "ERROR: $arg{nodes} already exists, exiting\n";
@@ -180,13 +188,6 @@ sub checkNodes {
 			# move on if this isn't a good one.
 			next if $NI->{system}{nodeVendor} !~ /Cisco/;
 			
-			# check for data prerequisites
-			if ( $NI->{system}{nodeVendor} =~ /Cisco/ and not defined $S->{info}{entityMib} ) {
-				$comment = "ERROR: $node is Cisco and entityMib data missing";
-				print "$comment\n";
-				push(@comments,$comment);
-			}
-
 			# is there a decent serial number!
 			if ( not defined $NI->{system}{serialNum} or $NI->{system}{serialNum} eq "" or $NI->{system}{serialNum} eq "noSuchObject" ) {
 				my $SLOTS = undef;					
@@ -288,6 +289,73 @@ sub checkNodes {
 	}	
 }
 
+sub emailReport {
+	my $email = shift;
+	my $reportFile = shift;	
+	my $reportPath = shift;	
+	
+	my @recipients = split(/\,/,$email);
+	
+	my $subject = "Cisco Device Report ". returnDateStamp();
+	
+	if ( $arg{subject} ne "" ) {
+		$subject = $arg{subject} . " " . returnDateStamp();
+	}
+	
+	my $entity = MIME::Entity->build(From=>$C->{mail_from}, 
+																	To=>$email,
+																	Subject=> $subject,
+																	Type=>"multipart/mixed");
+
+	my @lines;
+	push @lines, $subject;
+	#insert some blank lines (a join later adds \n
+	push @lines, ("","");
+	
+	print "Sending email of $reportFile to $email\n";
+
+	my $textover = join("\n", @lines);
+	$entity->attach(Data => $textover,
+									Disposition => "inline",
+									Type  => "text/plain");
+									
+	$entity->attach(Path => $reportPath,
+									Disposition => "attachment",
+									Filename => $reportFile,
+									Type => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+									
+
+	my ($status, $code, $errmsg) = sendEmail(
+	  # params for connection and sending 
+		sender => $C->{mail_from},
+		recipients => \@recipients,
+
+		mailserver => $C->{mail_server},
+		serverport => $C->{mail_server_port},
+		hello => $C->{mail_domain},
+		usetls => $C->{mail_use_tls},
+		ipproto => $C->{mail_server_ipproto},
+		
+		username => $C->{mail_user},
+		password => $C->{mail_password},
+
+		# and params for making the message on the go
+		to => $email,
+		from => $C->{mail_from},
+		subject => $subject,
+		mime => $entity
+	);
+
+	if (!$status)
+	{
+		print "ERROR: Sending email to $email failed: $code $errmsg\n";
+	}
+	else
+	{
+		print "Cisco Device Report Email sent to $email\n";
+	}	
+}
+
 sub changeCellSep {
 	my $string = shift;
 	$string =~ s/$sep/;/g;
@@ -298,10 +366,15 @@ sub changeCellSep {
 
 sub usage {
 	print <<EO_TEXT;
-$0 will export nodes and ports from NMIS.
-ERROR: need some files to work with
+$0 will generate a Cisco Device Report from data in NMIS.
+usage:
+	dir=<directory to store files>
+	xls=change file name, default is cisco_device_report.xlsx
+	email=comma seperated list of email addresses (no spaces), e.g. user1\@domain.com,user2\@domain.com
+	subject="contents of subject", with datestamp appended automatically
+
 usage: $0 dir=<directory>
-eg: $0 dir=/data debug=true separator=(comma|tab)
+eg: $0 dir=/tmp debug=true subject="Cisco Device Report" email=user1\@domain.com,user2\@domain.com
 
 EO_TEXT
 }
