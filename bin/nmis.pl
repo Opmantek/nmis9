@@ -1122,6 +1122,7 @@ sub runPing {
 		$V->{system}{status_value} = 'reachable' if (getbool($NC->{node}{ping}));
 		$V->{system}{status_color} = '#0F0';
 		$NI->{system}{nodedown} =  'false';
+		$NI->{system}{nodestatus} = 'reachable' if not getbool($NC->{node}{collect});
 	} else {
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
