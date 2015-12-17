@@ -1122,7 +1122,6 @@ sub runPing {
 		$V->{system}{status_value} = 'reachable' if (getbool($NC->{node}{ping}));
 		$V->{system}{status_color} = '#0F0';
 		$NI->{system}{nodedown} =  'false';
-		$NI->{system}{nodestatus} = 'reachable' if not getbool($NC->{node}{collect});
 	} else {
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
@@ -4404,15 +4403,16 @@ sub runServices {
 							$gotMemCpu = 1;
 							info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
 						}
-						elsif ( $services{$_}{hrSWRunStatus} eq "" ) {
-							logMsg("INFO, $node service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+						# should the check be that if any service is found running|runnable, or the count is the minimum number, the daemon is OK, otherwise only one opConfigd being invalid is bad
+						elsif ( $services{$_}{hrSWRunStatus} eq "" or $services{$_}{hrSWRunStatus} =~ /invalid/i ) {
+							logMsg("INFO, $node service $ST->{$service}{Name} is neutral, status is $services{$_}{hrSWRunStatus}");
 						}
 						else {
 							$ret = 0;
 							$cpu = $services{$_}{hrSWRunPerfCPU};
 							$memory = $services{$_}{hrSWRunPerfMem};
 							$gotMemCpu = 1;
-							info("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
+							logMsg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
 							last;
 						}
 					}
