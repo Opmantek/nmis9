@@ -57,7 +57,9 @@ for (<DATA>)
 {
 	my ($file,@sigs) = split(/\s+/);
 	$knownsigs{$file} = \@sigs;
-	# complain if the purportedly new file doesn't match any of the known signatures
+	# complain if a known models-install file is missing completely
+	die "error: $newdir/$file is missing!\n" if (!-f "$newdir/$file");
+	# also complain if the purportedly known good new file doesn't match any of the known signatures
 	$newsig{$file} = compute_signature("$newdir/$file");
 	die "error: signature state ($newsig{$file}) for $newdir/$file not part of a known release!\n"
 			if (!grep($_ eq $newsig{$file}, @sigs));
