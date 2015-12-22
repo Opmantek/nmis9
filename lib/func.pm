@@ -1762,7 +1762,7 @@ sub loadConfTable {
 			$Table_cache{$conf}{conf} = $conf;
 			$Table_cache{$conf}{configfile} = $configfile;
 			$Table_cache{$conf}{configfile_name} = substr($configfile, rindex($configfile, "/")+1);
-			$Table_cache{$conf}{auth_require} = (getbool($Table_cache{$conf}{auth_require},"invert")) ? 0 : 1; # default true in Auth
+			$Table_cache{$conf}{auth_require} = 1; # auth_require false is no longer supported
 			$Table_cache{$conf}{starttime} = time();
 
 			$Table_cache{$conf}{mtime} = stat($configfile)->mtime; # remember modified time

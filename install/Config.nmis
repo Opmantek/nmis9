@@ -269,7 +269,6 @@
     'daemon_fping_filename' => 'fpingd.pl'
   },
   'authentication' => {
-    'auth_require' => 'true',
     'auth_debug' => '',
     'auth_debug_remote_addr' => '',
     'auth_method_1' => 'htpasswd',

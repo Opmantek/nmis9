@@ -208,6 +208,7 @@ sub typeSect {
 		{
 			$value =  join(" ", sort split(/\s*,\s*/, $value));
 		}
+		next if ($section eq "authentication" && $k eq "auth_require"); # fixed true
 		
 		push @out,Tr(td({class=>"header"},"&nbsp;"),
 				td({class=>"header"},escape($k)),td({class=>'info Plain'},
@@ -703,7 +704,6 @@ sub getHelp {
 	my %help = (
 		'id' => 			'Format: string<br>this name must be unique over all sections.',
 # authorization
-		'auth_require' => 	'Format: true | false<br>set this to require authentication (default=false)',
 		'auth_method' => 	'Format: string<br>set this to choose authentication method<br>'.
 								'htpasswd for apache password file<br>radius for radius server validation<br>'.
 								'tacacs for tacacs server validation',
