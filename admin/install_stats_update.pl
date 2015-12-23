@@ -44,13 +44,14 @@ my %arg = getArguements(@ARGV);
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 print <<EO_TEXT;
-This script will update your running NMIS system and add the configuration for a new CiscoRouter Model.
+This script will update your running NMIS system and adjust
+some Common-stats properties.
 
 EO_TEXT
 
 if ( $arg{nike} ne "true" ) {
 
-	exit unless input_yn("OK to proceed updating NMIS with new Model Files for CiscoRouter Model");
+	exit unless input_yn("OK to proceed updating some Common-stats tuning?");
 
 }
 

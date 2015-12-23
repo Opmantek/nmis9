@@ -592,7 +592,6 @@ sub loadCfgTable {
 		],
 
 		'authentication' => [
-				{ 'auth_require' => { display => 'popup', value => ['true','false']}},
 				{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
 				{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
 				{ 'auth_expire' => { display => 'text', value => ['+20min']}},

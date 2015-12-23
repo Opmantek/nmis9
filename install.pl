@@ -579,18 +579,26 @@ if (!input_yn("OK to start installation/upgrade to $site?"))
 }
 
 ###************************************************************************###
-if ( -d $site ) {
-	printBanner("Make a backup of an existing install...");
+if ( -d $site ) 
+{
+	printBanner("Existing NMIS8 Installation detected");
 
-	if (input_yn("OK to make a backup of your current NMIS?"))
+	print "\nIt seems that you have an existing NMIS installation
+in $site. The installer can upgrade the existing installation,
+or remove it and install from scratch.\n\n";
+
+	if (input_yn("Do you want to take a backup of your current NMIS install?\n(RRD data is NOT included!)"))
 	{
 		my $backupFile = getBackupFileName();
-		execPrint("cd $site; tar czvf $backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
-		echolog("Backup of NMIS install was created in $site/$backupFile\n");
+		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+		echolog("Backup of NMIS install was created in ~/$backupFile\n");
 	}
-	else
+
+	if (!input_yn("\nDo you want to upgrade the existing installation?
+If you say No here, the existing installation will be REMOVED and OVERWRITTEN!\n")
+			&& input_yn("\nPlease confirm that you want to REMOVE the existing installation:"))
 	{
-		echolog("Continuing without backup as instructed.\n");
+		rename($site,"$site.unwanted") or die "Cannot rename $site to $site.unwanted: $!\n";
 	}
 }
 
@@ -704,84 +712,126 @@ else
 
 	if (input_yn("OK to update the config files?"))
 	{
-			# merge changes for new NMIS Config options. 
-			execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
-			execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
+		# merge changes for new NMIS Config options. 
+		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
+		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
 		
-			# update default config options that have been changed:
-			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
-
-			execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
-
-			# patch config changes that affect existing entries, which update_config_defaults 
-			# doesn't handle
- 			# which includes enabling uuid
-			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
+		# update default config options that have been changed:
+		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
+		
+		execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
+		
+		# patch config changes that affect existing entries, which update_config_defaults 
+		# doesn't handle
+		# which includes enabling uuid
+		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
+		echolog("\n");
+		
+		if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+		{
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
 			echolog("\n");
+		}
+		
+		if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+		{
+			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+		}
+		
+		# move config/cache files to new locations where necessary
+		if (-f "$site/conf/WindowState.nmis")
+		{
+			printBanner("Moving old WindowState file to new location");
+			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+		}
+		
+		# disable the uuid plugin, which this version doesn't need
+		my $obsolete = "$site/conf/plugins/UUIDPlugin.pm";
+		if (-f $obsolete)
+		{
+			echolog("Disabling obsolete UUID Plugin");
+			rename($obsolete, "$obsolete.disabled");
+		}
+		
+		# handle the model files, automatically where possible
+		printBanner("Performing Model Upgrades");
+		
+		my @upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
+		my $ucheck = $? >> 8;
+		my @problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
+		logInstall("model upgrade check:\n".join("", @upgradables, @problematic));
 
-			if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
-			{
-				execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
-				echolog("\n");
-			}
+		# first mention the problematic models
+		if ($ucheck & 1)
+		{
+			printBanner("Non-upgradeable model files detected");
+			print "\nThe installer has detected the following model files that require
+manual updating:\n\n" .join("", @problematic) ."\nYou should check the NMIS Wiki for instructions on manual 
+model upgrades: https://community.opmantek.com/x/-wd4\n
+PLease hit <Enter> to continue:\n";
+			my $x = <STDIN>;
+		}
+		else
+		{
+			echolog("No model files in need of manual updating detected.");
+		}
+		
+		if ($ucheck & 2)
+		{
+			printBanner("Auto-upgradeable model files detected");
 			
-			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
-			{
-				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
-			}
+			print "The installer has detected that the following auto-upgradeable model files:\n\n"
+					.join("", @upgradables)."\n";
 			
-			# move config/cache files to new locations where necessary
-			if (-f "$site/conf/WindowState.nmis")
+			if (input_yn("Do you want to perform this model upgrade now?"))
 			{
-				printBanner("Moving old WindowState file to new location");
-				execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+				execPrint("$site/admin/upgrade_models.pl -u -n Common-database $site/models-install $site/models 2>&1");
 			}
-
-			# disable the uuid plugin, which this version doesn't need
-			my $obsolete = "$site/conf/plugins/UUIDPlugin.pm";
-			if (-f $obsolete)
+			else
 			{
-				echolog("Disabling obsolete UUID Plugin");
-				rename($obsolete, "$obsolete.disabled");
+				echolog("Not upgrading models, as directed.");
+				
+				print "\nWe recommend that you use the model upgrade tool to keep your models up 
+to date. You find this tool in $site/admin/upgrade_models.pl
+and the NMIS Wiki has extra information about it at
+https://community.opmantek.com/x/-wd4
+
+Please hit <Enter> to continue:\n";
+				my $x = <STDIN>;
 			}
-
-			printBanner("Performing Model Updates");
-			# that plugin normally does its own confirmation prompting, which cannot work with execPrint
-			execPrint("$site/install/install_stats_update.pl nike=true");
-
-			printBanner("Updating RRD Variables");
-			# Updating the mib2ip RRD Type
-			execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
-
-			# Updating the TopChanges RRD Type
-			execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
-
-			# Updating the TopChanges RRD Type
-			execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
+		} 
+		else
+		{
+			echolog("No upgradeable model files detected.");
+		}
+		
+		printBanner("Performing RRD Tuning");
+		print "Please be patient, this step can take a while...\n";
+		
+		# these four lots of output, so capture and log w/o display
+		
+		# that plugin normally does its own confirmation prompting, which cannot work with execPrint
+		execLog("$site/admin/install_stats_update.pl nike=true");
+		
+		# Updating the mib2ip RRD Type
+		execLog("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
+		
+		# Updating the TopChanges RRD Type
+		execLog("$site/admin/rrd_tune_topo.pl run=true change=true");
+		
+		# Updating the TopChanges RRD Type
+		execLog("$site/admin/rrd_tune_responsetime.pl run=true change=true");
+		print "RRD Tuning complete.\n";
 	}
 	else
 	{
-			echolog("Continuing without configuration updates as directed.
+		echolog("Continuing without configuration updates as directed.
 Please note that you will likely have to perform various configuration updates manually 
 to ensure NMIS performs correctly.");
-			print "\n\nPlease hit <Enter> to continue: ";
-			my $x = <STDIN>;
-	}
-
-	printBanner("Comparing Models");
-	
-	if (input_yn("OK to run a comparison of old and new models?"))
-	{
-		# let's not run this with execPrint as that might take quite a bit of time
-		my $res = system("$site/admin/compare_models.pl $site/models $site/models-install");
-		if ($res >> 8)
-		{
-			print "\n\nPlease hit <Enter> to continue:";
-			my $x = <STDIN>;
-		}
+		print "\n\nPlease hit <Enter> to continue: ";
+		my $x = <STDIN>;
 	}
 }
-
 
 ###************************************************************************###
 printBanner("Cache some fonts...");
@@ -1104,7 +1154,7 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
-	execPrint("$site/bin/nmis.pl type=update");
+
 }
 else
 {
@@ -1118,7 +1168,10 @@ Please hit <Enter> to continue: ";
 	my $x = <STDIN>;
 }
 
-
+if (-d "$site.unwanted" && input_yn("OK to remove temporary/backup files?"))
+{
+	system('rm','-rf',"$site.unwanted");
+}
 
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
@@ -1423,6 +1476,20 @@ sub execPrint {
 	logInstall("###". ($res? " Exit Code: $res ":''). "+++\n\n");
 	return $res;
 }
+
+# like execPrint BUT output is only logged, not printed
+sub execLog {
+	my $exec = shift;
+	my $out = `$exec </dev/null 2>&1`;
+	my $rawstatus = $?;
+	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
+
+	logInstall("\n\n###+++\nEXEC: $exec\n");
+	logInstall($out);
+	logInstall("###". ($res? " Exit Code: $res ":''). "+++\n\n");
+	return $res;
+}
+		
 
 
 # prints args to stdout, logs to install log.

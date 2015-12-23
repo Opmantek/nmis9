@@ -7252,7 +7252,7 @@ sub printApache24
 # Further documentation about Apache: http://httpd.apache.org/docs/2.4/
 
 # NMIS Aliases for static files:
-Alias $C->{'<url_base>'}/ "$C->{web_root}/"
+Alias $C->{'<url_base>'} "$C->{web_root}"
 <Directory "$C->{web_root}">
   Options Indexes FollowSymLinks MultiViews
 	AllowOverride None
@@ -7347,7 +7347,7 @@ sub printApache {
 
 # NMIS Aliases
 
-Alias $C->{'<url_base>'}/ "$C->{web_root}/"
+Alias $C->{'<url_base>'} "$C->{web_root}"
 <Directory "$C->{web_root}">
 		Options Indexes FollowSymLinks MultiViews
 		AllowOverride None

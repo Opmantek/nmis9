@@ -1,0 +1,65 @@
+#!/bin/sh
+# this version is an update of the older release maker from the opmantek repo
+
+if [ -z "$1" ]; then
+		cat >&1 <<EOF
+Usage: $0 <nmisversion>
+e.g. $0 8.5.10G
+
+EOF
+		exit 1
+else
+		VERSION=$1
+fi
+
+TEMPDIR=`mktemp -d`
+TARGETDIR=nmis$VERSION
+RELEASEDIR=/usr/local/release
+
+mkdir -p $TEMPDIR/$TARGETDIR
+cd $TEMPDIR
+git clone -b nmis8_dev gitolite@community:nmis $TARGETDIR
+
+# create the dirs that are empty and therefore not in git
+for i in conf database models htdocs/reports logs/json; do
+		mkdir -p $TARGETDIR/$i;
+done
+
+# cleanup and distinction free/non-free code
+# do NOT ship the development plugins at all, nor the build dir
+rm -rf $TARGETDIR/install/plugins-dev $TARGETDIR/build
+
+# Move the code for licensed modules out of free code
+NONFREE=$TARGETDIR-extra
+for i in admin install bin lib lib/NMIS cgi-bin; do
+		mkdir -p $NONFREE/$i
+done
+
+mv $TARGETDIR/install-opHA.pl $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
+mv $TARGETDIR/install/Access.opha.nmis $TARGETDIR/install/Tables.opha.nmis $TARGETDIR/install/Servers.nmis \
+	 $TARGETDIR/install/Tenants.nmis $TARGETDIR/install/Groups.nmis $TARGETDIR/install/Table-Nodes.opha.nmis \
+	 $TARGETDIR/install/Table-Servers.nmis $TARGETDIR/install/Table-Tenants.nmis \
+	 $TARGETDIR/install/Table-Groups.nmis $NONFREE/install
+
+mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-bin/debug-master.pl \
+	 $TARGETDIR/cgi-bin/tenants.pl $TARGETDIR/cgi-bin/opsla.pl $NONFREE/cgi-bin
+
+mv $TARGETDIR/bin/opslad.pl $TARGETDIR/bin/cplan.pl $NONFREE/bin
+mv $TARGETDIR/lib/NMIS/IPSLA.pm $NONFREE/lib/NMIS
+mv $TARGETDIR/admin/opsla* $TARGETDIR/admin/find_ipsla_nodes.pl $TARGETDIR/admin/oss_export.pl $NONFREE/admin
+
+# must ditch the git files before making self-extracting installer
+rm -rf $TARGETDIR/.git $TARGETDIR/.gitignore
+
+# create the tarballs we want
+tar --exclude .git --exclude .gitignore -czvf $RELEASEDIR/nmis$VERSION.tar.gz ./$TARGETDIR
+tar --exclude .git --exclude .gitignore -czvf $RELEASEDIR/nmis$VERSION-nonfree.tar.gz ./$NONFREE
+
+# now also make the self-extracting installer file, but only for main nmis
+makeself $TARGETDIR $RELEASEDIR/nmis$VERSION.run "NMIS Version $VERSION" ./install.pl
+
+echo "Release $VERSION ready in $RELEASEDIR/nmis$VERSION.tar.gz and $RELEASEDIR/nmis$VERSION.run"
+echo "extra non-OSS files are in nmis$VERSION-nonfreetar.gz."
+
+cd /
+rm -rf $TEMPDIR

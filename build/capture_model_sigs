@@ -1,0 +1,82 @@
+#!/usr/bin/perl
+# this small helper takes a number of nmis release tags,
+# and captures all model file signatures for each of the given tags
+#
+# note: always uses ./models-install to check the files
+use strict;
+use Digest::MD5;								# good enough
+use JSON::XS;
+use List::MoreUtils;						# for uniq
+use File::Slurp;
+use Data::Dumper;
+
+my $usage = "Usage: $0 <file_to_update> [reltag1 reltag2...]
+HEAD should be included in the tags for capturing the current state!
+\n\n";
+
+my ($targetfile, @rtags) = @ARGV;
+
+die $usage if (!$targetfile or !@rtags);
+die "must be run from checked out nmis repository!\n"
+		if (!-d "./lib/NMIS" or !-d "./.git");
+
+my (@files, %sigs);
+
+opendir(D, "models-install") or die "cannot open models-install: $!\n";
+my @files = grep(/\.nmis$/, readdir(D));
+closedir(D);
+
+
+for my $todofile (@files)
+{
+	my $tempfile = "/tmp/$todofile.$$";
+	for my $tag (@rtags)
+	{
+		my $res = system("git show $tag:models-install/$todofile >$tempfile");
+		# error? likely the file didn't exist in that version
+		next if ($res >> 8);
+
+		$sigs{$todofile} ||= [];
+	
+		push @{$sigs{$todofile}}, compute_signature($tempfile);
+		unlink($tempfile);
+	}
+}
+
+# if we can update a file with __DATA__, we do;
+# if now we just write the targetfile
+my @existingdata = read_file($targetfile) if (-f $targetfile);
+my @newdata;
+if (@existingdata)
+{
+	for my $old (@existingdata)
+	{
+		push @newdata, $old;
+		last if ($old =~ /^__DATA__\s*$/);
+	}
+}
+for my $fn (sort keys %sigs)
+{
+	push @newdata, join(" ", $fn, List::MoreUtils::uniq(@{$sigs{$fn}}))."\n";
+}
+
+write_file($targetfile, @newdata);
+
+exit 0;
+		
+
+# computes a short signature for a .nmis file (ie. a dumped perl hash)
+# args: filename/path, optional sauce
+# returns: signature or dies on error
+# note: function needs to be kept in sync with admin/upgrade_models.pl
+sub compute_signature
+{
+	my ($fn, $sauce) = @_;
+
+	my %structure = eval { do $fn; };
+	die "cannot parse file $fn: $@\n" if ($@ or !keys %structure);
+	$sauce ||= '';
+
+	my $fullsig = Digest::MD5::md5_hex($sauce.JSON::XS->new->canonical(1)->pretty(0)->encode(\%structure));
+	return substr($fullsig,0,16);
+}
