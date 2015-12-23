@@ -111,8 +111,10 @@ my %nodeAlias = (
 	chassisVer						=> 'chassisVer',
 	softwareVersion				=> 'softwareVersion',
 	softwareImage					=> 'softwareImage',
-	serialNum      		    => 'serialNum',
-	configurationState		=> 'configurationState',
+	serialNum             => 'serialNum',
+	rttMonApplVersion     => 'ipslaVersion',
+	rttMonApplResponder   => 'ipslaResponder',
+	configurationState    => 'configurationState',
 	configLastSaved       => 'configLastSaved',
 	configLastChanged     => 'configLastChanged',
 	cbqosInput            => 'cbqosInput',
@@ -122,6 +124,7 @@ my %nodeAlias = (
 	ifNumber           		=> 'ifNumber',
 	intfCollect           => 'intfCollect',
 );
+
 
 # Step 5: For loading only the local nodes on a Master or a Slave
 my $NODES = loadLocalNodeTable();

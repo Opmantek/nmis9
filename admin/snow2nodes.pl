@@ -66,12 +66,14 @@ use strict;
 #use warnings;
 use func;
 use NMIS;
+use notify;
 use NMIS::Timing;
 use Data::Dumper;
 use JSON::XS;
 use HTTP::Tiny;
 use Test::Deep::NoTest;
 use Excel::Writer::XLSX;
+use MIME::Entity;
 
 my @ERROR;
 
@@ -145,96 +147,102 @@ my $locationsHouston = qr/Houston Chronicle/;
 my @serverList = qw(het001stropk002 het001sclopk002 het001houopk001 het044sloopk002);
 my @masterList = qw(het001stropk001 het001sclopk001 het044sloopk001);
 
+my @SUMMARY;
+
 # Let's see how long this takes to process
 my $t = NMIS::Timing->new();
-print $t->elapTime(). " Begin Processing\n";
+printSum($t->elapTime(). " Begin Processing");
 
 if ( $arg{pull} eq "true" ) {
-	print $t->elapTime(). " RUN updateCmdbCache\n";
+	printSum($t->elapTime(). " RUN updateCmdbCache");
 	updateCmdbCache();
-	print $t->elapTime(). " DONE updateCmdbCache\n\n";
+	printSum($t->elapTime(). " DONE updateCmdbCache\n");
 }
 else {
-	print "PULL not set to true. NOT PULLING CMDB DATA FROM Service Now\n";
+	printSum("PULL not set to true. NOT PULLING CMDB DATA FROM Service Now");
 }
 
-print $t->elapTime(). " RUN updateCmdbIndex\n";
+printSum($t->elapTime(). " RUN updateCmdbIndex");
 updateCmdbIndex();
-print $t->elapTime(). " DONE updateCmdbIndex\n\n";
+printSum($t->elapTime(). " DONE updateCmdbIndex\n");
 
 if ( $arg{pull} eq "true" ) {
-	print $t->elapTime(). " RUN pullPollerNodeFiles\n";
+	printSum($t->elapTime(). " RUN pullPollerNodeFiles");
 	pullPollerNodeFiles();
-	print $t->elapTime(). " DONE pullPollerNodeFiles\n\n";
+	printSum($t->elapTime(). " DONE pullPollerNodeFiles\n");
 }
 else {
-	print "PULL not set to true. NOT PULLING NODES FILE FROM POLLERS\n";
+	printSum("PULL not set to true. NOT PULLING NODES FILE FROM POLLERS");
 }
 
-print $t->elapTime(). " RUN makeNodes\n";
+printSum($t->elapTime(). " RUN makeNodes");
 makeNodes();
-print $t->elapTime(). " DONE makeNodes\n\n";
+printSum($t->elapTime(). " DONE makeNodes\n");
 
 if ( $arg{push} eq "true" ) {
-	print $t->elapTime(). " RUN pushPollerNodeFiles\n";
+	printSum($t->elapTime(). " RUN pushPollerNodeFiles");
 	pushPollerNodeFiles();
-	print $t->elapTime(). " DONE pushPollerNodeFiles\n\n";
+	printSum($t->elapTime(). " DONE pushPollerNodeFiles\n");
 
-	print $t->elapTime(). " RUN updateMasterServers\n";
+	printSum($t->elapTime(). " RUN updateMasterServers");
 	updateMasterServers();
-	print $t->elapTime(). " DONE updateMasterServers\n\n";
+	printSum($t->elapTime(). " DONE updateMasterServers\n");
 }
 else {
-	print "PUSH not set to true. NOT PUSHING NODES FILE TO POLLERS\n";
+	printSum("PUSH not set to true. NOT PUSHING NODES FILE TO POLLERS");
+}
+
+if ( defined $arg{email} and $arg{email} ne "" ) {
+	emailSummary($arg{email},$xlsFile, $xlsPath);
 }
 
 
-print $t->elapTime(). " DONE!\n";
+printSum($t->elapTime(). " DONE!");
 
 exit 1;
 
 
 sub pullPollerNodeFiles {
 	foreach my $server (@serverList) {
-		print "Copy remote Nodes.nmis to $cmdbCache/servers/Nodes.nmis.$server\n";		
+		printSum("Copy remote Nodes.nmis to $cmdbCache/servers/Nodes.nmis.$server");		
 		my $out = `scp $server:/usr/local/nmis8/conf/Nodes.nmis $cmdbCache/servers/Nodes.nmis.$server`;
-		print $out;
+		printSum($out) if $out;
 	}
 }
 
 sub pushPollerNodeFiles {
 	foreach my $server (@serverList) {
-		print "Backup the remote Nodes.nmis Customers.nmis and Locations.nmis file remotely\n";
+		printSum("Backup the remote Nodes.nmis Customers.nmis and Locations.nmis file remotely");
 		my $out = `ssh -t $server "cp -f /usr/local/nmis8/conf/Nodes.nmis /usr/local/nmis8/conf/Nodes.nmis.backup"`;
-		print $out;
+		printSum($out) if $out;
 		my $out = `ssh -t $server "cp -f /usr/local/nmis8/conf/Customers.nmis /usr/local/nmis8/conf/Customers.nmis.backup"`;
-		print $out;
+		printSum($out) if $out;
 		my $out = `ssh -t $server "cp -f /usr/local/nmis8/conf/Locations.nmis /usr/local/nmis8/conf/Locations.nmis.backup"`;
-		print $out;
+		printSum($out) if $out;
 
-		print "Copy new Customers.nmis file to the remote server $server\n";		
+		printSum("Copy new Customers.nmis file to the remote server $server");		
 		my $out = `scp $cmdbCache/Customers.nmis $server:/usr/local/nmis8/conf/Customers.nmis`;
-		print $out;
+		printSum($out) if $out;
 
-		print "Copy new Locations.nmis file to the remote server $server\n";		
+		printSum("Copy new Locations.nmis file to the remote server $server");		
 		my $out = `scp $cmdbCache/Locations.nmis $server:/usr/local/nmis8/conf/Locations.nmis`;
-		print $out;
+		printSum($out) if $out;
 
-		print "Copy newly merged Nodes.nmis file to the remote server $server\n";		
+		printSum("Copy newly merged Nodes.nmis file to the remote server $server");		
 		my $out = `scp $cmdbCache/Nodes.nmis.$server $server:/usr/local/nmis8/conf/Nodes.nmis`;
-		print $out;
+		printSum($out) if $out;
 
-		print "Update the remote server group list with the needed groups from the local server\n";
+		printSum("Update the remote server group list with the needed groups from the local server");
 		my $out = `ssh -t $server "/usr/local/nmis8/admin/grouplist.pl patch=true"`;
-		print $out;
+		printSum($out) if $out;
 	}
 }
 
 sub updateMasterServers {
 	foreach my $server (@masterList) {
-		print "Update the master server group list with the needed groups from the local server\n";
+		printSum("Update the master server group list with the needed groups from the local server");
 		my $out = `ssh -t $server "/usr/local/nmis8/admin/grouplist.pl patch=true"`;
-		print $out;
+		printSum($out) if $out;
 	}
 }
 
@@ -249,7 +257,7 @@ sub updateCmdbIndex {
 	my $indexFile = "$cmdbCache/index.json";
 	my $cmdbIndex;
 	foreach my $table (@cmdbTables) {
-		print "Updating index for table $table\n";
+		printSum("Updating index for table $table");
 		my $dir = "$cmdbCache/$table";
 		if ( -d $dir ) {
  			opendir (DIR, "$dir");
@@ -308,29 +316,29 @@ sub updateCmdbIndex {
 			}
 		}
 	}
-	print "Saving index to file $indexFile\n";
+	printSum("Saving index to file $indexFile");
 	saveFile($indexFile,$cmdbIndex,1);
 }
 
 sub updateCmdbCache {
-	print "Getting locations\n";
+	printSum("Getting locations");
 	my $locations = getLocations(); # deviceList/location > locations/sys_id
-	#print "Saving locations\n";
+	#printSum("Saving locations");
 	#saveFile("$cmdbCache/locations.json",$locations);
 
-	print "Getting companies\n";
+	printSum("Getting companies");
 	my $companies = getCompanies(); # deviceList/company > companies/sys_id
-	#print "Saving companies\n";
+	#printSum("Saving companies");
 	#saveFile("$cmdbCache/companies.json",$companies);
 
-	print "Getting device_types\n";
+	printSum("Getting device_types");
 	my $device_types = getDeviceTypes(); # deviceList/u_device_type > device_types/sys_id
-	#print "Saving device_types\n";
+	#printSum("Saving device_types");
 	#saveFile("$cmdbCache/device_types.json",$device_types);
 
-	print "Getting devices\n";
+	printSum("Getting devices");
 	my $deviceList = getDevices();
-	#print "Saving devices\n";
+	#printSum("Saving devices");
 	#saveFile("$cmdbCache/devicesList.json",$deviceList);
 }
 
@@ -380,7 +388,7 @@ sub loadAllNodes {
 			$NODES->{$server} = readFiletoHash(file => $file, json => 0);
 		}
 		else {
-			print "ERROR: loadAllNodes problem loading $file\n";
+			printSum("ERROR: loadAllNodes problem loading $file");
 		}
 	}	
 	return $NODES;
@@ -411,7 +419,7 @@ sub makeNodes {
 	my $notInCmdb = 0;
 	my $dataErrors = 0;
 
-	print $t->markTime(). " Building Node Files\n";
+	printSum($t->markTime(). " Building Node Files");
 
 	my $xls;
 	if ($xlsPath) {
@@ -473,7 +481,7 @@ sub makeNodes {
 			next;
 		}
 		else {
-			#print "DEBUG locationOk=$locationOk u_location_alias=$thisLocation->{'u_location_alias'}\n";		
+			#printSum("DEBUG locationOk=$locationOk u_location_alias=$thisLocation->{'u_location_alias'}");		
 		}
 
 		if ( $locationOk and ( not defined $thisLocation->{'country'} or $thisLocation->{'country'} eq "" ) ) {
@@ -483,7 +491,7 @@ sub makeNodes {
 			next;
 		}
 		else {
-			#print "DEBUG locationOk=$locationOk country=$thisLocation->{'country'}\n";		
+			#printSum("DEBUG locationOk=$locationOk country=$thisLocation->{'country'}");		
 		}
 
 		if ( $locationOk and $thisLocation->{'country'} ne "GBR" and ( not defined $thisLocation->{'state'} or $thisLocation->{'state'} eq "" ) ) {
@@ -493,15 +501,15 @@ sub makeNodes {
 			next;
 		}
 		else {
-			#print "DEBUG locationOk=$locationOk state=$thisLocation->{'state'}\n";		
+			#printSum("DEBUG locationOk=$locationOk state=$thisLocation->{'state'}");		
 		}
 
 		if ( $thisDevice->{'install_status'} != 1 ) {
-			#print "INFO: Skipping key=$sys_id, CMDB install_status is $thisDevice->{'install_status'}\n";
+			#printSum("INFO: Skipping key=$sys_id, CMDB install_status is $thisDevice->{'install_status'}");
 			++$dataErrors;
 		}
 
-		#print "key=$sys_id ip=$thisDevice->{'u_monitoring_ip'}\n";
+		#printSum("key=$sys_id ip=$thisDevice->{'u_monitoring_ip'}");
 
 		#which servers should manage this node?
 		my @servers;
@@ -631,7 +639,7 @@ sub makeNodes {
 			#$NODES->{$server}{$nodekey}{rancid} = $newNodes{$node}{rancid} || 'false';
 
 			#if ( defined $NODES->{$server}{$nodekey} ) {
-			#	print "WARNING: Duplicate node $nodekey $server $sys_id\n";
+			#	printSum("WARNING: Duplicate node $nodekey $server $sys_id");
 			#}
 			
 			$NODES->{$server}{$nodekey}{roleType} = $roleType;
@@ -753,17 +761,25 @@ sub makeNodes {
 
 	# cross check the NMIS nodes files data and see if any nodes exist which are not in the devicesMeta
 	foreach my $server (@serverList) {
-		foreach my $node ( sort keys %{$NODES->{$server}} ) {			
+		foreach my $node ( sort keys %{$NODES->{$server}} ) {
+			my $nodeUuid = $NODES->{$server}{$node}{uuid};	
 			# According to NMIS I have a valid node, check the devicesMeta to see if it is active.
 			if ( defined $devicesMeta->{name}{$node} and $devicesMeta->{name}{$node}{sys_id} ne "" ) {
 				my $meta_sys_id = $devicesMeta->{name}{$node}{sys_id};
 				if ( not $devicesMeta->{sys_id}{$meta_sys_id}{active} ) {
-					print "INFO: $node $meta_sys_id is NOT ACTIVE, it will be expunged from the NMIS record.\n";
+					printSum("INFO: DELETE $node $meta_sys_id is NOT ACTIVE, it will be expunged from the NMIS record.");
 					# this node should be delete from NMIS.
-					logSnow("INFO: $node $NODES->{$server}{$node}{uuid} being deleted from $server Nodes file");
+					logSnow("INFO: DELETE $node $NODES->{$server}{$node}{uuid} being deleted from $server Nodes file");
 					delete $NODES->{$server}{$node};
 					++$deleteNmis;
 				}
+			}
+			# is there a sys_id for this node, we need to cross check it in the devices meta
+			elsif ( defined $devicesMeta->{sys_id}{$nodeUuid} and $devicesMeta->{sys_id}{$nodeUuid}{name} ne $node ) {
+				printSum("INFO: RENAME $node $nodeUuid must have been renamed, sys_id does not match $devicesMeta->{sys_id}{$nodeUuid}{name} deleting");
+				logSnow("INFO: RENAME $node $NODES->{$server}{$node}{uuid}, sys_id does not match $devicesMeta->{sys_id}{$nodeUuid}{name} from $server Nodes file");
+				delete $NODES->{$server}{$node};
+				++$deleteNmis;
 			}
 			else {
 				logSnow("INFO: $node $NODES->{$server}{$node}{uuid} not found in CMDB sync, must have been manually added.");
@@ -773,15 +789,15 @@ sub makeNodes {
 	}
 
 	#print Dumper $LOCATIONS;
-	print "Saving locationsFile to $locationsFile\n";
+	printSum("Saving locationsFile to $locationsFile");
 	writeHashtoFile(file=>"$locationsFile",data=>$LOCATIONS,handle=>undef);
 
-	print "Saving customersFile to $customersFile\n";
+	printSum("Saving customersFile to $customersFile");
 	writeHashtoFile(file=>"$customersFile",data=>$CUSTOMERS,handle=>undef);
 
 	foreach my $server (@serverList) {
 		my $file = "$nodesFile.$server";
-		print "Saving $server nodes to $file\n";
+		printSum("Saving $server nodes to $file");
 		writeHashtoFile(file=>$file,data=>$NODES->{$server},handle=>undef);
 	}
 
@@ -796,19 +812,19 @@ sub makeNodes {
 		}
 	my $group_list = join(",",@GROUPLIST);
 
-	#print "The following is the list of groups for the NMIS Config file Config.nmis\n";
-	#print "'group_list' => '$group_list',\n";
+	#printSum("The following is the list of groups for the NMIS Config file Config.nmis");
+	#printSum("'group_list' => '$group_list',");
 
-	print "Node Count : $nodeCount\n";
-	print "Dual Polled: $dualPolled\n";
-	print "Nodes Deleted from NMIS: $deleteNmis\n";
-	print "Nodes Not in CMDB: $notInCmdb\n";
-	print "Nodes Skipped with Error: $errorSkipped\n";
-	print "Nodes Skipped: $nodeSkipped - u_category does not match $monitorIt\n";
-	print "Data Errors: $dataErrors\n";
-	print "Done in ".$t->deltaTime() ."\n";
+	printSum("Node Count : $nodeCount");
+	printSum("Dual Polled: $dualPolled");
+	printSum("Nodes Deleted from NMIS: $deleteNmis");
+	printSum("Nodes Not in CMDB: $notInCmdb");
+	printSum("Nodes Skipped with Error: $errorSkipped");
+	printSum("Nodes Skipped: $nodeSkipped - u_category does not match $monitorIt");
+	printSum("Data Errors: $dataErrors");
+	printSum("Done in ".$t->deltaTime() ."");
 
-	print "\nInfo, Errors, and exceptions logged to $snowLog\n";
+	printSum("\nInfo, Errors, and exceptions logged to $snowLog");
 
 	#print Dumper $count;
 
@@ -872,7 +888,7 @@ sub getLocations {
 
 	#this is the default SNMO location table; Hearst is overriding
 	# my $locUrl = "https://$uname:$pword\@hearstmagstaging.service-now.com/imp_location.do?JSONv2";
-	print $t->markTime(). " Retrieving cmn_location table\n";
+	printSum($t->markTime(). " Retrieving cmn_location table");
 	my $locUrl = "https://$uname:$pword\@$cmdb_server/cmn_location.do?JSONv2";
 	my $ht = HTTP::Tiny->new;
 	my $response = $ht->request('GET', $locUrl);
@@ -908,15 +924,15 @@ sub getLocations {
 				push(@data,$record->{$field});
 			}
 			$onething = join("\t",@data);
-			print "$count: $onething\n" if $debug > 1;
+			printSum("$count: $onething") if $debug > 1;
 
 		}
-		print "Total Locations returned: $count\n";
-		print "Done in ".$t->deltaTime() ."\n";
+		printSum("Total Locations returned: $count");
+		printSum("Done in ".$t->deltaTime() ."");
 		return $decoded_json->{records};
 
 	} else {
-		print "Connection Failed: $response->{status}\nReason: $response->{reason}";
+		printSum("Connection Failed: $response->{status}\nReason: $response->{reason}");
 	}
 
 	return 0;
@@ -924,7 +940,7 @@ sub getLocations {
 
 sub getCompanies {
 	# Retrieve Company table and store...
-	print $t->markTime(). " Retrieving core_company table\n";
+	printSum($t->markTime(). " Retrieving core_company table");
 
 	my $companyUrl = "https://$uname:$pword\@$cmdb_server/core_company.do?JSONv2&sysparm_query=active=true^u_hearst_business_unit%21=%22%22";
 	my $ht = HTTP::Tiny->new;
@@ -962,15 +978,15 @@ sub getCompanies {
 				push(@data,$record->{$field});
 			}
 			$onething = join("\t",@data);
-			print "$count: $onething\n" if $debug > 1;
+			printSum("$count: $onething") if $debug > 1;
 
 		}
-		print "Total Company companies returned: $count\n";
-		print "Done in ".$t->deltaTime() ."\n";
+		printSum("Total Company companies returned: $count");
+		printSum("Done in ".$t->deltaTime() ."");
 		return $decoded_json->{records};
 
 	} else {
-		print "Connection Failed: $response->{status}\nReason: $response->{reason}";
+		printSum("Connection Failed: $response->{status}\nReason: $response->{reason}");
 	}
 
 	return 0;
@@ -979,7 +995,7 @@ sub getCompanies {
 sub getDeviceTypes {
 	# Retrieve device types table and store...
 
-	print $t->markTime(). " Retrieving U_device_types table\n";
+	printSum($t->markTime(). " Retrieving U_device_types table");
 	my $typesUrl = "https://$uname:$pword\@$cmdb_server/u_device_types.do?JSONv2";
 	my $ht = HTTP::Tiny->new;
 	my $response = $ht->request('GET', $typesUrl);
@@ -1017,15 +1033,15 @@ sub getDeviceTypes {
 				push(@data,$record->{$field});
 			}
 			$onething = join("\t",@data);
-			print "$count: $onething\n" if $debug > 1;
+			printSum("$count: $onething") if $debug > 1;
 
 		}
-		print "Total DeviceTypes returned: $count\n";
-		print "Done in ".$t->deltaTime() ."\n";
+		printSum("Total DeviceTypes returned: $count");
+		printSum("Done in ".$t->deltaTime() ."");
 		return $decoded_json->{records};
 
 	} else {
-		print "Connection Failed: $response->{status}\nReason: $response->{reason}";
+		printSum("Connection Failed: $response->{status}\nReason: $response->{reason}");
 	}
 
 	return 0;
@@ -1041,6 +1057,8 @@ sub getDevices {
 		foreach my $sys_id ( keys %{$devicesMeta->{sys_id}} ) {
 			$devicesMeta->{sys_id}{$sys_id}{active} = 0;
 		}
+		# reset the name index, so that deleted nodes are detected
+		delete($devicesMeta->{name});
 	}
 	
 	# Sample URLS for testing,
@@ -1049,7 +1067,7 @@ sub getDevices {
 	# "https://$uname:$pword\@$cmdb_server/cmdb_ci.do?JSONv2&sysparm_display_value=true&sysparm_query=active=true^install_status=1^u_monitoring_ip%21=%22%22"
 
 	# Retrieve all device entries where install_status=1 (in_use) and u_monitoring_ip != ""
-	print $t->markTime(). " Retrieving Devices from cmdb_ci\n";
+	printSum($t->markTime(). " Retrieving Devices from cmdb_ci");
 	#active eq true AND install_status=1 AND u_monitoring_ip ne ""
 	#my $deviceUrl = "https://$uname:$pword\@$cmdb_server/cmdb_ci.do?JSONv2&sysparm_display_value=true&sysparm_query=active=true^install_status=1^u_monitoring_ip%21=%22%22";
 	
@@ -1063,10 +1081,8 @@ sub getDevices {
 	my $response = $ht->request('GET', $deviceUrl);
 	my $debugPrint = 0;
 	if ($response->{success}) {
-		# print Dumper $response->{content};
 
 		my $decoded_json = decode_json $response->{content};
-		# print Dumper $decoded_json->{records}; # This works here; prints the entire hash
 
 		my @fields = qw(asset serial_number name u_monitoring_ip u_snmp_string location company u_device_type);
 		# Step 2: Spool through the array (each record is an array of hashes)
@@ -1096,7 +1112,7 @@ sub getDevices {
 				
 				if (not eq_deeply($record, $cacheRecord)) {
 					++$changeCount;
-				  print "INFO $changeCount: devices CHANGE detected with $record->{sys_id}\n";
+				  logSnow("INFO $changeCount: devices CHANGE detected with $record->{sys_id}");
 				  if ( $debugPrint ) {
 				  	print JSON::XS->new->pretty(1)->encode($record);
 				  	print JSON::XS->new->pretty(1)->encode($cacheRecord);
@@ -1128,7 +1144,7 @@ sub getDevices {
 				push(@data,$record->{$field});
 			}
 			$onething = join("\t",@data);
-			print "$count: $onething\n" if $debug > 1;
+			printSum("$count: $onething") if $debug > 1;
 		}
 
 		# now look in the devices directory and find any devices which:
@@ -1153,14 +1169,14 @@ sub getDevices {
 						# this is bad, there is a file in the JSON cache but nothing in the meta data.
 						# move the file to the retired folder
 						logSnow("INFO: device $name $file found but nothing in devicesMeta, moving to retired");
-						print "INFO: device $name $file found but nothing in devicesMeta, moving to retired\n";
+						printSum("INFO: device $name $file found but nothing in devicesMeta, moving to retired");
 						rename("$cmdbCache/devices/$file","$cmdbCache/retired/$file");
 						$updateMetaActiveFalse = 1;
 					}
 					# do we have JSON file and the active set to false (0) not in API call?
 					elsif ( not $devicesMeta->{sys_id}{$sys_id}{active} ) {
 						logSnow("INFO: device $name $file found but is NOT active, moving to retired");
-						print "INFO: device $name $file found but is NOT active, moving to retired\n";
+						printSum("INFO: device $name $file found but is NOT active, moving to retired");
 						rename("$cmdbCache/devices/$file","$cmdbCache/retired/$file");						
 						$updateMetaActiveFalse = 1;
 					}
@@ -1185,22 +1201,100 @@ sub getDevices {
 		}	
 				
 		saveFile($devicesMetaFile,$devicesMeta,1);
-		print "Total devices returned: $count\n";
-		print "Done in ".$t->deltaTime() ."\n";
+		printSum("Total devices returned: $count");
+		printSum("Done in ".$t->deltaTime() ."");
 		return $decoded_json->{records};
 
 	} else {
-		print "Connection Failed: $response->{status}\nReason: $response->{reason}";
+		printSum("Connection Failed: $response->{status}\nReason: $response->{reason}");
 	}
 
+}
+
+sub printSum {
+	my $message = shift;
+	print "$message\n";
+	push(@SUMMARY,$message);
 }
 
 sub logSnow {
 	my $message = shift;
 	open(LOG, ">>$snowLog") or warn "Cannot open $snowLog. $!";
 	print LOG returnDateStamp()." $message\n";
-
 	close(LOG);	
+	
+	if ( $message =~ /^ERROR/ ) {
+		print "$message\n";
+	}
+}
+
+sub emailSummary {
+	my $email = shift;
+	my $reportFile = shift;	
+	my $reportPath = shift;	
+	
+	my @recipients = split(/\,/,$email);
+	
+	my $subject = "Service NOW to NMIS Nodes Summary ". returnDateStamp();
+	
+	if ( $arg{subject} ne "" ) {
+		$subject = $arg{subject} . " " . returnDateStamp();
+	}
+	
+	my $entity = MIME::Entity->build(From=>$C->{mail_from}, 
+																	To=>$email,
+																	Subject=> $subject,
+																	Type=>"multipart/mixed");
+
+	my @lines;
+	push @lines, $subject;
+	#insert some blank lines (a join later adds \n
+	push @lines, ("","");
+
+	push (@lines, @SUMMARY);
+	push @lines, ("","");
+	
+	print "Sending summary email to $email\n";
+
+	my $textover = join("\n", @lines);
+	$entity->attach(Data => $textover,
+									Disposition => "inline",
+									Type  => "text/plain");
+
+	$entity->attach(Path => $reportPath,
+									Disposition => "attachment",
+									Filename => $reportFile,
+									Type => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");																		
+
+	my ($status, $code, $errmsg) = sendEmail(
+	  # params for connection and sending 
+		sender => $C->{mail_from},
+		recipients => \@recipients,
+
+		mailserver => $C->{mail_server},
+		serverport => $C->{mail_server_port},
+		hello => $C->{mail_domain},
+		usetls => $C->{mail_use_tls},
+		ipproto => $C->{mail_server_ipproto},
+		
+		username => $C->{mail_user},
+		password => $C->{mail_password},
+
+		# and params for making the message on the go
+		to => $email,
+		from => $C->{mail_from},
+		subject => $subject,
+		mime => $entity
+	);
+
+	if (!$status)
+	{
+		print "ERROR: Sending email to $email failed: $code $errmsg\n";
+	}
+	else
+	{
+		print "SNOW2Nodes Summary Email sent to $email\n";
+	}	
 }
 
 sub saveFile {
