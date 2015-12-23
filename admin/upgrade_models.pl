@@ -39,20 +39,27 @@ use File::Basename;
 use File::Copy;
 
 my $me = basename($0);
-my $usage = "Usage: $me [-u] [-o|-p] <new model dir> <live model dir>
+my $usage = "Usage: $me [-u] [-o|-p] [-n regex] <new model dir> <live model dir>
 -u: do perform the upgrade instead of just reporting model file states
 -o: report only upgradeable files
 -p: report only problematic files
+-n: NEVER upgrade the matching files
+
+exit code: 0 or 255 (with -u)
+without -u: 0 if no upgradables and no problem files were found,
+2 upgradables and no problems,
+1 no upgradables but problems,
+3 both upgradables and problems.
 \n\n";
 
 my %opts;
-die $usage if (!getopts("uop",\%opts)
+die $usage if (!getopts("uopn:",\%opts)
 							 or ($opts{p} && $opts{o})); # o and p are mutually exclusive
 my ($newdir, $livedir) = @ARGV;
 die $usage if (!-d $newdir or !-d $livedir or $livedir eq $newdir);
 
 # load the embedded known signatures for the last few releases
-my (%knownsigs, %newsig);
+my (%knownsigs, %newsig, $exitcode);
 for (<DATA>)
 {
 	my ($file,@sigs) = split(/\s+/);
@@ -62,7 +69,8 @@ for (<DATA>)
 	# also complain if the purportedly known good new file doesn't match any of the known signatures
 	$newsig{$file} = compute_signature("$newdir/$file");
 	die "error: signature state ($newsig{$file}) for $newdir/$file not part of a known release!\n"
-			if (!grep($_ eq $newsig{$file}, @sigs));
+			if (!grep($_ eq $newsig{$file}, @sigs) and 
+					(!$opts{n} or $file !~ qr{$opts{n}}));
 }
 
 # compute current signatures of the live stuff
@@ -82,25 +90,32 @@ my $wanttrouble = $opts{p};
 for my $fn (sort keys %cursigs)
 {
 	my $sig = $cursigs{$fn};
-	if ($newsig{$fn} eq $sig)
+	if ($opts{n} && $fn =~ qr{$opts{n}})
+	{
+		print "$fn is ignored because of option -n.\n";
+	}
+	elsif ($newsig{$fn} eq $sig)
 	{
 		print "$fn is uptodate.\n" if (!$seecandidates && !$wanttrouble);
 	}
 	elsif (!$knownsigs{$fn})
 	{
 		print "$fn is NOT UPGRADEABLE: locally created custom file.\n"
-				if ($wanttrouble or !$seecandidates)
+				if ($wanttrouble or !$seecandidates);
+		$exitcode |= 1;
 	}
 	elsif (grep($_ eq $sig, @{$knownsigs{$fn}}))
 	{
 		print "$fn is upgradeable: not modified since installation.\n"
 				if ($seecandidates or !$wanttrouble);
 		push @cando, $fn;
+		$exitcode |= 2;
 	}
 	else
 	{
 		print "$fn is NOT UPGRADEABLE: has been modified since installation.\n"
 				if ($wanttrouble or !$seecandidates);
+		$exitcode |= 1;
 	}
 }
 # and handle totally new files
@@ -110,6 +125,7 @@ for my $newfn (sort keys %knownsigs)
 	print "$newfn is upgradeable: new file.\n"
 			if ($seecandidates or !$wanttrouble);
 	push @cando, $newfn;
+	$exitcode |= 2;
 }
 
 # perform the actual overwriting if desired
@@ -124,7 +140,7 @@ if ($opts{u} && @cando)
 	print "Completed.\n";
 }
 
-exit 0;
+exit ($opts{u}? 0 : $exitcode);
 
 
 # computes a short signature for a .nmis file (ie. a dumped perl hash)
