@@ -39,17 +39,37 @@ use strict;
 use func;
 use NMIS;
 
+# Variables for command line munging
+my %arg = getArguements(@ARGV);
+
 # load configuration table
 my $C = loadConfTable();
 
 my @groups = getGroupList();
 
-foreach my $group (sort @groups) {
-	print "$group\n";
+if ( $arg{patch} ) {
+	patchGroupList(\@groups);
 }
-print "\n";
+else {	
+	foreach my $group (sort @groups) {
+		print "$group\n";
+	}
+	print "\n";
+	
+	printGroupList(\@groups);
+}
 
-printGroupList(\@groups);
+sub patchGroupList {
+	my $group_list = shift;
+	my $configFile = "/usr/local/nmis8/conf/Config.nmis";
+	
+	my $CONFIG = readFiletoHash(file => $configFile);
+	my $grplist = join(",",@$group_list);
+
+	$CONFIG->{'system'}{'group_list'} = $grplist;
+	
+	writeHashtoFile(file => $configFile, data => $CONFIG);
+}
 
 sub printGroupList {
 	my $group_list = shift;

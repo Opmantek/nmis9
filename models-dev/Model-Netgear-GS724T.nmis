@@ -49,6 +49,9 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'lldp' => {
+        'common-model' => 'LLDP-neighbor'
       }
     }
   },
@@ -372,7 +375,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'macTable',
+    'sections' => 'macTable,lldp',
     'sys' => {
       'macTable' => {
         'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
