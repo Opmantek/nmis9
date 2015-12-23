@@ -821,6 +821,9 @@ Please hit <Enter> to continue:\n";
 		
 		# Updating the TopChanges RRD Type
 		execLog("$site/admin/rrd_tune_responsetime.pl run=true change=true");
+
+		execLog("$site/admin/rrd_tune_cisco.pl run=true change=true");
+
 		print "RRD Tuning complete.\n";
 	}
 	else
