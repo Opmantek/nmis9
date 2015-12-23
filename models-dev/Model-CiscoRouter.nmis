@@ -312,14 +312,14 @@
             'snmpObjectName' => 'ciscoVersionString',
             'title' => 'Software Version'
           },
-          'rttMonApplVersionOid' => {
+          'rttMonApplVersion' => {
             'oid' => '1.3.6.1.4.1.9.9.42.1.1.1.0',
-            'snmpObjectName' => 'rttMonApplVersionOid',
+            'snmpObjectName' => 'rttMonApplVersion',
             'title' => 'IPSLA Version'
           },
-          'rttMonApplResponderOid' => {
+          'rttMonApplResponder' => {
             'oid' => '1.3.6.1.4.1.9.9.42.1.1.13.0',
-            'snmpObjectName' => 'rttMonApplResponderOid',
+            'snmpObjectName' => 'rttMonApplResponder',
             'replace' => {
               '1' => 'enabled',
               '2' => 'disabled',
