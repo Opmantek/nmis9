@@ -3,14 +3,20 @@
 
 if [ -z "$1" ]; then
 		cat >&1 <<EOF
-Usage: $0 <nmisversion>
+Usage: $0 <nmisversion> [rtag1 rtag2..]
 e.g. $0 8.5.10G
+or $0 8.5.12G HEAD \`git tag\`
+
+rtags are needed for capture_model_sigs/upgrade_models; 
+if not present ALL nmis release tags plus HEAD are used!
 
 EOF
 		exit 1
 else
 		VERSION=$1
 fi
+shift
+TAGS="$@"
 
 TEMPDIR=`mktemp -d`
 TARGETDIR=nmis$VERSION
@@ -19,6 +25,14 @@ RELEASEDIR=/usr/local/release
 mkdir -p $TEMPDIR/$TARGETDIR
 cd $TEMPDIR
 git clone -b nmis8_dev gitolite@community:nmis $TARGETDIR
+
+if [ -z "$TAGS" ]; then
+		TAGS="HEAD `cd $TARGETDIR; git tag`"
+fi
+
+# before we remove build files do get the model signatures
+echo "Capturing model sigs, for releases $TAGS"
+( cd $TARGETDIR; ./build/capture_model_sigs ./admin/upgrade_models.pl $TAGS; );
 
 # create the dirs that are empty and therefore not in git
 for i in conf database models htdocs/reports logs/json; do
@@ -46,7 +60,7 @@ mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-b
 
 mv $TARGETDIR/bin/opslad.pl $TARGETDIR/bin/cplan.pl $NONFREE/bin
 mv $TARGETDIR/lib/NMIS/IPSLA.pm $NONFREE/lib/NMIS
-mv $TARGETDIR/admin/opsla* $TARGETDIR/admin/find_ipsla_nodes.pl $TARGETDIR/admin/oss_export.pl $NONFREE/admin
+mv $TARGETDIR/admin/opsla* $TARGETDIR/admin/find_ipsla_nodes.pl $TARGETDIR/admin/oss_export_* $NONFREE/admin
 
 # must ditch the git files before making self-extracting installer
 rm -rf $TARGETDIR/.git $TARGETDIR/.gitignore

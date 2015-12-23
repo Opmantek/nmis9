@@ -20,7 +20,7 @@ die $usage if (!$targetfile or !@rtags);
 die "must be run from checked out nmis repository!\n"
 		if (!-d "./lib/NMIS" or !-d "./.git");
 
-my (@files, %sigs);
+my (%sigs);
 
 opendir(D, "models-install") or die "cannot open models-install: $!\n";
 my @files = grep(/\.nmis$/, readdir(D));
@@ -32,15 +32,23 @@ for my $todofile (@files)
 	my $tempfile = "/tmp/$todofile.$$";
 	for my $tag (@rtags)
 	{
-		my $res = system("git show $tag:models-install/$todofile >$tempfile");
+		my $res = system("git show $tag:models-install/$todofile >$tempfile 2>/dev/null");
 		# error? likely the file didn't exist in that version
 		next if ($res >> 8);
 
 		$sigs{$todofile} ||= [];
-	
-		push @{$sigs{$todofile}}, compute_signature($tempfile);
-		unlink($tempfile);
+		# some old releases had syntax errors in model files :-(
+		my $sig = compute_signature($tempfile);
+		if ($sig)
+		{
+			push @{$sigs{$todofile}}, $sig;
+		}
+		else
+		{
+			warn "Attention: bad $todofile in release $tag!\n";
+		}
 	}
+	unlink($tempfile);
 }
 
 # if we can update a file with __DATA__, we do;
@@ -67,14 +75,24 @@ exit 0;
 
 # computes a short signature for a .nmis file (ie. a dumped perl hash)
 # args: filename/path, optional sauce
-# returns: signature or dies on error
+# returns: signature or undef + warns on error
 # note: function needs to be kept in sync with admin/upgrade_models.pl
 sub compute_signature
 {
 	my ($fn, $sauce) = @_;
 
-	my %structure = eval { do $fn; };
-	die "cannot parse file $fn: $@\n" if ($@ or !keys %structure);
+	my %structure = do $fn;
+	if ($@)
+	{
+		warn "cannot parse file $fn: $@\n";
+		return undef;
+	}
+	elsif (!keys %structure)
+	{
+		warn "file $fn contains NO hash!\n";
+		return undef;
+	}
+
 	$sauce ||= '';
 
 	my $fullsig = Digest::MD5::md5_hex($sauce.JSON::XS->new->canonical(1)->pretty(0)->encode(\%structure));
