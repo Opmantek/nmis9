@@ -47,8 +47,8 @@ for my $todofile (@files)
 		{
 			warn "Attention: bad $todofile in release $tag!\n";
 		}
-		unlink($tempfile);
 	}
+	unlink($tempfile);
 }
 
 # if we can update a file with __DATA__, we do;
