@@ -4464,8 +4464,9 @@ sub runServices {
 			if ($svc->{Args})
 			{
 				$finalargs = $svc->{Args};
-				$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
-				
+				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
+				# or if there's a nonword char before node.xyz.
+				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
 				dbg("external program args were $svc->{Args}, now $finalargs");
 			}
 
