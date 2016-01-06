@@ -46,6 +46,7 @@ use URI::Escape;
 use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
+use Time::HiRes;								# also needed by nmis::timing, but bsts
 use NMIS::Timing;
 use NMIS::UUID;
 use func;				# local
@@ -74,7 +75,8 @@ use Errno qw(EAGAIN ESRCH EPERM);
 # Variables for command line munging
 my %nvp = getArguements(@ARGV);
 
-# load configuration table
+# load configuration table, memorize startup time
+my $starttime = Time::HiRes::time;
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
@@ -92,12 +94,12 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 	if (!-d $varsysdir)
 	{
-		createDir($varsysdir); 
+		createDir($varsysdir);
 		setFileProt($varsysdir);
 	}
 	my $selftest_cache = "$varsysdir/selftest";
 
-	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false', 
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false',
 																			 report_database_status => \$selftest_dbdir_status);
 	writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
@@ -107,7 +109,7 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
 	}
 	else
-	{ 
+	{
 		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
 	}
 }
@@ -182,7 +184,7 @@ exit;
 #=========================================================================================
 
 # run collection-type functions, possibly spread across multiple processes
-sub	runThreads 
+sub	runThreads
 {
 	my %args = @_;
 	my $type = $args{type};
@@ -202,10 +204,10 @@ sub	runThreads
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
 		{
-			createDir($varsysdir); 
+			createDir($varsysdir);
 			setFileProt($varsysdir);
 		}
-		
+
 		my $selftest_cache = "$varsysdir/selftest";
 		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
 																				 report_database_status => \$selftest_dbdir_status);
@@ -225,15 +227,15 @@ sub	runThreads
 	# this changes the local nodes table!
 	if (my $changed_nodes = createNodeUUID())
 	{
-		$NT = loadLocalNodeTable(); 
+		$NT = loadLocalNodeTable();
 		dbg("table Local Node reloaded after uuid updates",2);
 	}
 
 	my $C = loadConfTable();		# config table from cache
-	
+
 	# check if the fping results look sensible
 	# compare nr of pingable active nodes against the fping results
-	if (getbool($C->{daemon_fping_active})) 
+	if (getbool($C->{daemon_fping_active}))
 	{
 		my $pt = loadTable(dir=>'var',name=>'nmis-fping'); # load fping table in cache
 		my $cnt_pt = keys %{$pt};
@@ -296,7 +298,7 @@ sub	runThreads
 		# first find all other nmis collect processes
 		my $others = func::find_nmis_processes(type => $type, config => $C);
 
-		# if this is a collect and if told to ignore running processes (ignore_running=1/t), 
+		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
 		# then only warn about processes and don't shoot them.
 		# the same should be done if this is an interactive run with info or debug
 		if (($type eq "collect" and ( getbool($nvp{ignore_running})
@@ -319,9 +321,9 @@ sub	runThreads
 			{
 				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
 				logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
-				
+
 				kill("TERM",$pid);
-				
+
 				# and raise an event to inform the operator - unless told NOT to
 				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
 				if ((!defined $C->{disable_nmis_process_events} or !getbool($C->{disable_nmis_process_events})
@@ -345,7 +347,7 @@ sub	runThreads
 		}
 	}
 
-	# the signal handler handles termination more-or-less gracefully, 
+	# the signal handler handles termination more-or-less gracefully,
 	# and knows about critical sections
 	$SIG{INT} =  \&catch_zap;
 	$SIG{TERM} =  \&catch_zap;
@@ -359,7 +361,7 @@ sub	runThreads
 	if ($type eq "update") {
 		$meth = \&doUpdate;
 		logMsg("INFO start of update process");
-	} 
+	}
 	elsif ($type eq "collect")
 	{
 		logMsg("INFO start of collect process");
@@ -375,11 +377,11 @@ sub	runThreads
 	}
 
 	# update the operation start/stop timestamp
-	func::update_operations_stamp(type => $type, start => $C->{starttime}, stop => undef);
+	func::update_operations_stamp(type => $type, start => $starttime, stop => undef);
 
 	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
 	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
-	
+
 	my @list_of_handled_nodes;		# for any after_x_plugin() functions
 	if ($node_select eq "")
 	{
@@ -399,7 +401,7 @@ sub	runThreads
 				if ( getbool($NT->{$onenode}{active}) ) {
 					++$nodecount;
 					push @list_of_handled_nodes, $onenode;
-					
+
 					# One process for each node until maxThreads is reached.
 					# This loop is entered only if the commandlinevariable mthread=true is used!
 					if ($mthread)
@@ -411,7 +413,7 @@ sub	runThreads
 							if ($mthreadDebug) {
 								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
 							}
-							
+
 							# don't run longer than X seconds
 							alarm($C->{max_child_runtime})
 									if (defined $C->{max_child_runtime});
@@ -434,7 +436,7 @@ sub	runThreads
 							$maxprocs = $procs_now if $procs_now > $maxprocs;
 						}
 					}
-					else 
+					else
 					{
 						# iterate over nodes in this process, if mthread is false
 						&$meth(name=>$onenode);
@@ -473,7 +475,7 @@ sub	runThreads
 	alarm(0) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
 
 	dbg("### continue normally ###");
-	$C->{collecttime} = time();
+	my $collecttime = Time::HiRes::time();
 
 	my $S;
 	# on update prime the interface summary
@@ -487,7 +489,7 @@ sub	runThreads
 		}
 	}
 	# some collect post-processing, but only if running on all nodes
-	elsif ( $type eq "collect" and $node_select eq "" ) 
+	elsif ( $type eq "collect" and $node_select eq "" )
 	{
 		$S = Sys->new; # object nmis-system
 		$S->init();
@@ -497,16 +499,16 @@ sub	runThreads
 		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
 		if ( getbool($C->{'nmis_master_poll_cycle'}) or !getbool($C->{'nmis_master_poll_cycle'},"invert") ) {
 			my $pollTimer = NMIS::Timing->new;
-			
+
 			dbg("Starting nmisMaster");
 			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
-			
+
 			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
-		} 
+		}
 		else {
 			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
 		}
-		
+
 		if ( getbool($C->{'nmis_summary_poll_cycle'}) or !getbool($C->{'nmis_summary_poll_cycle'},"invert") ) {
 			dbg("Starting nmisSummary");
 			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
@@ -532,9 +534,9 @@ sub	runThreads
 
 		# nmis collect runtime, process counts and save
 		my $D;
-		$D->{collect}{value} = $C->{collecttime} - $C->{starttime};
+		$D->{collect}{value} = $collecttime - $starttime;
 		$D->{collect}{option} = 'gauge,0:U';
-		$D->{total}{value} = time() - $C->{starttime};
+		$D->{total}{value} = Time::HiRes::time() - $starttime;
 		$D->{total}{option} = 'gauge,0:U';
 
 		my $nr_processes = 1+ scalar %{&func::find_nmis_processes(config => $C)}; # current one isn't returned by find_nmis_processes
@@ -542,7 +544,7 @@ sub	runThreads
 											 value => $nr_processes };
 		$D->{max_procs} = { option => "gauge,0:U",
 												value => $maxprocs };
-		
+
 		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis"))) {
 			$NI->{graphtype}{nmis} = 'nmis';
 		}
@@ -552,13 +554,13 @@ sub	runThreads
 	if ($type eq "collect" or $type eq "update")
 	{
 		my $pollTimer = NMIS::Timing->new;
-		# now run all after_{collect,update}_plugin() functions, regardless of whether 
+		# now run all after_{collect,update}_plugin() functions, regardless of whether
 		# this was a one-node or all-nodes run
 		for my $plugin (@active_plugins)
 		{
 			my $funcname = $plugin->can("after_${type}_plugin");
 			next if (!$funcname);
-			
+
 			# prime the global sys object, if this was an update run or a one-node collect
 			if (!$S)
 			{
@@ -590,17 +592,17 @@ sub	runThreads
 		}
 		logMsg("Poll Time: After $type Plugins ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 	}
-	
+
 	logMsg("INFO end of $type process");
 
 	if ($C->{info} or $debug or $mthreadDebug) {
-		my $endTime = time() - $C->{starttime};
+		my $endTime = sprintf("%.2f", Time::HiRes::time() - $starttime);
 		my $stats = getUpdateStats();
 		print "\n".returnTime ." Number of Data Points: $stats->{datapoints}, Sum of Bytes: $stats->{databytes}, RRDs updated: $stats->{rrdcount}, Nodes with Updates: $stats->{nodecount}\n";
 		print "\n".returnTime ." End of $0 Processed $nodecount nodes ran for $endTime seconds.\n\n";
 	}
 
-	func::update_operations_stamp(type => $type, start => $C->{starttime}, stop => time());
+	func::update_operations_stamp(type => $type, start => $starttime, stop => Time::HiRes::time());
 
 	dbg("Finished");
 	return;
@@ -608,13 +610,13 @@ sub	runThreads
 
 # generic signal handler, but with awareness of code in critical sections
 # also handles SIGALARM, which we cop if the process has run out of time
-sub catch_zap 
+sub catch_zap
 {
 	my $rs = $_[0];
 
 	# if we've run out of our allocated run time, raise an event to inform the operator
 	# unless told NOT to... fixme: we can't check the events control table here as that might block.
-	if ($rs eq "ALRM" and (!defined $C->{disable_nmis_process_events} 
+	if ($rs eq "ALRM" and (!defined $C->{disable_nmis_process_events}
 												 or !getbool($C->{disable_nmis_process_events})))
 	{
 		logEvent(node => $C->{server_name},
@@ -651,7 +653,7 @@ sub doUpdate {
 
 	dbg("================================");
 	dbg("Starting update, node $name");
-	
+
 	#Check for update LOCK
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
@@ -759,7 +761,7 @@ sub doUpdate {
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
-	}	
+	}
 
 	return;
 } # end runUpdate
@@ -771,7 +773,7 @@ sub doUpdate {
 sub load_plugins
 {
 	my @activeplugins;
-	
+
 	# check for plugins enabled and the dir
 	return () if (!getbool($C->{plugins_enabled})
 								or !$C->{plugin_root} or !-d $C->{plugin_root});
@@ -786,7 +788,7 @@ sub load_plugins
 
 	for my $candidate (@candidates)
 	{
-		my $packagename = $candidate; 
+		my $packagename = $candidate;
 		$packagename =~ s/\.pm$//;
 
 		# read it and check that it has precisely one matching package line
@@ -814,8 +816,8 @@ sub load_plugins
 		}
 
 		# we're interested if one or more of the supported plugin functions are provided
-		push @activeplugins, $packagename 
-				if ($packagename->can("update_plugin") 
+		push @activeplugins, $packagename
+				if ($packagename->can("update_plugin")
 						or $packagename->can("collect_plugin")
 						or $packagename->can("after_collect_plugin")
 						or $packagename->can("after_update_plugin") );
@@ -842,7 +844,7 @@ sub doServices
 	my $S = Sys->new;
 	$S->init(name => $name);
 	runServices(sys=>$S, snmp => 'false');
-	
+
 	return;
 }
 
@@ -941,7 +943,7 @@ sub doCollect {
 
 						# Custom Alerts
 						runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
-						
+
 						### 2014-12-16 keiths, when did the collect poll last complete properly.
 						$NI->{system}{lastCollectPoll} = time();
 					}
@@ -993,14 +995,14 @@ sub doCollect {
 	}
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
-	
+
 	$S->close;
 	info("Finished");
 
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
-	}	
+	}
 
 	return;
 } # end doCollect
@@ -1067,8 +1069,8 @@ sub runPing {
 		} else {
 			# fallback to OLD system
 			logMsg("INFO ($S->{name}) standard ping system using, no ping info of daemon fpingd")
-					if (getbool($C->{daemon_fping_active}) 
-							and !getbool($C->{daemon_fping_failed}) 
+					if (getbool($C->{daemon_fping_active})
+							and !getbool($C->{daemon_fping_failed})
 							and !getbool($S->{doupdate}));
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
 			my $timeout = $C->{ping_timeout} ? $C->{ping_timeout} : 300 ;
@@ -1100,8 +1102,8 @@ sub runPing {
 				$RI->{pingloss} = $ping_loss;
 				info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 
-				# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the 
-				# frontend nodeStatus() takes proper care of. 
+				# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
+				# frontend nodeStatus() takes proper care of.
 				checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
 
 				$exit = 1;
@@ -1263,15 +1265,15 @@ sub getNodeInfo {
 		dbg("node $S->{name} is marked collect is 'false'");
 		$exit = 1; # done
 	}
-	
+
 	# get and apply any nodeconf override if such exists for this node
 	my $nodename = $NI->{system}->{name};
 	my ($errmsg, $override) = get_nodeconf(node => $nodename)
 			if (has_nodeconf(node => $nodename));
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
-	
-	if ($override->{sysLocation}) 
+
+	if ($override->{sysLocation})
 	{
 		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 		$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
@@ -1279,7 +1281,7 @@ sub getNodeInfo {
 	} else {
 		$NI->{system}{sysLocation} = $NI->{system}{sysLocation};
 	}
-	
+
 	if ($override->{sysContact})
 	{
 		$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
@@ -1292,7 +1294,7 @@ sub getNodeInfo {
 	#####################
 
 	# process status
-	if ($exit) {          
+	if ($exit) {
 		# why delete this here?
 		#delete $NI->{interface}; # reset intf info
 
@@ -1457,9 +1459,9 @@ sub checkNodeConfiguration {
 		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastViewed=$configLastViewed, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
 	}
 	else {
-		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastChanged_prev=$configLastChanged_prev");		
+		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastChanged_prev=$configLastChanged_prev");
 	}
-	
+
 	# check if config is saved:
 	$V->{system}{configLastChanged_value} = convUpTime( $configLastChanged/100 ) if defined $configLastChanged;
 	$V->{system}{configLastSaved_value} = convUpTime( $configLastViewed/100 ) if defined $configLastViewed;
@@ -1468,18 +1470,18 @@ sub checkNodeConfiguration {
 	### Cisco Node Configuration Change Only
 	if( defined $configLastChanged && defined $bootConfigLastChanged ) {
 		$V->{system}{configurationState_title} = 'Configuration State';
-		
+
 		### when the router reboots bootConfigLastChanged = 0 and configLastChanged is about 2 seconds, which are the changes made by booting.
 		if( $configLastChanged > $bootConfigLastChanged and $configLastChanged > 5000 ) {
 			$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
 			$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
 			info("checkNodeConfiguration, config not saved, $configLastChanged > $bootConfigLastChanged");
-		} 
+		}
 		elsif( $bootConfigLastChanged == 0 and $configLastChanged <= 5000 ) {
 			$V->{system}{"configurationState_value"} = "Config Not Changed Since Boot";
 			$V->{system}{"configurationState_color"} = "#00BB00";	#normal
 			info("checkNodeConfiguration, config not changed, $configLastChanged $bootConfigLastChanged");
-		} 
+		}
 		else {
 			$V->{system}{"configurationState_value"} = "Config Saved in NVRAM";
 			$V->{system}{"configurationState_color"} = "#00BB00";	#normal
@@ -1524,16 +1526,16 @@ sub getIntfInfo {
 	my $SNMP = $S->snmp;
 	my $IF = $S->ifinfo; # interface info table
 	my $NC = $S->ndcfg; # node config table
-	
+
 	my $singleInterface = 0;
 	if (defined $intf_one and $intf_one ne "") {
 		$singleInterface = 1;
 	}
-	
+
 	my $C = loadConfTable();
 	my $nodename = $NI->{system}->{name};
 
-	### handling the default value for max-repetitions, 
+	### handling the default value for max-repetitions,
 	# this controls how many OID's will be in a single request.
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
@@ -1541,23 +1543,23 @@ sub getIntfInfo {
 	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
-		# Check if the ifTableLastChange has changed.  If it has not changed, the 
+		# Check if the ifTableLastChange has changed.  If it has not changed, the
 		# interface table has had no interfaces added or removed, no need to go any further.
 		### does this need to be defined per model?
 		if (
 			not $singleInterface
-			and defined $S->{mdl}{custom}{interface}{ifTableLastChange} 
+			and defined $S->{mdl}{custom}{interface}{ifTableLastChange}
 			and getbool($S->{mdl}{custom}{interface}{ifTableLastChange})
 			and my $result = $SNMP->get("ifTableLastChange.0")
 		) {
 			$result = $result->{"1.3.6.1.2.1.31.1.5.0"};
 			if ( defined $result and not defined $NI->{system}{ifTableLastChange} ) {
 				info("$NI->{system}{name} using ifTableLastChange for interface updates");
-				$NI->{system}{ifTableLastChange} = $result; 			
+				$NI->{system}{ifTableLastChange} = $result;
 			}
 			elsif ( $NI->{system}{ifTableLastChange} != $result ) {
 				info("$NI->{system}{name} ifTableLastChange has changed old=$NI->{system}{ifTableLastChange} new=$result");
-				$NI->{system}{ifTableLastChange} = $result; 
+				$NI->{system}{ifTableLastChange} = $result;
 			}
 			else {
 				info("$NI->{system}{name} ifTableLastChange NO change, skipping ");
@@ -1569,21 +1571,21 @@ sub getIntfInfo {
 
 		info("Starting");
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
-		
+
 		# lets delete what we have in memory and start from scratch.
 		# BUT only if this is for all interfaces.........
 		if ( not $singleInterface ) {
 			delete $NI->{interface}; # reset intf info
 		}
-		
+
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
 
-		my ($error, $override) = get_nodeconf(node => $nodename) 
+		my ($error, $override) = get_nodeconf(node => $nodename)
 				if (has_nodeconf(node => $nodename));
 		logMsg("ERROR $error") if ($error);
 		$override ||= {};
-		
+
 		# get interface Index table
 		my @ifIndexNum;
 		my $ifIndexTable;
@@ -1598,14 +1600,14 @@ sub getIntfInfo {
 				}
 			} else {
 				if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");						
+					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");
 				}
 				# failed by snmp
 				else {
 					logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
 					snmpNodeDown(sys=>$S);
 				}
-	
+
 				info("Finished");
 				return 0;
 			}
@@ -1617,13 +1619,13 @@ sub getIntfInfo {
 					delete $IF->{$i};
 					if ( defined $NI->{graphtype}{$i}{interface} ) {
 						delete $NI->{graphtype}{$i}{interface};
-					}	
+					}
 					if ( defined $NI->{graphtype}{$i}{pkts} ) {
 						delete $NI->{graphtype}{$i}{pkts};
-					}	
+					}
 					if ( defined $NI->{graphtype}{$i}{pkts_hc} ) {
 						delete $NI->{graphtype}{$i}{pkts_hc};
-					}	
+					}
 					dbg("Interface ifIndex=$i removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table"); # test info
 				}
@@ -1638,23 +1640,23 @@ sub getIntfInfo {
 			next if ($singleInterface and $intf_one ne $index); # only one interface
 			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
 				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
-				
+
 				my $keepInterface = 1;
 				if ( defined $S->{mdl}{custom}{interface}{skipIfType}
 					and $S->{mdl}{custom}{interface}{skipIfType} ne ""
-					and $IF->{$index}{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ 
+					and $IF->{$index}{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/
 				) {
 					$keepInterface = 0;
-					info("SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
-				}	
+					info("SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");
+				}
 				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
 					and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
-					and $IF->{$index}{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ 
+					and $IF->{$index}{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/
 				) {
 					$keepInterface = 0;
-					info("SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
+					info("SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");
 				}
-								
+
 				if ( not $keepInterface ) {
 					# not easy.
 					foreach my $key ( keys %{$IF->{$index}} ) {
@@ -1680,7 +1682,7 @@ sub getIntfInfo {
 				if ( getbool($C->{snmp_stop_polling_on_error}) ) {
 					info("Finished");
 					return 0;
-				}				
+				}
 			}
 		}
 		# copy the new list back.
@@ -1722,10 +1724,10 @@ sub getIntfInfo {
 
 
 		if ( $singleInterface
-			and defined $S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle} 
-			and getbool($S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle}) 
+			and defined $S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle}
+			and getbool($S->{mdl}{custom}{interface}{skipIpAddressTableOnSingle})
 		) {
-			info("Skipping Device IP Address Table because skipIpAddressTableOnSingle is false");		
+			info("Skipping Device IP Address Table because skipIpAddressTableOnSingle is false");
 		}
 		else {
 			my $ifAdEntTable;
@@ -1753,7 +1755,7 @@ sub getIntfInfo {
 				dbg("ERROR getting Device Ip Address table");
 			}
 		}
-		
+
 		# pre compile regex
 		my $qr_no_collect_ifDescr_gen = qr/($S->{mdl}{interface}{nocollect}{ifDescr})/i;
 		my $qr_no_collect_ifType_gen = qr/($S->{mdl}{interface}{nocollect}{ifType})/i;
@@ -1850,10 +1852,10 @@ sub getIntfInfo {
 		info("Completed duplicate ifDescr processing");
 
 		### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-		foreach my $index (@ifIndexNum) 
+		foreach my $index (@ifIndexNum)
 		{
 			next if ($singleInterface and $intf_one ne $index);
-			
+
 			my $ifDescr = $IF->{$index}{ifDescr};
 			$intfTotal++;
 			# count total number of real interfaces
@@ -1868,22 +1870,22 @@ sub getIntfInfo {
 			if (ref($override->{$ifDescr}) eq "HASH")
 			{
 				my $thisintfover = $override->{$ifDescr};
-				
-				if ($thisintfover->{Description}) 
+
+				if ($thisintfover->{Description})
 				{
 					$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
-					$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"} 
+					$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"}
 					= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
 				}
 
 				for my $speedname (qw(ifSpeed ifSpeedIn ifSpeedOut))
 				{
-					if ($thisintfover->{$speedname}) 
+					if ($thisintfover->{$speedname})
 					{
 						$IF->{$index}{"nc_$speedname"} = $IF->{$index}{$speedname}; # save
 						$IF->{$index}{$speedname} = $thisintfover->{$speedname};
-						
+
 						### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
 						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed($IF->{$index}{$speedname});
 						info("Manual update of $speedname by nodeConf");
@@ -1941,7 +1943,7 @@ sub getIntfInfo {
 			# if the interface has been down for too many days to be in use now.
 			elsif ( $IF->{$index}{ifAdminStatus} =~ /up/
 				and $IF->{$index}{ifOperStatus} =~ /down/
-				and ($NI->{system}{sysUpTimeSec} - $IF->{$index}{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days  
+				and ($NI->{system}{sysUpTimeSec} - $IF->{$index}{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days
 			) {
 				$IF->{$index}{collect} = "false";
 				$IF->{$index}{nocollect} = "Not Collecting: interface down for more than $nocollect_interface_down_days days"; # reason
@@ -1971,13 +1973,13 @@ sub getIntfInfo {
 			if (ref($override->{$ifDescr}) eq "HASH")
 			{
 				my $thisintfover = $override->{$ifDescr};
-				
-				if ($thisintfover->{collect} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+
+				if ($thisintfover->{collect} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
 				{
 					$IF->{$index}{nc_collect} = $IF->{$index}{collect};
 					$IF->{$index}{collect} = $thisintfover->{collect};
 					info("Manual update of Collect by nodeConf");
-					
+
 					### 2014-04-28 keiths, fixing info for GUI
 					if (getbool($IF->{$index}{collect},"invert")) {
 						$IF->{$index}{nocollect} = "Not Collecting: Manual update by nodeConf";
@@ -1986,21 +1988,21 @@ sub getIntfInfo {
 						$IF->{$index}{nocollect} = "Collecting: Manual update by nodeConf";
 					}
 				}
-				
-				if ($thisintfover->{event} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+
+				if ($thisintfover->{event} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
 				{
 					$IF->{$index}{nc_event} = $IF->{$index}{event};
 					$IF->{$index}{event} = $thisintfover->{event};
-					$IF->{$index}{noevent} = "Manual update by nodeConf" 
+					$IF->{$index}{noevent} = "Manual update by nodeConf"
 							if (getbool($IF->{$index}{event},"invert")); # reason
 					info("Manual update of Event by nodeConf");
 				}
-				
-				if ($thisintfover->{threshold} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr}) 
+
+				if ($thisintfover->{threshold} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
 				{
 					$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
 					$IF->{$index}{threshold} = $thisintfover->{threshold};
-					$IF->{$index}{nothreshold} = "Manual update by nodeConf" 
+					$IF->{$index}{nothreshold} = "Manual update by nodeConf"
 							if (getbool($IF->{$index}{threshold},"invert")); # reason
 					info("Manual update of Threshold by nodeConf");
 				}
@@ -2027,10 +2029,10 @@ sub getIntfInfo {
 						delete $NI->{graphtype}{$index}{$type};
 					}
 				}
-			}				
+			}
 
 			# number of interfaces collected with collect and event on
-			$intfCollect++ if (getbool($IF->{$index}{collect}) 
+			$intfCollect++ if (getbool($IF->{$index}{collect})
 												 && getbool($IF->{$index}{event}));
 
 			# save values only if all interfaces are updated
@@ -2252,7 +2254,7 @@ sub getEnvInfo {
 						}
 					} else {
 						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");
 						}
 						# failed by snmp
 						else {
@@ -2326,7 +2328,7 @@ sub getEnvInfo {
 						}
 					} else {
 						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");						
+							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");
 						}
 						# failed by snmp
 						else {
@@ -2478,7 +2480,7 @@ sub getSystemHealthInfo {
 	my $SNMP = $S->snmp;
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
-	
+
 	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
@@ -2534,7 +2536,7 @@ sub getSystemHealthInfo {
 					}
 				} else {
 					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");						
+						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
 					}
 					# failed by snmp
 					else {
@@ -2662,15 +2664,15 @@ sub updateNodeInfo {
 		}
 		# if ifNumber has changed, then likely an interface has been added or removed.
 
-		# a new control to minimise when interfaces are added, 
+		# a new control to minimise when interfaces are added,
 		# if disabled {custom}{interface}{ifNumber} eq "false" then don't run getIntfInfo when intf changes
 		my $doIfNumberCheck = 1;
-		if ( defined $S->{mdl}{custom}{interface}{ifNumber} 
-				and not getbool($S->{mdl}{custom}{interface}{ifNumber}) 
+		if ( defined $S->{mdl}{custom}{interface}{ifNumber}
+				and not getbool($S->{mdl}{custom}{interface}{ifNumber})
 		) {
 			$doIfNumberCheck = 0;
-		}			
-						
+		}
+
 		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber}) {
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
@@ -2689,11 +2691,11 @@ sub updateNodeInfo {
 		if ( defined $NI->{system}{snmpUpTime} ) {
 			# SRC - add processing for SNMP Uptime- handle just like sysUpTime
 			$NI->{system}{snmpUpTimeSec} = int($NI->{system}{snmpUpTime}/100);
-			$NI->{system}{snmpUpTime} = convUpTime($NI->{system}{snmpUpTimeSec});		
+			$NI->{system}{snmpUpTime} = convUpTime($NI->{system}{snmpUpTimeSec});
 			$V->{system}{snmpUpTime_value} = $NI->{system}{snmpUpTime};
 			$V->{system}{snmpUpTime_title} = 'SNMP Uptime';
 		}
-		
+
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
 		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
 			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
@@ -2721,13 +2723,13 @@ sub updateNodeInfo {
 		$override ||= {};
 
 		# anything to override?
-		if ($override->{sysLocation}) 
+		if ($override->{sysLocation})
 		{
 			$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
 			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 			info("Manual update of sysLocation by nodeConf");
 		}
-		if ($override->{sysContact}) 
+		if ($override->{sysContact})
 		{
 			$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
 			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
@@ -2747,7 +2749,7 @@ sub updateNodeInfo {
 		$V->{system}{status_color} = '#0F0';
 
 		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{nodeConfiguration};
-	
+
 		### conditional on model section to ensure backwards compatibility with different Juniper values.
 		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{juniperConfiguration};
 
@@ -2930,7 +2932,7 @@ sub getIntfData {
 			if (has_nodeconf(node => $nodename));
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
-	
+
 	my $createdone = "false";
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
@@ -2946,10 +2948,10 @@ sub getIntfData {
 	#  'custom' => {
   #    'interface' => {
   #      'ifAdminStatus' => 'false',
-  #    }   
-  #  },   
-	if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus} 
-			 or ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} 
+  #    }
+  #  },
+	if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus}
+			 or ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
 						and !getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert")) ) {
 		info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
 		my $ifAdminTable;
@@ -2964,25 +2966,25 @@ sub getIntfData {
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 				}
 				# total number of interfaces up
-				$RI->{intfUp}++ if $ifOperTable->{$index} == 1 
+				$RI->{intfUp}++ if $ifOperTable->{$index} == 1
 						and getbool($IF->{$index}{real});
 			}
 		}
 	}
-	
+
 	# so get the ifLastChange for each interface and see if it has changed, if it has then run an update.
-	# if an interface is added this will find it to.  
+	# if an interface is added this will find it to.
 	# if it changes admin or oper state it will find it.
-	# this can be enabled on a model by model basis is false by default.  
+	# this can be enabled on a model by model basis is false by default.
 	# Handy for HIGH INTERFACE COUNT.
 	#  'custom' => {
   #    'interface' => {
   #      'ifLastChange' => 'true',
   #      'ifNumber' => 'false',
-  #    }   
+  #    }
   #  },
-	if ( defined $S->{mdl}{custom}{interface}{ifLastChange} 
-		and getbool($S->{mdl}{custom}{interface}{ifLastChange}) 
+	if ( defined $S->{mdl}{custom}{interface}{ifLastChange}
+		and getbool($S->{mdl}{custom}{interface}{ifLastChange})
 	) {
 		info("Using ifLastChange for Interface Change Detection");
 		my $ifLastChangeTable;
@@ -2992,10 +2994,10 @@ sub getIntfData {
 				my $ifLastChangeSec = int($ifLastChangeTable->{$index}/100);
 				if ( not exists $IF->{$index} ) {
 					# updateNodeInfo should have already run a getIntfInfo unless {custom}{interface}{ifNumber} set to false
-					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec");																
+					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 					getIntfInfo(sys=>$S,index=>$index); # add this interface
 				}
-				elsif ( 
+				elsif (
 					$ifLastChangeSec != $IF->{$index}{ifLastChangeSec}
 				) {
 					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
@@ -3003,7 +3005,7 @@ sub getIntfData {
 					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
 				}
 				else {
-					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");																
+					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 				}
 			}
 		}
@@ -3021,7 +3023,7 @@ sub getIntfData {
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
 		if ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 			info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
-			
+
 			# only collect on interfaces that are defined, with collection turned on globally
 			if ( getbool($IF->{$index}{collect}) ) {
 				dbg("collect interface index=$index");
@@ -3095,7 +3097,7 @@ sub getIntfData {
 
 								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
 									if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-										and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus}) 
+										and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus})
 									) {
 										### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
 										# interface now up or down, check and set or clear outstanding event.
@@ -3113,7 +3115,7 @@ sub getIntfData {
 										} else {
 											checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 										}
-									}										
+									}
 									else {
 										dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
 										if ($D->{ifOperStatus}{value} eq 'down') {
@@ -3130,7 +3132,7 @@ sub getIntfData {
 												getIntfInfo(sys=>$S,index=>$index); # update this interface
 											}
 										}
-									} 
+									}
 
 									# If new ifDescr is different from old ifDescr rebuild interface info table
 									# check if nodeConf modified this inteface
@@ -3141,11 +3143,11 @@ sub getIntfData {
 									my $have_overridden_ifdescr = 1
 											if (ref($override->{$ifDescr}) eq "HASH"
 													and $override->{$ifDescr}->{ifDescr});
-									
-									
-									if ($NI->{system}{nodeType} =~ /router|switch/ 
+
+
+									if ($NI->{system}{nodeType} =~ /router|switch/
 											and !$have_overridden_ifdescr
-											and $D->{ifDescr}{value} ne '' 
+											and $D->{ifDescr}{value} ne ''
 											and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
 										# Reload the interface config won't get that one right but should get the next one right
 										logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table");
@@ -3175,7 +3177,7 @@ sub getIntfData {
 									$RI->{operCount} = $RI->{operCount} + 1;
 
 									# count total number of collected interfaces up ( if events are set on)
-									$RI->{intfColUp} += $operStatus/100 
+									$RI->{intfColUp} += $operStatus/100
 											if getbool($IF->{$index}{event});
 								} else{
 									logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
@@ -3200,7 +3202,7 @@ sub getIntfData {
 						$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
 						$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
 
-						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus} 
+						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
 								 and getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert") ) {
 							dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
 							$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
@@ -3237,7 +3239,7 @@ sub getIntfData {
 				$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs'; # backwards compat
 
 				# check escalation if event is on
-				if (getbool($IF->{$index}{event})) 
+				if (getbool($IF->{$index}{event}))
 				{
 					my $escalate = 'none';
 					if (my $event_exist = eventExist($S->{node}, "Interface Down", $IF->{$index}{ifDescr}))
@@ -3452,8 +3454,8 @@ sub getCBQoS {
 
 								#KS 2011-10-27 Redundant model object not in use: getbool($M->{system}{cbqos}{collect_all_cm})
 								while ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
-											 and $answer->{'cbQosParentObjectsIndex2'} ne 0 
-											 and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex 
+											 and $answer->{'cbQosParentObjectsIndex2'} ne 0
+											 and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex
 											 and $cnt++ lt 5) {
 									($answer->{'cbQosConfigIndex'}) = $SNMP->getarray("cbQosConfigIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
 									if ( $C->{debug} > 5 ) {
@@ -3504,8 +3506,8 @@ sub getCBQoS {
 
 								# collect all levels of classmaps or only the first level
 								# KS 2011-10-27: by default collect hierarchical QoS
-								if ( !getbool($C->{'cbqos_cm_collect_all'},"invert") 
-										 or $answer->{'cbQosParentObjectsIndex'} eq $PIndex) 
+								if ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
+										 or $answer->{'cbQosParentObjectsIndex'} eq $PIndex)
 								{
 									#
 									$CMValues{"H".$OIndex}{'CMName'} = $answer->{'cbQosCMName'} ;
@@ -4076,7 +4078,7 @@ sub runServer {
 							$disk_cnt++;
 						}
 					}
-					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20 
+					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2' or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20') { # Memory
 						undef %Val;
 						$Val{hrMemSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
@@ -4105,7 +4107,7 @@ sub runServer {
 						### 2014-08-07 keiths, adding Other Memory to Health Calculations.
 						$S->{reach}{$itemname."Free"} = $Val{$itemname."Size"}{value} - $Val{$itemname."Used"}{value};
 						$S->{reach}{$itemname."Used"} = $Val{$itemname."Used"}{value};
-						
+
 						#print Dumper $S->{reach};
 
 						if (my $db = updateRRD(sys=>$S, data=>\%Val, type=>$typename))
@@ -4198,17 +4200,17 @@ sub runServices {
 	my $timeout = 3;
 	my ($snmpcmd,@ret, $var, $i, $key);
 	my $write=0;
-	
+
 	my $nodeCheckSnmpServices = 0;
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
-	if ($snmp_allowed 
+	if ($snmp_allowed
 			and $NI->{system}{nodeType} eq 'server'
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
 			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service", split(/,/, $NT->{$NI->{system}{name}}->{services})) )
 	{
 		info("node has SNMP services to check");
-		
+
 		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
 
 		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
@@ -4226,7 +4228,7 @@ sub runServices {
 				}
 			}
 		}
-		
+
 		# prepare service list for all observed services
 		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
 			# key services by name_pid
@@ -4236,12 +4238,12 @@ sub runServices {
 			$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
 			$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
 			$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-			
+
 			dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
 		}
 		# keep all services for display (not rrd!)
 		$NI->{services} = \%services;
-	
+
 		# now clear events that applied to processes that no longer exist
 		my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
 		for my $eventkey (keys %nodeevents)
@@ -4250,14 +4252,14 @@ sub runServices {
 
 			# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
 			# until then we trigger on the element format plus event name
-			if ($thisevent->{element} =~ /^\S+:\d+$/ 
+			if ($thisevent->{element} =~ /^\S+:\d+$/
 					&& $thisevent->{event} =~ /process memory/i
 					&& !exists $services{$thisevent->{element}})
 			{
 				dbg("clearing event $thisevent->{event} for node $thisevent->{node} as process "
 						.$thisevent->{element}." no longer exists");
-				checkEvent(sys => $S, event => $thisevent->{event}, level => $thisevent->{level}, 
-									 element => $thisevent->{element}, 
+				checkEvent(sys => $S, event => $thisevent->{event}, level => $thisevent->{level},
+									 element => $thisevent->{element},
 									 details=>$thisevent->{details});
 			}
 		}
@@ -4274,10 +4276,10 @@ sub runServices {
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
-		my $lastrun =  ($previous{$C->{server_name}}->{$node} 
-										&& $previous{$C->{server_name}}->{$node}->{$service})? 
+		my $lastrun =  ($previous{$C->{server_name}}->{$node}
+										&& $previous{$C->{server_name}}->{$node}->{$service})?
 				$previous{$C->{server_name}}->{$node}->{$service}->{last_run} : 0;
-		
+
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
 			info("Service $service has service interval \"$serviceinterval\"");
 		if ($serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/)
@@ -4293,10 +4295,10 @@ sub runServices {
 			logMsg("INFO: Service $service on $node last ran at ".returnDateStamp($lastrun).", skipping this time.");
 			next;
 		}
-		
+
 		$didRunServices = 1;
-	
-		# make sure this gets reinitialized for every service!	
+
+		# make sure this gets reinitialized for every service!
   	my $gotMemCpu = 0;
 		my %Val;
 
@@ -4370,17 +4372,17 @@ sub runServices {
 			}
 		}
 		# now the snmp services - but only if snmp is on
-		elsif ( $ST->{$service}{Service_Type} eq "service" 
-						and $NI->{system}{nodeType} eq 'server' 
-						and getbool($NT->{$node}{collect})) 
+		elsif ( $ST->{$service}{Service_Type} eq "service"
+						and $NI->{system}{nodeType} eq 'server'
+						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
 			next if (!$snmp_allowed);
 
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
-			if ( getbool($C->{snmp_stop_polling_on_error},"invert") 
-					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown}) 
-								and !getbool($NI->{system}{nodedown}) ) ) 
+			if ( getbool($C->{snmp_stop_polling_on_error},"invert")
+					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown})
+								and !getbool($NI->{system}{nodedown}) ) )
 			{
 				if ($ST->{$service}{Service_Name} eq '') {
 					dbg("ERROR, service_name is empty");
@@ -4458,7 +4460,7 @@ sub runServices {
 
 			# exit codes and output handling differ
 			my $flavour_nagios = ($svc->{Service_Type} eq "nagios-plugin");
-			
+
 			# check the arguments (if given), substitute node.XYZ values
 			my $finalargs;
 			if ($svc->{Args})
@@ -4474,7 +4476,7 @@ sub runServices {
 			eval
 			{
 				my @responses;
-				
+
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
 
@@ -4492,7 +4494,7 @@ sub runServices {
 					close PRG;
 					$programexit = $?;
 					dbg("service exit code is ". ($programexit>>8));
-							
+
 					if (getbool($svc->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
@@ -4501,13 +4503,13 @@ sub runServices {
 							my @expandedresponses = map { split /\|/ } (@responses);
 							@responses = @expandedresponses;
 						}
-							
+
 						# now determine how to save the values in question
 						for my $idx (0..$#responses)
 						{
 							my $response = $responses[$idx];
 							chomp $response;
-							
+
 							# the first line is special; it sets the textual status
 							if ($idx == 0)
 							{
@@ -4524,14 +4526,14 @@ sub runServices {
 								# a plugin can report levels for warning and crit thresholds
 								# and also optionally report possible min and max values;
 								my ($value_with_unit, $lwarn, $lcrit, $lmin, $lmax) = split(/;/, $v, 5);
-								
+
 								# any of those could be set to zero
 								if (defined $lwarn or defined $lcrit or defined $lmin or defined $lmax)
 								{
 									$status{$service}->{limits}->{$k} = { warning => $lwarn, critical => $lcrit,
 																												min => $lmin, max => $lmax };
 								}
-								
+
 								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
 								if ($value_with_unit =~ /^(.+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
 								{
@@ -4541,10 +4543,10 @@ sub runServices {
 								}
 							}
  							dbg("collected response $k value $v");
-							
+
 							# for rrd storage, but only numeric values can be stored!
 							$Val{$k} = {value => $v};
-							
+
 							if ($k eq "responsetime") # response time is handled specially
 							{
 								$responsetime = $v;
@@ -4553,7 +4555,7 @@ sub runServices {
 							{
 								$status{$service}->{extra}->{$k} = $v;
 							}
-							
+
 						}
 					}
 				}
@@ -4573,7 +4575,7 @@ sub runServices {
 				{
 					$programexit = WEXITSTATUS($programexit);
 					dbg("external program terminated with exit code $programexit");
-					
+
 
 					# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
 					# we'll map those to 100, 50 and 0 for everything else.
@@ -4593,7 +4595,7 @@ sub runServices {
 				}
 			}
 		}														# end of program/nagios-plugin service type
-		else 
+		else
 		{
 			# no service type found
 			logMsg("ERROR: skipping service $service, invalid service type!");
@@ -4606,7 +4608,7 @@ sub runServices {
 		$status{$service}->{name} = $ST->{$service}{Name}; # same as $service
 
 		# external programs return 0..100 directly, rest has 0..1
-		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )? 
+		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )?
 				$ret : $ret*100;
 		$status{$service}->{status} = $serviceValue;
 
@@ -4614,7 +4616,7 @@ sub runServices {
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0? "degraded" : 'down';
 		$V->{system}{"${service}_color"} =  $serviceValue == 100 ? 'white' : $serviceValue > 0? "orange" : 'red';
-		
+
 		$V->{system}{"${service}_responsetime"} = $responsetime;
 		$V->{system}{"${service}_cpumem"} = $gotMemCpu ? 'true' : 'false';
 
@@ -4636,7 +4638,7 @@ sub runServices {
 			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", element => $ST->{$service}{Name}, 
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", element => $ST->{$service}{Name},
 								 details=> ($status{$service}->{status_text}||"") );
 
 			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
@@ -4646,9 +4648,9 @@ sub runServices {
 		{
 			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is degraded ($serviceValue)");
 
-			# is this change towards the better or the worse? 
+			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name}, 
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name},
 								 details=> ($status{$service}->{status_text}||"") );
 			# ...and create a degraded
 			notify(sys => $S, event => "Service Degraded", level => "Warning", element => $ST->{$service}{Name},
@@ -4670,15 +4672,15 @@ sub runServices {
 
 		# figure out which graphs to offer
 		# every service has these; cpu+mem optional, and totally custom extra are possible, too.
-		my @servicegraphs = (qw(service service-response)); 
-		
+		my @servicegraphs = (qw(service service-response));
+
 		# save result for availability history - one rrd file per service per node
 		$Val{service}{value} = $serviceValue;
 		$cpu = -$cpu 	if ( $cpu < 0 );
 		$Val{responsetime}{value} = $responsetime; # might be a NOP
 		$Val{responsetime}{option} = "GAUGE,0:U";
 
-		if ($gotMemCpu) 
+		if ($gotMemCpu)
 		{
 			$Val{cpu}{value} = $cpu;
 			$Val{cpu}{option} = "COUNTER,U:U";
@@ -4690,10 +4692,10 @@ sub runServices {
 
 			# fixme: should we omit the responsetime graph for snmp-based services??
 			# it doesn't say too much about the service itself...
-			push @servicegraphs, (qw(service-mem service-cpu)); 
+			push @servicegraphs, (qw(service-mem service-cpu));
 		}
 
-		if ((my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service))) 
+		if ((my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service)))
 		{
 			# check what custom graphs exist for this service
 			# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
@@ -4701,7 +4703,7 @@ sub runServices {
 			# note: this schema is known here, and in cgi-bin/services.pl
 			my $safeservice = lc($service);
 			$safeservice =~ s/[^a-z0-9\._]//g;
-			
+
 			opendir(D, $C->{'<nmis_models>'}) or die "cannot open models dir: $!\n";
 			my @cands = grep(/^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D));
 			closedir(D);
@@ -4711,10 +4713,10 @@ sub runServices {
 
 			$status{$service}->{customgraphs} = \@cands;
 			push @servicegraphs, @cands;
-					
+
 			# and now set up the resulting graph list
 			$NI->{graphtype}{$service}{service} = join(",", @servicegraphs);
-			if ($gotMemCpu) 
+			if ($gotMemCpu)
 			{
 				# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
 				# rrd stores delta * (interval last update - aggregation time) as .value
@@ -4724,7 +4726,7 @@ sub runServices {
 				{
 					my $stepsize = $infohash->{step};
 					my $lastupdate = $infohash->{last_update};
-					
+
 					$status{$service}->{cpu} = $cpuval / ($lastupdate % $stepsize) if ($lastupdate % $stepsize);
 				}
 			}
@@ -4784,17 +4786,17 @@ sub runAlerts {
 						dbg("control_result sect=$sect index=$index control_result=$control_result");
 						next if not $control_result;
 					}
-	
+
 					# perform CVARn substitution for these two types of ops
 					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
 					{
 							my ($test, $value, $alert, $test_value, $test_result);
-	
+
 							# do this for test and value
 							for my $thingie (['test',\$test_result],['value',\$test_value])
 							{
 									my ($key, $target) = @$thingie;
-	
+
 									my $origexpr = $CA->{$sect}{$alrt}{$key};
 									my ($rebuilt,@CVAR);
 									# rip apart expression, rebuild it with var substitutions
@@ -4802,7 +4804,7 @@ sub runAlerts {
 									{
 											$rebuilt.=$1;					 # the unmatched, non-cvar stuff at the begin
 											my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
-	
+
 											if (defined $varnum) # cvar declaration
 											{
 													$CVAR[$varnum] = $NI->{$sect}->{$index}->{$decl};
@@ -4815,7 +4817,7 @@ sub runAlerts {
 													logMsg("ERROR: CVAR$varuse used but not defined in test \""
 																 .$CA->{$sect}{$alrt}{$key}.'"')
 															if (!exists $CVAR[$varuse]);
-	
+
 													$rebuilt .= $CVAR[$varuse]; # sub in the actual value
 											}
 											else 						# shouldn't be reached, ever
@@ -4826,18 +4828,18 @@ sub runAlerts {
 											}
 									}
 									$rebuilt.=$origexpr; # and the non-CVAR-containing remainder.
-	
+
 									$$target = eval { eval $rebuilt; };
 									dbg("substituted $key sect=$sect index=$index, orig=\"".$CA->{$sect}{$alrt}{$key}
 											."\", expr=\"$rebuilt\", result=$$target",2);
 							}
-	
+
 							if ( $test_value =~ /^[\+-]?\d+\.\d+$/ ) {
 									$test_value = sprintf("%.2f",$test_value);
 							}
-	
+
 							my $level=$CA->{$sect}{$alrt}{level};
-	
+
 							# check the thresholds
 							# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
 							if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
@@ -4876,7 +4878,7 @@ sub runAlerts {
 									}
 									info("alert result: test_result=$test_result level=$level",2);
 							}
-	
+
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
 							$alert->{type} = $CA->{$sect}{$alrt}{type};
 							$alert->{test} = $CA->{$sect}{$alrt}{value};
@@ -5002,7 +5004,7 @@ sub runReach {
 	my $cpuMax = 100 * $C->{weight_cpu};
 	my $memMax = 100 * $C->{weight_mem};
 	my $intMax = 100 * $C->{weight_int};
-	
+
 	my $swapMax = 0;
 	my $diskMax = 0;
 
@@ -5025,9 +5027,9 @@ sub runReach {
   	#'hrSwapMemUsed' => 220114944,
   	my $mainMemWeight = 1;
   	my $extraMem = 0;
-  	
+
   	if ( defined $RI->{hrSwapMemFree} and defined $RI->{hrSwapMemUsed} and $RI->{hrSwapMemFree} and $RI->{hrSwapMemUsed} ) {
-			$RI->{swap} = ( $RI->{hrSwapMemFree} * 100 ) / ($RI->{hrSwapMemUsed} + $RI->{hrSwapMemFree});  		
+			$RI->{swap} = ( $RI->{hrSwapMemFree} * 100 ) / ($RI->{hrSwapMemUsed} + $RI->{hrSwapMemFree});
   	}
 		else {
 			$RI->{swap} = 0;
@@ -5170,7 +5172,7 @@ sub runReach {
 		}
 
 		info("REACH Values: reachability=$reach{reachability} availability=$reach{availability} responsetime=$reach{responsetime}");
-		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");	
+		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");
 
 		if ( getbool($NI->{system}{collect}) and defined $S->{mdl}{interface}{nocollect}{ifDescr} ) {
 			dbg("Getting Interface Utilisation Health");
@@ -5186,13 +5188,13 @@ sub runReach {
 						dbg("SummaryStats for interface=$index of node $NI->{system}{name} skipped because value is NaN");
 						next;
 					}
-					
+
 					# lets make the interface metric the largest of input or output
 					my $intUtil = $util->{$index}{inputUtil};
 					if ( $intUtil < $util->{$index}{outputUtil} ) {
 						$intUtil = $util->{$index}{outputUtil};
 					}
-					
+
 					# only add interfaces with utilisation above metric_int_utilisation_above configuration option
 					if ( $intUtil > $C->{'metric_int_utilisation_above'} or $C->{'metric_int_utilisation_above'} eq "" ) {
 						$intsummary = $intsummary + ( 100 - $intUtil );
@@ -5218,7 +5220,7 @@ sub runReach {
 		# Maybe thresholds are the best way to handle that though.  That
 		# would pickup the peaks better.
 
-		# keeping the health values for storing in the RRD		
+		# keeping the health values for storing in the RRD
 		$reachabilityHealth = ($reach{reachability} * $C->{weight_reachability});
 		$availabilityHealth = ($reach{availability} * $C->{weight_availability});
 		$responseHealth = ($responseWeight * $C->{weight_response});
@@ -5227,14 +5229,14 @@ sub runReach {
 		$intHealth = ($intWeight * $C->{weight_int});
 		$swapHealth = 0;
 		$diskHealth = 0;
-		
+
 		# the minimum value for health should always be 1
 		$reachabilityHealth = 1 if $reachabilityHealth < 1;
 		$availabilityHealth = 1 if $availabilityHealth < 1;
 		$responseHealth = 1 if $responseHealth < 1;
 		$cpuHealth = 1 if $cpuHealth < 1;
 
-		# overload the int and mem with swap and disk 
+		# overload the int and mem with swap and disk
 		if ( $reach{swap} ) {
 			$memHealth = ($memWeight * $C->{weight_mem}) / 2;
 			$swapHealth =  ($swapWeight * $C->{weight_mem}) / 2;
@@ -5249,9 +5251,9 @@ sub runReach {
 		if ( $reach{disk} ) {
 			$intHealth = ($intWeight * ($C->{weight_int} / 2));
 			$diskHealth = ($diskWeight * ($C->{weight_int} / 2));
-			$intMax = 100 * $C->{weight_int} / 2;	
+			$intMax = 100 * $C->{weight_int} / 2;
 			$diskMax = 100 * $C->{weight_int} / 2;
-			
+
 			# the minimum value for health should always be 1
 			$intHealth = 1 if $intHealth < 1;
 			$diskHealth = 1 if $diskHealth < 1;
@@ -5261,7 +5263,7 @@ sub runReach {
 		### AS 16 Mar 02, implemented weights in nmis.conf
 		$reach{health} = 	(
 						$reachabilityHealth +
-						$availabilityHealth + 
+						$availabilityHealth +
 						$responseHealth +
 						$cpuHealth +
 						$memHealth +
@@ -5269,7 +5271,7 @@ sub runReach {
 						$diskHealth +
 						$swapHealth
 					);
-		
+
 		info("Calculation of health=$reach{health}");
 		if (lc $reach{health} eq 'nan') {
 			dbg("Values Calc. reachability=$reach{reachability} * $C->{weight_reachability}");
@@ -5582,7 +5584,7 @@ sub nmisMaster {
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
-			
+
 			info("Master, processing Slave Server $srv, $ST->{$srv}{host}");
 
 			dbg("Get loadnodedetails from $srv");
@@ -5611,7 +5613,7 @@ sub nmisSummary {
 	my $pollTimer = NMIS::Timing->new;
 
 	dbg("Calculating NMIS network stats for cgi cache");
-	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => undef)
+	func::update_operations_stamp(type => "summary", start => $starttime, stop => undef)
 			if ($type eq "summary");	# not if part of collect
 
 	my $S = Sys::->new;
@@ -5627,13 +5629,13 @@ sub nmisSummary {
 	my $file = "nmis-nodesum";
 	writeTable(dir=>'var',name=>$file,data=>$NS);
 	dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
-	func::update_operations_stamp(type => "summary", start => $C->{starttime}, stop => time())
+	func::update_operations_stamp(type => "summary", start => $starttime, stop => Time::HiRes::time())
 			if ($type eq "summary");	# not if part of collect
 
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
-	}	
+	}
 
 	sub summaryCache {
 		my %args = @_;
@@ -5723,7 +5725,7 @@ sub runEscalate {
 	my %seen;
 
 	dbg("Starting");
-	func::update_operations_stamp(type => "escalate", start => $C->{starttime}, stop => undef)
+	func::update_operations_stamp(type => "escalate", start => $starttime, stop => undef)
 			if ($type eq "escalate");	# not if part of collect
 	# load Contacts table
 	my $CT = loadContactsTable();
@@ -5772,20 +5774,20 @@ sub runEscalate {
 		my $thisevent = $allevents{$eventkey};
 
 		# if the event is configured for no notify, do nothing
-		my $thisevent_control = $events_config->{$thisevent->{event}} 
+		my $thisevent_control = $events_config->{$thisevent->{event}}
 		|| { Log => "true", Notify => "true", Status => "true"};
-		
+
 		# in case of Notify being off for this event, we don't have to check/walk/handle any notify fields at all
 		# as we're deleting the record after the loop anyway.
 		if (getbool($thisevent_control->{Notify}))
 		{
 			foreach my $field ( split(',', $thisevent->{notify}) ) # field = type:contact
-			{ 
+			{
 				$target = "";
 				my @x = split /:/ , $field;
 				my $type = shift @x;			# netsend, email, or pager ?
 				dbg("Escalation type=$type contact=$contact");
-				
+
 				if ( $type =~ /email|ccopy|pager/ ) {
 					foreach $contact (@x) {
 						if ( exists $CT->{$contact} ) {
@@ -5801,7 +5803,7 @@ sub runEscalate {
 							dbg("Contact $contact not found in Contacts table");
 						}
 					} #foreach
-					
+
 					# no email targets found, and if default contact not found, assume we are not covering 24hr dutytime in this slot, so no mail.
 					# maybe the next levelx escalation field will fill in the gap
 					if ( !$target ) {
@@ -5812,19 +5814,19 @@ sub runEscalate {
 						}
 						dbg("No $type contact matched (maybe check DutyTime and TimeZone?) - looking for default contact $target");
 					}
-					
+
 					if ( $target)
 					{
 						foreach my $trgt ( split /,/, $target ) {
 							my $message;
 							my $priority;
-							if ( $type eq "pager" ) 
+							if ( $type eq "pager" )
 							{
-								$msgTable{$type}{$trgt}{$serial_ns}{message} = 
+								$msgTable{$type}{$trgt}{$serial_ns}{message} =
 										"NMIS: UP Notify $thisevent->{node} Normal $thisevent->{event} $thisevent->{element}";
 								$serial_ns++ ;
-							} 
-							else 
+							}
+							else
 							{
 								if ($type eq "ccopy") {
 									$message = "FOR INFORMATION ONLY\n";
@@ -5833,10 +5835,10 @@ sub runEscalate {
 									$priority = &eventToSMTPPri($thisevent->{level}) ;
 								}
 								$event_age = convertSecsHours(time - $thisevent->{startdate});
-								
+
 								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\n\n";
-								
-								if ( getbool($C->{mail_combine}) ) 
+
+								if ( getbool($C->{mail_combine}) )
 								{
 									$msgTable{$type}{$trgt}{$serial}{count}++;
 									$msgTable{$type}{$trgt}{$serial}{subject} = "NMIS Escalation Message, contains $msgTable{$type}{$trgt}{$serial}{count} message(s), $msgtime";
@@ -5845,7 +5847,7 @@ sub runEscalate {
 										$msgTable{$type}{$trgt}{$serial}{priority} = $priority ;
 									}
 								}
-								else 
+								else
 								{
 									$msgTable{$type}{$trgt}{$serial}{subject} = "$thisevent->{node} $thisevent->{event} - $thisevent->{element} - $thisevent->{details} at $msgtime" ;
 									$msgTable{$type}{$trgt}{$serial}{message} = $message ;
@@ -5856,20 +5858,20 @@ sub runEscalate {
 							}
 						}
 						# log the meta event, ONLY if both Log (and Notify) are enabled
-						logEvent(node => $thisevent->{node}, event => "$type to $target UP Notify", 
-										 level => "Normal", element => $thisevent->{element}, 
+						logEvent(node => $thisevent->{node}, event => "$type to $target UP Notify",
+										 level => "Normal", element => $thisevent->{element},
 										 details => $thisevent->{details})
 								if (getbool($thisevent_control->{Log}));
-								
-						
+
+
 						dbg("Escalation $type UP Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}");
 					}
 				} # end email,ccopy,pager
 				# now the netsends
-				elsif ( $type eq "netsend" ) 
+				elsif ( $type eq "netsend" )
 				{
 					my $message = "UP Event Notification $thisevent->{node} Normal $thisevent->{event} $thisevent->{element} $thisevent->{details} at $msgtime";
-					foreach my $trgt ( @x ) 
+					foreach my $trgt ( @x )
 					{
 						$msgTable{$type}{$trgt}{$serial_ns}{message} = $message ;
 						$serial_ns++;
@@ -5881,12 +5883,12 @@ sub runEscalate {
 				} # end netsend
 				elsif ( $type eq "syslog" )
 				{
-					if (getbool($C->{syslog_use_escalation})) # syslog action 
+					if (getbool($C->{syslog_use_escalation})) # syslog action
 					{
 						my $timenow = time();
 						my $message = "NMIS_Event::$C->{server_name}::$timenow,$thisevent->{node},$thisevent->{event},$thisevent->{level},$thisevent->{element},$thisevent->{details}";
 						my $priority = eventToSyslog($thisevent->{level});
-						
+
 						foreach my $trgt ( @x ) {
 							$msgTable{$type}{$trgt}{$serial_ns}{message} = $message;
 							$msgTable{$type}{$trgt}{$serial_ns}{priority} = $priority;
@@ -5895,8 +5897,8 @@ sub runEscalate {
 						} #foreach
 					}
 				} # end syslog
-				elsif ( $type eq "json" ) 
-				{ 
+				elsif ( $type eq "json" )
+				{
 					# log the event as json file, AND save those updated bits back into the
 					# soon-to-be-deleted/archived event record.
 					my $node = $NT->{$thisevent->{node}};
@@ -5904,23 +5906,23 @@ sub runEscalate {
 					$thisevent->{customer} = $node->{customer};
 					$thisevent->{location} = $LocationsTable->{$node->{location}}{Location};
 					$thisevent->{geocode} = $LocationsTable->{$node->{location}}{Geocode};
-					
+
 					if ( $useServiceStatusTable ) {
 						$thisevent->{serviceStatus} = $ServiceStatusTable->{$node->{serviceStatus}}{serviceStatus};
 						$thisevent->{statusPriority} = $ServiceStatusTable->{$node->{serviceStatus}}{statusPriority};
 					}
-					
+
 					if ( $useBusinessServicesTable ) {
 						$thisevent->{businessService} = $BusinessServicesTable->{$node->{businessService}}{businessService};
 						$thisevent->{businessPriority} = $BusinessServicesTable->{$node->{businessService}}{businessPriority};
 					}
-					
+
 					# Copy the fields from nodes to the event
 					my @nodeFields = split(",",$C->{'json_node_fields'});
 					foreach my $field (@nodeFields) {
 						$thisevent->{$field} = $node->{$field};
 					}
-				
+
 					logJsonEvent(event => $thisevent, dir => $C->{'json_logs'});
 					# may sound silly to update-then-archive but i'd rather have the historic event record contain
 					# the full story
@@ -5932,10 +5934,10 @@ sub runEscalate {
 				# any custom notification methods?
 				else
 				{
-					if ( checkPerlLib("Notify::$type") ) 
+					if ( checkPerlLib("Notify::$type") )
 					{
 						dbg("Notify::$type $contact");
-						
+
 						my $timenow = time();
 						my $datenow = returnDateStamp();
 						my $message = "$datenow: $thisevent->{node}, $thisevent->{event}, $thisevent->{level}, $thisevent->{element}, $thisevent->{details}";
@@ -5944,7 +5946,7 @@ sub runEscalate {
 								if ( dutyTime($CT, $contact) ) {	# do we have a valid dutytime ??
 									# check if UpNotify is true, and save with this event
 									# and send all the up event notifies when the event is cleared.
-									if ( getbool($EST->{$esc_key}{UpNotify}) 
+									if ( getbool($EST->{$esc_key}{UpNotify})
 											 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										) {
 										my $ct = "$type:$contact";
@@ -5990,16 +5992,16 @@ LABEL_ESC:
 		my $thisevent = $allevents{$eventkey};
 		my $mustupdate = undef;			# live changes to thisevent are ok, but saved back ONLY if this is set
 		dbg("processing event $eventkey");
-		
+
 		# checking if event is stateless and dampen time has passed.
 		if ( getbool($thisevent->{stateless}) and time() > $thisevent->{startdate} + $stateless_event_dampening ) {
 			# yep, remove the event completely.
 			dbg("stateless event $thisevent->{event} has exceeded dampening time of $stateless_event_dampening seconds.");
 			eventDelete(event => $thisevent);
 		}
-				
+
 		# set event control to policy or default=enabled.
-		my $thisevent_control = $events_config->{$thisevent->{event}} 
+		my $thisevent_control = $events_config->{$thisevent->{event}}
 		|| { Log => "true", Notify => "true", Status => "true"};
 
 		my $nd = $thisevent->{node};
@@ -6007,10 +6009,10 @@ LABEL_ESC:
 		# note: loadAllEvents() doesn't return events for vanished nodes (but for inactive ones it does)
 		if (!$NT->{$nd} or getbool($NT->{$nd}{active},"invert"))
 		{
-			if (getbool($thisevent_control->{Log}) 
+			if (getbool($thisevent_control->{Log})
 					and getbool($thisevent_control->{Notify})) # meta-events are subject to both Notify and Log
 			{
-				logEvent(node => $nd, event => "Deleted Event: $thisevent->{event}", level => $thisevent->{level}, 
+				logEvent(node => $nd, event => "Deleted Event: $thisevent->{event}", level => $thisevent->{level},
 								 element => $thisevent->{element}, details => $thisevent->{details});
 
 				my $timenow = time();
@@ -6038,17 +6040,17 @@ LABEL_ESC:
 			my $S = Sys::->new; # node object
 			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
 				my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-				if ( !getbool($IFD->{$thisevent->{element}}{collect}) ) 
+				if ( !getbool($IFD->{$thisevent->{element}}{collect}) )
 				{
 					# meta events are subject to both Log and Notify controls
 					if (getbool($thisevent_control->{Log}) and getbool($thisevent_control->{Notify}))
 					{
-						logEvent(node => $thisevent->{node}, event => "Deleted Event: $thisevent->{event}", 
-										 level => $thisevent->{level}, 
+						logEvent(node => $thisevent->{node}, event => "Deleted Event: $thisevent->{event}",
+										 level => $thisevent->{level},
 										 element => " no matching interface or no collect Element=$thisevent->{element}");
 					}
 					logMsg("INFO ($thisevent->{node}) Interface not active, deleted Event=$thisevent->{event} Element=$thisevent->{element}");
-				
+
 					eventDelete(event => $thisevent);
 					next LABEL_ESC;
 				}
@@ -6059,7 +6061,7 @@ LABEL_ESC:
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
 		my ($outage,undef) = outageCheck(node=>$thisevent->{node},time=>time());
 		dbg("Outage for $thisevent->{node} is $outage");
-		if ( $outage eq "current" and getbool($thisevent->{ack},"invert") ) 
+		if ( $outage eq "current" and getbool($thisevent->{ack},"invert") )
 		{
 			$thisevent->{startdate} = time();
 			if (my $err = eventUpdate(event => $thisevent))
@@ -6071,18 +6073,18 @@ LABEL_ESC:
 		$outage_time = time() - $thisevent->{startdate};
 
 		# if we are to escalate, this event must not be part of a planned outage and un-ack.
-		if ( $outage ne "current" and getbool($thisevent->{ack},"invert")) 
+		if ( $outage ne "current" and getbool($thisevent->{ack},"invert"))
 		{
 			# we have list of nodes that this node depends on in $NT->{$runnode}{depend}
 			# if any of those have a current Node Down alarm, then lets just move on with a debug message
 			# should we log that we have done this - maybe not....
-			
+
 			if ( $NT->{$thisevent->{node}}{depend} ne '') {
 				foreach my $node_depend ( split /,/ , $NT->{$thisevent->{node}}{depend} ) {
 					next if $node_depend eq "N/A" ;		# default setting
 					next if $node_depend eq $thisevent->{node};	# remove the catch22 of self dependancy.
 					#only do dependancy if node is active.
-					if (defined $NT->{$node_depend}{active} and getbool($NT->{$node_depend}{active})) 
+					if (defined $NT->{$node_depend}{active} and getbool($NT->{$node_depend}{active}))
 					{
 						if (my $event_exists = eventExist($node_depend, "Node Down", undef))
 						{
@@ -6112,7 +6114,7 @@ LABEL_ESC:
 			$group = lc($NI->{system}{group});
 			$role = lc($NI->{system}{roleType});
 			$type = lc($NI->{system}{nodeType});
-			$event = lc($thisevent->{event}); 
+			$event = lc($thisevent->{event});
 
 			dbg("looking for Event to Escalation Table match for Event[ Node:$thisevent->{node} Event:$event Element:$thisevent->{element} ]");
 			dbg("and node values node=$NI->{system}{name} group=$group role=$role type=$type");
@@ -6139,11 +6141,11 @@ LABEL_ESC:
 			# lets allow all possible keys to match !
 			# so one event could match two or more escalation rules
 			# can have specific notifies to one group, and a 'catch all' to manager for example.
-			
+
 			foreach my $klst( @keylist ) {
 				foreach my $esc (keys %{$EST}) {
 					my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
-					
+
 					$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 					$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
@@ -6164,7 +6166,7 @@ LABEL_ESC:
 			my $cnt_hash = keys %keyhash;
 			dbg("$cnt_hash match(es) found for $thisevent->{node}");
 
-			foreach $esc_key ( keys %keyhash ) 
+			foreach $esc_key ( keys %keyhash )
 			{
 				dbg("Matched Escalation Table Group:$EST->{$esc_key}{Group} Role:$EST->{$esc_key}{Role} Type:$EST->{$esc_key}{Type} Event:$EST->{$esc_key}{Event} Event_Node:$EST->{$esc_key}{Event_Node} Event_Element:$EST->{$esc_key}{Event_Element}");
 				dbg("Pre Escalation : $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old escalation is $thisevent->{escalate}");
@@ -6180,7 +6182,7 @@ LABEL_ESC:
 						last;
 					}
 				}
-				
+
 				dbg("Post Escalation: $thisevent->{node} Event $thisevent->{event} is $outage_time seconds old, escalation is $thisevent->{escalate}");
 				if ($C->{debug} and $escalate == $thisevent->{escalate}) {
 					my $level= "Level".($thisevent->{escalate} + 1);
@@ -6204,10 +6206,10 @@ LABEL_ESC:
 							$target = "";
 							@x = split /:/ , lc $field;
 							$type = shift @x;			# first entry is email, ccopy, netsend or pager
-							
+
 							dbg("Escalation type=$type");
 
-							if ( $type =~ /email|ccopy|pager/ ) 
+							if ( $type =~ /email|ccopy|pager/ )
 							{
 								foreach $contact (@x) {
 									my $contactLevelSend = 0;
@@ -6226,7 +6228,7 @@ LABEL_ESC:
 									if ( $type !~ /email|pager/ ) {
 										# check if UpNotify is true, and save with this event
 										# and send all the up event notifies when the event is cleared.
-										if ( getbool($EST->{$esc_key}{UpNotify}) 
+										if ( getbool($EST->{$esc_key}{UpNotify})
 												 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 												 and getbool($thisevent_control->{Notify})
 										 ) {
@@ -6268,7 +6270,7 @@ LABEL_ESC:
 
 											# check if UpNotify is true, and save with this event
 											# and send all the up event notifies when the event is cleared.
-											if ( getbool($EST->{$esc_key}{UpNotify}) 
+											if ( getbool($EST->{$esc_key}{UpNotify})
 													 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 													 and getbool($thisevent_control->{Notify})
 												) {
@@ -6290,10 +6292,10 @@ LABEL_ESC:
 									}
 								} #foreach
 
-								# no email targets found, and if default contact not found, assume we are not 
+								# no email targets found, and if default contact not found, assume we are not
 								# covering 24hr dutytime in this slot, so no mail.
 								# maybe the next levelx escalation field will fill in the gap
-								if ( !$target ) 
+								if ( !$target )
 								{
 									if ( $type eq "pager" ) {
 										$target = $CT->{default}{Pager};
@@ -6307,15 +6309,15 @@ LABEL_ESC:
 									foreach my $trgt ( split /,/, $target ) {
 										my $message;
 										my $priority;
-										if ( $type eq "pager" ) 
+										if ( $type eq "pager" )
 										{
 											if (getbool($thisevent_control->{Notify}))
 											{
 												$msgTable{$type}{$trgt}{$serial_ns}{message} = "NMIS: Esc. $thisevent->{escalate} $event_age $thisevent->{node} $thisevent->{level} $thisevent->{event} $thisevent->{details}";
 												$serial_ns++ ;
 											}
-										} 
-										else 
+										}
+										else
 										{
 											if ($type eq "ccopy") {
 												$message = "FOR INFORMATION ONLY\n";
@@ -6361,17 +6363,17 @@ LABEL_ESC:
 									}
 
 									# meta-events are subject to Notify and Log
-									logEvent(node => $thisevent->{node}, 
-													 event => "$type to $target Esc$thisevent->{escalate} $thisevent->{event}", 
+									logEvent(node => $thisevent->{node},
+													 event => "$type to $target Esc$thisevent->{escalate} $thisevent->{event}",
 													 level => $thisevent->{level}, element => $thisevent->{element}, details => $thisevent->{details})
 											if (getbool($thisevent_control->{Notify}) and getbool($thisevent_control->{Log}));
-										
+
 										dbg("Escalation $type Notification node=$thisevent->{node} target=$target level=$thisevent->{level} event=$thisevent->{event} element=$thisevent->{element} details=$thisevent->{details} group=$NT->{$thisevent->{node}}{group}");
 								} # if $target
 							} # end email,ccopy,pager
 
 							# now the netsends
-							elsif ( $type eq "netsend" ) 
+							elsif ( $type eq "netsend" )
 							{
 								if (getbool($thisevent_control->{Notify}))
 								{
@@ -6382,19 +6384,19 @@ LABEL_ESC:
 										dbg("NetSend $message to $trgt");
 
 										# meta-events are subject to both
-										logEvent(node => $thisevent->{node}, 
-														 event => "NetSend $message to $trgt $thisevent->{event}", 
-														 level => $thisevent->{level}, element => $thisevent->{element}, 
+										logEvent(node => $thisevent->{node},
+														 event => "NetSend $message to $trgt $thisevent->{event}",
+														 level => $thisevent->{level}, element => $thisevent->{element},
 														 details => $thisevent->{details})
 												if (getbool($thisevent_control->{Log}));
 									} #foreach
 								}
 							} # end netsend
-							elsif ( $type eq "syslog" ) 
+							elsif ( $type eq "syslog" )
 							{
 								# check if UpNotify is true, and save with this event
 								# and send all the up event notifies when the event is cleared.
-								if ( getbool($EST->{$esc_key}{UpNotify}) 
+								if ( getbool($EST->{$esc_key}{UpNotify})
 										 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										 and getbool($thisevent_control->{Notify})
 								 ) {
@@ -6406,7 +6408,7 @@ LABEL_ESC:
 										$mustupdate = 1;
 									}
 								}
-								
+
 								if (getbool($thisevent_control->{Notify}))
 								{
 									my $timenow = time();
@@ -6422,9 +6424,9 @@ LABEL_ESC:
 									}
 								}
 							} # end syslog
-							elsif ( $type eq "json" ) 
+							elsif ( $type eq "json" )
 							{
-								if ( getbool($EST->{$esc_key}{UpNotify}) 
+								if ( getbool($EST->{$esc_key}{UpNotify})
 										 and $thisevent->{event} =~ /$C->{upnotify_stateful_events}/i
 										 and getbool($thisevent_control->{Notify})
 								 ) {
@@ -6460,11 +6462,11 @@ LABEL_ESC:
 								foreach my $field (@nodeFields) {
 									$thisevent->{$field} = $node->{$field};
 								}
-								
+
 								logJsonEvent(event => $thisevent, dir => $C->{'json_logs'})
 										if (getbool($thisevent_control->{Notify}));
 							} # end json
-							elsif (getbool($thisevent_control->{Notify})) 
+							elsif (getbool($thisevent_control->{Notify}))
 							{
 								if ( checkPerlLib("Notify::$type") ) {
 									dbg("Notify::$type $contact");
@@ -6483,7 +6485,7 @@ LABEL_ESC:
 													my @l = split(',',$thisevent->{notify});
 													if (not grep { $_ eq $ct } @l ) {
 														push @l, $ct;
-														$thisevent->{notify} = join(',',@l); # fudged up 
+														$thisevent->{notify} = join(',',@l); # fudged up
 														$mustupdate = 1;
 													}
 												}
@@ -6526,9 +6528,9 @@ LABEL_ESC:
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
 	}
-	func::update_operations_stamp(type => "escalate", 
-																start => $C->{starttime}, 
-																stop => time())
+	func::update_operations_stamp(type => "escalate",
+																start => $starttime,
+																stop => Time::HiRes::time())
 			if ($type eq "escalate");	# not if part of collect
 } # end runEscalate
 
@@ -6559,12 +6561,12 @@ sub sendMSG {
 
 			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
 			foreach $target (keys %{$msgTable->{$method}}) {
-				foreach $serial (keys %{$msgTable->{$method}{$target}}) 
+				foreach $serial (keys %{$msgTable->{$method}{$target}})
 				{
 					next if $C->{mail_server} eq '';
 
 					my ($status, $code, $errmsg) = sendEmail(
-					  # params for connection and sending 
+					  # params for connection and sending
 						sender => $C->{mail_from},
 						recipients => [$target],
 
@@ -6573,7 +6575,7 @@ sub sendMSG {
 						hello => $C->{mail_domain},
 						usetls => $C->{mail_use_tls},
 						ipproto => $C->{mail_server_ipproto},
-						
+
 						username => $C->{mail_user},
 						password => $C->{mail_password},
 
@@ -6604,7 +6606,7 @@ sub sendMSG {
 					next if $C->{mail_server} eq '';
 
 					my ($status, $code, $errmsg) = sendEmail(
-					  # params for connection and sending 
+					  # params for connection and sending
 						sender => $C->{mail_from},
 						recipients => [$target],
 
@@ -6613,7 +6615,7 @@ sub sendMSG {
 						hello => $C->{mail_domain},
 						usetls => $C->{mail_use_tls},
 						ipproto => $C->{mail_server_ipproto},
-						
+
 						username => $C->{mail_user},
 						password => $C->{mail_password},
 
@@ -6758,7 +6760,7 @@ sub runMetrics {
 	$data->{intfAvail}{option} = "gauge,0:U";
 
 	dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
-	
+
 	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
 
 	foreach $group (sort keys %{$GT}) {
@@ -6992,9 +6994,9 @@ sub checkConfig {
 	my $checkFunc;
 	my $checkType;
 
-	# depending on our job, create dir and fix the perms! 
+	# depending on our job, create dir and fix the perms!
 	# or just check and report them.
-	if (getbool($change)) 
+	if (getbool($change))
 	{
 		$checkFunc = sub { my ($dirname) = @_; createDir($dirname); setFileProtDirectory($dirname, 1); };
 		$checkType = "Checking and Fixing";
@@ -7005,7 +7007,7 @@ sub checkConfig {
 	}
 
 	# check if nmis_base already oke
-	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl")) 
+	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl"))
 	{
 
 		my $nmis_bin_dir = $FindBin::Bin; # dir of this program
@@ -7078,7 +7080,7 @@ EO_TEXT
 
 	# Does the database directory exist? if not make it.
 	info("Config $checkType - Checking database directories");
-	if ($C->{database_root} ne '') 
+	if ($C->{database_root} ne '')
 	{
 		&$checkFunc("$C->{database_root}");
 	} else {
@@ -7168,9 +7170,9 @@ EO_TEXT
 #=========================================================================================
 
 # two modes: default, for the root user's personal crontab
-# if system=true is given, then a crontab for /etc/cron.d/XXX is printed 
+# if system=true is given, then a crontab for /etc/cron.d/XXX is printed
 # (= with the extra 'root' user column)
-sub printCrontab 
+sub printCrontab
 {
 	my $C = loadConfTable();
 
@@ -7179,7 +7181,7 @@ sub printCrontab
 	my $usercol = getbool($nvp{system})? "\troot\t" : '';
 
 	print <<EO_TEXT;
-# if you DON'T want any NMIS cron mails to go to root, 
+# if you DON'T want any NMIS cron mails to go to root,
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
 
@@ -7205,7 +7207,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Run the update once a day
 30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
 ######################################################
-# Log Rotation is now handled with /etc/logrotate.d/nmis, which 
+# Log Rotation is now handled with /etc/logrotate.d/nmis, which
 # the installer offers to setup using install/logrotate*.conf
 #
 # backup configuration, models and crontabs once a day, and keep 30 backups
@@ -7241,7 +7243,7 @@ EO_TEXT
 #=========================================================================================
 
 # apache 2.4 needs a different configuration layout
-sub printApache24 
+sub printApache24
 {
 	my $C = loadConfTable;
 	print qq|
@@ -7278,11 +7280,11 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 <Location "$C->{'<url_base>'}/">
 #  # For IP address based permissions
 #  <RequireAny>
-#  Require ip 10.0.0.0/8 
+#  Require ip 10.0.0.0/8
 #  Require ip 172.16.0.0/16
 #  Require ip 192.168.1.1
 #  Require host .opmantek.com
-#  Require all denied 
+#  Require all denied
 #</RequireAny>
 
 #  # For Username based authentication
@@ -7295,11 +7297,11 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 <Location "$C->{'<cgi_url_base>'}/">
 #  # For IP address based permissions
 #  <RequireAny>
-#  Require ip 10.0.0.0/8 
+#  Require ip 10.0.0.0/8
 #  Require ip 172.16.0.0/16
 #  Require ip 192.168.1.1
 #  Require host .opmantek.com
-#  Require all denied 
+#  Require all denied
 #</RequireAny>
 
 #  # For Username based authentication
@@ -7433,7 +7435,7 @@ command line options are:
       audit     Audit the configuration without changes
       apache    Produce Apache 2.0/2.2 configuration for NMIS
       apache24  Produce Apache 2.4 configuration for NMIS
-      crontab   Produce Crontab configuration for NMIS 
+      crontab   Produce Crontab configuration for NMIS
                 (add system=true for /etc/cron.d snippet)
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
@@ -7504,9 +7506,9 @@ sub doSummaryBuild {
 
 				foreach my $tp (keys %{$M->{summary}{statstype}}) { # oke, look for requests in summary of Model
 					### 2013-09-16 keiths, User defined threshold periods.
-					
+
 					next if (!exists $M->{system}->{rrd}->{$tp}->{threshold});
-					
+
 					my $threshold_period = "-15 minutes";
 					if ( $C->{"threshold_period-default"} ne "" ) {
 						$threshold_period = $C->{"threshold_period-default"};
@@ -7540,8 +7542,8 @@ sub doSummaryBuild {
 								}
 							}
 						}
-					} 
-					else 
+					}
+					else
 					{
 						my $dbname = $S->getDBName(graphtype => $tp);
 						if ($dbname && -r $dbname)
@@ -7601,7 +7603,7 @@ sub doThreshold {
 	my $sts = $args{table}; # pointer to data build by doSummaryBuild
 
 	dbg("Starting");
-	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => undef)
+	func::update_operations_stamp(type => "threshold", start => $starttime, stop => undef)
 			if ($type eq "threshold");	# not if part of collect
 
 	my $NT = loadLocalNodeTable();
@@ -7666,7 +7668,7 @@ sub doThreshold {
 														next;
 												}
 												# verify that there is at least valid interface record
-												if ( defined $NI->{$type} 
+												if ( defined $NI->{$type}
 													and defined $NI->{$type}{$index}
 													and defined $NI->{$type}{$index}{threshold}
 													and $NI->{$type}{$index}{threshold} eq "true"
@@ -7675,7 +7677,7 @@ sub doThreshold {
 												}
 											}
 											elsif ( $type =~ /cbqos/
-												and defined $NI->{'interface'} 
+												and defined $NI->{'interface'}
 												and defined $NI->{'interface'}{$index}
 												and defined $NI->{'interface'}{$index}{threshold}
 												and $NI->{'interface'}{$index}{threshold} eq "true"
@@ -7683,7 +7685,7 @@ sub doThreshold {
 												my ($cbqos,$direction) = split(/\-/,$type);
 												dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
 												foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} ) {
-													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");	
+													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");
 													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
 												}
 											}
@@ -7699,7 +7701,7 @@ sub doThreshold {
 						}
 					}
 				}
-				
+
 				## process each status and have it decay the overall node status......
 	      #"High TCP Connection Count--tcpCurrEstab" : {
 	      #   "status" : "ok",
@@ -7715,10 +7717,10 @@ sub doThreshold {
 	      #},
 				my $count = 0;
 				my $countOk = 0;
-				foreach my $statusKey (sort keys %{$S->{info}{status}}) {			
-					my $eventKey = $S->{info}{status}{$statusKey}{event}; 
+				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
+					my $eventKey = $S->{info}{status}{$statusKey}{event};
 					$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
-					
+
 					# event control is as configured or all true.
 					my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
 
@@ -7733,7 +7735,7 @@ sub doThreshold {
 						++$count;
 						++$countOk;
 					}
-					else {	
+					else {
 						++$count;
 						if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
 							++$countOk;
@@ -7770,8 +7772,8 @@ sub doThreshold {
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
-	}	
-	func::update_operations_stamp(type => "threshold", start => $C->{starttime}, stop => time())
+	}
+	func::update_operations_stamp(type => "threshold", start => $starttime, stop => Time::HiRes::time())
 			if ($type eq "threshold");	# not if part of collect
 }
 
@@ -7791,7 +7793,7 @@ sub runThrHld {
 	my $class = $args{class};
 	my $stats;
 	my $element;
-	
+
 	dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
 
 	my $threshold_period = "-15 minutes";
@@ -7827,7 +7829,7 @@ sub runThrHld {
 	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}
-	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed} 
+	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
 		and $M->{systemHealth}{sys}{$type}{indexed} ne "true"
 	) {
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
@@ -7835,7 +7837,7 @@ sub runThrHld {
 			$element = $NI->{$type}{$index}{$elementVar};
 		}
 	}
-	
+
 	if ( $element eq "" ) {
 		$element = $index;
 	}
@@ -7860,34 +7862,34 @@ sub runThrHld {
 				next();
 			}
 		}
-		
+
 		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index,item=>$item);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
 
 		my $details = "";
 		my $spacer = "";
-		
+
 		if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
 		{
 			$details = $IF->{$index}{Description};
 			$spacer = " ";
 		}
-				
+
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
 		if ( getbool($C->{global_events_bandwidth}) and $type =~ /interface|pkts/ and $IF->{$index}{ifSpeed} ne "")
 		{
 			my $ifSpeed = $IF->{$index}->{ifSpeed};
-																			
+
 			if ( $event =~ /Input/ and exists $IF->{$index}{ifSpeedIn} and $IF->{$index}{ifSpeedIn} ) {
 				$ifSpeed = $IF->{$index}->{ifSpeedIn};
 			}
 			elsif ( $event =~ /Output/ and exists $IF->{$index}{ifSpeedOut} and $IF->{$index}{ifSpeedOut} ) {
 				$ifSpeed = $IF->{$index}->{ifSpeedOut};
-			}			
+			}
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
-		
+
 		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index,class=>$class);
 	}
 
@@ -8049,13 +8051,13 @@ sub getPidFileName {
 
 
 sub printRunTime {
-	my $endTime = time() - $C->{starttime};
+	my $endTime = sprintf("%.2f", Time::HiRes::time() - $starttime);
 	info("End of $0, type=$type ran for $endTime seconds.\n");
 }
 
 # iterate over nodes and add any new groups to the configuration
 # this is normally NOT automated, as groups are an administrative feature
-# for maintenance (as nodes in unlisted groups are active but not 
+# for maintenance (as nodes in unlisted groups are active but not
 # shown in the gui)
 # args: none
 # returns: undef if ok, error message otherwise
@@ -8067,7 +8069,7 @@ sub sync_groups
 	# reread the config with a lock and unflattened
 	my $fn = $C->{'<nmis_conf>'}."/".($nvp{conf}||"Config").".nmis";
 	my ($rawC,$fh) = readFiletoHash(file => $fn, lock => 'true');
-	
+
 	return "Error: failed to read config $fn!" if (!$rawC or !keys %$rawC);
 
 	my %oldgroups = map { $_ => 1 } (split(/\s*,\s*/, $rawC->{system}->{group_list}));
@@ -8092,7 +8094,7 @@ sub sync_groups
 	{
 		close $fh;
 	}
-	
+
 	return undef;
 }
 
@@ -8104,4 +8106,3 @@ sub sync_groups
 # redistribute it under certain conditions; see www.opmantek.com or email
 # contact@opmantek.com
 # *****************************************************************************
-
