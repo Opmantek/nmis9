@@ -1,7 +1,7 @@
 # a small update plugin for discovering interfaces on FutureSoftware devices
 # which requires custom snmp accesses
 package Checkpoint;
-our $VERSION = "1.0.0";
+our $VERSION = "1.0.1"; # MRH 20160107
 
 use strict;
 
@@ -224,7 +224,7 @@ sub collect_plugin
 	my $psStatus = "OK";	
 	my $psLevel = "Normal";
 	my $psEvent = "Checkpoint Monitor";
-	my $psElement = "PS";
+	my $psElement = "DTPS";  #"PS"
 	my $psDetails = "";
 	my $psValue = "";
 
@@ -236,12 +236,12 @@ sub collect_plugin
 	else {
 		$psStatus = "CRITICAL";
 		$psLevel = "Critical";
-		$psDetails = "PS:CRITICAL($NI->{system}{dtpsStatShortDescr})";		
+		$psDetails = "Desktop Policy Server: $NI->{system}{dtpsStatShortDescr}, Connected Users:$NI->{system}{dtpsConnectedUsers}"; #"PS:CRITICAL($NI->{system}{dtpsStatShortDescr})"		
 	}
 	$psValue = $NI->{system}{dtpsStatShortDescr};
 
 	$V->{system}{"dtps_status_value"} = $psStatus;
-	$V->{system}{"dtps_status_title"} = 'PS Status';
+	$V->{system}{"dtps_status_title"} = 'DTPS Status';
 	$V->{system}{"dtps_status_color"} = '#00FF00';
 	$V->{system}{"dtps_status_color"} = '#FF0000' if $psStatus ne "OK";
 
