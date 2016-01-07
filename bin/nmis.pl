@@ -4384,40 +4384,55 @@ sub runServices {
 					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown})
 								and !getbool($NI->{system}{nodedown}) ) )
 			{
-				if ($ST->{$service}{Service_Name} eq '') {
+				my $wantedprocname = $ST->{$service}{Service_Name};
+
+				if (!$wantedprocname) {
 					dbg("ERROR, service_name is empty");
 					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
 					next;
 				}
 
-				# lets check the service status
-				# NB - may have multiple services with same name on box.
-				# so keep looking if up, last if one down
-				# look for an exact match here on service name as read from snmp poll
+				# lets check the service status from snmp for matching process(es)
+				# it's common to have multiple processes with the same name on a system,
+				# heuristic: one or more living processes -> service is ok,
+				# no living ones -> down.
+				# living in terms of host-resources mib = runnable or running;
+				# interpretation of notrunnable is not clear.
+				# invalid is for (short-lived) zombies, which should be ignored.
 
-				foreach ( sort keys %services ) {
-					my ($svc) = split ':', $services{$_}{hrSWRunName};
-					if ( $svc eq $ST->{$service}{Service_Name} ) {
-						if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
-							$ret = 1;
-							$cpu = $services{$_}{hrSWRunPerfCPU};
-							$memory = $services{$_}{hrSWRunPerfMem};
-							$gotMemCpu = 1;
-							info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
-						}
-						# should the check be that if any service is found running|runnable, or the count is the minimum number, the daemon is OK, otherwise only one opConfigd being invalid is bad
-						elsif ( $services{$_}{hrSWRunStatus} eq "" or $services{$_}{hrSWRunStatus} =~ /invalid/i ) {
-							logMsg("INFO, $node service $ST->{$service}{Name} is neutral, status is $services{$_}{hrSWRunStatus}");
-						}
-						else {
-							$ret = 0;
-							$cpu = $services{$_}{hrSWRunPerfCPU};
-							$memory = $services{$_}{hrSWRunPerfMem};
-							$gotMemCpu = 1;
-							logMsg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
-							last;
-						}
-					}
+				# services list is keyed by name:pid
+				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
+				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids);
+
+				dbg("runServices: found ".scalar(@matchingpids)." total and "
+						.scalar(@livingpids). " live processes for $wantedprocname");
+				dbg("runServices: live $wantedprocname processes: "
+						.join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
+
+				if (!@livingpids)
+				{
+					$ret = 0;
+					$cpu = 0;
+					$memory = 0;
+					$gotMemCpu = 1;
+					logMsg("INFO, service $ST->{$service}{Name} is down, ".(@matchingpids? "only non-running processes"
+																																	: "no matching processes"));
+				}
+				else
+				{
+					# return the average values for cpu and mem
+					$ret = 1;
+					$gotMemCpu = 1;
+
+					# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
+					# memory is in kb, and a gauge.
+					$cpu = int(mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ));
+					$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+
+#					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
+#					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+
+					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
 				}
 			}
 			else {
