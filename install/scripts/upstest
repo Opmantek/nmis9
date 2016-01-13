@@ -1,43 +1,52 @@
 #!/usr/bin/perl
-# this is a small helper script for monitoring the UPS status of
-# a UPS controlled by Network UPS Tools (http://www.networkupstools.org/) with NMIS
+
+# this is a small helper script for monitoring the UPS status of a UPS
+# controlled by Network UPS Tools (http://www.networkupstools.org/)
+# with NMIS
 #
 # it exits with 100 if the ups online, with the charge % otherwise
 # 
 # this means the service is down only when the ups is dead,
 # NOT while its discharging - in that case it's degraded.
 #
-# it reports the textual UPS status to NMIS, and battery charge and load % as charge=NNN, load=NNN
+# it reports the textual UPS status to NMIS, and battery charge and
+# load % as charge=NNN, load=NNN
+#
+our $VERSION = "1.0.1";
 use strict;
 
 # args: name of the ups
 my $upsname = $ARGV[0];
 die "usage: $0 <upsname>\n" if (!@ARGV);
 
-my @knownones = `upsc -L 2>/dev/null`;
-die "unknown ups $upsname\n" if !grep (/^$upsname:/, @knownones);
+my ($charge,$load,$status);
 
-my ($status,$charge,$load);
-for my $line (`upsc $upsname 2>/dev/null`)
+my @knownones = `upsc -L 2>/dev/null`;
+if (!grep (/^$upsname:/, @knownones))
 {
-		chomp $line;
-		my ($varname,$value) = split(/\s*:\s*/, $line);
-		if ($varname eq "ups.status")
-		{
-				$status = $value;
-		}
-		elsif ($varname eq "battery.charge")
-		{
-				$charge = $value;
-		}
-		elsif ($varname eq "ups.load")
-		{
-				$load = $value;
-		}
+	print "No UPS with name $upsname on this server!\n";
+	exit 0;
 }
 
+for my $line (`upsc $upsname 2>/dev/null`)
+{
+	chomp $line;
+	my ($varname,$value) = split(/\s*:\s*/, $line);
+	if ($varname eq "ups.status")
+	{
+		$status = $value;
+	}
+	elsif ($varname eq "battery.charge")
+	{
+			$charge = $value;
+	}
+	elsif ($varname eq "ups.load")
+	{
+		$load = $value;
+	}
+}
 print "UPS $upsname ". ($status =~ /^OL/? "On Line" 
 												: $status =~ /^.B/? "On Battery! $status" : "Unknown Status $status!")."\n";
 print "charge=$charge\n" if (defined $charge);
 print "load=$load\n" if (defined $load);
-exit ($status =~ /^OL/? 100 : $charge);
+exit ($status =~ /^OL/? 100 : defined $charge? $charge : 0);
