@@ -3,31 +3,31 @@
 ## $Id: rrddraw.pl,v 8.10 2012/08/24 05:35:22 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
@@ -163,7 +163,7 @@ sub rrdDraw {
 		}
 
 		my $graph;
-		if (!($graph = loadTable(dir=>'models',name=>"Graph-$graphtype")) 
+		if (!($graph = loadTable(dir=>'models',name=>"Graph-$graphtype"))
 				or !keys %$graph ) {
 			logMsg("ERROR failed to read Graph-$graphtype!");
 			error();
@@ -200,7 +200,7 @@ sub rrdDraw {
 				"--width", $width,
 				"--height", $height,
 				"--imgformat", "PNG",
-				"--interlace",
+				"--interlaced",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
 				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
@@ -244,18 +244,18 @@ sub rrdDraw {
 			$ifDescr = $IF->{$intf}{ifDescr};
 			$ifSpeed = $IF->{$intf}{ifSpeed};
 			$ifSpeedIn = $IF->{$intf}{ifSpeed};
-			$ifSpeedOut = $IF->{$intf}{ifSpeed};			
+			$ifSpeedOut = $IF->{$intf}{ifSpeed};
 			$ifSpeedIn = $IF->{$intf}{ifSpeedIn} if $IF->{$intf}{ifSpeedIn};
 			$ifSpeedOut = $IF->{$intf}{ifSpeedOut} if $IF->{$intf}{ifSpeedOut};
 			if ($ifSpeed eq "auto" ) {
 				$ifSpeed = 10000000;
 			}
-			
+
 			if ( $IF->{$intf}{ifSpeedIn} and $IF->{$intf}{ifSpeedOut} ) {
 				$speed = "IN\\: ". convertIfSpeed($ifSpeedIn) ." OUT\\: ". convertIfSpeed($ifSpeedOut);
 			}
 			else {
-				$speed = convertIfSpeed($ifSpeed);	
+				$speed = convertIfSpeed($ifSpeed);
 			}
 		}
 		$node = $NI->{system}{name};
@@ -269,7 +269,7 @@ sub rrdDraw {
 		$split = getbool($C->{graph_split}) ? -1 : 1 ;
 		$GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 		$weight = 0.983;
-	
+
 		foreach my $str (@opt) {
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \'\$$1\' ";}}egx;
 			if ($str =~ /ERROR/) {
@@ -288,11 +288,11 @@ sub rrdDraw {
 		my $buff;
 		my $random = int(rand(1000)) + 25;
 		my $tmpimg = "$C->{'<nmis_var>'}/rrdDraw-$random.png";
-	
+
 		print "Content-type: image/png\n\n";
 		($graphret,$xs,$ys) = RRDs::graph($tmpimg, @options);
 		if ( -f $tmpimg ) {
-	
+
 			open(IMG,"$tmpimg") or logMsg("$NI->{system}{name}, ERROR: problem with $tmpimg; $!");
 			binmode(IMG);
 			binmode(STDOUT);
@@ -317,7 +317,7 @@ sub rrdDraw {
 
 		if ($ERROR = RRDs::error) {
 			logMsg("$db Graphing Error for $graphtype: $ERROR");
-	
+
 		} else {
 			#return "GIF Size: ${xs}x${ys}\n";
 			#print "Graph Return:\n",(join "\n", @$graphret),"\n\n";
@@ -326,7 +326,7 @@ sub rrdDraw {
 
 	# Cologne and Stephane CBQoS Support
 	# this handles both cisco and huawei flavour cbqos
-	sub graphCBQoS 
+	sub graphCBQoS
 	{
 		my %args = @_;
 		my $S = $args{sys};
@@ -358,12 +358,12 @@ sub rrdDraw {
 			my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			my $vlabel = "Avg Bits per Second";
-			if ( $width <= 400 ) { 
+			if ( $width <= 400 ) {
 				$title = "$NI->{name} $ifDescr $direction";
 				$title .= " - $CBQosNames->[0]" if ($CBQosNames->[0] && $CBQosNames->[0] !~ /^(in|out)bound$/i);
 				$title .= ' - $length';
 				$vlabel = "Avg bps";
-			} else { 
+			} else {
 				$title = "$NI->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end';
 			}
 
@@ -375,7 +375,7 @@ sub rrdDraw {
 				"--width", "$width",
 				"--height", "$height",
 				"--imgformat", "PNG",
-				"--interlace",
+				"--interlaced",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
 				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
@@ -394,14 +394,14 @@ sub rrdDraw {
 			else {
 				push(@opt,"--font", $C->{graph_default_font_small}) if $C->{graph_default_font_small};
 			}
-						
+
 			# calculate the sum (avg and max) of all Classmaps for PrePolicy and Drop
-			# note that these CANNOT be graphed by themselves, as 0 isn't a valid RPN expression in rrdtool 
+			# note that these CANNOT be graphed by themselves, as 0 isn't a valid RPN expression in rrdtool
 			$avgppr = "CDEF:avgPrePolicyBitrate=0";
 			$maxppr = "CDEF:maxPrePolicyBitrate=0";
 			$avgdbr = "CDEF:avgDropBitrate=0";
 			$maxdbr = "CDEF:maxDropBitrate=0";
-			
+
 			# is this hierarchical or flat?
 			my $HQOS = 0;
 			foreach my $i (1..$#$CBQosNames) {
@@ -409,7 +409,7 @@ sub rrdDraw {
 					$HQOS = 1;
 				}
 			}
-			
+
 			my $gtype = "AREA";
 			my $gcount = 0;
 			my $parent_name = "";
@@ -443,16 +443,16 @@ sub rrdDraw {
 				$alias =~ s/$parent_name\-\-//g;
 				$alias =~ s/\-\-/\//g;
 
-				# rough alignment for the columns, necessarily imperfect 
+				# rough alignment for the columns, necessarily imperfect
 				# as X-char strings aren't equally wide...
 				my $tab = "\\t";
 				if ( length($alias) <= 5 ) {
 					$tab = $tab x 4;
 				}
-				elsif ( length($alias) <= 14 ) { 
+				elsif ( length($alias) <= 14 ) {
 					$tab = $tab x 3;
 				}
-				elsif ( length($alias) <= 19 ) { 
+				elsif ( length($alias) <= 19 ) {
 					$tab = $tab x 2;
 				}
 
@@ -478,7 +478,7 @@ sub rrdDraw {
 				else {
 					push(@opt,"$gtype:avgPPR$i#$color:$alias");
 				}
-				
+
 				#push(@opt,"LINE1:avgPPR$i#$color:$CBQosNames->[$i]");
 				$avgppr = $avgppr.",avgPPR$i,+";
 				$maxppr = $maxppr.",maxPPR$i,+";
@@ -514,7 +514,7 @@ sub rrdDraw {
 
 			my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
 			$title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end';
-			
+
 			@opt = (
 				"--title", "$title",
 				"--vertical-label", 'Avg Bits per Second',
@@ -523,7 +523,7 @@ sub rrdDraw {
 				"--width", "$width",
 				"--height", "$height",
 				"--imgformat", "PNG",
-				"--interlace",
+				"--interlaced",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
 				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
@@ -545,13 +545,13 @@ sub rrdDraw {
 
 			# needs to work for both types of qos, hence uses the CfgDSNames
 			push @opt, (
-				"DEF:PrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE", 
-				"DEF:maxPrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":MAX", 
-				"DEF:DropByte=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE", 
-				"DEF:maxDropByte=$database:".$thisinfo->{CfgDSNames}->[2].":MAX", 
-				"DEF:PrePolicyPkt=$database:".$thisinfo->{CfgDSNames}->[3].":AVERAGE", 
+				"DEF:PrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":AVERAGE",
+				"DEF:maxPrePolicyByte=$database:".$thisinfo->{CfgDSNames}->[0].":MAX",
+				"DEF:DropByte=$database:".$thisinfo->{CfgDSNames}->[2].":AVERAGE",
+				"DEF:maxDropByte=$database:".$thisinfo->{CfgDSNames}->[2].":MAX",
+				"DEF:PrePolicyPkt=$database:".$thisinfo->{CfgDSNames}->[3].":AVERAGE",
 				"DEF:DropPkt=$database:".$thisinfo->{CfgDSNames}->[5].":AVERAGE");
-			
+
 			# huawei doesn't have NoBufDropPkt
 			push @opt, "DEF:NoBufDropPkt=$database:".$thisinfo->{CfgDSNames}->[6].":AVERAGE"
 					if (defined $thisinfo->{CfgDSNames}->[6]);
@@ -563,7 +563,7 @@ sub rrdDraw {
 				"TEXTALIGN:left",
 				"AREA:PrePolicyBitrate#$color:PrePolicyBitrate",
 			);
-			
+
 			# detailed legends are only shown on the 'big' graphs
 			if ($width > 400) {
 				push(@opt,"GPRINT:PrePolicyBitrate:AVERAGE:\\tAvg %8.2lf %sbps\\t");
@@ -571,7 +571,7 @@ sub rrdDraw {
 			}
 			# move back to previous line, then right-align
 			push @opt, "COMMENT:\\u", "AREA:DropBitrate#ff0000:DropBitrate\\r:STACK";
-			
+
 			if ($width > 400)
 			{
 				push(@opt,"GPRINT:PrePolicyByte:AVERAGE:Bytes transferred\\t\\tAvg %8.2lf %sB/s\\n");
@@ -581,11 +581,11 @@ sub rrdDraw {
 
 				push(@opt,"GPRINT:PrePolicyPkt:AVERAGE:Packets transferred\\t\\tAvg %8.2lf\\l");
 				push(@opt,"GPRINT:DropPkt:AVERAGE:Packets dropped\\t\\t\\tAvg %8.2lf");
-				
+
 				# huawei doesn't have that
 				push(@opt,"COMMENT:\\l","GPRINT:NoBufDropPkt:AVERAGE:Packets No buffer dropped\\tAvg %8.2lf\\l")
 						if (defined $thisinfo->{CfgDSNames}->[6]);
-			
+
 				# not all qos setups have a graphable bandwidth limit
 				push @opt, "COMMENT:\\u", "COMMENT:".$thisinfo->{CfgType}." $speed\\r" if (defined $speed);
 			}
@@ -624,7 +624,7 @@ sub rrdDraw {
 			"--width", "$width",
 			"--height", "$height",
 			"--imgformat", "PNG",
-			"--interlace",
+			"--interlaced",
 			"--disable-rrdtool-tag"
 		);
 
@@ -641,7 +641,7 @@ sub rrdDraw {
 
 		foreach my $i ($S->getTypeInstances(section => 'calls')) {
 			next unless $intf eq "" or $intf eq $i;
-			$database = $S->getDBName(graphtype => 'calls', 
+			$database = $S->getDBName(graphtype => 'calls',
 																index => $i);
 			next if (!$database);
 
@@ -695,7 +695,7 @@ sub rrdDraw {
 } # end graph
 
 
-sub id { 
+sub id {
 	my $x = 10 *shift;
-	return '_'.sprintf("%02X", $x);	
-}	
+	return '_'.sprintf("%02X", $x);
+}
