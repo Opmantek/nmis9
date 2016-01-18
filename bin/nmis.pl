@@ -4405,6 +4405,8 @@ sub runServices {
 						}
 						# should the check be that if any service is found running|runnable, or the count is the minimum number, the daemon is OK, otherwise only one opConfigd being invalid is bad
 						elsif ( $services{$_}{hrSWRunStatus} eq "" or $services{$_}{hrSWRunStatus} =~ /invalid/i ) {
+							$ret = 1;							
+							$gotMemCpu = 0;
 							logMsg("INFO, $node service $ST->{$service}{Name} is neutral, status is $services{$_}{hrSWRunStatus}");
 						}
 						else {
