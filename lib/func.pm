@@ -2,34 +2,34 @@
 ## $Id: func.pm,v 8.26 2012/09/21 05:05:10 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 package func;
-our $VERSION = "1.4.1";
+our $VERSION = "1.4.2";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -55,7 +55,7 @@ use Exporter;
 
 @ISA = qw(Exporter);
 
-@EXPORT = qw(	
+@EXPORT = qw(
 		getArguements
 		getCGIForm
 		setDebug
@@ -89,7 +89,7 @@ use Exporter;
 		colorPercentLo
 		colorPercentHi
 		colorResponseTime
-		
+
 		sortall
 		sortall2
 		sorthash
@@ -130,7 +130,7 @@ use Exporter;
 
 		checkPerlLib
     beautify_physaddress
-    
+
 		existsPollLock
 		createPollLock
 		releasePollLock
@@ -153,7 +153,7 @@ my $nmis_mibs;
 my @htmlElements;
 
 # preset kernel name
-my $kernel = $^O; 
+my $kernel = $^O;
 
 # synchronisation with the main signal handler, to terminate gracefully
 my $_critical_section = 0;
@@ -194,7 +194,7 @@ sub getArguements {
 	        if ($argue[$i] =~ /.+=/) {
 	                ($name,$value) = split("=",$argue[$i]);
 	                $nvp{$name} = $value;
-	        } 
+	        }
 	        else { print "Invalid command argument: $argue[$i]\n"; }
 	}
 	return %nvp;
@@ -210,7 +210,7 @@ sub getCGIForm {
 	    $value =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
 	    $FORM{$name} = $value;
 	}
-	return %FORM;	
+	return %FORM;
 }
 
 sub convertIfName {
@@ -264,7 +264,7 @@ sub convertLineRate {
 
 sub mediumInterface {
 	my $shortint = shift;
-	
+
 	# Change the Names of interfaces to shortnames
 	$shortint =~ s/PortChannel/pc/gi;
 	$shortint =~ s/TokenRing/tr/gi;
@@ -281,13 +281,13 @@ sub mediumInterface {
 	$shortint =~ s/Port-channel/pchan/gi;
 	$shortint =~ s/channel/chan/gi;
 	$shortint =~ s/dialer/dial/gi;
-	
+
 	return($shortint);
 }
 
 sub shortInterface {
 	my $shortint = shift;
-	
+
 	# Change the Names of interfaces to shortnames
 	$shortint =~ s/FastEthernet/f/gi;
 	$shortint =~ s/GigabitEthernet/g/gi;
@@ -308,7 +308,7 @@ sub shortInterface {
 	$shortint =~ s/ /_/gi;
 	$shortint =~ s/\//-/gi;
 	$shortint = lc($shortint);
-	
+
 	return($shortint);
 }
 
@@ -348,7 +348,7 @@ sub get_localtime {
 	# pull the system timezone and then the local time
 	if ($^O =~ /win32/i) { # could add timezone code here
 		$time = scalar localtime;
-	} else { 
+	} else {
 		# assume UNIX box - look up the timezone as well.
 		my $zone = uc((split " ", `date`)[4]);
 		if ($zone =~ /CET|CEST/) {
@@ -414,7 +414,7 @@ sub convertTimeLength {
 	my $amount = shift;
 	my $units = shift;
 	my $newtime;
-	
+
 	# convert length code into Graph start time
 	if ( $units eq "minutes" ) { $newtime = $amount * 60; }
 	elsif ( $units eq "hours" ) { $newtime = $amount * 60 * 60; }
@@ -434,7 +434,7 @@ sub convertUpTime {
 	my $seconds;
 
 	$timeString =~ s/  |, / /g;
-	
+
 	## KS 24/3/2001 minor problem when uptime is 1 day x hours.  Fixed now.
 	if ( $timeString =~ /day/ ) {
 		@x = split(/ days | day /,$timeString);
@@ -444,11 +444,11 @@ sub convertUpTime {
 	else { $hours = $timeString; }
 	# Now days are a number
 	$seconds = $days * 24 * 60 * 60;
-	
+
 	# Work on Hours
 	@x = split(":",$hours);
 	$seconds = $seconds + ( $x[0] * 60 * 60 ) + ( $x[1] * 60 ) + $x[2];
-	return $seconds;	
+	return $seconds;
 }
 
 sub convUpTime {
@@ -467,10 +467,10 @@ sub convUpTime {
     if ($days == 0){
 	$result = sprintf ("%d:%02d:%02d", $hours, $minutes, $seconds);
     } elsif ($days == 1) {
-	$result = sprintf ("%d day, %d:%02d:%02d", 
+	$result = sprintf ("%d day, %d:%02d:%02d",
 			   $days, $hours, $minutes, $seconds);
     } else {
-	$result = sprintf ("%d days, %d:%02d:%02d", 
+	$result = sprintf ("%d days, %d:%02d:%02d",
 			   $days, $hours, $minutes, $seconds);
     }
     return $result;
@@ -558,7 +558,7 @@ sub eventColor {
 sub eventLevelSet {
 	my $event_level = shift;
 	my $new_level;
-	
+
  	if ( $event_level =~ /fatal/i or $event_level =~ /^0$/ ) { $new_level = "Fatal" }
  	elsif ( $event_level =~ /critical/i or $event_level == 1 ) { $new_level = "Critical" }
  	elsif ( $event_level =~ /major|traceback/i or $event_level == 2 ) { $new_level = "Major" }
@@ -601,10 +601,10 @@ sub getDiskBytes {
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
-	if ( $string eq "true" ) { $debug = 1; }	
-	elsif (  $string eq "verbose" ) { $debug = 9; }	
-	elsif ( $string =~ /\d+/ ) { $debug = $string; }	
-	else { $debug = 0; }	
+	if ( $string eq "true" ) { $debug = 1; }
+	elsif (  $string eq "verbose" ) { $debug = 9; }
+	elsif ( $string =~ /\d+/ ) { $debug = $string; }
+	else { $debug = 0; }
 	return $debug;
 }
 
@@ -623,7 +623,7 @@ sub backupFile {
 		truncate(OUT, 0) or warn "can't truncate filename: $!";
 
 		binmode(IN);
-		binmode(OUT);		
+		binmode(OUT);
 		while (read(IN, $buff, 8 * 2**10)) {
 		    print OUT $buff;
 		}
@@ -634,7 +634,7 @@ sub backupFile {
 	} else {
 		print STDERR "ERROR, backupFile file $arg{file} not readable.\n";
 		return 0;
-	}	
+	}
 }
 
 # funky sort, by Eric.
@@ -730,14 +730,14 @@ sub setFileProtDiag
 {
 	my (%args) = @_;
 	my $C = loadConfTable();
-	
+
 	my $filename = $args{file};
 	my $username = $args{username} || $C->{'os_username'} || "nmis";
 	my $permission = $args{permission};
 
 	return "file=$filename does not exist"
 			if ( not -r $filename and ! -d $filename );
-	
+
 	my $currentstatus = stat($filename);
 
 	if (!$permission)
@@ -748,7 +748,7 @@ sub setFileProtDiag
 			$permission = $C->{'os_execperm'} || "0770";
 		}
 		# files
-		elsif ($filename =~ /$C->{'nmis_executable'}/ 
+		elsif ($filename =~ /$C->{'nmis_executable'}/
 					 && $C->{'os_execperm'} )
 		{
 			$permission = $C->{'os_execperm'};
@@ -770,7 +770,7 @@ sub setFileProtDiag
 
 	# we can change file ownership iff running as root
 	my $myuid = $<;
-	if ( $myuid == 0) 
+	if ( $myuid == 0)
 	{
 		# ownership ok or in need of changing?
 		if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
@@ -783,11 +783,11 @@ sub setFileProtDiag
 	}
 	elsif ($currentstatus->uid == $myuid )
 	{
-		# only root can change files that are owned by others, 
-		# but you don't need to be root to set the group and perms IF you're the owner 
+		# only root can change files that are owned by others,
+		# but you don't need to be root to set the group and perms IF you're the owner
 		# and if the target group is one you're a member of
 		# in this case username is IGNORED and we aim for config nmis_group
-	
+
 		if (defined($onlygroup) && $currentstatus->gid != $onlygroup)
 		{
 			dbg("setting group owner of $filename to $C->{nmis_group}",3);
@@ -813,7 +813,7 @@ sub setFileProtDiag
 	return undef;
 }
 
-	
+
 
 # this is the backwards-compatible version of setfileprotdiag,
 # which doesn't return anything AND uses logmsg.
@@ -846,7 +846,7 @@ sub setFileProtParents
 	$topdir ||= $C->{'<nmis_base>'};
 	$topdir = File::Spec->canonpath($topdir);
 	$thisdir = File::Spec->canonpath($thisdir);
-	
+
 	my $relative = File::Spec->abs2rel($thisdir, $topdir);
 	my $curdir = $topdir;
 
@@ -882,7 +882,7 @@ sub getDir {
 	return $C_cache->{'<nmis_var>'} if $dir eq 'var';
 	return $C_cache->{'<nmis_logs>'} if $dir eq 'logs';
 }
-	
+
 sub existFile {
 	my %args = @_;
 	my $dir = $args{dir};
@@ -928,10 +928,10 @@ sub loadTable {
 	my $lock = getbool($args{lock}); # if lock is true then no caching
 
 	my $C = loadConfTable();
-	
+
 	# return an empty structure if I can't do anything else.
 	my $empty = { };
-	
+
 	if ($name ne '') {
 		if ($dir =~ /conf|models|var/) {
 			if (existFile(dir=>$dir,name=>$name)) {
@@ -948,7 +948,7 @@ sub loadTable {
 						if (stat($file)->mtime eq $Table_cache{$index}{mtime}) {
 							return 1 if ($check);
 							# else
-							return $Table_cache{$index}{data},$Table_cache{$index}{mtime} 
+							return $Table_cache{$index}{data},$Table_cache{$index}{mtime}
 							if ($mtime); # oke
 							# else
 							return $Table_cache{$index}{data}; # oke
@@ -959,7 +959,7 @@ sub loadTable {
 					# read from file
 					$Table_cache{$index}{data} = readFiletoHash(file=>$file);
 					$Table_cache{$index}{mtime} = stat($file)->mtime;
-					return $Table_cache{$index}{data},$Table_cache{$index}{mtime} 
+					return $Table_cache{$index}{data},$Table_cache{$index}{mtime}
 					if ($mtime); # oke
 					# else
 					return $Table_cache{$index}{data}; # oke
@@ -1005,7 +1005,7 @@ sub writeTable {
 # attention: this function name clashes with a function in rrdfunc.pm!
 #
 # returns absolute filename with extension
-sub getFileName 
+sub getFileName
 {
 	my %args = @_;
 	my $json = getbool($args{json});
@@ -1027,7 +1027,7 @@ sub getFileName
 		$file =~ s/\.nmis$//g;				# if somebody gave us a full but dud extension
 		$file .= '.json' if $file !~ /\.json/;
 	}
-	else 
+	else
 	{
 		return "nmis" if (getbool($args{only_extension}));
 		$file =~ s/\.json$//g;
@@ -1039,10 +1039,10 @@ sub getFileName
 
 # variant of the getFileName function, just returning the extension
 # same arguments
-sub getExtension 
+sub getExtension
 {
 	my (%args) = @_;
-	return getFileName(dir => $args{dir}, file => $args{file}, 
+	return getFileName(dir => $args{dir}, file => $args{file},
 										 json => $args{json}, only_extension => 1);
 }
 
@@ -1061,7 +1061,8 @@ sub writeHashtoFile {
 	my $data = $args{data};
 	my $handle = $args{handle}; # if handle specified then file is locked EX
 	my $json = getbool($args{json});
-	my $pretty = getbool($args{pretty});
+	# pretty printing: if arg given, that overrides config
+	my $pretty = getbool( (exists $args{pretty})? $args{pretty} : $C_cache->{use_json_pretty} );
 
 	my $conf_says_json = getbool($C_cache->{use_json});
 
@@ -1092,7 +1093,7 @@ sub writeHashtoFile {
 
 	my $errormsg;
 	# write out the data, but defer error logging until after the lock is released!
-	if ( $useJson and ( getbool($C_cache->{use_json_pretty}) or $pretty) ) {
+	if ( $useJson and $pretty ) {
 		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
 			$errormsg = "ERROR cannot write data object to file $file: $!";
 		}
@@ -1144,16 +1145,16 @@ sub readFiletoHash {
 	# default: no json
 	$file = getFileName(file => $file, json => $json);
 	my $useJson = getExtension(file => $file, json => $json) eq "json";
-	
+
 	if ( -r $file ) {
 		my $filerw = $lock ? "+<$file" : "<$file";
 		my $lck = $lock ? LOCK_EX : LOCK_SH;
 		if (open($handle, "$filerw")) {
-			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";     
+			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
 			local $/ = undef;
 			my $data = <$handle>;
 			if ( $useJson ) {
-				my $hashref; 
+				my $hashref;
 				eval { $hashref = decode_json($data); } ;
 				if ( $@ ) {
 					logMsg("ERROR convert $file to hash table, $@");
@@ -1318,14 +1319,14 @@ sub htmlElementValues{};
 # args: string, required; extended with (class::)method names and line number
 # optional: do_not_lock (default: false), to be used in signal handler ONLY!
 # returns: nothing
-sub logMsg 
+sub logMsg
 {
 	my ($msg, $do_not_lock) = @_;
 	$do_not_lock = getbool($do_not_lock); # ie. true only if explicitely set
 
 	my $C = $C_cache; # local scalar
 	my $handle;
-	
+
 	if ($C eq '') {
 		# no config loaded
 		die "FATAL logMsg, NO Config Loaded: $msg\n";
@@ -1342,7 +1343,7 @@ sub logMsg
 		($string = (caller(1))[3]) =~ s/\w+:://;
 		print returnTime." $string, $msg\n";
 	} else {
-		dbg($msg); # 
+		dbg($msg); #
 	}
 
 	my ($string,$caller,$ln,$fn);
@@ -1381,7 +1382,7 @@ sub logMsg
 				warn "logMsg, can't lock filename: $!";
 			}
 		}
-		
+
 		if (!print $handle returnDateStamp().",$string\n")
 		{
 			$status_is_ok = 0;
@@ -1487,7 +1488,7 @@ sub logAuth {
 		($string = (caller(1))[3]) =~ s/\w+:://;
 		print STDERR returnTime." $string, $msg\n";
 	} else {
-		dbg($msg); # 
+		dbg($msg); #
 	}
 
 	my ($string,$caller,$ln,$fn);
@@ -1535,7 +1536,7 @@ sub logIpsla {
 		($string = (caller(1))[3]) =~ s/\w+:://;
 		print returnTime." $string, $msg\n";
 	} else {
-		dbg($msg); # 
+		dbg($msg); #
 	}
 
 	my $PID = $$;
@@ -1568,7 +1569,7 @@ sub logPolling {
 	my $msg = shift;
 	my $C = $C_cache; # local scalar
 	my $handle;
-	
+
 	#To enable polling log a file must be configured in Config.nmis and the file must exist.
 	if ( $C->{polling_log} ne "" and -f $C->{polling_log} ) {
 		if ($C eq '') {
@@ -1579,7 +1580,7 @@ sub logPolling {
 			print "ERROR, logPolling can't do anything but NAG YOU\n";
 			warn "ERROR logPolling: the message which killed me was: $msg\n";
 		}
-	
+
 		open($handle,">>$C->{polling_log}") or warn returnTime." logPolling, Couldn't open log file $C->{polling_log}. $!\n";
 		flock($handle, LOCK_EX)  or warn "logPolling, can't lock filename: $!";
 		print $handle returnDateStamp().",$msg\n" or warn returnTime." logPolling, can't write file $C->{polling_log}. $!\n";
@@ -1595,7 +1596,7 @@ sub logDebug {
 	my $C = $C_cache; # local scalar
 	my $fileOK = 1;
 	my $handle;
-	
+
 	if ( -f $file and not -w $file ) {
 		logMsg("ERROR, logDebug can not write file $file\n");
 		$fileOK = 0;
@@ -1617,8 +1618,8 @@ sub logDebug {
 # normal op: compares first argument against true or 1 or yes
 # opposite: compares first argument against false or 0 or no
 #
-# this opposite stuff is needed for handling "XX ne false", 
-# which is 1 if XX is undef and thus not the same as !getbool(XX,0) 
+# this opposite stuff is needed for handling "XX ne false",
+# which is 1 if XX is undef and thus not the same as !getbool(XX,0)
 #
 # usage: eq true => getbool, ne true => !getbool,
 # eq false => getbool(...,invert), ne false => !getbool(...,invert)
@@ -1645,36 +1646,36 @@ sub getConfFileName {
 
 	# See if customised config file required.
 	my $configfile = "$FindBin::Bin/../conf/$conf";
-	
-	my $altconf = getFileName(file => "/etc/nmis/$conf"); 
-	
+
+	my $altconf = getFileName(file => "/etc/nmis/$conf");
+
 	if ( $dir ) {
-		$configfile = "$dir/$conf"; 
+		$configfile = "$dir/$conf";
 	}
-	
+
 	$configfile = getFileName(file => $configfile);
-	
+
 	if (not -r $configfile ) {
 		# the following should be conformant to Linux FHS
 		if ( -e $altconf ) {
 			$configfile = $altconf;
-		} else { 
+		} else {
 			if ( $ENV{SCRIPT_NAME} ne "" ) {
 				print header();
 				print start_html(
 					-title => "NMIS Network Management Information System",
 					-meta => { 'CacheControl' => "no-cache",
 						'Pragma' => "no-cache",
-						'Expires' => -1 
+						'Expires' => -1
 					});
 			}
-			
+
 			print "Can't access neither NMIS configuration file=$configfile, nor $altconf \n";
-			
+
 			if ( $ENV{SCRIPT_NAME} ne "" ) {
 				print end_html;
 			}
-			
+
 			return;
 		}
 	}
@@ -1725,7 +1726,7 @@ sub loadConfTable {
 
 	# add extension if missing
 	$conf = $conf =~ /\./ ? $conf : "${conf}";
-	
+
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 
 		# check if config file is updated, if not, use file cache
@@ -1744,7 +1745,7 @@ sub loadConfTable {
 					$Table_cache{$conf}{$kk} = $CC->{$k}{$kk};
 				}
 			}
-	
+
 			# check for config variables and process each config element again.
 			foreach $key (keys %{$Table_cache{$conf}}) {
 				if ( $key =~ /^<.*>$/ ) {
@@ -1766,11 +1767,11 @@ sub loadConfTable {
 			$Table_cache{$conf}{starttime} = time();
 
 			$Table_cache{$conf}{mtime} = stat($configfile)->mtime; # remember modified time
-	
+
 			$Table_cache{$conf}{server} = $Table_cache{$conf}{server_name};
-	
+
 			$C_cache = $Table_cache{$conf};
-			
+
 			### 2012-04-16 keiths, only update if not null
 			$nmis_conf = $Table_cache{$conf}{'<nmis_conf>'} if $Table_cache{$conf}{'<nmis_conf>'};
 			$nmis_var = $Table_cache{$conf}{'<nmis_var>'} if $Table_cache{$conf}{'<nmis_var>'};
@@ -1778,7 +1779,7 @@ sub loadConfTable {
 			$nmis_logs = $Table_cache{$conf}{'<nmis_logs>'} if $Table_cache{$conf}{'<nmis_logs>'};
 			$nmis_log = $Table_cache{$conf}{'nmis_log'} if $Table_cache{$conf}{'nmis_log'};
 			$nmis_mibs = $Table_cache{$conf}{'<nmis_mibs>'} if $Table_cache{$conf}{'<nmis_mibs>'};
-	
+
 			return $C_cache;
 		}
 	}
@@ -1820,7 +1821,7 @@ sub getKernelName {
 	return $kernel;
 }
 
-# creates the dir in question, and all missing intermediate 
+# creates the dir in question, and all missing intermediate
 # directories in the path.
 sub createDir {
 	my $dir = shift;
@@ -1829,7 +1830,7 @@ sub createDir {
 		my $permission = "0770"; # default
 		if ( $C->{'os_execperm'} ne "" ) {
 			$permission = $C->{'os_execperm'} ;
-		} 
+		}
 
 		my $umask = umask(0);
 		mkpath($dir,{verbose => 0, mode => oct($permission)});
@@ -1843,7 +1844,7 @@ sub checkDir {
 	my @messages;
 
 	my $C = loadConfTable();
-	
+
 	# Does the directory exist
 	if ( not -d $dir ) {
 		$result = 0;
@@ -1857,10 +1858,10 @@ sub checkDir {
 		my $gid = $dstat->gid;
 		my $uid = $dstat->uid;
 		my $mode = $dstat->mode;
-		
+
 		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
 		my $username = getpwuid($uid);
-		
+
 		#print "DEBUG: dir=$dir username=$username groupname=$groupname uid=$uid gid=$gid mode=$mode\n";
 
 		# Are the user and group permissions correct.
@@ -1868,46 +1869,46 @@ sub checkDir {
     my $group_rwx = ($mode & S_IRWXG) >> 3;
 
 		if ( $user_rwx ) {
-			push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};			
+			push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $dir does not have user read-write-execute permissions");			
+			push(@messages,"ERROR: $dir does not have user read-write-execute permissions");
 		}
 
 		if ( $group_rwx ) {
-			push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};			
+			push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $dir does not have group read-write-execute permissions");			
+			push(@messages,"ERROR: $dir does not have group read-write-execute permissions");
 		}
-		
+
 		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};			
+			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");			
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
 		}
 
 		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};			
+			push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");			
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};			
+			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");			
-		}		
+			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
+		}
 	}
-		
+
 	if (not $result) {
 		my $message = join("\n",@messages);
 		print "Problem with $dir:\n$message\n";
@@ -1923,7 +1924,7 @@ sub checkFile {
 	my @messages;
 
 	my $C = loadConfTable();
-	
+
 	# Does the directory exist
 	if ( not -f $file ) {
 		$result = 0;
@@ -1939,48 +1940,48 @@ sub checkFile {
 		my $mode = $fstat->mode;
 		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
 		my $username = getpwuid($uid);
-		
+
 		if ( $fstat->size > $C->{'file_size_warning'} and $C->{'file_size_warning'} ne "" and $C->{'file_size_warning'} > 0 ) {
 			$result = 0;
 			my $size = $fstat->size;
-			push(@messages,"WARN: $file is $size bytes, larger than $C->{'file_size_warning'} bytes");			
+			push(@messages,"WARN: $file is $size bytes, larger than $C->{'file_size_warning'} bytes");
 		}
 
 		#S_IRWXU S_IRUSR S_IWUSR S_IXUSR
     #S_IRWXG S_IRGRP S_IWGRP S_IXGRP
     #S_IRWXO S_IROTH S_IWOTH S_IXOTH
-		
-		# Are the user and group permissions correct.    
-    # are the files executable or non-executable    
+
+		# Are the user and group permissions correct.
+    # are the files executable or non-executable
     if (! defined $C->{'nmis_executable'}) { #Added by Till Dierkesmann
         $C->{'nmis_executable'} = '\.pl$|\.sh$';
         dbg("nmis_executable set to \"$C->{'nmis_executable'}\"",1);
     }
-    
+
     if ( $file =~ /$C->{'nmis_executable'}/ ) {
 			my $user_rwx = ($mode & S_IRWXU) >> 6;
 	    my $group_rwx = ($mode & S_IRWXG) >> 3;
 	    my $other_rwx = ($mode & S_IRWXO);
-	    
+
 			if ( $user_rwx ) {
-				push(@messages,"INFO: $file has user read-write-execute permissions") if $C->{debug};			
+				push(@messages,"INFO: $file has user read-write-execute permissions") if $C->{debug};
 			}
 			else {
 				$result = 0;
-				push(@messages,"ERROR: $file does not have user read-write-execute permissions");			
+				push(@messages,"ERROR: $file does not have user read-write-execute permissions");
 			}
-	
+
 			if ( $group_rwx ) {
-				push(@messages,"INFO: $file has group read-write-execute permissions") if $C->{debug};			
+				push(@messages,"INFO: $file has group read-write-execute permissions") if $C->{debug};
 			}
 			else {
 				$result = 0;
-				push(@messages,"ERROR: $file does not have group read-write-execute permissions");			
+				push(@messages,"ERROR: $file does not have group read-write-execute permissions");
 			}
 
 			if ( $other_rwx ) {
 				$result = 0;
-				push(@messages,"WARN: $file has other read-write-execute permissions");			
+				push(@messages,"WARN: $file has other read-write-execute permissions");
 			}
 		}
 		else {
@@ -1996,52 +1997,52 @@ sub checkFile {
 			}
 			else {
 				$result = 0;
-				push(@messages,"ERROR: $file does not have user read-write permissions");			
+				push(@messages,"ERROR: $file does not have user read-write permissions");
 			}
-	
+
 			if ( $group_r and $group_w ) {
-				push(@messages,"INFO: $file has group read-write permissions") if $C->{debug};			
+				push(@messages,"INFO: $file has group read-write permissions") if $C->{debug};
 			}
 			else {
 				$result = 0;
-				push(@messages,"ERROR: $file does not have group read-write permissions");			
-			}			
+				push(@messages,"ERROR: $file does not have group read-write permissions");
+			}
 
 			if ( $other_r ) {
 				$result = 0;
-				push(@messages,"WARN: $file has other read permissions");			
+				push(@messages,"WARN: $file has other read permissions");
 			}
 			if ( $other_w ) {
 				$result = 0;
-				push(@messages,"WARN: $file has other write permissions");			
+				push(@messages,"WARN: $file has other write permissions");
 			}
 		}
 
 		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_user=$username") if $C->{debug};			
+			push(@messages,"INFO: $file has correct owner from config nmis_user=$username") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");			
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
 		}
 
 		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config os_username=$username") if $C->{debug};			
+			push(@messages,"INFO: $file has correct owner from config os_username=$username") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");			
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname") if $C->{debug};			
+			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname") if $C->{debug};
 		}
 		else {
 			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");			
-		}		
+			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
+		}
 	}
-		
+
 	if (not $result) {
 		my $message = join("\n",@messages);
 		print "Problem with $file:\n$message\n";
@@ -2056,7 +2057,7 @@ sub checkDirectoryFiles {
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;
-	
+
 	foreach my $file (@dirlist) {
 		if ( -f "$dir/$file" and $file !~ /^\./ ) {
 			checkFile("$dir/$file");
@@ -2070,21 +2071,21 @@ sub checkDirectoryFiles {
 sub setFileProtDirectory {
 	my $dir = shift;
 	my $recurse = shift;
-	
+
 	if ( $recurse eq "" ) {
 		$recurse = 0;
 	}
 	else {
 		$recurse = getbool($recurse);
 	}
-	
+
 	dbg("setFileProtDirectory $dir, recurse=$recurse",1);
 
 	setFileProt($dir);						# the dir itself must be checked and fixed, too!
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;
-	
+
 	foreach my $file (@dirlist) {
 		if ( -f "$dir/$file" and $file !~ /^\./ ) {
 			setFileProt("$dir/$file");
@@ -2110,7 +2111,7 @@ sub hexval  {
 	return sprintf("%2.2X", shift);
 }
 
-### 2012-09-21 keiths, fixing up so NAN is not black.	
+### 2012-09-21 keiths, fixing up so NAN is not black.
 sub colorPercentHi {
 	use List::Util qw[min max];
 	my $val = shift;
@@ -2123,7 +2124,7 @@ sub colorPercentHi {
 	}
 }
 
-### 2012-09-21 keiths, fixing up so NAN is not black.	
+### 2012-09-21 keiths, fixing up so NAN is not black.
 sub colorPercentLo {
 	use List::Util qw[min max];
 	my $val = shift;
@@ -2141,7 +2142,7 @@ sub colorResponseTime {
 	my $thresh = shift;
 	$thresh = 750 if not $thresh;
 	my $ratio = 255/($thresh/255);
-	
+
 	return "#FF0000" if $val > $thresh;
 	return "#AAAAAA" if $val !~ /[0-9]+/;
 	return '#' . hexval( int((($val/255)*$ratio))) . hexval( int((($thresh-$val)/255)*$ratio )) .'00' ;
@@ -2150,22 +2151,22 @@ sub colorResponseTime {
 sub checkPerlLib {
 	my $lib = shift;
 	my $found = 0;
-	
+
 	my $path = $lib;
 	$path =~ s/\:\:/\//g;
-	
+
 	if ( $path !~ /\.pm/ ) {
 		$path .= ".pm";
 	}
-	
+
 	#check the USE path for the file.
 	foreach my $libdir (@INC) {
 		if ( -f "$libdir/$path" ) {
 			$found = 1;
 			last;
-		}	
+		}
 	}
-	
+
 	return $found;
 }
 
@@ -2180,9 +2181,9 @@ sub selftest
 {
 	my (%args) = @_;
 	my ($allok, @details);
-	
+
 	my $config = $args{config};
-	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"}) 
+	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"})
 			if (ref($config) ne "HASH" or !keys %$config);
 	my $candelay = getbool($args{delay_is_ok});
 
@@ -2195,7 +2196,7 @@ sub selftest
 	my $minversion=version->parse("1.4004");
 	my $testname="RRDs Module";
 	my $curversion;
-	eval { 
+	eval {
 		require RRDs;
 		$curversion = version->parse($RRDs::VERSION);
 	};
@@ -2213,7 +2214,7 @@ sub selftest
 	{
 		push @details, [$testname, undef];
 	}
-	
+
 	# verify that nmis isn't disabled altogether
 	$testname = "NMIS enabled";
 	my $result = undef;
@@ -2239,7 +2240,7 @@ sub selftest
 	{
 		my $statresult = stat($dir);
 		# nonexistent dir or seen that filesystem? ignore
-		next if (!$statresult or $fs_ids{$statresult->dev}); 
+		next if (!$statresult or $fs_ids{$statresult->dev});
 		$fs_ids{$statresult->dev} = 1;
 
 		my $testname = "Free space in $dir";
@@ -2282,7 +2283,7 @@ sub selftest
 		$allok=0;
 	}
 	push @details, ["NMIS process count",$status];
-	
+
 	# check that there is some sort of cron running, ditto for fpingd (if enabled)
 	my $cron_name = $config->{selftest_cron_name}? qr/$config->{selftest_cron_name}/ : qr!(^|/)crond?$!;
 	my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
@@ -2295,7 +2296,7 @@ sub selftest
 			last if ($cron_found && $fpingd_found);
 		}
 		# fpingd is identifyable only by cmdline
-		elsif (getbool($config->{daemon_fping_active}) 
+		elsif (getbool($config->{daemon_fping_active})
 					 && $pentry->cmndline =~ $config->{daemon_fping_filename})
 		{
 			$fpingd_found=1;
@@ -2315,7 +2316,7 @@ sub selftest
 		$allok=0;
 	}
 	push @details, ["FastPing daemon", $fpingd_status];
-	
+
 	# check iowait and general busyness of the system
 	# however, do that ONLY if we are allowed to delay for a few seconds
 	# (otherwise we get only the avg since boot!)
@@ -2331,7 +2332,7 @@ sub selftest
 				# cpu user nice system idle iowait irq softirq steal guest guestnice
 				if ($name eq "cpu")
 				{
-					my $total = $info[0] + $info[1] + $info[2] + $info[3] + $info[4] 
+					my $total = $info[0] + $info[1] + $info[2] + $info[3] + $info[4]
 							+ $info[5] + $info[6] + $info[7] + $info[8] + $info[9];
 					# cpu util = sum of everything but idle, iowait is separate
 					push @total, $total;
@@ -2343,7 +2344,7 @@ sub selftest
 			close(F);
 			sleep(5) if (!$run);			# get the cpu and io load over a few seconds
 		}
-		
+
 		my $total_delta = $total[1] - $total[0];
 		my $busy_delta = $busy[1] - $busy[0];
 		my $iowait_delta = $iowait[1] - $iowait[0];
@@ -2356,14 +2357,14 @@ sub selftest
 		my $max_iowait = $config->{selftest_max_system_iowait} || 10;
 		if ($busy_ratio * 100 > $max_cpu)
 		{
-			$busy_status = sprintf("CPU load %.2f%% is above threshold %.2f%%", 
+			$busy_status = sprintf("CPU load %.2f%% is above threshold %.2f%%",
 														 $busy_ratio*100, $max_cpu);
 			$allok=0;
 		}
 		if ($iowait_ratio * 100 > $max_iowait)
 		{
-			$iowait_status = sprintf("I/O load %.2f%% is above threshold %.2f%%", 
-															 $iowait_ratio*100, 
+			$iowait_status = sprintf("I/O load %.2f%% is above threshold %.2f%%",
+															 $iowait_ratio*100,
 															 $max_iowait);
 			$allok=0;
 		}
@@ -2408,8 +2409,8 @@ sub selftest
 			if ($f =~ /^(update|collect)-(\d+)-(\d*)$/)
 			{
 				my ($op,$start,$end) = ($1,$2,$3);
-				my ($target_start,$target_end) = ($op eq "update")? 
-						(\$last_update_start, \$last_update_end) : 
+				my ($target_start,$target_end) = ($op eq "update")?
+						(\$last_update_start, \$last_update_end) :
 						(\$last_collect_start, \$last_collect_end);
 
 				if ($end && $start >= $$target_start && $end >= $$target_end)
@@ -2421,7 +2422,7 @@ sub selftest
 		}
 		closedir(D);
 		my ($updatestatus, $collectstatus);
-    # for bootstrapping until first update with timestamping runs: treat no timestamps whatsoever 
+    # for bootstrapping until first update with timestamping runs: treat no timestamps whatsoever
 		# as NO error (for metrics), but put error text in (for details page)
 		if (!defined $last_update_end)
 		{
@@ -2445,7 +2446,7 @@ sub selftest
 		# put these at the beginning
 		unshift @details, ["Last Update", $updatestatus], [ "Last Collect", $collectstatus];
 	}
-	
+
 	return ($allok, \@details);
 }
 
@@ -2459,7 +2460,7 @@ sub update_operations_stamp
 	my ($type,$start,$stop) = @args{"type","start","stop"};
 
 	return if (!$type or !$start); # we associate start with stop
-	
+
 	my $C = loadConfTable;
 	# having this hardcoded twice isn't great...
 	my $oplogdir = $C->{'<nmis_var>'}."/nmis_system/timestamps";
@@ -2472,11 +2473,11 @@ sub update_operations_stamp
 		}
 	}
 
-	# simple setup: update-123456- for start 
+	# simple setup: update-123456- for start
 	# and update-1234567-1400000 for stop
-	my $startstamp = "$oplogdir/$type-$start-";
-	my $endstamp = "$oplogdir/$type-$start-$stop";
-	
+	my $startstamp = sprintf("$oplogdir/$type-%d-",$start); # if these are fractional secs
+	my $endstamp =  sprintf("$oplogdir/$type-%d-%d",$start, $stop);
+
 	if (!$stop)
 	{
 		open(F,">$startstamp") or die "cannot write to $startstamp: $!\n";
@@ -2489,7 +2490,7 @@ sub update_operations_stamp
 		unlink($endstamp) if (-f $endstamp);
 		if (-f $startstamp)
 		{
-			rename($startstamp,$endstamp) 
+			rename($startstamp,$endstamp)
 					or die "cannot rename $startstamp to $endstamp: $!\n";
 			setFileProt($endstamp);
 		}
@@ -2500,11 +2501,11 @@ sub update_operations_stamp
 			setFileProt($endstamp);
 		}
 
-		# now be a good camper and ensure that we don't leave too many 
+		# now be a good camper and ensure that we don't leave too many
 		# of these files around
 		opendir(D,$oplogdir) or die "cannot open dir $oplogdir: $!\n";
 		# need these sorted by first timestamp
-		my @files = sort { my ($first,$second) = ($a,$b); 
+		my @files = sort { my ($first,$second) = ($a,$b);
 											 $first =~ s/^$type-(\d+).*$/$1/;
 											 $second =~ s/^$type-(\d+).*$/$1/;
 											 $second <=> $first; } grep(/^$type-/, readdir(D));
@@ -2512,14 +2513,14 @@ sub update_operations_stamp
 
 		for my $idx ($maxfiles..$#files)
 		{
-			unlink("$oplogdir/$files[$idx]") 
+			unlink("$oplogdir/$files[$idx]")
 					or die "cannot remove $oplogdir/$files[$idx]: $!\n";
 		}
 		close F;
 	}
 }
 
-# small helper that returns hash of other nmis processes that are 
+# small helper that returns hash of other nmis processes that are
 # running the given function
 # args: type (=collect or update), config (config hash)
 # with type given, collects the processes that run that cmd AND have the same config
@@ -2536,12 +2537,12 @@ sub find_nmis_processes
 	die "cannot run find_nmis_processes without configuration!\n"
 		if (ref($config) ne "HASH" or !keys %$config);
 	my $confname = $config->{conf};
-	
+
 	my $pst = Proc::ProcessTable->new(enable_ttys => 0);
 	foreach my $procentry (@{$pst->table})
 	{
 		next if ($procentry->pid == $$);
-		
+
 		my $procname = $procentry->cmndline;
 		my $starttime = $procentry->start;
 		my $execname = $procentry->fname;
@@ -2554,7 +2555,7 @@ sub find_nmis_processes
 		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
 		{
 			my $trouble = $2;
-			$others{$procentry->pid} = { name => $procname, 
+			$others{$procentry->pid} = { name => $procname,
 																	 exe => $execname,
 																	 node => $trouble,
 																	 start => $starttime };
@@ -2587,7 +2588,7 @@ sub beautify_physaddress
 	return $raw if ($raw =~ /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i); # nothing to do
 
 	my @bytes;
-	# nice 0xlonghex -> split into bytes 
+	# nice 0xlonghex -> split into bytes
 	if ($raw =~ /^0x[0-9a-f]+$/i)
 	{
 		$raw =~ s/^0x//i;
@@ -2627,9 +2628,9 @@ sub existsPollLock {
 	my $node = $args{node};
 	my $PID = undef;
 	my $handle = undef;
-	
+
 	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
-	
+
 	if ( -f $lockFile ) {
 		open($handle, "$lockFile") or warn "existsPollLock: ERROR cannot open $lockFile: $!\n";
 		unless (flock($handle, LOCK_EX|LOCK_NB)) {
@@ -2640,7 +2641,7 @@ sub existsPollLock {
 		return 0;
 	}
 	else {
-		return 0;	
+		return 0;
 	}
 
 }
@@ -2653,8 +2654,8 @@ sub createPollLock {
 	my $handle = undef;
 
 	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
-	
-	if ( not existsPollLock(%args) ) {	
+
+	if ( not existsPollLock(%args) ) {
 		my $PID = $$;
 		open($handle, ">$lockFile")  or warn "createPollLock: ERROR cannot open $lockFile: $!\n";
 		flock($handle, LOCK_EX) or warn "createPollLock: ERROR can't lock file $lockFile, $!\n";
@@ -2683,4 +2684,3 @@ sub releasePollLock {
 }
 
 1;
-

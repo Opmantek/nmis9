@@ -2,31 +2,31 @@
 ## $Id: rrdfunc.pm,v 8.6 2012/04/28 00:59:36 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 package opmantek_rrdfunc;
@@ -50,11 +50,11 @@ use Data::Dumper;
 #$Data::Dumper::Ident=1;
 #$Data::Dumper::SortKeys=1;
 
-$VERSION = 2.0;
+$VERSION = 2.0.1;
 
 @ISA = qw(Exporter);
 
-@EXPORT = qw(		
+@EXPORT = qw(
 		rrdFetchGraphPData
 	);
 
@@ -87,9 +87,9 @@ sub rrdFetchGraphPData {
 
 	my $C = $args{C};
 	# if( !defined($C) ) {
-	# 	if (!($C = loadConfTable(conf=>$args{conf},debug=>$debug))) { exit 1; };	
+	# 	if (!($C = loadConfTable(conf=>$args{conf},debug=>$debug))) { exit 1; };
 	# }
-	
+
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$nodename,snmp=>'false');
 	my $NI = $S->ndinfo;
@@ -116,7 +116,7 @@ sub rrdFetchGraphPData {
 	my @options;
 	my @opt;
 	my $db;
-	
+
 	my ($r_start,$r_end,$r_width,$types,$ds_names,$legend,$colours,$pdata,$chart_options);
 	my ($hash_data,$hash_head);
 
@@ -176,7 +176,7 @@ sub rrdFetchGraphPData {
 				"--width", $width,
 				"--height", $height,
 				"--imgformat", "PNG",
-				"--interlace",
+				"--interlaced",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
 				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
@@ -220,18 +220,18 @@ sub rrdFetchGraphPData {
 			$ifDescr = $IF->{$intf}{ifDescr};
 			$ifSpeed = $IF->{$intf}{ifSpeed};
 			$ifSpeedIn = $IF->{$intf}{ifSpeed};
-			$ifSpeedOut = $IF->{$intf}{ifSpeed};			
+			$ifSpeedOut = $IF->{$intf}{ifSpeed};
 			$ifSpeedIn = $IF->{$intf}{ifSpeedIn} if $IF->{$intf}{ifSpeedIn};
 			$ifSpeedOut = $IF->{$intf}{ifSpeedOut} if $IF->{$intf}{ifSpeedOut};
 			if ($ifSpeed eq "auto" ) {
 				$ifSpeed = 10000000;
 			}
-			
+
 			if ( $IF->{$intf}{ifSpeedIn} and $IF->{$intf}{ifSpeedOut} ) {
 				$speed = "IN\\: ". convertIfSpeed($ifSpeedIn) ." OUT\\: ". convertIfSpeed($ifSpeedOut);
 			}
 			else {
-				$speed = convertIfSpeed($ifSpeed);	
+				$speed = convertIfSpeed($ifSpeed);
 			}
 		}
 		$node = $NI->{system}{name};
@@ -245,7 +245,7 @@ sub rrdFetchGraphPData {
 		$split = getbool($C->{graph_split}) ? -1 : 1 ;
 		$GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 		$weight = 0.983;
-	
+
 		foreach my $str (@opt) {
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \'\$$1\' ";}}egx;
 			if ($str =~ /ERROR/) {
@@ -264,11 +264,11 @@ sub rrdFetchGraphPData {
 		my $buff;
 		my $random = int(rand(1000)) + 25;
 		my $tmpimg = "$C->{'<nmis_var>'}/rrdDraw-$random.png";
-	
+
 		print "Content-type: image/png\n\n";
 		# ($begin,$step,$names,$data) = RRDs::graphfetch($tmpimg, @options);
 		if ( -f $tmpimg ) {
-	
+
 			open(IMG,"$tmpimg") or logMsg("$NI->{system}{name}, ERROR: problem with $tmpimg; $!");
 			binmode(IMG);
 			binmode(STDOUT);
@@ -280,16 +280,16 @@ sub rrdFetchGraphPData {
 		}
 	} else {
 		# print "Getting graphfetch, options=\n".Dumper(\@options);
-		# ($begin,$step,$types,$name,$data) = RRDs::graphfetch('-', @options);		
+		# ($begin,$step,$types,$name,$data) = RRDs::graphfetch('-', @options);
 		my $begin;
 		my $end;
 		($r_start,$r_end,$r_width,$types,$ds_names,$legend,$colours,$pdata,$chart_options) = RRDs::fetch_graph_pdata('-', @options);
 		# print STDERR "Graphfetch returned start=$r_start,end=$r_end,width=$r_width\n";
-		# print STDERR "Graphfetch returned begin=$begin, width=$width,\n name=".Dumper($name)."\n data=".Dumper($pdata)."\n";		
+		# print STDERR "Graphfetch returned begin=$begin, width=$width,\n name=".Dumper($name)."\n data=".Dumper($pdata)."\n";
 
 		if ($ERROR = RRDs::error) {
 			logMsg("$db Graphing Error for $graphtype: $ERROR");
-	
+
 		} else {
 			#return "GIF Size: ${xs}x${ys}\n";
 			#print "Graph Return:\n",(join "\n", @$graphret),"\n\n";

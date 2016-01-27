@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+# a small NMIS service helper script for testing Citrix NetScaler gateway logins
+#
+# args: url
+# exits with 100 if ok,
+# 0 if the login form page was invalid or unreachable,
+# 10 if the login form submission failed,
+# 50 if the credentials didn't work
+
+our $VERSION="1.1.0";
+use strict;
+use WWW::Mechanize;
+use Getopt::Std;
+use Data::Dumper;
+
+my %opts;
+die "Usage: $0 [-c content-regex] [-s status-regex] [-N][-d] {-u username} {-p password} <url>
+-s: default ok status code is 200
+-c: default ok content is 'Login Successful'
+-N: do NOT check ssl certificates
+-d: produce debug output on STDERR
+\n\n"
+		if (!getopts("c:s:f:u:p:Nd",\%opts) or @ARGV != 1);
+
+my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
+my $okbody = $opts{c}?  qr/$opts{c}/i : qr/Login Successful/i;
+my $redirs = defined $opts{f}? $opts{f} : 0;
+my $url = $ARGV[0];
+my $username = $opts{u};
+my $password = $opts{p};
+
+# don't die on request errors, we know what we're doing and do check results
+my @mechargs = (autocheck => 0);
+# disable ssl verification only if requested to
+push @mechargs, (ssl_opts => { verify_hostname => 0, SSL_verify_mode => 0 }) if ($opts{N});
+
+my $ua = WWW::Mechanize->new(@mechargs);
+
+# get the first (form or landing) page
+my $response = $ua->get($url);
+if (!$ua->success)
+{
+	print "Login Page load failed: " .$response->status_line."\n";
+	exit 0;
+}
+elsif (!$ua->forms())
+{
+	print "Login Page loaded but has no login form!\n";
+	exit 0;
+}
+
+if ($opts{d})
+{
+	my @forms =$ua->forms();
+	print STDERR "Login Form submission is to: ".$forms[0]->action."\n";
+}
+
+# reading the js shows that the form submission should
+# happen after UNSETTING one some specific cookies
+$ua->cookie_jar->scan( 
+	sub {
+		my ($version,$key,$val,$path,$domain,$port,$path_spec,
+				$secure,$expires,$discard,$hash) = @_;
+		
+		$ua->cookie_jar->set_cookie($version, $key, undef, $path, $domain, 
+																$port, $path_spec, $secure)
+				if ($key eq "NSC_NAME" 
+						or $key eq "NSC_USER"
+						or $key eq "pwcount");
+	});
+
+# now submit the login form
+$response = $ua->submit_form(
+	form_name => "vpnForm",
+	fields      => {
+		login    => $username,
+		passwd    => $password,
+		passwd1 => $password, 			# this input is created by js
+	} );
+
+if (!$ua->success)
+{
+	print "Login Form submission failed: ".$response->status_line."\n";
+	exit 10;
+}
+
+if ($ua->content !~ $okbody)
+{
+	print "Form submission succeeded but invalid authentication data!\n";
+	exit 50;
+}
+else
+{
+	print "Authentication succeeded.\n";
+	exit 100;
+}
+

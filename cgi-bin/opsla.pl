@@ -3,9 +3,9 @@
 ## $Id: opsla.pl,v 1.6 2012/12/06 02:30:25 keiths Exp $
 #
 # THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND
-# LICENSED BY OPMANTEK.  
+# LICENSED BY OPMANTEK.
 # YOU MUST NOT MODIFY OR DISTRIBUTE THIS CODE
-# 
+#
 # This code is NOT Open Source
 # IT IS IMPORTANT THAT YOU HAVE READ CAREFULLY AND UNDERSTOOD THE END USER
 # LICENSE AGREEMENT THAT WAS SUPPLIED WITH THIS SOFTWARE.   BY USING THE
@@ -15,7 +15,7 @@
 # TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOU (AS AN INDIVIDUAL IF ON YOUR
 # OWN BEHALF OR FOR THE ENTITY THAT EMPLOYS YOU )) AND, (4) BY SUCH USE,
 # THIS AGREEMENT CONSTITUTES BINDING AND ENFORCEABLE OBLIGATION BETWEEN YOU
-# AND OPMANTEK LTD. 
+# AND OPMANTEK LTD.
 # Opmantek is a passionate, committed open source software company - we
 # really are.  This particular piece of code was taken from a commercial
 # module and thus we can't legally supply under GPL. It is supplied in good
@@ -23,14 +23,14 @@
 # license agreement you can not modify or distribute this code, but please
 # let us know if you want to and we will certainly help -  in most cases
 # just by emailing you a different agreement that better suits what you want
-# to do but covers Opmantek legally too. 
-# 
+# to do but covers Opmantek legally too.
+#
 # contact Opmantek by emailing code@opmantek.com
-# 
-# 
+#
+#
 # All licenses for all software obtained from Opmantek (GPL and commercial)
 # are viewable at http://opmantek.com/licensing
-#  
+#
 #*****************************************************************************
 # Auto configure to the <nmis-base>/lib and <nmis-base>/files/nmis.conf
 use strict;
@@ -40,7 +40,7 @@ use lib "$FindBin::Bin/../lib";
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
 
-# 
+#
 use Time::ParseDate;
 use RRDs;
 use NMIS;
@@ -62,7 +62,7 @@ push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span );
 # declare holder for CGI objects
 use vars qw($q $Q $C $AU);
 $q = CGI->new; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash	
+$Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
@@ -99,7 +99,7 @@ my $widget = 0;
 
 # ehg mar 2009 - added to facilitate master/slave communications, preserving host/port
 ###########
-my $urlcgi = $q->url(-relative => 1);	# Use relative url for all our script href - in effect our scriptname 
+my $urlcgi = $q->url(-relative => 1);	# Use relative url for all our script href - in effect our scriptname
 my $urlbase = $q->url(-base=>1) . $C->{'<url_base>'};	#  full url for static pages, img, gifs etc.
 my $urlcgibase = $q->url(-base=>1) . $C->{'<cgi_url_base>'};	# full url cgi script base - rarely used for explicit host/script
 my $urlhost = $q->url(-base=>1);	# same for script base directory, use for handover to other scripts in same directory, appended by nmis::config var
@@ -233,7 +233,7 @@ my $IPSLA = NMIS::IPSLA->new(C => $C);
 # get config database values if view graph is active
 if ( getbool($view) and $key ne "") {
 	my $probe = $IPSLA->getProbe(probe => $key);
-	
+
 	$pnode = $probe->{pnode};
 	$optype = $probe->{optype};
 	$saddr = $probe->{saddr};
@@ -291,7 +291,7 @@ my $displayMenu = 1;
 if ($func eq "start") {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
 		runRTTstart($nno);
-	}	
+	}
 } elsif ($func eq "stop") {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
 		runRTTstop($key);
@@ -327,10 +327,10 @@ sub startIPSLApage {
 	if ( $AU->CheckAccess('ipsla_rw') ) {
 		$buttons = $buttons." <a class='nmisbut wht' href=\"$ENV{SCRIPT_NAME}?func=probes\">List Probes</a>";
 		$buttons = $buttons." <a class='nmisbut wht' href=\"$ENV{SCRIPT_NAME}?func=add\">Add Probe</a>";
-	}	
+	}
 
 
-	#ipsla.pl is NOT parsing this $Q properly!	
+	#ipsla.pl is NOT parsing this $Q properly!
 	my $portalCode = loadPortalCode(conf=>$Q->{conf});
 
 	# Javascripts
@@ -350,7 +350,7 @@ sub startIPSLApage {
 				],
 			-script=>$jscript
 			);
-		#print &do_dash_banner($auth->Require, $user->user) ;			
+		#print &do_dash_banner($auth->Require, $user->user) ;
 	}
 	else {
 		print script($jscript);
@@ -367,7 +367,7 @@ sub startIPSLApage {
 }
 
 sub endIPSLApage {
-	print end_html;	
+	print end_html;
 }
 
 
@@ -377,14 +377,14 @@ sub displayIPSLAmenu {
 	my $fields;
 	my %interfaceTable;
 	my @saddr = ("");
-	
+
 	print STDERR "BEGIN: displayIPSLAmenu\n";
-	
+
 	my $probe = $IPSLA->getProbe(probe => $nno);
-		
+
 	# get node info from /var, this file is produced by nmis.pl type=update
 	my $RTTInfo = readFiletoHash(file => "$C->{'<nmis_var>'}/nmis-nodeinfo"); # global hash
-	
+
 	my (@pnode,@nodes);
 	@pnode = @nodes = grep { $_ if $RTTInfo->{$_}{nodeModel} =~ /CiscoRouter|Catalyst/ and $AU->InGroup($NT->{$_}{group}) } sort keys %{$RTTInfo};
 	@pnode = @nodes = sort keys %{$RTTInfo} if scalar @nodes == 0; # depends on nmis.pl code
@@ -394,7 +394,7 @@ sub displayIPSLAmenu {
 	if ($pnode eq "") { $rnode = $optype = $pcom = $rcom = $pcom = $raddr = $view = $url = $key = $vrf = ""; }
 	if ($optype =~ /http/ and $url eq "") { $url = "http://"; }
 
-	if ($poptype ne $optype and !getbool($view)) { 
+	if ($poptype ne $optype and !getbool($view)) {
 		$frequence = $lsrpath = $timeout = $tos = ""; $verify = 0; $attr = "on"  # defaults
 	}
 
@@ -423,7 +423,7 @@ sub displayIPSLAmenu {
 			return;
 		}
 	}
-		
+
 	# start of form
 	print start_form( -method=>'get', -name=>"rtt", -action=>url(), -onSubmit=>"return check(this,event)");
 
@@ -445,7 +445,7 @@ sub displayIPSLAmenu {
 					-values=>\@optypes,
 					-default=>"$optype",
 					-title=>"type of probe",
-					-onChange=>"return noview(this);")					
+					-onChange=>"return noview(this);")
 	);
 
 	push @output, th({class=>"title", width=>"25%", nowrap=>"nowrap"},"&nbsp;");
@@ -497,7 +497,7 @@ sub displayIPSLAmenu {
 				textfield(-name=>"raddr",-override=>1,
 					-value=>"$raddr"));
 			$fields++;
-		} 
+		}
 
 		if ($operation{$optype}{responder} =~ /dport/) {
 			$dport = $operation{$optype}{default}{dport} if $dport eq "";
@@ -505,7 +505,7 @@ sub displayIPSLAmenu {
 				textfield(-name=>"dport",-align=>"right",-size=>'3',-override=>1,
 					-value=>"$dport"));
 			$fields++;
-		} 
+		}
 
 		if ($operation{$optype}{responder} =~ /community/ and $rnode ne "other") {
 			# dont use CGI password field
@@ -521,7 +521,7 @@ sub displayIPSLAmenu {
 		print @output;
 
 		# display attributes
-		displayRTTattr($nno); 
+		displayRTTattr($nno);
 
 		# row with History, Nodecharts and Submit button
 		print Tr(
@@ -562,7 +562,7 @@ sub displayIPSLAmenu {
 			td({class=>"opcl Plain"}, eval {
 				# button for command the daemon to start,stop and remove
 				my $button;
-				if ($pnode ne "" and $optype ne "" and ($rnode ne "" or $optype =~ /http/)) { 
+				if ($pnode ne "" and $optype ne "" and ($rnode ne "" or $optype =~ /http/)) {
 					if ($probe->{status} eq "") {
 						$button = "start" ;
 					} elsif ($probe->{status} =~ /running/i ) {
@@ -586,7 +586,7 @@ sub displayIPSLAmenu {
 	my %probes = {};
 	my %attr = {};
 	my $url = url()."?conf=$Q->{conf}&view=true&key=";
-	
+
 	my @probeList = $IPSLA->getProbes();
 	foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
 		my $key = $p->{probe};
@@ -597,7 +597,7 @@ sub displayIPSLAmenu {
 			#$attr{$key}{class} = "error";
 			$msg = "one of the probes is in error state";
 		}
-		
+
 		### 2012-10-02 keiths, Updates for AUTH Implementation.
 		if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
 	  	# all good, allowed to see device.
@@ -606,7 +606,7 @@ sub displayIPSLAmenu {
 		elsif ($p->{pnode} eq "") {
 			$authOk = 1;
 		}
-				
+
 		if ( $authOk ) {
 			push @probes,$key;
 			$probes{$key} = "$p->{select} ($p->{status})";
@@ -635,24 +635,24 @@ sub displayIPSLAmenu {
 			} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
 				$class = "data Error blk";
 				$message = "parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon opslad.pl";
-			} elsif (not -r "/var/run/ipslad.pid") { 
+			} elsif (not -r "/var/run/ipslad.pid") {
 				$class = "data Error blk";
 				$message = "daemon opslad.pl is not running";
-			} elsif ($msg ne "") { 
+			} elsif ($msg ne "") {
 				$class = "data Error blk";
 				$message = $msg; # local msg
 			} else {
 				$message = "$probe->{starttime}";
 			}
-		} elsif ($msg ne "") { 
+		} elsif ($msg ne "") {
 			$message = $msg; $class = "data Error blk"; # local msg
 		}
 		$message = scalar @probes." probes are active" if $message eq "" and scalar @probes > 1;
 		$message = "1 probe is active" if $message eq "" and scalar @probes == 1;
-		
+
 		# probe select and status/error info
 		print Tr(
-			td({class=>"header data",colspan=>"4",width=>"$width1"}, 
+			td({class=>"header data",colspan=>"4",width=>"$width1"},
 				span("Select probe for graph&nbsp;".
 					popup_menu(-name=>"probes", -override=>'1',
 						-values=>["",@probes],
@@ -660,8 +660,8 @@ sub displayIPSLAmenu {
 						-labels=>\%probes,
 						-attributes=>\%attr,
 						-onChange=>"return gotoURL(\"$url\");")),
-				span("&nbsp;"), 
-				span({class=>"$class"},$message) 
+				span("&nbsp;"),
+				span({class=>"$class"},$message)
 		));
 	}
 
@@ -698,30 +698,30 @@ sub displayIPSLAmenu {
 	print hidden(-name=>'key', -default=>$key,-override=>'1');
 	print hidden(-name=>'item', -default=>$item,-override=>'1');
 
-	print end_table;	
+	print end_table;
 
 	print end_form;
 }
 
 sub displayProbes {
 	my $url = url()."?conf=$Q->{conf}&view=true&key=";
-	
+
 	my @headers = qw(probe pnode rnode optype tos status frequence timeout entry items starttime message);
 
 	print	start_table({class=>"dash", width => "100%"});
 	print start_Tr;
 	foreach my $header (@headers) {
-		print th({class=>"header"},"$header");	
+		print th({class=>"header"},"$header");
 	}
 	print end_Tr;
-	
+
 	my @probeList = $IPSLA->getProbes();
 	#logDebug("/tmp/opsla.pl",Dumper \@probeList);
 	foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
 		my $key = $p->{probe};
-		
+
 		my $authOk = 0;
-		
+
 		### 2012-10-02 keiths, Updates for AUTH Implementation.
 		if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
 	  	# all good, allowed to see device.
@@ -730,7 +730,7 @@ sub displayProbes {
 		elsif ($p->{pnode} eq "") {
 			$authOk = 1;
 		}
-				
+
 		if ( $authOk ) {
 			print start_Tr;
 			foreach my $header (@headers) {
@@ -738,22 +738,22 @@ sub displayProbes {
 				if ( $p->{pnode} eq "" and $p->{optype} eq "" ) {
 					$p->{status} = "error";
 				}
-				
+
 				my $class = "Plain";
 				$class = "Error" if $p->{status} eq "error";
 				if ( $header eq "rnode" and $p->{url} ne "" ) {
-					print th({class=>"info $class"},"$p->{url}");					
+					print th({class=>"info $class"},"$p->{url}");
 				}
 				elsif ( $header eq "status" and $p->{status} =~ "remove|error" ) {
-					print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");					
+					print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");
 				}
 				elsif ( $header eq "probe" ) {
-					print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");					
+					print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");
 				}
 				else {
 					print th({class=>"info $class"},"$p->{$header}");
 				}
-			
+
 			}
 			print end_Tr;
 			#logDebug("/tmp/opsla.pl",Dumper $p);
@@ -801,7 +801,7 @@ sub displayProbes {
 
 sub displayMenu {
 	my $url = url()."?conf=$Q->{conf}&view=true&key=";
-	
+
 	my @headers = qw(probe pnode rnode optype tos status frequence timeout entry items starttime message);
 
 	print	start_table({class=>"noborder"});
@@ -811,18 +811,18 @@ sub displayMenu {
 	print td({class=>"lft Plain"},qq
 |<h3>opSLA Main Menu</h3>
 To see a list of IPSLA probes, click on \"List Probes\", or select a probe from the select list above.<br/>
-To add an IPSLA probe click \"Add Probe\", then select the Probe Node and the \"Operation Type\".<br/>	
-|);	
+To add an IPSLA probe click \"Add Probe\", then select the Probe Node and the \"Operation Type\".<br/>
+|);
 	print end_Tr;
 
-	
+
 	my @probeList = $IPSLA->getProbes();
 	#logDebug("/tmp/opsla.pl",Dumper \@probeList);
 	#foreach my $p ( sort { $a->{probe} cmp $b->{probe} } @probeList ) {
 	#	my $key = $p->{probe};
-	#	
+	#
 	#	my $authOk = 0;
-	#	
+	#
 	#	### 2012-10-02 keiths, Updates for AUTH Implementation.
 	#	if ($p->{pnode} ne "" and $AU->InGroup($NT->{$p->{pnode}}{group})) {
 	#  	# all good, allowed to see device.
@@ -831,7 +831,7 @@ To add an IPSLA probe click \"Add Probe\", then select the Probe Node and the \"
 	#	elsif ($p->{pnode} eq "") {
 	#		$authOk = 1;
 	#	}
-	#			
+	#
 	#	if ( $authOk ) {
 	#		print start_Tr;
 	#		foreach my $header (@headers) {
@@ -839,22 +839,22 @@ To add an IPSLA probe click \"Add Probe\", then select the Probe Node and the \"
 	#			if ( $p->{pnode} eq "" and $p->{optype} eq "" ) {
 	#				$p->{status} = "error";
 	#			}
-	#			
+	#
 	#			my $class = "Plain";
 	#			$class = "Error" if $p->{status} eq "error";
 	#			if ( $header eq "rnode" and $p->{url} ne "" ) {
-	#				print th({class=>"info $class"},"$p->{url}");					
+	#				print th({class=>"info $class"},"$p->{url}");
 	#			}
 	#			elsif ( $header eq "status" and $p->{status} =~ "remove|error" ) {
-	#				print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");					
+	#				print th({class=>"info $class"},"$p->{status} <a href=\"$url$p->{probe}&amp;func=remove\">delete</a>");
 	#			}
 	#			elsif ( $header eq "probe" ) {
-	#				print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");					
+	#				print th({class=>"info $class"},"<a href=\"$url$p->{probe}\">$p->{select}</a>");
 	#			}
 	#			else {
 	#				print th({class=>"info $class"},"$p->{$header}");
 	#			}
-	#		
+	#
 	#		}
 	#		print end_Tr;
 	#		#logDebug("/tmp/opsla.pl",Dumper $p);
@@ -868,7 +868,7 @@ sub runCfgUpdate {
 	my $probe = $IPSLA->getProbe(probe => $nno);
 
 	# let the daemon unlink the database
-	return if ($probe->{func} =~ /stop|remove/ 
+	return if ($probe->{func} =~ /stop|remove/
 						 and getbool($probe->{deldb}));
 
 	# run bin/opslad.pl for accept modified configuration
@@ -880,7 +880,7 @@ sub runRTTstart {
 	my $nno = shift;
 
 	my $probe = $IPSLA->getProbe(probe => $nno);
-	
+
 	### 2012-10-02 keiths, Updates for AUTH Implementation.
 	if ($AU->InGroup($NT->{$pnode}{group})) {
 		# already running ?
@@ -888,21 +888,21 @@ sub runRTTstart {
 			$pnode = $attr = "";
 			return;
 		}
-	
+
 		my $community = $IPSLA->getCommunity(node => $pnode);
 		if ($community eq "") {
-			
+
 			$msg = "No community specified for probe node $pnode";
 		#	$pnode = "";
 			return;
 		}
-	
+
 		if ($rnode eq "other" and $raddr eq "") {
 			$msg = "No address specified for responder node";
 			$pnode = "";
 			return;
 		}
-	
+
 		if ($pnode ne "" and $probe->{func} eq "" and $probe->{status} !~ /start|running|remove|error/) {
 			my %sprobe;
 			$sprobe{probe} = $nno;
@@ -933,12 +933,12 @@ sub runRTTstart {
 			$sprobe{verify} = ($verify == 0) ? 2 : $verify;
 			my $n = $nno; $n =~ s/[\._]\//-/g ;
 			$sprobe{database} = "$C->{database_root}/misc/ipsla-${n}.rrd";
-	
+
 			$sprobe{status} = "start requested";
 			$sprobe{message} = "";
-	
+
 			$pnode = $pcom = $rnode = $rcom = $view = $attr = "";
-			
+
 			$IPSLA->updateProbe(%sprobe);
 			runCfgUpdate();
 		}
@@ -956,7 +956,7 @@ sub runRTTstop {
 	my $nno = shift;
 
 	my $probe = $IPSLA->getProbe(probe => $nno);
-	
+
 	return if not $IPSLA->existProbe(probe => $nno);
 
 	my $au_pnode = $probe->{pnode};
@@ -965,7 +965,7 @@ sub runRTTstop {
 	}
 
 	### 2012-10-02 keiths, Updates for AUTH Implementation.
-	if ($AU->InGroup($NT->{$au_pnode}{group})) {		
+	if ($AU->InGroup($NT->{$au_pnode}{group})) {
 		if ($probe->{func} eq "" and $probe->{status} =~ /start|running|error/) {
 			my %sprobe;
 			$sprobe{probe} = $nno;
@@ -973,9 +973,9 @@ sub runRTTstop {
 			$sprobe{status} = "stop requested";
 			$sprobe{message} = "";
 			$sprobe{deldb} = $deldb;
-	
+
 			$pnode = $pcom = $rnode = $rcom = $view = $attr = "";
-	
+
 			$IPSLA->updateProbe(%sprobe);
 			runCfgUpdate();
 		}
@@ -999,7 +999,7 @@ sub runRTTremove {
 	if ( $au_pnode eq "" ) {
 		$au_pnode = $pnode;
 	}
-	
+
 	my $authOk = 0;
 
 	### 2012-10-02 keiths, Updates for AUTH Implementation.
@@ -1007,9 +1007,9 @@ sub runRTTremove {
 		$authOk = 1;
 	}	# endif AU
 	elsif ($au_pnode eq "") {
-		$authOk = 1;		
+		$authOk = 1;
 	}
-	
+
 	if ( $authOk ) {
 		if ($probe->{func} eq "" and $probe->{pnode} ne "" and $probe->{status} !~ /remove|running|start/) {
 			my %sprobe;
@@ -1018,23 +1018,23 @@ sub runRTTremove {
 			$sprobe{status} = "remove requested";
 			$sprobe{message} = "";
 			$sprobe{deldb} = $deldb;
-	
+
 			$IPSLA->updateProbe(%sprobe);
-	
+
 			runCfgUpdate();
-		} 
-		else { 
+		}
+		else {
 			$IPSLA->deleteProbe(probe => $nno);
 		}
 		$pnode = $pcom = $rnode = $rcom = $view = $attr = $url = "";
-		
+
 	}
 	else {
 		print	start_table({class=>"dash", width => "100%"}),
 		Tr(th({class=>"subtitle"},"You are not authorized for this request"));
 		print	end_table;
 		return;
-	}	
+	}
 }
 
 
@@ -1052,7 +1052,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /frequence/) {
 			$frequence = $operation{$optype}{default}{freq} if $frequence eq "";
 			if ($attr eq "on") {
-				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, 
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},
 					"interval&nbsp;".
 						popup_menu(-name=>"freq", -override=>'1',
 							-values=>$operation{$optype}{frequence},
@@ -1132,7 +1132,7 @@ sub displayRTTattr {
 				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},"codec&nbsp;".
 					popup_menu(-name=>"codec", -override=>'1',
 						-values=>[qw/1 2 3/],
-						-labels=>{'1'=>'g711ulaw','2'=>'g711alaw','3'=>'g729a'}, 
+						-labels=>{'1'=>'g711ulaw','2'=>'g711alaw','3'=>'g729a'},
 						-default=>"$codec"));
 				$field_cnt++;
 			} else {
@@ -1156,7 +1156,7 @@ sub displayRTTattr {
 		if ($operation{$optype}{attr} =~ /verify-data/) {
 			if ($attr eq "on") {
 				if ($field_cnt == 0) { print start_Tr; }
-				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"}, 
+				print td({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},
 					"verify data&nbsp;".
 						popup_menu(-name=>"verify", -override=>'1',
 							-values=>[2,1],
@@ -1255,7 +1255,7 @@ sub displayRTTnode {
 		return td({align=>"center", colspan=>"2", bgcolor=>"white"},
 			a({href=>$tmpurl, target=>"ViewWindow", onMouseOver=>"window.status='Drill into $aref->[1].';return true",
 					 onClick=>"viewdoc('$tmpurl',$win_width,$win_height)"},
-				img({border=>"0", alt=>"$aref->[1]", 
+				img({border=>"0", alt=>"$aref->[1]",
 					src=>"$C->{rrddraw}?conf=$Q->{conf}&act=draw_graph_view&node=$pnode&graphtype=$aref->[2]&start=0&end=0&width=350&height=50&title=small"})));
 	}
 
@@ -1314,7 +1314,7 @@ sub displayRTTdata {
 	$date_start = returnDateStamp($start); # for display date/time fields
 	$date_end = returnDateStamp($end);
 
-	my @items = split ":", $probe->{items};				
+	my @items = split ":", $probe->{items};
 
 	my $numrows = scalar( map { /^\d+L\d+.*/ } @items); # number of Lines in RRD graph
 
@@ -1329,12 +1329,12 @@ sub displayRTTdata {
 				th({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},$probe->{select}),
 				eval {
 					my $str = $probe->{optype} =~ /echo/i ? "Target / Responder": "Item";
-					return th({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},$str); 
+					return th({class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},$str);
 				} # eval
 			);
 
 	# image
-	$item = $probe->{items} if $item eq ""; 
+	$item = $probe->{items} if $item eq "";
 	$numrows++; # correction
 	print Tr(td({colspan=>"3",rowspan=>"$numrows",align=>"left",valign=>"top",class=>"info Plain", width=>"25%", nowrap=>"nowrap"},
 		image_button(-name=>"graph",-src=>url()."?conf=$Q->{conf}&func=graph&view=true&key=$nno&start=$start&end=$end&item=$item")));
@@ -1343,7 +1343,7 @@ sub displayRTTdata {
 			$_ = $2;
 			s/_/\./g;
 			my $lookup = $IPSLA->getDns(lookup => $_);
-			
+
 			my $addr = "$_<br><small>$lookup->{result}</small>";
 			print Tr(td({align=>"center",class=>"opcl Plain", width=>"25%", nowrap=>"nowrap"},a({href=>url()."?conf=$Q->{conf}&view=true&key=$nno&start=$start&end=$end&item=$nm"},$addr)));
 		}
@@ -1357,12 +1357,12 @@ sub displayRTTgraph {
 	my $nno = shift;
 
 	my $probe = $IPSLA->getProbe(probe => $nno);
-	#$item = $probe->{items} if $item eq ""; 
+	#$item = $probe->{items} if $item eq "";
 
 	my $color;
 	my @items = split(/\:/,$item);
 	my $database = $probe->{database};
-	
+
 	#print STDERR "DEBUG: nno=$nno item=$item\n";
 	#print STDERR "DEBUG: displayRTTgraph database=$database\n";
 
@@ -1373,7 +1373,7 @@ sub displayRTTgraph {
 	my $datestamp_end = returnDateStamp($end);
 
 	# select the vertical label, first digit of first item
-	my $vlabel = "RTT Avg msec."; 
+	my $vlabel = "RTT Avg msec.";
 	if ($items[0] =~ /^(\d+)[A-Z]\d+_.*/) {
 		$vlabel = "Impairment/Calculated Imp. Planning Factor" if $1 == 2;
 		$vlabel = "Mean opinion scores" if $1 == 3;
@@ -1385,7 +1385,7 @@ sub displayRTTgraph {
 		$vlabel = "Hourly Mean opinion scores" if $1 == 9;
 	}
 	#print STDERR "DEBUG: $vlabel, @items codec=$probe->{codec}\n";
-	
+
 	my @options = (
 			"--title", "$probe->{select} from $datestamp_start to $datestamp_end",
 			"--vertical-label", $vlabel,
@@ -1394,7 +1394,7 @@ sub displayRTTgraph {
 			"--width", "$width",
 			"--height", "$height",
 			"--imgformat", "PNG",
-			"--interlace",
+			"--interlaced",
 				"--disable-rrdtool-tag",
 				"--color", 'BACK#ffffff',      # Background Color
 				"--color", 'SHADEA#ffffff',    # Left and Top Border Color
@@ -1419,12 +1419,12 @@ sub displayRTTgraph {
 	my $ltimes = 0;
 	my $ptimes = 0;
 	foreach (@items) {
-		if ( /^\d+([A-Z])(\d+)_(.*)/ ) {			
+		if ( /^\d+([A-Z])(\d+)_(.*)/ ) {
 			my $az = $1;
 			my $gp = $2;
 			my $ds = $3;
 			my $spc = "";
-						
+
 			$color = shift @colors if $cnt++ < 10;
 			push @options,"DEF:avg$cnt=$database:${ds}:AVERAGE" if $az =~ /[LP]/ ;
 			push @options,"DEF:max$cnt=$database:${ds}:MAX" if $az =~ /M/ ;
@@ -1450,7 +1450,7 @@ sub displayRTTgraph {
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf msec.$spc" if $gp == 1 ;
 				push @p_options,"GPRINT:$field:AVERAGE:$ds Avg %0.1lf$spc" if $gp == 2;
 			} elsif ($az eq "M") {
-				++$ptimes;				
+				++$ptimes;
 				$spc = "\\n" if $ptimes % 3 == 0;
 				push @p_options,"GPRINT:max$cnt:MAX:$ds %0.1lf msec.$spc" if $gp == 1 ;
 			}
@@ -1494,7 +1494,7 @@ sub getJscript {
 			} else {
 				return false;
 			}
-		} 
+		}
 		if (frm.func.value == "REMOVE") {
 			if (confirm(msg2)) {
 				frm.deldb.value = 'true';
@@ -1518,4 +1518,3 @@ JSEND
 
 	return $jscript;
 }
-

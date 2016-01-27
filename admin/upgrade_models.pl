@@ -39,7 +39,7 @@ use File::Basename;
 use File::Copy;
 
 my $me = basename($0);
-my $usage = "Usage: $me [-u] [-o|-p] [-n regex] <new model dir> <live model dir>
+my $usage = "$me version $VERSION\n\nUsage: $me [-u] [-o|-p] [-n regex] <new model dir> <live model dir>
 -u: do perform the upgrade instead of just reporting model file states
 -o: report only upgradeable files
 -p: report only problematic files
@@ -57,6 +57,8 @@ die $usage if (!getopts("uopn:",\%opts)
 							 or ($opts{p} && $opts{o})); # o and p are mutually exclusive
 my ($newdir, $livedir) = @ARGV;
 die $usage if (!-d $newdir or !-d $livedir or $livedir eq $newdir);
+
+print "$me version $VERSION\n\n";
 
 # load the embedded known signatures for the last few releases
 my (%knownsigs, %newsig, $exitcode);

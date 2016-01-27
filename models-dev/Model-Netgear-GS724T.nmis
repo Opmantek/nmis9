@@ -57,9 +57,9 @@
   },
   'custom' => {
     'interface' => {
-      'ifAdminStatus' => 'false',
-      'ifLastChange' => 'true',
-      'ifTableLastChange' => 'true',
+      'ifAdminStatus' => 'true',
+      'ifLastChange' => 'false',
+      'ifTableLastChange' => 'false',
     }
   },
   'system' => {
