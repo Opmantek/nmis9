@@ -4392,6 +4392,38 @@ sub runServices {
 					next;
 				}
 
+#########<<<<<<< HEAD
+				## lets check the service status
+				## NB - may have multiple services with same name on box.
+				## so keep looking if up, last if one down
+				## look for an exact match here on service name as read from snmp poll
+        #
+				#foreach ( sort keys %services ) {
+				#	my ($svc) = split ':', $services{$_}{hrSWRunName};
+				#	if ( $svc eq $ST->{$service}{Service_Name} ) {
+				#		if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
+				#			$ret = 1;
+				#			$cpu = $services{$_}{hrSWRunPerfCPU};
+				#			$memory = $services{$_}{hrSWRunPerfMem};
+				#			$gotMemCpu = 1;
+				#			info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
+				#		}
+				#		# should the check be that if any service is found running|runnable, or the count is the minimum number, the daemon is OK, otherwise only one opConfigd being invalid is bad
+				#		elsif ( $services{$_}{hrSWRunStatus} eq "" or $services{$_}{hrSWRunStatus} =~ /invalid/i ) {
+				#			$ret = 1;							
+				#			$gotMemCpu = 0;
+				#			logMsg("INFO, $node service $ST->{$service}{Name} is neutral, status is $services{$_}{hrSWRunStatus}");
+				#		}
+				#		else {
+				#			$ret = 0;
+				#			$cpu = $services{$_}{hrSWRunPerfCPU};
+				#			$memory = $services{$_}{hrSWRunPerfMem};
+				#			$gotMemCpu = 1;
+				#			logMsg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
+				#			last;
+				#		}
+				#	}
+########=======
 				# lets check the service status from snmp for matching process(es)
 				# it's common to have multiple processes with the same name on a system,
 				# heuristic: one or more living processes -> service is ok,
@@ -4433,6 +4465,7 @@ sub runServices {
 #					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
 					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
+########>>>>>>> 7669c94991242f5d6307de59ea7fcb6b56349fa8
 				}
 			}
 			else {
