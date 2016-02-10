@@ -1,39 +1,37 @@
 #!/usr/bin/perl
 #
-## $Id: tables.pl,v 8.12 2012/09/18 01:40:59 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use NMIS;
 use NMIS::UUID;
@@ -98,7 +96,7 @@ if ($Q->{act} eq 'config_table_menu') { 			menuTable();
 } elsif ($Q->{act} eq 'config_table_delete') { 		viewTable();
 } elsif ($Q->{act} eq 'config_table_doadd') { 		if (doeditTable()) { menuTable(); }
 } elsif ($Q->{act} eq 'config_table_doedit') { 		if (doeditTable()) { menuTable(); }
-} elsif ($Q->{act} eq 'config_table_dodelete') { 	dodeleteTable(); menuTable(); 
+} elsif ($Q->{act} eq 'config_table_dodelete') { 	dodeleteTable(); menuTable();
 } else { notfound(); }
 
 sub notfound {
@@ -122,31 +120,31 @@ sub loadReqTable {
 	my $db = "db_".lc($table)."_sql";
 	if (getbool($C->{$db})) {
 		$T = DBfunc::->select(table=>$table); # full table
-	} else { 
+	} else {
 		$T = loadTable(dir=>'conf',name=>$table);
 	}
-			
+
 	if (!$T and !getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
 		return;
-	} 
+	}
 	return $T;
 }
 
 sub loadCfgTable {
 	my %args = @_;
 	my $table = $args{table};
-	
+
 	# Set the Environment VAR to tell the EVAL'd program who the user is.
 	$ENV{'NMIS_USER'} = $AU->{user};
-			
-	my $tabCfg = loadGenericTable("Table-$table");		
+
+	my $tabCfg = loadGenericTable("Table-$table");
 	my %Cfg = %{$tabCfg};
 
 	if (!($Cfg{$table})) {
 		print Tr(td({class=>'error'},"Configuration of table $table does not exists"));
 		return;
-	} 
+	}
 
 	return $Cfg{$table};
 }
@@ -160,7 +158,7 @@ sub menuTable{
 	pageStartJscript(title => "View Table $table") if (getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
-	
+
 	my $LNT;
 	if ( $table eq "Nodes" ) {
 		$LNT = loadLocalNodeTable(); # load from file or db
@@ -219,7 +217,7 @@ EOF
 		}
 
 		my $safekey = uri_escape($k);
-		
+
 		if ($AU->CheckAccess("Table_${table}_rw","check")) {
 			$bt = '&nbsp;'
 					.	a({href=>"$url&act=config_table_edit&key=$safekey&widget=$widget"},
@@ -269,7 +267,7 @@ sub viewTable {
 			. hidden(-override => 1, -name => "table", -value => $table)
 			. hidden(-override => 1, -name => "key", -value => $key)
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput");
-		
+
 	print start_table;
 	print Tr(td({class=>'header',colspan=>'2'},"Table $table"));
 
@@ -281,7 +279,7 @@ sub viewTable {
 		}
 	}
 
-	if ($Q->{act} =~ /delete/) 
+	if ($Q->{act} =~ /delete/)
 	{
 			print Tr(td('&nbsp;'),
 							 td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
@@ -289,7 +287,7 @@ sub viewTable {
 									"Are you sure",
 									# need to set the cancel parameter
 									button(-name=>'button',
-												 onclick=> '$("#cancelinput").val("true");' 
+												 onclick=> '$("#cancelinput").val("true");'
 												 . ($wantwidget? "get('$formid');" : 'submit();'),
 												 -value=>"Cancel")));
 	}
@@ -297,8 +295,8 @@ sub viewTable {
 	{
 			# in mode view submitting the form straight is side-effect free and ok.
 			print Tr(td('&nbsp;'),
-							 td(	
-									 button(-name=>'button', 
+							 td(
+									 button(-name=>'button',
 													onclick=> ($wantwidget? "get('$formid');" : 'submit()'),
 													-value=>"Ok")));
 	}
@@ -397,7 +395,7 @@ sub editTable {
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
  			. hidden(-override => 1, -name => "update", -value => '', -id=> "updateinput");
 
-	
+
 	my $anyMandatory = 0;
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
@@ -407,13 +405,13 @@ sub editTable {
 			my $mandatory = "";
 			my $headerclass = "header";
 			my $headspan = 1;
-			if ( exists $ref->{$item}{mandatory} 
-					 and getbool($ref->{$item}{mandatory}) ) { 
+			if ( exists $ref->{$item}{mandatory}
+					 and getbool($ref->{$item}{mandatory}) ) {
 				$mandatory = " <span style='color:#FF0000'>*</span>";
 				$anyMandatory = 1;
 			}
 
-			if ( exists $ref->{$item}{special} and $ref->{$item}{special} eq "separator" ) { 
+			if ( exists $ref->{$item}{special} and $ref->{$item}{special} eq "separator" ) {
 				$headerclass = "heading4";
 				$headspan = 2;
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},"$ref->{$item}{header}$mandatory"));
@@ -426,35 +424,35 @@ sub editTable {
 						}
 						if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
 							$line .= td({class=>'header'},$T->{$key}{$item});
-							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
-						} 
+							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1');
+						}
 						elsif ($ref->{$item}{display} =~ /textbox/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-							$line .= td(textarea(-name=> $item, -value=>$value, 
+							$line .= td(textarea(-name=> $item, -value=>$value,
 																	 -style=> 'width: 95%;',
 																	 -rows => 3,
 																	 -columns => ($wantwidget? 35 : 70)));
-						} 
+						}
 						elsif ($ref->{$item}{display} =~ /text/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
 							#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-							$line .= td(textfield(-name=>$item, -value=>$value, 
+							$line .= td(textfield(-name=>$item, -value=>$value,
 																		-style=> 'width: 95%;',
 																		-size=>  ($wantwidget? 35 : 70)));
-						} 
+						}
 						elsif ($ref->{$item}{display} =~ /readonly/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
 							$line .= td($value);
-							$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
-						} 
+							$line .= hidden(-name=>$item, -default=>$value, -override=>'1');
+						}
 						elsif ($ref->{$item}{display} =~ /pop/) {
 							#print STDERR "DEBUG editTable: popup -- item=$item\n";
 							$line .= td(popup_menu(
-									-name=>"$item", 
+									-name=>"$item",
 									-values=>$ref->{$item}{value},
 									-style=>'width: 95%;',
 									-default=>$T->{$key}{$item}));
-						} 
+						}
 						elsif ($ref->{$item}{display} =~ /scrol/) {
 							my @items = split(/,/,$T->{$key}{$item});
 							$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
@@ -462,28 +460,28 @@ sub editTable {
 									-size=>'6',
 									-values=>$ref->{$item}{value},
 									-default=>\@items));
-						} 
+						}
 						return $line;
 					});
-			}	
+			}
 		}
 	}
 
 	print hidden(-name=>'hash', -default=>join(',',@hash),-override=>'1');
 	print Tr(td({class=>'',align=>'center',colspan=>'2'},"<span style='color:#FF0000'>*</span> mandatory fields."));
 	print Tr(td('&nbsp;'),
-					 td( 
-							 ($table eq 'Nodes' ? 
+					 td(
+							 ($table eq 'Nodes' ?
 								# set update to true, then submit
 							 button(-name=>"button",
-											onclick => '$("#updateinput").val("true");' 
+											onclick => '$("#updateinput").val("true");'
 											. ($wantwidget? "javascript:get('$formid');" : 'submit();' ),
 											-value=>"$button and Update Node") : "&nbsp;" ),
 							 # the submit/add/edit button just submits the form as-is
 							 button(-name=>"button", onclick => ( $wantwidget ? "get('$formid');" : 'submit();' ),
 											-value=>$button),
-							 # the cancel button needs to set the cancel input 
-							 button(-name=>'button', onclick=> '$("#cancelinput").val("true");' 
+							 # the cancel button needs to set the cancel input
+							 button(-name=>'button', onclick=> '$("#cancelinput").val("true");'
 											. ($wantwidget? "get('$formid');" : 'submit();'),
 											-value=>"Cancel")));
 
@@ -531,16 +529,19 @@ sub doeditTable {
 	my $V;
 	# store new values in table structure
 	for my $ref ( @{$CT}) {
-		for my $item (keys %{$ref}) {
-		    
-			$T->{$key}{$item} = stripSpaces($Q->{$item});
-			$V->{$item} = stripSpaces($Q->{$item});
+		for my $item (keys %{$ref})
+		{
+			# but handle multi-valued inputs correctly!
+			# with Vars we get that as packed string of null-separated entries
+			# if submission was under widget mode, then javascript:get() will have transformed
+			# any such into comma-sep data - but for a standalone submission that does not happen.
+			my $value = join(",", unpack("(Z*)*", stripSpaces($Q->{$item})));
+			$T->{$key}{$item} = $V->{$item} = $value;
 		}
-		
 	}
 
 	# some sanity checks BEFORE writing the data out
-	if ($table eq 'Nodes') 
+	if ($table eq 'Nodes')
 	{
 		# check host address
 		if ($T->{$key}{host} eq '') {
@@ -548,7 +549,7 @@ sub doeditTable {
 			print Tr(td({class=>'error'} ,"Field \'host\' must be filled in table $table"));
 			return 0;
 		}
-		
+
 		### test the DNS for DNS names, if no IP returned, error exit
 		if ( $T->{$key}{host} !~ /\d+\.\d+\.\d+\.\d+/ ) {
 			my $address = resolveDNStoAddr($T->{$key}{host});
@@ -584,7 +585,7 @@ sub doeditTable {
 	}
 
 	# do update node with new values
-	if ($table eq 'Nodes') 
+	if ($table eq 'Nodes')
 	{
 		#print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
 		cleanEvent($key,"tables.pl.editNodeTable");
@@ -619,7 +620,7 @@ sub dodeleteTable {
 		foreach (keys %{$T}) {
 			if ($_ ne $key) { $TT->{$_} = $T->{$_}; }
 		}
-	
+
 		writeTable(dir=>'conf',name=>$table,data=>$TT);
 	}
 
@@ -636,8 +637,8 @@ sub doNodeUpdate {
 
 	# note that this will force nmis.pl to skip the pingtest as we are a non-root user !!
 	# for now - just pipe the output of a debug run, so the user can see what is going on !
-	
-	# now run the update and display 
+
+	# now run the update and display
 	print header($headeropts);
 	pageStartJscript(title => "Run update on $node") if (getbool($widget,"invert"));
 
@@ -648,7 +649,7 @@ sub doNodeUpdate {
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-override => 1, -name => "table", -value => $Q->{table});
 
-	
+
 #									 conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget",
 #									 -action => url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget" );
 
@@ -657,8 +658,8 @@ sub doNodeUpdate {
 									-value=>'Ok'))));
 	print "<pre>\n";
 	print "Running update on node $node\n\n\n";
-	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=\"$node\" info=true 2>&1 |"); 
+
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=\"$node\" info=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -670,8 +671,8 @@ sub doNodeUpdate {
 
 	print "<pre>\n";
 	print "Running collect on node $node\n\n\n";
-	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=\"$node\" info=true 2>&1 |"); 
+
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=\"$node\" info=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -687,4 +688,3 @@ sub doNodeUpdate {
 	print end_form;
 	pageEnd() if (getbool($widget,"invert"));
 }
-
