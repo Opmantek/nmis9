@@ -40,7 +40,6 @@
             'oid' => 'entPhysicalDescr',
             'title' => 'Physical Descr'
           },
-
           'entPhysicalVendorType' => {
             'oid' => 'entPhysicalVendorType',
             'title' => 'Vendor Type'

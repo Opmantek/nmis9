@@ -73,10 +73,10 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
       'lldp' => {
         'common-model' => 'lldp'
-      }
+      },
       'entityMib' => {
         'common-model' => 'entityMib'
       }
@@ -247,22 +247,6 @@
             'oid' => 'ipInUnknownProtos',
             'option' => 'counter,0:U'
           },
-          'hrDeviceDescr' => {
-            'oid' => 'hrDeviceDescr'
-          },
-          'hrProcessorLoad' => {
-            'oid' => 'hrProcessorLoad'
-            'option' => 'counter,0:U'
-          },
-          'hrStorageType' => {
-            'oid' => 'hrStorageType'
-            'option' => 'counter,0:U'
-          },
-          'hrStorageDescr' => {
-            'oid' => 'hrStorageDescr'
-            'option' => 'counter,0:U'
-          }         
-
         },
         'graphtype' => 'ip,frag'
       }

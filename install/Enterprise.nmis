@@ -73695,4 +73695,10 @@
     'Enterprise' => 'Gigamon Systems LLC',
     'OID' => '26866'
   },  
+  '30065' => {
+    'Enterprise' => 'Arista Networks',
+    'Enterprise_Original' => 'Arista Networks, Inc. (formerly Arastra, Inc.)',
+    'OID' => '30065'
+  },
+
 );
