@@ -57,6 +57,9 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
       'mpls' => {
         'common-model' => 'mpls'
       },
@@ -453,7 +456,7 @@
   #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   #},
   'systemHealth' => {
-    'sections' => 'addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsVpnInterface',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',
@@ -475,18 +478,86 @@
             'option' => 'counter,0:U'
           },
           'RouteNumber' => {
-            'oid' => 'ipCidrRouteNumber'
+            'oid' => 'inetCidrRouteNumber'
           },
           'avgBusy1' => {
-            'oid' => 'cpmCPUTotal1minRev.2'
+            'oid' => 'cpmCPUTotal1minRev.1000'
           },
           'avgBusy5' => {
-            'oid' => 'cpmCPUTotal5minRev.2'
+            'oid' => 'cpmCPUTotal5minRev.1000'
           }
         },
         'threshold' => 'cpu,mem-proc'
-      }
-    },
+      },
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+      }    },
     'sys' => {
       'nodeConfiguration' => {
         'snmp' => {

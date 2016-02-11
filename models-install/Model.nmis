@@ -452,6 +452,13 @@
 				},
 			},
 		},
+    'Arista Networks' => {
+      'order' => {
+        '10' => {
+          'AristaSwitch' => 'Arista Networks EOS'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
