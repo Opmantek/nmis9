@@ -51,8 +51,7 @@
 			'--rigid',
 			'DEF:psuStatus=$database:psuValue:AVERAGE',
 			'LINE2:psuStatus#00ff00: PSU Status',
-			'GPRINT:psuStatus:AVERAGE:Avg. %1.2lf%%\\t',
-			'COMMENT:100% = Normal, 90% = NotPresent, 80% = Shutdown, 75% = Warning, 25%=NotFunctioning, 0%=Critical\\n'
+			'GPRINT:psuStatus:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}
 );
