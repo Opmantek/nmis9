@@ -61,6 +61,20 @@ sub update_plugin {
 		
 		my $lldpNeighbour = $entry->{lldpRemSysName};
 
+		# The lldpRemChassisIdSubtype tells us what the type of the data is.
+		if ( $entry->{lldpRemChassisIdSubtype} eq "macAddress" ) {
+			my $macAddress = beautify_physaddress($entry->{lldpRemChassisId});
+			$entry->{lldpRemChassisId_raw} = $entry->{lldpRemChassisId};
+			$entry->{lldpRemChassisId} = $macAddress;
+		}
+
+		# The lldpRemPortIdSubtype tells us what the type of the data is.
+		if ( $entry->{lldpRemPortIdSubtype} eq "macAddress" ) {
+			my $macAddress = beautify_physaddress($entry->{lldpRemPortId});
+			$entry->{lldpRemPortId_raw} = $entry->{lldpRemPortId};
+			$entry->{lldpRemPortId} = $macAddress;
+		}
+
 		my @possibleNames;
 		push(@possibleNames,$lldpNeighbour);
 		push(@possibleNames,lc($lldpNeighbour));
@@ -91,17 +105,27 @@ sub update_plugin {
 				last;
 			}	
 		}
+
+		if ( defined $entry->{lldpRemLocalPortNum} and $entry->{lldpRemLocalPortNum} eq "noSuchObject" ) {
+			$entry->{lldpRemLocalPortNum} = ""
+		}
+
+		if ( defined $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr} ) {
+			$entry->{ifDescr} = $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr};
+			$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpRemLocalPortNum}&node=$node";
+			$entry->{ifDescr_id} = "node_view_$node";
+		}
 		
-		if ( @parts = split(/\./,$entry->{index}) ) {
-			$entry->{lldpIfIndex} = shift(@parts);
-			$entry->{lldpDeviceIndex} = shift(@parts);
-			
-			if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
-				$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
-				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
-				$entry->{ifDescr_id} = "node_view_$node";
-			}
-		}				
+		#if ( @parts = split(/\./,$entry->{index}) ) {
+		#	$entry->{lldpIfIndex} = shift(@parts);
+		#	$entry->{lldpDeviceIndex} = shift(@parts);
+		#	
+		#	if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
+		#		$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
+		#		$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
+		#		$entry->{ifDescr_id} = "node_view_$node";
+		#	}
+		#}				
 	}
 
 	return ($changesweremade,undef); # report if we changed anything
