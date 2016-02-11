@@ -58,7 +58,7 @@
         'element' => 'vmwVmDisplayName',
         'event' => 'Virtual Machine not Powered On',
         'level' => 'Warning',
-        'test' => 'CVAR1=vmwVmState;"$CVAR1" ne "powered on"',
+        'test' => 'CVAR1=vmwVmState;"$CVAR1" ne "powered on" and "$CVAR1" ne "noSuchInstance"',
         'type' => 'test',
         'unit' => 'state',
         'value' => 'CVAR1=vmwVmState;return "$CVAR1"'
