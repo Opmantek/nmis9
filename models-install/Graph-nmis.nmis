@@ -54,7 +54,7 @@
 
 			'LINE2:collect#32CD32:collect time\t',
 			'GPRINT:collect:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:collect:MAX:\tAvg %1.2lf seconds\l',
+			'GPRINT:collect:MAX:\tMax %1.2lf seconds\l',
 
 			'LINE2:procs#B22222:NMIS processes\t\t',
 			'GPRINT:procs:AVERAGE:Avg %6.1lf',
