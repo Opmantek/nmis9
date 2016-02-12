@@ -78,6 +78,8 @@
       }
     },
     'type' => {
+      'interface' => '/interface/$nodeType/$node/$node-$ifDescr-all.rrd',
+
 			'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
@@ -112,7 +114,6 @@
       'hrvmem' => '/health/$nodeType/$node-hrvmem.rrd',
       'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
       'hrwincpu' => '/health/$nodeType/$node-hrwincpu$index.rrd',
-      'interface' => '/interface/$nodeType/$node/$node-$ifDescr.rrd',
       'laload' => '/health/$nodeType/$node-laload.rrd',
       'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
       'metrics' => '/metrics/$item.rrd',

@@ -79,7 +79,7 @@
     },
     'type' => {
       'interface_alternate' => '/nodes/$node/interface/$ifDescr-pkts.rrd',
-      'interface' => '/nodes/$node/interface/$ifDescr.rrd',
+      'interface' => '/nodes/$node/interface/$ifDescr-all.rrd',
 
       'statistics' => '/nodes/$node/health/statistics.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',

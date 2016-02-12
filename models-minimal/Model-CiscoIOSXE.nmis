@@ -74,6 +74,9 @@
       },
     }
   },
+  'interface' => {
+    'leave_me_here' => 'dummy entry',
+  },
   'systemHealth' => {
     'sections' => 'cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,bgpPeer,ospfNbr',
   },

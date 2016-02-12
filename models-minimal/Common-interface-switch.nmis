@@ -23,7 +23,7 @@
       'Description' => '^#',
       'noDescription' => 'true',
       'ifType' => 'other|softwareloopback|propVirtual|slip'
-    }
+    },
     'sys' => {
       'standard' => {
         'snmp' => {
