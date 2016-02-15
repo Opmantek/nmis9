@@ -1,32 +1,3 @@
-#
-#  Copyright Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (NMIS).
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
   'heading' => {
     'graphtype' => {
@@ -46,8 +17,6 @@
       'abits' => 'Interface $ifDescr Bits/Second Utilisation',
       'acpu' => 'CPU Utilisation',
       'autil' => 'Interface $ifDescr Utilisation Including Availability',
-      'bgpPeer' => 'BGP Peer Status',
-      'bgpPeerStats' => 'BGP Peer Stats',
       'bits' => 'Interface $ifDescr Bits/Second Utilisation',
       'buffer' => 'Buffer Utilisation',
       'calls' => 'Call Port Stats',
@@ -100,15 +69,11 @@
       'mem-mbuf' => 'mbuf Utilisation',
       'mem-proc' => 'Processor Memory Utilisation',
       'mem-router' => 'Router Memory Utilisation',
-      'mem-router' => 'Router Memory Utilisation',
       'mem-switch' => 'Switch Memory Utilisation',
       'memUsageUtil' => 'Memory Utilisation',
-      'memUsageUtil' => 'Memory Utilisation',
-      'memUtil' => 'Memory Utilisation',
       'memUtil' => 'Memory Utilisation',
       'metrics' => 'Metrics',
       'modem' => 'Modem Utilisation',
-      'nmis' => 'NMIS collect runtime',
       'nmis' => 'NMIS collect runtime',
       'numintf' => 'Number of Interfaces',
       'pix-conn' => 'Firewall Connections',
@@ -121,16 +86,14 @@
       'rbt_optimisation' => 'Optimisation',
       'response' => 'Response Time in milliseconds',
       'routenumber' => 'Number of Routes',
-      'rttMonLatestRtt' => 'RTT Monitor Stats',
       'sensorhum' => 'Humidity of sensor',
       'sensortemp' => 'Temperature of sensor',
       'service' => 'Service',
-			'service-mem' => "Service Memory",
       'service-cpu' => 'Service CPU',
+      'service-mem' => 'Service Memory',
       'service-cpumem' => 'Service CPU and Memory',
       'service-response' => 'Service Response Time',
       'session-util' => 'Session Utilisation',
-      'sessions' => 'Sessions Statistics',
       'sessions' => 'Sessions Statistics',
       'ss-blocks' => 'System Stats - Block Input/Output',
       'ss-cpu' => 'System Stats - CPU Usage',
@@ -154,27 +117,20 @@
       'util' => 'Interface $ifDescr Utilisation Including Availability',
       'vmwVmState' => "Virtual Machine Status",
       'hrsystem' => "Users and Processes",
-      'SignalLevel' => "Signal Level",
-      "SignalErrors" => "Signal Errors",
       'jnxCPU' => "CPU Load",
       'jnxMem' => "Memory",
       'jnxTemp' => "Temperature",
-      'ppxAtmCells' => "PPX ATM Cells",
-      'ppxAtmUtil' => "PPX ATM Utilisation",
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
-      'checkpoint' => "Checkpoint Stats",
-      'apSys' => 'ACME System Stats',
-      'apSession' => 'ACME Sessions',
-      'APCCapacity' => "UPS Capacity",
-      'APCBattTemp' => 'UPS Battery Temperature',
-      'APCLoad' => "UPS Output Load",
-      'APCCurrent' => "UPS Current",
-      'APCVoltage' => "UPS Voltage",
+      'bgpPeer' => 'BGP Peer Status',
+      'bgpPeerStats' => 'BGP Peer Stats',
       'ospfNbr' => 'OSPF Neighbor Status',
       'ospfNbrStats' => 'OSPF Neighbor Stats',
-      'hrProcessorLoad' => 'Processor Load',
+      'rttMonLatestRtt' => 'RTT Monitor Stats',
+      'echoRtt' => 'ICMP Echo RTT Monitor Stats',
+      'jitterRttMon' => 'UDP Jitter RTT Monitor Stats',
+      'icmpjitterRtt' => 'ICMP Jitter RTT Monitor Stats',
     }
   }
 );
