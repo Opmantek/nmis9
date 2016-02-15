@@ -38,12 +38,10 @@
         'index_regex' => '\\.(\\d+\\.\\d+)$',
         'indexed' => 'lldpRemSysName',
         'snmp' => {        
+          'ifDescr' => {
+            'title' => 'Local Interface'
+          },
           'lldpRemLocalPortNum' => {
-            'oid' => '1.0.8802.1.1.2.1.4.2.1.2.0',
-            'sysObjectName' => 'lldpRemLocalPortNum',
-            'replace' => {
-              'noSuchObject' => '',
-            },
             'title' => 'ifIndex'
           },
           'lldpRemChassisIdSubtype' => {
@@ -99,9 +97,6 @@
             'sysObjectName' => 'lldpRemSysDesc',
             'title' => 'Neighbor Version'
           },                  
-          'ifDescr' => {
-            'title' => 'Local Interface'
-          }
         }
       },
     }
