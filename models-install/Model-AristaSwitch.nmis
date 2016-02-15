@@ -139,7 +139,7 @@
   #},
 
   'system' => {
-    'nodegraph' => 'health,response,ip,hrmem',
+    'nodegraph' => 'health,response,ip',
     'nodeModel' => 'AristaSwitch',
     'nodeVendor' => 'Arista Networks',
     'nodeType' => 'switch',
