@@ -42,7 +42,7 @@
             'title' => 'Local Interface'
           },
           'lldpRemLocalPortNum' => {
-            'title' => 'ifIndex'
+            'title' => 'Local Port Num'
           },
           'lldpRemChassisIdSubtype' => {
             'oid' => '1.0.8802.1.1.2.1.4.1.1.4.0',
