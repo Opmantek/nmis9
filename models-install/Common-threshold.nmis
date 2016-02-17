@@ -796,8 +796,8 @@
         'control_regex' => 'Critical|Voice|Video',
         'control_regex_comment' => 'Use the control regex field to limit which CBQoS Classes will match.',
         'control_regex_example' => 'class-default$|Voice$',
+        'select_comment' => 'the values below are number of packets',
         'select' => {
-          'select_comment' => 'the values below are number of packets',
           'default' => {
             'value' => {
               'fatal' => '240',
