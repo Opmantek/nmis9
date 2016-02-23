@@ -112,7 +112,7 @@
 
       	# optimising the interface polling, put all the interface and packet data in the same RRD and have all polling use this.
 
-        'graphtype' => 'bits,abits,maxbits,util,autil,pkts_hc,errpkts_hc',
+        'graphtype' => 'bits,abits,maxbits,util,autil,pkts2,errpkts2',
         'threshold' => 'util_in,util_out',
 
 				# the old graph and threshold to use.
