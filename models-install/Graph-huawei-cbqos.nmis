@@ -1,0 +1,69 @@
+#
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - QoS - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - QoS - $length'
+	},
+	'vlabel' => {
+		'standard' => 'AVG Bytes',
+		'short' => 'AVG Bytes'
+	},
+  #MatchedPackets MatchedBytes PassedPackets DroppedPackets
+	'option' => {
+		'standard' => [
+			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
+			'DEF:PassedPackets=$database:PassedPackets:AVERAGE',
+			'DEF:DroppedPackets=$database:DroppedPackets:AVERAGE',
+
+			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
+			
+			'GPRINT:MatchedPackets:AVERAGE:Matched Packets Avg %1.2lf\t',
+			'GPRINT:MatchedPackets:MAX:Max %1.2lf\n',
+			'GPRINT:PassedPackets:AVERAGE:Passed Packets Avg %1.2lf\t',
+			'GPRINT:PassedPackets:MAX:Max %1.2lf\n',
+			'GPRINT:DroppedPackets:AVERAGE:Dropped Packets Avg %1.2lf\t',
+			'GPRINT:DroppedPackets:MAX:Max %1.2lf\n',
+		],
+		'small' => [
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
+
+			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
+		]
+	}
+);
+
