@@ -171,7 +171,7 @@ sub checkNode {
 			
 			my $backup = backupFile(file => $dataFile, backup => $backupFile);
 			if ( $backup ) {
-				print "$dataFile backup'ed up to $backupFile" if $debug;
+				print "$dataFile backup'ed up to $backupFile\n" if $debug;
 				$S->writeNodeInfo();
 			}
 			else {

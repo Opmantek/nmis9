@@ -1869,13 +1869,23 @@ sub viewInterface {
 		Tr(td({class=>'header'},"Bits per second")),
 		Tr(td({class=>'image'},htmlGraph(graphtype=>"abits",node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 		;
-		if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'pkts_hc'))) {
+		if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'pkts2'))) {
+			print Tr(td({class=>'header'},"Packets per second")),
+			Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts2',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
+			;
+		}
+		elsif (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'pkts_hc'))) {
 			print Tr(td({class=>'header'},"Packets per second")),
 			Tr(td({class=>'image'},htmlGraph(graphtype=>'pkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 			;
 		}
 		### 2014-10-23 keiths, added this to display by default for interfaces.
-		if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'errpkts_hc'))) {
+		if (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'errpkts2'))) {
+			print Tr(td({class=>'header'},"Errors and Discards")),
+			Tr(td({class=>'image'},htmlGraph(graphtype=>'errpkts2',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
+			;
+		}
+		elsif (grep($_ eq $intf, $S->getTypeInstances(graphtype => 'errpkts_hc'))) {
 			print Tr(td({class=>'header'},"Errors and Discards")),
 			Tr(td({class=>'image'},htmlGraph(graphtype=>'errpkts_hc',node=>$node,intf=>$intf,width=>$smallGraphWidth,height=>$smallGraphHeight) ))
 			;

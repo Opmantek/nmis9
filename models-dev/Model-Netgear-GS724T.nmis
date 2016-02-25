@@ -51,7 +51,10 @@
         'common-model' => 'event'
       },
       'lldp' => {
-        'common-model' => 'LLDP-neighbor'
+        'common-model' => 'lldp'
+      },
+      'macTable' => {
+        'common-model' => 'macTable'
       }
     }
   },
@@ -376,42 +379,42 @@
   },
   'systemHealth' => {
     'sections' => 'macTable,lldp',
-    'sys' => {
-      'macTable' => {
-        'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
-        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
-        'indexed' => 'dot1qTpFdbPort',
-        'snmp' => {
-          'dot1qTpFdbPort' => {
-            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-            'sysObjectName' => 'dot1qTpFdbPort',
-            'title' => 'Port'
-          },
-          'dot1qTpFdbStatus' => {
-            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
-            'sysObjectName' => 'dot1qTpFdbStatus',
-            'replace' => {
-              '1' => 'other',
-              '2' => 'invalid',
-              '3' => 'learned',
-              '4' => 'self',
-              '5' => 'mgmt',
-            },
-            'title' => 'Status'
-          },
-          'dot1qTpFdbAddress' => {
-            'title' => 'Address'
-          },
-          'vlan' => {
-            'title' => 'VLAN'
-          },
-          'ifAlias' => {
-            'title' => 'Description'
-          },
-        }
-      },
-    }
+    #'sys' => {
+    #  'macTable' => {
+    #    'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+    #    'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+    #    'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+    #    'indexed' => 'dot1qTpFdbPort',
+    #    'snmp' => {
+    #      'dot1qTpFdbPort' => {
+    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+    #        'sysObjectName' => 'dot1qTpFdbPort',
+    #        'title' => 'Port'
+    #      },
+    #      'dot1qTpFdbStatus' => {
+    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+    #        'sysObjectName' => 'dot1qTpFdbStatus',
+    #        'replace' => {
+    #          '1' => 'other',
+    #          '2' => 'invalid',
+    #          '3' => 'learned',
+    #          '4' => 'self',
+    #          '5' => 'mgmt',
+    #        },
+    #        'title' => 'Status'
+    #      },
+    #      'dot1qTpFdbAddress' => {
+    #        'title' => 'Address'
+    #      },
+    #      'vlan' => {
+    #        'title' => 'VLAN'
+    #      },
+    #      'ifAlias' => {
+    #        'title' => 'Description'
+    #      },
+    #    }
+    #  },
+    #}
   }
 );
 

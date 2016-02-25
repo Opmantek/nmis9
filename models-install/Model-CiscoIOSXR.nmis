@@ -217,7 +217,34 @@
             'oid' => 'sysDescr',
             'snmpObjectName' => 'sysDescr',
             'title' => 'Software Version'
-          }
+          },
+          'mplsLdpLsrId' => {
+            'oid' => '1.3.6.1.2.1.10.166.4.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR'
+          },
+          'mplsLdpLsrIdCisco' => {
+            'oid' => '1.3.6.1.4.1.9.10.65.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR Cisco'
+          },
+          'mplsL3VpnConfiguredVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.1',
+            'snmpObjectName' => 'mplsL3VpnConfiguredVrfs',
+            'title' => 'MPLS VRFs Configured'
+          },
+          'mplsL3VpnActiveVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.2',
+            'snmpObjectName' => 'mplsL3VpnActiveVrfs',
+            'title' => 'MPLS VRFs Active'
+          },
+          'mplsL3VpnConnectedInterfaces' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.3',
+            'snmpObjectName' => 'mplsL3VpnConnectedInterfaces',
+            'title' => 'MPLS Connected Interfaces'
+          },
         }
       },
       'nodeConfiguration' => {
@@ -242,7 +269,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnVrf,mplsVpnInterface,mplsLdpEntity,mplsL3VpnVrfRT',
   },
   #'environment' => {
   #  'sys' => {
