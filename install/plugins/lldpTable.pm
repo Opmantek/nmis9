@@ -62,14 +62,14 @@ sub update_plugin {
 		my $lldpNeighbour = $entry->{lldpRemSysName};
 
 		# The lldpRemChassisIdSubtype tells us what the type of the data is.
-		if ( $entry->{lldpRemChassisIdSubtype} eq "macAddress" ) {
+		if ( $entry->{lldpRemChassisIdSubtype} eq "macAddress" and $entry->{lldpRemChassisId} !~ /[0-9a-fA-F]+\.[0-9a-fA-F]+\.[0-9a-fA-F]+/ ) {
 			my $macAddress = beautify_physaddress($entry->{lldpRemChassisId});
 			$entry->{lldpRemChassisId_raw} = $entry->{lldpRemChassisId};
 			$entry->{lldpRemChassisId} = $macAddress;
 		}
 
 		# The lldpRemPortIdSubtype tells us what the type of the data is.
-		if ( $entry->{lldpRemPortIdSubtype} eq "macAddress" ) {
+		if ( $entry->{lldpRemPortIdSubtype} eq "macAddress" and $entry->{lldpRemPortId} !~ /[0-9a-fA-F]+\.[0-9a-fA-F]+\.[0-9a-fA-F]+/ ) {
 			my $macAddress = beautify_physaddress($entry->{lldpRemPortId});
 			$entry->{lldpRemPortId_raw} = $entry->{lldpRemPortId};
 			$entry->{lldpRemPortId} = $macAddress;
@@ -87,10 +87,6 @@ sub update_plugin {
 		}
 
 		$changesweremade = 1;
-		#my $MacAddress = $entry->{lldpRemChassisId};
-		#logMsg("$MacAddress");
-		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {cdpCacheDeviceId} = $lldpNeighbour;
-		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {ifDescr} = "LLDP discovered";
 
 		my $possNeighbour;
 
@@ -106,26 +102,19 @@ sub update_plugin {
 			}	
 		}
 
-		if ( defined $entry->{lldpRemLocalPortNum} and $entry->{lldpRemLocalPortNum} eq "noSuchObject" ) {
-			$entry->{lldpRemLocalPortNum} = ""
-		}
-
-		if ( defined $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr} ) {
-			$entry->{ifDescr} = $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr};
-			$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpRemLocalPortNum}&node=$node";
-			$entry->{ifDescr_id} = "node_view_$node";
-		}
+		if ( @parts = split(/\./,$entry->{index}) ) {
+			my $lldpRemLocalPortNum = shift(@parts);
+			my $lldpRemIndex = shift(@parts);
+        			
+			$entry->{lldpRemLocalPortNum} = $lldpRemLocalPortNum;
+			
+			if ( defined $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr} ) {
+				$entry->{ifDescr} = $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr};
+				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpRemLocalPortNum}&node=$node";
+				$entry->{ifDescr_id} = "node_view_$node";
+			}
+		}				
 		
-		#if ( @parts = split(/\./,$entry->{index}) ) {
-		#	$entry->{lldpIfIndex} = shift(@parts);
-		#	$entry->{lldpDeviceIndex} = shift(@parts);
-		#	
-		#	if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
-		#		$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
-		#		$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
-		#		$entry->{ifDescr_id} = "node_view_$node";
-		#	}
-		#}				
 	}
 
 	return ($changesweremade,undef); # report if we changed anything
