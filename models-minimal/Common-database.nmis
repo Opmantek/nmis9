@@ -78,7 +78,8 @@
       }
     },
     'type' => {
-      'interface' => '/nodes/$node/interface/$ifDescr-pkts.rrd',
+      'interface_alternate' => '/nodes/$node/interface/$ifDescr-pkts.rrd',
+      'interface' => '/nodes/$node/interface/$ifDescr-all.rrd',
 
       'statistics' => '/nodes/$node/health/statistics.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
@@ -153,6 +154,9 @@
       'ospfNbr' => '/nodes/$node/health/ospfNbr-$index.rrd',
       'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
       'ciscoMemoryPool' => '/nodes/$node/health/ciscoMemoryPool-$index.rrd',
+      'cempMemBuffer' => '/nodes/$node/health/cempMemBuffer-$index.rrd',
+      'memoryBuffer' => '/nodes/$node/health/memoryBuffer-$index.rrd',
+      'hrProcessorLoad' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
     }
   }
 );

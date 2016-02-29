@@ -36,48 +36,50 @@
       'poll' => '300',
       'size' => {
         'default' => {
-          'rows_day' => '9216',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '3072',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         },
         'interface' => {
-          'rows_day' => '9216',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '4608',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         },
         'metrics' => {
-          'rows_day' => '2304',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '1536',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         },
         'reachability' => {
-          'rows_day' => '2304',
+          'step_year' => '288',
           'rows_month' => '2268',
-          'rows_week' => '1536',
           'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'step_year' => '288'
+          'rows_day' => '2304',
+          'rows_week' => '1536'
         }
       }
     },
     'type' => {
+      'interface' => '/interface/$nodeType/$node/$node-$ifDescr-all.rrd',
+
 			'memUtil' => '/health/$nodeType/$node-mem.rrd',
       'SONETErrors' => '/health/$nodeType/$node-soneterrors-$index.rrd',
       'VirtMachines' => '/health/$nodeType/$node-VirtMachines-$index.rrd',
@@ -112,7 +114,6 @@
       'hrvmem' => '/health/$nodeType/$node-hrvmem.rrd',
       'hrwin' => '/health/$nodeType/$node-hrwin.rrd',
       'hrwincpu' => '/health/$nodeType/$node-hrwincpu$index.rrd',
-      'interface' => '/interface/$nodeType/$node/$node-$ifDescr.rrd',
       'laload' => '/health/$nodeType/$node-laload.rrd',
       'memUsageUtil' => '/health/$nodeType/$node-mem-$index.rrd',
       'metrics' => '/metrics/$item.rrd',

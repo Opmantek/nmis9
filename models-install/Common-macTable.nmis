@@ -1,5 +1,5 @@
 #
-## $Id: Graph-nmis.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,40 +30,33 @@
 # *****************************************************************************
 
 %hash = (
-	'title' => {
-		'standard' => 'NMIS system - $length from $datestamp_start to $datestamp_end',
-		'short' => 'NMIS system - $length'
-	},
-	'vlabel' => {
-		'standard' => 'NMIS runtime seconds',
-		'short' => 'seconds',
-	},
-	'option' => {
-		'standard' => [
-			'--right-axis','1:0',
-			'--right-axis-label','Processes',
-
-			'DEF:total=$database:total:AVERAGE',
-			'DEF:collect=$database:collect:AVERAGE',
-			'DEF:procs=$database:nr_procs:AVERAGE',
-			'DEF:maxpar=$database:max_procs:AVERAGE',
-
-			'LINE2:total#006400:total runtime\t',
-			'GPRINT:total:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:total:MAX:\tMax %1.2lf seconds\l',
-
-			'LINE2:collect#32CD32:collect time\t',
-			'GPRINT:collect:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:collect:MAX:\tMax %1.2lf seconds\l',
-
-			'LINE2:procs#B22222:NMIS processes\t\t',
-			'GPRINT:procs:AVERAGE:Avg %6.1lf',
-			'GPRINT:procs:MAX:\tMax %6.1lf\l',
-
-			'LINE2:maxpar#FF8c00:Max Parallel processes\t',
-			'GPRINT:maxpar:AVERAGE:Avg %6.1lf',
-			'GPRINT:maxpar:MAX:\tMax %6.1lf\l',
-
-		]
-	}
+  'systemHealth' => {
+    'sys' => {
+      'macTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
+    }
+  }
 );

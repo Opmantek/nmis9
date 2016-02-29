@@ -156,6 +156,7 @@
       'cempMemBuffer' => '/health/$nodeType/$node-cempMemBuffer-$index.rrd',
       'memoryBuffer' => '/health/$nodeType/$node-memoryBuffer-$index.rrd',
       'hrProcessorLoad' => '/health/$nodeType/$node-hrProcessorLoad-$index.rrd',
+      'fgSystemInfo' => '/health/$nodeType/$node-fgSystemInfo.rrd',
     }
   }
 );

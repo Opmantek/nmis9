@@ -175,6 +175,10 @@
       'ospfNbr' => 'OSPF Neighbor Status',
       'ospfNbrStats' => 'OSPF Neighbor Stats',
       'hrProcessorLoad' => 'Processor Load',
+      'fortinet-cpu' => 'CPU Usage',
+      'fortinet-disk' => 'Disk Usage',
+      'fortinet-mem' => 'Memory Usage',
+      'fortinet-sessions' => 'Session Count',
     }
   }
 );

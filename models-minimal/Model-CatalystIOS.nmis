@@ -70,6 +70,9 @@
       },
     }
   },
+  'interface' => {
+    'leave_me_here' => 'dummy entry',
+  },
   'system' => {
     'nodeType' => 'switch',
     'nodeModel' => 'CatalystIOS',

@@ -69,6 +69,9 @@
       },
   	}
   },
+  'interface' => {
+    'leave_me_here' => 'dummy entry',
+  },
   'systemHealth' => {
     'sections' => 'cdp,entityMib,bgpPeer,ospfNbr',
   },

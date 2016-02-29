@@ -1,5 +1,5 @@
 #
-## $Id: Graph-nmis.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -31,39 +31,39 @@
 
 %hash = (
 	'title' => {
-		'standard' => 'NMIS system - $length from $datestamp_start to $datestamp_end',
-		'short' => 'NMIS system - $length'
+		'standard' => '$node - QoS - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - QoS - $length'
 	},
 	'vlabel' => {
-		'standard' => 'NMIS runtime seconds',
-		'short' => 'seconds',
+		'standard' => 'AVG Bytes',
+		'short' => 'AVG Bytes'
 	},
+  #MatchedPackets MatchedBytes PassedPackets DroppedPackets
 	'option' => {
 		'standard' => [
-			'--right-axis','1:0',
-			'--right-axis-label','Processes',
+			'DEF:MatchedPackets=$database:MatchedPackets:AVERAGE',
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
+			'DEF:PassedPackets=$database:PassedPackets:AVERAGE',
+			'DEF:DroppedPackets=$database:DroppedPackets:AVERAGE',
 
-			'DEF:total=$database:total:AVERAGE',
-			'DEF:collect=$database:collect:AVERAGE',
-			'DEF:procs=$database:nr_procs:AVERAGE',
-			'DEF:maxpar=$database:max_procs:AVERAGE',
+			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
+			
+			'GPRINT:MatchedPackets:AVERAGE:Matched Packets Avg %1.2lf\t',
+			'GPRINT:MatchedPackets:MAX:Max %1.2lf\n',
+			'GPRINT:PassedPackets:AVERAGE:Passed Packets Avg %1.2lf\t',
+			'GPRINT:PassedPackets:MAX:Max %1.2lf\n',
+			'GPRINT:DroppedPackets:AVERAGE:Dropped Packets Avg %1.2lf\t',
+			'GPRINT:DroppedPackets:MAX:Max %1.2lf\n',
+		],
+		'small' => [
+			'DEF:MatchedBytes=$database:MatchedBytes:AVERAGE',
 
-			'LINE2:total#006400:total runtime\t',
-			'GPRINT:total:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:total:MAX:\tMax %1.2lf seconds\l',
-
-			'LINE2:collect#32CD32:collect time\t',
-			'GPRINT:collect:AVERAGE:\tAvg %1.2lf seconds',
-			'GPRINT:collect:MAX:\tMax %1.2lf seconds\l',
-
-			'LINE2:procs#B22222:NMIS processes\t\t',
-			'GPRINT:procs:AVERAGE:Avg %6.1lf',
-			'GPRINT:procs:MAX:\tMax %6.1lf\l',
-
-			'LINE2:maxpar#FF8c00:Max Parallel processes\t',
-			'GPRINT:maxpar:AVERAGE:Avg %6.1lf',
-			'GPRINT:maxpar:MAX:\tMax %6.1lf\l',
-
+			'AREA:MatchedBytes#BCFD0A:Matched Bytes',
+			'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf\t',
+			'GPRINT:MatchedBytes:MAX:Max %1.2lf\n',
 		]
 	}
 );
+
