@@ -32,7 +32,7 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node Current CPU usage (percentage)'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
 		'standard' => 'CPU usage (%)',
@@ -43,18 +43,18 @@
 			'--lower-limit','0',
 			'--rigid',
       'DEF:fgVdEntCpuUsage=$database:fgVdEntCpuUsage:AVERAGE',
-			'LINE2:fgVdEntCpuUsage#007000:CPU Usage(%)’,
-			'GPRINT:fgVdEntCpuUsage:AVERAGE:Avg %6.2lf%%',
-			'GPRINT:fgVdEntCpuUsage:MAX:Max %6.2lf%%\\n',
+			'LINE2:fgVdEntCpuUsage#4682B4:CPU Usage',
+			'GPRINT:fgVdEntCpuUsage:AVERAGE:Avg %6.1lf%%',
+			'GPRINT:fgVdEntCpuUsage:MAX:Max %6.1lf%%\\n',
 		],
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
       'DEF:fgVdEntCpuUsage=$database:fgVdEntCpuUsage:AVERAGE',
-			'LINE2:fgVdEntCpuUsage#007000:CPU Usage(%)’,
-			'GPRINT:fgVdEntCpuUsage:AVERAGE:Avg %6.2lf%%',
-			'GPRINT:fgVdEntCpuUsage:MAX:Max %6.2lf%%\\n',
+			'LINE2:fgVdEntCpuUsage#4682B4:CPU Usage',
+			'GPRINT:fgVdEntCpuUsage:AVERAGE:Avg %6.1lf%%',
+			'GPRINT:fgVdEntCpuUsage:MAX:Max %6.1lf%%\\n',
 		]
 	}
 );

@@ -104,14 +104,14 @@
     'sections' => 'VirtualDomains',
     'sys' => {
       'VirtualDomains' => {
-        'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState,fgVdEntCpuUsage,fgVdEntMemUsage,fgVdEntSesCount',
+        'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState',
         'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
         'indexed' => 'fgVdEntIndex',
         'snmp' => {
           'fgVdEntName' => {
             'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.2',
             'sysObjectName' => 'fgVdEntName',
-            'title' => 'The name of the virtual domain'
+            'title' => 'Virtual Domain Name'
           },
           'fgVdEntOpMode' => {
             'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.3',
@@ -125,7 +125,7 @@
           'fgVdEntHaState' => {
             'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.4',
             'sysObjectName' => 'fgVdEntHaState',
-            'title' => 'VD HA State'
+            'title' => 'VD HA State',
             'replace' => {
               '1' => 'master',
               '2' => 'backup',
@@ -243,7 +243,7 @@
           },
           'fgVdEnabled' => {
             'oid' => 'fgVdEnabled',
-            'title' => 'Virtual Domains Status'
+            'title' => 'Virtual Domains Status',
             'replace' => {
               '1' => 'disabled',
               '2' => 'enabled',

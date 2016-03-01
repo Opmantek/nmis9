@@ -40,14 +40,14 @@
 		'standard' => [
 			'DEF:fgVdEntSesCount=$database:fgVdEntSesCount:AVERAGE',
 		
-			'LINE1:fgVdEntSesCount#00BFFF:% Sessions Count',
+			'LINE1:fgVdEntSesCount#ffa500:Sessions Count',
 			'GPRINT:fgVdEntSesCount:AVERAGE:Avg %6.0lf',
 			'GPRINT:fgVdEntSesCount:MAX:Max %6.0lf\n',
 		],
 		'small' => [
 			'DEF:fgVdEntSesCount=$database:fgVdEntSesCount:AVERAGE',
 		
-			'LINE1:fgVdEntSesCount#00BFFF:% Sessions Count',
+			'LINE1:fgVdEntSesCount#ffa500:Sessions Count',
 			'GPRINT:fgVdEntSesCount:AVERAGE:Avg %6.0lf',
 			'GPRINT:fgVdEntSesCount:MAX:Max %6.0lf\n',
 		]

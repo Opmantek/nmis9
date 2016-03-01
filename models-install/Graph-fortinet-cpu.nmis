@@ -32,7 +32,7 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node Current CPU usage (percentage)'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
 		'standard' => 'CPU usage (%)',
@@ -43,18 +43,18 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#008000:CPU usage(%)',
-			'GPRINT:fgSysCpuUsage:AVERAGE:Avg %6.2lf%%',
-			'GPRINT:fgSysCpuUsage:MAX:Max %6.2lf%%\\n',
+			'LINE1:fgSysCpuUsage#4682B4:CPU usage',
+			'GPRINT:fgSysCpuUsage:AVERAGE:Avg %6.1lf%%',
+			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
 		],
 		'small' => [
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:fgSysCpuUsage=$database:fgSysCpuUsage:AVERAGE',
-			'LINE1:fgSysCpuUsage#0000FF:CPU usage(%)',
-			'GPRINT:fgSysCpuUsage:AVERAGE: %6.2lf%%',
-			'GPRINT:fgSysCpuUsage:MAX:Max %6.2lf%%\\n',
+			'LINE1:fgSysCpuUsage#4682B4:CPU usage',
+			'GPRINT:fgSysCpuUsage:AVERAGE: %6.1lf%%',
+			'GPRINT:fgSysCpuUsage:MAX:Max %6.1lf%%\\n',
 		]
 
 	}
