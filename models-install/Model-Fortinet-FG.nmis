@@ -30,6 +30,7 @@
 # *****************************************************************************
 # Common-database.nmis
 # 'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
+# 'VirtualDomains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
 #
 # *****************************************************************************
 # Common-heading.nmis
@@ -37,18 +38,25 @@
 #      'fortinet-disk' => 'Disk Usage',
 #      'fortinet-mem' => 'Memory Usage',
 #      'fortinet-sessions' => 'Session Count',
+#      'fortinet-vd-cpu' => 'Virtual Domain CPU Usage',
+#      'fortinet-vd-mem' => 'Virtual Domain Memory Usage',
+#      'fortinet-vd-sessions' => 'Virtual Domain Session Count',
 #
 # *****************************************************************************
 # nmis_mibs.oid
 #
-# "fgSysVersion"          "1.3.6.1.4.1.12356.101.4.1.1.0"
-# "fgSysMgmtVdom"         "1.3.6.1.4.1.12356.101.4.1.2.0"
-# "fgSysCpuUsage"         "1.3.6.1.4.1.12356.101.4.1.3.0"
-# "fgSysMemUsage"         "1.3.6.1.4.1.12356.101.4.1.4.0"
-# "fgSysMemCapacity"              "1.3.6.1.4.1.12356.101.4.1.5.0"
-# "fgSysDiskUsage"                "1.3.6.1.4.1.12356.101.4.1.6.0"
-# "fgSysDiskCapacity"             "1.3.6.1.4.1.12356.101.4.1.7.0"
-# "fgSysSesCount"         "1.3.6.1.4.1.12356.101.4.1.8.0"
+# "fgSysVersion"          "1.3.6.1.4.1.12356.101.4.1.1"
+# "fgSysMgmtVdom"         "1.3.6.1.4.1.12356.101.4.1.2"
+# "fgSysCpuUsage"         "1.3.6.1.4.1.12356.101.4.1.3"
+# "fgSysMemUsage"         "1.3.6.1.4.1.12356.101.4.1.4"
+# "fgSysMemCapacity"              "1.3.6.1.4.1.12356.101.4.1.5"
+# "fgSysDiskUsage"                "1.3.6.1.4.1.12356.101.4.1.6"
+# "fgSysDiskCapacity"             "1.3.6.1.4.1.12356.101.4.1.7"
+# "fgSysSesCount"         "1.3.6.1.4.1.12356.101.4.1.8"
+# "fgVdNumber"         "1.3.6.1.4.1.12356.101.3.1.1"
+# "fgVdMaxVdoms"         "1.3.6.1.4.1.12356.101.3.1.2"
+# "fgVdEnabled"         "1.3.6.1.4.1.12356.101.3.1.3"
+ 
 # *****************************************************************************
 #  Enterprise.nmis
 #  
@@ -56,6 +64,7 @@
 #    'Enterprise' => 'Fortinet, Inc.',
 #    'OID' => '12356'
 #  }
+#
 #*****************************************************************************
 #  Model.nmis
 #    'Fortinet, Inc.' => {
@@ -65,6 +74,7 @@
 #        }
 #      }
 #    },
+#
 
 %hash = (
   '-common-' => {
@@ -89,6 +99,80 @@
       }
     }
   },
+  
+  'systemHealth' => {
+    'sections' => 'VirtualDomains',
+    'sys' => {
+      'VirtualDomains' => {
+        'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState,fgVdEntCpuUsage,fgVdEntMemUsage,fgVdEntSesCount',
+        'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
+        'indexed' => 'fgVdEntIndex',
+        'snmp' => {
+          'fgVdEntName' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.2',
+            'sysObjectName' => 'fgVdEntName',
+            'title' => 'The name of the virtual domain'
+          },
+          'fgVdEntOpMode' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.3',
+            'sysObjectName' => 'fgVdEntOpMode',
+            'title' => 'VD Operational Mode',
+            'replace' => {
+              '1' => 'nat',
+              '2' => 'transparent',
+            },
+          },
+          'fgVdEntHaState' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.4',
+            'sysObjectName' => 'fgVdEntHaState',
+            'title' => 'VD HA State'
+            'replace' => {
+              '1' => 'master',
+              '2' => 'backup',
+              '3' => 'standalone',
+            },
+          },
+          'fgVdEntCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
+            'sysObjectName' => 'fgVdEntCpuUsage',
+            'title' => 'VD CPU Usage'
+          },
+          'fgVdEntMemUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
+            'sysObjectName' => 'fgVdEntMemUsage',
+            'title' => 'VD Memory Usage'
+          },
+          'fgVdEntSesCount' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
+            'sysObjectName' => 'fgVdEntSesCount',
+            'title' => 'VD Session Count'
+          },
+        }
+      }
+    },
+    
+    'rrd' => {
+      'VirtualDomains' => {
+        'graphtype' => 'fortinet-vd-cpu,fortinet-vd-mem,fortinet-vd-sessions',    
+        'indexed' => 'true',
+        'snmp' => {
+          'fgVdEntCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
+            'sysObjectName' => 'fgVdEntCpuUsage',
+          },
+          'fgVdEntMemUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
+            'sysObjectName' => 'fgVdEntMemUsage',
+          },
+          'fgVdEntSesCount' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
+            'sysObjectName' => 'fgVdEntSesCount',
+          },
+        },
+      },
+    }
+  },
+
   'system' => {
     'nodegraph' => 'health,response,ip,fortinet-cpu,fortinet-mem,fortinet-disk,fortinet-sessions',
     'nodeModel' => 'Fortinet-FG',
@@ -148,6 +232,22 @@
           'fgSysSesCount' => {
             'oid' => 'fgSysSesCount',
             'title' => 'Active Sessions'
+          },
+          'fgVdNumber' => {
+            'oid' => 'fgVdNumber',
+            'title' => 'Current Virtual Domains'
+          },
+          'fgVdMaxVdoms' => {
+            'oid' => 'fgVdMaxVdoms',
+            'title' => 'Maximum Virtual Domains'
+          },
+          'fgVdEnabled' => {
+            'oid' => 'fgVdEnabled',
+            'title' => 'Virtual Domains Status'
+            'replace' => {
+              '1' => 'disabled',
+              '2' => 'enabled',
+            },
           }
         }
       },
