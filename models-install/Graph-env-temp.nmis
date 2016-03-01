@@ -44,15 +44,17 @@
 			'DEF:TempMAX=$database:currentTemp:MAX',
 			'DEF:TempMIN=$database:currentTemp:MIN',
 			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:AVERAGE:Avg Temperature %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max Temperature %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min Temperature %1.1lf C\n'
+			'GPRINT:TempAVG:LAST:Current %1.1lf C',
+			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
+			'GPRINT:TempMAX:MAX:Max %1.1lf C',
+			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
 		],
 		'small' => [
 			'DEF:TempAVG=$database:currentTemp:AVERAGE',
 			'DEF:TempMAX=$database:currentTemp:MAX',
 			'DEF:TempMIN=$database:currentTemp:MIN',
 			'LINE1:TempAVG#0000ff:Temperature',
+			'GPRINT:TempAVG:LAST:Current %1.1lf C',
 			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
 			'GPRINT:TempMAX:MAX:Max %1.1lf C',
 			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
