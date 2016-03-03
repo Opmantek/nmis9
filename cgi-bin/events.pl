@@ -205,7 +205,7 @@ sub listEvent
 			{
 				# this is: either an old-style eventhash->event table file,
 				# or a new-style eventfilename->event structure. fortunately the guts are compatible.
-				my $remote_events = loadTable(table=>$table);
+				my $remote_events = loadTable(name=>$table, dir => 'var');
 				displayEvents($remote_events, "Slave Server $srv"); #single server
 			}
 		}
