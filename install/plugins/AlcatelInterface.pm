@@ -67,7 +67,8 @@ sub update_plugin
 	#asamSoftwareVersion2 OSWPRA41.353
 
 	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
-	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46|OSWPRA43/;
+	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
+	my $asamVersion43 = qr/OSWPRA43/;
 	
 	my $rack_count = 1;
 	my $shelf_count = 1;
@@ -103,6 +104,12 @@ sub update_plugin
 	{
 		$version = 4.2;
 		my $indexes = build_42_interface_indexes(NI => $NI);
+		@ifIndexNum = @{$indexes};
+	}
+	elsif( $asamSoftwareVersion =~ /$asamVersion43/ )
+	{
+		$version = 4.3;
+		my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
 		@ifIndexNum = @{$indexes};
 	}
 	else {
@@ -310,7 +317,7 @@ sub getRackShelfMatrix {
 	my $shelfMatch = qr/ARAM\-D|ARAM\-E|NFXS\-A|NFXS\-B/;
 	my $rackMatch = qr/ALTR\-A|ALTR\-E/;
 	
-	if ( $version eq "4.1" ) {	
+	if ( $version eq "4.1" or $version eq "4.3" ) {	
 		#eqptHolderPlannedType
 		my $gotOneRack = 0;
 		my $rack = 0;
@@ -362,7 +369,7 @@ sub getIfDescr {
 	my $oid_value 		= $args{ifIndex};	
 	my $prefix 		= $args{prefix};	
 	
-	if ( $args{version} eq "4.1" ) {
+	if ( $args{version} eq "4.1" or $args{version} eq "4.3" ) {
 		my $rack_mask 		= 0x70000000;
 		my $shelf_mask 		= 0x07000000;
 		my $slot_mask 		= 0x00FF0000;

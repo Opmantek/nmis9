@@ -1,5 +1,5 @@
 #
-## $Id: Graph-sensortemp.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+# $Id: Model-FortinetFW.nmis,v 8.7 2012/11/16 05:46:04 josea Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -26,38 +26,33 @@
 #  
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#    
 # *****************************************************************************
-
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'degrees',
-		'short' => 'degrees'
+		'standard' => 'Active sessions'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
+			'DEF:fgVdEntSesCount=$database:fgVdEntSesCount:AVERAGE',
+		
+			'LINE1:fgVdEntSesCount#ffa500:Sessions Count',
+			'GPRINT:fgVdEntSesCount:AVERAGE:Avg %6.0lf',
+			'GPRINT:fgVdEntSesCount:MAX:Max %6.0lf\n',
 		],
 		'small' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
+			'DEF:fgVdEntSesCount=$database:fgVdEntSesCount:AVERAGE',
+		
+			'LINE1:fgVdEntSesCount#ffa500:Sessions Count',
+			'GPRINT:fgVdEntSesCount:AVERAGE:Avg %6.0lf',
+			'GPRINT:fgVdEntSesCount:MAX:Max %6.0lf\n',
 		]
+
 	}
 );
+  
+      

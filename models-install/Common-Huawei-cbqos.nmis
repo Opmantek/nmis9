@@ -1,0 +1,192 @@
+#
+## $Id: Model-HuaweiRouter.nmis,v 8.6 2012/10/29 12:31:27 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+      'QualityOfServiceStat' => {
+        'indexed' => 'hwCBQoSPolicyStatClassifierName',
+        'index_oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.1',
+        'index_regex' => '\.4\.1\.1\.([\d\.]+)$',
+        'headers' => 'ClassifierName',
+        'snmp' => {
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.1',
+              'title' => 'QoS Name'
+          },
+        },
+      },
+
+# +--hwCBQoSPolicyClassCfgInfoTable(3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+# |  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+# |  +--hwCBQoSPolicyClassCfgInfoEntry(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+# |     |  Index: hwCBQoSPolicyIndex, hwCBQoSPolicyClassIndex                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+# |     |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+# |     +-- -R-- Integer32 hwCBQoSPolicyClassIndex(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+# |     +-- CR-- Integer32 hwCBQoSPolicyClassClassifierIndex(2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+# |     +-- -R-- String    hwCBQoSPolicyClassClassifierName(3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+# |     |        Size: 1..31                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+# |     +-- CR-- Integer32 hwCBQoSPolicyClassBehaviorIndex(4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+# |     +-- -R-- String    hwCBQoSPolicyClassBehaviorName(5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+# |     |        Size: 1..31                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+# |     +-- CR-- Integer32 hwCBQoSPolicyClassPrecedence(6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+# |     |        Range: -1 | 0..65535                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+# |     +-- CR-- EnumVal   hwCBQoSPolicyClassRowStatus(7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+# |              Textual Convention: RowStatus                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+# |              Values: active(1), notInService(2), notReady(3), createAndGo(4), createAndWait(5), destroy(6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+#
+#"hwCBQoSPolicyClassClassifierIndex"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.2"
+#"hwCBQoSPolicyClassClassifierName"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.3"
+#"hwCBQoSPolicyClassBehaviorIndex"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.4"
+#"hwCBQoSPolicyClassBehaviorName"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.5"
+#"hwCBQoSPolicyClassPrecedence"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.6"
+#"hwCBQoSPolicyClassRowStatus"			"1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.7"
+
+      'hwCBQoS' => {
+        'indexed' => 'hwCBQoSPolicyStatClassifierName,hwCBQoSPolicyClassClassifierName,hwCBQoSPolicyClassBehaviorName',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.3',
+        'index_regex' => '(\d+)\.(\d+)$',
+        'headers' => 'hwCBQoSPolicyClassClassifierIndex,',
+        'snmp' => {
+          'hwCBQoSPolicyClassClassifierIndex' => {
+              'title' => 'Class Index'
+          },
+          'hwCBQoSPolicyClassClassifierName' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.3',
+              'title' => 'Class Name'
+          },
+          'hwCBQoSPolicyClassBehaviorName' => {
+              'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.3.3.1.5',
+              'title' => 'Behavior Name'
+          },
+        },
+      },
+	  },
+    'rrd' => {
+
+#  +--hwCBQoSIfClassMatchRunInfoTable(2)                                                               
+#  |  |                                                                                                
+#  |  +--hwCBQoSIfClassMatchRunInfoEntry(1)                                                            
+#  |     |  Index: hwCBQoSIfApplyPolicyIfIndex, hwCBQoSIfApplyPolicyDirection, hwCBQoSPolicyClassIndex 
+#  |     |                                                                                             
+#  |     +-- -R-- Counter64 hwCBQoSIfClassMatchedPackets(1)                                            
+#  |     +-- -R-- Counter64 hwCBQoSIfClassMatchedBytes(2)                                              
+#  |     +-- -R-- Counter64 hwCBQoSIfClassAverageRate(3)                                               
+#  |     +-- -R-- Counter64 hwCBQosIfClassPassedPackets(4)                                             
+#  |     +-- -R-- Counter64 hwCBQosIfClassDroppedPackets(5)                                            
+#  |                                                                                                   
+#"hwCBQoSIfClassMatchRunInfoTable"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2"
+#"hwCBQoSIfClassMatchRunInfoEntry"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1"
+#
+#"hwCBQoSIfClassMatchedPackets"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.1"
+#"hwCBQoSIfClassMatchedBytes"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.2"
+#"hwCBQoSIfClassAverageRate"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.3"
+#"hwCBQosIfClassPassedPackets"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.4"
+#"hwCBQosIfClassDroppedPackets"			"1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.5"
+    	
+      'hwCBQoS' => {
+        'indexed' => 'true',
+        'graphtype' => 'huawei-cbqos,huawei-cbqos-pkt',
+        'snmp' => {
+          'MatchedPackets' => {
+         	  'snmpObjectName' => 'hwCBQoSIfClassMatchedPackets',
+            'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.1',
+            'option' => 'counter,0:U',
+          },
+          'MatchedBytes' => {
+         	  'snmpObjectName' => 'hwCBQoSIfClassMatchedBytes',
+            'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.2',
+            'option' => 'counter,0:U',
+          },
+          # this is looking bad in sample data.
+          #'hwCBQoSIfClassAverageRate' => {
+         	#  'snmpObjectName' => 'hwCBQoSIfClassAverageRate',
+          #  'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.3',
+          #  'option' => 'counter,0:U',
+          #},
+          # this is not showing up in sample data.
+          'PassedPackets' => {
+         	  'snmpObjectName' => 'hwCBQosIfClassPassedPackets',
+            'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.4',
+            'option' => 'counter,0:U',
+          },
+          # this is not showing up in sample data.
+          'DroppedPackets' => {
+         	  'snmpObjectName' => 'hwCBQosIfClassDroppedPackets',
+            'oid' => '1.3.6.1.4.1.2011.5.25.32.1.1.5.1.2.1.5',
+            'option' => 'counter,0:U',
+          },
+       },
+      },
+      'QualityOfServiceStat' => {
+        'indexed' => 'true',
+        'graphtype' => 'QualityOfServiceStat',
+        'snmp' => {
+          'ClassifierName' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.1',
+          },
+          'MatchedPackets' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.2',
+              'option' => 'counter,0:U',
+          },
+          'MatchedBytes' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.3',
+              'option' => 'counter,0:U'
+          },
+          'MatchedPassPackets' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.6',
+              'option' => 'counter,0:U'
+          },
+          'MatchedPassBytes' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.7',
+              'option' => 'counter,0:U'
+          },
+          'MatchedDropPackets' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.8',
+              'option' => 'counter,0:U'
+          },
+          'MatchedDropBytes' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.9',
+              'option' => 'counter,0:U'
+          },
+          'MatchedPacketsRate' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.10',
+              'option' => 'counter,0:U'
+          },
+           'MatchedBytesRate' => {
+              'oid' => '.1.3.6.1.4.1.2011.5.25.32.1.1.5.6.4.1.11',
+              'option' => 'counter,0:U'
+          },
+        },
+      },
+    },
+  },
+);

@@ -186,7 +186,34 @@
             'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
             'snmpObjectName' => 'ciscoVersionString',
             'title' => 'Software Version'
-          }
+          },
+          'mplsLdpLsrId' => {
+            'oid' => '1.3.6.1.2.1.10.166.4.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR'
+          },
+          'mplsLdpLsrIdCisco' => {
+            'oid' => '1.3.6.1.4.1.9.10.65.1.1.1',
+            'snmpObjectName' => 'mplsLdpLsrId',
+            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+            'title' => 'MPLS LSR Cisco'
+          },
+          'mplsL3VpnConfiguredVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.1.0',
+            'snmpObjectName' => 'mplsL3VpnConfiguredVrfs',
+            'title' => 'MPLS VRFs Configured'
+          },
+          'mplsL3VpnActiveVrfs' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.2.0',
+            'snmpObjectName' => 'mplsL3VpnActiveVrfs',
+            'title' => 'MPLS VRFs Active'
+          },
+          'mplsL3VpnConnectedInterfaces' => {
+            'oid' => '1.3.6.1.2.1.10.166.11.1.1.3.0',
+            'snmpObjectName' => 'mplsL3VpnConnectedInterfaces',
+            'title' => 'MPLS Connected Interfaces'
+          },
         }
       }
     },
@@ -590,7 +617,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity,mplsVpnLdpCisco',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',

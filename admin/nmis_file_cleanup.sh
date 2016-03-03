@@ -28,6 +28,9 @@ find $DIR/database/ -follow -name "*.rrd" -mtime +$DAYS -type f -exec rm -f {} \
 # and also get rid of definitely corrupt zero-byte-size RRD files
 find $DIR/database/ -follow -name "*.rrd" -type f -size 0c -exec rm -f {} \;
 
+# and also get rid of definitely corrupt zero-byte-size JSON files
+find $DIR/var/ -follow -name "*.json" -type f -size 0c -exec rm -f {} \;
+
 # purge the BACKUP files
 find $DIR/var/ -follow -name "*.backup" -mtime +$DAYS -type f -exec rm -f {} \;
 

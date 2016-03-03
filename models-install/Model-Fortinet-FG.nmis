@@ -1,5 +1,5 @@
 #
-## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+# $Id: Model-FortinetFW.nmis,v 8.7 2012/11/16 05:46:04 josea Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -28,6 +28,53 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+# Common-database.nmis
+# 'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
+# 'VirtualDomains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
+#
+# *****************************************************************************
+# Common-heading.nmis
+#      'fortinet-cpu' => 'CPU Usage',
+#      'fortinet-disk' => 'Disk Usage',
+#      'fortinet-mem' => 'Memory Usage',
+#      'fortinet-sessions' => 'Session Count',
+#      'fortinet-vd-cpu' => 'Virtual Domain CPU Usage',
+#      'fortinet-vd-mem' => 'Virtual Domain Memory Usage',
+#      'fortinet-vd-sessions' => 'Virtual Domain Session Count',
+#
+# *****************************************************************************
+# nmis_mibs.oid
+#
+# "fgSysVersion"          "1.3.6.1.4.1.12356.101.4.1.1"
+# "fgSysMgmtVdom"         "1.3.6.1.4.1.12356.101.4.1.2"
+# "fgSysCpuUsage"         "1.3.6.1.4.1.12356.101.4.1.3"
+# "fgSysMemUsage"         "1.3.6.1.4.1.12356.101.4.1.4"
+# "fgSysMemCapacity"              "1.3.6.1.4.1.12356.101.4.1.5"
+# "fgSysDiskUsage"                "1.3.6.1.4.1.12356.101.4.1.6"
+# "fgSysDiskCapacity"             "1.3.6.1.4.1.12356.101.4.1.7"
+# "fgSysSesCount"         "1.3.6.1.4.1.12356.101.4.1.8"
+# "fgVdNumber"         "1.3.6.1.4.1.12356.101.3.1.1"
+# "fgVdMaxVdoms"         "1.3.6.1.4.1.12356.101.3.1.2"
+# "fgVdEnabled"         "1.3.6.1.4.1.12356.101.3.1.3"
+ 
+# *****************************************************************************
+#  Enterprise.nmis
+#  
+# '12356' => {
+#    'Enterprise' => 'Fortinet, Inc.',
+#    'OID' => '12356'
+#  }
+#
+#*****************************************************************************
+#  Model.nmis
+#    'Fortinet, Inc.' => {
+#      'order' => {
+#        '10' => {
+#          'Fortinet-FG' => 'fort|Fort'
+#        }
+#      }
+#    },
+#
 
 %hash = (
   '-common-' => {
@@ -49,27 +96,88 @@
       },
       'event' => {
         'common-model' => 'event'
-      },
-      'lldp' => {
-        'common-model' => 'lldp'
-      },
-      'macTable' => {
-        'common-model' => 'macTable'
       }
     }
   },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'true',
-      'ifLastChange' => 'false',
-      'ifTableLastChange' => 'false',
+  
+  'systemHealth' => {
+    'sections' => 'VirtualDomains',
+    'sys' => {
+      'VirtualDomains' => {
+        'headers' => 'fgVdEntName,fgVdEntOpMode,fgVdEntHaState',
+        'index_oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.1',
+        'indexed' => 'fgVdEntIndex',
+        'snmp' => {
+          'fgVdEntName' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.2',
+            'sysObjectName' => 'fgVdEntName',
+            'title' => 'Virtual Domain Name'
+          },
+          'fgVdEntOpMode' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.3',
+            'sysObjectName' => 'fgVdEntOpMode',
+            'title' => 'VD Operational Mode',
+            'replace' => {
+              '1' => 'nat',
+              '2' => 'transparent',
+            },
+          },
+          'fgVdEntHaState' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.4',
+            'sysObjectName' => 'fgVdEntHaState',
+            'title' => 'VD HA State',
+            'replace' => {
+              '1' => 'master',
+              '2' => 'backup',
+              '3' => 'standalone',
+            },
+          },
+          'fgVdEntCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
+            'sysObjectName' => 'fgVdEntCpuUsage',
+            'title' => 'VD CPU Usage'
+          },
+          'fgVdEntMemUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
+            'sysObjectName' => 'fgVdEntMemUsage',
+            'title' => 'VD Memory Usage'
+          },
+          'fgVdEntSesCount' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
+            'sysObjectName' => 'fgVdEntSesCount',
+            'title' => 'VD Session Count'
+          },
+        }
+      }
+    },
+    
+    'rrd' => {
+      'VirtualDomains' => {
+        'graphtype' => 'fortinet-vd-cpu,fortinet-vd-mem,fortinet-vd-sessions',    
+        'indexed' => 'true',
+        'snmp' => {
+          'fgVdEntCpuUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.5',
+            'sysObjectName' => 'fgVdEntCpuUsage',
+          },
+          'fgVdEntMemUsage' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.6',
+            'sysObjectName' => 'fgVdEntMemUsage',
+          },
+          'fgVdEntSesCount' => {
+            'oid' => '1.3.6.1.4.1.12356.101.3.2.1.1.7',
+            'sysObjectName' => 'fgVdEntSesCount',
+          },
+        },
+      },
     }
   },
+
   'system' => {
-    'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'Netgear-GS724T',
-    'nodeType' => 'switch',
-    'nodeVendor' => 'Netgear',
+    'nodegraph' => 'health,response,ip,fortinet-cpu,fortinet-mem,fortinet-disk,fortinet-sessions',
+    'nodeModel' => 'Fortinet-FG',
+    'nodeType' => 'firewall',
+    'nodeVendor' => 'Fortinet, Inc.',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -106,11 +214,72 @@
             'oid' => 'sysName'
           }
         }
-      }
+      },
+      'fgSystemInfo' => {
+        'snmp' => {
+          'fgSysVersion' => {
+            'oid' => 'fgSysVersion',
+            'title' => 'Software Version'
+          },
+          'fgSysMemCapacity' => {
+            'oid' => 'fgSysMemCapacity',
+            'title' => 'Total physical memory (KB)'
+          },
+          'fgSysDiskCapacity' => {
+            'oid' => 'fgSysDiskCapacity',
+            'title' => 'Total hard disk capacity (MB)'
+          },  
+          'fgSysSesCount' => {
+            'oid' => 'fgSysSesCount',
+            'title' => 'Active Sessions'
+          },
+          'fgVdNumber' => {
+            'oid' => 'fgVdNumber',
+            'title' => 'Current Virtual Domains'
+          },
+          'fgVdMaxVdoms' => {
+            'oid' => 'fgVdMaxVdoms',
+            'title' => 'Maximum Virtual Domains'
+          },
+          'fgVdEnabled' => {
+            'oid' => 'fgVdEnabled',
+            'title' => 'Virtual Domains Status',
+            'replace' => {
+              '1' => 'disabled',
+              '2' => 'enabled',
+            },
+          }
+        }
+      },
     },
     'rrd' => {
-      'mib2ip' => {
+      'fgSystemInfo' => {
+        'graphtype' => 'fortinet-cpu,fortinet-mem,fortinet-disk,fortinet-sessions',    
         'snmp' => {
+          'fgSysCpuUsage' => {
+            'oid' => 'fgSysCpuUsage',
+	          'option' => 'gauge,0:U'
+          },
+          'fgSysMemUsage' => {
+            'oid' => 'fgSysMemUsage',
+            'option' => 'gauge,0:U'
+          },
+          'fgSysDiskUsage' => {
+            'oid' => 'fgSysDiskUsage',
+            'option' => 'gauge,0:U'
+          },
+          'fgSysDiskCapacity' => {
+            'oid' => 'fgSysDiskCapacity',
+            'option' => 'gauge,0:U'
+          },  
+          'fgSysSesCount' => {
+            'oid' => 'fgSysSesCount',
+            'option' => 'gauge,0:U'
+          }
+        }
+      },
+      'mib2ip' => {
+        'snmp' => {  
           'ipInAddrErrors' => {
             'oid' => 'ipInAddrErrors',
             'option' => 'counter,0:U'
@@ -176,8 +345,8 @@
           }
         },
         'graphtype' => 'ip,frag'
-      }
-    }
+      },
+    },
   },
   'interface' => {
     'sys' => {
@@ -201,13 +370,14 @@
             'oid' => 'ifDescr',
             'title' => 'Name'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
-          },
-          'ifPhysAddress' => {
-            'oid' => 'ifPhysAddress',
-            'title' => 'Physical Address'
           },
           'ifAdminStatus' => {
             'replace' => {
@@ -241,11 +411,6 @@
   				'Description' => {
             'oid' => 'ifAlias',
             'title' => 'Description'
-          },
-          'vlanPortVlan' => {
-            'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',
-            'sysObjectName' => 'dot1qPvid',
-            'title' => 'VLAN'
           }
         }
       }
@@ -254,18 +419,6 @@
       'interface' => {
         'indexed' => 'true',
         'snmp' => {
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '1' => 'up',
-              '4' => 'unknown',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus'
-          },
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -279,9 +432,6 @@
             'oid' => 'ifOperStatus',
             'option' => 'gauge,0:100'
           },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange'
-          },
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
@@ -292,6 +442,18 @@
           'ifHCOutOctets' => {
             'oid' => 'ifHCOutOctets',
             'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
           },
           'ifOutOctets' => {
             'oid' => 'ifOutOctets',
@@ -377,44 +539,5 @@
       'ifType' => 'other'
     }
   },
-  'systemHealth' => {
-    'sections' => 'macTable,lldp',
-    #'sys' => {
-    #  'macTable' => {
-    #    'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
-    #    'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-    #    'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
-    #    'indexed' => 'dot1qTpFdbPort',
-    #    'snmp' => {
-    #      'dot1qTpFdbPort' => {
-    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-    #        'sysObjectName' => 'dot1qTpFdbPort',
-    #        'title' => 'Port'
-    #      },
-    #      'dot1qTpFdbStatus' => {
-    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
-    #        'sysObjectName' => 'dot1qTpFdbStatus',
-    #        'replace' => {
-    #          '1' => 'other',
-    #          '2' => 'invalid',
-    #          '3' => 'learned',
-    #          '4' => 'self',
-    #          '5' => 'mgmt',
-    #        },
-    #        'title' => 'Status'
-    #      },
-    #      'dot1qTpFdbAddress' => {
-    #        'title' => 'Address'
-    #      },
-    #      'vlan' => {
-    #        'title' => 'VLAN'
-    #      },
-    #      'ifAlias' => {
-    #        'title' => 'Description'
-    #      },
-    #    }
-    #  },
-    #}
-  }
 );
 

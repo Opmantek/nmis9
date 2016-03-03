@@ -459,6 +459,16 @@
         }
       }
     },
+    'Fortinet, Inc.' => {
+      'order' => {
+        '10' => {
+          'Fortinet-FG' => 'fort|Fort'
+        },
+        '20' => {
+          'Fortinet-FG' => '.'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

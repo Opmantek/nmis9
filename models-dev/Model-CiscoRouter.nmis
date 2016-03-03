@@ -284,6 +284,20 @@
           }
         }
       },
+      'monkey' => {
+        'snmp' => {
+          'chassisVerMonkey' => {
+            'oid' => 'chassisVersion',
+            'title' => 'Monkey Version'
+          },
+          'processorRamMonkey' => {
+            'calculate' => '${r}/1000000',
+            'format' => '%1.2f Mb',
+            'oid' => 'processorRam',
+            'title' => 'Monkey Mem'
+          },
+        },
+      },
       'extra' => {
         'snmp' => {
           'chassisVer' => {

@@ -1,5 +1,5 @@
 #
-## $Id: Graph-sensortemp.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,34 +30,33 @@
 # *****************************************************************************
 
 %hash = (
-	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
-	},
-	'vlabel' => {
-		'standard' => 'degrees',
-		'short' => 'degrees'
-	},
-	'option' => {
-		'standard' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
-		],
-		'small' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
-		]
-	}
+  'systemHealth' => {
+    'sys' => {
+      'macTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
+    }
+  }
 );

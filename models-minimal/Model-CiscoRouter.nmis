@@ -73,9 +73,9 @@
   'systemHealth' => {
     'sections' => 'cdp,entityMib,bgpPeer,ospfNbr',
   },
-  #'interface' => {
-  #  'monkey' => 'banana',
-  #},
+  'interface' => {
+    'leave_me_here' => 'dummy entry',
+  },
   'system' => {
     'nodeModel' => 'CiscoRouter',
     'nodeType' => 'router',

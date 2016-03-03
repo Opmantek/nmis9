@@ -2532,7 +2532,8 @@ sub getSystemHealthInfo {
 						}
 						$healthIndexNum{$index}=$index;
 						# check for online of sensor, value 1 is online
-						dbg("section=$section index=$index is found");
+						dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
+						$S->{info}{$section}{$index}{$index_var} = $healthIndexTable->{$oid};
 					}
 				} else {
 					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
