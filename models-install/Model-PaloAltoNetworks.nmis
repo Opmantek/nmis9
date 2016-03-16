@@ -49,7 +49,41 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'entityMib' => {
+        'common-model' => 'entityMib'
       }
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'hrProcessorLoad,entityMib',
+    'sys' => {
+      'hrProcessorLoad' => {
+        'indexed' => 'hrDeviceDescr',
+        'headers' => 'hrDeviceDescr',
+        'snmp' => {
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr',
+            'title' => 'Device Description'
+          },
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'title' => 'Processor Load'
+          },
+        },
+      },
+    },
+    'rrd' => {
+      'hrProcessorLoad' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrprocload',
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'option' => 'gauge,0:U',
+          },
+        },
+      },
     }
   },
   'system' => {
@@ -238,7 +272,15 @@
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'
-          }
+          },
+          'Description' => {
+            'comment' => 'Added in PA 6.0',
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
         }
       },
     },
@@ -450,6 +492,6 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
-	}
+		}
   }
 );
