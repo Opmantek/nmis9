@@ -156,7 +156,7 @@
       'memoryBuffer' => '/nodes/$node/health/memoryBuffer-$index.rrd',
       'hrProcessorLoad' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
       'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
-
+      'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
     }
   }
 );

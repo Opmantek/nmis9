@@ -329,6 +329,11 @@
         'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
         'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
       ],
+      'NetFlowStats' => [
+        'DEF:RecordsExported=$database:RecordsExported:AVERAGE',
+        'PRINT:RecordsExported:AVERAGE:RecordsExported=%1.2lf',
+        'PRINT:RecordsExported:MAX:RecordsExportedMax=%1.2lf',
+      ],
     }
   }
 );

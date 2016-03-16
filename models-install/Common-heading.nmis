@@ -179,6 +179,8 @@
       'fortinet-disk' => 'Disk Usage',
       'fortinet-mem' => 'Memory Usage',
       'fortinet-sessions' => 'Session Count',
+      'NetFlowStats' => 'NetFlow Export Stats',
+      
     }
   }
 );
