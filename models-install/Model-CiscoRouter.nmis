@@ -71,6 +71,9 @@
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
+      'netflow' => {
+        'common-model' => 'Cisco-netflow'
+      },
       'routing' => {
         'common-model' => 'routing'
       },
@@ -638,6 +641,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsVpnInterface',
   }
 );
