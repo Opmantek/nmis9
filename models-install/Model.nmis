@@ -248,6 +248,14 @@
         }
       }
     },
+    
+    'Extreme Networks' => {
+      'order' => {
+        '10' => {
+          'ExtremeXOS' => 'ExtremeXOS'
+        }
+      }
+    },
     'NBT Technology, Inc,' => {
       'order' => {
         '10' => {
