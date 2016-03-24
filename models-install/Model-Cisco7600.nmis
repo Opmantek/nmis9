@@ -419,6 +419,7 @@
     },
     'rrd' => {
       'interface' => {
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
         'indexed' => 'true',
         'snmp' => {
           'ifOperStatus' => {
