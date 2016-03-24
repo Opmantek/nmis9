@@ -47,7 +47,7 @@ sub update_plugin
 	# anything to do?
 
 	my $gotMpls = 0;
-	
+		
 	$gotMpls = 1 if (ref($NI->{mplsVpnVrf}) eq "HASH");
 	$gotMpls = 1 if (ref($NI->{mplsL3VpnVrf}) eq "HASH");
 

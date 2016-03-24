@@ -269,7 +269,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnVrf,mplsVpnInterface,mplsLdpEntity,mplsL3VpnVrfRT',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   #'environment' => {
   #  'sys' => {

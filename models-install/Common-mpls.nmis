@@ -470,84 +470,84 @@
         },
       },
        
-      'mplsVpnLdpCisco' => {
-        'index_regex' => '65\.1\.2\.2\.1\.4\.(.+)$',
-        'index_oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.4',
-        'indexed' => 'mplsLdpEntityAdminStatus',
-        'headers' => 'index,mplsLdpEntityAdminStatus,mplsLdpEntityOperStatus,mplsLdpEntityTargetedPeer,mplsLdpEntityTargetedPeerAddrType,mplsLdpEntityTargetedPeerAddr,mplsLdpEntityRowStatus',
-        'snmp' => {
-          'mplsLdpEntityLdpId' => {
-            'title' => 'mplsLdpEntityLdpId'
-          },
-          'mplsLdpEntityIndex' => {
-            'title' => 'mplsLdpEntityIndex'
-          },
-          'mplsLdpEntityAdminStatus' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.4',
-            'title' => 'mplsLdpEntityAdminStatus',
-            'replace' => {
-              '1' => 'enable',
-              '2' => 'disable',
-            },
-          },
-          'mplsLdpEntityOperStatus' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.5',
-            'title' => 'mplsLdpEntityOperStatus',
-            'replace' => {
-              '1' => 'enable',
-              '2' => 'disable',
-            },
-          },
-          
-          'mplsLdpEntityTargetedPeer' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.17',
-            'title' => 'mplsLdpEntityTargetedPeer',
-            'replace' => {
-              '1' => 'true',
-              '2' => 'false',
-            },
-          },
-          
-          'mplsLdpEntityTargetedPeerAddrType' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.18',
-            'title' => 'mplsLdpEntityTargetedPeerAddrType',
-            'replace' => {
-              '0' => 'other',
-              '1' => 'ipV4',
-              '2' => 'ipV6',
-              '3' => 'nsap',
-              '4' => 'hdlc',
-              '5' => 'bbn1822',
-              '6' => 'all802',
-              '7' => 'e163',
-              '8' => 'e164',
-              '9' => 'f69',
-              '10' => 'x121',
-              '11' => 'ipx',
-              '12' => 'appletalk',
-              '13' => 'decnetIV',
-              '14' => 'banyanVines',
-              '15' => 'e164withNsap',
-              '16' => 'dns',
-              '17' => 'distinguishedname',
-              '18' => 'asnumber',
-              '19' => 'xtpoveripv4',
-              '20' => 'xtpoveripv6',
-              '21' => 'xtpnativemodextp',
-              '65535' => 'reserved'
-            },
-          },
-          'mplsLdpEntityTargetedPeerAddr' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.19',
-            'title' => 'mplsLdpEntityTargetedPeerAddr',
-            'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
-          },
-          'mplsLdpEntityRowStatus' => {
-            'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.23',
-            'title' => 'mplsLdpEntityRowStatus',
-          },          
-        },
-      },
+      #'mplsVpnLdpCisco' => {
+      #  'index_regex' => '65\.1\.2\.2\.1\.4\.(.+)$',
+      #  'index_oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.4',
+      #  'indexed' => 'mplsLdpEntityAdminStatus',
+      #  'headers' => 'index,mplsLdpEntityAdminStatus,mplsLdpEntityOperStatus,mplsLdpEntityTargetedPeer,mplsLdpEntityTargetedPeerAddrType,mplsLdpEntityTargetedPeerAddr,mplsLdpEntityRowStatus',
+      #  'snmp' => {
+      #    'mplsLdpEntityLdpId' => {
+      #      'title' => 'mplsLdpEntityLdpId'
+      #    },
+      #    'mplsLdpEntityIndex' => {
+      #      'title' => 'mplsLdpEntityIndex'
+      #    },
+      #    'mplsLdpEntityAdminStatus' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.4',
+      #      'title' => 'mplsLdpEntityAdminStatus',
+      #      'replace' => {
+      #        '1' => 'enable',
+      #        '2' => 'disable',
+      #      },
+      #    },
+      #    'mplsLdpEntityOperStatus' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.5',
+      #      'title' => 'mplsLdpEntityOperStatus',
+      #      'replace' => {
+      #        '1' => 'enable',
+      #        '2' => 'disable',
+      #      },
+      #    },
+      #    
+      #    'mplsLdpEntityTargetedPeer' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.17',
+      #      'title' => 'mplsLdpEntityTargetedPeer',
+      #      'replace' => {
+      #        '1' => 'true',
+      #        '2' => 'false',
+      #      },
+      #    },
+      #    
+      #    'mplsLdpEntityTargetedPeerAddrType' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.18',
+      #      'title' => 'mplsLdpEntityTargetedPeerAddrType',
+      #      'replace' => {
+      #        '0' => 'other',
+      #        '1' => 'ipV4',
+      #        '2' => 'ipV6',
+      #        '3' => 'nsap',
+      #        '4' => 'hdlc',
+      #        '5' => 'bbn1822',
+      #        '6' => 'all802',
+      #        '7' => 'e163',
+      #        '8' => 'e164',
+      #        '9' => 'f69',
+      #        '10' => 'x121',
+      #        '11' => 'ipx',
+      #        '12' => 'appletalk',
+      #        '13' => 'decnetIV',
+      #        '14' => 'banyanVines',
+      #        '15' => 'e164withNsap',
+      #        '16' => 'dns',
+      #        '17' => 'distinguishedname',
+      #        '18' => 'asnumber',
+      #        '19' => 'xtpoveripv4',
+      #        '20' => 'xtpoveripv6',
+      #        '21' => 'xtpnativemodextp',
+      #        '65535' => 'reserved'
+      #      },
+      #    },
+      #    'mplsLdpEntityTargetedPeerAddr' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.19',
+      #      'title' => 'mplsLdpEntityTargetedPeerAddr',
+      #      'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+      #    },
+      #    'mplsLdpEntityRowStatus' => {
+      #      'oid' => '1.3.6.1.4.1.9.10.65.1.2.2.1.23',
+      #      'title' => 'mplsLdpEntityRowStatus',
+      #    },          
+      #  },
+      #},
 
       'CiscoPseudowireVC' => {
         'index_oid' => '1.3.6.1.4.1.9.10.106.1.2.1.2',
