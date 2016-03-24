@@ -40,6 +40,17 @@
 	    'tagline' => 'Application visibility with NetFlow, JFlow and others.'
 	  },
 
+	  'opFlow 3' => {
+	    'order' => '5',
+	    'name' => 'opFlow 3',
+			'base' => 'omk',
+	    'file' => '/bin/opflowd.pl',
+	    'link' => '/omk/opFlow',
+	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data. This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.',
+	    'tagline' => 'Traffic analysis with NetFlow, JFlow and others.'
+	  },
+
+		 
 	  'opMaps' => {
 	    'order' => '5',
 	    'name' => 'opMaps',
