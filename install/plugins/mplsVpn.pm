@@ -174,7 +174,8 @@ sub update_plugin
 		# lets get the VRF Name first.
 		my $entry = $NI->{mplsL3VpnVrfRT}->{$key};
 		
-		if ( $entry->{index} =~ /(.+)\.(\d+)\.(\d+)$/ ) {
+		# there seems to be a crazy character in this MIB!
+		if ( $entry->{index} =~ /\d+\.(.+)\.(\d+)\.(\d+)$/ ) {
 			my $mplsL3VpnVrfName = $1;
 			my $mplsL3VpnVrfRTIndex = $2;
 			my $mplsL3VpnVrfRTType = $3;
