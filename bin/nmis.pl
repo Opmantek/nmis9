@@ -4229,8 +4229,14 @@ sub runServices {
 					dbg("Indextable=$inst textoid=$textoid value=$value",2);
 				}
 			}
+			# SNMP failed, so mark SNMP down so code below handles results properly
+			else {
+				logMsg("$node SNMP Down while collecting SNMP Service Data");
+				snmpNodeDown(sys=>$S);
+				last;
+			}
 		}
-
+		
 		# prepare service list for all observed services
 		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
 			# key services by name_pid
@@ -5119,11 +5125,15 @@ sub runReach {
 	$reach{intfUp} = $RI->{intfUp} ne '' ? $RI->{intfUp} : 0; # from run collect
 	$reach{intfColUp} = $RI->{intfColUp}; # from run collect
 
+	# new option to set the interface availability to 0 (zero) when node is Down, default is "U" config interface_availability_value_when_down
+	my $intAvailValueWhenDown = defined $C->{interface_availability_value_when_down} ? $C->{interface_availability_value_when_down} : "U";
+	dbg("availability using interface_availability_value_when_down=$C->{interface_availability_value_when_down} intAvailValueWhenDown=$intAvailValueWhenDown");
+
 	# Things which don't do collect get 100 for availability
 	if ( $reach{availability} eq "" and !getbool($NI->{system}{collect}) ) {
 		$reach{availability} = "100";
 	}
-	elsif ( $reach{availability} eq "" ) { $reach{availability} = "U"; }
+	elsif ( $reach{availability} eq "" ) { $reach{availability} = $intAvailValueWhenDown; }
 
 	my ($outage,undef) = outageCheck(node=>$S->{node},time=>time());
 	dbg("Outage for $S->{name} is $outage");
@@ -5333,6 +5343,7 @@ sub runReach {
 			dbg("Values Calc. swapWeight=$swapWeight * $C->{weight_mem}");
 		}
 	}
+	# the node is collect=false and was pingable
 	elsif ( !getbool($NI->{system}{collect}) and $pingresult == 100 ) {
 		$reach{reachability} = 100;
 		$reach{availability} = 100;
@@ -5340,6 +5351,7 @@ sub runReach {
 		($reach{responsetime},$responseWeight) = weightResponseTime($reach{responsetime});
 		$reach{health} = ($reach{reachability} * 0.9) + ( $responseWeight * 0.1);
 	}
+	# there is a current outage for this node
 	elsif ( ($pingresult == 0 or $snmpresult == 0) and $outage eq 'current') {
 		$reach{reachability} = "U";
 		$reach{availability} = "U";
@@ -5348,15 +5360,18 @@ sub runReach {
 		$reach{health} = "U";
 		$reach{loss} = "U";
 	}
+	# ping is working but SNMP is Down
 	elsif ( $pingresult == 100 and $snmpresult == 0 ) {
 		$reach{reachability} = 80; # correct ? is up and degraded
-		$reach{availability} = "U";
+		$reach{availability} = $intAvailValueWhenDown;
 		$reach{intfTotal} = 'U';
 		$reach{health} = "U";
 	}
+	# node is Down
 	else {
+		dbg("Node is Down using availability=$intAvailValueWhenDown");
 		$reach{reachability} = 0;
-		$reach{availability} = "U";
+		$reach{availability} = $intAvailValueWhenDown;
 		$reach{responsetime} = "U";
 		$reach{intfTotal} = 'U';
 		$reach{health} = 0;
