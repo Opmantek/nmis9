@@ -346,6 +346,7 @@
       #  }
       #},
       'standard' => {
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
         'indexed' => 'true',
         'snmp' => {
           'ifAdminStatus' => {
@@ -456,7 +457,7 @@
   #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   #},
   'systemHealth' => {
-    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',

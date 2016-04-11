@@ -475,6 +475,7 @@
     'sys' => {
       'standard' => {
         'indexed' => 'true',
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
         'snmp' => {
           'ifOperStatus' => {
             'replace' => {

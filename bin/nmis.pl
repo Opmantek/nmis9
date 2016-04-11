@@ -2538,6 +2538,7 @@ sub getSystemHealthInfo {
 				} else {
 					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
 						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
+						#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");						
 					}
 					# failed by snmp
 					else {

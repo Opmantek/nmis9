@@ -39,14 +39,15 @@ use func; # required for logMsg
 use NMIS;
 
 
-sub update_plugin {
+sub update_plugin
+{
 	my (%args) = @_;
 	my ($node,$S,$C) = @args{qw(node sys config)};
 	
-	my $NI = $S->ndinfo;
+        my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-		   
+       
 	return (0,undef) if (ref($NI->{lldp}) ne "HASH");
 	my $changesweremade = 0;
 	
@@ -60,23 +61,10 @@ sub update_plugin {
 		my @parts;
 		
 		my $lldpNeighbour = $entry->{lldpRemSysName};
-
-		# The lldpRemChassisIdSubtype tells us what the type of the data is.
-		if ( $entry->{lldpRemChassisIdSubtype} eq "macAddress" and $entry->{lldpRemChassisId} !~ /[0-9a-fA-F]+\.[0-9a-fA-F]+\.[0-9a-fA-F]+/ ) {
-			my $macAddress = beautify_physaddress($entry->{lldpRemChassisId});
-			$entry->{lldpRemChassisId_raw} = $entry->{lldpRemChassisId};
-			$entry->{lldpRemChassisId} = $macAddress;
-		}
-
-		# The lldpRemPortIdSubtype tells us what the type of the data is.
-		if ( $entry->{lldpRemPortIdSubtype} eq "macAddress" and $entry->{lldpRemPortId} !~ /[0-9a-fA-F]+\.[0-9a-fA-F]+\.[0-9a-fA-F]+/ ) {
-			my $macAddress = beautify_physaddress($entry->{lldpRemPortId});
-			$entry->{lldpRemPortId_raw} = $entry->{lldpRemPortId};
-			$entry->{lldpRemPortId} = $macAddress;
-		}
-
-		my @possibleNames;
-		push(@possibleNames,$lldpNeighbour);
+                
+ 
+                my @possibleNames;
+                push(@possibleNames,$lldpNeighbour);
 		push(@possibleNames,lc($lldpNeighbour));
 		#may need some other munging for other optional naming schemes here e.g. FQDN
 		# IOS with LLDP returns complete FQDN so is required
@@ -86,38 +74,45 @@ sub update_plugin {
 			push(@possibleNames,lc($fqdn[0]));
 		}
 
-		$changesweremade = 1;
-
+                $changesweremade = 1;
+                #my $MacAddress = $entry->{lldpRemChassisId};
+		#logMsg("$MacAddress");
+		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {cdpCacheDeviceId} = $lldpNeighbour;
+		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {ifDescr} = "LLDP discovered";
+                
 		my $possNeighbour;
-
+		
 		foreach $possNeighbour (@possibleNames) {
-			if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
-				logMsg("$lldpNeighbour was in LocalNodeTable for $node in the form $possNeighbour");
-				$changesweremade = 1;
+		        if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
+		                logMsg("$lldpNeighbour found as $possNeighbour in LNT for $node");
+		                $changesweremade = 1;
 				$entry->{lldpRemSysName_raw} = $entry->{lldpRemSysName};
 				$entry->{lldpRemSysName} = $possNeighbour;
 				$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$possNeighbour";
 				$entry->{lldpNeighbour_id} = "node_view_$possNeighbour";
 				last;
-			}	
-		}
-
-		if ( @parts = split(/\./,$entry->{index}) ) {
-			my $lldpRemLocalPortNum = shift(@parts);
-			my $lldpRemIndex = shift(@parts);
-        			
-			$entry->{lldpRemLocalPortNum} = $lldpRemLocalPortNum;
+		          }
+                    
+                }
+                
+                if ( @parts = split(/\./,$entry->{index}) ) {
+			$entry->{unused} = shift(@parts);
+			$entry->{lldpIfIndex} = shift(@parts);
+			$entry->{lldpDeviceIndex} = shift(@parts);
 			
-			if ( defined $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr} ) {
-				$entry->{ifDescr} = $IF->{$entry->{lldpRemLocalPortNum}}{ifDescr};
-				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpRemLocalPortNum}&node=$node";
+			if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
+				$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
+				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
 				$entry->{ifDescr_id} = "node_view_$node";
-			}
-		}				
+				}
+		}
 		
-	}
+		      
+        
+        }
 
-	return ($changesweremade,undef); # report if we changed anything
+return ($changesweremade,undef); # report if we changed anything
+	
 }
 
 1;

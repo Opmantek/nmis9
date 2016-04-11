@@ -26,6 +26,7 @@
     },
     'sys' => {
       'standard' => {
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
         'snmp' => {
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'

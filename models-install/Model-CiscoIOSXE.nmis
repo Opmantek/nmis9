@@ -421,7 +421,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsVpnInterface',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CiscoIOSXE',
@@ -575,6 +575,7 @@
       },
 
       'standard' => {
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
         'snmp' => {
           'ifNumber' => {
             'oid' => 'ifNumber',
