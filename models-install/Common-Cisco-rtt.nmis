@@ -45,9 +45,13 @@
     },
     'sys' => {
       'rttMonLatestRtt' => {
-        'headers' => 'index,CtrlAdminRttType,EchoAdminTargetAddress,CtrlOperState,OperSense,OperCompletionTime',
+        'headers' => 'index,CtrlAdminOwner,CtrlAdminRttType,EchoAdminTargetAddress,CtrlOperState,OperSense,OperCompletionTime',
         'indexed' => 'rttMonLatestRttOperCompletionTime',
         'snmp' => {
+          'CtrlAdminOwner' => {
+            'oid' => 'rttMonCtrlAdminOwner',
+            'title' => 'CtrlAdminOwner'
+          },
           'CtrlAdminRttType' => {
             'oid' => 'rttMonCtrlAdminRttType',
             'replace' => {
