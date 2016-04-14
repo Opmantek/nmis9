@@ -1,7 +1,7 @@
 # a small update plugin for discovering interfaces on alcatel asam devices
 # which requires custom snmp accesses
-package AlcatelInterface;
-our $VERSION = "1.0.1";
+package AsamInterface;
+our $VERSION = "1.1.0";
 
 use strict;
 
@@ -18,7 +18,7 @@ sub update_plugin
 	my $NI = $S->ndinfo;
 
 	# this plugin deals only with certain alcatel devices, and only ones with snmp enabled and working
-	return (0,undef) if ( $NI->{system}{nodeModel} ne "AlcatelASAM" 
+	return (0,undef) if ( $NI->{system}{nodeModel} ne "AlcatelASAMv2" 
 												or !getbool($NI->{system}->{collect}));
 	
 	my $LNT = loadLocalNodeTable(); # fixme required? are rack_count and shelf_count kept in the node's ndinfo section?
