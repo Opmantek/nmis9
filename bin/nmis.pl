@@ -360,11 +360,9 @@ sub	runThreads
 	my $meth;
 	if ($type eq "update") {
 		$meth = \&doUpdate;
-		logMsg("INFO start of update process");
 	}
 	elsif ($type eq "collect")
 	{
-		logMsg("INFO start of collect process");
 		$meth = \&doCollect;
 	}
 	elsif ($type eq "services")
@@ -375,6 +373,7 @@ sub	runThreads
 	{
 		die "Unknown operation type=$type, terminating!\n";
 	}
+	logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
 	func::update_operations_stamp(type => $type, start => $starttime, stop => undef);
