@@ -4503,10 +4503,11 @@ sub runServices {
 				alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr ends up wherever nmis's stderr goes.
+				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
+				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
 				dbg("running external program '$svc->{Program} $finalargs', "
 						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-				if (!open(PRG,"$svc->{Program} $finalargs </dev/null |"))
+				if (!open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |"))
 				{
 					info("ERROR, cannot start service program $svc->{Program}: $!");
 					logMsg("ERROR: cannot start service program $svc->{Program}: $!");
@@ -4517,6 +4518,18 @@ sub runServices {
 					close PRG;
 					$programexit = $?;
 					dbg("service exit code is ". ($programexit>>8));
+
+					# consume and warn about any stderr-output
+					if (-f $stderrsink && -s $stderrsink)
+					{
+						open(UNWANTED, $stderrsink);
+						my $badstuff = join("", <UNWANTED>);
+						chomp($badstuff);
+						logMsg("WARNING: Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						info("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						close(UNWANTED);
+					}
+					unlink($stderrsink);
 
 					if (getbool($svc->{Collect_Output}))
 					{
