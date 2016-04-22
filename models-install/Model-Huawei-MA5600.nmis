@@ -50,37 +50,172 @@
       'event' => {
         'common-model' => 'event'
       },
-      'routing' => {
-        'common-model' => 'routing'
-      },
-      'entityMib' => {
-        'common-model' => 'entityMib'
-      },
-      #Juniper  ERX does not support jnxOperations.
-      #'jnxOperations' => {
-      #  'common-model' => 'Juniper-jnxOperations'
-      #},
+      'event' => {
+        'common-model' => 'asset'
+      }
     }
   },
   'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,entityMib',
-  },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'false', # default = true
-      'ifNumber' => 'false', # default = true
-      'ifLastChange' => 'false', # default = false
-      'ifTableLastChange' => 'false', # default = false
-      'skipIfComment' => 'This is used for mega devices to get rid of unwanted interfaces.  Big SP switches for example.  If skipIfType or skipIfDescr regex is matched, then just skip this interface all together. Must be used with ifNumber = false, ifAdminStatus = false, ifLastChange = false, ifTableLastChange = false',
-      'skipIfType' => 'ppp',
-			'skipIfDescr' => 'PPPoE\d+|PPP\d+|IP\d+|IPLAGL2|noSuchInstance'
+    'sections' => 'hwMusaBoard,entityMib,ifTable',
+    'rrd' => {
+      'hwMusaBoard' => {
+        'indexed' => 'true',
+        'graphtype' => 'cpu-cpm',
+        'threshold' => 'cpu_cpm',
+        'snmp' => {
+          'BoardCpuRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.5',
+            'replace' => {
+              '-1' => 'U'
+            },
+          },
+          'BoardRamUseRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.6',
+            'replace' => {
+              '-1' => 'U'
+            },
+          },
+          'BoardTemperature' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.10',
+            'replace' => {
+              '2147483647' => 'U'
+            },
+          },
+          'BoardPower' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.11',
+          },
+
+        },
+      },
+    },
+    'sys' => {
+			#hwMusaSlotConfExtEntry 1.3.6.1.4.1.2011.2.6.7.1.1.2.1
+			#hwMusaBoardCpuRate 		1.3.6.1.4.1.2011.2.6.7.1.1.2.1.5
+			#hwMusaBoardRamUseRate 	1.3.6.1.4.1.2011.2.6.7.1.1.2.1.6
+			#hwMusaBoardSlotDesc 		1.3.6.1.4.1.2011.2.6.7.1.1.2.1.7
+			#hwMusaBoardOnlineState 1.3.6.1.4.1.2011.2.6.7.1.1.2.1.8 unmanageable
+			#hwMusaServiceChannelBufferRate 1.3.6.1.4.1.2011.2.6.7.1.1.2.1.9
+			#hwMusaBoardTemperature 1.3.6.1.4.1.2011.2.6.7.1.1.2.1.10
+			#hwMusaBoardPower 			1.3.6.1.4.1.2011.2.6.7.1.1.2.1.11
+			#hwMusaBoardActivedPortNum 1.3.6.1.4.1.2011.2.6.7.1.1.2.1.12
+      'hwMusaBoard' => {
+        'indexed' => 'hwMusaBoardSlotDesc',
+        'index_regex' => '\.(\d+\.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.7',
+        'headers' => 'BoardSlotDesc,BoardCpuRate,BoardRamUseRate,BoardTemperature,BoardPower',
+        #'index_headers' => 'cpmCPUTotalPhysicalIndex,entPhysicalDescr,cpmCPUTotal1min,cpmCPUTotal5min',
+        'snmp' => {
+          'BoardCpuRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.5',
+            'title' => 'hwMusaBoardCpuRate',
+            'replace' => {
+              '-1' => 'N/A'
+            },
+          },
+          'BoardRamUseRate' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.6',
+            'title' => 'hwMusaBoardRamUseRate',
+            'replace' => {
+              '-1' => 'N/A'
+            },
+          },
+          'BoardSlotDesc' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.7',
+            'title' => 'hwMusaBoardSlotDesc'
+          },
+          'BoardTemperature' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.10',
+            'title' => 'hwMusaBoardTemperature',
+            'replace' => {
+              '2147483647' => 'N/A'
+            },
+          },
+          'BoardPower' => {
+            'oid' => '1.3.6.1.4.1.2011.2.6.7.1.1.2.1.11',
+            'title' => 'hwMusaBoardPower'
+          },
+        },
+      },
+      'ifTable' => {
+        'indexed' => 'ifIndex',
+        'headers' => 'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
+        'snmp' => {
+          'ifIndex' => {
+            'oid' => 'ifIndex',
+            'title' => 'Interface Index',
+            'calculate' => '$r = unpack("I", pack("i", $r))'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)',
+            'replace' => {
+              '6' => 'ethernetCsmacd',
+              '37' => 'atm',
+              '135' => 'l2vlan',
+              '194' => 'atmVciEndPt',
+              '209' => 'bridge',
+              '244' => 'wwanPP2',
+              '249' => 'aluELP',
+              '250' => 'gpon',
+            },              
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifName' => {
+            'oid' => 'ifName',
+            'title' => 'ifName'
+          }
+        }
+      },
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,routenumber',
-    'nodeModel' => 'Juniper-ERX',
-    'nodeType' => 'router',
+    'nodegraph' => 'health,response,ip',
+    'nodeModel' => 'Huawei-MA5600',
+    'nodeType' => 'generic',
     'sys' => {
+      'extra' => {
+        'snmp' => {
+          'hwCurrentTemp' => {
+            'oid' => '1.3.6.1.4.1.2011.6.1.1.5.1.7.0',
+            'snmpObject' => 'hwCurrentTemp',
+            'title' => 'Current Temp'
+          },
+          'hwCurrentTemp' => {
+            'oid' => '1.3.6.1.4.1.2011.6.1.1.5.1.7.0',
+            'snmpObject' => 'hwCurrentTemp',
+            'title' => 'Current Temp'
+          },
+        }
+      },
       'standard' => {
         'snmp' => {
           'sysLocation' => {
@@ -115,19 +250,11 @@
           'sysName' => {
             'oid' => 'sysName'
           }
+          
         }
       }
     },
     'rrd' => {
-      'nodehealth' => {
-        'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'routenumber',
-        'snmp' => {
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
-        },
-      },
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {
@@ -203,6 +330,12 @@
       'standard' => {
         'indexed' => 'true',
         'snmp' => {
+			    #
+          'ifIndex' => {
+            'oid' => 'ifIndex',
+            'title' => 'ifIndex',
+            'calculate' => '$r = unpack("I", pack("i", $r))'
+          },
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -217,9 +350,14 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
+            'oid' => 'ifName',
             'title' => 'Name'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
@@ -278,7 +416,7 @@
             'option' => 'gauge,0:100'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr'
+            'oid' => 'ifName'
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
@@ -373,10 +511,10 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'Loopback|Null|IP|PPPoE|sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
-      'Description' => '^#|noSuchInstance',
-      'noDescription' => 'false',
-      'ifType' => 'other|ieee8023adLag|l2vlan|noSuchInstance'
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
     },
     'noevent' => {
       'Description' => '^!',

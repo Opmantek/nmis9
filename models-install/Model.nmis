@@ -99,12 +99,26 @@
         }
       }
     },
+
+    'Juniper Networks/Unisphere' => {
+      'order' => {
+        '10' => {
+          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
+        },
+        '99' => {
+          'Juniper-ERX' => '.'
+        }
+      }
+    },
     'Juniper Networks, Inc.' => {
       'order' => {
         '10' => {
-          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
         },
         '20' => {
+          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+        },
+        '30' => {
           'JuniperSwitch' => 'Juniper Networks, Inc. .+ Switch'
         },
         '99' => {
@@ -152,7 +166,7 @@
           'CiscoIOSXR' => 'IOS XR Software'
         },
         '40' => {
-          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x'
+          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x|IOS \(tm\) CIGESM Software'
         },
         '45' => {
           'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|IOS \(tm\) s222_rp Software|IOS \(tm\) c6sup2_rp|Cisco IOS Software, Catalyst 4500|Cisco IOS Software, Catalyst 4000|Cisco IOS Software, Catalyst L3 Switch'
