@@ -47,6 +47,32 @@ sub update_plugin
 	
 	# anything to do?
 	my $changesweremade = 0;
+	if (ref($NI->{cpu_cpm}) eq "HASH") {
+
+		info("Working on $node cpu_cpm");
+		
+		for my $index (keys %{$NI->{cpu_cpm}})
+		{
+			my $entry = $NI->{cpu_cpm}{$index};
+			my $entityIndex = $entry->{cpmCPUTotalPhysicalIndex};
+			if ( defined $NI->{entityMib}{$entityIndex}{entPhysicalName} ) {
+				$entry->{entPhysicalName} = $NI->{entityMib}{$entityIndex}{entPhysicalName};
+				$changesweremade = 1;
+			}
+			else {
+				info("WARNING entPhysicalName not available for index $index");
+			}
+	
+			if ( defined $NI->{entityMib}{$entityIndex}{entPhysicalDescr} ) {
+				$entry->{entPhysicalDescr} = $NI->{entityMib}{$entityIndex}{entPhysicalDescr};
+				$changesweremade = 1;
+			}
+			else {
+				info("WARNING entPhysicalDescr not available for index $index");
+			}
+		}
+	}
+	
 	if (ref($NI->{Cisco_CBQoS}) eq "HASH") {
 
 		info("Working on $node Cisco_CBQoS");

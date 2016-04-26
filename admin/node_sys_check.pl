@@ -255,6 +255,10 @@ sub checkNode {
 			
 			#
 		}
+		
+		if ( $arg{model} eq "dump" ) {
+			print Dumper $MDL;
+		}
 
   }
 }

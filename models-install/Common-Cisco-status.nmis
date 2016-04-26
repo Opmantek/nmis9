@@ -69,7 +69,7 @@
     'rrd' => {
       # it would be great to get the fanStatusName, psuStatusName into the nodename-node.json data for humans to see in the GUI.
       'fanStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'graphtype' => 'fan-status',
         'indexed' => 'true',
         'snmp' => {
@@ -87,7 +87,7 @@
         }
       },
       'psuStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'graphtype' => 'psu-status',
         'indexed' => 'true',
         'snmp' => {
@@ -105,7 +105,7 @@
         }
       },
       'tempStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'graphtype' => 'temp-status',
         'indexed' => 'true',
         'snmp' => {
@@ -125,7 +125,7 @@
     },
     'sys' => {
       'fanStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'FanStatusDescr',
         'indexed' => 'ciscoEnvMonFanStatusDescr',
         'snmp' => {
@@ -148,7 +148,7 @@
         }
       },
       'psuStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'SupplyStatusDescr,SupplyStatusSource',
         'indexed' => 'ciscoEnvMonSupplyStatusDescr',
         'snmp' => {
@@ -182,7 +182,7 @@
         }
       },
       'tempStatus' => {
-        'control' => '$sysObjectName =~ /./',
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'TemperatureStatusDescr',
         'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
         'snmp' => {
