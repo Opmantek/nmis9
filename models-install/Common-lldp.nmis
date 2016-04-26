@@ -34,8 +34,8 @@
     'sys' => {
       'lldp' => {
         'headers' =>'ifDescr,lldpRemLocalPortNum,lldpRemSysName,lldpRemSysDesc,lldpRemPortIdSubtype,lldpRemPortId,lldpRemChassisIdSubtype,lldpRemChassisId',
-        'index_oid' => '1.0.8802.1.1.2.1.4.1.1.9.0',
-        'index_regex' => '\\.(\\d+\\.\\d+)$',
+        'index_oid' => '1.0.8802.1.1.2.1.4.1.1.9',
+        'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'lldpRemSysName',
         'snmp' => {        
           'ifDescr' => {
@@ -45,7 +45,7 @@
             'title' => 'Local Port Num'
           },
           'lldpRemChassisIdSubtype' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.4.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.4',
             'sysObjectName' => 'lldpRemChassisIdSubtype',
             'title' => 'Neighbor Chassis ID Type',
             'replace' => {
@@ -59,12 +59,12 @@
             }
           },
           'lldpRemChassisId' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.5.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.5',
             'sysObjectName' => 'lldpRemChassisId',
             'title' => 'Neighbor Chassis ID'
           },
           'lldpRemPortIdSubtype' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.6.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.6',
             'sysObjectName' => 'lldpRemPortIdSubtype',
             'title' => 'Neighbor Port ID Type',
             'replace' => {
@@ -78,22 +78,22 @@
             }
           },
           'lldpRemPortId' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.7.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.7',
             'sysObjectName' => 'lldpRemPortId',
             'title' => 'Neighbor Interface'
           },
           'lldpRemPortDesc' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.8.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.8',
             'sysObjectName' => 'lldpRemPortDesc',
             'title' => 'Neighbor Interface Desc.'
           },
           'lldpRemSysName' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.9.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.9',
             'sysObjectName' => 'lldpRemSysName',
             'title' => 'Neighbor ID sysName'
           },
           'lldpRemSysDesc' => {
-            'oid' => '1.0.8802.1.1.2.1.4.1.1.10.0',
+            'oid' => '1.0.8802.1.1.2.1.4.1.1.10',
             'sysObjectName' => 'lldpRemSysDesc',
             'title' => 'Neighbor Version'
           },                  

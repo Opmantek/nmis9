@@ -360,11 +360,9 @@ sub	runThreads
 	my $meth;
 	if ($type eq "update") {
 		$meth = \&doUpdate;
-		logMsg("INFO start of update process");
 	}
 	elsif ($type eq "collect")
 	{
-		logMsg("INFO start of collect process");
 		$meth = \&doCollect;
 	}
 	elsif ($type eq "services")
@@ -375,6 +373,7 @@ sub	runThreads
 	{
 		die "Unknown operation type=$type, terminating!\n";
 	}
+	logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
 	func::update_operations_stamp(type => $type, start => $starttime, stop => undef);
@@ -2538,7 +2537,7 @@ sub getSystemHealthInfo {
 				} else {
 					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
 						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
-						#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");						
+						#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");
 					}
 					# failed by snmp
 					else {
@@ -4284,12 +4283,13 @@ sub runServices {
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
-		my $lastrun =  ($previous{$C->{server_name}}->{$node}
-										&& $previous{$C->{server_name}}->{$node}->{$service})?
-				$previous{$C->{server_name}}->{$node}->{$service}->{last_run} : 0;
+
+		my $lastrun =  ($previous{$C->{server_name}}->{$service}
+										&& $previous{$C->{server_name}}->{$service}->{$node})?
+				$previous{$C->{server_name}}->{$service}->{$node}->{last_run} : 0;
 
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
-			info("Service $service has service interval \"$serviceinterval\"");
+		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at ".returnDateStamp($lastrun).", ";
 		if ($serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/)
 		{
 			my ($rawvalue, $unit) = ($1, $3);
@@ -4299,9 +4299,14 @@ sub runServices {
 		# so allow up to 10% underrun
 		if ($lastrun && ((time - $lastrun) < $serviceinterval * 0.9))
 		{
-			info("Service last ran at ".returnDateStamp($lastrun).", skipping this time.");
-			logMsg("INFO: Service $service on $node last ran at ".returnDateStamp($lastrun).", skipping this time.");
+			$msg .= "skipping this time.";
+			info($msg); logMsg("INFO: $msg");
 			next;
+		}
+		else
+		{
+			$msg .= "must be checked this time.";
+			info($msg); logMsg("INFO: $msg");
 		}
 
 		$didRunServices = 1;
@@ -4400,38 +4405,6 @@ sub runServices {
 					next;
 				}
 
-#########<<<<<<< HEAD
-				## lets check the service status
-				## NB - may have multiple services with same name on box.
-				## so keep looking if up, last if one down
-				## look for an exact match here on service name as read from snmp poll
-        #
-				#foreach ( sort keys %services ) {
-				#	my ($svc) = split ':', $services{$_}{hrSWRunName};
-				#	if ( $svc eq $ST->{$service}{Service_Name} ) {
-				#		if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
-				#			$ret = 1;
-				#			$cpu = $services{$_}{hrSWRunPerfCPU};
-				#			$memory = $services{$_}{hrSWRunPerfMem};
-				#			$gotMemCpu = 1;
-				#			info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
-				#		}
-				#		# should the check be that if any service is found running|runnable, or the count is the minimum number, the daemon is OK, otherwise only one opConfigd being invalid is bad
-				#		elsif ( $services{$_}{hrSWRunStatus} eq "" or $services{$_}{hrSWRunStatus} =~ /invalid/i ) {
-				#			$ret = 1;							
-				#			$gotMemCpu = 0;
-				#			logMsg("INFO, $node service $ST->{$service}{Name} is neutral, status is $services{$_}{hrSWRunStatus}");
-				#		}
-				#		else {
-				#			$ret = 0;
-				#			$cpu = $services{$_}{hrSWRunPerfCPU};
-				#			$memory = $services{$_}{hrSWRunPerfMem};
-				#			$gotMemCpu = 1;
-				#			logMsg("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
-				#			last;
-				#		}
-				#	}
-########=======
 				# lets check the service status from snmp for matching process(es)
 				# it's common to have multiple processes with the same name on a system,
 				# heuristic: one or more living processes -> service is ok,
@@ -4473,7 +4446,6 @@ sub runServices {
 #					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
 					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
-########>>>>>>> 7669c94991242f5d6307de59ea7fcb6b56349fa8
 				}
 			}
 			else {
@@ -4537,12 +4509,14 @@ sub runServices {
 				alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr ends up wherever nmis's stderr goes.
+				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
+				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
 				dbg("running external program '$svc->{Program} $finalargs', "
 						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-				if (!open(PRG,"$svc->{Program} $finalargs </dev/null |"))
+				if (!open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |"))
 				{
 					info("ERROR, cannot start service program $svc->{Program}: $!");
+					logMsg("ERROR: cannot start service program $svc->{Program}: $!");
 				}
 				else
 				{
@@ -4550,6 +4524,18 @@ sub runServices {
 					close PRG;
 					$programexit = $?;
 					dbg("service exit code is ". ($programexit>>8));
+
+					# consume and warn about any stderr-output
+					if (-f $stderrsink && -s $stderrsink)
+					{
+						open(UNWANTED, $stderrsink);
+						my $badstuff = join("", <UNWANTED>);
+						chomp($badstuff);
+						logMsg("WARNING: Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						info("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						close(UNWANTED);
+					}
+					unlink($stderrsink);
 
 					if (getbool($svc->{Collect_Output}))
 					{
@@ -4621,6 +4607,7 @@ sub runServices {
 			if ($@ and $@ eq "alarm\n")
 			{
 				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+				logMsg("ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				$ret=0;
 			}
 			else
