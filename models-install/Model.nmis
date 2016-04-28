@@ -376,7 +376,10 @@
       'order' => {
         '10' => {
           'CGESM' => 'CGESM'
-        }
+        },
+        '99' => {
+          'Default-HC' => '.'
+        }      
       }
     },
     'Netgear' => {
