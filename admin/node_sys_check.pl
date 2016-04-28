@@ -97,7 +97,7 @@ sub checkNode {
 		my @interfaceSections = qw(interface pkts pkts_hc);
 		my @cpuSections = qw(hrsmpcpu);
 
-		my @bgpSections = qw(bgpPeer);
+		my @systemHealthSections = qw(bgpPeer);
 		
 		my %nodeevents = loadAllEvents(node => $node);
 		
@@ -108,8 +108,33 @@ sub checkNode {
 			#print Dumper $thisevent;
 
 			if ( $thisevent->{event} =~ /BGP/ ) {
-				
-							
+				if ( defined $MDL->{systemHealth}{rrd}{bgpPeer} ) {
+					print "INFO: $node found systemHealth/rrd/bgpPeer in the model\n" if $debug;							
+				}
+				else {
+					print "FIXING: $node has BGP Peer Event and no BGP Peer modelling\n" if $debug;							
+					eventDelete(event => $thisevent);
+					$changes = 1;					
+				}
+			}
+		}
+
+		# how are the top level sections.
+		foreach my $section (sort keys %{$NI}) {
+			print "INFO: $node has $section defined\n" if $debug;
+			if ( ref($NI->{$section}) eq "HASH" and not (keys %{$NI->{$section}}) ) {
+				print "FIXING: $node empty section $section\n";
+			}
+		}
+		
+		# pattern for cleaning up stray systeamHealth sections
+		foreach my $section (@systemHealthSections) {
+			print "INFO: $node has $section defined\n" if $debug;
+			if ( exists $NI->{$section} 
+				and not defined $MDL->{systemHealth}{sys}{$section} 
+			) {
+				print "FIXING: $node has $section in data but no modelling\n";
+				delete $NI->{$section};
 			}
 		}
 
@@ -182,25 +207,40 @@ sub checkNode {
    #      "bgpPeer" : "bgpPeerStats,bgpPeer"
    #   },
       
-				# clean up BGP Peers
-				foreach my $section (@bgpSections) {
-					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{$section}{$indx} ) {
-						# there should be an interface to check
-						print "INFO: $node $indx for $section and found $section\n" if $debug;
+				# clean up systemHealth Sections, BGP Peers initially
+				foreach my $section (@systemHealthSections) {
+					if ( defined $NI->{graphtype}{$indx}{$section} 
+						and defined $NI->{$section}
+						and (keys %{$NI->{$section}}) 
+						and defined $NI->{$section}{$indx} 
+					) {
+						# there should be an section to check
+						print "INFO: $node graphtype $indx for $section and found $section\n" if $debug;
 					}
-					elsif ( defined $NI->{graphtype}{$indx}{$section} and not defined $NI->{$section}{$indx} ) {
-						print "FIXING: $node $indx has graphtype $section but no bgpPeer\n";
+					elsif ( defined $NI->{graphtype}{$indx}{$section} 
+						and defined $NI->{$section}
+						and (keys %{$NI->{$section}}) 
+						and not defined $NI->{$section}{$indx} 
+					) {
+						print "FIXING: $node $indx has graphtype $section but no $section\n";
 						
 						delete $NI->{graphtype}{$indx}{$section};
 						
 						#Now check for any events existing.
 						my $event = "Alert: BGP Peer Down";
+						my $status = "BGP Peer Down";
 						my $element = $indx;
 						my $event_exists = eventExist($node, $event, $element);
 
 						if ( -f $event_exists ) {
+							print "FIXING: $node $indx has unrelated event $event $element\n";
 							my $thisevent = eventLoad(node => $node, event => $event, element => $element);
 							eventDelete(event => $thisevent);
+						}
+
+						if ( defined $NI->{status}{"$status--$element"} ) {
+							print "FIXING: $node $indx has unrelated status $status--$element\n";
+							delete $NI->{status}{"$status--$element"};
 						}
 
 						$changes = 1;
