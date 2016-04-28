@@ -7704,11 +7704,12 @@ sub doThreshold {
 								}
 								if ($M->{$s}{$ts}{$type}{threshold} ne "") {
 									$thrname = $M->{$s}{$ts}{$type}{threshold};	# get string of threshold names
-									dbg("threshold=$thrname found in type=$type");
+									dbg("threshold=$thrname found in type=$type s=$s ts=$ts indexed=$M->{$s}{$ts}{$type}{indexed}");
 									# thresholds found in this section
 									if ( getbool($M->{$s}{$ts}{$type}{indexed}) ) {	# if indexed then all checked
 
 										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
+										dbg("threshold instances=@instances");
 										for my $index (@instances) {
 											# thresholds can be selectively disabled for individual interfaces
 											if ( $type =~ /interface|pkts|pkts_hc/ ) {
