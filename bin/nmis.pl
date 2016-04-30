@@ -1595,6 +1595,10 @@ sub getIntfInfo {
 		else {
 			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions))) {
 				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
+					# to handle stupid devices with ifIndexes which are 64 bit integers
+					if ( $ifIndexTable->{$oid} < 0 ) {
+						$ifIndexTable->{$oid} = unpack("I", pack("i", $ifIndexTable->{$oid}));
+					}
 					push @ifIndexNum,$ifIndexTable->{$oid};
 				}
 			} else {

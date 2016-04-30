@@ -107,7 +107,7 @@
         },
         '99' => {
           'Juniper-ERX' => '.'
-        }
+        },
       }
     },
     'Juniper Networks, Inc.' => {
@@ -441,7 +441,6 @@
         }
       }
     },
-
 		'Scientific-Atlanta, Inc.' => {
 			'order' => {
 				'10' => {
@@ -494,6 +493,28 @@
         }
       }
     },
+    'HUAWEI Technology Co.,Ltd' => {
+      'order' => {
+        '10' => {
+          'Huawei-MA5600' => 'Huawei Integrated Access Software'
+        },
+        '20' => {
+          'Huawei-NetEngine.nmis' => 'Huawei Versatile Routing Platform'
+        },
+        '30' => {
+          'HuaweiRouter' => 'AR2220|AR1220'
+        },
+        #'40' => {
+        #  'HuaweiSwitches' => 'S5700|S7700'
+        #},
+        #'50' => {
+        #  'HuaweiRouterAR2240' => 'AR2240'
+        #},
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },    
   },
   'system' => {
     'nodeModel' => 'Default',
