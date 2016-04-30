@@ -3706,6 +3706,15 @@ sub notify
 
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/ 
 												or getbool($thisevent_control->{Stateful}))? "false": "true";
+												
+		### 2016-04-30 ks adding outage tagging to event when opened.
+		my $OT = loadOutageTable();
+		
+		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		if ($otg eq 'current') {
+			$details .= " change=$OT->{$key}{change}";
+		}
+												
 		# Create and store this new event; record whether stateful or not
 		# a stateless event should escalate to a level and then be automatically deleted.
 		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level, 
