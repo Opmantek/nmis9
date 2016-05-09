@@ -52,6 +52,12 @@
       }
     }
   },
+  'heading' => {
+    'graphtype' => {
+      'NovelSatSignal' => 'Satellite Signal Strength',
+      'NovelSatDataRate' => 'Satellite Data Rate',
+    }
+  },
   'system' => {
     'nodegraph' => 'health,response,ip',
     'nodeModel' => 'NovelSat',
@@ -373,7 +379,7 @@
     'sections' => 'Sat-Demodulate',
     'sys' => {
       'Sat-Demodulate' => {
-        'headers' => 'ChannelNumber,ChannelNeighName,ChannelNeighIP,Modulation',
+        'headers' => 'ChannelNeighName,ChannelNeighIP,Modulation',
 
         'index_oid' => '1.3.6.1.4.1.37576.2.1.7.3.1.1.3',
         'index_regex' => '\.(\d+)$',
