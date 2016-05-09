@@ -18,7 +18,7 @@ sub update_plugin
 	my $NI = $S->ndinfo;
 
 	# this plugin deals only with certain alcatel devices, and only ones with snmp enabled and working
-	return (0,undef) if ( $NI->{system}{nodeModel} ne "AlcatelASAMv2" 
+	return (0,undef) if ( $NI->{system}{nodeModel} !~ "AlcatelASAM" 
 												or !getbool($NI->{system}->{collect}));
 	
 	my $LNT = loadLocalNodeTable(); # fixme required? are rack_count and shelf_count kept in the node's ndinfo section?

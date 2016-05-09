@@ -29,8 +29,8 @@
 #
 # a small update plugin for converting the cdp index into interface name.
 
-package atmVcl;
-our $VERSION = "1.0.1";
+package AlcatelASAM;
+our $VERSION = "1.0.2";
 
 use strict;
 
@@ -50,7 +50,8 @@ sub update_plugin
 	my $IF = $S->ifinfo;
 
 	# anything to do?
-	return (0,undef) if (ref($NI->{atmVcl}) ne "HASH");
+	return (0,undef) if ( $NI->{system}{nodeModel} !~ "AlcatelASAM" 
+												or !getbool($NI->{system}->{collect}));
 	
 	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
 	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
@@ -141,7 +142,7 @@ sub update_plugin
 				$entry->{xdslLineSpectrumProfileNbr} = $snmpdata->{$xdslLineSpectrumProfileNbr};
 			}
 
-			dbg("DEBUG: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
+			dbg("WHAT: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
 
 			if ( defined $IF->{$ifIndex}{ifDescr} ) {
 				$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
@@ -155,6 +156,38 @@ sub update_plugin
 			$changesweremade = 1;
 		}
 	}
+
+	info("Working on $node ifStack");
+
+	for my $key (keys %{$NI->{ifStack}})
+	{
+		my $entry = $NI->{ifStack}->{$key};
+          
+		if ( my @parts = split(/\./,$entry->{index}) ) {
+			my $ifStackHigherLayer = shift(@parts);
+			my $ifStackLowerLayer = shift(@parts);
+			
+			$entry->{ifStackHigherLayer} = $ifStackHigherLayer;
+			$entry->{ifStackLowerLayer} = $ifStackLowerLayer;
+
+			if ( defined $IF->{$ifStackHigherLayer}{ifDescr} ) {
+				$entry->{ifDescrHigherLayer} = $IF->{$ifStackHigherLayer}{ifDescr};
+				$entry->{ifDescrHigherLayer_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifStackHigherLayer&node=$node";
+				$entry->{ifDescrHigherLayer_id} = "node_view_$node";
+			}
+
+			if ( defined $IF->{$ifStackLowerLayer}{ifDescr} ) {
+				$entry->{ifDescrLowerLayer} = $IF->{$ifStackLowerLayer}{ifDescr};
+				$entry->{ifDescrLowerLayer_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifStackLowerLayer&node=$node";
+				$entry->{ifDescrLowerLayer_id} = "node_view_$node";
+			}
+
+			dbg("WHAT: ifDescr=$IF->{$ifStackHigherLayer}{ifDescr} ifStackHigherLayer=$entry->{ifStackHigherLayer} ifStackLowerLayer=$entry->{ifStackLowerLayer} ");
+
+			$changesweremade = 1;
+		}
+	}
+
 	return ($changesweremade,undef); # report if we changed anything
 }
 
