@@ -493,6 +493,16 @@
         }
       }
     },
+    'NovelSat' => {
+      'order' => {
+          '10' => {
+          'NovelSat' => '.'
+           },
+         },
+       },
+
+    
+    
     'HUAWEI Technology Co.,Ltd' => {
       'order' => {
         '10' => {
