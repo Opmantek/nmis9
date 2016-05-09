@@ -366,8 +366,8 @@
       'ifOperStatus' => 'other',
       'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|loop|npi',
       'Description' => '^#',
-      'noDescription' => 'true',
-      'ifType' => ''
+      'noDescription' => 'false',
+      'ifType' => 'NOMATCH'
     },
     'noevent' => {
       'Description' => '^!',
