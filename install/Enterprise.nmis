@@ -73700,5 +73700,9 @@
     'Enterprise_Original' => 'Arista Networks, Inc. (formerly Arastra, Inc.)',
     'OID' => '30065'
   },
+  '37576' => {
+    'Enterprise' => 'NovelSat',
+    'OID' => '37576'
+  },
 
 );

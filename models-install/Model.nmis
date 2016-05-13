@@ -462,13 +462,13 @@
         }
       }
     },
-		'American Power Conversion Corp.' => {
-			'order' => {
-				'10' => {
-					'APC-ups' => 'PowerNet',
-				},
-			},
-		},
+    'American Power Conversion Corp.' => {
+      'order' => {
+        '10' => {
+          'APC-ups' => 'PowerNet',
+        },
+      },
+    },
 		'Check Point Software Technologies Ltd' => {
 			'order' => {
 				'10' => {
@@ -492,6 +492,13 @@
           'Fortinet-FG' => '.'
         }
       }
+    },
+    'NovelSat' => {
+      'order' => {
+        '10' => {
+          'NovelSat' => '.'
+        },
+      },
     },
     'HUAWEI Technology Co.,Ltd' => {
       'order' => {
