@@ -34,9 +34,6 @@
   		'database' => {
   			'common-model' => 'database',
   		},
-  		'calls' => {
-  			'common-model' => 'calls'
-  		},
   		'threshold' => {
   			'common-model' => 'threshold'
   		},
@@ -52,6 +49,9 @@
   		'event' => {
   			'common-model' => 'event'
   		},
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
       'neighbor' => {
         'common-model' => 'Cisco-neighbor'
       },
@@ -164,7 +164,7 @@
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cdp,env-temp,vtpVlan',
+    'sections' => 'cdp,entityMib,env-temp,vtpVlan',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
