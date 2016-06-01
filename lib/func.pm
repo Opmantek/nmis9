@@ -29,7 +29,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.4.2";
+our $VERSION = "1.4.3";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1746,18 +1746,48 @@ sub loadConfTable {
 				}
 			}
 
-			# check for config variables and process each config element again.
-			foreach $key (keys %{$Table_cache{$conf}}) {
-				if ( $key =~ /^<.*>$/ ) {
-					dbg("Found a key to change $key",4);
-					foreach $value (keys %{$Table_cache{$conf}}) {
-						if ( $Table_cache{$conf}{$value} =~ /<.*>/ ) {
-							dbg("about to change $value to $Table_cache{$conf}{$value}, $key, $Table_cache{$conf}{$key}",4);
-							$Table_cache{$conf}{$value} =~ s/$key/$Table_cache{$conf}{$key}/;
+			# config is loaded, all plain <xyz> -> "static stuff" macros are resolved and fully a/v
+			# walk all things in need of macro expansion and fix them up as much as possible each iteration
+			my $cdata = $Table_cache{$conf};
+			my @todos = grep(!ref($cdata->{$_}) && $cdata->{$_} =~ /<\w+>/, keys %$cdata);
+			while (@todos)
+			{
+				my $atstart = @todos;
+				my @stilltodo;
+
+				while (my $needsmacro = shift @todos)
+				{
+					my $value = $cdata->{$needsmacro};
+					my $newvalue; my $isdone = 1;
+					while ($value =~ s/^(.*?)(<[^>]+>)//)
+					{
+						my ($pre, $macroname) = ($1,$2);
+						$newvalue .= $pre;
+						if (defined($cdata->{$macroname}))
+						{
+							$newvalue .= $cdata->{$macroname};
+						}
+						else
+						{
+							$newvalue .= $macroname; # leave unresolvables as they are AND reappend to todo
+							$isdone = 0;
 						}
 					}
+					$newvalue .= $value;		# unmatched remainder
+					print STDERR "DEBUG $needsmacro: about to change $cdata->{$needsmacro} to $newvalue\n"
+							if ($confdebug);
+					$cdata->{$needsmacro} = $newvalue;
+					push @stilltodo, $needsmacro if (!$isdone or $newvalue =~ /<\w+>/);
+				}
+				@todos = @stilltodo;
+				my $atend = @todos;
+				if ($atend == $atstart) # any remaining <xyz> occurrences are unresolvable or self-referential loops!
+				{
+					# warn("unresolvable macros for config entries: ".join(", ",@todos)."\n");
+					last;
 				}
 			}
+			
 			$Table_cache{$conf}{debug} = setDebug($debug); # include debug setting in conf table
 			$Table_cache{$conf}{info} = setDebug($info); # include debug setting in conf table
 			$Table_cache{$conf}{conf} = $conf;
