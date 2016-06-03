@@ -695,6 +695,11 @@ sub getValues {
 					}
 				}
 
+				# don't trust snmp data; neuter any html.
+				$r =~ s{&}{&amp;}gso;
+				$r =~ s{<}{&lt;}gso;
+				$r =~ s{>}{&gt;}gso;
+				
 				if ($index ne "") { # insert index in result table
 					$result->{$sect}{$index}{$ds}{value} = $r;
 					$result->{$sect}{$index}{$ds}{option} = $opt if $opt ne "";
