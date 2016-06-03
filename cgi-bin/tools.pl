@@ -3,37 +3,37 @@
 ## $Id: tools.pl,v 8.7 2012/01/06 07:09:38 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 #****** Shouldn't be anything else to customise below here *******************
 
 use strict;
@@ -81,17 +81,15 @@ my $wantwidget = $widget eq "true";
 
 # select function
 
-if ($Q->{act} =~ /tool_system/) {	
+if ($Q->{act} =~ /tool_system/) {
 	typeTool();
-} 
-else { 
-	notfound(); 
+}
+else {
+	notfound();
 }
 
 sub notfound {
-	print header($headeropts);
-	print "Tools: ERROR, act=$Q->{act}, node=$Q->{node}<br>\n";
-	print "Request not found\n";
+	print header($headeropts), escapeHTML("Tools: ERROR, act=$Q->{act}, node=$Q->{node}")."<br>Request not found\n";
 }
 
 exit;
@@ -99,111 +97,122 @@ exit;
 #===================
 
 
-sub typeTool {
-
+sub typeTool
+{
 	my $tool = $Q->{act};
 	$tool =~ s/tool_system_//i;
 	my $node = $Q->{node};
-	
+
 	my $NT = loadNodeTable();
 	my $host = $NT->{$node}{host};
+
+	# input sanitising - ideally we'd like to accept just [a-zA-Z0-9_-]
+	# but people regularly go beyond that set. so, for now, we just ditch
+	# the definitely problematic ones.
+	if ($node =~ /[&`'"<>]/)
+	{
+		print header($headeropts), "Tools: ERROR, Rejecting Unsafe node argument '".escapeHTML($node)."'<br>\n";
+		exit;
+	}
+	if ($host =~ /[&`'"<>]/)
+	{
+		print header($headeropts), "Tools: ERROR, Rejecting Unsafe host argument '".escapeHTML($host)."'<br>\n";
+		exit;
+	}
 
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	my $title = "Command $tool for node $NT->{$node}{name} ($host)";
-	$title = "Command $tool" if $node eq '';
-	
-	if ( $tool =~ /ping|trace|nslookup|mtr|lft/ and $node eq "" ) {
+	my $title = escapeHTML("Command $tool for node $NT->{$node}{name} ($host)");
+	$title = escapeHTML("Command $tool") if $node eq '';
+
+	if ( $tool =~ /^(ping|trace|nslookup|finger|man|mank|mtr|lft)$/
+			 and (!$node or !$host))	# node must be given AND known for these cmds
+	{
 		selectNode();
 		exit;
 	}
 
 	print header($headeropts);
-	pageStart(title => $title) if (!$wantwidget);
-	
-	return unless $AU->CheckAccess("tls_$tool");
+	pageStartJscript(title => $title) if (!$wantwidget);
 
-	my $tooloutput;
-	my $ctool;
+	return unless $AU->CheckAccess("tls_$tool");
 	my $wid = "580px";
 
 	print createHrButtons(node=>$node, system=>$S, widget=>$widget);
 
 	#certain outputs will have their own layout
-	if ($tool eq "hostinfo") { 
-		hostInfo(); 
+	if ($tool eq "hostinfo") {
+		hostInfo();
 	}
-	else {
+	else
+	{
+		# no shell -> meta chars are not a problem
+		# cmd -> list of args for system()/piped open, or sub ref
+		my %knowntools = ( ping => [qw(ping -c 3),$host],
+											 trace => [qw(traceroute -n -m 15), $host],
+											 nslookup => ['nslookup',$host],
+											 finger => ['finger',"\@$node"],
+											 who => ['who'],
+											 man => ['man', $host],
+											 mank => [qw(man -k),$host],
+											 ps => [qw(ps -ef)],
+											 iostat =>  [qw(iostat 1 10)],
+											 vmstat => [qw(vmstat 1 10)],
+											 date => ['date'],
+											 df => [qw(df -k)],
+											 dns => \&viewDNS,
+											 lft => [$C->{lft},"-NASE", $host],
+											 mtr => [$C->{mtr},qw(--report --report-cycles=10),$host],
+				);
+
+		if (!$knowntools{$tool})
+		{
+			print "Tools: ERROR, Rejecting unknown tool argument '".escapeHTML($tool)."'<br>\n";
+			exit 0;
+		}
+
 		print start_table({width=>"$wid"});
-	
 		print start_Tr,start_td,start_table;
 		print Tr(td({class=>'header',width=>"$wid"},$title));
-	
-		if ($tool eq "ping") { $tooloutput=`ping -c 3 $host`; }
-		elsif ($tool eq "trace") { $tooloutput=`traceroute -n -m 15 $host`;	}
-		elsif ($tool eq "nslookup") { $tooloutput=`nslookup $host`; }
-		elsif ($tool eq "finger") { $tooloutput=`finger \@$node`; }
-		elsif ($tool eq "who") { $tooloutput=`who`; }
-		elsif ($tool eq "man") { $tooloutput=`man $host`; }
-		elsif ($tool eq "mank") { $tooloutput=`man -k $host`; }
-		elsif ($tool eq "ps") { $tooloutput=`ps -ef`; }
-		elsif ($tool eq "iostat") { $tooloutput=`iostat 1 10`; }
-		elsif ($tool eq "vmstat") { $tooloutput=`vmstat 1 10`; }
-		elsif ($tool eq "date") { $tooloutput=`date`; }
-		elsif ($tool eq "df") { $tooloutput=`df -k`; }
-		elsif ($tool eq "dns") { viewDNS(); }
-		elsif ($tool eq "lft") { 
-			$ctool = $tool;
-			if ( $C->{$tool} ) { $ctool = $C->{$tool} }
-				
-			if ( &testTool($ctool) ) {
-				$tooloutput = `$ctool -NASE $host 2>&1`;	
-			}
-			else {
-				$tooloutput = "$ctool not found in the path";				
-			}
+
+		if (ref($knowntools{$tool}) eq "CODE")
+		{
+			&{$knowntools{$tool}};
 		}
-		elsif ($tool eq "mtr") { 
-			$ctool = $tool;
-			if ( $C->{$tool} ) { $ctool = $C->{$tool} }
-				
-			if ( &testTool($ctool) ) {
-				$tooloutput = `$ctool --report --report-cycles=10 $host 2>&1`;	
+		else
+		{
+			my $pid = open(TOOL,"-|");
+			if (!defined $pid)
+			{
+				print Td(td(escapeHTML("Tools: ERROR, cannot run tool '$tool': $!")."<br>"));
+				exit 0;
 			}
-			else {
-				$tooloutput = "$ctool not found in the path";				
+			elsif (!$pid)
+			{
+				open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
+				exec(@{$knowntools{$tool}});
+				die "Failed to exec: $!\n";
 			}
+
+			my $tooloutput = join("", <TOOL>);
+			if (!close(TOOL))
+			{
+				my $exitcode = $? >> 8;
+				print Tr(td(escapeHTML("Tools: ERROR, tool '$tool' failed with exit code $exitcode.")."<br>"));
+			}
+			print Tr(td({width=>"$wid"},pre(escapeHTML($tooloutput))));
 		}
-	
-		print Tr(td({width=>"$wid"},pre("$tooloutput"))) if $tooloutput ne '';
-	
+
 		print end_table,end_td,end_Tr;
 		print end_table;
 	}
-	
 	pageEnd() if (!$wantwidget);
-
-}	
-
-sub testTool {
-	my $tool = shift;
-	my $out = `which $tool`;
-	if ( -f $out ) {
-		return 1;
-	}
-	elsif ( -f $tool ) {
-		return 1;
-	}
-	else {
-		return 0;
-	}
 }
 
 sub selectNode {
-	my $url = "tools.pl?conf=$Q->{conf}&act=$Q->{act}";
 	print header($headeropts);
-	
+
 	print start_html(
 		-title=>'NMIS Network Tools',-style=>{'src'=>"$C->{'styles'}"},
 		-meta=>{ 'CacheControl' => "no-cache",'Pragma' => "no-cache",'Expires' => -1 },
@@ -214,15 +223,26 @@ sub selectNode {
 		]
 	);
 
-	print start_form(-id=>"nmisTools",-href=>"$url");
-	hidden(-name=>'act', -default=>"$Q->{act}",-override=>'1');
+	# start of form
+  # the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"nmisTools", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => $Q->{act})
+			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
+			. hidden(-override => 1, -name => "widget", -value => $widget);
+
 	print start_table({width=>'500px'});
-	#print start_table();
-	
+
 	print Tr(td({class=>'header'},"Node"),td({class=>'info Plain'},textfield(-name=>"node",size=>'25',value=>"$Q->{node}")));
 	print Tr(
-		td({class=>'info'},button(-name=>'cancel',onclick=>"get('nmisTools','cancel');",-value=>"Cancel")),
-		td({class=>'info'},button(-name=>"submit",onclick=>"get('nmisTools');",-value=>"GO"))		
+		td({class=>'info'},button(-name=>'cancelbutton',
+															onclick=> '$("#cancelinput").val("true");' .
+															($wantwidget? "get('nmisTools','cancel');" : 'submit();'),
+															-value=>"Cancel")),
+		td({class=>'info'},button(-name=>"submitbutton",
+															onclick=>($wantwidget? "get('nmisTools');" : 'submit();'),
+															-value=>"GO"))
 	);
 
 	print end_table,end_form,end_html;
@@ -265,10 +285,10 @@ sub getInterfaceTable {
 	       			$ip ne "0.0.0.0" and
 	       			$ip !~ /^127/
 			) {
-	
+
 				$II->{$intHash}{ifSpeed} = convertIfSpeed($II->{$intHash}{ifSpeed});
 				my $shortInt = shortInterface($II->{$intHash}{ifDescr});
-				if ( $II->{$intHash}{node} =~ /\d+\.\d+\.\d+\.\d+/ 
+				if ( $II->{$intHash}{node} =~ /\d+\.\d+\.\d+\.\d+/
 					and $II->{$intHash}{sysName} ne ""
 				) {
 					$II->{$intHash}{node} = $II->{$intHash}{sysName};
@@ -492,4 +512,3 @@ sub viewLocDNS {
 	print end_table,end_td,end_Tr;
 
 } #viewLocDNS
-
