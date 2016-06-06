@@ -237,16 +237,16 @@ sub viewSNMP {
 		print Tr(td({class=>'header',colspan=>'3'},'result of query'.$msg));
 		for my $k (oid_lex_sort(keys %{$result})) {
 			print Tr(
-				td({class=>'header'},oid2name($k)),
-				td({class=>'header'},$k),td({class=>'info'},$result->{$k}));
+				td({class=>'header'},escapeHTML(oid2name($k))),
+				td({class=>'header'},$k),td({class=>'info'},escapeHTML($result->{$k})));
 		}
 	} else {
 		# table empty, try single entry
 		if ((($result) = $SNMP->getarray($oid))) {
 			print Tr(td({class=>'header',colspan=>'3'},'result of query'));
 			print Tr(
-				td({class=>'header'},oid2name($oid)),
-				td({class=>'header'},$oid),td({class=>'info'},$result));
+				td({class=>'header'},escapeHTML(oid2name($oid))),
+				td({class=>'header'},$oid),td({class=>'info'},escapeHTML($result)));
 			} else {
 			print Tr(td({class=>'error'},$SNMP->error));
 		}

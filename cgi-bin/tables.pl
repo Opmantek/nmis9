@@ -211,7 +211,7 @@ EOF
 		for my $ref ( @{$CT}) { # trick for order of header items
 			for my $item (keys %{$ref}) {
 				if ($ref->{$item}{display} =~ /header/ ) {
-					print td({class=>'info Plain'},$T->{$k}{$item}) if $display;
+					print td({class=>'info Plain'}, escapeHTML($T->{$k}{$item})) if $display;
 				}
 			}
 		}
@@ -274,8 +274,8 @@ sub viewTable {
 	# print items of table
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref}) {
-			print Tr(td({class=>'header',align=>'center'},$ref->{$item}{header}),
-				td({class=>'info Plain'},$T->{$key}{$item}));
+			print Tr(td({class=>'header',align=>'center'},escapeHTML($ref->{$item}{header})),
+				td({class=>'info Plain'},escapeHTML($T->{$key}{$item})));
 		}
 	}
 
@@ -345,8 +345,8 @@ sub showTable {
 				# print items of table
 				for my $ref ( @{$CT}) { # trick for order of header items
 					for my $item (keys %{$ref}) {
-						print Tr(td({class=>'header',align=>'center'},$ref->{$item}{header}),
-							td({class=>'info Plain'},$T->{$t}{$item}));
+						print Tr(td({class=>'header',align=>'center'},escapeHTML($ref->{$item}{header})),
+							td({class=>'info Plain'},escapeHTML($T->{$t}{$item})));
 					}
 				}
 				last;
@@ -414,18 +414,21 @@ sub editTable {
 			if ( exists $ref->{$item}{special} and $ref->{$item}{special} eq "separator" ) {
 				$headerclass = "heading4";
 				$headspan = 2;
-				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},"$ref->{$item}{header}$mandatory"));
+				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
+										escapeHTML("$ref->{$item}{header}$mandatory")));
 			}
 			else {
-				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},"$ref->{$item}{header}$mandatory"),
+				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
+										escapeHTML("$ref->{$item}{header}$mandatory")),
 					eval { my $line;
 						if ($ref->{$item}{display} =~ /key/) {
 							push @hash,$item;
 						}
 						if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
-							$line .= td({class=>'header'},$T->{$key}{$item});
-							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1');
-						}
+							$line .= td({class=>'header'}, escapeHTML($T->{$key}{$item}));
+							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
+						} 
+
 						elsif ($ref->{$item}{display} =~ /textbox/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
 							$line .= td(textarea(-name=> $item, -value=>$value,
@@ -442,13 +445,15 @@ sub editTable {
 						}
 						elsif ($ref->{$item}{display} =~ /readonly/) {
 							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-							$line .= td($value);
-							$line .= hidden(-name=>$item, -default=>$value, -override=>'1');
-						}
+
+							$line .= td(escapeHTML($value));
+							$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
+						} 
 						elsif ($ref->{$item}{display} =~ /pop/) {
 							#print STDERR "DEBUG editTable: popup -- item=$item\n";
 							$line .= td(popup_menu(
-									-name=>"$item",
+									-name=> $item,
+
 									-values=>$ref->{$item}{value},
 									-style=>'width: 95%;',
 									-default=>$T->{$key}{$item}));
@@ -516,12 +521,12 @@ sub doeditTable {
 	if ($Q->{act} =~ /doadd/) {
 		if (exists $T->{$key}) {
 			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} ,"Key $key already exists in table"));
+			print Tr(td({class=>'error'} , escapeHTML("Key $key already exists in table")));
 			return 0;
 		}
 		if ($key eq '') {
 			print header($headeropts);
-			print Tr(td({class=>'error'} ,"Field \'$hash\' must be filled in table $table"));
+			print Tr(td({class=>'error'} , escapeHTML("Field \'$hash\' must be filled in table $table")));
 			return 0;
 		}
 	}
@@ -546,7 +551,7 @@ sub doeditTable {
 		# check host address
 		if ($T->{$key}{host} eq '') {
 			print header($headeropts);
-			print Tr(td({class=>'error'} ,"Field \'host\' must be filled in table $table"));
+			print Tr(td({class=>'error'} , "Field \'host\' must be filled in table $table"));
 			return 0;
 		}
 
@@ -555,8 +560,8 @@ sub doeditTable {
 			my $address = resolveDNStoAddr($T->{$key}{host});
 			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
 				print header($headeropts);
-				print Tr(td({class=>'error'} ,"ERROR, cannot resolve IP address \'$T->{$key}{host}\'<br>".
-									"Please correct this item in table $table"));
+				print Tr(td({class=>'error'} , escapeHTML("ERROR, cannot resolve IP address \'$T->{$key}{host}\'")
+										."<br>". "Please correct this item in table $table"));
 				return 0;
 			}
 		}
@@ -577,7 +582,7 @@ sub doeditTable {
 		}
 		if (!$stat) {
 			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} ,DBfunc::->error()));
+			print Tr(td({class=>'error'} , escapeHTML(DBfunc::->error())));
 			return 0;
 		}
 	} else {
@@ -611,7 +616,7 @@ sub dodeleteTable {
 	if (getbool($C->{$db}) ) {
 		if (!(DBfunc::->delete(table=>$table,index=>$key))) {
 			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} ,DBfunc::->error()));
+			print Tr(td({class=>'error'} ,escapeHTML(DBfunc::->error())));
 			return 0;
 		}
 	} else {
@@ -653,36 +658,55 @@ sub doNodeUpdate {
 #									 conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget",
 #									 -action => url(-absolute=>1)."?conf=$Q->{conf}&act=config_table_menu&table=$Q->{table}&widget=$widget" );
 
-	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
+	print table(Tr(td({class=>'header'}, escapeHTML("Completed web user initiated update of $node")),
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
 									-value=>'Ok'))));
 	print "<pre>\n";
-	print "Running update on node $node\n\n\n";
+	print escapeHTML("Running update on node $node\n\n\n");
 
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=\"$node\" info=true 2>&1 |");
+	my $pid = open(PIPE, "-|");
+	if (!defined $pid)
+	{
+		print "Error: cannot fork: $!\n";
+	}
+	elsif (!$pid)
+	{
+		# child
+		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
+		exec("$C->{'<nmis_bin>'}/nmis.pl","type=update", "node=$node", "info=true");
+		die "Failed to exec: $!\n";
+	}
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
+	select((select(STDOUT), $| = 1)[0]);		# unbuffer stdout
+	
+	while ( <PIPE> ) {
+		print escapeHTML($_);
+	}
+	close(PIPE);
+	print "\n</pre>\n<pre>\n";
+	print escapeHTML("Running collect on node $node\n\n\n");
+
+	$pid = open(PIPE, "-|");
+	if (!defined $pid)
+	{
+		print "Error: cannot fork: $!\n";
+	}
+	elsif (!$pid)
+	{
+		# child
+		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
+		exec("$C->{'<nmis_bin>'}/nmis.pl","type=collect", "node=$node", "info=true");
+		die "Failed to exec: $!\n";
+	}
+	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 
 	while ( <PIPE> ) {
-		print ;
+		print escapeHTML($_);
 	}
 	close(PIPE);
 	print "\n</pre>\n";
 
-	print "<pre>\n";
-	print "Running collect on node $node\n\n\n";
-
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=\"$node\" info=true 2>&1 |");
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
-
-	while ( <PIPE> ) {
-		print ;
-	}
-	close(PIPE);
-	print "\n</pre>\n";
-
-	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
+	print table(Tr(td({class=>'header'},escapeHTML("Completed web user initiated update of $node")),
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
 									-value=>'Ok'))));
 	print end_form;

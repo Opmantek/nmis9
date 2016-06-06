@@ -488,7 +488,7 @@ sub displayLogFile {
 # --------------------------------------------
 # 
 sub outputLine {
-	my $line = shift;
+	my $line = escapeHTML(shift);
 	
 	my $outage;
 	my $tics;
@@ -798,7 +798,7 @@ sub outputLine {
 	### ERROR file does not exist dir=var name=192.168.1.234-node, nmis_var=/mnt/hgfs/Master/nmis8/var nmis_conf=/mnt/hgfs/Master/nmis8/conf
 	elsif ( lc $logName eq 'nmis_log') {
 		
-		$line =~ s/\Q<br>\E/,/g ;
+		$line =~ s/&lt;br&gt;/,/gi ;
 		$line =~ s/, /,/g;	
 		@logSplit = split( ',', $line, 3 );		# no more than 3 splits
 		
@@ -812,7 +812,7 @@ sub outputLine {
 	#5-Jun-2013 07:07:53,nmiscgi.pl#97Auth::loginout#1197<br>user=nmis logged in with config=
 	#5-Jun-2013 07:07:56,logs.pl#223Auth::CheckAccess#234<br>CheckAccessCmd: nmis, Event_Log, 1
 	elsif ( lc $logName eq 'auth_log') {
-		$line =~ s/\Q<br>\E/, /g;
+		$line =~ s/&lt;br&gt;/, /gi;
 		$logLevelText = 'Unknown';
 	} # elsif nmis.log 	
 	# ------------------------------------------------------------------------------
@@ -1013,8 +1013,9 @@ sub logSummary {
 	my $logNode;
 	my @logSplit;
 	
-	foreach my $line ( @$logRefTable ) {
-		
+	foreach my $line ( @$logRefTable ) 
+	{
+		$line = escapeHTML($line);
 		if  (  lc $logName eq 'cisco_pix' ) {
 			@logSplit = split " ", $line, 6 ;	# get up to the syslog key %CDP-4-...... etc
 			($logEvent = $logSplit[4]) =~ s/^%|:$//g;		# drop the leading '%' and trailing ':'
@@ -1075,7 +1076,7 @@ sub logSummary {
 		# NMIS Log
 		elsif ( lc $logName eq 'nmis_log') {
 			
-			$line =~ s/\Q<br>\E/,/g ;
+			$line =~ s/&lt;br&gt;/,/gi ;
 			$line =~ s/, /,/g;	
 			@logSplit = split( ',', $line, 3 );		# no more than 3 splits
 			my $script;
