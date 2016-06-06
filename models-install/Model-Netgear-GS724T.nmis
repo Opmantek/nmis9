@@ -49,7 +49,7 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
       'macTable' => {
         'common-model' => 'macTable'
       }
