@@ -1119,19 +1119,17 @@ sub parsefile {
 
 	while (my $line = <$fh>) {
 		chomp $line;
-		next unless $line;
+		next if (!$line or $line =~ m/^\s*#/);
 
 		# test for module use 'xxx' or 'xxx::yyy' or 'xxx::yyy::zzz'
-		if ( $line =~ m/^#/ ) {
-			next;
-		}
-		elsif (
+		if (
 			$line =~ m/^(use|require)\s+(\w+::\w+::\w+|\w+::\w+|\w+)(\s+([0-9\.]+))?/
 			or $line =~ m/(use|require)\s+(\w+::\w+::\w+|\w+::\w+)(\s+([0-9\.]+))?/
 			or $line =~ m/(use|require)\s+(\w+)(\s+([0-9\.]+))?;/
 		)
 		{
 			my ($mod, $minversion) = ($2,$4);
+			print "PARSE $f: '$line' => module $mod, minversion $minversion\n" if $debug;
 
 			if ( defined $mod and $mod ne '' and $mod !~ /^\d+/ )
 			{
@@ -1145,10 +1143,6 @@ sub parsefile {
 				}
 			}
 		}
-		elsif ($line =~ m/(use|require)\s+(\w+::\w+::\w+|\w+::\w+|\w+)/ ) {
-			print "PARSE $f: $line\n" if $debug;
-		}
-
 	}	#next line of script
 	close $fh;
 }
