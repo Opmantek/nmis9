@@ -102,6 +102,7 @@
     'log_max_table_lines' => 25000,
     'http_req_timeout' => '60',
     'server_name' => 'localhost',
+		'server_admin' => 'root@localhost',
     'global_collect' => 'true',
     'response_time_threshold' => '500',
     'nmis_user' => 'nmis',
@@ -268,6 +269,7 @@
     'daemon_fping_filename' => 'fpingd.pl'
   },
   'authentication' => {
+		'auth_lockout_after' => 0,
     'auth_require' => 'true',
     'auth_debug' => '',
     'auth_debug_remote_addr' => '',
