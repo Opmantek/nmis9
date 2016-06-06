@@ -223,7 +223,9 @@ make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
-perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog));
+perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog
+perl-Excel-Writer-XLSX
+));
 
 	# cgi was removed from core in 5.20
 	if (version->parse($^V) >= version->parse("5.19.7"))
@@ -1203,7 +1205,6 @@ EOF
 				}
 			}
 		}
-
 	}
 	# returns status, list of critical missing
 	my ($status, @missing) = &listModules;
@@ -1217,12 +1218,11 @@ EOF
 sub moduleVersion {
 	my $mFile = shift;
 	open FH,"<$mFile" or return 'FileNotFound';
-	while (<FH>) {
-		if ( /(?:our\s+\$VERSION|my\s+\$VERSION|\$VERSION|\s+version|::VERSION)/i ) {
-			/(\d+\.\d+(?:\.\d+)?)/;
-			if ( defined $1 and $1 ne '' ) {
-				return "$1";
-			}
+	while (<FH>) 
+	{
+		if (/^\s*((our|my)\s+\$|\$(\w+::)*)VERSION\s*=\s*['"]?\s*[vV]?([0-9\.]+)\s*['"]?s*;/)
+		{
+			return $4;
 		}
 	}
 	close FH;
