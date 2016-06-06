@@ -1,11 +1,14 @@
 #!/bin/sh
 # this version is an update of the older release maker from the opmantek repo
 
-if [ -z "$1" ]; then
+if [ -z "$1" ] || [ ! -d "build" ]; then
 		cat >&1 <<EOF
 Usage: $0 <nmisversion> [rtag1 rtag2..]
 e.g. $0 8.5.10G
 or $0 8.5.12G HEAD \`git tag\`
+
+the release is made from the CURRENT branch;
+must be called from source dir.
 
 rtags are needed for capture_model_sigs/upgrade_models; 
 if not present ALL nmis release tags plus HEAD are used!
@@ -22,9 +25,13 @@ TEMPDIR=`mktemp -d`
 TARGETDIR=nmis$VERSION
 RELEASEDIR=/usr/local/release
 
+# which branch are we in?
+BRANCH=`git rev-parse --abbrev-ref HEAD`
+echo "Building release from branch $BRANCH"
+
 mkdir -p $TEMPDIR/$TARGETDIR
 cd $TEMPDIR
-git clone -b nmis8_dev gitolite@community:nmis $TARGETDIR
+git clone -b $BRANCH gitolite@community:nmis $TARGETDIR
 
 if [ -z "$TAGS" ]; then
 		TAGS="HEAD `cd $TARGETDIR; git tag`"
