@@ -1128,9 +1128,11 @@ sub runPing {
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
 		$NI->{system}{nodedown} = 'true';
+		# workaround for opCharts not using right data.
+		$NI->{system}{nodestatus} = 'unreachable';
 	}
 
-	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown}");
+	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown} nodestatus=$NI->{system}{nodestatus}");
 	return $exit;
 } # end runPing
 
@@ -1211,6 +1213,9 @@ sub getNodeInfo {
 				$V->{system}{status_value} = 'reachable';
 				$V->{system}{status_title} = 'Node Status';
 				$V->{system}{status_color} = '#0F0';
+				$V->{system}{sysName_value} = $NI->{system}{sysName};
+				$V->{system}{sysName_title} = 'System Name';
+
 				$V->{system}{sysObjectName_value} = $NI->{system}{sysObjectName};
 				$V->{system}{sysObjectName_title} = 'Object Name';
 				$V->{system}{nodeVendor_value} = $NI->{system}{nodeVendor};
@@ -1536,6 +1541,7 @@ sub getIntfInfo {
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
+	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
 	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
 		# Check if the ifTableLastChange has changed.  If it has not changed, the 
@@ -1621,20 +1627,58 @@ sub getIntfInfo {
 		}
 
 		# Loop to get interface information, will be stored in {ifinfo} table => $IF
+		my @ifIndexNumManage;
 		foreach my $index (@ifIndexNum) {
 			next if ($singleInterface and $intf_one ne $index); # only one interface
 			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
 				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
-				$IF = $S->ifinfo; # renew pointer
-				logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
-				info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
+				my $keepInterface = 1;
+				if ( defined $S->{mdl}{custom}{interface}{skipIfType}
+					and $S->{mdl}{custom}{interface}{skipIfType} ne ""
+					and $IF->{$index}{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ 
+				) {
+					$keepInterface = 0;
+					info("SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
+				}	
+				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
+					and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
+					and $IF->{$index}{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ 
+				) {
+					$keepInterface = 0;
+					info("SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}");	
+				}
+								
+				if ( not $keepInterface ) {
+					# not easy.
+					foreach my $key ( keys %{$IF->{$index}} ) {
+						if ( exists $V->{interface}{"${index}_${key}_title"} ) {
+							delete $V->{interface}{"${index}_${key}_title"};
+						}
+						if ( exists $V->{interface}{"${index}_${key}_value"} ) {
+							delete $V->{interface}{"${index}_${key}_value"};
+						}
+					}
+					# easy!
+					delete $IF->{$index};
+				}
+				else {
+					$IF = $S->ifinfo; # renew pointer
+					logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
+					info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
+					push(@ifIndexNumManage,$index);
+				}
 			} else {
 				# failed by snmp
 				snmpNodeDown(sys=>$S);
-				info("Finished");
-				return 0;
+				if ( getbool($C->{snmp_stop_polling_on_error}) ) {
+					info("Finished");
+					return 0;
+				}				
 			}
 		}
+		# copy the new list back.
+		@ifIndexNum = @ifIndexNumManage;
+		@ifIndexNumManage = ();
 
 		# port information optional
 		if ($M->{port} ne "") {
@@ -1886,6 +1930,14 @@ sub getIntfInfo {
 			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
 				$IF->{$index}{collect} = "false";
 				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
+			}
+			# if the interface has been down for too many days to be in use now.
+			elsif ( $IF->{$index}{ifAdminStatus} =~ /up/
+				and $IF->{$index}{ifOperStatus} =~ /down/
+				and ($NI->{system}{sysUpTimeSec} - $IF->{$index}{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days  
+			) {
+				$IF->{$index}{collect} = "false";
+				$IF->{$index}{nocollect} = "Not Collecting: interface down for more than $nocollect_interface_down_days days"; # reason
 			}
 
 			# send events ?
@@ -2941,6 +2993,7 @@ sub getIntfData {
 				) {
 					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
+					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
 				}
 				else {
 					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");																
@@ -4173,6 +4226,12 @@ sub runServices {
 					dbg("Indextable=$inst textoid=$textoid value=$value",2);
 				}
 			}
+			# SNMP failed, so mark SNMP down so code below handles results properly
+			else {
+				logMsg("$node SNMP Down while collecting SNMP Service Data");
+				snmpNodeDown(sys=>$S);
+				last;
+			}
 		}
 		
 		# prepare service list for all observed services
@@ -4327,40 +4386,59 @@ sub runServices {
 			next if (!$snmp_allowed);
 
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
-			if ( getbool($C->{snmp_stop_polling_on_error},"invert") 
-					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown}) 
-								and !getbool($NI->{system}{nodedown}) ) ) 
+			if ( getbool($C->{snmp_stop_polling_on_error},"invert")
+					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown})
+								and !getbool($NI->{system}{nodedown}) ) )
 			{
-				if ($ST->{$service}{Service_Name} eq '') {
+				my $wantedprocname = $ST->{$service}{Service_Name};
+
+				if (!$wantedprocname) {
 					dbg("ERROR, service_name is empty");
 					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
 					next;
 				}
 
-				# lets check the service status
-				# NB - may have multiple services with same name on box.
-				# so keep looking if up, last if one down
-				# look for an exact match here on service name as read from snmp poll
+				# lets check the service status from snmp for matching process(es)
+				# it's common to have multiple processes with the same name on a system,
+				# heuristic: one or more living processes -> service is ok,
+				# no living ones -> down.
+				# living in terms of host-resources mib = runnable or running;
+				# interpretation of notrunnable is not clear.
+				# invalid is for (short-lived) zombies, which should be ignored.
 
-				foreach ( sort keys %services ) {
-					my ($svc) = split ':', $services{$_}{hrSWRunName};
-					if ( $svc eq $ST->{$service}{Service_Name} ) {
-						if ( $services{$_}{hrSWRunStatus} =~ /running|runnable/i ) {
-							$ret = 1;
-							$cpu = $services{$_}{hrSWRunPerfCPU};
-							$memory = $services{$_}{hrSWRunPerfMem};
-							$gotMemCpu = 1;
-							info("INFO, service $ST->{$service}{Name} is up, status is $services{$_}{hrSWRunStatus}");
-						}
-						else {
-							$ret = 0;
-							$cpu = $services{$_}{hrSWRunPerfCPU};
-							$memory = $services{$_}{hrSWRunPerfMem};
-							$gotMemCpu = 1;
-							info("INFO, service $ST->{$service}{Name} is down, status is $services{$_}{hrSWRunStatus}");
-							last;
-						}
-					}
+				# services list is keyed by name:pid
+				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
+				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids);
+
+				dbg("runServices: found ".scalar(@matchingpids)." total and "
+						.scalar(@livingpids). " live processes for $wantedprocname");
+				dbg("runServices: live $wantedprocname processes: "
+						.join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
+
+				if (!@livingpids)
+				{
+					$ret = 0;
+					$cpu = 0;
+					$memory = 0;
+					$gotMemCpu = 1;
+					logMsg("INFO, service $ST->{$service}{Name} is down, ".(@matchingpids? "only non-running processes"
+																																	: "no matching processes"));
+				}
+				else
+				{
+					# return the average values for cpu and mem
+					$ret = 1;
+					$gotMemCpu = 1;
+
+					# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
+					# memory is in kb, and a gauge.
+					$cpu = int(mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ));
+					$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+
+#					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
+#					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+
+					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
 				}
 			}
 			else {
@@ -4409,8 +4487,9 @@ sub runServices {
 			if ($svc->{Args})
 			{
 				$finalargs = $svc->{Args};
-				$finalargs =~ s/(node\.(\S+))/$NI->{system}{$2}/g;
-				
+				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
+				# or if there's a nonword char before node.xyz.
+				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
 				dbg("external program args were $svc->{Args}, now $finalargs");
 			}
 
@@ -7596,19 +7675,37 @@ sub doThreshold {
 										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
 										for my $index (@instances) {
 											# thresholds can be selectively disabled for individual interfaces
-											if (defined $NI->{$type} and defined $NI->{$type}{$index}
+											if ( $type =~ /interface|pkts|pkts_hc/ ) {
+												if (defined $NI->{$type} and defined $NI->{$type}{$index}
+														and defined $NI->{$type}{$index}{threshold}
+														and getbool($NI->{$type}{$index}{threshold},"invert"))
+												{
+														dbg("skipping disabled threshold type $type for index $index");
+														next;
+												}
+												# verify that there is at least valid interface record
+												if ( defined $NI->{$type} 
+													and defined $NI->{$type}{$index}
 													and defined $NI->{$type}{$index}{threshold}
-													and getbool($NI->{$type}{$index}{threshold},"invert"))
-											{
-													dbg("skipping disabled threshold type $type for index $index");
-													next;
+													and $NI->{$type}{$index}{threshold} eq "true"
+												) {
+													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
+												}
 											}
-											# verify that there is at least valid interface record
-											if ( defined $NI->{$type} 
-												and defined $NI->{$type}{$index}
-												and defined $NI->{$type}{$index}{threshold}
-												and $NI->{$type}{$index}{threshold} eq "true"
+											elsif ( $type =~ /cbqos/
+												and defined $NI->{'interface'} 
+												and defined $NI->{'interface'}{$index}
+												and defined $NI->{'interface'}{$index}{threshold}
+												and $NI->{'interface'}{$index}{threshold} eq "true"
 											) {
+												my ($cbqos,$direction) = split(/\-/,$type);
+												dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
+												foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} ) {
+													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");	
+													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
+												}
+											}
+											else {
 												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 											}
 										}
@@ -7699,6 +7796,7 @@ sub doThreshold {
 sub runThrHld {
 	my %args = @_;
 	my $S = $args{sys};
+	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
 	my $IF = $S->ifinfo;
 	my $ET = $S->{info}{env_temp};
@@ -7707,8 +7805,11 @@ sub runThrHld {
 	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $index = $args{index};
+	my $item = $args{item};
 	my $stats;
 	my $element;
+
+	dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
 
 	my $threshold_period = "-15 minutes";
 	if ( $C->{"threshold_period-default"} ne "" ) {
@@ -7740,9 +7841,18 @@ sub runThrHld {
 	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = $IF->{$index}{ifDescr};
 	}
-	#else {
-	#	$element = $IF->{$index}{ifDescr};
-	#}
+	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed} 
+		and $M->{systemHealth}{sys}{$type}{indexed} ne "true"
+	) {
+		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
+		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" ) {
+			$element = $NI->{$type}{$index}{$elementVar};
+		}
+	}
+	
+	if ( $element eq "" ) {
+		$element = $index;
+	}
 
 	# walk through threshold names
 	### 2012-04-25 keiths, fixing loop as not processing correctly.
@@ -7800,7 +7910,7 @@ sub getThresholdLevel {
 
 	# find subsection with threshold values in Model
 	my $T = $M->{threshold}{name}{$thrname}{select};
-	foreach my $thr (keys %{$T}) {
+	foreach my $thr (sort {$a <=> $b} keys %{$T}) {
 		next if $thr eq 'default'; # skip now the default values
 		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index))){
 			$val = $T->{$thr}{value};

@@ -408,13 +408,6 @@ sub typeGraph {
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
 										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "cpu_cpm") {
-							my @cpus = $S->getTypeInstances(graphtype => "cpu_cpm");
-							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @cpus],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{entityMib}{$NI->{cpu_cpm}{$_}{cpmCPUTotalPhysicalIndex}}{entPhysicalName})} sort @cpus },
-										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "env_temp") {
 							my @sensors = $S->getTypeInstances(graphtype => "env_temp");
 							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
