@@ -227,11 +227,21 @@ EOF
 					. '&nbsp;'
 					. a({href=>"$url&act=config_table_delete&key=$safekey&widget=$widget"},
 							'delete');
+			# if looking at the users table AND lockout feature is enabled, offer a failure count reset
+			if ($table eq "Users" && $C->{auth_lockout_after})
+			{
+				$bt .= '&nbsp;' . a({href => "$url&act=config_table_reset&key=$safekey&widget=$widget"},
+														"reset login count");
+			}
 		} else {
 			$bt = '';
 		}
-		print td({class=>'info Plain'},a({href=>"$url&act=config_table_view&key=$safekey&widget=$widget"},'view'),$bt) if $display;
-		print end_Tr if $display;
+
+		if ($display)
+		{
+			print td({class=>'info Plain'},a({href=>"$url&act=config_table_view&key=$safekey&widget=$widget"},'view'),$bt);
+			print end_Tr;
+		}
 	}
 
 	print end_table;
