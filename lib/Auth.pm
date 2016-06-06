@@ -7,7 +7,7 @@
 #        <rwsmith (at) bislink.net> http://www.bislink.net
 #
 #    Portions Copyrighted by the following entities
-#    
+#
 #       Copyright (C) 2000,2001,2002 Steve Shipway
 #
 #       Copyright (C) 2000,2001 Sinclair InterNetworking Services Pty Ltd
@@ -42,7 +42,7 @@
 #   authentication and authorization with the NMIS package to segregate the
 #   server groups from the router groups and then some.
 #
-#   The authentication routines originally came from Steve Shipway's very well 
+#   The authentication routines originally came from Steve Shipway's very well
 #   written and designed (and coded) Routers2.cgi program. I took ("lifted") several
 #   of his routines, verify_id, user_verfity, file_verify, ldap_verify, and
 #   generate_cookie, and provided a wrapper so that they would be more easily
@@ -95,15 +95,16 @@ my $C;
 # import external symbols from NMIS module
 use NMIS;
 use func;
+use notify;											# for auth lockout emails
 
-use Data::Dumper; 
+use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 # import additional modules
 use Time::ParseDate;
 use File::Basename;
 
-use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavou
+use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
 
 # I prefer the use of the library when debugging the resulting HTML script
 # either one will work
@@ -128,15 +129,15 @@ my $debug = 0;
 sub new {
 	my $this = shift;
 	my $class = ref($this) || $this;
-	
-	my %arg = @_;	
+
+	my %arg = @_;
 	$C = $arg{conf};
 
 	my $banner = undef;
 	if ( $arg{banner} ne "" ) {
 		$banner = $arg{banner}
 	}
-	
+
 	my $self = {
 		_require => 1,
 		dir => $arg{dir},
@@ -146,14 +147,14 @@ sub new {
 		priv => undef,
 		privlevel => 0, # default all
 		cookie => undef,
-		groups => undef,		
+		groups => undef,
 	};
 	bless $self, $class;
 	$self->_auth_init;
 	$debug = getbool($C->{auth_debug});
-	
+
 	$auth_user_name_regex	= qr/$C->{auth_user_name_regex}/ if $C->{auth_user_name_regex} ne "";
-	
+
 	return $self;
 }
 
@@ -169,9 +170,9 @@ sub Require {
 
 sub _loadConf {
 	my $self = shift;
-	if ( not defined $C->{'<nmis_base>'} || $C->{'<nmis_base>'} eq "" ) {		
+	if ( not defined $C->{'<nmis_base>'} || $C->{'<nmis_base>'} eq "" ) {
 		$C = loadConfTable();
-	}	
+	}
 }
 
 #----------------------------------
@@ -200,11 +201,11 @@ sub CheckButton {
 
 	return 1 unless $self->{_require};
 
-	my $AC = loadAccessTable(); # get pointer of Access table 
+	my $AC = loadAccessTable(); # get pointer of Access table
 
 	my $perm = $AC->{$identifier}{"level$self->{privlevel}"};
-	
-	logAuth("CheckButton: $self->{user}, $identifier, $perm");		
+
+	logAuth("CheckButton: $self->{user}, $identifier, $perm");
 
 	return $perm;
 }
@@ -223,26 +224,26 @@ sub CheckAccess {
 	my $self = shift;
 	my $cmd = shift;
 	my $option = shift;
-	
+
 	my $C = loadConfTable(); # get pointer of NMIS config table
-	
+
 	my @cookies = ();
 
 	# check if authentication is required
 	return 1 if not $C->{auth_require};
 	return 1 unless $self->{_require};
 
-	if ( ! $self->{user} ) { 
+	if ( ! $self->{user} ) {
 		do_force_login("Authentication is required. Please login");
 		exit 0;
 	}
-	
+
 	if ( $self->CheckAccessCmd($cmd) ) {
-		logAuth("CheckAccessCmd: $self->{user}, $cmd, 1") if $option ne "check";		
+		logAuth("CheckAccessCmd: $self->{user}, $cmd, 1") if $option ne "check";
 		return 1;
 	}
 	else {
-		logAuth("CheckAccessCmd: $self->{user}, $cmd, 0") if $option ne "check";		
+		logAuth("CheckAccessCmd: $self->{user}, $cmd, 0") if $option ne "check";
 	}
 	return 0 if $option eq "check"; # return the result of $self->CheckAccessCmd
 
@@ -263,7 +264,7 @@ sub CheckAccess {
 #
 # The following routines in whole and in part are from Routers2.cgi and
 # are copyrighted by Steve Shipway and included and used herein with
-# permission. 
+# permission.
 #
 # Copyright (C) 2000, 2001, 2002 Steve Shipway
 #
@@ -286,20 +287,20 @@ sub get_cookie_token
 	my($user_name) = @_;
 
 	my $token;
-	my $remote_addr = remote_addr();	
-	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {		
+	my $remote_addr = remote_addr();
+	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {
 		$remote_addr = $self->{config}{auth_debug_remote_addr};
 	}
 
-	
+
 	# logAuth("DEBUG: get_cookie_token: $self->{config}{auth_debug} $self->{config}{auth_debug_remote_addr}") if $debug;
 	my $web_key = (defined $C->{'auth_web_key'}) ? $C->{'auth_web_key'} : $CHOCOLATE_CHIP;
 	logAuth("DEBUG: get_cookie_token: remote addr=$remote_addr, username=$user_name, web_key=$web_key") if $debug;
-	$token = $user_name . $remote_addr;	
+	$token = $user_name . $remote_addr;
 	$token .= $web_key;
 	$token = unpack('%32C*',$token); # generate checksum
 
-	logAuth("DEBUG: get_cookie_token: generated token=$token") if $debug;		
+	logAuth("DEBUG: get_cookie_token: generated token=$token") if $debug;
 	return $token;
 }
 
@@ -309,7 +310,7 @@ sub get_cookie_domain
 	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com") {
 		return $C->{'auth_sso_domain'};
 	}
-	else {		
+	else {
 		return;
 	}
 }
@@ -333,19 +334,19 @@ sub get_cookie
 # verify_id -- reads cookies and params, returns verified username
 sub verify_id {
 	my $self = shift;
-	# now taste cookie 
-	my $cookie = $self->get_cookie();	
+	# now taste cookie
+	my $cookie = $self->get_cookie();
 	# logAuth("DEBUG: verify_id: got cookie $cookie") if $debug;
 	if(!defined($cookie) ) {
-		logAuth("verify_id: cookie not defined");		
-		logAuth("DEBUG: verify_id: cookie not defined") if $debug;		
+		logAuth("verify_id: cookie not defined");
+		logAuth("DEBUG: verify_id: cookie not defined") if $debug;
 		return ''; # not defined
 	}
-	
+
 	### 2013-02-07 keiths: handling for spaces in user names required the cookie cutter to handle spaces.
-	if($cookie !~ /^($auth_user_name_regex):(.+)$/) {		
+	if($cookie !~ /^($auth_user_name_regex):(.+)$/) {
 		logAuth("verify_id: cookie bad format");
-		logAuth("DEBUG: verify_id: cookie bad format") if $debug;		
+		logAuth("DEBUG: verify_id: cookie bad format") if $debug;
 		return ''; # bad format
 	}
 
@@ -353,9 +354,9 @@ sub verify_id {
 	my $token = $self->get_cookie_token($user_name);
 	# logAuth("Username $user_name, checksum $checksum, token $token\n";
 
-	logAuth("DEBUG: verify_id: $token vs. $checksum") if $debug;		
+	logAuth("DEBUG: verify_id: $token vs. $checksum") if $debug;
 	return $user_name if( $token eq $checksum ); # yummy
-	
+
 	# bleah, nasty taste
 	return '';
 }
@@ -365,23 +366,23 @@ sub verify_id {
 sub generate_cookie {
 	my $self = shift;
 	my %args = @_;
-	my $authuser = $args{user_name};	
+	my $authuser = $args{user_name};
 	return "" if ( ! $authuser );
 
 	my $expires = $args{expires};
 	if( !defined($expires) ){
-		$expires = ( $C->{auth_expire} ne "" ) ? $C->{auth_expire} : "+60min"		
+		$expires = ( $C->{auth_expire} ne "" ) ? $C->{auth_expire} : "+60min"
 	}
-	
+
 	my $value = $args{value};
 	if( !exists($args{value}) ) {
 		$value = $self->get_cookie_token($authuser);
-		$value = $authuser . ':' . $value; # checksum		
+		$value = $authuser . ':' . $value; # checksum
 	}
 
-	my $domain = $self->get_cookie_domain();	
-	my $cookie = cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;	
-	
+	my $domain = $self->get_cookie_domain();
+	my $cookie = cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;
+
 	return $cookie;
 }
 #----------------------------------
@@ -401,11 +402,11 @@ sub user_verify {
 	}
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
-	if ( ! defined($C->{auth_method_1}) ) { 
-		$C->{auth_method_1} = "apache"; 
+	if ( ! defined($C->{auth_method_1}) ) {
+		$C->{auth_method_1} = "apache";
 	}
-	elsif ($C->{auth_method_1} eq "") { 
-		$C->{auth_method_1} = "apache";     
+	elsif ($C->{auth_method_1} eq "") {
+		$C->{auth_method_1} = "apache";
 	}
 
 	#logAuth("DEBUG: auth_method_1=$C->{auth_method_1},$C->{auth_method_2},$C->{auth_method_3}") if $debug;
@@ -414,9 +415,9 @@ sub user_verify {
 		next if $auth eq '';
 		++$authCount;
 
-		if( $auth eq "apache" ) {               
-			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }  
-			else { $exit=0; }             
+		if( $auth eq "apache" ) {
+			if($ENV{'REMOTE_USER'} ne "") { $exit=1; }
+			else { $exit=0; }
 		} elsif ( $auth eq "htpasswd" ) {
 			$exit = $self->_file_verify($C->{auth_htpasswd_file},$u,$p,$C->{auth_htpasswd_encrypt});
 
@@ -437,11 +438,11 @@ sub user_verify {
 
 		} elsif ( $auth eq "ms-ldap" ) {
 			$exit = $self->_ms_ldap_verify($u,$p,0);
-		
+
 		} elsif ( $auth eq "ms-ldaps" ) {
 		### 2013-05-27 keiths, Change from Mateusz Kwiatkowski
 			$exit = $self->_ms_ldap_verify($u,$p,1);
-		
+
 		} elsif ( $auth eq "novell-ldap" ) {
 			$exit = _novell_ldap_verify($u,$p,0);
 	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
@@ -487,7 +488,7 @@ sub _file_verify {
 		logAuth("ERROR: Cannot open password file $pwfile: $!");
 		return 0;
 	}
-	
+
 	while(<PW>)
 	{
 		chomp;
@@ -534,14 +535,14 @@ sub _ldap_verify {
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
 			logAuth("ERROR, no IO::Socket::SSL; Net::LDAPS installed");
-			return 0; 
+			return 0;
 		} # no Net::LDAPS installed
 	} else {
 		# load the LDAP module
 		eval { require Net::LDAP; };
 		if($@) {
 			logAuth("ERROR, no Net::LDAP installed");
-			return 0; 
+			return 0;
 		} # no Net::LDAP installed
 	}
 
@@ -553,12 +554,12 @@ sub _ldap_verify {
 	}
 	if(!$ldap) {
 		logAuth("ERROR, no LDAP object created, maybe ldap server address missing in configuration of NMIS");
-		return 0; 
+		return 0;
 	}
 	@attrlist = ( 'uid','cn' );
 	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
 		if( $C->{'auth_ldap_attr'} );
-	
+
 	foreach $context ( split ":", $C->{'auth_ldap_context'}  ) {
 		foreach $attr ( @attrlist ) {
 			$dn = "$attr=$u,".$context;
@@ -591,14 +592,14 @@ sub _novell_ldap_verify {
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
 			logAuth2("no IO::Socket::SSL; Net::LDAPS installed","ERROR");
-			return 0; 
+			return 0;
 		} # no Net::LDAPS installed
 	} else {
 		# load the LDAP module
 		eval { require Net::LDAP; };
 		if($@) {
 			logAuth2("no Net::LDAP installed","ERROR");
-			return 0; 
+			return 0;
 		} # no Net::LDAP installed
 	}
 
@@ -610,12 +611,12 @@ sub _novell_ldap_verify {
 	}
 	if(!$ldap) {
 		logAuth2("no LDAP object created, maybe ldap server address missing in configuration of NMIS","ERROR");
-		return 0; 
+		return 0;
 	}
 	@attrlist = ( 'uid','cn' );
 	@attrlist = split( " ", $C->{'auth_ldap_attr'} )
 		if( $C->{'auth_ldap_attr'} );
-	
+
 	#if($debug) {
 	#	logAuth("DEBUG: _novell_ldap_verify: auth_ldap_attr=(";
 	#	logAuth(join(',',@attrlist);
@@ -692,7 +693,7 @@ sub _ms_ldap_verify {
 	my $status2;
 	my $entry;
 	my $dn;
-	
+
 	$C->{auth_ms_ldap_debug} =  getbool($C->{auth_ms_ldap_debug});
 
 	if($sec) {
@@ -700,14 +701,14 @@ sub _ms_ldap_verify {
 		eval { require IO::Socket::SSL; require Net::LDAPS; };
 		if($@) {
 			logAuth("ERROR no IO::Socket::SSL; Net::LDAPS installed");
-			return 0; 
+			return 0;
 		} # no Net::LDAPS installed
 	} else {
 		# load the LDAP module
 		eval { require Net::LDAP; };
 		if($@) {
 			logAuth("ERROR no Net::LDAP installed from CPAN");
-			return 0; 
+			return 0;
 		} # no Net::LDAP installed
 	}
 
@@ -719,7 +720,7 @@ sub _ms_ldap_verify {
 	}
 	if(!$ldap) {
 		logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing in configuration of NMIS");
-		return 0; 
+		return 0;
 	}
 
 	# bind LDAP for request DN of user
@@ -773,7 +774,7 @@ sub _ms_ldap_verify {
 	}
 	if(!$ldap2) {
 		logAuth("ERROR no LDAP object created, maybe ms_ldap server address missing");
-		return 0; 
+		return 0;
 	}
 
 	$status2 = $ldap2->bind("$dn",password=>"$p");
@@ -822,7 +823,7 @@ sub do_login {
 	if( http("X-Requested-With") eq "XMLHttpRequest" )
 	{
 		# forward url will have a function in it, we want to go back to regular nmis
-		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";			
+		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";
 		my $ret = { name => "JSONRequestError", message => "Authentication Error" };
 		my $json_data = encode_json( $ret ); #, { pretty => 1 } );
 
@@ -849,15 +850,15 @@ EOHTML
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
   </head>
   <body>
 |;
-	
+
 	print qq|
     <div id="login_frame">
       <div id="login_dialog" class="ui-dialog ui-widget ui-widget-content ui-corner-all">
@@ -875,31 +876,31 @@ EOHTML
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
 	$motd = $C->{auth_login_motd} if $C->{auth_login_motd} ne "";
-	
+
 	print Tr(td({class=>'infolft Plain',colspan=>'2'},$motd));
-	
+
 	print Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'})));
 	print Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
 	print Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
-		
-		
+
+
 	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com" ) {
 		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
 	}
-	
+
 	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
 
 	print end_table;
 
 	print hidden(-name=>'conf', -default=>$config, -override=>'1');
 
-	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)	
-	my @qs_params = param();	
+	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)
+	my @qs_params = param();
 	foreach my $key (@qs_params) {
 		# logAuth("adding $key ".param($key)."\n";
 		if( $key !~ /conf|auth_type|auth_username|auth_password/ ) {
-			print hidden(-name=>$key, -default=>param($key),-override=>'1');	
-		}			
+			print hidden(-name=>$key, -default=>param($key),-override=>'1');
+		}
 	}
 
 	print end_form;
@@ -935,7 +936,7 @@ EOHTML
 #
 # The java script herein is courtesy of the Steve Shipway and is copyrighted
 # by him.
-# 
+#
 # do_force_login -- output HTML that sends top level to login page
 #
 sub do_force_login {
@@ -949,12 +950,12 @@ sub do_force_login {
 		$config = "&conf=$config";
 	}
 
-	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";	
+	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
 
 	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
 	# and redirect for us
 	if( http("X-Requested-With") eq "XMLHttpRequest" )
-	{		
+	{
 		my $url_no_forward = $url;
 		my $ret = { name => "JSONRequestError", message => "Authentication Error", redirect_url => $url_no_forward };
 		my $json_data = encode_json( $ret ); #, { pretty => 1 } );
@@ -1008,11 +1009,11 @@ sub do_logout {
 	logAuth("INFO logout of user=$self->{user} conf=$config");
 
 	print header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
-	#print start_html({ 
+	#print start_html({
 	#	-title =>"Logout complete",
-	#	-expires => "5s",  
-	#	-script => $javascript, 
-	#	-onload => "redir()",		
+	#	-expires => "5s",
+	#	-script => $javascript,
+	#	-onload => "redir()",
 	#	-style=>{'src'=>"$C->{'<menu_url_base>'}/css/dash8.css"}
 	#	}),"\n";
 
@@ -1027,10 +1028,10 @@ sub do_logout {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
     <script type="text/javascript">//<![CDATA[
 $javascript
@@ -1067,17 +1068,17 @@ sub do_login_banner {
 	my $self = shift;
 	my @banner = ();
 	my $banner_string = "NMIS $NMIS::VERSION";
-	
+
 	if ( defined $self->{banner}  ) {
 		$banner_string = $self->{banner};
 	}
 
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
-	
-	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;	
+
+	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;
 	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
 	push @banner,div({class=>'title2'},"Network Management Information System");
-		
+
 	return @banner;
 }
 
@@ -1112,7 +1113,7 @@ sub _radius_verify {
 	eval { require Authen::Simple::RADIUS; }; # installed from CPAN
 	if($@) {
 		logAuth("ERROR, no Authen::Simple::RADIUS installed");
-		return 0; 
+		return 0;
 	} # no Authen::Simple::RADIUS installed
 
 	my ($host,$port) = split(/:/,$C->{auth_radius_server});
@@ -1126,7 +1127,7 @@ sub _radius_verify {
 			host   => $host,
 			secret => $C->{auth_radius_secret},
 			port => $port
-		); 
+		);
 		if ( $radius->authenticate( $user, $pswd ) ) {
 	        return 1;
 		}
@@ -1145,7 +1146,7 @@ sub _tacacs_verify {
 	eval { require Authen::TacacsPlus; }; # installed from CPAN
 	if($@) {
 		logAuth("ERROR, no Authen::TacacsPlus installed");
-		return 0; 
+		return 0;
 	} # no Authen::TacacsPlus installed
 
 	my ($host,$port) = split(/:/,$C->{auth_tacacs_server});
@@ -1187,38 +1188,56 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 
-	logAuth("DEBUG: loginout type=$type username=$username config=$config") 
+	logAuth("DEBUG: loginout type=$type username=$username config=$config")
 			if $debug;
 
 	#2011-11-14 Integrating changes from Till Dierkesmann
 	### 2013-01-22 markd, fixing Auth to use Cookies!
-	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {             
+	if($ENV{'REMOTE_USER'} and ($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") ) {
 		$username=$ENV{'REMOTE_USER'};
 		if( $type eq 'login' ) {
-			$type = ""; #apache takes care of showing the login screen	
-		}		
+			$type = ""; #apache takes care of showing the login screen
+		}
   }
-	
+
 	if ( lc $type eq 'login' ) {
 		$self->do_login(listmodules => $listmodules);
 		return 0;
 	}
 
-	if (defined($username) && $username ne '') { # someone is trying to log in
+	my $maxtries = $C->{auth_lockout_after};
+
+	if (defined($username) && $username ne '') 
+	{ 
+		# someone is trying to log in
+		if ($maxtries)
+		{
+			my ($error, $failures) = $self->get_failure_counter(user => $username);
+			if ($failures > $maxtries)
+			{
+				logAuth("Account $username remains locked after $failures login failures.");
+				$self->do_login(listmodules => $listmodules,
+												msg => "Too many failed attempts, account disabled");
+				return 0;
+			}
+		}
 		logAuth("DEBUG: verifying $username") if $debug;
-		if( $self->user_verify($username,$password)) {
+		if( $self->user_verify($username,$password)) 
+		{
 			#logAuth("DEBUG: user verified $username") if $debug;
 			#logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $debug;
 
 			# login accepted, set privs
 			$self->SetUser($username);
-
+			# and reset the failure counter
+			$self->update_failure_counter(user => $username, action => 'reset') if ($maxtries);
+			
 			# handle default privileges or not.
-			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq "" 
-																		 or getbool($C->{auth_default_privilege},"invert")) ) { 
+			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq ""
+																		 or getbool($C->{auth_default_privilege},"invert")) ) {
 				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator",
 												listmodules => $listmodules);
-				return 0;	
+				return 0;
 			}
 
 			# check the name of the NMIS config file specified on url
@@ -1231,19 +1250,68 @@ sub loginout {
 
 			logAuth("user=$self->{user} logged in with config=$config");
 			logAuth("DEBUG: loginout user=$self->{user} logged in with config=$config") if $debug;
+		}
+		else
+		{ # bad login: try again, up to N times
+			if ($maxtries)
+			{
+				# update the failure counter
+				my ($error, $newcount) = $self->update_failure_counter(user => $username, action => 'inc');
+				logAuth("Account $username failure count now $newcount");
+				if (!$error && $newcount > $maxtries)
+				{
+					# notify of lockout when over the limit
+					logAuth("Account $username now locked after $newcount login failures.");
+					# notify the server admin by email if setup
+					if ($C->{server_admin})
+					{
+						my ($status,$code,$msg) = sendEmail(
+							sender => $C->{mail_from},
+							recipients => [split(/\s*,\s*/, $C->{server_admin})],
 
-		} else { # bad login: force it again
+							mailserver => $C->{mail_server},
+							serverport => $C->{mail_server_port},
+							hello => $C->{mail_domain},
+							usetls => $C->{mail_use_tls},
+							ipproto => $C->{mail_server_ipproto},
+							
+							username => $C->{mail_user},
+							password => $C->{mail_password},
+							
+							# and params for making the message on the go
+							to => $C->{server_admin},
+							from => $C->{mail_from},
+							subject => "Account \"$username\" locked after $newcount failed logins",
+							body => qq|The account \"$username\" on $C->{server_name} has exceeded the maximum number 
+of failed login attempts and was locked.
+
+To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"<cgi_url_base>"}/tables.pl?act=config_table_menu&table=Users&widget=false and select the "reset login count" option. |,
+							priority => "High"
+								);
+
+						if (!$status)
+						{
+							logAuth("Error: Sending of lockout notification email to $C->{server_admin} failed: $code $msg");
+						}
+					}
+					$self->do_login( msg => "Too many failed attempts, account disabled",
+													 listmodules => $listmodules);
+					return 0;
+				}
+			}
+
+			# another go - if maxtries unset or if the update failed
 			$self->do_login(msg=>"Invalid username/password combination",
 											listmodules => $listmodules);
 			return 0;
 		}
-	} 
+	}
 	else { # check cookie
-		logAuth("DEBUG: valid session? check cookie") if $debug;		
+		logAuth("DEBUG: valid session? check cookie") if $debug;
 
 		$username = $self->verify_id();
 		if( $username eq '' ) { # invalid cookie
-			logAuth("DEBUG: invalid session ") if $debug;		
+			logAuth("DEBUG: invalid session ") if $debug;
 			#$self->do_login(msg=>"Session Expired or Invalid Session");
 			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
@@ -1253,7 +1321,7 @@ sub loginout {
 		logAuth("DEBUG: cookie OK") if $debug;
 	}
 
-	# logout has to be down here because we need the username loaded to generate the correct cookie 
+	# logout has to be down here because we need the username loaded to generate the correct cookie
 	if(lc $type eq 'logout') {
 		$self->do_logout(); # bye
 		return 0;
@@ -1265,9 +1333,9 @@ sub loginout {
 		$self->do_login(listmodules => $listmodules);
 		return 0;
 	}
-	
+
 	# generate the cookie if $self->user is set
-	if ($self->{user}) {		
+	if ($self->{user}) {
     push @cookies, $self->generate_cookie(user_name => $self->{user});
   	logAuth("DEBUG: loginout made cookie $cookies[0]") if $debug;
 	}
@@ -1275,6 +1343,78 @@ sub loginout {
 	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
 }
+
+# increments or resets the login failure counter for a given user
+# args: user, action (inc or reset), both required
+# returns error message or (undef,new counter value)
+sub update_failure_counter
+{
+	my ($self, %args) = @_;
+	my ($user, $action) = @args{"user","action"};
+			
+	return "cannot update failure counter without valid user argument!" if (!$user);
+	return "cannot update failure counter without valid action argument!" if (!$action or $action !~ /^(inc|reset)$/);
+
+	my $statedir = $C->{'<nmis_var>'}."/nmis_system/auth_failures";
+	createDir($statedir) if (!-d $statedir);
+
+	my $userdata = { count => 0 };
+	my $userstatefile = "$statedir/$user.json";
+	if (-f $userstatefile)
+	{
+		open(F, $userstatefile) or return "cannot read $userstatefile: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			unlink($userstatefile);		# broken, get rid of it
+		}
+	}
+
+	$userdata->{time} = time;
+	if ($action eq "reset")
+	{
+		$userdata->{count} = 0;
+	}
+	else
+	{
+		++$userdata->{count};
+	}
+
+	open(F,">$userstatefile") or return "cannot write $userstatefile: $!";
+	print F encode_json($userdata);
+	close(F);
+
+	return (undef, $userdata->{count});
+}
+
+# returns the current failure counter for the given user
+# args: user, required. 
+# returns: (undef,counter) or error message
+sub get_failure_counter
+{
+	my ($self, %args) = @_;
+	my $user = $args{"user"};
+	return "cannot get failure counter without valid user argument!" if (!$user);
+			
+	my $statedir = $C->{'<nmis_var>'}."/nmis_system/auth_failures";
+	createDir($statedir) if (!-d $statedir);
+
+	my $userdata = { count => 0 };
+	my $userstatefile = "$statedir/$user.json";
+	if (-f $userstatefile)
+	{
+		open(F, $userstatefile) or return "cannot read $userstatefile: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			unlink($userstatefile);		# broken, get rid of it
+		}
+	}
+	return (undef, $userdata->{count});
+}
+	
 
 #----------------------------------
 
@@ -1361,10 +1501,10 @@ sub CheckAccessCmd {
 	return 1 unless $self->{_require};
 
 	my $AC = loadAccessTable();
-	
+
 	my $perm = $AC->{$command}{"level$self->{privlevel}"};
-	
-	logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $debug;		
+
+	logAuth("CheckAccessCmd: $self->{user}, $command, $perm") if $debug;
 
 	return $perm;
 }
@@ -1389,20 +1529,20 @@ sub _GetPrivs {
 		$self->{priv} = $UT->{$user}{privilege};
 	}
 	else {
-		if ( $C->{auth_default_privilege} ne "" 
-				 and !getbool($C->{auth_default_privilege},"invert") ) { 
+		if ( $C->{auth_default_privilege} ne ""
+				 and !getbool($C->{auth_default_privilege},"invert") ) {
 			$self->{priv} = $C->{auth_default_privilege};
 			$self->{privlevel} = 5;
 			logAuth("INFO User \"$user\" not found in Users table, assigned default privilege $C->{auth_default_privilege}");
 		}
 		else {
-			$self->{priv} = "";			
+			$self->{priv} = "";
 			$self->{privlevel} = 5;
-			logAuth("INFO User \"$user\" not found in Users table, no default privilege configured");	
+			logAuth("INFO User \"$user\" not found in Users table, no default privilege configured");
 			return 0;
 		}
 	}
-		
+
 	if ( ! exists $PMT->{$self->{priv}} and $PMT->{$self->{priv}}{level} eq "" ) {
 		logAuth("Privilege $self->{priv} not found for user \"$user\" ");
 		$self->{priv} = "";
@@ -1422,13 +1562,13 @@ sub _GetPrivs {
 	if ( not @groups and $C->{auth_default_groups} ne "" ) {
 		@groups = split /,/, $C->{auth_default_groups};
 		my $ext = getExtension(dir=>'conf');
-		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.$ext -> auth_default_groups");	
+		logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.$ext -> auth_default_groups");
 	}
 
 	if ( grep { $_ eq 'all' } @groups) {
 		@{$self->{groups}} = sort split(',',$C->{group_list});
 		# put the virtual network group on the list
-		push @{$self->{groups}}, "network"; 
+		push @{$self->{groups}}, "network";
 	} elsif ( $UT->{$user}{groups} eq "none" or $UT->{$user}{groups} eq "" ) {
 		@{$self->{groups}} = [];
 	} else {
