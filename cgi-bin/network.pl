@@ -1549,7 +1549,10 @@ EO_HTML
 						$url = $u->as_string;
 					}
 
-					my $value = $V->{system}{"${k}_value"}; # value
+					# escape the input if there's anything in need of escaping;
+					# we don't want doubly-escaped uglies.
+					my $value = $V->{system}{"${k}_value"};
+					$value = escapeHTML($value) if ($value =~ /[<>]/);
 					
 					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
 					$color = colorPercentHi(0) if $color eq "red";
@@ -1596,7 +1599,7 @@ EO_HTML
 					$printData = 0 if $k eq "location" and not tableExists('Locations');
 					
 					if ( $printData ) {
-						push @out,Tr(td({class=>'info Plain'},$title),
+						push @out,Tr(td({class=>'info Plain'}, escapeHTML($title)),
 						td({class=>'info Plain',style=>getBGColor($color)},$content));
 					}
 				}

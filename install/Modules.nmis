@@ -100,6 +100,15 @@
       'description' => "Open-AudIT intelligently scans an organization's network and stores the configurations of the discovered devices. A powerful reporting framework enables information such as software licensing, configuration changes, non-authorized devices, capacity utilization and hardware warranty status (amongst others).",
       'tagline' => "Open-AudIT intelligently scans your network for everything.",
     },
+    'opAddress' => {
+	    'order' => '8',
+	    'name' => 'opAddress',
+	    'base' => 'omk',
+	    'file' => '/bin/opaddress-cli.pl',
+	    'link' => '/omk/opAddress',
+	    'description' => 'opAddress helps organizations to eliminate IP address conflict by regaining control of ip address usage. It periodically scans subnets to determine use of address space and allows quick and easy editing and reallocation of addresses, providing greater efficiency in system administration.',
+	    'tagline' => 'IP address management as it should be, simplified and automated.'
+	  },
 
 	  'More Modules' => {
 	    'order' => '99',

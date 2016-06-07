@@ -68,11 +68,16 @@ if ( $hostname eq "<UNKNOWN>" and $ipaddress =~ /\[(\d+\.\d+\.\d+\.\d+)\]/ ) {
 	$hostname = $1;
 }
 
-# the remainder is all variables 
-while (<STDIN>) {
-	chomp;
+$hostname = escapeHTML($hostname);
+$ipaddress = escapeHTML($ipaddress);
 
-	my ($varname,$rest) = split(/\s+/,$_,2); 
+# the remainder is all variables 
+while (my $line = <STDIN>) 
+{
+	chomp $line;
+	$line = escapeHTML($line);
+
+	my ($varname,$rest) = split(/\s+/,$line,2); 
   # the one and only variable we're specially interested in: if the trap
 	# originator doesn't match what snmptrapd reports, then we replace 
 	# the hostname with the trap originator's hostname (if we can find one)
@@ -99,6 +104,23 @@ if ( $out !~ /$trapfilter/ ) {
 		close(DATA);
 }
 
+exit 0;
+
+# escape the problematic html meta chars in the input.
+# note that this escapes FEWER chars than CGI's escapeHTML does,
+# e.g. it does NOT replace " with the quot entity.
+sub escapeHTML
+{
+	my ($input) = @_;
+
+	return $input if !defined($input);
+	$input =~ s{&}{&amp;}gso;
+	$input =~ s{<}{&lt;}gso;
+	$input =~ s{>}{&gt;}gso;
+
+	return $input;
+}
+
 #Function which returns the time
 sub returnDateStamp {
 	my $time = shift;
@@ -122,7 +144,6 @@ sub returnDateStamp {
 	return "$year-$mon-$mday$SEP$hour:$min:$sec";
 }
 
-exit;
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
@@ -131,3 +152,4 @@ exit;
 # redistribute it under certain conditions; see www.opmantek.com or email
 # contact@opmantek.com
 # *****************************************************************************
+
