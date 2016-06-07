@@ -30,16 +30,6 @@
 	    'tagline' => 'Configuration backup, archving and change detection.',
 	  },
 
-	  'opFlow' => {
-	    'order' => '4',
-	    'name' => 'opFlow',
-	    'base' => 'opmantek',
-	    'file' => '/cgi-bin/opFlow.pl',
-	    'link' => '/cgi-omk/opFlow.pl',
-	    'description' => 'The opFlow module is the Opmantek NetFlow module, which will also handle other types of Flow data.  This module will provide application level information, which is related back to the network and server infrastructure managed by NMIS.',
-	    'tagline' => 'Application visibility with NetFlow, JFlow and others.'
-	  },
-
 	  'opMaps' => {
 	    'order' => '5',
 	    'name' => 'opMaps',
@@ -48,16 +38,6 @@
 	    'link' => '/cgi-omk/opMaps.pl',
 	    'description' => 'The opMaps module, provides enhanced operational capabilities, relating real time data collected by NMIS with a geographical context.  This provides staff and management an common ground for understanding current service and business impact.',
 	    'tagline' => 'Provides enhanced operational capabilities with a geographical context.'
-	  },
-
-	  'opReports' => {
-	    'order' => '6',
-	    'name' => 'opReports',
-	    'base' => 'opmantek',
-	    'file' => '/cgi-bin/opReports.pl',
-	    'link' => '/cgi-omk/opReports.pl',
-	    'description' => 'The opReports module enhances NMIS reporting with more engineering and business related reports.  The reports cover technical aspects such as CBQoS and include Expert Reporting based on Network Engineering Experience of the Opmantek team, further enhanced by your own team.  The service and business reports provide the ability to deliver traffic light reports to managers and business representatives.',
-	    'tagline' => 'Enhanced NMIS reports with engineering and business related reports.'
 	  },
 
 	  'opReports 3.0' => {
