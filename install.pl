@@ -42,6 +42,7 @@ use DirHandle;
 use Data::Dumper;
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
+use File::Copy;
 use File::Find;
 use File::Basename;
 use Cwd;
@@ -210,7 +211,7 @@ libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
-libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl
+libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl));
@@ -218,8 +219,9 @@ libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl di
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
-net-snmp-utils net-snmp-perl perl-Net-SSLeay perl-JSON-XS httpd fping
-make groff perl-CPAN crontabs dejavu* perl-libwww-perl perl-Net-DNS
+net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
+perl-JSON-XS httpd fping make groff perl-CPAN crontabs dejavu*
+perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
@@ -582,18 +584,26 @@ if (!input_yn("OK to start installation/upgrade to $site?"))
 }
 
 ###************************************************************************###
-if ( -d $site ) {
-	printBanner("Make a backup of an existing install...");
+if ( -d $site ) 
+{
+	printBanner("Existing NMIS8 Installation detected");
 
-	if (input_yn("OK to make a backup of your current NMIS?"))
+	print "\nIt seems that you have an existing NMIS installation
+in $site. The installer can upgrade the existing installation,
+or remove it and install from scratch.\n\n";
+
+	if (input_yn("Do you want to take a backup of your current NMIS install?\n(RRD data is NOT included!)"))
 	{
 		my $backupFile = getBackupFileName();
-		execPrint("cd $site; tar czvf $backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
-		echolog("Backup of NMIS install was created in $site/$backupFile\n");
+		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+		echolog("Backup of NMIS install was created in ~/$backupFile\n");
 	}
-	else
+
+	if (!input_yn("\nDo you want to upgrade the existing installation?
+If you say No here, the existing installation will be REMOVED and OVERWRITTEN!\n")
+			&& input_yn("\nPlease confirm that you want to REMOVE the existing installation:"))
 	{
-		echolog("Continuing without backup as instructed.\n");
+		rename($site,"$site.unwanted") or die "Cannot rename $site to $site.unwanted: $!\n";
 	}
 }
 
@@ -707,84 +717,129 @@ else
 
 	if (input_yn("OK to update the config files?"))
 	{
-			# merge changes for new NMIS Config options.
-			execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
-			execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
-
-			# update default config options that have been changed:
-			execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
-
-			execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
-
-			# patch config changes that affect existing entries, which update_config_defaults
-			# doesn't handle
- 			# which includes enabling uuid
-			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
+		# merge changes for new NMIS Config options. 
+		execPrint("$site/admin/updateconfig.pl $site/install/Config.nmis $site/conf/Config.nmis");
+		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
+		
+		# update default config options that have been changed:
+		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
+		
+		execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
+		
+		# patch config changes that affect existing entries, which update_config_defaults 
+		# doesn't handle
+		# which includes enabling uuid
+		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
+		echolog("\n");
+		
+		if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+		{
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
 			echolog("\n");
+		}
+		
+		if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+		{
+			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+		}
+		
+		# move config/cache files to new locations where necessary
+		if (-f "$site/conf/WindowState.nmis")
+		{
+			printBanner("Moving old WindowState file to new location");
+			execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
+		}
+		
+		# disable the uuid plugin, which this version doesn't need
+		my $obsolete = "$site/conf/plugins/UUIDPlugin.pm";
+		if (-f $obsolete)
+		{
+			echolog("Disabling obsolete UUID Plugin");
+			rename($obsolete, "$obsolete.disabled");
+		}
+		
+		# handle the model files, automatically where possible
+		printBanner("Performing Model Upgrades");
+		
+		my @upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
+		my $ucheck = $? >> 8;
+		my @problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
+		logInstall("model upgrade check:\n".join("", @upgradables, @problematic));
 
-			if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+		# first mention the problematic models
+		if ($ucheck & 1)
+		{
+			printBanner("Non-upgradeable model files detected");
+			print "\nThe installer has detected the following model files that require
+manual updating:\n\n" .join("", @problematic) ."\nYou should check the NMIS Wiki for instructions on manual 
+model upgrades: https://community.opmantek.com/x/-wd4\n
+PLease hit <Enter> to continue:\n";
+			my $x = <STDIN>;
+		}
+		else
+		{
+			echolog("No model files in need of manual updating detected.");
+		}
+		
+		if ($ucheck & 2)
+		{
+			printBanner("Auto-upgradeable model files detected");
+			
+			print "The installer has detected that the following auto-upgradeable model files:\n\n"
+					.join("", @upgradables)."\n";
+			
+			if (input_yn("Do you want to perform this model upgrade now?"))
 			{
-				execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
-				echolog("\n");
+				execPrint("$site/admin/upgrade_models.pl -u -n Common-database $site/models-install $site/models 2>&1");
 			}
-
-			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+			else
 			{
-				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+				echolog("Not upgrading models, as directed.");
+				
+				print "\nWe recommend that you use the model upgrade tool to keep your models up 
+to date. You find this tool in $site/admin/upgrade_models.pl
+and the NMIS Wiki has extra information about it at
+https://community.opmantek.com/x/-wd4
+
+Please hit <Enter> to continue:\n";
+				my $x = <STDIN>;
 			}
+		} 
+		else
+		{
+			echolog("No upgradeable model files detected.");
+		}
+		
+		printBanner("Performing RRD Tuning");
+		print "Please be patient, this step can take a while...\n";
+		
+		# these four lots of output, so capture and log w/o display
+		
+		# that plugin normally does its own confirmation prompting, which cannot work with execPrint
+		execLog("$site/admin/install_stats_update.pl nike=true");
+		
+		# Updating the mib2ip RRD Type
+		execLog("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
+		
+		# Updating the TopChanges RRD Type
+		execLog("$site/admin/rrd_tune_topo.pl run=true change=true");
+		
+		# Updating the TopChanges RRD Type
+		execLog("$site/admin/rrd_tune_responsetime.pl run=true change=true");
 
-			# move config/cache files to new locations where necessary
-			if (-f "$site/conf/WindowState.nmis")
-			{
-				printBanner("Moving old WindowState file to new location");
-				execPrint("mv $site/conf/WindowState.nmis $site/var/nmis-windowstate.nmis");
-			}
+		execLog("$site/admin/rrd_tune_cisco.pl run=true change=true");
 
-			# disable the uuid plugin, which this version doesn't need
-			my $obsolete = "$site/conf/plugins/UUIDPlugin.pm";
-			if (-f $obsolete)
-			{
-				echolog("Disabling obsolete UUID Plugin");
-				rename($obsolete, "$obsolete.disabled");
-			}
-
-			printBanner("Performing Model Updates");
-			# that plugin normally does its own confirmation prompting, which cannot work with execPrint
-			execPrint("$site/install/install_stats_update.pl nike=true");
-
-			printBanner("Updating RRD Variables");
-			# Updating the mib2ip RRD Type
-			execPrint("$site/admin/rrd_tune_mib2ip.pl run=true change=true");
-
-			# Updating the TopChanges RRD Type
-			execPrint("$site/admin/rrd_tune_topo.pl run=true change=true");
-
-			# Updating the TopChanges RRD Type
-			execPrint("$site/admin/rrd_tune_responsetime.pl run=true change=true");
+		print "RRD Tuning complete.\n";
 	}
 	else
 	{
-			echolog("Continuing without configuration updates as directed.
-Please note that you will likely have to perform various configuration updates manually
+		echolog("Continuing without configuration updates as directed.
+Please note that you will likely have to perform various configuration updates manually 
 to ensure NMIS performs correctly.");
-			print "\n\nPlease hit <Enter> to continue: ";
-			my $x = <STDIN>;
-	}
-
-	printBanner("Comparing Models");
-
-	if (input_yn("OK to run a comparison of old and new models?"))
-	{
-		# let's not run this with execPrint as that might take quite a bit of time
-		my $res = system("$site/admin/compare_models.pl $site/models $site/models-install");
-		if ($res >> 8)
-		{
-			print "\n\nPlease hit <Enter> to continue:";
-			my $x = <STDIN>;
-		}
+		print "\n\nPlease hit <Enter> to continue: ";
+		my $x = <STDIN>;
 	}
 }
-
 
 ###************************************************************************###
 printBanner("Cache some fonts...");
@@ -995,7 +1050,41 @@ that you should use as the basis for your setup.\n\nPlease hit <Enter> to contin
 }
 
 printBanner("NMIS Cron Setup");
-print "NMIS relies on Cron to schedule its periodic execution,
+
+(-d "$site/install/cron.d") or mkdir("$site/install/cron.d", 0755) 
+		or die "cannot mkdir $site/install/cron.d/: $!\n";
+my $systemcronfile = "/etc/cron.d/nmis";
+my $newcronfile = "$site/install/cron.d/nmis";
+my $showreminder = 1;
+
+echolog("Creating default Cron schedule with nmis.pl type=crontab");
+my $res = system("$site/bin/nmis.pl type=crontab system=true >$newcronfile");
+if ($res >> 8)
+{
+	echolog("Warning: default Cron schedule generation failed!");
+}
+else
+{
+	my $cronisdifferent = 1;							# not existent yet? that's a difference for sure
+	if (-f $newcronfile && -f $systemcronfile)
+	{
+		$cronisdifferent = system("diff","-q", $systemcronfile, $newcronfile) >> 8;
+		echolog("\nExisting NMIS Cron schedule is different from default.") if ($cronisdifferent);
+	}
+	else
+	{
+		echolog("\nNo NMIS Cron schedule exists on the system.");
+	}
+
+	if (!$cronisdifferent)
+	{
+		echolog("\nExisting NMIS Cron schedule is up to date.");
+		$showreminder = 0;
+	}
+	else
+	{
+		
+		print "NMIS relies on Cron to schedule its periodic execution,
 and provides an example/default Cron schedule.
 
 The installer can install this default schedule in /etc/cron.d/nmis,
@@ -1005,68 +1094,64 @@ If you already have NMIS entries in your root crontab,
 then the installer will comment out all NMIS entries in
 that crontab.\n\n";
 
-my $crongood = (-f "/etc/cron.d/nmis");
-if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in /etc/cron.d/nmis?"))
-{
-	echolog("Creating default Cron schedule with nmis.pl type=crontab");
-	my $res = system("$site/bin/nmis.pl type=crontab system=true >/tmp/new-nmis-cron");
-
-	if (0 == $res>>8)
-	{
-		echolog("Cleaning up old per-user crontab");
-
-		my $oldcronfixedup;
-		# now clean up the old per-user cron, if there is one!
-		my $res = system("crontab -l > $site/conf/crontab.root");
-		if (0 == $res>>8)
+		if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in $systemcronfile?"))
 		{
-			echolog("Old crontab was saved in $site/conf/crontab.root");
-
-			open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
-			my @crondata = <F>;
-			close F;
-			for my $line (@crondata)
+			my $res = File::Copy::copy($newcronfile, $systemcronfile);
+			if (!$res)
 			{
-				$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
-				$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+				echolog("Error: writing to $systemcronfile failed: $!");
 			}
-			open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
-			print G @crondata;
-			close G;
-			echolog("Cleaned-up crontab was installed.");
-			$oldcronfixedup = 1;
-		}
-
-		execPrint("mv /tmp/new-nmis-cron /etc/cron.d/nmis");
-
-		print "\nA new default cron was created in /etc/cron.d/nmis,
+			else
+			{
+				$showreminder = 0;
+				print "\nA new default cron was created in /etc/cron.d/nmis, 
 but feel free to adjust it.\n\n";
-
-		if ($oldcronfixedup)
-		{
-			print "Any NMIS entries in root's existing crontab were commented out,
-and a backup of the crontab was saved in $site/cronf/crontab.root.\n\n";
+				
+				my $oldcronfixedup;
+				# now clean up the old per-user cron, if there is one!
+				echolog("Cleaning up old per-user crontab");
+				my $res = system("crontab -l > $site/conf/crontab.root");
+				if (0 == $res>>8)
+				{
+					echolog("Old crontab was saved in $site/conf/crontab.root");
+					
+					open (F, "$site/conf/crontab.root") or die "cannot read crontab.root: $!\n";
+					my @crondata = <F>;
+					close F;
+					for my $line (@crondata)
+					{
+						$line = "# NMIS8 Cron Config is now in /etc/cron.d/nmis\n" if ($line =~ /^#\s*NMIS8 Config/);
+						$line = "#disabled! ".$line if ($line =~ m!(nmis8?/bin|nmis8?/conf|nmis8?/admin)!);
+					}
+					open (G, "|crontab -") or die "cannot fork to update crontab: $!\n";
+					print G @crondata;
+					close G;
+					echolog("Cleaned-up crontab was installed.");
+					$oldcronfixedup = 1;
+				}
+			
+				if ($oldcronfixedup)
+				{
+					print "Any NMIS entries in root's existing crontab were commented out,
+and a backup of the crontab was saved in $site/conf/crontab.root.\n\n";
+				}
+			
+				print "Please hit <Enter> to continue:\n";
+				my $x = <STDIN>;
+				logInstall("New system crontab was installed in /etc/cron.d/nmis");
+			}
 		}
-
-		print "Please hit <Enter> to continue:\n";
-		my $x = <STDIN>;
-		$crongood = 1;
-		logInstall("New system crontab was installed in /etc/cron.d/nmis");
-	}
-	else
-	{
-		echolog("Default Cron schedule generation failed!");
-		$crongood = 0;
 	}
 }
 
-if (!$crongood)
+if ($showreminder)
 {
-	print "\n\nTo see what the suggested default Cron schedule is like,
-simply run \"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\", then
-view /tmp/somefile. NMIS will require some scheduling setup
-to work correctly.\n\nPlease hit <Enter> to continue:\n";
-	my $x = <STDIN>;
+	print "\n\nNMIS will require some scheduling setup to work correctly.\n
+An example default Cron schedule is available 
+in $newcronfile, and you can use 
+\"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\"
+to regenerate that default.\nPlease hit <Enter> to continue:\n";
+			my $x = <STDIN>;
 }
 
 ###************************************************************************###
@@ -1077,7 +1162,7 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
-	execPrint("$site/bin/nmis.pl type=update");
+
 }
 else
 {
@@ -1091,7 +1176,10 @@ Please hit <Enter> to continue: ";
 	my $x = <STDIN>;
 }
 
-
+if (-d "$site.unwanted" && input_yn("OK to remove temporary/backup files?"))
+{
+	system('rm','-rf',"$site.unwanted");
+}
 
 ###************************************************************************###
 printBanner("Installation Complete. NMIS Should be Ready to Poll!");
@@ -1388,6 +1476,20 @@ sub execPrint {
 	logInstall("###". ($res? " Exit Code: $res ":''). "+++\n\n");
 	return $res;
 }
+
+# like execPrint BUT output is only logged, not printed
+sub execLog {
+	my $exec = shift;
+	my $out = `$exec </dev/null 2>&1`;
+	my $rawstatus = $?;
+	my $res = WIFEXITED($rawstatus)? WEXITSTATUS($rawstatus): -1;
+
+	logInstall("\n\n###+++\nEXEC: $exec\n");
+	logInstall($out);
+	logInstall("###". ($res? " Exit Code: $res ":''). "+++\n\n");
+	return $res;
+}
+		
 
 
 # prints args to stdout, logs to install log.
