@@ -61,7 +61,7 @@ use Exporter;
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.10G";
+$VERSION = "8.5.12G";
 
 @ISA = qw(Exporter);
 
@@ -2381,7 +2381,6 @@ sub createHrButtons {
 		if ( defined $S->{mdl}{systemHealth}{sys} ) 
 		{
     	my @systemHealth = split(",",$S->{mdl}{systemHealth}{sections});
-    	
 			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
 			foreach my $sysHealth (@systemHealth) 
 			{

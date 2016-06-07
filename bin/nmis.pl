@@ -1214,6 +1214,7 @@ sub getNodeInfo {
 				$V->{system}{status_color} = '#0F0';
 				$V->{system}{sysName_value} = $NI->{system}{sysName};
 				$V->{system}{sysName_title} = 'System Name';
+
 				$V->{system}{sysObjectName_value} = $NI->{system}{sysObjectName};
 				$V->{system}{sysObjectName_title} = 'Object Name';
 				$V->{system}{nodeVendor_value} = $NI->{system}{nodeVendor};
@@ -7894,7 +7895,6 @@ sub runThrHld {
 			$element = $NI->{$type}{$index}{$elementVar};
 		}
 	}
-
 	if ( $element eq "" ) {
 		$element = $index;
 	}
