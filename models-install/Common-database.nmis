@@ -158,6 +158,7 @@
       'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
+      'NetworkInterface' => '/nodes/$node/interface/NetworkInterface-$index.rrd',
     }
   }
 );

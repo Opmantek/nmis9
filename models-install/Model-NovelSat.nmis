@@ -56,6 +56,8 @@
     'graphtype' => {
       'NovelSatSignal' => 'Satellite Signal Strength',
       'NovelSatDataRate' => 'Satellite Data Rate',
+      'NovelSatNetTraffic' => 'Network Interface Traffic',
+      'NovelSatNetStatus' => 'Network Interface Status',
     }
   },
   'system' => {
@@ -376,8 +378,38 @@
     }
   },
    'systemHealth' => {
-    'sections' => 'Sat-Demodulate',
+    'sections' => 'NetworkInterface,Sat-Demodulate',
     'sys' => {
+    	
+      'NetworkInterface' => {
+        'headers' => 'Name,Mtu,AdminStatus,',
+
+        'index_oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.2',
+        'index_regex' => '\.(\d+)$',
+        'indexed' => 'nsCommonMonitorNetworkInterfaceStatisticsMtu',
+
+        'snmp' => {
+          'Name' => {
+            'oid' => '1.3.6.1.4.1.37576.2.1.7.2.1.1.2',
+            'sysObjectName' => 'nsCommonConfigNetworkInterfacesName',
+            'title' => 'Name'
+          },
+          'AdminStatus' => {
+            'replace' => {
+              '0' => 'disable',
+              '1' => 'enable',
+             },
+            'oid' => '1.3.6.1.4.1.37576.2.1.7.2.1.1.3',
+            'sysObjectName' => 'nsCommonConfigNetworkInterfacesAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'Mtu' => {
+            'oid' => '1.3.6.1.4.1.37576.2.1.7.2.1.1.6',
+            'sysObjectName' => 'nsCommonConfigNetworkInterfacesMtu',
+            'title' => 'MTU'
+          },
+        },
+      },
       'Sat-Demodulate' => {
         'headers' => 'ChannelNeighName,ChannelNeighIP,Modulation',
 
@@ -422,8 +454,66 @@
 #         },
         },
       },
-   }, 
+    }, 
     'rrd' => {
+      'NetworkInterface' => {
+       'graphtype' => 'NovelSatNetTraffic,NovelSatNetStatus',
+        'indexed' => 'true',
+        'control' => 'CVAR=AdminStatus;$CVAR !~ /disabled/',
+        'snmp' => {
+          'RxOk' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.3',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsRxOk',
+            'option' => 'counter,0:U'
+          },
+          'RxError' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.4',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsRxError',
+            'option' => 'counter,0:U'
+          },
+          'RxDrop' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.5',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsRxDrop',
+            'option' => 'counter,0:U'
+          },
+          'RxOvr' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.6',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsRxOvr',
+            'option' => 'counter,0:U'
+          },
+          'TxOk' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.7',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsTxOk',
+            'option' => 'counter,0:U'
+          },
+          'TxError' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.8',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsTxError',
+            'option' => 'counter,0:U'
+          },
+          'TxDrop' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.9',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsTxDrop',
+            'option' => 'counter,0:U'
+          },
+          'TxOvr' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.10',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsTxOvr',
+            'option' => 'counter,0:U'
+          },
+          'RxBytes' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.11',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsRxBytes',
+            'option' => 'counter,0:U'
+          },
+          'TxBytes' => {
+            'oid' => '1.3.6.1.4.1.37576.2.2.5.2.1.12',
+            'snmpObject' => 'nsCommonMonitorNetworkInterfaceStatisticsTxBytes',
+            'option' => 'counter,0:U'
+          },
+
+        }
+      },
       'Sat-Demodulate' => {
        'graphtype' => 'NovelSatDataRate,NovelSatSignal',
         'indexed' => 'true',
