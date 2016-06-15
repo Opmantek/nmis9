@@ -158,13 +158,35 @@ sub checkNode {
 					
 					# does a model section exist?
 					if ( defined $MDL->{interface}{rrd}{$section} ) {
-						print "INFO: $node found interface/rrd/$section in the model\n" if $debug;							
+						print "INFO: $node found interface/rrd/$section in the model\n" if $debug;
 					}
 					elsif ( defined $NI->{graphtype}{$indx}{$section} and not defined $MDL->{interface}{rrd}{$section} ) {
 						print "FIXING: $node NO interface/rrd/$section found in the model for $indx\n";
 						delete $NI->{graphtype}{$indx}{$section};							
 						$changes = 1;
 					}
+
+					# do the graphs exist in the model?
+					if ( defined $NI->{graphtype}{$indx}{$section} ) {
+						my @newGraphTypes;
+						my $graphChanges = 0;
+						my @graphs = split(",",$NI->{graphtype}{$indx}{$section});
+						foreach my $graph (@graphs) {
+							if ( $MDL->{interface}{rrd}{$section}{graphtype} =~ /$graph/ ) {
+								print "  INFO: $node found $graph in interface/rrd/$section/graphtype in the model\n" if $debug;
+								push (@newGraphTypes,$graph);
+							}
+							else {
+								print "  FIXING: $node found $graph in interface/rrd/$section/graphtype in the model\n" if $debug;
+								$graphChanges = 1;
+							}
+						}
+						if ( $graphChanges ) {
+							$changes = 1;
+							$NI->{graphtype}{$indx}{$section} = join(",",@newGraphTypes);
+						}
+					}
+
 				}
 
 				foreach my $section (@cpuSections) {

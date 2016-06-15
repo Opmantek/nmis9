@@ -386,9 +386,9 @@
           'Critical' => '98',
           'Fatal' => '99',
           'Major' => '95',
-          'Minor' => '80',
-          'Normal' => '70',
-          'Warning' => '75'
+          'Minor' => '40',
+          'Warning' => '30',
+          'Normal' => '20',
         },
         'type' => 'threshold-rising',
         'unit' => '%',

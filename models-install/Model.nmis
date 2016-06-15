@@ -506,7 +506,7 @@
           'Huawei-MA5600' => 'Huawei Integrated Access Software'
         },
         '20' => {
-          'Huawei-NetEngine.nmis' => 'Huawei Versatile Routing Platform'
+          'Huawei-NetEngine' => 'Huawei Versatile Routing Platform'
         },
         '30' => {
           'HuaweiRouter' => 'AR2220|AR1220'

@@ -4898,7 +4898,7 @@ sub runAlerts {
 													$level = "Normal";
 											}
 											else {
-													my @levels = qw(Warning Minor Major Critical Fatal);
+													my @levels = qw(Fatal Critical Major Minor Warning);
 													foreach my $lvl (@levels) {
 															if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
 																	$test_result = 1;
@@ -4914,7 +4914,7 @@ sub runAlerts {
 													$level = "Normal";
 											}
 											else {
-													my @levels = qw(Fatal Critical Major Minor Warning);
+													my @levels = qw(Warning Minor Major Critical Fatal);
 													foreach my $lvl (@levels) {
 															if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
 																	$test_result = 1;
@@ -4924,7 +4924,7 @@ sub runAlerts {
 													}
 											}
 									}
-									info("alert result: test_result=$test_result level=$level",2);
+									info("alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",2);
 							}
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
