@@ -425,11 +425,11 @@ sub editTable {
 				$headerclass = "heading4";
 				$headspan = 2;
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
-										escapeHTML("$ref->{$item}{header}$mandatory")));
+										escapeHTML($ref->{$item}{header}).$mandatory));
 			}
 			else {
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
-										escapeHTML("$ref->{$item}{header}$mandatory")),
+										escapeHTML($ref->{$item}{header}).$mandatory),
 					eval { my $line;
 						if ($ref->{$item}{display} =~ /key/) {
 							push @hash,$item;

@@ -286,7 +286,7 @@ sub viewLogList {
 						th({class=>'header',style=>'text-align:center'},'Last Update')
 					);
 	
-		foreach my $i (sort  keys %{$LL} )  {
+		foreach my $i (sort { ($LL->{$a}->{logOrder}||$a) <=> ($LL->{$b}->{logOrder}||$b) } keys %{$LL} )  {
 			if ( $LL->{$i}{logFileName} ne '' and -r $LL->{$i}{logFileName} ) {
 					@filestat = stat $LL->{$i}{logFileName};
 					$logFileSize = $filestat[7] . ' bytes';

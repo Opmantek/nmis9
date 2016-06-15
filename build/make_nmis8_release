@@ -49,7 +49,7 @@ done
 
 # cleanup and distinction free/non-free code
 # do NOT ship the development plugins at all, nor the build dir
-rm -rf $TARGETDIR/install/plugins-dev $TARGETDIR/build
+rm -rf $TARGETDIR/install/plugins-dev $TARGETDIR/build $TARGETDIR/private
 
 # Move the code for licensed modules out of free code
 NONFREE=$TARGETDIR-extra
@@ -77,11 +77,16 @@ rm -rf $TARGETDIR/.git $TARGETDIR/.gitignore
 tar --exclude .git --exclude .gitignore -czvf $RELEASEDIR/nmis$VERSION.tar.gz ./$TARGETDIR
 tar --exclude .git --exclude .gitignore -czvf $RELEASEDIR/nmis$VERSION-nonfree.tar.gz ./$NONFREE
 
+# what to run? install.pl for older versions, pre-install.sh for newest
+RUNTHIS=./install.pl
+[ -f $TARGETDIR/pre-install.sh ] && RUNTHIS=./pre-install.sh
+
 # now also make the self-extracting installer file, but only for main nmis
-makeself $TARGETDIR $RELEASEDIR/nmis$VERSION.run "NMIS Version $VERSION" ./install.pl
+makeself $TARGETDIR $RELEASEDIR/nmis$VERSION.run "NMIS Version $VERSION" $RUNTHIS
 
 echo "Release $VERSION ready in $RELEASEDIR/nmis$VERSION.tar.gz and $RELEASEDIR/nmis$VERSION.run"
 echo "extra non-OSS files are in nmis$VERSION-nonfreetar.gz."
 
 cd /
+
 rm -rf $TEMPDIR
