@@ -1,0 +1,145 @@
+#
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node $length'
+	},
+	'vlabel' => {
+		'standard' => 'NovelSat Network Status',
+		'short' => 'Network Status'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:RxOk=$database:RxOk:AVERAGE',
+			'DEF:RxError=$database:RxError:AVERAGE',
+			'DEF:RxDrop=$database:RxDrop:AVERAGE',
+			'DEF:RxOvr=$database:RxOvr:AVERAGE',
+			'DEF:TxOk=$database:TxOk:AVERAGE',
+			'DEF:TxError=$database:TxError:AVERAGE',
+			'DEF:TxDrop=$database:TxDrop:AVERAGE',
+			'DEF:TxOvr=$database:TxOvr:AVERAGE',
+
+			'CDEF:RxOkS=RxOk,-1,*',
+			'CDEF:RxErrorS=RxError,-1,*',
+			'CDEF:RxDropS=RxDrop,-1,*',
+			'CDEF:RxOvrS=RxOvr,-1,*',
+
+			'AREA:RxOkS#00BFFF:RX OK\\t',
+			'GPRINT:RxOk:LAST:Current %6.1lf',
+			'GPRINT:RxOk:AVERAGE:Avg %6.1lf',
+			'GPRINT:RxOk:MAX:Max %6.1lf\\t',
+
+			'STACK:RxErrorS#aa00cc:RX ERR\\t',
+			'GPRINT:RxError:LAST:Current %6.1lf',
+			'GPRINT:RxError:AVERAGE:Avg %6.1lf',
+			'GPRINT:RxError:MAX:Max %6.1lf\\n',
+
+			'STACK:RxDropS#00cc00:RX DRP',
+			'GPRINT:RxDrop:LAST:Current %6.1lf',
+			'GPRINT:RxDrop:AVERAGE:Avg %6.1lf',
+			'GPRINT:RxDrop:MAX:Max %6.1lf\\t',
+
+			'STACK:RxOvrS#0000bb:RX OVR\\t',
+			'GPRINT:RxOvr:LAST:Current %6.1lf',
+			'GPRINT:RxOvr:AVERAGE:Avg %6.1lf',
+			'GPRINT:RxOvr:MAX:Max %6.1lf\\n',
+
+			'AREA:TxOk#00FF7F:TX OK\\t',
+			'GPRINT:TxOk:LAST:Current %6.1lf',
+			'GPRINT:TxOk:AVERAGE:Avg %6.1lf',
+			'GPRINT:TxOk:MAX:Max %6.1lf\\t',
+
+			'STACK:TxError#ff0000:TX ERR\\t',
+			'GPRINT:TxError:LAST:Current %6.1lf',
+			'GPRINT:TxError:AVERAGE:Avg %6.1lf',
+			'GPRINT:TxError:MAX:Max %6.1lf\\n',
+
+			'STACK:TxDrop#ffbb00:TX DRP',
+			'GPRINT:TxDrop:LAST:Current %6.1lf',
+			'GPRINT:TxDrop:AVERAGE:Avg %6.1lf',
+			'GPRINT:TxDrop:MAX:Max %6.1lf\\t',
+
+			'STACK:TxOvr#00bb00:TX OVR\\t',
+			'GPRINT:TxOvr:LAST:Current %6.1lf',
+			'GPRINT:TxOvr:AVERAGE:Avg %6.1lf',
+			'GPRINT:TxOvr:MAX:Max %6.1lf\\n',
+		],
+		'small' => [
+			'DEF:RxOk=$database:RxOk:AVERAGE',
+			'DEF:RxError=$database:RxError:AVERAGE',
+			'DEF:RxDrop=$database:RxDrop:AVERAGE',
+			'DEF:RxOvr=$database:RxOvr:AVERAGE',
+			'DEF:TxOk=$database:TxOk:AVERAGE',
+			'DEF:TxError=$database:TxError:AVERAGE',
+			'DEF:TxDrop=$database:TxDrop:AVERAGE',
+			'DEF:TxOvr=$database:TxOvr:AVERAGE',
+
+			'CDEF:RxOkS=RxOk,-1,*',
+			'CDEF:RxErrorS=RxError,-1,*',
+			'CDEF:RxDropS=RxDrop,-1,*',
+			'CDEF:RxOvrS=RxOvr,-1,*',
+
+			'AREA:RxOkS#00BFFF:RX OK\\t\\t',
+			'GPRINT:RxOk:LAST:Current %6.1lf\\t',
+			'GPRINT:RxOk:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:RxErrorS#aa00cc:RX ERR\\t',
+			'GPRINT:RxError:LAST:Current %6.1lf\\t',
+			'GPRINT:RxError:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:RxDropS#00cc00:RX DRP\\t',
+			'GPRINT:RxDrop:LAST:Current %6.1lf\\t',
+			'GPRINT:RxDrop:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:RxOvrS#0000bb:RX OVR\\t',
+			'GPRINT:RxOvr:LAST:Current %6.1lf\\t',
+			'GPRINT:RxOvr:AVERAGE:Avg %6.1lf\\n',
+
+			'AREA:TxOk#00FF7F:TX OK\\t\\t',
+			'GPRINT:TxOk:LAST:Current %6.1lf\\t',
+			'GPRINT:TxOk:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:TxError#ff0000:TX ERR\\t',
+			'GPRINT:TxError:LAST:Current %6.1lf\\t',
+			'GPRINT:TxError:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:TxDrop#ffbb00:TX DRP\\t',
+			'GPRINT:TxDrop:LAST:Current %6.1lf\\t',
+			'GPRINT:TxDrop:AVERAGE:Avg %6.1lf\\n',
+
+			'STACK:TxOvr#00bb00:TX OVR\\t',
+			'GPRINT:TxOvr:LAST:Current %6.1lf\\t',
+			'GPRINT:TxOvr:AVERAGE:Avg %6.1lf\\n',
+		]
+	}
+);
