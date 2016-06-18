@@ -524,7 +524,7 @@
   		'ifDescr' => 'sublayer|null|controller',
   		'Description' => '^#',
   		'noDescription' => 'true',
-  		'ifType' => 'other|softwareloopback|propVirtual|slip'
+  		'ifType' => 'other|softwareloopback|slip'
   	}
   },
   'stats' => {

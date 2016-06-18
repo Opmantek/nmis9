@@ -49,8 +49,8 @@
 			'DEF:ppxCardCpuUtilMax=$database:ppxCardCpuUtilMax:AVERAGE',
 
 			'LINE1:ppxCardTimeInt#00CED1:Interval',
-			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf%%\\n',
+			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf',
+			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf\\n',
 			
 			'LINE1:ppxCardCpuUtil#4682B4:Util',
 			'GPRINT:ppxCardCpuUtil:AVERAGE:Avg %1.2lf%%',
@@ -80,8 +80,8 @@
 			'DEF:ppxCardCpuUtilMax=$database:ppxCardCpuUtilMax:AVERAGE',
 
 			'LINE1:ppxCardTimeInt#00CED1:Interval',
-			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf%%\\n',
+			'GPRINT:ppxCardTimeInt:AVERAGE:Avg %1.2lf',
+			'GPRINT:ppxCardTimeInt:MAX:Max %1.2lf\\n',
 			
 			'LINE1:ppxCardCpuUtil#4682B4:Util',
 			'GPRINT:ppxCardCpuUtil:AVERAGE:Avg %1.2lf%%',
