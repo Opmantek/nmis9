@@ -1,0 +1,28 @@
+%hash = 
+		(
+		 # rule numbers may be fractional numbers (for easy insertion)
+		 # first matching rule terminates the policy application
+		 10 => {
+			 # filter keys: node.xyz or config.abc; node.nodeModel is the (possibly dynamic) current model
+			 # filter values: string, list of strings,
+			 # or regexp (=string with //, optional case-insensitive //i)
+			 IF => { 'node.name' => ['ASGARD','midgard'],
+							 'node.location' => '/def.*/',
+							 'config.auth_ldap_server' => '/192\./', },
+			 # sections to adjust, only systemHealth supported so far
+			 systemHealth => {
+				 'fanStatus' => 'true',	# add if not present
+				 'tempStatus' => 'false', # remove if present
+			 },
+		 },
+
+		 20 => {
+			 IF => { 'node.name' => 'wifi' },
+			 systemHealth => { 
+				 diskIOTable => 'false' # this node runs off r/o flash disk
+			 },
+		 },
+
+		 999 => {    # the fallback/defaults, without filter
+		 },
+		);

@@ -29,28 +29,21 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "1.0.1";
-
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-use Exporter;
-
-@ISA = qw(Exporter);
-@EXPORT = qw();
+our $VERSION = "1.1.0";
 
 use strict;
 use lib "../../lib";
 
-#
 use func; # common functions
 use rrdfunc; # for getFileName
 use snmp;
 
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
-#
 use Data::Dumper;
-Data::Dumper->import();
 $Data::Dumper::Indent = 1;
+use List::Util;
+use Clone;
 
 sub new {
 	my $this = shift;
@@ -59,7 +52,7 @@ sub new {
 		name => undef,		# name of node
 		mdl => undef,		# ref Model modified
 		snmp => undef, 		# ref snmp object
-		ndinfo => {},		# node info table
+		info => {},		  # node info table
 		ifinfo => {},		# interface info table
 		view => {},			# view info table
 		cfg => {},			# configuration of node
@@ -782,7 +775,7 @@ sub selectNodeModel {
 
 # load requested Model into this object
 # args: model, required
-# cache, optional - note this is end-to-end caching, NOT per contributing file!
+# cache, optional - note this is end-to-end model-level caching, NOT per contributing common file!
 # cache defaults to 0 if self->{update} is set, 1 otherwise.
 # caching is OFF if config cache_models is explicitely set to false.
 #
@@ -796,54 +789,162 @@ sub loadModel
 
 	my $C = loadConfTable();			# needed to determine the correct dir; generally cached and a/v anyway
 
+	# load the policy document (if any)
+	my $modelpol = loadTable(dir => 'conf', name => 'Model-Policy');
+	if (ref($modelpol) ne "HASH" or !keys %$modelpol)
+	{
+		dbg("WARN, ignoring invalid or empty model policy");
+	}
+	$modelpol ||= {};
+
 	# load and return a cached model structure if allowed to
 	my $wantcache = defined($args{cache})? $args{cache}: !$self->{update};
 	# global override, if explicitely set to false
 	$wantcache = 0 if (getbool($C->{cache_models},"invert"));
 
 	my $modelcachedir = $C->{'<nmis_var>'}."/nmis_system/model_cache";
+	if (!-d $modelcachedir)
+	{
+		createDir($modelcachedir);
+		setFileProt($modelcachedir);
+	}
 	my $thiscf = "$modelcachedir/$model.json";
 
-	if ($wantcache)
+	if ($wantcache && -f $thiscf)
 	{
-		if (!-d $modelcachedir)
-		{
-			createDir($modelcachedir);
-			setFileProt($modelcachedir);
-		}
-		if (-f $thiscf)
-		{
-			$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
-			dbg("INFO, model $model loaded (from cache)");
-			return (ref($self->{mdl}) eq "HASH" && keys %{$self->{mdl}})? 1 : 0;
-		}
-	}
-
-	my $ext = getExtension(dir=>'models');
-
-	$self->{mdl} = loadTable(dir=>'models',name=>$model); # caching included
-	if (!$self->{mdl})
-	{
-		$self->{error} = "ERROR ($self->{name}) reading Model file models/$model.$ext";
-		$exit = 0;
+		$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
+		dbg("INFO, model $model loaded (from cache)");
+		$exit = (ref($self->{mdl}) eq "HASH" && keys %{$self->{mdl}})? 1 : 0;
 	}
 	else
 	{
-		# continue with loading common Models
-		foreach my $class (keys %{$self->{mdl}{'-common-'}{class}}) {
-			$name = "Common-".$self->{mdl}{'-common-'}{class}{$class}{'common-model'};
-			$mdl = loadTable(dir=>'models',name=>$name);
-			if (!$mdl) {
-				$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.$ext";
-				$exit = 0;
-			} else {
-				$self->mergeHash($self->{mdl},$mdl); # add or overwrite
+		my $ext = getExtension(dir=>'models');
+		# loadtable returns live/shared/cached info, but we must not modify that shared original!
+		$self->{mdl} = Clone::clone(loadTable(dir=>'models',name=>$model));
+		if (!$self->{mdl})
+		{
+			$self->{error} = "ERROR ($self->{name}) reading Model file models/$model.$ext";
+			$exit = 0;
+		}
+		else
+		{
+			# continue with loading common Models
+			foreach my $class (keys %{$self->{mdl}{'-common-'}{class}}) 
+			{
+				$name = "Common-".$self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				$mdl = loadTable(dir=>'models',name=>$name);
+				if (!$mdl) 
+				{
+					$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.$ext";
+					$exit = 0;
+				} 
+				else 
+				{
+					# this mostly copies, so cloning not needed
+					$self->mergeHash($self->{mdl},$mdl); # add or overwrite
+				}
+			}
+			dbg("INFO, model $model loaded (from source)");
+
+			# save to cache BEFORE the policy application!
+			if (-d $modelcachedir)
+			{
+				writeHashtoFile(file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0);
 			}
 		}
-		dbg("INFO, model $model loaded (from source)");
-		if (-d $modelcachedir)
+	}
+
+	# if the loading has succeeded (cache or from source), optionally amend with rules from the policy
+	if ($exit)
+	{
+		# find the first matching policy rule
+	NEXTRULE:
+		for my $polnr (sort { $a <=> $b } keys %$modelpol)
 		{
-			writeHashtoFile(file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0);
+			my $thisrule = $modelpol->{$polnr};
+			$thisrule->{IF} ||= {};
+			my $rulematches = 1;
+
+			# all must match, order irrelevant
+			for my $proppath (keys %{$thisrule->{IF}})
+			{
+				# input can be dotted path with node.X or config.Y; nonexistent path is interpreted 
+				# as blank test string! 
+				# special: node.nodeModel is the (dynamic/actual) model in question
+				if ($proppath =~ /^(node|config)\.(\S+)$/)
+				{
+					my ($sourcename,$propname) = ($1,$2);
+					
+					my $value = ($proppath eq "node.nodeModel"? 
+											 $model : ($sourcename eq "config"? $C : $self->{info}->{system} )->{$propname});
+					$value = '' if (!defined($value));
+					
+					# choices can be: regex, or fixed string, or array of fixed strings
+					my $critvalue = $thisrule->{IF}->{$proppath};
+					
+					# list of precise matches
+					if (ref($critvalue) eq "ARRAY")
+					{
+						$rulematches = 0 if (! List::Util::any { $value eq $_ } @$critvalue);
+					}
+					# or a regex-like string
+					elsif ($critvalue =~ m!^/(.*)/(i)?$!)
+					{
+						my ($re,$options) = ($1,$2);
+						my $regex = ($options? qr{$re}i : qr{$re});
+						$rulematches = 0 if ($value !~ $regex);
+					}
+					# or a single precise match
+					else
+					{
+						$rulematches = 0 if ($value ne $critvalue);
+					}
+				}
+				else
+				{
+					db("ERROR, ignoring policy $polnr with invalid property path \"$proppath\"");
+					$rulematches = 0;
+				}
+				next NEXTRULE if (!$rulematches); # all IF clauses must match
+			}
+
+			dbg("policy rule $polnr matched",2);
+			# policy rule has matched, let's apply the settings
+			# systemHealth is the only supported setting so far
+			for my $sectionname (qw(systemHealth))
+			{
+				$thisrule->{$sectionname} ||= {};
+				my @current = split(/\s*,\s*/, 
+														(ref($self->{mdl}->{$sectionname}) eq "HASH"? 
+														 $self->{mdl}->{$sectionname}->{sections} : ""));
+				
+				for my $conceptname (keys %{$thisrule->{$sectionname}})
+				{
+					my $ispresent = List::Util::first { $conceptname eq $current[$_] } (0..$#current);
+																																			 
+					if (getbool($thisrule->{$sectionname}->{$conceptname}))
+					{
+						dbg("adding $conceptname to $sectionname",2);
+						push @current, $conceptname if (!defined $ispresent);
+					}
+					else
+					{
+						dbg("removing $conceptname from $sectionname",2);
+						splice(@current,$ispresent,1) if (defined $ispresent);
+					}
+				}
+				# save the new value if there is one; blank the whole systemhealth section
+				# if there is no new value but there was a systemhealth section before; sections = undef is NOT enough.
+				if (@current)
+				{
+					$self->{mdl}->{$sectionname}->{sections} = join(",", @current);
+				}
+				elsif (ref($self->{mdl}->{$sectionname}) eq "HASH")
+				{
+					delete $self->{mdl}->{$sectionname};
+				}
+			}
+			last NEXTRULE;						# the first match terminates
 		}
 	}
 	return $exit;
