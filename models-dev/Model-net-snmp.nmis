@@ -566,6 +566,11 @@ at least on linux 100% used is common with lots of buffers/cache',
             'oid' => 'ifAlias',
             'title' => 'Description'
           },
+          'Hardware' => {
+            'oid' => 'ifDescr',
+            'title' => 'Hardware',
+          },
+
           'ifAdminStatus' => {
             'oid' => 'ifAdminStatus',
             'replace' => {
@@ -580,7 +585,7 @@ at least on linux 100% used is common with lots of buffers/cache',
             'title' => 'Admin Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
+            'oid' => 'ifName',
             'title' => 'Name'
           },
           'ifPhysAddress' => {

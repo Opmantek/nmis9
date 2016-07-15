@@ -510,7 +510,7 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
+            'oid' => 'ifName',
             'title' => 'Name'
           },
           'ifSpeed' => {
@@ -538,6 +538,11 @@
             'oid' => 'ifAlias',
             'title' => 'Description'
           },
+          'Hardware' => {
+            'oid' => 'ifDescr',
+            'title' => 'Hardware',
+          },
+
           'ifType' => {
             'oid' => 'ifType',
             'title' => 'Type'
