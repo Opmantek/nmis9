@@ -290,15 +290,21 @@
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
-              '5' => 'dormant'
+              '5' => 'dormant',
             },
             'oid' => 'ifOperStatus',
-            'title' => 'Oper Status'
+            'title' => 'Oper Status',
           },
-          'ifDescr' => {
-            'oid' => 'ifDescr',
-            'title' => 'Name'
+					'ifDescr' => {
+						'oid' => 'ifName',
+            'title' => 'Name',
+					},
+					
+					'Hardware' => {
+						'oid' => 'ifDescr',
+            'title' => 'Hardware',
           },
+
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
