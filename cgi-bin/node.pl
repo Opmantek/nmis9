@@ -35,6 +35,7 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
+use List::Util;
 use NMIS;
 use func;
 use Sys;
@@ -626,11 +627,6 @@ sub typeExport {
 
 	my $NT = loadLocalNodeTable();
 
-	my $f = 1;
-	my @line;
-	my $row;
-	my $content;
-
 	my %interfaceTable;
 	my $database;
 	my $extName;
@@ -666,30 +662,19 @@ sub typeExport {
 	print "Content-type: text/csv;\n";
 	print "Content-Disposition: attachment; filename=$filename.csv\n\n";
 
-	foreach my $m (sort keys %{$statval}) {
-		if ($f) {
-			$f = 0;
-			foreach my $h (@$head) {
-				push(@line,$h);
-				#print STDERR "@line\n";
+	# print header line first - expectation is that w/o ds list/header there's also no data.
+	if (ref($head) eq "ARRAY" && @$head)
+	{
+		print join("\t", @$head)."\n";
+
+		# print any row that has at least one reading with known ds/header name
+		foreach my $rtime (sort keys %{$statval})
+		{
+			if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
+			{
+				print join("\t", map { $statval->{$rtime}->{$_} } (@$head))."\n";
 			}
-			#print STDERR "@line\n";
-			$row = join("\t",@line);
-			print "$row\n";
-			@line = ();
 		}
-		$content = 0;
-		foreach my $h (@$head) {
-			if ( defined $statval->{$m}{$h}) {
-				$content = 1;
-			}
-			push(@line,$statval->{$m}{$h});
-		}
-		if ( $content ) {
-			$row = join("\t",@line);
-			print "$row\n";
-		}
-		@line = ();
 	}
 }
 
