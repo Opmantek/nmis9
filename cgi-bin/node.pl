@@ -663,7 +663,7 @@ sub typeExport {
 	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
 	my $filename = "$Q->{node}"."-"."$Q->{graphtype}";
 	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$Q->{graphtype}" }
-	print "Content-type: text/plain;\n";
+	print "Content-type: text/csv;\n";
 	print "Content-Disposition: attachment; filename=$filename.csv\n\n";
 
 	foreach my $m (sort keys %{$statval}) {
