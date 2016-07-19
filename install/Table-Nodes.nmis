@@ -95,6 +95,7 @@ my $uuid = getUUID();
     { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["0"] }},
 		{ port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
 		{ username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
+		{ context => { header => 'SNMP Context',display => 'text',value => [""] }},
 		{ authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
 		{ authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
 		{ authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
