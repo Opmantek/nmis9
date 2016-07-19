@@ -586,7 +586,8 @@ at least on linux 100% used is common with lots of buffers/cache',
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name'
+            'title' => 'Name',
+						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
           },
           'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',

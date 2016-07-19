@@ -511,7 +511,8 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name'
+            'title' => 'Name',
+						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
