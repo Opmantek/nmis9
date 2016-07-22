@@ -29,7 +29,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 use lib "../../lib";
@@ -61,7 +61,8 @@ sub new {
 		error => "",
 		alerts => [],
 		logging => 1,
-		debug => 0
+		debug => 0,
+		cache_models => 1,					# json caching for model files default on
 	};
 
 	bless $self, $class;
@@ -70,9 +71,12 @@ sub new {
 
 # initialise the system object for a given node
 # node config is loaded only if snmp is true
-# args: node (required, or name), snmp (defaults to 1), update (defaults to 0)
-# update means ignore model loading errors
-sub init {
+# args: node (required, or name), snmp (defaults to 1), update (defaults to 0),
+# cache_models (see code comments for defaults)
+#
+# update means ignore model loading errors, also disables cache_models
+sub init
+{
 	my $self = shift;
 	my %args = @_;
 	$self->{name} = $args{name};
@@ -81,6 +85,22 @@ sub init {
 	$self->{update} = getbool($args{update});
 	my $snmp = $args{snmp} || 1;
 	$snmp = getbool($snmp); # flag for init snmp object
+
+	my $C = loadConfTable();			# needed to determine the correct dir; generally cached and a/v anyway
+
+	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
+	# caching can be chosen with argument cache_models here.
+	# caching defaults to on if not an update op.
+	# caching is always OFF if config cache_models is explicitely set to false.
+	if (defined($args{cache_models}))
+	{
+		$self->{cache_models} = getbool($args{cache_models});
+	}
+	else
+	{
+		$self->{cache_models} = !$self->{update};
+	}
+	$self->{cache_models} = 0 if (getbool($C->{cache_models},"invert"));
 
 	my $exit = 1;
 	my $cfg;
@@ -775,9 +795,6 @@ sub selectNodeModel {
 
 # load requested Model into this object
 # args: model, required
-# cache, optional - note this is end-to-end model-level caching, NOT per contributing common file!
-# cache defaults to 0 if self->{update} is set, 1 otherwise.
-# caching is OFF if config cache_models is explicitely set to false.
 #
 # returns: 1 if ok, 0 if not
 sub loadModel
@@ -797,11 +814,6 @@ sub loadModel
 	}
 	$modelpol ||= {};
 
-	# load and return a cached model structure if allowed to
-	my $wantcache = defined($args{cache})? $args{cache}: !$self->{update};
-	# global override, if explicitely set to false
-	$wantcache = 0 if (getbool($C->{cache_models},"invert"));
-
 	my $modelcachedir = $C->{'<nmis_var>'}."/nmis_system/model_cache";
 	if (!-d $modelcachedir)
 	{
@@ -810,7 +822,7 @@ sub loadModel
 	}
 	my $thiscf = "$modelcachedir/$model.json";
 
-	if ($wantcache && -f $thiscf)
+	if ($self->{cache_models} && -f $thiscf)
 	{
 		$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
 		dbg("INFO, model $model loaded (from cache)");
@@ -829,16 +841,16 @@ sub loadModel
 		else
 		{
 			# continue with loading common Models
-			foreach my $class (keys %{$self->{mdl}{'-common-'}{class}}) 
+			foreach my $class (keys %{$self->{mdl}{'-common-'}{class}})
 			{
 				$name = "Common-".$self->{mdl}{'-common-'}{class}{$class}{'common-model'};
 				$mdl = loadTable(dir=>'models',name=>$name);
-				if (!$mdl) 
+				if (!$mdl)
 				{
 					$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.$ext";
 					$exit = 0;
-				} 
-				else 
+				}
+				else
 				{
 					# this mostly copies, so cloning not needed
 					$self->mergeHash($self->{mdl},$mdl); # add or overwrite
@@ -846,8 +858,8 @@ sub loadModel
 			}
 			dbg("INFO, model $model loaded (from source)");
 
-			# save to cache BEFORE the policy application!
-			if (-d $modelcachedir)
+			# save to cache BEFORE the policy application, if caching is on OR if in update operation
+			if (-d $modelcachedir && ($self->{cache_models} || $self->{update}))
 			{
 				writeHashtoFile(file => $thiscf, data => $self->{mdl}, json => 1, pretty => 0);
 			}
@@ -868,20 +880,20 @@ sub loadModel
 			# all must match, order irrelevant
 			for my $proppath (keys %{$thisrule->{IF}})
 			{
-				# input can be dotted path with node.X or config.Y; nonexistent path is interpreted 
-				# as blank test string! 
+				# input can be dotted path with node.X or config.Y; nonexistent path is interpreted
+				# as blank test string!
 				# special: node.nodeModel is the (dynamic/actual) model in question
 				if ($proppath =~ /^(node|config)\.(\S+)$/)
 				{
 					my ($sourcename,$propname) = ($1,$2);
-					
-					my $value = ($proppath eq "node.nodeModel"? 
+
+					my $value = ($proppath eq "node.nodeModel"?
 											 $model : ($sourcename eq "config"? $C : $self->{info}->{system} )->{$propname});
 					$value = '' if (!defined($value));
-					
+
 					# choices can be: regex, or fixed string, or array of fixed strings
 					my $critvalue = $thisrule->{IF}->{$proppath};
-					
+
 					# list of precise matches
 					if (ref($critvalue) eq "ARRAY")
 					{
@@ -914,14 +926,14 @@ sub loadModel
 			for my $sectionname (qw(systemHealth))
 			{
 				$thisrule->{$sectionname} ||= {};
-				my @current = split(/\s*,\s*/, 
-														(ref($self->{mdl}->{$sectionname}) eq "HASH"? 
+				my @current = split(/\s*,\s*/,
+														(ref($self->{mdl}->{$sectionname}) eq "HASH"?
 														 $self->{mdl}->{$sectionname}->{sections} : ""));
-				
+
 				for my $conceptname (keys %{$thisrule->{$sectionname}})
 				{
 					my $ispresent = List::Util::first { $conceptname eq $current[$_] } (0..$#current);
-																																			 
+
 					if (getbool($thisrule->{$sectionname}->{$conceptname}))
 					{
 						dbg("adding $conceptname to $sectionname",2);

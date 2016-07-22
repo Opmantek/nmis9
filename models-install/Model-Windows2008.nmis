@@ -362,7 +362,7 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
+            'oid' => 'ifName',
             'title' => 'Name'
           },
 					'ifPhysAddress' => {
@@ -391,6 +391,11 @@
             'oid' => 'ifAlias',
             'title' => 'Description'
           },
+          'Hardware' => {
+            'oid' => 'ifDescr',
+            'title' => 'Hardware'
+          },
+
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'

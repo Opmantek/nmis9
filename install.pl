@@ -48,27 +48,40 @@ use File::Basename;
 use Cwd;
 use POSIX qw(:sys_wait_h);
 use version 0.77;
+use Getopt::Std;
+
+my $me = basename($0);
+
+my $defsite = "/usr/local/nmis8";
+my $usage = qq!
+NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+
+Usage: $me [-hydl] [-t /some/path|site=/some/path] [listdeps=0/1]
+
+-h:  show this help screen
+-d:  produce extra debug output and logs
+-l:  No installation, only show (missing) dependencies
+-t:  Installation target, default is $defsite
+-y:  non-interactive  mode, all questions are pre-answered
+     with the default choice\n\n!;
 
 # relax an overly strict umask but for the duration of the installation only
 # otherwise dirs and files that are created end up inaccessible for the nmis user...
 umask(0022);
 
-
 my $nmisModules;			# local modules used in our scripts
 
-if ( $ARGV[0] =~ /\-\?|\-h|--help/ ) {
-	printHelp();
-	exit 0;
-}
+die $usage if ( $ARGV[0] =~ /^-{\?|h|-help$/i );
+# let's prefer std -X flags, fall back to word=value style
+my (%options, %oldstyle);
+die $usage if (!getopts("yldt:", \%options));
+%oldstyle = getArguements(@ARGV) if (@ARGV);
 
-# Get some command line arguements.
-my %arg = getArguements(@ARGV);
-
-my $site = $arg{site} ? $arg{site} : "/usr/local/nmis8";
-my $listdeps = $arg{listdeps} =~ /1|true|yes/i;
-
-my $debug = $arg{debug}? 1 : 0;
-my %options;										# for future unattended mode
+my $site = $options{t} || $oldstyle{site} || $defsite;
+my $listdeps = $options{l} || ($oldstyle{listdeps} =~ /^(1|true|yes)$/i);
+my $debug = $options{d} || $oldstyle{debug};
+my $noninteractive = $options{y};
 
 die "This installer must be run with root privileges, terminating now!\n"
 		if ($> != 0);
@@ -87,7 +100,7 @@ else
 
 
 ###************************************************************************###
-printBanner("NMIS Installation Script");
+printBanner("NMIS Installer");
 my $hostname = `hostname -f`; chomp $hostname;
 
 # figure out where we install from; current dir, check the dirname of this command's invocation, or give up
@@ -144,10 +157,8 @@ and won't be able to make certain installation adjustments!
 We recommend that you check the NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n\n");
-	print "Hit <Enter> to continue:\n";
-	my $x = <STDIN>;
+	&input_ok;
 }
-
 
 
 logInstall("Installation source is $src");
@@ -188,8 +199,8 @@ SELinux needs extensive configuration to work properly.\n
 In its default configuration it is known to interfere with NMIS,
 and we do therefore recommend that you disable SELinux for NMIS.
 
-See \"man 8 selinux\" for details.\n\nHit <Enter> to continue:\n";
-			my $x = <STDIN>;
+See \"man 8 selinux\" for details.\n";
+			&input_ok;
 		}
 	}
 	else
@@ -266,9 +277,7 @@ We recommend that you check our Wiki article on working around
 package installation without Internet access in that case:
 
 https://community.opmantek.com/x/boSG\n\n";
-
-		print "Hit <Enter> to continue:\n";
-		my $x = <STDIN>;
+		&input_ok;
 	}
 
 	if ($osflavour eq "debian" or $osflavour eq "ubuntu")
@@ -437,8 +446,8 @@ your system does not have web access and thus cannot
 download anything from that repository.
 
 You will have to install $missing manually (downloadable
-from $repourl).\n\nHit <Enter> to continue:\n";
-							my $x = <STDIN>;
+from $repourl).\n";
+							&input_ok;
 							next;
 						}
 						else
@@ -475,8 +484,7 @@ dependencies manually before NMIS can operate properly.\n\n";
 							if ($unresolved{$missing}->{repourl});
 				}
 
-				print "Hit <Enter> to continue:\n";
-				my $x = <STDIN>;
+				&input_ok;
 			}
 		}
 	}
@@ -484,7 +492,7 @@ dependencies manually before NMIS can operate properly.\n\n";
 
 printBanner("Checking Perl Module Dependencies...");
 
-my ($isok,@missingones) = &checkCpan;
+my ($isok,@missingones) = &check_installed_modules;
 if (!$isok)
 {
 	print "The installer can use CPAN to install the missing Perl packages
@@ -505,6 +513,28 @@ and then restart the installer.\n\n";
 	else
 	{
 		echolog("Installing modules with CPAN");
+
+		# prime cpan if necessary: non-interactive, follow prereqs,
+		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
+		{
+			echolog("Performing initial CPAN configuration\nPlease be patient, this can take a bit...");
+			if ($noninteractive)
+			{
+				# no inputs, all defaults
+				execPrint('cpan');
+
+				# adjust options unsuitable for noninteractive work
+				open(F,"|cpan") or die "cannot fork cpan: $!\n";
+				print F "o conf prerequisites_policy follow\no conf commit\n";
+				close F;
+			}
+			else
+			{
+				system("cpan");
+			}
+			echolog("CPAN configuration complete, proceeding with module installation");
+		}
+
 		system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
 	}
 }
@@ -564,8 +594,7 @@ for further info.\n\n";
 		else
 		{
 			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install rrdtool and RRDs!\n\n");
-			print "Please hit <Enter> to continue:\n";
-			my $x = <STDIN>;
+			&input_ok;
 		}
 	}
 }
@@ -628,7 +657,7 @@ print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
 
 # ...and kill any currently running fpingd
-execPrint("$site/bin/fpingd.pl kill=true");
+execPrint("$site/bin/fpingd.pl kill=true") if (-x "$site/bin/fpingd.pl");
 
 printBanner("Copying NMIS files...");
 echolog("Copying source files from $src to $site...\n");
@@ -772,9 +801,8 @@ else
 			printBanner("Non-upgradeable model files detected");
 			print "\nThe installer has detected the following model files that require
 manual updating:\n\n" .join("", @problematic) ."\nYou should check the NMIS Wiki for instructions on manual
-model upgrades: https://community.opmantek.com/x/-wd4\n
-PLease hit <Enter> to continue:\n";
-			my $x = <STDIN>;
+model upgrades: https://community.opmantek.com/x/-wd4\n";
+			&input_ok;
 		}
 		else
 		{
@@ -799,10 +827,8 @@ PLease hit <Enter> to continue:\n";
 				print "\nWe recommend that you use the model upgrade tool to keep your models up
 to date. You find this tool in $site/admin/upgrade_models.pl
 and the NMIS Wiki has extra information about it at
-https://community.opmantek.com/x/-wd4
-
-Please hit <Enter> to continue:\n";
-				my $x = <STDIN>;
+https://community.opmantek.com/x/-wd4\n";
+				&input_ok;
 			}
 		}
 		else
@@ -836,8 +862,7 @@ Please hit <Enter> to continue:\n";
 		echolog("Continuing without configuration updates as directed.
 Please note that you will likely have to perform various configuration updates manually
 to ensure NMIS performs correctly.");
-		print "\n\nPlease hit <Enter> to continue: ";
-		my $x = <STDIN>;
+		&input_ok;
 	}
 }
 
@@ -875,8 +900,8 @@ in your current Common-database configuration file.\n\n");
 The RRD migration script could not complete its test run successfully.
 The RRD migration will therefore NOT be performed.
 
-Please check the installation log and diagnostic output for details.\nHit <Enter> to continue:\n");
-				my $x = <STDIN>;
+Please check the installation log and diagnostic output for details.\n");
+				&input_ok;
 			}
 			else
 			{
@@ -886,8 +911,8 @@ Please check the installation log and diagnostic output for details.\nHit <Enter
 				if ($error)
 				{
 					echolog("Error: RRD migration failed! Please use the rollback script
-listed above to revert to the original status!\nHit <Enter> to continue:\n");
-					my $x = <STDIN>;
+listed above to revert to the original status!\n");
+					&input_ok;
 				}
 				else
 				{
@@ -904,8 +929,7 @@ simulation mode where it only shows what it WOULD do without making any
 changes.
 
 It is highly recommended that you perform the RRD migration.");
-			print "Please hit <Enter> to continue:\n";
-			my $x = <STDIN>;
+			&input_ok;
 		}
 	}
 	else
@@ -956,10 +980,8 @@ web server manually.
 Please use the output of 'nmis.pl type=apache' and check the
 NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
-for further info.
-
-Please hit <Enter> to continue:\n";
-		my $x = <STDIN>;
+for further info.\n";
+		&input_ok;
 	}
 	else
 	{
@@ -977,7 +999,7 @@ Please hit <Enter> to continue:\n";
 		{
 			execPrint("mv /tmp/$apacheconf $finaltarget");
 			execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
-					if (-d "/etc/apache2/sites-enabled");
+					if (-d "/etc/apache2/sites-enabled" && !-l "/etc/apache2/sites-enabled/$apacheconf");
 
 			# meh. rh/centos doesn't have a2enmod
 			if ($istwofour && $osflavour ne "redhat")
@@ -1005,10 +1027,8 @@ web server manually.
 Please use the output of 'nmis.pl type=apache' (or type=apache24) and
 check the NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
-for further info.
-
-Please hit <Enter> to continue:\n";
-			my $x = <STDIN>;
+for further info.\n";
+			&input_ok;
 		}
 	}
 }
@@ -1046,8 +1066,8 @@ else
 The installer could not determine the version of your \"logrotate\" tool,
 and you will have to configure log rotation manually. There are two default
 log rotation configuration files in $site/install
-that you should use as the basis for your setup.\n\nPlease hit <Enter> to continue:\n";
-	my $x = <STDIN>;
+that you should use as the basis for your setup.\n";
+	&input_ok;
 }
 
 printBanner("NMIS Cron Setup");
@@ -1137,8 +1157,7 @@ but feel free to adjust it.\n\n";
 and a backup of the crontab was saved in $site/conf/crontab.root.\n\n";
 				}
 
-				print "Please hit <Enter> to continue:\n";
-				my $x = <STDIN>;
+				&input_ok;
 				logInstall("New system crontab was installed in /etc/cron.d/nmis");
 			}
 		}
@@ -1151,8 +1170,8 @@ if ($showreminder)
 An example default Cron schedule is available
 in $newcronfile, and you can use
 \"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\"
-to regenerate that default.\nPlease hit <Enter> to continue:\n";
-			my $x = <STDIN>;
+to regenerate that default.\n";
+	&input_ok;
 }
 
 ###************************************************************************###
@@ -1169,12 +1188,10 @@ else
 {
 	print "Ok, continuing without the update run as directed.\n\n
 It's highly recommended to run nmis.pl type=update once initially
-and after every NMIS upgrade - you should do this manually.\n
-Please hit <Enter> to continue: ";
+and after every NMIS upgrade - you should do this manually.\n";
+	&input_ok;
 
 	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
-
-	my $x = <STDIN>;
 }
 
 if (-d "$site.unwanted" && input_yn("OK to remove temporary/backup files?"))
@@ -1238,7 +1255,8 @@ sub parsefile {
 
 
 # returns (1) if no critical modules missing, (0,critical modules) otherwise
-sub checkCpan {
+sub check_installed_modules
+{
 	printBanner("Checking for required Perl modules");
 	print <<EOF;
 This will check for installed Perl modules, first by parsing the
@@ -1377,8 +1395,8 @@ sub input_yn
 {
 	my ($query) = @_;
 
-	print "$query";
-	if ($options{y})
+	print $query;
+	if ($noninteractive)
 	{
 		print " (auto-default YES)\n\n";
 		return 1;
@@ -1394,6 +1412,13 @@ sub input_yn
 	}
 }
 
+# prints prompt, waits for confirmation
+sub input_ok
+{
+	print "\nHit <Enter> to continue:\n";
+	my $x = <STDIN> if (!$noninteractive);
+}
+
 # question, default answer, whether we want confirmation or not
 # returns string in question
 sub input_str
@@ -1401,7 +1426,7 @@ sub input_str
 	my ($query, $default, $wantconfirmation) = @_;
 
 	print "$query [default: $default]: ";
-	if ($options{y})
+	if ($noninteractive)
 	{
 		print " (auto-default)\n\n";
 		return $default;
@@ -1491,8 +1516,6 @@ sub execLog {
 	return $res;
 }
 
-
-
 # prints args to stdout, logs to install log.
 # args should not have a trailing newline.
 sub echolog {
@@ -1510,33 +1533,22 @@ sub logInstall {
 	}
 }
 
-sub printHelp {
-	print qq/
-NMIS Install Script
-
-NMIS Copyright (C) Opmantek Limited (www.opmantek.com)
-This program comes with ABSOLUTELY NO WARRANTY;
-
-usage: $0 [site=$site] [listdeps=(true|false)]
-
-Options:
-  listdeps Only show (missing) dependencies, do not install NMIS
-  site	Target site for installation, default is $site
-
-eg: $0 site=$site cpan=true
-
-/;
-}
-
-sub getArguements {
+sub getArguements
+{
 	my @argue = @_;
-	my (%nvp, $name, $value, $line, $i);
-	for ($i=0; $i <= $#argue; ++$i) {
-	        if ($argue[$i] =~ /.+=/) {
-	                ($name,$value) = split("=",$argue[$i]);
-	                $nvp{$name} = $value;
-	        }
-	        else { print "Invalid command argument: $argue[$i]\n"; }
+	my %nvp;
+
+	for my $maybe (@argue)
+	{
+		if ($maybe =~ /^.+=/)
+		{
+			my ($name,$value) = split("=",$maybe,2);
+			$nvp{$name} = $value;
+		}
+		else
+		{
+			print "Invalid command argument: $maybe\n";
+		}
 	}
 	return %nvp;
 }
