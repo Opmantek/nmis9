@@ -84,7 +84,6 @@ my $uuid = getUUID();
 		{ cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"] }},
 		{ calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
 		{ threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
-		{ rancid => { header => 'Rancid', display => 'popup',value => ["false", "true"] }},
 		{ webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
 		{ depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
 		{ services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},

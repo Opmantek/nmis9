@@ -15,7 +15,6 @@
     'active' => 'true',
     'port' => '161',
     'host' => '127.0.0.1',
-    'rancid' => 'true',
     'netType' => 'lan',
     'ping' => 'true'
   }
