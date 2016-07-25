@@ -48,7 +48,7 @@ EO_TEXT
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 ERROR: $0 needs to know the NMIS config file to update
-usage: $0 <CONFIG_1>
+usage: $0 <path to CONFIG>
 eg: $0 $confFile
 
 EO_TEXT
@@ -72,6 +72,8 @@ else {
 }
 
 backupFile(file => $ARGV[0], backup => "$ARGV[0].backup");
+
+$conf->{"system"}->{"nmis_executable"} = '(/(bin|admin)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
 
 $conf->{'authentication'}{'auth_user_name_regex'} = "[\\w \\-\\.\\@\\`\\']+";
 

@@ -49,6 +49,9 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'software' => {
+        'common-model' => 'software'
       }
     }
   },
@@ -422,7 +425,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable',
+    'sections' => 'diskIOTable,software',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        

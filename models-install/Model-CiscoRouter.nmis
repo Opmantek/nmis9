@@ -635,7 +635,7 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other|notPresent',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi',
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access|atm sub|nvi|unrouted VLAN',
       'noDescription' => 'false',
       'Description' => '^#',
       'ifType' => 'voiceEncap|voiceFXO|voiceFXS|voiceOverIp|propPointToPointSerial|lapd|ds0|ds1|other|softwareloopback|isdn|atmSub|adsl|^atm'
