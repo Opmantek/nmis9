@@ -741,6 +741,10 @@ else
 	}
 	execPrint("cp -fa $site/install/Tables.nmis $site/install/Table-*.nmis $site/conf/");
 
+	printBanner("Removing outdated/moved config files");
+	# script moved to admin
+	execPrint("rm -f $site/conf/update_config_defaults.pl $site/install/update_config_defaults.pl");
+
 	###************************************************************************###
 	printBanner("Updating the config files with any new options...");
 
@@ -751,7 +755,7 @@ else
 		execPrint("$site/admin/updateconfig.pl $site/install/Access.nmis $site/conf/Access.nmis");
 
 		# update default config options that have been changed:
-		execPrint("$site/install/update_config_defaults.pl $site/conf/Config.nmis");
+		execPrint("$site/admin/update_config_defaults.pl $site/conf/Config.nmis");
 
 		execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
 
