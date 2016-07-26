@@ -57,7 +57,7 @@ for i in admin install bin lib lib/NMIS cgi-bin; do
 		mkdir -p $NONFREE/$i
 done
 
-mv $TARGETDIR/install-opHA.pl $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
+mv $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
 mv $TARGETDIR/install/Access.opha.nmis $TARGETDIR/install/Tables.opha.nmis $TARGETDIR/install/Servers.nmis \
 	 $TARGETDIR/install/Tenants.nmis $TARGETDIR/install/Groups.nmis $TARGETDIR/install/Table-Nodes.opha.nmis \
 	 $TARGETDIR/install/Table-Servers.nmis $TARGETDIR/install/Table-Tenants.nmis \

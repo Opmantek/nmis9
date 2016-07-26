@@ -1432,16 +1432,14 @@ sub getHelp {
 		'healthgraph' =>	'Format: comma separated list<br>'.
 								'List of graph(type)s which are active in Node health page.<br>'.
 								'There must be a description file exist in model/Graph-\'graphtype\'.$ext for every grpah.',
-		'nodeType' =>		'Format: string<br>'.
-								'Type of node: router, switch, server, firewall, generic.',
+		'nodeType' =>		'Type of node.',
 		'rrdopt' =>			'RRD option rule.<br>'.
 								'Name \$database may be used for rrd file specification',
 		'threshold' =>		'Format: comma separated list of names<br>'.
 								'Optional. Threshold names must be declared in the rrdopt rules of the section stats.',
 		'level' =>			'Format: Fatal, Critical, Major, Minor, Warning or Normal<br>'.
 								'Value of level',
-		'role' =>			'Format: core, access or distribution<br>'.
-								'Name of role.',
+		'role' =>			'Name of role.',
 		'logging' =>		'Format: true or false<br>'.
 								'Logging of an event',
 		'event' =>			'Format: string<br>'.
@@ -1467,8 +1465,7 @@ sub getHelp {
 								'Name of parameter in summary file.',
 		'stsname' =>		'Format: string<br>'.
 								'Name of parameter (...:stsname=...) in rrd rules in section stats.',
-		'nodetype' =>		'Format: router | switch | server | firewall | generic<br>'.
-								'Type of node.',
+		'nodetype' =>		'Type of node.',
 		'calculate' =>		'Format: string<br>'.
 								'Optional. Calculate string<br>'.
 								'${r} contains input value',

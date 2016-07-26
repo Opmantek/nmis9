@@ -1291,6 +1291,14 @@ sub getNodeInfo {
 		$NI->{system}{sysContact} = $NI->{system}{sysContact};
 	}
 
+	if ($override->{nodeType})
+	{
+		$NI->{system}->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
+	}
+	else
+	{
+		delete $NI->{nodeconf}->{nodeType};
+	}
 	#####################
 
 	# process status
@@ -2742,6 +2750,15 @@ sub updateNodeInfo {
 			info("Manual update of sysContact by nodeConf");
 		}
 
+		if ($override->{nodeType})
+		{
+			$NI->{system}->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
+		}
+		else
+		{
+			delete $NI->{nodeconf}->{nodeType};
+		}
+
 		# ok we are running snmp
 		checkEvent(sys=>$S,event=>'SNMP Down',level=>"Normal",element=>'',details=>"SNMP error");
 
@@ -3151,8 +3168,7 @@ sub getIntfData {
 													and $override->{$ifDescr}->{ifDescr});
 
 
-									if ($NI->{system}{nodeType} =~ /router|switch/
-											and !$have_overridden_ifdescr
+									if (!$have_overridden_ifdescr
 											and $D->{ifDescr}{value} ne ''
 											and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
 										# Reload the interface config won't get that one right but should get the next one right
@@ -3868,6 +3884,7 @@ sub getPVC {
 	my $PVC = $S->pvcinfo;
 
 	# quick exit if not a device supporting frame type interfaces !
+	# fixme: should be extended to support all node types
 	if ( $NI->{nodeType} ne "router" ) { return; }
 
 	my %pvcTable;
@@ -4008,6 +4025,7 @@ sub runServer {
 	my %ValMeM;
 	my $hrCpuLoad;
 
+	# fixme: should be extended to work on all node types!
 	if ($NI->{system}{nodeType} ne 'server') { return;}
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
@@ -4210,6 +4228,7 @@ sub runServices {
 	my $nodeCheckSnmpServices = 0;
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
 	if ($snmp_allowed
+			# fixme: needs to be extended to work with all node types!
 			and $NI->{system}{nodeType} eq 'server'
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
@@ -4391,6 +4410,7 @@ sub runServices {
 		}
 		# now the snmp services - but only if snmp is on
 		elsif ( $ST->{$service}{Service_Type} eq "service"
+						# fixme: needs to be extended to work for all node types
 						and $NI->{system}{nodeType} eq 'server'
 						and getbool($NT->{$node}{collect}))
 		{
@@ -6948,16 +6968,22 @@ sub runLinks {
 			$links->{$subnet}{ifType} = $subnets{$subnet}{ifType};
 
 			# define direction based on wan-lan and core-distribution-access
-			my $n1 = $subnets{$subnet}{net1};
-			$n1 = $n1 eq 'wan' ? 1 : $n1 eq 'lan' ? 2 : 3;
-			my $n2 = $subnets{$subnet}{net2};
-			$n2 = $n2 eq 'wan' ? 1 : $n2 eq 'lan' ? 2 : 3;
-			my $r1 = $subnets{$subnet}{role1};
-			$r1 = $r1 eq 'core' ? 1 : $r1 eq 'distribution' ? 2 : $r1 eq 'access' ? 3 :  4;
-			my $r2 = $subnets{$subnet}{role2};
-			$r2 = $r2 eq 'core' ? 1 : $r2 eq 'distribution' ? 2 : $r2 eq 'access' ? 3 :  4;
-			my $k = 1;
-			if (($n1 == $n2 and $r1 > $r2) or $n1 > $n2) { $k = 2; }
+			# selection weights cover the most well-known types
+			# fixme: this is pretty ugly and doesn't use $C->{severity_by_roletype}
+			my %netweight = ( wan => 1, lan => 2, _ =>  3, );
+			my %roleweight = ( core =>  1, distribution => 2, _ => 3, access => 4);
+
+			my $netweight1 = defined($netweight{ $subnets{$subnet}->{net1} })? 
+					$netweight{ $subnets{$subnet}->{net1} } : $netweight{"_"};
+			my $netweight2 = defined($netweight{ $subnets{$subnet}->{net2} })? 
+					$netweight{ $subnets{$subnet}->{net2} } : $netweight{"_"};
+
+			my $roleweight1 = defined($roleweight{ $subnets{$subnet}->{role1} })?
+					$roleweight{ $subnets{$subnet}->{role1} } : $roleweight{"_"};
+			my $roleweight2 = defined($roleweight{ $subnets{$subnet}->{role2} })?
+					$roleweight{ $subnets{$subnet}->{role2} } : $roleweight{"_"};
+
+			my $k = (($netweight1 == $netweight2 && $roleweight1 > $roleweight2) || $netweight1 > $netweight2)? 2 : 1;
 
 			$links->{$subnet}{net} = $subnets{$subnet}{"net$k"};
 			$links->{$subnet}{role} = $subnets{$subnet}{"role$k"};
@@ -6965,6 +6991,7 @@ sub runLinks {
 			$links->{$subnet}{node1} = $subnets{$subnet}{"node$k"};
 			$links->{$subnet}{interface1} = $subnets{$subnet}{"ifDescr$k"};
 			$links->{$subnet}{ifIndex1} = $subnets{$subnet}{"ifIndex$k"};
+
 			$k = $k == 1 ? 2 : 1;
 			$links->{$subnet}{node2} = $subnets{$subnet}{"node$k"};
 			$links->{$subnet}{interface2} = $subnets{$subnet}{"ifDescr$k"};

@@ -59,8 +59,8 @@ foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGrou
 				{ ifSpeed => { header => 'Speed',display => 'text', value => [""] }},
 				{ link => { header => 'Link',display => 'header,text', value => [""] }},
 				{ depend => { header => 'Depend',display => 'text', value => [""] }},
-				{ role => { header => 'Role Type',display => 'popup', value => ["core", "distribution", "access"] }},
-				{ net => { header => 'Net Type',display => 'popup', value => ["wan","lan"] }}
+				{ role => { header => 'Role Type',display => 'popup', value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
+				{ net => { header => 'Net Type',display => 'popup', value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }}
 			]
 );
 

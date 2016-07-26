@@ -63,6 +63,13 @@
   },
   'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
+		"roletype_list" => "core,distribution,access,default",
+		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
+		"nodetype_list" => "generic,switch,router,firewall,server",
+
+		# for node down and all other events. 'default' applies to unlisted role types
+		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],
+																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
     # if this option is present, then *only* properties listed here will be shown in the node view,
     # and in precisely this order. custom properties are supported.
     'network_viewNode_field_list' => 'status,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',

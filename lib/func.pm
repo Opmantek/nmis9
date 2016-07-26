@@ -487,6 +487,7 @@ sub eventNumberLevel {
 	elsif ( $number == 4 ) { $level = "Major"; }
 	elsif ( $number == 5 ) { $level = "Critical"; }
 	elsif ( $number >= 6 ) { $level = "Fatal"; }
+	# fixme unsupported - should be unknwon
 	else { $level = "Error"; }
 
 	return $level;
@@ -531,11 +532,11 @@ sub getBGColor {
 	return "background-color:$_[0];" ;
 }
 
-# updated EHG2004
-# see http://www.htmlhelp.com/icon/hexchart.gif
-# these are also listed in nmis.css - class 'fatal' etc.
-#
-sub eventColor {
+# translates nmis severity levels to colors
+# fixme: traceback and error are not-quite-standard and not supported everywhere,
+# nor are up or down event levels.
+sub eventColor 
+{
 	my $event_level = shift;
 	my $color;
 
@@ -555,6 +556,8 @@ sub eventColor {
 	return $color;
 } # end eventColor
 
+# sanitises/translates some sort of severity level into nmis levels 
+# fixme: except that levels error and traceback are not standard nor supported everwhere
 sub eventLevelSet {
 	my $event_level = shift;
 	my $new_level;

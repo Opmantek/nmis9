@@ -70,28 +70,28 @@ $MODEL->{'models'}{'Tyco Electronics Power Systems'} = {
 writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
 
 #######################################################
-my $modelName = "Common-database";
-my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+$modelName = "Common-database";
+$modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
 print "Adding new $modelName Definition to $modelFile\n";
 
 backupFile(file => $modelFile, backup => "$modelFile.backup");
 
-my $MODEL = loadTable(dir=>'models',name=>$modelName);
+$MODEL = loadTable(dir=>'models',name=>$modelName);
 
-$MODEL->{'database'}{'type'}{'cps6000Alarm'} = '/health/$nodeType/$node-cps6000Alarm-$index.rrd';
-$MODEL->{'database'}{'type'}{'cps6000Grp'} = '/health/$nodeType/$node-cps6000Grp-$index.rrd';
-$MODEL->{'database'}{'type'}{'cps6000Cct'} = '/health/$nodeType/$node-cps6000Cct-$index.rrd';
+$MODEL->{'database'}{'type'}{'cps6000Alarm'} = '/nodes/$node/health/cps6000Alarm-$index.rrd'; 
+$MODEL->{'database'}{'type'}{'cps6000Grp'} = '/nodes/$node/health/cps6000Grp-$index.rrd';
+$MODEL->{'database'}{'type'}{'cps6000Cct'} = '/nodes/$node/health/cps6000Cct-$index.rrd';
 
 writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
 
 #######################################################
-my $modelName = "Common-heading";
-my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+$modelName = "Common-heading";
+$modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
 print "Adding new $modelName Definition to $modelFile\n";
 
 backupFile(file => $modelFile, backup => "$modelFile.backup");
 
-my $MODEL = loadTable(dir=>'models',name=>$modelName);
+$MODEL = loadTable(dir=>'models',name=>$modelName);
 
 $MODEL->{'heading'}{'graphtype'}{'cps6000Alarm'} = 'CPS 6000 Alarm Status';
 $MODEL->{'heading'}{'graphtype'}{'cps6000Grp'} = 'Group Power and Status';

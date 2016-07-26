@@ -448,8 +448,11 @@ sub loadCfgTable {
 		],
 
 		'system' => [
-				{ 'group_list' => { display => 'text', value => ['']}},
-				{ 'nmis_host' => { display => 'text', value => ['localhost']}},
+			{ 'group_list' => { display => 'text', value => ['']}},
+			{ 'roletype_list' => { display => 'text', value => ['']}},
+			{ 'nettype_list' => { display => 'text', value => ['']}},
+			{ 'nodetype_list' => { display => 'text', value => ['']}},
+			{ 'nmis_host' => { display => 'text', value => ['localhost']}},
 				{ 'domain_name' => { display => 'text', value => ['']}},
 				{ 'cache_summary_tables' => { display => 'popup', value => ["true", "false"]}},
 				{ 'cache_var_tables' => { display => 'popup', value => ["true", "false"]}},
@@ -737,10 +740,14 @@ sub loadRMENodes {
 				$nodeTable{$nodedetails[0]}{community} = $nodedetails[1];
 				$nodeTable{$nodedetails[0]}{netType} = $statsSplit[1];
 				$nodeTable{$nodedetails[0]}{nodeType} = $statsSplit[2];
-				# Convert role c, d or a to core, distribution or access
+				# Convert role c, d or a to core, distribution or access (or default)
 				if ( $statsSplit[3] eq "c" ) { $nodeTable{$nodedetails[0]}{roleType} = "core"; }
 				elsif ( $statsSplit[3] eq "d" ) { $nodeTable{$nodedetails[0]}{roleType} = "distribution"; }
 				elsif ( $statsSplit[3] eq "a" ) { $nodeTable{$nodedetails[0]}{roleType} = "access"; }
+				else 
+				{
+					$nodeTable{$nodedetails[0]}{roleType} = "default";
+				}
 				# Convert collect t or f to  true or false
 				if ( $statsSplit[4] eq "t" ) { $nodeTable{$nodedetails[0]}{collect} = "true"; }
 				elsif ( $statsSplit[4] eq "f" ) { $nodeTable{$nodedetails[0]}{collect} = "false"; }
@@ -2362,10 +2369,12 @@ sub createHrButtons {
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
+		# fixme must work for all node types, just just router or switch
 		if ($NI->{system}{nodeType} =~ /router|switch/) {
 			push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
+		# fixme must work for all node types, not just server
 		if ($NI->{system}{nodeType} =~ /server/) {
 			push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
@@ -2839,30 +2848,37 @@ sub loadCBQoS
 
 # small helper that translates event data into a severity level
 # args: event, role.
+# returns: severity level, color
 sub eventLevel {
-	my $event = shift;
-	my $role = shift;
+	my ($event, $role) = @_;
 
-	my $event_level;
-	my $event_color;
+	my ($event_level, $event_color);
 
-	if ( $event eq 'Node Down' ) {
-	 	if ( $role eq "core" ) { $event_level = "Critical"; }
-	 	elsif ( $role eq "distribution" ) { $event_level = "Major"; }
-	 	elsif ( $role eq "access" ) { $event_level = "Minor"; }
+	my $C = loadConfTable();			# cached, mostly nop
+
+	# the config now has a structure for xlat between roletype and severities for node down/other events
+	my $rt2sev = $C->{severity_by_roletype};
+	$rt2sev = { default => [ "Major", "Minor" ] } if (ref($rt2sev) ne "HASH" or !keys %$rt2sev);
+	
+	if ( $event eq 'Node Down' )
+	{
+		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[0] :
+				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[0] : "Major";
 	}
-	elsif ( $event =~ /up/i ) {
+	elsif ( $event =~ /up/i ) 
+	{
 		$event_level = "Normal";
 	}
-	# colour all other events the same, based on role, to get some consistency across the network
-	else {
-	 	if ( $role eq "core" ) { $event_level = "Major"; }
-	 	elsif ( $role eq "distribution" ) { $event_level = "Minor"; }
-	 	elsif ( $role eq "access" ) { $event_level = "Warning";	}
+	else 
+	{
+		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[1] :
+				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[1] : "Major";
 	}
+	$event_level = "Major" if ($event_level !~ /^(fatal|critical|major|minor|warning|normal)$/); 	# last-ditch fallback
 	$event_color = eventColor($event_level);
+	
 	return ($event_level,$event_color);
-} # eventLevel
+}
 
 # this function checks if a particular event exists 
 # in the list of current event, NOT the history list!

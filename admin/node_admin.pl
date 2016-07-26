@@ -402,9 +402,10 @@ Use act=rename for renaming nodes.\n"
 	die "Invalid node data, does not have required attributes name, host and group\n"
 			if (!$mayberec->{name} or !$mayberec->{host} or !$mayberec->{group});
 
-	die "Invalid node data, netType is neither 'lan' nor 'wan'\n" if ($mayberec->{netType} !~ /^(lan|wan)$/);
-	die "Invalid node data, roleType is not 'core', 'distribution' or 'access'\n" 
-			if ($mayberec->{roleType} !~ /^(core|distribution|access)$/);
+	die "Invalid node data, netType \"$mayberec->{netType}\" is not known!\n" 
+			if (!grep($mayberec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));
+	die "Invalid node data, roleType \"$mayberec->{roleType}\" is not known!\n" 
+			if (!grep($mayberec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
 
 	# no uuid? then we add one
 	if (!$mayberec->{uuid})
