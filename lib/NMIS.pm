@@ -2874,7 +2874,7 @@ sub eventLevel {
 		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[1] :
 				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[1] : "Major";
 	}
-	$event_level = "Major" if ($event_level !~ /^(fatal|critical|major|minor|warning|normal)$/); 	# last-ditch fallback
+	$event_level = "Major" if ($event_level !~ /^(fatal|critical|major|minor|warning|normal)$/i); 	# last-ditch fallback
 	$event_color = eventColor($event_level);
 	
 	return ($event_level,$event_color);
