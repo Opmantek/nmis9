@@ -9976,4 +9976,11 @@
 "ar1220s"			"1.3.6.1.4.1.2011.2.224.15"
 "ar1220ws"			"1.3.6.1.4.1.2011.2.224.16"
 "nsNS3000"			"1.3.6.1.4.1.37576.2.4.3"
-
+"rPDU2SensorTempHumidityStatusTempF"    "1.3.6.1.4.1.318.1.1.26.10.2.2.1.7.1"
+"rPDUOutletStatusIndex" "1.3.6.1.4.1.318.1.1.12.3.5.1.1.1"
+"rPDUOutletStatusOutletName" "1.3.6.1.4.1.318.1.1.12.3.5.1.1.2"
+"rPDUOutletStatusLoad" "1.3.6.1.4.1.318.1.1.12.3.5.1.1.7"
+"rPDUOutletStatusOutletState"   "1.3.6.1.4.1.318.1.1.12.3.5.1.1.4"
+"rPDU2OutletMeteredStatusIndex" "1.3.6.1.4.1.318.1.1.26.9.4.3.1.1"
+"rPDU2OutletMeteredStatusPower" "1.3.6.1.4.1.318.1.1.26.9.4.3.1.7"
+"rPDU2OutletMeteredStatusName"  "1.3.6.1.4.1.318.1.1.26.9.4.3.1.3"

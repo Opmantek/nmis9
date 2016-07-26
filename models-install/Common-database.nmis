@@ -138,6 +138,7 @@
       'cps6000Grp' => '/nodes/$node/health/cps6000Grp-$index.rrd',
       'cps6000Cct' => '/nodes/$node/health/cps6000Cct-$index.rrd',
       'power' => '/nodes/$node/health/power.rrd',
+			'pduOutletStatus' => '/nodes/$node/health/pduoutletstatus-$index.rrd',
       'VirtMachines' => '/nodes/$node/health/VirtMachines-$index.rrd',
 			'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
