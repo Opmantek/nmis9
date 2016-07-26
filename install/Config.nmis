@@ -67,7 +67,7 @@
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
 		"nodetype_list" => "generic,switch,router,firewall,server",
 
-		# for node down and all other events. 'default' applies to unlisted role types
+		# for coloring the group status panel . 'default' applies to unlisted role types
 		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],
 																access => [ 'Minor', 'Warning' ], default => [ 'Major', 'Minor' ] },
     # if this option is present, then *only* properties listed here will be shown in the node view,

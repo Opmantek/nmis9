@@ -2849,6 +2849,7 @@ sub loadCBQoS
 # small helper that translates event data into a severity level
 # args: event, role.
 # returns: severity level, color
+# fixme: only used for group status summary display! actual event priorities come from the model
 sub eventLevel {
 	my ($event, $role) = @_;
 
