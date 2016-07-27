@@ -633,7 +633,7 @@
         }
       }
     },
-    'sections' => 'macTable,vtpVlan,cdp,lldp,addressTable,psuStatus,fanStatus',
+    'sections' => 'macTable,vtpVlan,cdp,lldp,lldpLocal,addressTable,psuStatus,fanStatus',
     'sys' => {
       'addressTable' => {
         'headers' => 'ifDescr,ipNetToMediaIfIndex,ipNetToMediaNetAddress,ipNetToMediaPhysAddress,ipNetToMediaType',
