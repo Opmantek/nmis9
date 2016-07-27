@@ -69,7 +69,7 @@
         }
       },
       'lldp' => {
-        'headers' =>'ifDescr,lldpRemLocalPortNum,lldpRemSysName,lldpRemSysDesc,lldpRemPortIdSubtype,lldpRemPortId,lldpRemChassisIdSubtype,lldpRemChassisId',
+        'headers' =>'ifDescr,lldpLocPortNum,lldpRemSysName,lldpRemSysDesc,lldpRemPortIdSubtype,lldpRemPortId,lldpRemChassisIdSubtype,lldpRemChassisId',
         'index_oid' => '1.0.8802.1.1.2.1.4.1.1.9',
         'index_regex' => '\\.(\\d+\\.\\d+\\.\\d+)$',
         'indexed' => 'lldpRemSysName',
@@ -77,7 +77,7 @@
           'ifDescr' => {
             'title' => 'Local Interface'
           },
-          'lldpRemLocalPortNum' => {
+          'lldpLocPortNum' => {
             'title' => 'Local Port Num'
           },
           'lldpRemChassisIdSubtype' => {

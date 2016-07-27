@@ -734,7 +734,6 @@
       },
       'macTable' => {
         'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus,updateDate',
-        'indexed' => 'dot1qTpFdbPort',
         'snmp' => {
           'dot1dTpFdbAddress' => {
             'title' => 'Address'
