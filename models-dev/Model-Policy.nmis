@@ -30,6 +30,16 @@
 			 },
 		 },
 
+		 450 => {
+		   # for Service Provider devices like Cisco 7600, disable Enterprise type features.
+			 IF => { 'node.nodeModel' => 'Cisco7600' },
+			 systemHealth => { 
+			   vtpVlan => 'false',
+			   addressTable => 'false',
+			   macTable => 'false'
+			 },
+		 },
+
 		 500 => {
 			 IF => { 'node.name' => 'yin' },
 			 systemHealth => { 
