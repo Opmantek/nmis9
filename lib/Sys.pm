@@ -192,16 +192,14 @@ sub init
 	return $exit;
 }
 
+# create communication object, does NOT open the connection!
 sub initsnmp {
 	my $self = shift;
 
-	$self->{snmp} = snmp->new; 			# create communication object
-	if ($self->{snmp}->init(debug=>$self->{debug})) {
-		$self->{snmp}->{name} = $self->{cfg}{node}{name}; # remember name for error message
-		dbg("snmp for node=$self->{name} initialized");
-	} else {
-		return 0;
-	}
+	# remember name for error message
+	$self->{snmp} = snmp->new(debug => $self->{debug}, 
+														name => $self->{cfg}{node}{name} );
+	dbg("snmp for node=$self->{name} initialized");
 	return 1;
 }
 
@@ -242,45 +240,28 @@ sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->aler
 # for max message size we try in order: host-specific value if set for this host,
 # what is given as argument or default 1472. argument is expected to reflect the
 # global default.
-sub open {
-	my $self = shift;
-	my %args = @_;
-	#if ( 1 ) {
-	if ( getbool($self->{cfg}{node}{collect}) ) {
-		# check if numeric ip address is available for speeding up, conversion done by type=update
-		my $host = ($self->{info}{system}{host_addr} ne "") ? $self->{info}{system}{host_addr} :
-						($self->{cfg}{node}{host} ne "") ? $self->{cfg}{node}{host} : $self->{cfg}{node}{name};
+# returns: 1 if ok (or nothing to do b/c node nocollect), 0 otherwise
+sub open 
+{
+	my ($self, %args) = @_;
 
-		my $timeout = $args{timeout} || 5;
-		my $retries = $args{retries} || 1;
-		my $oidpkt = $args{oidpkt} || 10;
-		my $max_msg_size = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
+	return 1 if (!getbool($self->{cfg}{node}{collect}));
 
-		if ($self->{snmp}->open(
-					host => stripSpaces($host),
-					version => $self->{cfg}{node}{version},
-					community => stripSpaces($self->{cfg}{node}{community}),
-					username => stripSpaces($self->{cfg}{node}{username}),
-					privpassword => stripSpaces($self->{cfg}{node}{privpassword}),
-					privkey => stripSpaces($self->{cfg}{node}{privkey}),
-					privprotocol => stripSpaces($self->{cfg}{node}{privprotocol}),
-					authpassword => stripSpaces($self->{cfg}{node}{authpassword}),
-					authkey => stripSpaces($self->{cfg}{node}{authkey}),
-					authprotocol => stripSpaces($self->{cfg}{node}{authprotocol}),
-					port => stripSpaces($self->{cfg}{node}{port}),
-					timeout => $timeout,
-					retries => $retries,
-					max_msg_size => $max_msg_size,
-					oidpkt => $oidpkt,
-					debug => $self->{debug})) {
-			$self->{info}{system}{snmpVer} = $self->{snmp}{version}; # back info
-			return 1;
-		}
-		return 0;
-	}
-	else {
-		return 1;
-	}
+	# prime config for snmp, based mostly on cfg->node - cloned to not leak and of the updated bits
+	my $snmpcfg = Clone::clone($self->{cfg}->{node});
+	
+	# check if numeric ip address is available for speeding up, conversion done by type=update
+	$snmpcfg->{host} = $self->{info}{system}{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name};
+	$snmpcfg->{timeout} = $args{timeout} || 5;
+	$snmpcfg->{retries} = $args{retries} || 1;
+	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
+	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
+	
+	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
+																		debug => $self->{debug}));
+	
+	$self->{info}{system}{snmpVer} = $self->{snmp}->version; # get back actual info
+	return 1;
 }
 
 # close snmp session - if it's open

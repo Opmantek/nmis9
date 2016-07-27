@@ -467,6 +467,15 @@
         '10' => {
           'APC-ups' => 'PowerNet',
         },
+				'20' => {
+					'APC-pdu' => 'AP8641',
+				},
+				'25' => {
+					'APC-pdu-ap7932' => 'AP7932',
+				},
+				'30' => {
+					'APC-pdu-ap7900' => 'AP7900',
+				},
       },
     },
 		'Check Point Software Technologies Ltd' => {

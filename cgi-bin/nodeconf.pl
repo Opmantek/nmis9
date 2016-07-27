@@ -247,6 +247,17 @@ sub displayNodeConf
 				td({class=>'header'},'disabled'));
 	}
 
+	my $NCT_nodetype = $NI->{nodeconf}->{nodeType} || $NI->{system}->{nodeType};
+	print Tr,td({class=>"header"}),td({class=>"header"},"Node Type"),
+	td({class=>'header3'}, $NCT_nodetype),
+	td({class=>"Plain"},
+		 popup_menu(-name=>"nodetype", -override=>'1',
+								-values=>["", split(/\s*,\s*/, $C->{nodetype_list})],
+								-labels => { "" => "<from model>", map { $_ => $_ } (split(/\s*,\s*/, $C->{nodetype_list})) },
+								-default=> "",
+								-style => 'width: 95%',
+								-title=>"new Node Type" ));
+
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
@@ -393,6 +404,11 @@ sub updateNodeConf {
 		delete $override->{sysLocation};
 	} else {
 		$override->{sysLocation} = $Q->{location};
+	}
+	if ($Q->{nodetype} eq "") {
+		delete $override->{nodeType};
+	} else {
+		$override->{nodeType} = $Q->{nodetype};
 	}
 
 	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.

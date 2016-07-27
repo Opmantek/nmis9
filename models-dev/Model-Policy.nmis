@@ -57,48 +57,69 @@
 		 },
 		);
 
-#[keiths@ran models-install]$ grep sections *
-#Model-ACME-Packet.nmis:			'sections' => 'entityMib',
-#Model-AlcatelASAM.nmis:			'sections' => 'ifTable,dot1qVlan,dot1qPvid,atmVcl,eqptHolderList,eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
-#Model-AlcatelASAMv2.nmis:		'sections' => 'ifTable,dot1qVlan,dot1qPvid,atmVcl,eqptHolderList,eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
-#Model-AristaSwitch.nmis:			'sections' => 'hrProcessorLoad,lldp,entityMib',
-#Model-CatalystIOS.nmis:			'sections' => 'Cisco_CBQoS,addressTable,cdp,macTable,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-CatalystIOSXE.nmis:		'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
-#Model-CatalystIOSXE.nmis:		'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-Checkpoint.nmis:				'sections' => 'diskIOTable',
-#Model-Cisco10000.nmis:				'sections' => 'cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
-#Model-Cisco7600.nmis:				'sections' => 'cdp,env-temp,vtpVlan,fanStatus,psuStatus,entityMib,ciscoAsset,bgpPeer,ospfNbr,CiscoPseudowireVC,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-CiscoAP.nmis:					'sections' => 'cdp',
-#Model-CiscoASR.nmis:					'sections' => 'Cisco_CBQoS,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
-#Model-CiscoATM.nmis:					'sections' => 'cdp',
-#Model-CiscoDefault.nmis:			'sections' => 'cdp',
-#Model-CiscoDSL.nmis:    'sections' => 'entityMib,ciscoAsset',
-#Model-CiscoIOSXE.nmis:    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cempMemBuffer,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-CiscoIOSXR.nmis:    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,ciscoMemoryPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-CiscoNXOS.nmis:    'sections' => 'cdp,entityMib,env-temp,vtpVlan',
-#Model-CiscoRouter.nmis:    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
-#Model-CiscoVG.nmis:    'sections' => 'addressTable,cdp,fanStatus,psuStatus,tempStatus',
-#Model-Ericsson-PPX.nmis:    'sections' => 'ppxCardCPU,ppxAtm',
-#Model-ESXi.nmis:    'sections' => 'VirtMachines',
-#Model-ExtremeXOS.nmis:    'sections' => 'entityMib',
-#Model-Fortinet-FG.nmis:    'sections' => 'VirtualDomains',
-#Model-FrogFoot.nmis:    'sections' => 'mtxrWlRtab',
-#Model-Furukawa-OLT.nmis:    'sections' => 'fkGponOnu',
-#Model-FutureSoftware.nmis:    'sections' => 'interface,',
-#Model-GE-QS941.nmis:    'sections' => 'cps6000Alarm,cps6000Cct,cps6000Grp,cps6000Groups',
-#Model-Huawei-MA5600.nmis:    'sections' => 'hwMusaBoard,hwGponStats,entityMib,ifTable',
-#Model-Huawei-NetEngine.nmis:    'sections' => 'entityMib',
-#Model-HuaweiRouter.nmis:    'sections' => 'hwCBQoS,QualityOfServiceStat,entityMib',
-#Model-Juniper-ERX.nmis:    'sections' => 'bgpPeer,ospfNbr,entityMib',
-#Model-JuniperRouter.nmis:    'sections' => 'bgpPeer,ospfNbr,jnxOperations',
-#Model-JuniperSwitch.nmis:    'sections' => 'bgpPeer,ospfNbr,jnxOperations,macTable',
-#Model-Netgear-GS724T.nmis:    'sections' => 'macTable',
-#Model-net-snmp-ext.nmis:    'sections' => 'diskIOTable,software',
-#Model-net-snmp.nmis:    'sections' => 'diskIOTable,software',
-#Model-NovelSat.nmis:    'sections' => 'NetworkInterface,Sat-Demodulate',
-#Model-PaloAltoNetworks.nmis:    'sections' => 'hrProcessorLoad,entityMib',
-#Model-RadOptimux.nmis:				'sections' => 'SONETErrors,ds3Errors',
-#Model-SciAtl.nmis:		sections => 'SignalStatus',
-#Model-Windows2008-ext.nmis:    'sections' => 'software',
-#Model-Windows2012-ext.nmis:    'sections' => 'software',
-#Model-ZyXEL-IES.nmis:    'sections' => 'cpuUtil',
+
+# possible sections
+
+#software
+#fanStatus
+#psuStatus
+#tempStatus
+#
+#entityMib
+#ifTable
+#dot1qVlan
+#dot1qPvid
+#atmVcl
+#eqptHolderList
+#eqptHolder
+#eqptHolderStatus
+#eqptBoard
+#eqptPortMapping
+#cpuUtil
+#memUsageUtil
+#hrProcessorLoad
+#lldp
+#Cisco_CBQoS
+#NetFlowInterfaces
+#addressTable
+#cdp
+#macTable
+#vtpVlan
+#ciscoAsset
+#bgpPeer
+#ospfNbr
+#mplsVpnVrf
+#mplsL3VpnVrf
+#mplsL3VpnIfConf
+#mplsVpnInterface
+#mplsL3VpnVrfRT
+#mplsVpnVrfRouteTarget
+#mplsLdpEntity
+#cpu_cpm
+#env-temp
+#CiscoPseudowireVC
+#cempMemPool
+#cempMemBuffer
+#ciscoMemoryPool
+#ppxCardCPU
+#ppxAtm
+#diskIOTable
+#VirtMachines
+#VirtualDomains
+#mtxrWlRtab
+#fkGponOnu
+#interface
+#SONETErrors
+#ds3Errors
+#hwCBQoS
+#QualityOfServiceStat
+#cps6000Alarm
+#cps6000Cct
+#cps6000Grp
+#cps6000Groups
+#hwMusaBoard
+#hwGponStats
+#jnxOperations
+#NetworkInterface
+#Sat-Demodulate
+

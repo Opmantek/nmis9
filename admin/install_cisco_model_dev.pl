@@ -60,21 +60,22 @@ backupFile(file => $modelFile, backup => "$modelFile.backup");
 
 my $MODEL = loadTable(dir=>'models',name=>$modelName);
 
-$MODEL->{'database'}{'type'}{'tempStatus'} = '/health/$nodeType/$node-tempstatus-$index.rrd';
-$MODEL->{'database'}{'type'}{'fanStatus'} = '/health/$nodeType/$node-fanStatus-$index.rrd';
-$MODEL->{'database'}{'type'}{'bgpPeer'} = '/health/$nodeType/$node-bgpPeer-$index.rrd';
-$MODEL->{'database'}{'type'}{'rttMonLatestRtt'} = '/health/$nodeType/$node-rttMonLatestRtt-$index.rrd';
+$MODEL->{'database'}{'type'}{'tempStatus'} = '/nodes/$node/health/tempstatus-$index.rrd';
+$MODEL->{'database'}{'type'}{'fanStatus'} = '/nodes/$node/health/fanstatus-$index.rrd';
+$MODEL->{'database'}{'type'}{'bgpPeer'} = '/nodes/$node/health/bgpPeer-$index.rrd';
+$MODEL->{'database'}{'type'}{'rttMonLatestRtt'} = '/nodes/$node/health/rttMonLatestRtt-$index.rrd';
+
 
 writeTable(dir=>'models',name=>$modelName,data=>$MODEL);
 
 #######################################################
-my $modelName = "Common-heading";
-my $modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
+$modelName = "Common-heading";
+$modelFile = "$C->{'<nmis_models>'}/$modelName.nmis";
 print "Adding new $modelName Definition to $modelFile\n";
 
 backupFile(file => $modelFile, backup => "$modelFile.backup");
 
-my $MODEL = loadTable(dir=>'models',name=>$modelName);
+$MODEL = loadTable(dir=>'models',name=>$modelName);
 
 $MODEL->{'heading'}{'graphtype'}{'rttMonLatestRtt'} = 'RTT Monitor Stats';
 $MODEL->{'heading'}{'graphtype'}{'bgpPeer'} = 'BGP Peer Status';
