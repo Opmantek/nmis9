@@ -601,6 +601,7 @@ sub getDiskBytes {
 	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
 }
 
+# only translates names or levels into debug number, does NOT set any config!
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
@@ -1229,6 +1230,12 @@ sub info {
 			print returnTime." $string $msg\n";
 		}
 	}
+}
+
+# return the current debug level from the config cache
+sub getDebug
+{
+	return $C_cache->{debug};
 }
 
 # debug info with (class::)method names and line number

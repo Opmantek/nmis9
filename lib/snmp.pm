@@ -28,430 +28,500 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
 package snmp;
-
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
-
-use Exporter;
-
-$VERSION = "1.0.1";
-
-@ISA = qw(Exporter);
-
-@EXPORT = qw(keys2name);
+our $VERSION = "1.1.0";
 
 use strict;
 use lib "../../lib";
 
-# Import external NMIS 
 use Net::SNMP qw(oid_lex_sort);
-use Net::DNS;
 use Mib;
-use func;
+use func;												# for dbg, logMsg, getbool
 
-sub new {
-	my $this = shift;
-	my $class = ref($this) || $this;
-	my $self = {
-		host => undef,
-		session => undef,
-		version => undef,
-		vars => undef,
-		oidpkt => undef,
-		name => '',
-		error => "",
-		logging => 1,
-		log_regex => "",
-		debug => 0
-	};
-	bless $self, $class;
+
+# creates new snmp object, does NOT open connection.
+# args: logging (optional, default 1), debug (optional, default 0),
+# log_regex (optional, should be qr//, default unset, ignored if logging is off),
+# name (optional, for reporting)
+sub new 
+{
+	my ($class, %arg) = @_;
+
+	my $self = bless(
+		{
+			# state vars
+			session => undef,
+			error => undef,
+			name => $arg{name},
+			actual_version => undef,
+			actual_max_msg_size => undef,
+
+			# config vars, set and used by open
+			config => {},
+			
+			# optionals
+			debug => defined($arg{debug})? getbool($arg{debug}) : 0,
+			logging => defined($arg{logging})? getbool($arg{logging}): 1,
+			log_regex => undef,
+		}, $class);
+	
 	return $self;
 }
 
-sub init {
-	my $self = shift;
-	my %args = @_;
-	$self->{debug} = $args{debug} || 0 ;
-	$self->{logging} = $args{logging} || 1;
+# sets/gets the current log_regex filter
+# args: filter (should be qr or undef)
+# returns: previous filter
+sub logFilterOut 
+{
+	my ($self, $filter) = @_;
 
-	return 1;
+	my $oldfilter = $self->{log_regex};
+	$self->{log_regex} = $filter;
+	return $oldfilter;
 }
 
-sub open {
-	my $self = shift;
-	my %args = @_;
-	my $session;
-	my $error;
+# sets/gets the current host name
+# args: new host name (only for reporting, does NOT affect actual session!)
+# returns: (new) host name
+sub name
+{
+	my ($self, $newname) = @_;
 
-	$self->{error} = "";
-
-	my $host = $args{host} || $self->{host} || 'localhost';
-	$self->{host} = $host;
-	my $domain = $args{udp} || 'udp';
-	my $version = $args{version} || 'snmpv2c';
-	my $community = $args{community} || 'public';
-	my $username = $args{username};
-	my $authpassword = $args{authpassword};
-	my $authkey = $args{authkey};
-	my $authprotocol = $args{authprotocol} || 'md5';
-	my $privpassword = $args{privpassword};
-	my $privkey = $args{privkey};
-	my $privprotocol = $args{privprotocol} || 'des';
-	my $port = $args{port} || 161;
-	my $timeout = $args{timeout} || 5;
-	my $retries = $args{retries} || 1;
-	my $max_msg_size = $args{max_msg_size} || 1472;
-	$self->{oidpkt} = $args{oidpkt} || 10;
-
-	my @authopts = ();
-	if ($version eq 'snmpv1' or $version eq 'snmpv2c') {
-		push(@authopts,
-			-community	=> $community,
-		);
-	}
-	elsif ($version eq 'snmpv3') {
-		push(@authopts,
-			-username	=> $username,
-			-authprotocol	=> $authprotocol,
-			-privprotocol	=> $privprotocol,
-		);
-		if (defined($authkey) and length($authkey)) {
-			push(@authopts, -authkey => $authkey);
-		}
-		elsif (defined($authpassword) and length($authpassword)) {
-			push(@authopts, -authpassword => $authpassword);
-		}
-		if (defined($privkey) and length($privkey)) {
-			push(@authopts, -privkey => $privkey);
-		}
-		elsif (defined($privpassword) and length($privpassword)) {
-			push(@authopts, -privpassword => $privpassword);
-		}
-	}
-
-	# open SNMP channel
-	dbg("version $version, domain $domain, host $host, community $community, port $port",3);
-	($session, $error) = Net::SNMP->session(
-			-domain		=> $domain,
-			-version	=> $version,
-			-hostname	=> $host,
-			-timeout	=> $timeout,
-			-retries	=> $retries,
-			-translate   => [-timeticks => 0x0,		# Turn off so sysUpTime is numeric
-			-unsigned => 0x1,		# unsigned integers
-			-octet_string => 0x1],   # Lets octal string
-			-port		=> $port,
-			-maxmsgsize => $max_msg_size,
-			@authopts,
-		);
-
-	if (!defined($session)) {
-		$self->{error} = $error;
-		my $msg = "ERROR $self->{host} ".$error;
-		logMsg($msg) if $self->{logging};
-		dbg($msg,3);
-		return undef;
-	}
-
-	$self->{session} = $session;
-	$self->{version} = $version;
-	$self->{max_msg_size} = $session->max_msg_size; # get and remember the actual limit
-
-	return 1;
-}
-
-sub get {
-	my($self, @vars) = @_;
-	my $var;
-	my @oid;
-	my $oid;
-
-	$self->{vars} = \@vars;
-
-	for my $var (@vars) {
-		if ($var !~ /^(\.?\d+)+$/ ) {
-			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-			if ( not scalar(($oid) = $self->nameTOoid(1,$var)) ) {
-				return undef; 
-			}
-			push @oid,$oid;
-		} else {
-			push @oid,$var;
-		}
-	}
-
-
-	my $result = $self->{session}->get_request( -varbindlist => \@oid );
-	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-	if ( not $self->checkResult($result) ) {
-		return undef; 
-	}
-
-	if ($self->{debug}) {
-		for my $oid (oid_lex_sort(keys(%{$result}))) {
-			my $name = oid2name($oid);
-			dbg("result: $name($oid) = $result->{$oid}",3);
-		}
-	}
-
-	return $result; # return pointer of hash
-}
-
-sub getscalar {
-	my($self, @vars) = @_;
-	my @result;
-	@result = $self->getarray($vars[0]);
-	return $result[0];
-}
-
-sub getarray {
-	my($self, @vars) = @_;
-	my($var, @retvals);
-	my @oid;
-	my $oid;
-	@retvals = ();
-
-	$self->{vars} = \@vars;
-
-	for my $var (@vars) {
-		if ($var !~ /^(\.?\d+)+$/ ) {
-			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-			if ( not scalar(($oid) = $self->nameTOoid(1,$var)) ) {
-				return undef; 
-			}
-			push @oid,$oid;
-		} else {
-			push @oid,$var;
-		}
-	}
+	$self->{name} = $newname if (defined $newname);
 	
-	# 2011-09-12: Mark D. Nagel update to split large SNMP requests over several packets 
-	while (@oid) {
-		my @oidchunk = splice(@oid, 0, $self->{oidpkt});
-		my $result = $self->{session}->get_request( -varbindlist => \@oidchunk );
-		if ( $self->checkResult($result) ) {
-			foreach $oid (@oidchunk) {
-				push @retvals, $result->{$oid};
-				$var = oid2name($oid);
-				dbg("result: var=$var, value=$result->{$oid}",4);
-			}
-		}
-		### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-		else {
-			return undef;
-		}
-	}
-	
-	return @retvals;
+	return $self->{name};
 }
 
-# argument max repetitions: if given and numeric, controls how many 
-# ID/PDUs will be in a single request
-sub gettable {
-	my $self = shift;
-	my @vars = shift;
-	my $maxrepetitions = shift;		
-	my $oid;
-	my $msg;
-	my $result;
-
-	$self->{vars} = \@vars;
-	
-
-	#print ("DEBUG: maxrepetitions=$maxrepetitions\n");
-	
-	if ($vars[0] !~ /^(\.?\d+)+$/ ) {
-		### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-		if ( not scalar(($oid) = $self->nameTOoid(0,@vars)) ) {
-			return undef;
-		}
-	} else {
-		$oid = $vars[0];
-	}
-
-	# get it
-	if ( $maxrepetitions ) {
-		$result = $self->{session}->get_table( -baseoid => $oid, -maxrepetitions => $maxrepetitions );
-	}
-	else {
-		$result = $self->{session}->get_table( -baseoid => $oid );
-	}
-	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-	if ( not $self->checkResult($result) ) {
-		return undef; 
-	}
-
-	my $cnt = scalar keys %{$result};
-	dbg("result: $cnt values for table @vars",3);
-	return $result;
-}
-
-# get hash with key containing only indexes of oid
-# returns undef in case of error
-sub getindex {
-	my $self = shift;
-	my @vars = shift;
-	my $maxrepetitions = shift;		
-
-	my $oid;
-	my $msg;
-	my $result;
-	my $result2;
-
-	$self->{vars} = \@vars;
-
-	return undef if (!defined $self->{session});
-	
-	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-	if ( not scalar(($oid) = $self->nameTOoid(0,@vars)) ) {
-		return undef; 
-	}
-
-	# get it
-	if ( $maxrepetitions ) {
-		$result = $self->{session}->get_table( -baseoid => $oid, -maxrepetitions => $maxrepetitions );
-	}
-	else {
-		$result = $self->{session}->get_table( -baseoid => $oid );	
-	}
-	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-	if ( not $self->checkResult($result) ) {
-		return undef; 
-	}
-
-	my ($key,$value);
-	while(($key,$value) = each(%{$result})) {
-		$key =~ s/$oid.//i ;
-		$result2->{$key} = $value;
-	}
-	my $cnt = scalar keys %{$result2};
-	dbg("result: $cnt values for table @vars",3);
-	return $result2;
-}
-
-sub set {
-	my($self, @varlist) = @_;
-    my $var;
-	my @oidlist;
-	my $result;
-
-	$self->{vars} = \@varlist;
-
-	for (my $i=0;$i<scalar(@varlist);$i+=3) {
-		my $oid = name2oid($varlist[$i+0]);
-		if (defined($oid)) {
-			push @oidlist, $oid;
-			push @oidlist, $varlist[$i+1];
-			push @oidlist, $varlist[$i+2];
-		} else {
-			$self->{error} = "Mib name $var does not exists";
-			my $msg = "ERROR $self->{host} $self->{error}";
-			logMsg($msg) if $self->{logging};
-			dbg($msg,3);
-		}
-	}
-	if ( not scalar(@oidlist) ) {
-		return undef;	
-	}
-
-	$result = $self->{session}->set_request( -varbindlist => \@oidlist );
-	### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
-	if ( not $self->checkResult($result) ) {
-		return undef; 
-	}
-	return $result;
-}
-
-sub error {
+# returns last error, or undef if none
+sub error 
+{
 	my $self = shift;
 	return $self->{error};
 }
 
-sub keys2name {
-	my $self = shift;
-	my $hash = shift;
-	my $name;
-	my $result;
-	for my $oid (keys %{$hash}) {
-		if (defined($name = oid2name($oid))) { 
-			$result->{$name} = $hash->{$oid};
-		} else {
-			$result->{$oid} = $hash->{$oid};
+# returns actual snmp versions chosen for an open connection,
+# or undef if none open/unsuccessful etc.
+sub version
+{
+	my ($self) = @_;
+	return $self->{session}? $self->{actual_version} : undef;
+}
+
+# returns actual chosen max message size for an open connection
+# or undef if none open
+sub max_msg_size
+{
+	my ($self) = @_;
+	return $self->{session}? $self->{actual_max_msg_size} : undef;
+}
+
+# helper to translate from name (plus numeric tail) to numeric oid
+# args: amend-with-zero (only active if name has no numeric tail), one name
+# returns: undef if failed to translate (also sets error), numeric oid otherwise
+sub name_to_oid 
+{
+	my ($self, $zero, $name) =  @_;
+	my $oid;
+	
+	if ($name =~ /^(\w+)(.*)$/)
+	{
+		$oid = name2oid($1).$2;			# from mib.pm
+	}
+	else
+	{
+		$oid = name2oid($name);
+	}
+
+	if (defined($oid)) 
+	{
+		$oid .= ".0" if ($zero && $name !~ /\./);
+		return $oid;
+	} 
+	else 
+	{
+		$self->{error} = "Mib name $name does not exist!";
+		my $msg = "ERROR ($self->{name}) $self->{error}";
+		logMsg($msg) if $self->{logging};
+		dbg($msg,3);
+		return undef;
+	}
+}
+
+
+# translate keys in hashref from oid to name (where possible)
+# args: hash(ref)
+# returns: new hash(ref)
+# note: self is only required for debug output...
+sub keys2name 
+{
+	my ($self, $hash) = @_;
+
+	my %rewritten;
+	for my $oid (keys %{$hash}) 
+	{
+		my $name = oid2name($oid) || $oid;
+		$rewritten{$name} = $hash->{$oid};
+	}
+
+	if ($self->{debug})
+	{
+		for my $k (keys %rewritten) 
+		{
+			dbg("result: $k = $rewritten{$k}", 3);
 		}
 	}
-	if ($self->{debug}) {
-		for my $k (keys %{$result}) {
-			dbg("result: $k = $result->{$k}",3);
+	return \%rewritten;
+}
+
+
+# takes result of net::snmp op, xfer error state, debug-logs the result
+# args: result, inputs (array ref)
+# returns 1 if the result existed, 0 otherwise
+sub checkResult 
+{
+	my ($self, $result, $inputs) = @_;
+
+	$self->{error} = $self->{session}->error;
+	return 1 if (defined $result);
+
+	my $list = join(",", @{$inputs});
+	$list = (substr($list,0,40)."...") if (length($list) > 40);
+	
+	my $msg = "($self->{name}) ($list) ".$self->{error};
+
+	# dont repeat timeout error msg
+	if ($self->{logging} and $self->{error} !~ /is empty/
+			and (!$self->{log_regex} or $self->{error} !~ $self->{log_regex}))
+	{
+		logMsg("SNMP ERROR $msg") 
+	}
+	dbg($msg,3);
+
+	return undef;
+}
+
+
+
+# opens an actual session
+# args: EITHER config (=hash with ALL the required args), OR individual arguments
+# returns: 1 if successful
+sub open 
+{
+	my ($self, %args) = @_;
+	undef $self->{error};
+
+	my $cobj = (ref($args{config}) eq "HASH" && keys %{$args{config}})? $args{config} : {};
+
+	$self->{config} = {
+		host => $cobj->{host} || $args{host} || 'localhost',
+		domain => $cobj->{udp} || $args{udp} || 'udp',
+		port => $cobj->{port} || $args{port} || 161,
+		timeout => $cobj->{timeout} || $args{timeout} || 5,
+		retries => $cobj->{retries} || $args{retries} || 1,
+
+		max_msg_size => $cobj->{max_msg_size} || $args{max_msg_size} || 1472,
+		oidpkt => $cobj->{oidpkt} || $args{oidpkt} || 10,
+		
+		version => $cobj->{version} || $args{version} || 'snmpv2c',
+		community => $cobj->{community} || $args{community} || 'public',
+		context => $cobj->{context} || $args{context},
+		username => $cobj->{username} || $args{username},
+		authpassword => $cobj->{authpassword} || $args{authpassword},
+		authkey => $cobj->{authkey} || $args{authkey},
+		authprotocol => $cobj->{authprotocol} || $args{authprotocol} || 'md5',
+		privpassword => $cobj->{privpassword} || $args{privpassword},
+		privkey => $cobj->{privkey} || $args{privkey},
+		privprotocol => $cobj->{privprotocol} || $args{privprotocol} || 'des',
+	};
+
+	my @authopts = ();
+	if ($self->{config}->{version} =~ /^snmpv(1|2c)$/)
+	{
+		push(@authopts, "-community"	=> $self->{config}->{community}, );
+	}
+	elsif ($self->{config}->{version} eq 'snmpv3') 
+	{
+		push(@authopts,
+				 "-username"	=> $self->{config}->{username},
+				 "-authprotocol"	=> $self->{config}->{authprotocol},
+				 "-privprotocol"	=> $self->{config}->{privprotocol}, );
+	
+		if ($self->{config}->{authkey})
+		{
+			push(@authopts, "-authkey" => $self->{config}->{authkey} );
+		}
+		elsif ($self->{config}->{authpassword})
+		{
+				push(@authopts, "-authpassword" => $self->{config}->{authpassword});
+		}
+		
+		if ($self->{config}->{privkey}) 
+		{
+			push(@authopts, "-privkey" => $self->{config}->{privkey});
+		}
+		elsif ($self->{config}->{privpassword})
+		{
+			push(@authopts, "-privpassword" => $self->{config}->{privpassword});
+		}
+	}
+
+	# now actually open the SNMP session
+	dbg("opening session - version $self->{config}->{version}, domain $self->{config}->{domain}, host $self->{config}->{host}, port $self->{config}->{port}, community $self->{config}->{community}, context $self->{config}->{context}", 3);
+
+	($self->{session}, $self->{error}) = 
+			Net::SNMP->session(
+				-domain		=> $self->{config}->{domain},
+				-version	=> $self->{config}->{version},
+				-hostname	=> $self->{config}->{host},
+				-timeout	=> $self->{config}->{timeout},
+				-retries	=> $self->{config}->{retries},
+				-translate   => [-timeticks => 0x0,		# Turn off so sysUpTime is numeric
+												 -unsigned => 0x1,		# unsigned integers
+												 -octet_string => 0x1],   # Lets octal string
+				-port		=> $self->{config}->{port},
+				-maxmsgsize => $self->{config}->{max_msg_size},
+				@authopts,
+			);
+
+	if (!$self->{session}) 
+	{
+		my $msg = "ERROR $self->{name} $self->{error}";
+		logMsg($msg) if $self->{logging};
+		dbg($msg, 3);
+
+		return undef;
+	}
+
+	$self->{actual_version} = $self->{session}->version;
+	$self->{actual_max_msg_size} = $self->{session}->max_msg_size;
+	
+	return 1;
+}
+
+# closes an open session
+# args: none
+# returns: nothing
+sub close 
+{
+	my ($self) = @_;
+
+	$self->{session}->close if $self->{session};
+	undef $self->{session};
+	undef $self->{errors};
+
+	return undef;
+}
+
+# retrieves X variables with a get request, returns hashref
+# requires session to be open
+# args: array of oids to retrieve (name or numeric),
+# returns: undef if error (sets internal error text), or hashref of (dotted oid => value)
+sub get 
+{
+	my($self, @vars) = @_;
+
+	# verify syntax, numeric or known name
+	my @certainlyoids;
+	for my $var (@vars) 
+	{
+		if ($var =~ /^(\.?\d+)+$/)
+		{
+			push @certainlyoids, $var;
+		}
+		else
+		{
+			if (my $oid = $self->name_to_oid(1, $var))
+			{
+				push @certainlyoids, $oid;
+			}
+			else
+			{
+				return undef;						# error was set by name_to_oid
+			}
+		}
+	}
+
+	my @methodargs = ( "-varbindlist" => \@certainlyoids );
+	push @methodargs, ("-contextname" => $self->{config}->{context})
+			if ($self->{config}->{context});
+	
+			my $result = $self->{session}->get_request(@methodargs);
+	return undef if (!$self->checkResult($result, \@certainlyoids));
+
+	if ($self->{debug}) 
+	{
+		for my $oid (oid_lex_sort(keys(%{$result}))) 
+		{
+			my $name = oid2name($oid);
+			dbg("result: $name($oid) = $result->{$oid}", 3);
 		}
 	}
 	return $result;
 }
 
-sub nameTOoid {
-	my ($self, $zero, @vars) =  @_;
-	my @oid;
-	my $oid;
+# retrieves X variables with one or more get requests, returns array
+# requires session to be open. 
+# requests are chunked in oidpkt oids per request
+#
+# args: array of oids to retrieve (name or numeric),
+#
+# returns: undef if error (sets internal error text), 
+# or array of return values (same order as inputs)
+sub getarray 
+{
+	my($self, @vars) = @_;
 
-    foreach my $var (@vars) {
-		$var =~ /^(\w+)(.*)$/;
-		$oid = name2oid($1).$2;
-		$oid = name2oid($var);
-
-		if (defined($oid)) {
-			if ($zero) { $oid .= ".0" if $var !~ /\./; }
-			push @oid, $oid;
-		} else {
-			$self->{error} = "Mib name $var does not exists";
-			my $msg = "ERROR ($self->{host}) $self->{error}";
-			logMsg($msg) if $self->{logging};
-			dbg($msg,3);
+	# verify syntax, numeric or known name
+	my @certainlyoids;
+	for my $var (@vars) 
+	{
+		if ($var =~ /^(\.?\d+)+$/)
+		{
+			push @certainlyoids, $var;
+		}
+		else
+		{
+			if (my $oid = $self->name_to_oid(1, $var))
+			{
+				push @certainlyoids, $oid;
+			}
+			else
+			{
+				return undef;						# error was set by name_to_oid
+			}
 		}
 	}
-	if (!@oid) {
-		$self->{error} = "No Mib value left or empty";
-		my $msg = "ERROR ($self->{host}) $self->{error}";
-		logMsg($msg) if $self->{logging};
-		dbg($msg,3);
-		return 0;
-	}
-	return @oid;
-}
 
-sub logFilterOut {
-	my ($self, $filter) = @_;
+	my @retvals;
+	while (@certainlyoids) 
+	{
+		my @oidchunk = splice(@certainlyoids, 0, $self->{config}->{oidpkt});
 
-	$self->{log_regex} = $filter;
-}
+		my @methodargs = ( "-varbindlist" => \@oidchunk );
+		push @methodargs, ("-contextname" => $self->{config}->{context})
+				if ($self->{config}->{context});
+		
+		my $result = $self->{session}->get_request(@methodargs);
+		return undef if (!$self->checkResult($result, \@oidchunk));
 
-sub checkResult {
-	my ($self, $result) = @_;
+		for my $oid (@oidchunk) 
+		{
+			push @retvals, $result->{$oid};
 
-	$self->{error} = $self->{session}->error;
-
-	if (!defined($result)) {
-		my $vars = "@{$self->{vars}}";
-		$vars = (length($vars) > 40) ? substr($vars,0,40)."..." : $vars; # maxlength
-		my $msg = "($self->{name}) ($vars) ".$self->{session}->error;
-
-		# dont repeat timeout error msg
-		if ($self->{log_regex} eq "" or $self->{session}->error !~ /$self->{log_regex}/i ) {
-			logMsg("SNMP ERROR $msg") if ($self->{session}->error !~ /is empty/) and $self->{logging};
-			#logMsg("SNMP ERROR $msg");
+			if ($self->{debug} && &func::getDebug >= 4)	# don't waste time translating if not debugging
+			{
+				my $var = oid2name($oid);
+				dbg("result: var=$var, value=$result->{$oid}",4);
+			}
 		}
-		dbg($msg,3);
-
-		return 0;
 	}
-	$self->{log_regex} = "";
-	return 1;
+	return @retvals;
 }
 
-sub close {
-	my $self = shift;
 
-	$self->{session}->close if $self->{session}; # close session
+# retrieves one table with a get_table request, returns hashref
+# requires session to be open. 
+#
+# args: oid to retrieve (name or numeric), maxrepetitions (optional, 
+# if given and numeric, controls how many ID/PDUs will be in a single request),
+# rewritekeys (optional, default no; if given only the index part of the oid is kept)
+#
+# returns: undef if error (sets internal error text), 
+# or hashref of results (oid => value).
+sub gettable 
+{
+	my ($self, $name, $maxrepetitions, $rewritekeys) = @_;
 
+	# translate to numeric oid
+	if ($name !~ /^(\.?\d+)+$/ ) 
+	{
+		if (my $oid = $self->name_to_oid(0, $name))
+		{
+			$name = $oid;
+		}
+		else
+		{
+			return undef;
+		}
+	}
+
+	my @methodargs = ( "-baseoid" => $name );
+	push @methodargs, ("-contextname" => $self->{config}->{context})
+			if ($self->{config}->{context});
+	push @methodargs, ("-maxrepetitions" => $maxrepetitions)
+			if ($maxrepetitions);
+
+	my $result = $self->{session}->get_table(@methodargs);
+	return undef if (!$self->checkResult($result, [$name]));
+
+	my $cnt = scalar keys %{$result};
+	dbg("result: $cnt values for table $name",3);
+
+	if (getbool($rewritekeys))
+	{
+		my @todo = keys %{$result};
+		for my $fullkey (@todo)
+		{
+			my $newkey = $fullkey; 
+			$newkey =~ s/^$name.//;
+
+			$result->{$newkey} = $result->{$fullkey};
+			delete $result->{$fullkey};
+		}
+	}
+	
+	return $result;
+}
+
+# get array, but rewrite keys so that they contain only index part below table oid
+# simple wrapper around gettable
+# returns undef in case of error, hashref if ok
+sub getindex 
+{
+	my ($self, $name, $maxrepetitions) = @_;
+	return $self->gettable($name,$maxrepetitions,1);
+}
+
+
+
+# perform set operation with X variables
+# args: hash ref of oids to set, each key is numeric or name of oid, each
+# value must be array ref of (object type, new value)
+# returns: undef if error, result hash (ref) otherwise
+sub set 
+{
+	my($self, $setthese) = @_;
+
+	if (ref($setthese) ne "HASH" or !keys %$setthese)
+	{
+		$self->{error} = "Invalid input, nothing to set.";
+		return undef;
+	}
+
+	my @uglylist;
+	for my $k (keys %$setthese)
+	{
+		if (ref($setthese->{$k} ne "ARRAY" or @{$setthese->{$k}} != 2))
+		{
+			$self->{error} = "Invalid input, cannot set \"$k\"";
+			return undef;
+		}
+
+		my $oid = ($k =~ /^(\.?\d+)+$/)? $k : $self->name_to_oid(0, $k);
+		return undef if (!$oid);
+
+		push @uglylist, $oid, @{$setthese->{$k}};
+
+	}
+
+	my @methodargs = ( "-varbindlist" => \@uglylist );
+	push @methodargs, ("-contextname" => $self->{config}->{context})
+			if ($self->{config}->{context});
+
+	my $result = $self->{session}->set_request( @uglylist );
+
+	return undef if (!$self->checkResult($result, [keys %$setthese]));
+	return $result;
 }
 
 1;

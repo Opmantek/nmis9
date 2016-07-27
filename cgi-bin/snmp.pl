@@ -207,8 +207,7 @@ sub viewSNMP {
 			return;
 		}
 
-		$SNMP = snmp::->new;
-		$SNMP->init(debug=>$Q->{debug});
+		$SNMP = snmp->new(debug => $Q->{debug});
 		if (!$SNMP->open( host => stripSpaces($host),
 											version => stripSpaces($version),
 											community => stripSpaces($community),
