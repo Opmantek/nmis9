@@ -1,13 +1,12 @@
 # a small update plugin for discovering interfaces on netgear 108 and 723 devices
 # which requires custom snmp accesses
 package NetGearInterface;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 use strict;
 
 use func;												# for the conf table extras
-use NMIS;
-
-use Net::SNMP;									# for the fixme removable local snmp session stuff
+use NMIS;												# get_nodeconf
+use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
 {
@@ -30,14 +29,14 @@ sub update_plugin
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
-	
 	# Get the SNMP Session going.
-	# fixme: the local myXX functions should be replaced by $S->open, and $S->{snmp}->xx
-	my $session = mysnmpsession( $NI->{system}->{host}, $NC->{node}->{community}, $NC->{node}->{port}, $C);
-	if (!$session)
-	{
-		return (2,"Could not open SNMP session to node $node");
-	}
+	my $snmp = snmp->new(name => $node);
+	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	
+	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+			if (!$snmp->testsession);
+	
 	
 	my @ifIndexNum = (1..24);
 	my $intfTotal = 0;
@@ -50,14 +49,12 @@ sub update_plugin
 				
 		my $prefix = "1.3.6.1.2.1.10.7.2.1.3";
 		my $oid = "$prefix.$index";
-		my $dot3PauseOperMode = mysnmpget($session,$oid);
-				
+		my $dot3PauseOperMode = $snmp->get($oid);
+		return (2, "Failed to retrieve $oid: ".$snmp->error) 
+				if (ref($dot3PauseOperMode) ne "HASH");
+		$snmp->close;
+
 		dbg("SNMP $node $ifDescr, dot3PauseOperMode=$dot3PauseOperMode->{$oid}");
-		
-		if ( $dot3PauseOperMode->{$oid} =~ /^SNMP ERROR/ ) 
-		{
-			logMsg("ERROR ($node) SNMP Error with $oid"); # fixme fatal?
-		}
 				
 		$S->{info}{interface}{$index} = 
 		{
@@ -224,53 +221,5 @@ sub update_plugin
 	return (1,undef);							# happy, and changes were made so save view and nodes file
 }
 
-sub mysnmpsession {
-	my $node = shift;
-	my $community = shift;
-	my $port = shift;
-	my $C = shift;
+1;
 
-	my ($session, $error) = Net::SNMP->session(                   
-		-hostname => $node,                  
-		-community => $community,                
-		-timeout  => $C->{snmp_timeout},                  
-		-port => $port
-	);  
-
-	if (!defined($session)) {       
-		logMsg("ERROR ($node) SNMP Session Error: $error");
-		$session = undef;
-	}
-	
-	# lets test the session!
-	my $oid = "1.3.6.1.2.1.1.2.0";	
-	my $result = mysnmpget($session,$oid);
-	if ( $result->{$oid} =~ /^SNMP ERROR/ ) {	
-		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
-		$session = undef;
-	}
-	
-	return $session; 
-}
-
-sub mysnmpget {
-	my $session = shift;
-	my $oid = shift;
-	
-	my %pdesc;
-		
-	my $response = $session->get_request($oid); 
-	if ( defined $response ) {
-		%pdesc = %{$response};  
-		my $err = $session->error; 
-		
-		if ($err){
-			$pdesc{$oid} = "SNMP ERROR"; 
-		} 
-	}
-	else {
-		$pdesc{$oid} = "SNMP ERROR: empty value $oid"; 
-	}
-
-	return \%pdesc;
-}

@@ -225,7 +225,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl));
 
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -238,6 +238,7 @@ perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog
 perl-Excel-Writer-XLSX
+perl-Digest-MD5 perl-Digest-HMAC perl-Crypt-DES
 ));
 
 	# cgi was removed from core in 5.20
@@ -1282,6 +1283,10 @@ EOF
 
 	find(\&getModules, "$src");
 
+	# add two semi-optional modules, third (digest::md5) is already required
+	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
+	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
+
 	# now determine if installed or not.
 	foreach my $mod ( keys %$nmisModules ) {
 
@@ -1340,8 +1345,7 @@ sub listModules
   my (@missing, @critmissing);
   my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
 										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
-										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1);
-
+										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
 	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
@@ -1370,14 +1374,17 @@ NMIS AAA system.
 The modules SNMP_util and SNMP_Session are also optional (needed only for
 the ipsla subsystem) and can be installed either with
 'yum install perl-SNMP_Session' or from the provided tar file in
-install/SNMP_Session-1.12.tar.gz.\n\n|;
+install/SNMP_Session-1.12.tar.gz.
+
+The modules Digest::HMAC and Crypt::DES are required if any of your
+devices use SNMP Version 3.\n\n|;
 		}
 
 		if (@critmissing)
 		{
-			printBanner("Some Critical Perl Modules are missing (or too old)!");
-			print qq|The following essential Perl modules are missing or too old and need
-to be installed (or upgraded) before NMIS will work correctly:\n\n| . join(" ", @critmissing)."\n\n";
+			printBanner("Some Important Perl Modules are missing (or too old)!");
+			print qq|The following Perl modules are missing or too old and need
+to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
 		}
 
 		print qq|These modules can be installed with CPAN:

@@ -30,14 +30,12 @@
 # a small update plugin for converting the cdp index into interface name.
 
 package AlcatelASAM;
-our $VERSION = "1.0.2";
+our $VERSION = "1.1.0";
 
 use strict;
-
+use NMIS;												# lnt
 use func;												# for the conf table extras
-use NMIS;
-
-use Net::SNMP; 									# for the fixme removable local snmp session stuff
+use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
 {
@@ -83,13 +81,11 @@ sub update_plugin
 	}
 
 	# Get the SNMP Session going.
-	# fixme: the local myXX functions should be replaced by $S->open, and $S->{snmp}->xx
-	my $session = mysnmpsession( $NI->{system}->{host}, $NC->{node}->{community}, $NC->{node}->{port}, $C);
-	if (!$session)
-	{
-		return (2,"Could not open SNMP session to node $node");
-	}
-
+	my $snmp = snmp->new(name => $node);
+	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+			if (!$snmp->testsession);
 	my $changesweremade = 0;
 	
 	info("Working on $node atmVcl");
@@ -105,7 +101,8 @@ sub update_plugin
 
 		my $entry = $NI->{atmVcl}->{$key};
                     
-		if ( my @parts = split(/\./,$entry->{index}) ) {
+		if ( my @parts = split(/\./,$entry->{index}) ) 
+		{
 			my $ifIndex = shift(@parts);
 			my $atmVclVpi = shift(@parts);
 			my $atmVclVci = shift(@parts);
@@ -121,7 +118,8 @@ sub update_plugin
 				"$xdslLineServiceProfileNbr",
 				"$xdslLineSpectrumProfileNbr",
 			];
-			my $snmpdata = mysnmpget($session,@oids) if defined $session;
+		
+			my $snmpdata = $snmp->get(@oids);
 						
 			$entry->{ifIndex} = $ifIndex;
 			$entry->{atmVclVpi} = $atmVclVpi;
@@ -237,60 +235,6 @@ sub getIfDescr {
 	}
 }
 
-sub mysnmpsession {
-	my $node = shift;
-	my $community = shift;
-	my $port = shift;
-	my $C = shift;
 
-	my ($session, $error) = Net::SNMP->session(                   
-		-hostname => $node,                  
-		-community => $community,                
-		-timeout  => $C->{snmp_timeout},                  
-		-port => $port
-	);  
-
-	if (!defined($session)) {       
-		logMsg("ERROR ($node) SNMP Session Error: $error");
-		$session = undef;
-	}
-	
-	# lets test the session!
-	my $oid = "1.3.6.1.2.1.1.2.0";	
-	my $result = mysnmpget($session,[$oid]);
-	if ( defined $result and $result->{error} =~ /^SNMP ERROR/ ) {
-		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
-		$session = undef;
-	}
-	
-	return $session; 
-}
-
-sub mysnmpget {
-	my $session = shift;
-	my $oid = shift;
-	
-	my %pdesc;
-		
-	my $response = $session->get_request(
-		-varbindlist => $oid
-	); 
-	
-	print Dumper $response;
-	if ( defined $response ) {
-		%pdesc = %{$response};  
-		my $err = $session->error; 
-		
-		if ($err){
-			$pdesc{"error"} = "SNMP ERROR"; 
-			$pdesc{"err"} = $err; 
-		} 
-	}
-	else {
-		$pdesc{"error"} = "SNMP ERROR: empty value @$oid"; 
-	}
-	
-	return \%pdesc;
-}
 
 1;
