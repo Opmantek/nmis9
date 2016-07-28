@@ -539,12 +539,12 @@ sub menu_node_panel {
 		push @menuInt, ( 'Interfaces', [@tmp] );
 		push  @menuInt, (  qq|<a id="panel" name="All Interfaces" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view_all&amp;node=$node">All interfaces</a>|);
 		push  @menuInt, (  qq|<a id="panel" name="Active Interfaces" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view_act&amp;node=$node&amp;server=$C->{server}">Active Interfaces</a>|);
-		# fixme: must work for all node types, not just router and  switch
-		if ($NI->{system}{nodeType} =~ /router|switch/ ) {
+		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}}) 
+		{
 			push  @menuInt, (  qq|<a id="panel" name="Port Stats" href="network.pl?conf=$Q->{conf}&amp;act=network_port_view&amp;node=$node&amp;server=$C->{server}">Port Stats</a>|);
 		}
-		# fixme: must work for all node types, not just server
-		if ($NI->{system}{nodeType} =~ /server/ ) {
+		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
+		{
 			push  @menuInt, ( qq|<a id="panel" name="Storage" href="network.pl?conf=$Q->{conf}&amp;act=network_storage_view&amp;node=$node&amp;server=$C->{server}">Storage</a>|);
 		}
 	}

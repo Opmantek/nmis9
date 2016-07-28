@@ -2692,7 +2692,8 @@ sub updateNodeInfo {
 		if ($sysObjectID ne $NI->{system}{sysObjectID}) {
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
 			$exit = getNodeInfo(sys=>$S);
-			goto END_updateNodeInfo; # ready with new info
+			info("Finished with exit=$exit");
+			return $exit;
 		}
 		# if ifNumber has changed, then likely an interface has been added or removed.
 
@@ -2816,7 +2817,6 @@ sub updateNodeInfo {
 		print "MODEL $S->{name}: nodedown=$NI->{system}{nodedown} sysUpTime=$NI->{system}{sysUpTime} sysObjectID=$NI->{system}{sysObjectID}\n";
 	}
 
-END_updateNodeInfo:
 	info("Finished with exit=$exit");
 	return $exit;
 } # end updateNodeInfo
@@ -3901,10 +3901,6 @@ sub getPVC {
 	my $SNMP = $S->snmp;
 	my $PVC = $S->pvcinfo;
 
-	# quick exit if not a device supporting frame type interfaces !
-	# fixme: should be extended to support all node types
-	if ( $NI->{nodeType} ne "router" ) { return; }
-
 	my %pvcTable;
 	my $port;
 	my $pvc;
@@ -3932,9 +3928,9 @@ sub getPVC {
 			$seen{$_} = $_;
 		}
 	}
-	if ( ! %seen ) {	# empty hash
+	if ( ! %seen ) {	# nothing to do
 		dbg("$NI->{system}{name} does not have any frame ports or no collect or port down");
-		goto END_getPVC;
+		return;
 	}
 
 	my $cnt = keys %seen;
@@ -4024,7 +4020,7 @@ sub getPVC {
 			delete $S->{info}{pvc};
 		}
 	}
-END_getPVC:
+
 	dbg("Finished");
 } # end getPVC
 
@@ -4043,11 +4039,8 @@ sub runServer {
 	my %ValMeM;
 	my $hrCpuLoad;
 
-	# fixme: should be extended to work on all node types!
-	if ($NI->{system}{nodeType} ne 'server') { return;}
-
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
 
 	info("Starting server device/storage collection, node $NI->{system}{name}");
 
@@ -4246,8 +4239,6 @@ sub runServices {
 	my $nodeCheckSnmpServices = 0;
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
 	if ($snmp_allowed
-			# fixme: needs to be extended to work with all node types!
-			and $NI->{system}{nodeType} eq 'server'
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
 			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service", split(/,/, $NT->{$NI->{system}{name}}->{services})) )
@@ -4428,8 +4419,6 @@ sub runServices {
 		}
 		# now the snmp services - but only if snmp is on
 		elsif ( $ST->{$service}{Service_Type} eq "service"
-						# fixme: needs to be extended to work for all node types
-						and $NI->{system}{nodeType} eq 'server'
 						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
@@ -6903,7 +6892,7 @@ sub runLinks {
 
 	if (!($II = loadInterfaceInfo())) {
 		logMsg("ERROR reading all interface info");
-		goto END_runLinks;
+		return;
 	}
 
 	if ( getbool($C->{db_links_sql}) ) {
@@ -7034,7 +7023,6 @@ sub runLinks {
 	}
 	logMsg("Check table Links and update link names and other entries");
 
-END_runLinks:
 	dbg("Finished");
 }
 

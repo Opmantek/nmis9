@@ -396,6 +396,7 @@ sub drawgraph {
 	my @data;
 
 	loadSystemFile($node);
+	# fixme pretty dud location!
 	my $database = "$NMIS::config{database_root}/cplan/$NMIS::systemTable{nodeType}/$node/$node-$extName.csv";
 
 	if ( -r $database ) {

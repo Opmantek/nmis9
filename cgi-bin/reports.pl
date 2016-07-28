@@ -821,12 +821,11 @@ sub top10Report {
 			my $NI = $S->ndinfo;
 			# reachable, available, health, response
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
-	   			%reportTable = (%reportTable,%{$h});
-					# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
-					# fixme: should likely be extended to cover most/all node types?
-				if ($NI->{system}{nodeType} eq 'router' 
-						and getbool($NI->{system}{collect})) 
+			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) 
+			{
+				%reportTable = (%reportTable,%{$h});
+				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
+				if (getbool($NI->{system}{collect}))
 				{
 					# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
 					if (($h = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode))) 

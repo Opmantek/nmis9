@@ -2365,17 +2365,17 @@ sub createHrButtons {
 		and getbool($C->{display_status_summary});
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
-				if defined $S->{mdl}{interface};
+				if (defined $S->{mdl}{interface});
 		push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
-		# fixme must work for all node types, just just router or switch
-		if ($NI->{system}{nodeType} =~ /router|switch/) {
+		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}}) 
+		{
 			push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
-		# fixme must work for all node types, not just server
-		if ($NI->{system}{nodeType} =~ /server/) {
+		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
+		{
 			push @out, td({class=>'header litehead'},
 				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
