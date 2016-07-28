@@ -44,10 +44,10 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C) = @args{qw(node sys config)};
 	
-        my $NI = $S->ndinfo;
+	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
+	my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 
-       
 	return (0,undef) if (ref($NI->{lldp}) ne "HASH");
 	my $changesweremade = 0;
 	
@@ -57,14 +57,13 @@ sub update_plugin
 	
 	for my $key (keys %{$NI->{lldp}})
 	{
-		my $entry = $NI->{lldp}->{$key};
+		my $entry = $NI->{lldp}{$key};
 		my @parts;
 		
 		my $lldpNeighbour = $entry->{lldpRemSysName};
                 
- 
-                my @possibleNames;
-                push(@possibleNames,$lldpNeighbour);
+		my @possibleNames;
+		push(@possibleNames,$lldpNeighbour);
 		push(@possibleNames,lc($lldpNeighbour));
 		#may need some other munging for other optional naming schemes here e.g. FQDN
 		# IOS with LLDP returns complete FQDN so is required
@@ -74,45 +73,44 @@ sub update_plugin
 			push(@possibleNames,lc($fqdn[0]));
 		}
 
-                $changesweremade = 1;
-                #my $MacAddress = $entry->{lldpRemChassisId};
-		#logMsg("$MacAddress");
-		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {cdpCacheDeviceId} = $lldpNeighbour;
-		$NI-> {cdp} -> {$entry->{lldpRemChassisId}} -> {ifDescr} = "LLDP discovered";
+		$changesweremade = 1;
                 
 		my $possNeighbour;
 		
 		foreach $possNeighbour (@possibleNames) {
-		        if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
-		                logMsg("$lldpNeighbour found as $possNeighbour in LNT for $node");
-		                $changesweremade = 1;
+			if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
+				logMsg("$lldpNeighbour found as $possNeighbour in LNT for $node");
+				$changesweremade = 1;
 				$entry->{lldpRemSysName_raw} = $entry->{lldpRemSysName};
 				$entry->{lldpRemSysName} = $possNeighbour;
 				$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$possNeighbour";
 				$entry->{lldpNeighbour_id} = "node_view_$possNeighbour";
 				last;
-		          }
-                    
-                }
+			}
+		}
                 
-                if ( @parts = split(/\./,$entry->{index}) ) {
+		if ( @parts = split(/\./,$entry->{index}) ) {
 			$entry->{unused} = shift(@parts);
-			$entry->{lldpIfIndex} = shift(@parts);
+			$entry->{lldpLocPortNum} = shift(@parts);
 			$entry->{lldpDeviceIndex} = shift(@parts);
 			
+			# did I find an interface in the lldpLocal data?
+			if ( defined $NI->{lldpLocal} and defined $NI->{lldpLocal}{$entry->{lldpLocPortNum}} ) {
+				# yes, so get a local portnum and get the ifDescr, then get the ifIndex using the reverse index.
+				my $lldpLocPortNum = $entry->{lldpLocPortNum};
+				my $ifDescr = $NI->{lldpLocal}{$lldpLocPortNum}{lldpLocPortDesc};
+				$entry->{lldpIfIndex} = $IFD->{$ifDescr}{ifIndex};
+			}
+
 			if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
 				$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
 				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
 				$entry->{ifDescr_id} = "node_view_$node";
-				}
+			}
 		}
-		
-		      
-        
-        }
+	}
 
-return ($changesweremade,undef); # report if we changed anything
-	
+	return ($changesweremade,undef); # report if we changed anything
 }
 
 1;

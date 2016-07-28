@@ -34,7 +34,7 @@
     'sys' => {
       'macTable' => {
         'headers' => 'ifDescr,dot1dTpFdbAddress,vlan,dot1dTpFdbPort,dot1dTpFdbStatus,updateDate',
-        'indexed' => 'dot1qTpFdbPort',
+        'comment' => 'this model does not have an indexed element because it is a place holder the plugin to fill in data.',
         'snmp' => {
           'ifDescr' => {
             'title' => 'ifDescr'
