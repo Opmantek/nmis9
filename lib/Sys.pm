@@ -36,7 +36,7 @@ use lib "../../lib";
 
 use func; # common functions
 use rrdfunc; # for getFileName
-use snmp;
+use snmp 1.1.0;									# ensure the new infrastructure is in place
 
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
@@ -197,7 +197,7 @@ sub initsnmp {
 	my $self = shift;
 
 	# remember name for error message
-	$self->{snmp} = snmp->new(debug => $self->{debug}, 
+	$self->{snmp} = snmp->new(debug => $self->{debug},
 														name => $self->{cfg}{node}{name} );
 	dbg("snmp for node=$self->{name} initialized");
 	return 1;
@@ -241,7 +241,7 @@ sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->aler
 # what is given as argument or default 1472. argument is expected to reflect the
 # global default.
 # returns: 1 if ok (or nothing to do b/c node nocollect), 0 otherwise
-sub open 
+sub open
 {
 	my ($self, %args) = @_;
 
@@ -249,17 +249,17 @@ sub open
 
 	# prime config for snmp, based mostly on cfg->node - cloned to not leak and of the updated bits
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
-	
+
 	# check if numeric ip address is available for speeding up, conversion done by type=update
 	$snmpcfg->{host} = $self->{info}{system}{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name};
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
-	
+
 	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
 																		debug => $self->{debug}));
-	
+
 	$self->{info}{system}{snmpVer} = $self->{snmp}->version; # get back actual info
 	return 1;
 }

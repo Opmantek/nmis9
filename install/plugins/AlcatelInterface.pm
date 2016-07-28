@@ -1,14 +1,12 @@
 # a small update plugin for discovering interfaces on alcatel asam devices
 # which requires custom snmp accesses
 package AlcatelInterface;
-our $VERSION = "1.0.1";
+our $VERSION = "1.1.0";
 
 use strict;
-
+use NMIS;												# lnt
 use func;												# for loading extra tables
-use NMIS;
-
-use Net::SNMP; 									# for the fixme removable local snmp session stuff
+use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
 {
@@ -32,12 +30,11 @@ sub update_plugin
 	$override ||= {};
 
 	# Get the SNMP Session going.
-	# fixme: the local myXX functions should be replaced by $S->open, and $S->{snmp}->xx
-	my $session = mysnmpsession( $NI->{system}->{host}, $NC->{node}->{community}, $NC->{node}->{port}, $C);
-	if (!$session)
-	{
-		return (2,"Could not open SNMP session to node $node");
-	}
+	my $snmp = snmp->new(name => $node);
+	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+				if (!$snmp->testsession);
 
 	# remove any old redundant useless and otherwise annoying entries.
 	delete $S->{info}{interface};
@@ -134,7 +131,7 @@ sub update_plugin
 		my $prefix = "1.3.6.1.4.1.637.61.1.6.5.1.1";
 		my $offsetIndex = $index - $offset;
 		my $oid = "$prefix.$offsetIndex";
-		my $customerid = mysnmpget($session,$oid) if defined $session;
+		my $customerid = $snmp->get($oid);
 		
 		dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$customerid->{$oid}");
 		if ( $customerid->{$oid} ne "" and $customerid->{$oid} !~ /SNMP ERROR/ ) {
@@ -655,53 +652,4 @@ sub decode_interface_index_42 {
 	}
 }
 
-sub mysnmpsession {
-	my $node = shift;
-	my $community = shift;
-	my $port = shift;
-	my $C = shift;
-
-	my ($session, $error) = Net::SNMP->session(                   
-		-hostname => $node,                  
-		-community => $community,                
-		-timeout  => $C->{snmp_timeout},                  
-		-port => $port
-	);  
-
-	if (!defined($session)) {       
-		logMsg("ERROR ($node) SNMP Session Error: $error");
-		$session = undef;
-	}
-	
-	# lets test the session!
-	my $oid = "1.3.6.1.2.1.1.2.0";	
-	my $result = mysnmpget($session,$oid);
-	if ( $result->{$oid} =~ /^SNMP ERROR/ ) {	
-		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
-		$session = undef;
-	}
-	
-	return $session; 
-}
-
-sub mysnmpget {
-	my $session = shift;
-	my $oid = shift;
-	
-	my %pdesc;
-		
-	my $response = $session->get_request($oid); 
-	if ( defined $response ) {
-		%pdesc = %{$response};  
-		my $err = $session->error; 
-		
-		if ($err){
-			$pdesc{$oid} = "SNMP ERROR"; 
-		} 
-	}
-	else {
-		$pdesc{$oid} = "SNMP ERROR: empty value $oid"; 
-	}
-	
-	return \%pdesc;
-}
+1;

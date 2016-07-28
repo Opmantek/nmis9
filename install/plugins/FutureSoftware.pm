@@ -1,14 +1,13 @@
 # a small update plugin for discovering interfaces on FutureSoftware devices
 # which requires custom snmp accesses
 package FutureSoftware;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use strict;
 
 use func;												# for loading extra tables
-use NMIS;
-
-use Net::SNMP; 									# for the fixme removable local snmp session stuff
+use NMIS;												# iftypestable
+use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
 {
@@ -35,13 +34,13 @@ sub update_plugin
 	$override ||= {};
 
 	# Get the SNMP Session going.
-	# fixme: the local myXX functions should be replaced by $S->open, and $S->{snmp}->xx
-	my $session = mysnmpsession( $NI->{system}->{host}, $NC->{node}->{community}, $NC->{node}->{port}, $C);
-	if (!$session)
-	{
-		return (2,"Could not open SNMP session to node $node");
-	}
-
+	my $snmp = snmp->new(name => $node);
+	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	
+	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+			if (!$snmp->testsession);
+	
 	my $ifIndexOid = "1.3.6.1.2.1.2.2.1.1";
 	my $ifDescrOid = "1.3.6.1.2.1.2.2.1.2";
 	my $ifTypeOid = "1.3.6.1.2.1.2.2.1.3";
@@ -52,11 +51,17 @@ sub update_plugin
 	my $ifAliasOid = "1.3.6.1.2.1.31.1.1.1.18";
 	my $ifHighSpeedOid = "1.3.6.1.2.1.31.1.1.1.15";
 	
-	# get the ifIndexes
-	my @ifIndexNum = getIndexList($session,$ifDescrOid);
+	# get the ifIndexes - Futuresoftware does NOT expose ifindex, so this has to go via ifdescr
+	my $intftable = $snmp->getindex($ifDescrOid, 
+																	$NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions});
+	return (2, "Failed to retrieve SNMP ifindexes: ".$snmp->error) 
+			if (ref($intftable) ne "HASH" or !keys %$intftable);
+	
+	my @ifIndexNum = sort { $a <=> $b } keys %$intftable;
 	dbg("Got some ifIndexes: @ifIndexNum") if @ifIndexNum;
 				
-	foreach my $index (@ifIndexNum) {
+	foreach my $index (@ifIndexNum) 
+	{
 		dbg("Working on $index");
 		# Declare the required VARS
 		my @oids = (
@@ -72,8 +77,10 @@ sub update_plugin
 		);
 		
 		# Store them straight into the results
-		my $snmpData = getData($session,@oids);
-		
+		my $snmpData = $snmp->get(@oids);
+		return (2, "Failed to retrieve SNMP variables: ".$snmp->error) 
+				if (ref($snmpData) ne "HASH");
+
 		my $ifDescr = $snmpData->{"$ifDescrOid.$index"};
 		my $ifType = $IFT->{$snmpData->{"$ifTypeOid.$index"}}{ifType};
 		my $ifSpeed = $snmpData->{"$ifSpeedOid.$index"};
@@ -238,127 +245,9 @@ sub update_plugin
 		$V->{interface}{"${index}_ifIndex_value"} = $index;
 		$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 	}
-	
+
+	$snmp->close;
 	return (1,undef);							# happy, changes were made so save view and nodes files
-}
-
-sub mysnmpsession {
-	my $node = shift;
-	my $community = shift;
-	my $port = shift;
-	my $C = shift;
-
-	my ($session, $error) = Net::SNMP->session(                   
-		-hostname => $node,                  
-		-community => $community,                
-		-timeout  => $C->{snmp_timeout},                  
-		-port => $port
-	);  
-
-	if (!defined($session)) {       
-		logMsg("ERROR ($node) SNMP Session Error: $error");
-		$session = undef;
-	}
-	
-	# lets test the session!
-	my $oid = "1.3.6.1.2.1.1.2.0";	
-	my $result = mysnmpget($session,$oid);
-	if ( $result->{$oid} =~ /^SNMP ERROR/ ) {	
-		logMsg("ERROR ($node) SNMP Session Error, bad host or community wrong");
-		$session = undef;
-	}
-	else {
-		dbg("SNMP WORKS: $result->{$oid}");
-	}
-	
-	return $session; 
-}
-
-sub mysnmpget {
-	my $session = shift;
-	my $oid = shift;
-	
-	my %pdesc;
-		
-	my $response = $session->get_request($oid); 
-	if ( defined $response ) {
-		%pdesc = %{$response};  
-		my $err = $session->error; 
-		
-		if ($err){
-			$pdesc{$oid} = "SNMP ERROR"; 
-		} 
-	}
-	else {
-		$pdesc{$oid} = "SNMP ERROR: empty value $oid"; 
-	}
-	
-	return \%pdesc;
-}
-
-# get hash with key containing only indexes of oid
-sub getIndexList {
-	my $session = shift;
-	my $oid = shift;
-	
-	my $msg;
-	my @indexes;
-
-	# get it
-	my $result = $session->get_table( -baseoid => $oid );	
-
-	if ( $session->error() ne "" ) {
-		my $error = $session->error();
-		dbg("SNMP ERROR: $error");
-		return undef;
-	}
-	
-	foreach my $key (sort {$result->{$a} <=> $result->{$b}} keys %{$result} ) {
-		#push(@indexes,$result->{$key});
-		my $oidkey = $key;
-		$oidkey =~ s/$oid.//i;
-		push(@indexes,$oidkey);
-	}
-	return @indexes;
-}
-
-# get hash with key containing only indexes of oid
-sub getIndexData {
-	my $session = shift;
-	my $oid = shift;
-	
-	my $msg;
-	my $data;
-
-	# get it
-	my $result = $session->get_table( -baseoid => $oid );	
-
-	if ( $session->error() ne "" ) {
-		my $error = $session->error();
-		dbg("SNMP ERROR: $error");
-		return undef;
-	}
-	
-	foreach my $key (sort {$result->{$a} <=> $result->{$b}} keys %{$result} ) {
-		my $oidIndex = $key;
-		$oidIndex =~ s/$oid.//i ;
-		$data->{$oidIndex} = $result->{$key};
-	}
-	return $data;
-}
-
-sub getData {
-	my($session, @oids) = @_;
-		
-	my $result = $session->get_request( -varbindlist => \@oids );
-
-	if ( $session->error() ne "" ) {
-		my $error = $session->error();
-		dbg("SNMP ERROR: $error");
-		return undef;
-	}
-				
-	return $result;
 }
 
 sub ifStatus {
@@ -375,3 +264,4 @@ sub ifStatus {
 	return 'unknown';
 }	
 
+1;

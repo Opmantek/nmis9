@@ -677,7 +677,10 @@ sub doUpdate {
 	$S->readNodeView; # from prev. run
 	# if reachable then we can update the model and get rid of the default we got from init above
 	if (runPing(sys=>$S)) {
-		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
+		if ($S->open(timeout => $C->{snmp_timeout},
+								 retries => $C->{snmp_retries},
+								 max_msg_size => $C->{snmp_max_msg_size}))
+		{
 			if (getNodeInfo(sys=>$S)) {
 				# fgetnodeinfo has deleted the interface info, need to rebuild from scratch
 				if ( getbool($NC->{node}{collect}) ) {
@@ -711,7 +714,14 @@ sub doUpdate {
 			### 2014-12-16 keiths, when did the update poll last complete properly.
 			$NI->{system}{lastUpdatePoll} = time();
 		}
-	} else {		# no ping, no snmp, no type
+		else
+		{
+			logMsg("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
+			info("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
+		}
+	}
+	else
+	{		# no ping, no snmp, no type
 		$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";		# nmisdev Dec2010 first time model seen, collect, but no snmp answer
 		$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
 	}
@@ -900,7 +910,10 @@ sub doCollect {
 	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
 
 	if (runPing(sys=>$S)) {
-		if ($S->open(timeout => $C->{snmp_timeout}, retries => $C->{snmp_retries}, max_msg_size => $C->{snmp_max_msg_size})) {
+		if ($S->open(timeout => $C->{snmp_timeout},
+								 retries => $C->{snmp_retries},
+								 max_msg_size => $C->{snmp_max_msg_size}))
+		{
 			# oke, node reachable
 			if ( getbool($NC->{node}{collect}) ) {
 				if (updateNodeInfo(sys=>$S)) {
@@ -912,8 +925,8 @@ sub doCollect {
 					if ( getbool($C->{snmp_stop_polling_on_error}) and getbool($NI->{system}{snmpdown}) ) {
 						logMsg("SNMP Polling stopped for $NI->{system}{name} because SNMP had errors, snmpdown=$NI->{system}{snmpdown} snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error}");
 					}
-					else {
-
+					else
+					{
 						### 2012-12-03 keiths, adding some model testing and debugging options.
 						if ( $model or $C->{info}) {
 							print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
@@ -948,6 +961,11 @@ sub doCollect {
 					}
 				}
 			}
+		}
+		else
+		{
+			logMsg("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
+			info("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
 		}
 	}
 
@@ -2674,7 +2692,8 @@ sub updateNodeInfo {
 		if ($sysObjectID ne $NI->{system}{sysObjectID}) {
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
 			$exit = getNodeInfo(sys=>$S);
-			goto END_updateNodeInfo; # ready with new info
+			info("Finished with exit=$exit");
+			return $exit;
 		}
 		# if ifNumber has changed, then likely an interface has been added or removed.
 
@@ -2798,7 +2817,6 @@ sub updateNodeInfo {
 		print "MODEL $S->{name}: nodedown=$NI->{system}{nodedown} sysUpTime=$NI->{system}{sysUpTime} sysObjectID=$NI->{system}{sysObjectID}\n";
 	}
 
-END_updateNodeInfo:
 	info("Finished with exit=$exit");
 	return $exit;
 } # end updateNodeInfo
@@ -3883,10 +3901,6 @@ sub getPVC {
 	my $SNMP = $S->snmp;
 	my $PVC = $S->pvcinfo;
 
-	# quick exit if not a device supporting frame type interfaces !
-	# fixme: should be extended to support all node types
-	if ( $NI->{nodeType} ne "router" ) { return; }
-
 	my %pvcTable;
 	my $port;
 	my $pvc;
@@ -3914,9 +3928,9 @@ sub getPVC {
 			$seen{$_} = $_;
 		}
 	}
-	if ( ! %seen ) {	# empty hash
+	if ( ! %seen ) {	# nothing to do
 		dbg("$NI->{system}{name} does not have any frame ports or no collect or port down");
-		goto END_getPVC;
+		return;
 	}
 
 	my $cnt = keys %seen;
@@ -4006,7 +4020,7 @@ sub getPVC {
 			delete $S->{info}{pvc};
 		}
 	}
-END_getPVC:
+
 	dbg("Finished");
 } # end getPVC
 
@@ -4025,11 +4039,8 @@ sub runServer {
 	my %ValMeM;
 	my $hrCpuLoad;
 
-	# fixme: should be extended to work on all node types!
-	if ($NI->{system}{nodeType} ne 'server') { return;}
-
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
 
 	info("Starting server device/storage collection, node $NI->{system}{name}");
 
@@ -4228,8 +4239,6 @@ sub runServices {
 	my $nodeCheckSnmpServices = 0;
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
 	if ($snmp_allowed
-			# fixme: needs to be extended to work with all node types!
-			and $NI->{system}{nodeType} eq 'server'
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
 			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service", split(/,/, $NT->{$NI->{system}{name}}->{services})) )
@@ -4259,7 +4268,7 @@ sub runServices {
 				last;
 			}
 		}
-		
+
 		# prepare service list for all observed services
 		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
 			# key services by name_pid
@@ -4410,8 +4419,6 @@ sub runServices {
 		}
 		# now the snmp services - but only if snmp is on
 		elsif ( $ST->{$service}{Service_Type} eq "service"
-						# fixme: needs to be extended to work for all node types
-						and $NI->{system}{nodeType} eq 'server'
 						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
@@ -6885,7 +6892,7 @@ sub runLinks {
 
 	if (!($II = loadInterfaceInfo())) {
 		logMsg("ERROR reading all interface info");
-		goto END_runLinks;
+		return;
 	}
 
 	if ( getbool($C->{db_links_sql}) ) {
@@ -6973,9 +6980,9 @@ sub runLinks {
 			my %netweight = ( wan => 1, lan => 2, _ =>  3, );
 			my %roleweight = ( core =>  1, distribution => 2, _ => 3, access => 4);
 
-			my $netweight1 = defined($netweight{ $subnets{$subnet}->{net1} })? 
+			my $netweight1 = defined($netweight{ $subnets{$subnet}->{net1} })?
 					$netweight{ $subnets{$subnet}->{net1} } : $netweight{"_"};
-			my $netweight2 = defined($netweight{ $subnets{$subnet}->{net2} })? 
+			my $netweight2 = defined($netweight{ $subnets{$subnet}->{net2} })?
 					$netweight{ $subnets{$subnet}->{net2} } : $netweight{"_"};
 
 			my $roleweight1 = defined($roleweight{ $subnets{$subnet}->{role1} })?
@@ -7016,7 +7023,6 @@ sub runLinks {
 	}
 	logMsg("Check table Links and update link names and other entries");
 
-END_runLinks:
 	dbg("Finished");
 }
 

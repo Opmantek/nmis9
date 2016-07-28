@@ -30,15 +30,10 @@
 # To make sense of Cisco VLAN Bridge information.
 
 package vtpVlan;
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 use strict;
-
-use func;												# for the conf table extras
-use NMIS;
-use Data::Dumper;
-
-use Net::SNMP;									# for the fixme removable local snmp session stuff
+use func;												# for logging, info
 
 sub update_plugin
 {
@@ -50,7 +45,6 @@ sub update_plugin
 	# anything to do?
 
 	return (0,undef) if (ref($NI->{vtpVlan}) ne "HASH");
-	
 	
 	info("Working on $node vtpVlan");
 
