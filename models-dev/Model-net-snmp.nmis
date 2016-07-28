@@ -639,8 +639,15 @@ at least on linux 100% used is common with lots of buffers/cache',
             }
           },
           'ifDescr' => {
-            'oid' => 'ifDescr'
+            'oid' => 'ifName',
+						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
+					},
+					
+					# don't want this in this section, but needed or the ifname/ifdescr fallback fails
+					'Hardware' => {
+            'oid' => 'ifDescr',
           },
+
           'ifInOctets' => {
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'

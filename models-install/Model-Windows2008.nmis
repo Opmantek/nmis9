@@ -316,7 +316,7 @@
             'option' => 'gauge,0:100'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr'
+            'oid' => 'ifName'
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',

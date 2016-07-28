@@ -576,8 +576,14 @@
             'oid' => 'ifOperStatus',
             'option' => 'gauge,0:100'
           },
-          'ifDescr' => {
-            'oid' => 'ifDescr'
+						'ifDescr' => {
+							'oid' => 'ifName',
+							'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
+				},
+					# not wanted in this section but needed or the fallback for ifdescr/ifname won't work
+					'Hardware' => {
+            'oid' => 'ifDescr',
+            'title' => 'Hardware',
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
