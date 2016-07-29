@@ -155,12 +155,9 @@ sub compute_signature
 {
 	my ($fn, $sauce) = @_;
 
-	my @lines = eval { read_file($fn); };
-	if ($@)
-	{
-		warn "cannot read file $fn: $@\n";
-		return undef;
-	}
+	open(F, $fn) or die "cannot open file $fn: $!\n";
+	my @lines = <F>;
+	close F;
 
 	my @filedata;
 	for my $line (@lines)

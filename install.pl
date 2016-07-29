@@ -225,7 +225,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl));
 
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -238,7 +238,7 @@ perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog
 perl-Excel-Writer-XLSX
-perl-Digest-MD5 perl-Digest-HMAC perl-Crypt-DES
+ perl-Digest-HMAC perl-Crypt-DES perl-Clone
 ));
 
 	# cgi was removed from core in 5.20
@@ -740,7 +740,6 @@ else
 			execPrint("cp -a $site/install/$cff $site/conf/$cff");
 		}
 	}
-	execPrint("cp -fa $site/install/Tables.nmis $site/install/Table-*.nmis $site/conf/");
 
 	printBanner("Removing outdated/moved config files");
 	# script moved to admin
@@ -835,7 +834,7 @@ to date. You find this tool in $site/admin/upgrade_tables.pl.\n";
 		}
 		else
 		{
-			echolog("No upgradeable model files detected.");
+			echolog("No upgradeable table files detected.");
 		}
 
 		# handle the model files, automatically where possible
@@ -1329,7 +1328,7 @@ EOF
 
 	find(\&getModules, "$src");
 
-	# add two semi-optional modules, third (digest::md5) is already required
+	# add two semi-optional modules, third (digest::md5) is in core
 	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 
