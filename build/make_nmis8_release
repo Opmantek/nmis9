@@ -11,7 +11,8 @@ or $0 8.5.12G HEAD \`git tag\`
 the release is made from the CURRENT branch;
 must be called from source dir.
 
-rtags are needed for capture_model_sigs/upgrade_models; 
+rtags are needed for capture_model_sigs/capture_table_sigs,
+upgrade_models/upgrade_tables;
 if not present ALL nmis release tags plus HEAD are used!
 
 EOF
@@ -42,6 +43,10 @@ fi
 echo "Capturing model sigs, for releases $TAGS"
 ( cd $TARGETDIR; ./build/capture_model_sigs ./admin/upgrade_models.pl $TAGS; );
 
+echo "Capturing table sigs, for releases $TAGS"
+( cd $TARGETDIR; ./build/capture_table_sigs ./admin/upgrade_tables.pl $TAGS; );
+
+
 # create the dirs that are empty and therefore not in git
 for i in conf database models htdocs/reports logs/json; do
 		mkdir -p $TARGETDIR/$i;
@@ -58,10 +63,7 @@ for i in admin install bin lib lib/NMIS cgi-bin; do
 done
 
 mv $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
-mv $TARGETDIR/install/Access.opha.nmis $TARGETDIR/install/Tables.opha.nmis $TARGETDIR/install/Servers.nmis \
-	 $TARGETDIR/install/Tenants.nmis $TARGETDIR/install/Groups.nmis $TARGETDIR/install/Table-Nodes.opha.nmis \
-	 $TARGETDIR/install/Table-Servers.nmis $TARGETDIR/install/Table-Tenants.nmis \
-	 $TARGETDIR/install/Table-Groups.nmis $NONFREE/install
+# note: opha-related files are now in opmojo, in install/nmis/!
 
 mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-bin/debug-master.pl \
 	 $TARGETDIR/cgi-bin/tenants.pl $TARGETDIR/cgi-bin/opsla.pl $NONFREE/cgi-bin

@@ -73,7 +73,7 @@ else {
 
 backupFile(file => $ARGV[0], backup => "$ARGV[0].backup");
 
-$conf->{"system"}->{"nmis_executable"} = '(/(bin|admin)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
+$conf->{"system"}->{"nmis_executable"} = '(/(bin|admin|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
 
 $conf->{'authentication'}{'auth_user_name_regex'} = "[\\w \\-\\.\\@\\`\\']+";
 

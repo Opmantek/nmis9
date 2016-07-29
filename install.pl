@@ -225,7 +225,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl));
 
 	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -238,7 +238,7 @@ perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog
 perl-Excel-Writer-XLSX
-perl-Digest-MD5 perl-Digest-HMAC perl-Crypt-DES
+ perl-Digest-HMAC perl-Crypt-DES perl-Clone
 ));
 
 	# cgi was removed from core in 5.20
@@ -740,7 +740,6 @@ else
 			execPrint("cp -a $site/install/$cff $site/conf/$cff");
 		}
 	}
-	execPrint("cp -fa $site/install/Tables.nmis $site/install/Table-*.nmis $site/conf/");
 
 	printBanner("Removing outdated/moved config files");
 	# script moved to admin
@@ -792,12 +791,58 @@ else
 			rename($obsolete, "$obsolete.disabled");
 		}
 
+		# handle table files, automatically where possible
+		printBanner("Performing Table Upgrades");
+
+		my @upgradables = `$site/admin/upgrade_tables.pl -o $site/install $site/conf 2>&1`;
+		my $ucheck = $? >> 8;
+		my @problematic = `$site/admin/upgrade_tables.pl -p $site/install $site/conf 2>&1`;
+		logInstall("table upgrade check:\n".join("", @upgradables, @problematic));
+
+		# first mention the problematic files
+		if ($ucheck & 1)
+		{
+			printBanner("Non-upgradeable Table files detected");
+			print "\nThe installer has detected the following table files that require
+manual updating:\n\n" .join("", @problematic) ."\n";
+			&input_ok;
+		}
+		else
+		{
+			echolog("No table files in need of manual updating detected.");
+		}
+
+		if ($ucheck & 2)
+		{
+			printBanner("Auto-upgradeable table files detected");
+
+			print "The installer has detected the following auto-upgradeable table files:\n\n"
+					.join("", @upgradables)."\n";
+
+			if (input_yn("Do you want to upgrade these tables now?"))
+			{
+				execPrint("$site/admin/upgrade_tables.pl -u $site/install $site/conf 2>&1");
+			}
+			else
+			{
+				echolog("Not upgrading tables, as directed.");
+
+				print "\nWe recommend that you use the table upgrade tool to keep your tables up
+to date. You find this tool in $site/admin/upgrade_tables.pl.\n";
+				&input_ok;
+			}
+		}
+		else
+		{
+			echolog("No upgradeable table files detected.");
+		}
+
 		# handle the model files, automatically where possible
 		printBanner("Performing Model Upgrades");
 
-		my @upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
-		my $ucheck = $? >> 8;
-		my @problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
+		@upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
+		$ucheck = $? >> 8;
+		@problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
 		logInstall("model upgrade check:\n".join("", @upgradables, @problematic));
 
 		# first mention the problematic models
@@ -818,7 +863,7 @@ model upgrades: https://community.opmantek.com/x/-wd4\n";
 		{
 			printBanner("Auto-upgradeable model files detected");
 
-			print "The installer has detected that the following auto-upgradeable model files:\n\n"
+			print "The installer has detected the following auto-upgradeable model files:\n\n"
 					.join("", @upgradables)."\n";
 
 			if (input_yn("Do you want to perform this model upgrade now?"))
@@ -1283,7 +1328,7 @@ EOF
 
 	find(\&getModules, "$src");
 
-	# add two semi-optional modules, third (digest::md5) is already required
+	# add two semi-optional modules, third (digest::md5) is in core
 	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 

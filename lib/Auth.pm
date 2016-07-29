@@ -1384,6 +1384,7 @@ sub update_failure_counter
 	open(F,">$userstatefile") or return "cannot write $userstatefile: $!";
 	print F encode_json($userdata);
 	close(F);
+	setFileProtDiag(file => $userstatefile, username => $C->{os_username}, permission => $C->{os_fileperm}); # ignore problems with that
 
 	return (undef, $userdata->{count});
 }

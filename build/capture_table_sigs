@@ -1,0 +1,115 @@
+#!/usr/bin/perl
+# this small helper takes a number of nmis release tags,
+# and captures all table-xyz.nmis file signatures for each of 
+# the given tags. # as table files contain code, they need a bit of 
+# ugly normalisation before the signatures can be computed
+#
+# note: always uses ./install to check the files
+use strict;
+use Digest::MD5;								# good enough
+use List::MoreUtils;						# for uniq
+use File::Slurp;
+use Data::Dumper;
+
+my $usage = "Usage: $0 <file_to_update> [reltag1 reltag2...]
+HEAD should be included in the tags for capturing the current state!
+\n\n";
+
+my ($targetfile, @rtags) = @ARGV;
+
+die $usage if (!$targetfile or !@rtags);
+die "must be run from checked out nmis repository!\n"
+		if (!-d "./lib/NMIS" or !-d "./.git");
+
+my (%sigs);
+
+opendir(D, "install") or die "cannot open install: $!\n";
+my @files = grep(/^Table.+\.nmis$/, readdir(D));
+closedir(D);
+
+
+for my $todofile (@files)
+{
+	my $tempfile = "/tmp/$todofile.$$";
+	for my $tag (@rtags)
+	{
+		my $res = system("git show $tag:install/$todofile >$tempfile 2>/dev/null");
+		# error? likely the file didn't exist in that version
+		next if ($res >> 8);
+
+		$sigs{$todofile} ||= [];
+		my $sig = compute_signature($tempfile);
+		if ($sig)
+		{
+			push @{$sigs{$todofile}}, $sig;
+		}
+		else
+		{
+			warn "Attention: bad $todofile in release $tag!\n";
+		}
+	}
+	unlink($tempfile);
+}
+
+# if we can update a file with __DATA__, we do;
+# if now we just write the targetfile
+my @existingdata = read_file($targetfile) if (-f $targetfile);
+my @newdata;
+if (@existingdata)
+{
+	for my $old (@existingdata)
+	{
+		push @newdata, $old;
+		last if ($old =~ /^__DATA__\s*$/);
+	}
+}
+for my $fn (sort keys %sigs)
+{
+	push @newdata, join(" ", $fn, List::MoreUtils::uniq(@{$sigs{$fn}}))."\n";
+}
+
+write_file($targetfile, @newdata);
+
+exit 0;
+		
+
+# computes a short signature for a Table-blah.nmis file,
+# which OFTEN contains live code! (so 'do' or evaluation is no go)
+#
+# instead we read the file source, then normalise: nuke all leading/trailing white space 
+# all lines that contain only comments, all easily detectable inline comments,
+# reduce all remaining whitespace to a single space. this isn't perfect but should be sufficient.
+#
+# args: filename/path, optional sauce
+# returns: signature or undef + warns on error
+# note: function needs to be kept in sync with admin/upgrade_tables.pl
+sub compute_signature
+{
+	my ($fn, $sauce) = @_;
+
+	my @lines = eval { read_file($fn); };
+	if ($@)
+	{
+		warn "cannot read file $fn: $@\n";
+		return undef;
+	}
+
+	my @filedata;
+	for my $line (@lines)
+	{
+		next if ($line =~ /^\s*#/);						# comment lines
+		$line =~ s/^\s*//; $line =~ s/\s*$//; # leading and trailing ws
+		$line =~ s/\s+/ /g;					# collapse whitespace++ into single space
+		$line =~ s/;\s*#.*$/;/;			# inline comments IFF at the end of a real statement
+		next if ($line =~ /^\s*$/);
+
+		push @filedata, $line;
+	}
+
+	$sauce ||= '';
+
+	# print  STDERR "checking file $fn: data is\n".join(" ",@filedata)."\n\n\n";
+
+	my $fullsig = Digest::MD5::md5_hex($sauce.join(" ",@filedata));
+	return substr($fullsig,0,16);
+}

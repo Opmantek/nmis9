@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.4.5";
+our $VERSION = "1.4.6";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -290,13 +290,13 @@ sub collect_evidence
 		mkdir("$targetdir/system_status");
 		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 		# this needs to cover dbdir and vardir if outside
-		system("find -L $dirstocheck -type d | xargs ls -laH > $targetdir/system_status/filelist.txt") == 0
+		system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
 				or warn "can't list nmis dir: $!\n";
 		
 		# get md5 sums of the relevant installation files
 		# no need to checksum dbdir or vardir
 		print "please wait while we collect file status information...\n";
-		system("find -L $basedir -type f |grep -v -e /.git/ -e /database/ -e /logs/ -e /var/|xargs md5sum -- >$targetdir/system_status/md5sum 2>&1");
+		system("find -L $basedir \\( \\( -path '$basedir/.git' -o -path '$basedir/database' -o -path '$basedir/logs' -o -path '$basedir/var' \\) -prune \\) -o \\( -type f -print0 \\) |xargs -0 md5sum -- >$targetdir/system_status/md5sum 2>&1");
 		
 		# verify the relevant users and groups, dump groups and passwd (not shadow)
 		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");

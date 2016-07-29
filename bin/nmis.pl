@@ -43,6 +43,7 @@ require 5.008_001;
 use strict;
 use csv;				# local
 use URI::Escape;
+use Cwd qw();
 use rrdfunc; 			# createRRD, updateRRD etc.
 use NMIS;				# local
 use NMIS::Connect;
@@ -100,7 +101,8 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	my $selftest_cache = "$varsysdir/selftest";
 
 	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false',
-																			 report_database_status => \$selftest_dbdir_status);
+																			 report_database_status => \$selftest_dbdir_status,
+																			 perms => 'false');
 	writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
@@ -209,10 +211,44 @@ sub	runThreads
 		}
 
 		my $selftest_cache = "$varsysdir/selftest";
+		# check the current state, to see if a perms check is due? once every 2 hours
+		my $laststate = readFiletoHash(file => $selftest_cache, json => 1);
+		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
+														 || !defined($laststate->{lastupdate_perms})
+														 || $laststate->{lastupdate_perms} + 7200 < time);
+
 		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
+																				 perms => $wantpermsnow,
 																				 report_database_status => \$selftest_dbdir_status);
+
+		# keep the old permissions state if this test did not run a permissions test
+		# hardcoded test name isn't great, though.
+		if (!$wantpermsnow)
+		{
+			$laststate ||= { tests => [] };
+
+			my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
+			if (defined $oldstate)
+			{
+				my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
+				if (defined $targetidx)
+				{
+					$tests->[$targetidx] = $oldstate;
+				}
+				else
+				{
+					push @$tests, $oldstate;
+				}
+				$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
+			}
+		}
+
 		writeHashtoFile(file => $selftest_cache, json => 1,
-									data => { status => $allok, lastupdate => time, tests => $tests });
+									data => { status => $allok,
+														lastupdate => time,
+														lastupdate_perms => ($wantpermsnow? time
+																								 : $laststate?  $laststate->{lastupdate_perms} : undef),
+														tests => $tests });
 		info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	}
 
@@ -7081,177 +7117,167 @@ sub checkConfig {
 
 	my $ext = getExtension(dir=>'conf');
 
-	my $checkFunc;
-	my $checkType;
 
-	# depending on our job, create dir and fix the perms!
+	# depending on our job, create dirs with correct perms
 	# or just check and report them.
 	if (getbool($change))
 	{
-		$checkFunc = sub { my ($dirname) = @_; createDir($dirname); setFileProtDirectory($dirname, 1); };
-		$checkType = "Checking and Fixing";
-	}
-	else {
-		$checkFunc = \&checkDir;
-		$checkType = "Auditing and Reporting"
-	}
+		my $checkFunc = sub { my ($dirname) = @_; createDir($dirname); setFileProtDirectory($dirname, 1); };
+		my $checkType = "Checking and Fixing";
 
-	# check if nmis_base already oke
-	if (!(-e "$C->{'<nmis_base>'}/bin/nmis.pl"))
-	{
-
-		my $nmis_bin_dir = $FindBin::Bin; # dir of this program
-
-		my $nmis_base = $nmis_bin_dir;
-		$nmis_base =~ s/\/bin$//; # strip /bin
-
-		my $check = 1;
-		while ($check) {
-			print " What is the root directory of NMIS [$nmis_base] ? ";
-			my $line = <STDIN>;
-			chomp $line;
-			if ($line eq '') { $line = $nmis_base; }
-
-			# check this input
-			if (-e "$line/bin/nmis.pl") {
-				$nmis_base = $line;
-				$check = 0;
-				print <<EO_TEXT;
-ERROR:  It appears that the NMIS install is not complete or not in the
-default location.  Check the installation guide at Opmantek.com.
-
-What will probably fix it is if you copy the config file samples from
-$nmis_base/install to $nmis_base/conf
-and verify that $nmis_base/conf/Config.$ext reflects
-the correct file paths.
-EO_TEXT
-				exit 0;
-			} else {
-				print " Directory $line does not exist\n";
-			}
+		# Do the var directories exist? if not make them and fix the perms!
+		info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
+		if ($C->{'<nmis_var>'} ne '') {
+			&$checkFunc("$C->{'<nmis_var>'}");
+			&$checkFunc("$C->{'<nmis_var>'}/nmis_system");
+			&$checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
 		}
 
-		# store nmis_base in NMIS config
-		my ($CC,undef) = readConfData(conf=>$nvp{conf},debug=>$nvp{debug});
+		# Do the log directories exist, if not make them?
+		info("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
+		if ($C->{'<nmis_logs>'} ne '') {
+			&$checkFunc("$C->{'<nmis_logs>'}");
+			&$checkFunc("$C->{'json_logs'}");
+			&$checkFunc("$C->{'config_logs'}");
+		}
 
-		$CC->{directories}{'<nmis_base>'} = $nmis_base;
+		# Do the conf directories exist if not make them?
+		info("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
+		if ($C->{'<nmis_conf>'} ne '') {
+			&$checkFunc("$C->{'<nmis_conf>'}");
+		}
 
-		writeConfData(data=>$CC);
+		# Does the database directory exist? if not make it.
+		info("Config $checkType - Checking database directories");
+		if ($C->{database_root} ne '')
+		{
+			&$checkFunc("$C->{database_root}");
+		}
+		else
+		{
+			print "\n Cannot create directories because database_root is not defined in NMIS config\n";
+		}
 
-		$C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug}); # reload
+		# create files
+		if ( not existFile(dir=>'logs',name=>'nmis.log')) {
+			open(LOG,">>$C->{'<nmis_logs>'}/nmis.log");
+			close LOG;
+			setFileProt("$C->{'<nmis_logs>'}/nmis.log");
+		}
 
-		print " NMIS config file $C->{configfile} updated\n\n";
+		if ( not existFile(dir=>'logs',name=>'auth.log')) {
+			open(LOG,">>$C->{'<nmis_logs>'}/auth.log");
+			close LOG;
+			setFileProt("$C->{'<nmis_logs>'}/auth.log");
+		}
 
-	} else {
-		info("\n Root directory of NMIS is $C->{'<nmis_base>'}\n");
+		if ( not existFile(dir=>'var',name=>'nmis-system'))
+		{
+			my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-system');
+			$hsh->{startup} = time();
+			writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
+		}
+
+		# now perform exactly the same permission fixing operations as admin/fixperms.pl
+
+		# single depth directories
+		my %done;
+		for my $location ($C->{'<nmis_data>'}, # commonly same as base
+											$C->{'<nmis_base>'},
+											$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
+											$C->{'<nmis_models>'},
+											$C->{'<nmis_logs>'},
+											$C->{'log_root'}, # should be the same as nmis_logs
+											$C->{'config_logs'},
+											$C->{'json_logs'},
+											$C->{'<menu_base>'},
+											$C->{'report_root'},
+											$C->{'script_root'}, # commonly under nmis_conf
+											$C->{'plugin_root'}, ) # ditto
+		{
+			setFileProtDirectory($location, "false") 	if (!$done{$location});
+			$done{$location} = 1;
+		}
+
+		# deeper dirs with recursion
+		%done = ();
+		for my $location ($C->{'<nmis_base>'}."/lib",
+											$C->{'<nmis_conf>'},
+											$C->{'<nmis_var>'},
+											$C->{'<nmis_menu>'},
+											$C->{'mib_root'},
+											$C->{'database_root'},
+											$C->{'web_root'}, )
+		{
+			setFileProtDirectory($location, "true") 	if (!$done{$location});
+			$done{$location} = 1;
+		}
 	}
 
-	# Do the var directories exist? if not make them and fix the perms!
-	info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
-	if ($C->{'<nmis_var>'} ne '') {
-		&$checkFunc("$C->{'<nmis_var>'}");
-		&$checkFunc("$C->{'<nmis_var>'}/nmis_system");
-		&$checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
-	}
-
-	# Do the log directories exist, if not make them?
-	info("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
-	if ($C->{'<nmis_logs>'} ne '') {
-		&$checkFunc("$C->{'<nmis_logs>'}");
-		&$checkFunc("$C->{'json_logs'}");
-		&$checkFunc("$C->{'config_logs'}");
-	}
-
-	# Do the conf directories exist if not make them?
-	info("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
-	if ($C->{'<nmis_conf>'} ne '') {
-		&$checkFunc("$C->{'<nmis_conf>'}");
-	}
-
-	# Does the database directory exist? if not make it.
-	info("Config $checkType - Checking database directories");
-	if ($C->{database_root} ne '')
+	if ( getbool($audit) )
 	{
-		&$checkFunc("$C->{database_root}");
-	} else {
-		print "\n Cannot create directories because database_root is not defined in NMIS config\n";
+		my $overallstatus = 1;
+		my @problems;
+
+		# flat dirs first
+		my %done;
+		for my $location ($C->{'<nmis_data>'}, # commonly same as base
+											$C->{'<nmis_base>'},
+											$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
+											$C->{'<nmis_models>'},
+											$C->{'<nmis_logs>'},
+											$C->{'log_root'}, # should be the same as nmis_logs
+											$C->{'config_logs'},
+											$C->{'json_logs'},
+											$C->{'<menu_base>'},
+											$C->{'report_root'},
+											$C->{'script_root'}, # commonly under nmis_conf
+											$C->{'plugin_root'}, ) # ditto
+		{
+			my $where = Cwd::abs_path($location);
+			next if ($done{$where});
+
+			my ($result, @newmsgs) = checkDirectoryFiles($location, recurse => "false");
+
+			$overallstatus = 0 if (!$result);
+			push @problems, @newmsgs;
+
+			$done{$where} = 1;
+		}
+
+		# deeper dirs with recursion
+		%done = ();
+		for my $location ($C->{'<nmis_base>'}."/lib",
+											$C->{'<nmis_conf>'},
+											$C->{'<nmis_var>'},
+											$C->{'<nmis_menu>'},
+											$C->{'mib_root'},
+											$C->{'database_root'},
+											$C->{'web_root'}, )
+		{
+			my $where = Cwd::abs_path($location);
+			next if ($done{$where});
+
+			my ($result, @newmsgs) = checkDirectoryFiles($location, recurse => "true");
+
+			$overallstatus = 0 if (!$result);
+			push @problems, @newmsgs;
+
+			$done{$where} = 1;
+		}
+
+		if (@problems && $overallstatus)
+		{
+			print "Informational messages:\n", join("\n", @problems), "\n";
+		}
+		elsif (@problems)
+		{
+			print "Detected problems:\n", join("\n", @problems), "\n";
+		}
 	}
 
-	# create files
-	if ( not existFile(dir=>'logs',name=>'nmis.log')) {
-		open(LOG,">>$C->{'<nmis_logs>'}/nmis.log");
-		close LOG;
-		setFileProt("$C->{'<nmis_logs>'}/nmis.log");
-	}
-	else {
-		checkFile("$C->{'<nmis_logs>'}/nmis.log");
-	}
-
-	if ( not existFile(dir=>'logs',name=>'auth.log')) {
-		open(LOG,">>$C->{'<nmis_logs>'}/auth.log");
-		close LOG;
-		setFileProt("$C->{'<nmis_logs>'}/auth.log");
-	}
-	else {
-		checkFile("$C->{'<nmis_logs>'}/auth.log");
-	}
-
-	if ( not existFile(dir=>'var',name=>'nmis-system')) {
-		my ($hsh,$handle) = loadTable(dir=>'var',name=>'nmis-system');
-		$hsh->{startup} = time();
-		writeTable(dir=>'var',name=>'nmis-system',data=>$hsh);
-	}
-	else {
-		checkFile(getFileName(file => "$C->{'<nmis_var>'}/nmis-system"));
-	}
-
-	if ( getbool($change) ) {
-		setFileProtDirectory("$FindBin::Bin/../lib");
-		setFileProtDirectory("$FindBin::Bin/../lib/NMIS");
-		setFileProtDirectory($C->{'<nmis_admin>'});
-		setFileProtDirectory($C->{'<nmis_bin>'});
-		setFileProtDirectory($C->{'<nmis_cgi>'});
-		setFileProtDirectory($C->{'<nmis_conf>'});
-		setFileProtDirectory($C->{'<nmis_data>'});
-		setFileProtDirectory($C->{'<nmis_logs>'});
-		setFileProtDirectory($C->{'<nmis_menu>'});
-		setFileProtDirectory($C->{'<nmis_models>'});
-		setFileProtDirectory($C->{'<nmis_var>'});
-		setFileProtDirectory($C->{'config_logs'});
-		setFileProtDirectory($C->{'database_root'},"true");
-		setFileProtDirectory($C->{'json_logs'});
-		setFileProtDirectory($C->{'log_root'});
-		setFileProtDirectory($C->{'mib_root'});
-		setFileProtDirectory($C->{'report_root'});
-		setFileProtDirectory($C->{'script_root'});
-		setFileProtDirectory($C->{'web_root'});
-	}
-
-	if ( getbool($audit) ) {
-		checkDirectoryFiles("$FindBin::Bin/../lib");
-		checkDirectoryFiles("$FindBin::Bin/../lib/NMIS");
-		checkDirectoryFiles($C->{'<nmis_admin>'});
-		checkDirectoryFiles($C->{'<nmis_bin>'});
-		checkDirectoryFiles($C->{'<nmis_cgi>'});
-		checkDirectoryFiles($C->{'<nmis_conf>'});
-		checkDirectoryFiles($C->{'<nmis_data>'});
-		checkDirectoryFiles($C->{'<nmis_logs>'});
-		checkDirectoryFiles($C->{'<nmis_menu>'});
-		checkDirectoryFiles($C->{'<nmis_models>'});
-		checkDirectoryFiles($C->{'<nmis_var>'});
-		checkDirectoryFiles($C->{'config_logs'});
-		checkDirectoryFiles($C->{'database_root'});
-		checkDirectoryFiles($C->{'json_logs'});
-		checkDirectoryFiles($C->{'log_root'});
-		checkDirectoryFiles($C->{'mib_root'});
-		checkDirectoryFiles($C->{'report_root'});
-		checkDirectoryFiles($C->{'script_root'});
-		checkDirectoryFiles($C->{'web_root'});
-	}
-
-	#== convert config .csv to .xxxx (hash) file format ==
+	# convert ancient config .csv to .xxxx (hash) file format
 	convertConfFiles();
-	#==
 
 	info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
 }

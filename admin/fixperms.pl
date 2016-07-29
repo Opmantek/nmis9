@@ -34,7 +34,7 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use NMIS;
 use func;
@@ -53,13 +53,13 @@ print "The group will be set to: $C->{nmis_group}\n";
 if ( not $< == 0) { # NOT root
 	print "\nWARNING: You are NOT the ROOT user, so this will likely not work well, but we will do our best\n\n";
 }
-else {	
+else {
 	my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_base>'}`;
 	print $output;
 
 	my $output = `chmod -R g+rw $C->{'<nmis_base>'}`;
 	print $output;
-	
+
 	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} ) {
 		my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_data>'}`;
 		print $output;
@@ -69,20 +69,37 @@ else {
 	}
 }
 
-setFileProtDirectory($C->{'<nmis_admin>'});
-setFileProtDirectory($C->{'<nmis_bin>'});
-setFileProtDirectory($C->{'<nmis_cgi>'});
-setFileProtDirectory($C->{'<nmis_conf>'});
-setFileProtDirectory($C->{'<nmis_data>'});
-setFileProtDirectory($C->{'<nmis_logs>'},"true");
-setFileProtDirectory($C->{'<nmis_menu>'});
-setFileProtDirectory($C->{'<nmis_models>'});
-setFileProtDirectory($C->{'<nmis_var>'},"true");
-setFileProtDirectory($C->{'config_logs'});
-setFileProtDirectory($C->{'database_root'},"true");
-setFileProtDirectory($C->{'json_logs'});
-setFileProtDirectory($C->{'log_root'});
-setFileProtDirectory($C->{'mib_root'});
-setFileProtDirectory($C->{'report_root'});
-setFileProtDirectory($C->{'script_root'});
-setFileProtDirectory($C->{'web_root'});
+# single depth directories
+my %done;
+for my $location ($C->{'<nmis_data>'}, # commonly same as base
+									$C->{'<nmis_base>'},
+									$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
+									$C->{'<nmis_models>'},
+									$C->{'<nmis_logs>'},
+									$C->{'log_root'}, # should be the same as nmis_logs
+									$C->{'config_logs'},
+									$C->{'json_logs'},
+									$C->{'<menu_base>'},
+									$C->{'report_root'},
+									$C->{'script_root'}, # commonly under nmis_conf
+									$C->{'plugin_root'}, ) # ditto
+{
+	setFileProtDirectory($location, "false") 	if (!$done{$location});
+	$done{$location} = 1;
+}
+
+# deeper dirs with recursion
+%done = ();
+for my $location ($C->{'<nmis_base>'}."/lib",
+									$C->{'<nmis_conf>'},
+									$C->{'<nmis_var>'},
+									$C->{'<nmis_menu>'},
+									$C->{'mib_root'},
+									$C->{'database_root'},
+									$C->{'web_root'}, )
+{
+	setFileProtDirectory($location, "true") 	if (!$done{$location});
+	$done{$location} = 1;
+}
+
+exit 0;
