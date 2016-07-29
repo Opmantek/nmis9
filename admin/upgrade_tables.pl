@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 #
-# this helper upgrades model files where safe to do so
+# this helper upgrades table files where safe to do so
 #
 our $VERSION="8.5.12G";
 
@@ -136,7 +136,7 @@ for my $newfn (sort keys %knownsigs)
 # perform the actual overwriting if desired
 if ($opts{u} && @cando)
 {
-	print "Upgrading all upgradeable model files...\n";
+	print "Upgrading all upgradeable table files...\n";
 	for my $todo (@cando)
 	{
 		my $res = File::Copy::cp("$newdir/$todo", "$livedir/$todo");
