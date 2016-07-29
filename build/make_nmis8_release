@@ -58,10 +58,7 @@ for i in admin install bin lib lib/NMIS cgi-bin; do
 done
 
 mv $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
-mv $TARGETDIR/install/Access.opha.nmis $TARGETDIR/install/Tables.opha.nmis $TARGETDIR/install/Servers.nmis \
-	 $TARGETDIR/install/Tenants.nmis $TARGETDIR/install/Groups.nmis $TARGETDIR/install/Table-Nodes.opha.nmis \
-	 $TARGETDIR/install/Table-Servers.nmis $TARGETDIR/install/Table-Tenants.nmis \
-	 $TARGETDIR/install/Table-Groups.nmis $NONFREE/install
+# note: opha-related files are now in opmojo, in install/nmis/!
 
 mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-bin/debug-master.pl \
 	 $TARGETDIR/cgi-bin/tenants.pl $TARGETDIR/cgi-bin/opsla.pl $NONFREE/cgi-bin
