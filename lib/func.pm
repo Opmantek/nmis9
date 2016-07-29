@@ -1,6 +1,4 @@
 #
-## $Id: func.pm,v 8.26 2012/09/21 05:05:10 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.4.3";
+our $VERSION = "1.5.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -39,7 +37,8 @@ use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
 use Time::Local;		 # fixme: actuall NOT used by func
 use POSIX qw();			 # we want just strftime
-use CGI::Pretty qw(:standard);
+use CGI::Pretty qw(:standard);	# fixme: ditch, dead slow
+use Cwd qw();
 use version 0.77;
 
 use JSON::XS;
@@ -124,6 +123,7 @@ use Exporter;
 		writeConfData
 		getKernelName
 		createDir
+
 		checkDir
 		checkFile
 		checkDirectoryFiles
@@ -535,7 +535,7 @@ sub getBGColor {
 # translates nmis severity levels to colors
 # fixme: traceback and error are not-quite-standard and not supported everywhere,
 # nor are up or down event levels.
-sub eventColor 
+sub eventColor
 {
 	my $event_level = shift;
 	my $color;
@@ -556,7 +556,7 @@ sub eventColor
 	return $color;
 } # end eventColor
 
-# sanitises/translates some sort of severity level into nmis levels 
+# sanitises/translates some sort of severity level into nmis levels
 # fixme: except that levels error and traceback are not standard nor supported everwhere
 sub eventLevelSet {
 	my $event_level = shift;
@@ -1797,7 +1797,7 @@ sub loadConfTable {
 					last;
 				}
 			}
-			
+
 			$Table_cache{$conf}{debug} = setDebug($debug); # include debug setting in conf table
 			$Table_cache{$conf}{info} = setDebug($info); # include debug setting in conf table
 			$Table_cache{$conf}{conf} = $conf;
@@ -1878,231 +1878,244 @@ sub createDir {
 	}
 }
 
-sub checkDir {
-	my $dir = shift;
+# checks the ownerships and permissions on one directory
+# args: directory, options hash
+# fixme: currently ignores options, should support non-strictperms)
+#
+# returns: (1, info msg list) or (0, error message list)
+sub checkDir
+{
+	my ($dir, %opts) = @_;
+
 	my $result = 1;
 	my @messages;
 
 	my $C = loadConfTable();
 
 	# Does the directory exist
-	if ( not -d $dir ) {
-		$result = 0;
-		push(@messages,"ERROR: directory $dir does not exist");
+	return (0, "ERROR: directory $dir does not exist") if (!-d $dir);
+
+	my $dstat = stat($dir);
+	my $gid = $dstat->gid;
+	my $uid = $dstat->uid;
+	my $mode = $dstat->mode;
+
+	my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
+	my $username = getpwuid($uid);
+
+	# Are the user and group permissions correct.
+	my $user_rwx = ($mode & S_IRWXU) >> 6;
+	my $group_rwx = ($mode & S_IRWXG) >> 3;
+
+	if ( $user_rwx ) {
+		push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};
 	}
 	else {
-    #2 mode     file mode  (type and permissions)
-    #4 uid      numeric user ID of file's owner
-  	#5 gid      numeric group ID of file's owner
-		my $dstat = stat($dir);
-		my $gid = $dstat->gid;
-		my $uid = $dstat->uid;
-		my $mode = $dstat->mode;
-
-		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
-		my $username = getpwuid($uid);
-
-		#print "DEBUG: dir=$dir username=$username groupname=$groupname uid=$uid gid=$gid mode=$mode\n";
-
-		# Are the user and group permissions correct.
-		my $user_rwx = ($mode & S_IRWXU) >> 6;
-    my $group_rwx = ($mode & S_IRWXG) >> 3;
-
-		if ( $user_rwx ) {
-			push(@messages,"INFO: $dir has user read-write-execute permissions") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $dir does not have user read-write-execute permissions");
-		}
-
-		if ( $group_rwx ) {
-			push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $dir does not have group read-write-execute permissions");
-		}
-
-		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
-		}
-
-		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
-		}
-
-		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
-		}
+		$result = 0;
+		push(@messages,"ERROR: $dir does not have user read-write-execute permissions");
 	}
 
-	if (not $result) {
-		my $message = join("\n",@messages);
-		print "Problem with $dir:\n$message\n";
+	if ( $group_rwx ) {
+		push(@messages,"INFO: $dir has group read-write-execute permissions") if $C->{debug};
+	}
+	else {
+		$result = 0;
+		push(@messages,"ERROR: $dir does not have group read-write-execute permissions");
 	}
 
-	my $message = join(";;",@messages);
-	return($result,$message);
+	if ( $C->{'nmis_user'} eq $username ) {
+		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
+	}
+	else {
+		$result = 0;
+		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
+	}
+
+	if ( $C->{'os_username'} eq $username ) {
+		push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};
+	}
+	else {
+		$result = 0;
+		push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
+	}
+
+	if ( $C->{'nmis_group'} eq $groupname ) {
+		push(@messages,"INFO: $dir has correct owner from config nmis_group=$groupname") if $C->{debug};
+	}
+	else {
+		$result = 0;
+		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
+	}
+
+	return($result,@messages);
 }
 
-sub checkFile {
-	my $file = shift;
+# checks the characteristics of ONE file
+# args: file (full path), options hash
+# options: checksize (optional, default: yes)
+# strictperms (optional, default: yes),
+# if off, SUFFICIENT perms for user+group nmis are ok,
+# if on, PRECISELY the standard perms and ownerships are accepted as ok
+#
+# returns: (1, list of messages) if ok or (0, list of problem messages)
+sub checkFile
+{
+	my ($file, %opts) = @_;
+
 	my $result = 1;
 	my @messages;
 
 	my $C = loadConfTable();
+	my $prettyfile = File::Spec->abs2rel(Cwd::abs_path($file), $C->{'<nmis_base>'});
 
-	# Does the directory exist
-	if ( not -f $file ) {
+	# does it even exist?
+	return (0, "ERROR: file $prettyfile does not exist") if ( not -f $file );
+
+	my $fstat = stat($file);
+
+	# size check - default is yes
+	if ( !getbool($opts{checksize}, "invert")
+			 && $C->{file_size_warning}
+			 && $fstat->size > $C->{'file_size_warning'})
+	{
 		$result = 0;
-		push(@messages,"ERROR: file $file does not exist");
+		push(@messages,"WARN: $prettyfile is ".$fstat->size." bytes, larger than $C->{'file_size_warning'} bytes");
 	}
-	else {
-    #2 mode     file mode  (type and permissions)
-    #4 uid      numeric user ID of file's owner
-  	#5 gid      numeric group ID of file's owner
-		my $fstat = stat($file);
-		my $gid = $fstat->gid;
-		my $uid = $fstat->uid;
-		my $mode = $fstat->mode;
-		my ($groupname,$passwd,$gid2,$members) = getgrgid $gid;
-		my $username = getpwuid($uid);
 
-		if ( $fstat->size > $C->{'file_size_warning'} and $C->{'file_size_warning'} ne "" and $C->{'file_size_warning'} > 0 ) {
+	my $groupname = getgrgid($fstat->gid);
+	my $username = getpwuid($fstat->uid);
+	my $mode = $fstat->mode & (S_IRWXU|S_IRWXG|S_IRWXO); # only want u/g/o perms, not type, not setX
+
+	my $should_be_executable = $C->{nmis_executable}?
+			qr/$C->{nmis_executable}/
+			: qr!(/(bin|admin|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$!i;
+
+	# permissions, strict or sufficient? default is strict
+	if (!getbool($opts{strictperms},"invert"))
+	{
+		# strict: owner and group must be exact matches
+		if ( $C->{'nmis_user'} eq $username )
+		{
+			push(@messages,"INFO: $prettyfile has correct owner $username")
+					if $C->{debug};
+		}
+		else
+		{
 			$result = 0;
-			my $size = $fstat->size;
-			push(@messages,"WARN: $file is $size bytes, larger than $C->{'file_size_warning'} bytes");
-		}
-
-		#S_IRWXU S_IRUSR S_IWUSR S_IXUSR
-    #S_IRWXG S_IRGRP S_IWGRP S_IXGRP
-    #S_IRWXO S_IROTH S_IWOTH S_IXOTH
-
-		# Are the user and group permissions correct.
-    # are the files executable or non-executable
-    if (! defined $C->{'nmis_executable'}) { #Added by Till Dierkesmann
-        $C->{'nmis_executable'} = '\.pl$|\.sh$';
-        dbg("nmis_executable set to \"$C->{'nmis_executable'}\"",1);
-    }
-
-    if ( $file =~ /$C->{'nmis_executable'}/ ) {
-			my $user_rwx = ($mode & S_IRWXU) >> 6;
-	    my $group_rwx = ($mode & S_IRWXG) >> 3;
-	    my $other_rwx = ($mode & S_IRWXO);
-
-			if ( $user_rwx ) {
-				push(@messages,"INFO: $file has user read-write-execute permissions") if $C->{debug};
-			}
-			else {
-				$result = 0;
-				push(@messages,"ERROR: $file does not have user read-write-execute permissions");
-			}
-
-			if ( $group_rwx ) {
-				push(@messages,"INFO: $file has group read-write-execute permissions") if $C->{debug};
-			}
-			else {
-				$result = 0;
-				push(@messages,"ERROR: $file does not have group read-write-execute permissions");
-			}
-
-			if ( $other_rwx ) {
-				$result = 0;
-				push(@messages,"WARN: $file has other read-write-execute permissions");
-			}
-		}
-		else {
-			my $user_r  = ($mode & S_IRUSR) >> 6;
-	    my $group_r = ($mode & S_IRGRP) >> 3;
-	    my $other_r = ($mode & S_IROTH);
-			my $user_w  = ($mode & S_IWUSR) >> 6;
-	    my $group_w = ($mode & S_IWGRP) >> 3;
-	    my $other_w = ($mode & S_IWOTH);
-
-			if ( $user_r and $user_w ) {
-				push(@messages,"INFO: $file has user read-write permissions") if $C->{debug};
-			}
-			else {
-				$result = 0;
-				push(@messages,"ERROR: $file does not have user read-write permissions");
-			}
-
-			if ( $group_r and $group_w ) {
-				push(@messages,"INFO: $file has group read-write permissions") if $C->{debug};
-			}
-			else {
-				$result = 0;
-				push(@messages,"ERROR: $file does not have group read-write permissions");
-			}
-
-			if ( $other_r ) {
-				$result = 0;
-				push(@messages,"WARN: $file has other read permissions");
-			}
-			if ( $other_w ) {
-				$result = 0;
-				push(@messages,"WARN: $file has other write permissions");
-			}
-		}
-
-		if ( $C->{'nmis_user'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_user=$username") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
-		}
-
-		if ( $C->{'os_username'} eq $username ) {
-			push(@messages,"INFO: $file has correct owner from config os_username=$username") if $C->{debug};
-		}
-		else {
-			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
+			push(@messages,"ERROR: $prettyfile owned by user $username, not correct owner $C->{nmis_user}");
 		}
 
 		if ( $C->{'nmis_group'} eq $groupname ) {
-			push(@messages,"INFO: $file has correct owner from config nmis_group=$groupname") if $C->{debug};
+			push(@messages,"INFO: $prettyfile has correct group $groupname") if $C->{debug};
 		}
-		else {
+		else
+		{
 			$result = 0;
-			push(@messages,"ERROR: $file DOES NOT have correct owner from config nmis_group=$C->{'nmis_group'} dir=$groupname");
+			push(@messages,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
+		}
+
+		my ($text,$wanted) = ($file =~ $should_be_executable)?
+				("exec", oct($C->{os_execperm})) : ("file", oct($C->{os_fileperm}));
+
+		# exactly os_execperm/os_fileperm is accepted
+		if ($mode != $wanted)
+		{
+			$result = 0;
+			my @grants;
+			push @grants, "FEWER" if ($wanted & $mode) != $wanted;
+			push @grants, "MORE" if ($wanted | $mode) != $wanted;
+			push @messages, sprintf("ERROR: $prettyfile has incorrect %s perms 0%o: grants %s rights than correct 0%o",
+															$text, $mode, join(" and ", @grants), $wanted);
+		}
+		else
+		{
+			push @messages, sprintf("INFO: $prettyfile has correct %s perms 0%o", $text, $mode) if ($C->{debug});
+		}
+	}
+	else													# lenient/sufficient mode selected
+	{
+		# the nmis group must match; user isn't critical
+		if ( $C->{'nmis_group'} eq $groupname )
+		{
+			push(@messages,"INFO: $prettyfile has correct group $groupname") if $C->{debug};
+		}
+		else
+		{
+			$result = 0;
+			push(@messages,"ERROR: $prettyfile owned by group $groupname, not correct group $C->{nmis_group}");
+		}
+
+		# check that: the nmis group can rwx, or that the nmis group can rw
+		my ($text,$wanted) = ($file =~ $should_be_executable)?
+				("exec", oct($C->{os_execperm}))
+				: ("file", oct($C->{os_fileperm}));
+		my $reducedmode = $mode & S_IRWXG;
+
+		# only check that not less rights than the sufficient ones are granted
+		if (($reducedmode & $wanted & S_IRWXG) != ($wanted & S_IRWXG))
+		{
+			$result = 0;
+			push @messages, sprintf("ERROR: $prettyfile has insufficient group %s perms 0%o: grants fewer rights than correct 0%o",
+															$text, $mode, $wanted);
+		}
+		else
+		{
+			push @messages, sprintf("INFO: $prettyfile has sufficient group %s perms 0%o", $text, $mode) if ($C->{debug});
 		}
 	}
 
-	if (not $result) {
-		my $message = join("\n",@messages);
-		print "Problem with $file:\n$message\n";
-	}
-
-	my $message = join(";;",@messages);
-	return($result,$message);
+	return ($result,@messages);
 }
 
-sub checkDirectoryFiles {
-	my $dir = shift;
-	opendir (DIR, "$dir");
+# checks the files and dirs under the given directory (optionally recurses)
+# args: directory, options hash
+# options: recursive (default: false),
+# all options are passed through to checkFile and checkDir
+#
+# returns: (1, info msg list) or (0, error message list)
+# note: skips all dotfiles and dotdirs
+sub checkDirectoryFiles
+{
+	my ($dir, %opts) = @_;
+	my $result = 1;
+	my @messages;
+
+	return (0, "ERROR: $dir is not a directory!") if (!-d $dir);
+
+	opendir (DIR, $dir) or die "Cannot open dir $dir: $!\n";
 	my @dirlist = readdir DIR;
 	closedir DIR;
 
-	foreach my $file (@dirlist) {
-		if ( -f "$dir/$file" and $file !~ /^\./ ) {
-			checkFile("$dir/$file");
+	foreach my $thing (@dirlist)
+	{
+		next if ($thing =~ /^\./);
+		my $func;
+
+		if (-d "$dir/$thing")
+		{
+			if (getbool($opts{recurse}))
+			{
+				$func=\&checkDirectoryFiles;
+			}
+			else
+			{
+				$func= \&checkDir;
+			}
 		}
+		elsif (-l "$dir/$thing" || -f "$dir/$thing")
+		{
+			$func=\&checkFile;
+		}
+		else
+		{
+			next;										# ignore unexpected file types
+		}
+
+		my ($newstatus, @newmsgs) = &$func("$dir/$thing", %opts);
+		push @messages, @newmsgs;
+		$result = 0 if (!$newstatus);
 	}
+	return ($result, @messages);
 }
 
 # checks and adjusts the ownership and permissions on given dir X
@@ -2215,7 +2228,8 @@ sub checkPerlLib {
 # function name not exported, on purpose
 # args: an nmis config structure (needed for the paths),
 # and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
-# optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise)
+# optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
+# optional perms (default: 0, if 1 CRITICAL permissions are checked)
 # returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 sub selftest
 {
@@ -2276,7 +2290,7 @@ sub selftest
 	# do tmp and var last as we skip already seen ones
 	my %fs_ids;
 	for my $dir (@{$config}{'<nmis_base>','<nmis_var>',
-													'<nmis_logs>','database_root'}, "/tmp","/var","/xyz")
+													'<nmis_logs>','database_root'}, "/tmp","/var")
 	{
 		my $statresult = stat($dir);
 		# nonexistent dir or seen that filesystem? ignore
@@ -2306,6 +2320,78 @@ sub selftest
 			push @details, [$testname, "Only $remaining Megabytes free in $dir!"];
 			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
+		}
+		else
+		{
+			push @details, [$testname, undef];
+		}
+	}
+
+	if (getbool($args{perms}))
+	{
+		# check the permissions, but only the most critical aspects: don't bother with precise permissions
+		# as long as the nmis user and group can work with the dirs and files
+		# code is same as type=audit (checkConfig), but better error handling
+		my @permproblems;
+
+		# flat dirs first
+		my %done;
+		for my $location ($config->{'<nmis_data>'}, # commonly same as base
+											$config->{'<nmis_base>'},
+											$config->{'<nmis_admin>'}, $config->{'<nmis_bin>'}, $config->{'<nmis_cgi>'},
+											$config->{'<nmis_models>'},
+											$config->{'<nmis_logs>'},
+											$config->{'log_root'}, # should be the same as nmis_logs
+											$config->{'config_logs'},
+											$config->{'json_logs'},
+											$config->{'<menu_base>'},
+											$config->{'report_root'},
+											$config->{'script_root'}, # commonly under nmis_conf
+											$config->{'plugin_root'}, ) # ditto
+		{
+			my $where = Cwd::abs_path($location);
+			next if ($done{$where});
+
+			my ($status, @msgs) = checkDirectoryFiles($location,
+																								recurse => "false",
+																								strictperms => "false",
+																								checksize =>  "false" );
+			if (!$status)
+			{
+				push @permproblems, @msgs;
+			}
+			$done{$where} = 1;
+		}
+
+		# deeper dirs with recursion
+		%done = ();
+		for my $location ($config->{'<nmis_base>'}."/lib",
+											$config->{'<nmis_conf>'},
+											$config->{'<nmis_var>'},
+											$config->{'<nmis_menu>'},
+											$config->{'mib_root'},
+											$config->{'database_root'},
+											$config->{'web_root'}, )
+		{
+			my $where = Cwd::abs_path($location);
+			next if ($done{$where});
+
+			my ($status, @msgs) = checkDirectoryFiles($location,
+																								recurse => "true",
+																								strictperms => "false",
+																								checksize =>  "false" );
+			if (!$status)
+			{
+				push @permproblems, @msgs;
+			}
+			$done{$where} = 1;
+		}
+
+		$testname = "Permissions"; # note: this is hardcoded in nmis.pl, too!
+		if (@permproblems)
+		{
+			$allok=0;
+			push @details, [$testname, join("\n", @permproblems)];
 		}
 		else
 		{
@@ -2693,12 +2779,20 @@ sub createPollLock {
 	my $node = $args{node};
 	my $handle = undef;
 
+	my $C = loadConfTable();
+
 	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
 
-	if ( not existsPollLock(%args) ) {
+	if ( not existsPollLock(%args) )
+	{
 		my $PID = $$;
 		open($handle, ">$lockFile")  or warn "createPollLock: ERROR cannot open $lockFile: $!\n";
 		flock($handle, LOCK_EX) or warn "createPollLock: ERROR can't lock file $lockFile, $!\n";
+
+		# we ignore any problems with the perms
+		setFileProtDiag(file => $lockFile, username => $C->{os_username},
+										permission => $C->{os_fileperm});
+
 		print $handle "$PID\n";
 		return($handle);
 	}
