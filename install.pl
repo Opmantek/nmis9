@@ -792,12 +792,58 @@ else
 			rename($obsolete, "$obsolete.disabled");
 		}
 
+		# handle table files, automatically where possible
+		printBanner("Performing Table Upgrades");
+
+		my @upgradables = `$site/admin/upgrade_tables.pl -o $site/install $site/conf 2>&1`;
+		my $ucheck = $? >> 8;
+		my @problematic = `$site/admin/upgrade_tables.pl -p $site/install $site/conf 2>&1`;
+		logInstall("table upgrade check:\n".join("", @upgradables, @problematic));
+
+		# first mention the problematic files
+		if ($ucheck & 1)
+		{
+			printBanner("Non-upgradeable Table files detected");
+			print "\nThe installer has detected the following table files that require
+manual updating:\n\n" .join("", @problematic) ."\n";
+			&input_ok;
+		}
+		else
+		{
+			echolog("No table files in need of manual updating detected.");
+		}
+
+		if ($ucheck & 2)
+		{
+			printBanner("Auto-upgradeable table files detected");
+
+			print "The installer has detected the following auto-upgradeable table files:\n\n"
+					.join("", @upgradables)."\n";
+
+			if (input_yn("Do you want to upgrade these tables now?"))
+			{
+				execPrint("$site/admin/upgrade_tables.pl -u $site/install $site/conf 2>&1");
+			}
+			else
+			{
+				echolog("Not upgrading tables, as directed.");
+
+				print "\nWe recommend that you use the table upgrade tool to keep your tables up
+to date. You find this tool in $site/admin/upgrade_tables.pl.\n";
+				&input_ok;
+			}
+		}
+		else
+		{
+			echolog("No upgradeable model files detected.");
+		}
+
 		# handle the model files, automatically where possible
 		printBanner("Performing Model Upgrades");
 
-		my @upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
-		my $ucheck = $? >> 8;
-		my @problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
+		@upgradables = `$site/admin/upgrade_models.pl -o -n Common-database $site/models-install $site/models 2>&1`;
+		$ucheck = $? >> 8;
+		@problematic = `$site/admin/upgrade_models.pl -p -n Common-database $site/models-install $site/models 2>&1`;
 		logInstall("model upgrade check:\n".join("", @upgradables, @problematic));
 
 		# first mention the problematic models
@@ -818,7 +864,7 @@ model upgrades: https://community.opmantek.com/x/-wd4\n";
 		{
 			printBanner("Auto-upgradeable model files detected");
 
-			print "The installer has detected that the following auto-upgradeable model files:\n\n"
+			print "The installer has detected the following auto-upgradeable model files:\n\n"
 					.join("", @upgradables)."\n";
 
 			if (input_yn("Do you want to perform this model upgrade now?"))

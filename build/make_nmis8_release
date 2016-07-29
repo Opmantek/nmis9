@@ -11,7 +11,8 @@ or $0 8.5.12G HEAD \`git tag\`
 the release is made from the CURRENT branch;
 must be called from source dir.
 
-rtags are needed for capture_model_sigs/upgrade_models; 
+rtags are needed for capture_model_sigs/capture_table_sigs,
+upgrade_models/upgrade_tables;
 if not present ALL nmis release tags plus HEAD are used!
 
 EOF
@@ -41,6 +42,10 @@ fi
 # before we remove build files do get the model signatures
 echo "Capturing model sigs, for releases $TAGS"
 ( cd $TARGETDIR; ./build/capture_model_sigs ./admin/upgrade_models.pl $TAGS; );
+
+echo "Capturing table sigs, for releases $TAGS"
+( cd $TARGETDIR; ./build/capture_table_sigs ./admin/upgrade_tables.pl $TAGS; );
+
 
 # create the dirs that are empty and therefore not in git
 for i in conf database models htdocs/reports logs/json; do
