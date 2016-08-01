@@ -915,7 +915,7 @@ sub loadModel
 				for my $conceptname (keys %{$thisrule->{$sectionname}})
 				{
 					# _anything is reserved for internal purposes, also on the inner level
-					next if ($conceptname =~ /^_/;
+					next if ($conceptname =~ /^_/);
 					my $ispresent = List::Util::first { $conceptname eq $current[$_] } (0..$#current);
 
 					if (getbool($thisrule->{$sectionname}->{$conceptname}))
