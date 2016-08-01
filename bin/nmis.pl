@@ -202,6 +202,10 @@ sub	runThreads
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if (!$node_select and $type ne "services")
 	{
+		info("Ensuring correct permissions on conf and model directories...");
+		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
+		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
+		
 		info("Starting selftest (takes about 5 seconds)...");
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
