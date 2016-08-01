@@ -989,6 +989,9 @@ no RRD migration required.");
 	}
 }
 
+echolog("Ensuring correct file permissions...");
+execPrint("$site/admin/fixperms.pl");
+
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
 
