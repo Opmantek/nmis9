@@ -324,6 +324,9 @@ sub menu_bar_site {
 		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
 
+		push @tableMenu, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+				if ($AU->CheckAccess("table_models_view","check"));
+
 		push @tableMenu, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		foreach my $table (sort {$Tables->{$a}{DisplayName} cmp $Tables->{$b}{DisplayName} } keys %{$Tables}) { 
@@ -416,7 +419,10 @@ sub menu_bar_site {
 				if ($AU->CheckAccess("Table_Events_view","check"));
 				
 		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alert Tuning</a>| 
-				if ($AU->CheckAccess("table_models_view","check"));				
+				if ($AU->CheckAccess("table_models_view","check"));
+
+		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+				if ($AU->CheckAccess("table_models_view","check"));
 
 		#push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
 		#		if ($AU->CheckAccess("table_models_view","check"));				

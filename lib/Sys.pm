@@ -904,6 +904,7 @@ sub loadModel
 			dbg("policy rule $polnr matched",2);
 			# policy rule has matched, let's apply the settings
 			# systemHealth is the only supported setting so far
+			# note: _anything is reserved for internal purposes
 			for my $sectionname (qw(systemHealth))
 			{
 				$thisrule->{$sectionname} ||= {};
@@ -913,6 +914,8 @@ sub loadModel
 
 				for my $conceptname (keys %{$thisrule->{$sectionname}})
 				{
+					# _anything is reserved for internal purposes, also on the inner level
+					next if ($conceptname =~ /^_/;
 					my $ispresent = List::Util::first { $conceptname eq $current[$_] } (0..$#current);
 
 					if (getbool($thisrule->{$sectionname}->{$conceptname}))

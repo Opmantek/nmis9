@@ -53,6 +53,17 @@
 				 diskIOTable => 'true',
 				 entityMib => 'true',
 				 software => 'false',
+				 fanStatus => 'true',
+				 tempStatus => 'false',
+				 ifTable => 'false',
+			 },
+			 # should include all possible values
+			 # entries: grouping/ordering tag, text
+			 _display => {
+				 cdp => [ 1, "Cisco Discovery Protocol" ],
+				 entityMib => [ 1, "Entity MIB" ],
+				 diskIOTable => [ 2, "Disk I/O Statistics" ],
+				 software => [ 2, "Installed Software" ] 
 			 },
 		 },
 		);
