@@ -121,7 +121,11 @@ sub display_details
 			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;";
 
 	print $q->start_table({class=>"table"}),
-	"<tr>", $q->th({-class=>"title", -colspan => 2}, $homelink, "Service $wantservice on $wantnode"), "</tr>",
+	"<tr>", $q->th({-class=>"title", -colspan => 2}, $homelink, "Service $wantservice on ",
+								 qq|<a class="wht" title="View node $wantnode" href="$C->{network}?conf=$Q->{conf}&act=network_node_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode">$wantnode</a> &nbsp; |, 
+								 qq|<a title="View all services on $wantnode" href="$C->{network}?conf=$Q->{conf}&act=network_service_view&refresh=$C->{widget_refresh_time}&widget=$widget&node=$wantnode"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page_up.gif"></img><a>|,
+
+), "</tr>",
 	"<tr>", $q->td({-class=>"header", -colspan => 2}, "Configuration"), "</tr>";
 
 	my $thisservice = $sstatus{$wantservice}->{$wantnode};
