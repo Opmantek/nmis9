@@ -349,6 +349,8 @@ sub selectMetrics
 				{
 					my ($name,$message) = @$test;
 					next if (!defined $message); # skip the successful ones and only print the message here
+					# but not too much of the message...
+					$message = (substr($message,0,64)."&nbsp;&hellip;") if (length($message) > 64);
 					print Tr(td({class => "info Error"}, 
 											a({ href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=nmis_selftest_view",
 													id => "nmis_selftest",
