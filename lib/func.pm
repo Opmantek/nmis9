@@ -605,7 +605,9 @@ sub getDiskBytes {
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
-	if ( $string eq "true" ) { $debug = 1; }
+
+	if (!defined $string) { $debug = 0; }
+	elsif ( $string eq "true" ) { $debug = 1; }
 	elsif (  $string eq "verbose" ) { $debug = 9; }
 	elsif ( $string =~ /\d+/ ) { $debug = $string; }
 	else { $debug = 0; }
