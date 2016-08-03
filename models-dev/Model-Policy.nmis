@@ -55,66 +55,83 @@
 				 software => 'false',
 				 fanStatus => 'true',
 				 tempStatus => 'false',
+				 env-temp => 'true',
+				 lldp => 'true',
+				 fanStatus => 'true',
+				 psuStatus => 'true',
+				 tempStatus => 'true',
+
+				 addressTable => 'true',
+				 macTable => 'true',
+				 vtpVlan => 'true',
+
 				 ifTable => 'false',
+				 CiscoPseudowireVC => 'true',
+         mplsVpnVrf => 'true',
+         mplsL3VpnVrf => 'true',
+         mplsL3VpnIfConf => 'true',
+         mplsVpnInterface => 'true',
+         mplsL3VpnVrfRT => 'true',
+         mplsVpnVrfRouteTarget => 'true',
+         mplsLdpEntity => 'true',
+
+         bgpPeer => 'true',
+         ospfNbr => 'true',
+
+				 
 			 },
 			 # should include all possible values
 			 # entries: grouping/ordering tag, text
 			 _display => {
-				 cdp => [ 1, "Cisco Discovery Protocol" ],
-				 entityMib => [ 1, "Entity MIB" ],
+
+				 bgpPeer => [ 1, "Routing Protocol information using the BGP Peer MIB" ],
+				 ospfNbr => [ 1, "Routing Protocol information using the OSPF Neighbor MIB" ],
+
+
+				 addressTable => [ 2, "IP ARP Tables showing IP to MAC Address information" ],
+				 macTable => [ 2, "MAC/CAM Table information of MAC addresses connected to ports" ],
+				 vtpVlan => [ 2, "Cisco VLAN information including and support for MAC/CAM information" ],
+
+				 cdp => [ 1, "Network Neighbors using the Cisco Discovery Protocol" ],
+				 lldp => [ 1, "Network Neighbors using the Link Layer Discovery Protocol" ],
+
+				 entityMib => [ 2, "Device Inventory using the Entity MIB" ],
+				 ciscoAsset => [ 2, "Device Inventory using the Cisco Asset Entity MIB" ],
+
 				 diskIOTable => [ 2, "Disk I/O Statistics" ],
-				 software => [ 2, "Installed Software" ] 
+				 software => [ 2, "Installed Software" ],
+
+				 env-temp => [ 3, "Cisco Environment Temperature" ],
+				 fanStatus => [ 3, "Cisco Fan Status" ],
+				 psuStatus => [ 3, "Cisco Power Supply Status" ],
+				 tempStatus => [ 3, "Cisco Temperature Status" ], 
+				 
+				 CiscoPseudowireVC => [ 10, "Logical Network Inventory - Cisco Layer2 Overlay Networks" ],
+				 ifTable => [ 9, "Logical Network Inventory - List of interfaces" ],
+         mplsVpnVrf => [ 10, "Logical Network Inventory - List of VPN VRF's" ],
+         mplsL3VpnVrf => [ 10, "Logical Network Inventory - List of VPN VRF's" ],
+         mplsL3VpnIfConf => [ 10, "Logical Network Inventory - MPLS Configured Interfaces" ],
+         mplsVpnInterface => [ 10, "Logical Network Inventory - MPLS Configured Interafces" ],
+         mplsL3VpnVrfRT => [ 10, "Logical Network Inventory - MPLS Route Targets" ],
+         mplsVpnVrfRouteTarget => [ 10, "Logical Network Inventory - MPLS Route Targets" ],
+         mplsLdpEntity => [ 10, "Logical Network Inventory - MPLS Label Distribution Protocol Information" ],
+
 			 },
 		 },
 		);
 
 
 # possible sections
-
-#software
-#fanStatus
-#psuStatus
-#tempStatus
-#
-#entityMib
-#ifTable
-#dot1qVlan
-#dot1qPvid
-#atmVcl
-#eqptHolderList
-#eqptHolder
-#eqptHolderStatus
-#eqptBoard
-#eqptPortMapping
-#cpuUtil
-#memUsageUtil
-#hrProcessorLoad
-#lldp
 #Cisco_CBQoS
 #NetFlowInterfaces
-#addressTable
-#cdp
-#macTable
-#vtpVlan
-#ciscoAsset
-#bgpPeer
-#ospfNbr
-#mplsVpnVrf
-#mplsL3VpnVrf
-#mplsL3VpnIfConf
-#mplsVpnInterface
-#mplsL3VpnVrfRT
-#mplsVpnVrfRouteTarget
-#mplsLdpEntity
 #cpu_cpm
-#env-temp
-#CiscoPseudowireVC
+#
 #cempMemPool
 #cempMemBuffer
 #ciscoMemoryPool
 #ppxCardCPU
 #ppxAtm
-#diskIOTable
+#
 #VirtMachines
 #VirtualDomains
 #mtxrWlRtab
