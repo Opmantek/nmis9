@@ -72,7 +72,6 @@ use Exporter;
 		convertMonth
 		convertSecsHours
 		convertTime
-		convertTimeLength
 		convertUpTime
 		convUpTime
 		eventNumberLevel
@@ -409,22 +408,6 @@ sub convertTime {
 	return $newtime;
 }
 
-# 3 Mar 02 - Integrating Trent O'Callaghan's changes for granular graphing.
-sub convertTimeLength {
-	my $amount = shift;
-	my $units = shift;
-	my $newtime;
-
-	# convert length code into Graph start time
-	if ( $units eq "minutes" ) { $newtime = $amount * 60; }
-	elsif ( $units eq "hours" ) { $newtime = $amount * 60 * 60; }
-	elsif ( $units eq "days" ) { $newtime = $amount * 24 * 60 * 60; }
-	elsif ( $units eq "weeks" ) { $newtime = $amount * 7 * 24 * 60 * 60; }
-	elsif ( $units eq "months" ) { $newtime = $amount * 31 * 24 * 60 * 60; }
-	elsif ( $units eq "years" ) { $newtime = $amount * 365 * 24 * 60 * 60; }
-
-	return $newtime;
-}
 
 sub convertUpTime {
 	my $timeString = shift;
