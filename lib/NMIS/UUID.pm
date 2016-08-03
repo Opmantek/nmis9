@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 package NMIS::UUID;
-our $VERSION  = "1.2.1";
+our $VERSION  = "1.3.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
@@ -36,7 +36,7 @@ use NMIS;
 use func;
 use UUID::Tiny qw(:std);
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS );
+use vars qw(@ISA @EXPORT);
 
 use Exporter;
 @ISA = qw(Exporter);
@@ -59,7 +59,7 @@ sub auditNodeUUID {
 		{
 			print "ERROR: $node is completely blank!\n";
 		}
-	  elsif ( $LNT->{$node}{uuid} eq "" ) {	  	
+	  elsif ( $LNT->{$node}{uuid} eq "" ) {
 	    print "ERROR: $node does not have a UUID\n";
 		}
 		else {
@@ -73,14 +73,13 @@ sub auditNodeUUID {
 			}
 		}
 	}
-	writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID", data => $UUID_INDEX);
 	return $success;
 }
 
 # translate between data::uuid and uuid::tiny namespace constants
 # namespace_<X> (url,dns,oid,x500) in data::uuid correspond to UUID_NS_<X> in uuid::tiny
-my %known_namespaces = map { my $varname = "UUID_NS_$_"; 
-														 ("NameSpace_$_" => UUID::Tiny->$varname, 
+my %known_namespaces = map { my $varname = "UUID_NS_$_";
+														 ("NameSpace_$_" => UUID::Tiny->$varname,
 															$varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500));
 
 # creates uuids for all nodes that don't have them, or just one given node
@@ -96,31 +95,31 @@ sub createNodeUUID
 	my $LNT = loadLocalNodeTable();
 
 	my ($UUID_INDEX, $changed_nodes, $mustupdate);
-	
+
 	foreach my $node ($justonenode? $justonenode: sort keys %{$LNT})
 	{
-		next if (ref($LNT->{$node}) ne "HASH" 
+		next if (ref($LNT->{$node}) ne "HASH"
 						 or !keys %{$LNT->{$node}});  # unknown node or auto-vivified blank zombie node
 	  if ( !$LNT->{$node}{uuid} )
 		{
 			print "creating UUID for $node\n" if $C->{debug};
-			
+
 	    #'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
 	    #'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
 			# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
 			$LNT->{$node}{uuid} = getUUID($node);
-			
+
 			$mustupdate = 1;
 			++$changed_nodes;
 
 			print "Node: $node, UUID: $LNT->{$node}{uuid}\n" if $C->{debug};
 		}
-		
-		if ($UUID_INDEX->{$LNT->{$node}{uuid}} ne "" ) 
+
+		if ($UUID_INDEX->{$LNT->{$node}{uuid}} ne "" )
 		{
 			print "ERROR: the improbable has happened, a UUID conflict has been found for $LNT->{$node}{uuid}, between $node and $UUID_INDEX->{$LNT->{$node}{uuid}}\n";
 		}
-		else 
+		else
 		{
 			$UUID_INDEX->{$LNT->{$node}{uuid}} = $node;
 		}
@@ -131,7 +130,6 @@ sub createNodeUUID
 		my $ext = getExtension(dir=>'conf');
 		backupFile(file => "$C->{'<nmis_conf>'}/Nodes.$ext", backup => "$C->{'<nmis_conf>'}/Nodes.$ext.bak");
 		writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes", data => $LNT);
-		writeHashtoFile(file => "$C->{'<nmis_conf>'}/UUID", data => $UUID_INDEX);
 	}
 	return $changed_nodes;
 }
@@ -142,31 +140,31 @@ sub createNodeUUID
 # for totally random uuids.
 # args: node, optional
 # returns: uuid string
-sub getUUID 
+sub getUUID
 {
 	my ($maybenode) = @_;
 	my $C = loadConfTable();
-	
+
 	#'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
 	#'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
 	# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
 	my $uuid;
-	
+
 	if ( $known_namespaces{$C->{'uuid_namespace_type'}}
 			 and defined($C->{'uuid_namespace_name'})
 			 and $C->{'uuid_namespace_name'} ne ""
-			 and $C->{'uuid_namespace_name'} ne "www.domain.com" ) 
+			 and $C->{'uuid_namespace_name'} ne "www.domain.com" )
 	{
 		# namespace prefix plus node name or random component
 		my $nodecomponent = $maybenode || create_uuid(UUID_RANDOM);
-		$uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{uuid_namespace_type}}, 
+		$uuid = create_uuid_as_string(UUID_V5, $known_namespaces{$C->{uuid_namespace_type}},
 																	$C->{uuid_namespace_name}.$nodecomponent);
 	}
-	else 
+	else
 	{
 		$uuid = create_uuid_as_string(UUID_V1); # fixme UUID_RANDOM would be better, but the old module used V1
 	}
-	
+
 	return $uuid;
 }
 
@@ -176,7 +174,7 @@ sub getUUID
 sub getComponentUUID
 {
 	my @components = @_;
-	
+
 	my $C = loadConfTable();
 
 	my $uuid_ns = $known_namespaces{"NameSpace_URL"};
@@ -188,5 +186,5 @@ sub getComponentUUID
 
 	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
 }
-			
+
 1;

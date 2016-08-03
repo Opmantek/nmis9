@@ -302,6 +302,7 @@ sub display_details
 	
 # lists all active+visible services as a table
 # active: attached to a node, visible: node is within the current user's allowed groups
+# optionally, skip up or down services (url arg only_show, choices undef=all, "ok", "notok")
 # args: none, uses globals (C, widget stuff etc)
 sub display_overview
 {
@@ -313,8 +314,12 @@ sub display_overview
 	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
-	# own url for sorting, service url for showing the details page
-	my $url = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=$Q->{act}&widget=$widget";
+	# should we show only perfectly ok or only problematic (ie. degraded or dead) services?
+	my $filter = (defined($Q->{only_show}) &&  $Q->{only_show} =~ /^(ok|notok)$/ ? $Q->{only_show} : undef);
+
+	# url for sorting, ownurl w/o filter, service url for showing the details page
+	my $url = my $ownurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=$Q->{act}&widget=$widget";
+	$url .= "&only_show=$filter" if ($filter);
 	my $serviceurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=details&widget=$widget"; # append node and service query params
 			
 	my $homelink = $wantwidget? '' 
@@ -324,8 +329,10 @@ sub display_overview
 
 
 	print $q->start_table({class=>"table"}),
-	"<tr>", $q->th({-class=>"title", -colspan => 5}, $homelink, "Monitored Services Overview"), "</tr>",
-								
+	"<tr>", $q->th({-class=>"title", -colspan => 5}, $homelink, "Monitored Services Overview",
+								 qq| <a title="Show only running services" href="$ownurl&only_show=ok"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page_tick.gif"></img></a> <a title="Show only services with problems" href="$ownurl&only_show=notok"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page_alert.gif"></img></a> <a title="Show all services" href="$ownurl"><img src="$C->{'<menu_url_base>'}/img/v8/icons/page.gif"></img></a>|),
+	"</tr>",
+						
 	"<tr>",
 	$q->td({-class=>"header"}, $q->a({-class=>"wht", -href=>$url."&sort=service"}, "Service")),
 	$q->td({-class=>"header"}, $q->a({-class=>"wht", -href=>$url."&sort=node"}, "Node")),
@@ -340,10 +347,9 @@ sub display_overview
 	# service -> node -> data
 	my %sstatus = loadServiceStatus;
 
-
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
-	
+
 	my @statuslist;
 
 	for my $sname (keys %sstatus)
@@ -352,6 +358,9 @@ sub display_overview
 		{
 			# skip if we're not allowed to see this node
 			next if (!$AU->InGroup($LNT->{$nname}->{group}));
+			next if ($filter and
+							 (( $filter eq "ok" and $sstatus{$sname}->{$nname}->{status} != 100)
+								or ($filter eq "notok" and $sstatus{$sname}->{$nname}->{status} == 100)));
 			push @statuslist, $sstatus{$sname}->{$nname};
 		}
 	}
