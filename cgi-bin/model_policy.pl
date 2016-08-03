@@ -109,7 +109,8 @@ sub display_policy
 	
 	my $thedefault = $modelpol->{$defaultnr};
 
-	print qq|<div>Model Policy Defaults</div>|;
+	print qq|<div class="heading">Model Policy Defaults</div>|;
+	print qq|<div class="Plain">Select which advanced inventory and performance collections you would like NMIS to collect by default.</div>|;
 	print qq|<div class="Fatal">$Q->{error_message}</div>|
 			if ($Q->{error_message});
 	print qq|<div class="Normal">$Q->{message}</div>|
