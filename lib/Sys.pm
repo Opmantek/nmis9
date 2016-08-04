@@ -72,15 +72,19 @@ sub new {
 # initialise the system object for a given node
 # node config is loaded only if snmp is true
 # args: node (required, or name), snmp (defaults to 1), update (defaults to 0),
-# cache_models (see code comments for defaults)
+# cache_models (see code comments for defaults), force (defaults to 0)
 #
 # update means ignore model loading errors, also disables cache_models
+# force means ignore the old node file, only relevant if update is enabled as well.
+#
+# returns: 1 if successful, 0 otherwise
 sub init
 {
-	my $self = shift;
-	my %args = @_;
+	my ($self, %args) = @_;
+
 	$self->{name} = $args{name};
 	$self->{node} = lc $args{name}; # always lower case
+
 	$self->{debug} = $args{debug};
 	$self->{update} = getbool($args{update});
 	my $snmp = $args{snmp} || 1;
@@ -117,24 +121,35 @@ sub init
 
 	my $ext = getExtension(dir=>'var');
 
-	# load info of node and interfaces in tables of this object
-	if ($self->{name} ne "") {
-		if (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node"))) { # load in table {info}
-			$self->{info}{system}{host_addr} = ''; # clear ip address
-			if (getbool($self->{debug})) {
+	# load info of node  and interfaces in tables of this object, if a node is given
+	if ($self->{name} ne "")
+	{
+		# if force is off, load the existing node info
+		# if on, ignore that information and start from scratch (to bypass optimisations)
+		if ($self->{update} && getbool($args{force}))
+		{
+			dbg("Not loading info of node=$self->{name}, force means start from scratch");
+		}
+		# load in table {info}
+		elsif (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node")))
+		{
+			if (getbool($self->{debug}))
+			{
 				foreach my $k (keys %{$self->{info}}) {
-					dbg("Node=$self->{name} info $k=$self->{info}{$k}",3);
+					dbg("Node=$self->{name} info $k=$self->{info}{$k}", 3);
 				}
 			}
 			dbg("info of node=$self->{name} loaded");
-		} else {
+		}
+		else
+		{
 			$self->{error} = "ERROR loading var/$self->{node}-node.$ext";
 			dbg("ignore error message") if $self->{update};
 			$exit = 0;
 		}
 	}
 
-	$exit = 1 if $self->{update}; # ignore errors before with update
+	$exit = 1 if $self->{update}; # ignore previous errors if update
 
 	## This is overriding the devices with the nodedown=true!
 	if (($info = loadTable(dir=>'var',name=>"nmis-system"))) { # add nmis system database filenames and attribs
@@ -718,10 +733,9 @@ sub getValues {
 				}
 			}
 		}
-		else {
+		else
+		{
 			dbg("ERROR ($self->{info}{system}{name}) on get values by snmp");
-			$self->{info}{system}{host_addr} = ''; # clear cache
-			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 			return undef;
 		}
 	}

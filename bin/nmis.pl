@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: nmis.pl,v 8.52 2012/12/03 07:47:26 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,49 +27,42 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-package main;
+use strict;
 
-# Auto configure to the <nmis-base>/lib
+# local modules live in <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-#
-# ****** Shouldn't be anything else to customise below here *******************
-# best to customise in the nmis.conf file.
-#
-require 5.008_001;
 
-use strict;
-use csv;				# local
 use URI::Escape;
 use Cwd qw();
-use rrdfunc; 			# createRRD, updateRRD etc.
-use NMIS;				# local
-use NMIS::Connect;
 use Time::HiRes;								# also needed by nmis::timing, but bsts
-use NMIS::Timing;
-use NMIS::UUID;
-use func;				# local
-use ip;					# local
-use sapi;				# local
-use ping;				# local
 use Socket;
-use notify;
 use Net::SNMP qw(oid_lex_sort);
-use Mib;				# local
-use Sys;				# local
-use Proc::ProcessTable; # from CPAN
-use Proc::Queue ':all'; # from CPAN
+use Proc::ProcessTable;
+use Proc::Queue ':all';
 use Data::Dumper;
-use DBfunc;				# local
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
-
-Data::Dumper->import();
-$Data::Dumper::Indent = 1;
-
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 use Errno qw(EAGAIN ESRCH EPERM);
+
+use NMIS;
+use NMIS::Connect;
+use NMIS::Timing;
+use NMIS::UUID;
+use csv;
+use rrdfunc; 			# createRRD, updateRRD etc.
+use func;
+use ip;
+use sapi;
+use ping;
+use notify;
+use Mib;
+use Sys;
+use DBfunc;
+
+$Data::Dumper::Indent = 1;
 
 # Variables for command line munging
 my %nvp = getArguements(@ARGV);
@@ -683,7 +674,8 @@ sub catch_zap
 
 #====================================================================================
 
-sub doUpdate {
+sub doUpdate
+{
 	my %args = @_;
 	my $name = $args{name};
 	my $C = loadConfTable();
@@ -693,28 +685,36 @@ sub doUpdate {
 	dbg("================================");
 	dbg("Starting update, node $name");
 
-	#Check for update LOCK
+	# Check for existing update LOCK
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
 		logMsg("WARNING update lock exists for $name which has not finished!");
 		return;
 	}
-	# create the poll lock now.
+	# create the update lock now.
 	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
 
-
 	my $S = Sys::->new; # create system object
-	$S->init(name=>$name,update=>'true'); # loads old node info, and the DEFAULT(!) model (always)
-	# uses the node config loaded by init, and updates the node info table (model and nodetype only if missing)
+	# loads old node info (unless force is active), and the DEFAULT(!) model (always),
+	# and primes the sys object for snmp ops
+	$S->init(name=>$name, update=>'true', force => $nvp{force});
+
+	# uses the node config loaded by init, and updates the node info table
+	# (model and nodetype only if missing)
 	$S->copyModelCfgInfo(type=>'all');
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->{doupdate} = 'true'; # flag what is running
-	$S->readNodeView; # from prev. run
+
+	if (!getbool($nvp{force}))
+	{
+		$S->readNodeView; # from prev. run, but only if force isn't active
+	}
+
 	# if reachable then we can update the model and get rid of the default we got from init above
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout},
@@ -813,7 +813,7 @@ sub doUpdate {
 	}
 
 	return;
-} # end runUpdate
+}
 
 #=========================================================================================
 
@@ -1360,10 +1360,8 @@ sub getNodeInfo {
 	#####################
 
 	# process status
-	if ($exit) {
-		# why delete this here?
-		#delete $NI->{interface}; # reset intf info
-
+	if ($exit)
+	{
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
 
@@ -1378,17 +1376,24 @@ sub getNodeInfo {
 		$V->{system}{roleType_title} = 'Role';
 		$V->{system}{netType_value} = $NI->{system}{netType};
 		$V->{system}{netType_title} = 'Net';
-		# get ip address
-		if ((my $addr = resolveDNStoAddr($NI->{system}{host}))) {
-			$NI->{system}{host_addr} = $addr; # cache
-			if ($addr eq $NI->{system}{host}) {
-				$V->{system}{host_addr_value} = $addr;
-			} else {
-				$V->{system}{host_addr_value} = "$addr ($NI->{system}{host})";
-			}
+
+		# get the current ip address if the host property was a name
+		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
+		{
+			$NI->{system}{host_addr} = $addr; # cache it
+			$V->{system}{host_addr_value} = $addr;
+			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ($addr ne $NI->{system}{host});
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
-	} else {
+		else
+		{
+			$NI->{system}->{host_addr} = '';
+			$V->{system}{host_addr_value} = "N/A";
+			$V->{system}{host_addr_title} = 'IP Address';
+		}
+	}
+	else
+	{
 		# failed by snmp
 		$exit = snmpNodeDown(sys=>$S);
 
@@ -7649,9 +7654,10 @@ EO_TEXT
 
 #=========================================================================================
 
-sub checkArgs {
-	print <<EO_TEXT;
-$0
+sub checkArgs
+{
+	print qq!
+
 NMIS Polling Engine - Network Management Information System
 
 Copyright (C) Opmantek Limited (www.opmantek.com)
@@ -7661,6 +7667,8 @@ redistribute it under certain conditions; see www.opmantek.com or email
 contact\@opmantek.com
 
 NMIS version $NMIS::VERSION
+
+Usage: $0 <type=action> [option=value...]
 
 command line options are:
   type=<option>
@@ -7683,13 +7691,13 @@ command line options are:
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
-  [debug=true|false|0-9] default=false - Show debuging information, handy;
+  [force=true|false]     Makes an update operation run from scratch, without optimisations
+  [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
   [mthread=true|false]   default=false - Enable Multithreading or not;
   [mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
-  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create;
-
-EO_TEXT
+  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create\n
+!;
 }
 
 #=========================================================================================
