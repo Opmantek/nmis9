@@ -62,7 +62,7 @@ for i in admin install bin lib lib/NMIS cgi-bin; do
 		mkdir -p $NONFREE/$i
 done
 
-mv $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $NONFREE
+mv $TARGETDIR/install-cisco-models.sh $TARGETDIR/test $TARGETDIR/dev $TARGETDIR/models-dev $TARGETDIR/models-minimal $NONFREE
 # note: opha-related files are now in opmojo, in install/nmis/!
 
 mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-bin/debug-master.pl \
