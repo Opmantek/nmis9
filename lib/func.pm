@@ -31,6 +31,7 @@ our $VERSION = "1.5.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
+use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
 use File::stat;
 use File::Spec;
@@ -2731,46 +2732,55 @@ sub getFilePollLock {
 	return($lockFile);
 }
 
-# returns true if poll lock exists, returns false otherwise
-sub existsPollLock {
+# checks a lock's status
+# args: type, conf, node (all required)
+#
+# returns: true iff poll lock file exists
+# and some other process is holding the lock, false otherwise
+sub existsPollLock
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $conf = $args{conf};
 	my $node = $args{node};
-	my $PID = undef;
-	my $handle = undef;
 
 	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
+	my $handle;
 
-	if ( -f $lockFile ) {
-		open($handle, "$lockFile") or warn "existsPollLock: ERROR cannot open $lockFile: $!\n";
-		unless (flock($handle, LOCK_EX|LOCK_NB)) {
-			# can not get a lock
-			#warn "can't immediately write-lock the file ($!), blocking ...";
-			return 1;
-		}
-		return 0;
-	}
-	else {
-		return 0;
-	}
+	return 0 if (!-f $lockFile);	# no file, no locker for sure
 
+	open($handle, $lockFile)
+			or warn "existsPollLock: ERROR cannot open $lockFile: $!\n";
+	# test the lock: if we cannot lock, somebody is holding it
+	return 1 if (! flock($handle, LOCK_EX|LOCK_NB));
+
+	close($handle);								# let's be polite and ditch the lock and open handle
+	return 0;
 }
 
-sub createPollLock {
+# this creates a new lock IF and ONLY IF none exists
+# note: this is not sufficiently atomic to be safe!
+# ie. delta time between existspolllock and creating the lock
+# args: type, conf, node (required).
+#
+# returns: undef if the locking op failed or somebody else already holds the lock,
+# the open lock handle otherwise.
+sub createPollLock
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $conf = $args{conf};
 	my $node = $args{node};
-	my $handle = undef;
 
 	my $C = loadConfTable();
-
 	my $lockFile = getFilePollLock(type => $type, conf => $conf, node => $node);
 
+	# attention: this is not quite atomic enough to be totally safe!
 	if ( not existsPollLock(%args) )
 	{
+		my $handle;
 		my $PID = $$;
+
 		open($handle, ">$lockFile")  or warn "createPollLock: ERROR cannot open $lockFile: $!\n";
 		flock($handle, LOCK_EX) or warn "createPollLock: ERROR can't lock file $lockFile, $!\n";
 
