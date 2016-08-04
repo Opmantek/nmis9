@@ -1043,24 +1043,40 @@ sub parseString {
 	my $sect = $args{sect};
 	my $type = $args{type};
 
-
 	dbg("parseString:: string to parse $str",3);
 
 	{
-		no strict;
-		if ($self->{info}) {
+		no strict;									# *shudder*
+		map { undef ${"CVAR$_"} } ('',0..9); # *twitch* but better than reusing old cvar values...
 
-			# find custom variable VAR=oid;$CVAR=~/something/
-			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {
-				if ( defined $self->{info}{$sect}{$indx}{$1} and $self->{info}{$sect}{$indx}{$1} ne "" ) {
-					$CVAR = $self->{info}{$sect}{$indx}{$1};
-					# put the brackets back in so we have "(check) ? 1:0" again
-					$str = "(".$2;
-					dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+		if ($self->{info})
+		{
+			# find custom variables CVAR[n]=thing; in section, and substitute $CVAR[n] with the value
+			if ( $sect
+					 &&  ref($self->{info}->{$sect}) eq "HASH"
+					 &&  ref($self->{info}->{$sect}->{$indx}) eq "HASH" )
+			{
+				my $consumeme = $str;
+				my $rebuilt;
+
+				# nongreedy consumption up to the first CVAR assignment
+				while ($consumeme =~ s/^(.*?)CVAR(\d)?=(\w+);//)
+				{
+					my ($number, $thing)=($2,$3);
+					$rebuilt .= $1;
+					$number = '' if (!defined $number); # let's support CVAR, CVAR0 .. CVAR9, all separate
+
+					if (!exists $self->{info}->{$sect}->{$indx}->{$thing})
+					{
+						logMsg("ERROR: $thing not a known property in section $sect, index $indx!");
+					}
+					# let's set the global CVAR or CVARn to whatever value from the node info section
+					${"CVAR$number"} = $self->{info}->{$sect}->{$indx}->{$thing};
+					dbg("found assignment for CVAR$number, $thing, value ".${"CVAR$number"}, 3);
 				}
-				else {
-					return undef;
-				}
+				$rebuilt .= $consumeme;	# what's left after looking for CVAR assignments
+				dbg("var extraction transformed \"$str\" into \"$rebuilt\"", 3);
+				$str = $rebuilt;
 			}
 
 			$name = $self->{info}{system}{name};
