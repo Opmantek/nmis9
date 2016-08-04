@@ -1360,10 +1360,8 @@ sub getNodeInfo {
 	#####################
 
 	# process status
-	if ($exit) {
-		# why delete this here?
-		#delete $NI->{interface}; # reset intf info
-
+	if ($exit)
+	{
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
 
@@ -1378,17 +1376,24 @@ sub getNodeInfo {
 		$V->{system}{roleType_title} = 'Role';
 		$V->{system}{netType_value} = $NI->{system}{netType};
 		$V->{system}{netType_title} = 'Net';
-		# get ip address
-		if ((my $addr = resolveDNStoAddr($NI->{system}{host}))) {
-			$NI->{system}{host_addr} = $addr; # cache
-			if ($addr eq $NI->{system}{host}) {
-				$V->{system}{host_addr_value} = $addr;
-			} else {
-				$V->{system}{host_addr_value} = "$addr ($NI->{system}{host})";
-			}
+
+		# get the current ip address if the host property was a name
+		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
+		{
+			$NI->{system}{host_addr} = $addr; # cache it
+			$V->{system}{host_addr_value} = $addr;
+			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ($addr ne $NI->{system}{host});
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
-	} else {
+		else
+		{
+			$NI->{system}->{host_addr} = '';
+			$V->{system}{host_addr_value} = "N/A";
+			$V->{system}{host_addr_title} = 'IP Address';
+		}
+	}
+	else
+	{
 		# failed by snmp
 		$exit = snmpNodeDown(sys=>$S);
 

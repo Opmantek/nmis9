@@ -133,7 +133,6 @@ sub init
 		# load in table {info}
 		elsif (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node")))
 		{
-			$self->{info}{system}{host_addr} = ''; # clear ip address
 			if (getbool($self->{debug}))
 			{
 				foreach my $k (keys %{$self->{info}}) {
@@ -734,10 +733,9 @@ sub getValues {
 				}
 			}
 		}
-		else {
+		else
+		{
 			dbg("ERROR ($self->{info}{system}{name}) on get values by snmp");
-			$self->{info}{system}{host_addr} = ''; # clear cache
-			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 			return undef;
 		}
 	}
