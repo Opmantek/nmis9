@@ -29,8 +29,7 @@
 # *****************************************************************************
 #
 # this helper upgrades table files where safe to do so
-#
-our $VERSION="8.5.12G";
+our $VERSION="8.6.0a";
 
 use strict;
 use Digest::MD5;								# good enough
