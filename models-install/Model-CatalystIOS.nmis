@@ -210,6 +210,14 @@
             'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
             'title' => 'MPLS LSR Cisco'
           },
+          'TimeSinceTopologyChange' => {
+            'oid' => 'dot1dStpTimeSinceTopologyChange',
+            'Title' => 'Time Since STP Topology Change',
+            'replace' => {
+              'noSuchObject' => '',
+              'noSuchInstance' => '',
+            },
+          },
         }
       }
     },

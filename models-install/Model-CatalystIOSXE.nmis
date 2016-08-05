@@ -697,6 +697,10 @@
             },
             'title' => 'IPSLA Responder'
           },
+          'TimeSinceTopologyChange' => {
+            'oid' => 'dot1dStpTimeSinceTopologyChange',
+            'Title' => 'Time Since STP Topology Change'
+          },
         },
       },
 
