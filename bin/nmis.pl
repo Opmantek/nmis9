@@ -680,7 +680,7 @@ sub doUpdate
 	my $name = $args{name};
 	my $C = loadConfTable();
 
-	my $pollTimer = NMIS::Timing->new;
+	my $updatetimer = NMIS::Timing->new;
 
 	dbg("================================");
 	dbg("Starting update, node $name");
@@ -762,10 +762,11 @@ sub doUpdate
 	}
 	else
 	{		# no ping, no snmp, no type
-		$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";		# nmisdev Dec2010 first time model seen, collect, but no snmp answer
-		$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
+		$NI->{system}{nodeModel} ||= 'Generic';
+		$NI->{system}{nodeType} ||= 'generic';
 	}
-	runReach(sys=>$S);
+
+	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 
@@ -798,20 +799,27 @@ sub doUpdate
 		}
 	}
 
-	### 2013-03-19 keiths, NMIS Plugins!
 	# fixme: deprecated, to be removed once all model-level custom plugins are converted to new plugin infrastructure
 	# and when the remaining customers using this have upgraded
 	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
+	my $updatetime = $updatetimer->elapTime();
+	info("updatetime for $name was $updatetime");
+	# note: this structure is adjusted in TWO places, here and in docollect,
+	# to ensure that both DS are defined as soon as feasible.
+	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
+	$reachdata->{polltime} = { value => "U", option => "gauge,0:U," };
+	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	$S->close;
+
 	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
 
-	dbg("Finished");
-
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
-		my $polltime = $pollTimer->elapTime();
-		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
+
+		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $updatetime");
 	}
 
+	info("Finished");
 	return;
 }
 
@@ -1015,9 +1023,8 @@ sub doCollect {
 	runServices(sys=>$S, snmp => 'true');
 
 	runCheckValues(sys=>$S);
-	runReach(sys=>$S);
-
-	#print Dumper($S)."\n" if ( $name eq "meatball") ;
+	# don't let runreach perform the rrd update, we want to add the polltime to it!
+	my $reachdata = runReach(sys=>$S, delayupdate => 1);
 
 	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
@@ -1050,17 +1057,22 @@ sub doCollect {
 			dbg("Plugin $plugin indicated no changes");
 		}
 	}
+	my $polltime = $pollTimer->elapTime();
+	info("polltime for $name was $polltime");
+	# note: this structure is adjusted in TWO places, here and in doupdate,
+	# to ensure that both DS are defined as soon as feasible.
+	$reachdata->{updatetime} = { value => "U", option => "gauge,0:U,".(86400*3) };
+	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	$S->close;
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
 
-	$S->close;
-	info("Finished");
-
-	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
-		my $polltime = $pollTimer->elapTime();
+	if (getbool($C->{log_polling_time})) 
+	{
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
 	}
-
+	info("Finished");
 	return;
 } # end doCollect
 
@@ -5196,18 +5208,24 @@ sub snmpNodeDown {
 	$NI->{system}{snmpdown} = 'true';
 	return 0;
 }
-#=========================================================================================
 
-sub runReach {
+
+# performs various node health status checks
+# optionally! updates rrd 
+# args: sys, delayupdate (default: 0),
+# if delayupdate is set, this DOES NOT update the 
+#type 'health' rrd (to be done later, with total polltime)
+# returns: reachability data (hashref)
+sub runReach 
+{
 	my %args = @_;
 	my $S = $args{sys};	# system object
-	my $check = $args{check} || 0;
+	my $donotupdaterrd = getbool($args{delayupdate});
+	
 	my $NI = $S->ndinfo;	# node info
 	my $IF = $S->ifinfo;	# interface info
 	my $RI = $S->reach;	# reach info
 	my $C = loadConfTable();
-
-	#print Dumper($S);
 
 	my $cpuWeight;
 	my $diskWeight;
@@ -5631,7 +5649,11 @@ sub runReach {
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option} = "gauge,0:U";
 
-	my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"); # database name is 'reach'
+	# update the rrd or leave it to a caller?
+	if (!$donotupdaterrd)
+	{
+		my $db = updateRRD(sys=>$S, data=>\%reachVal, type=>"health"); # database name is normally 'reach'
+	}
 	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
 		$NI->{graphtype}{health} = "health-ping,response";
 	}
@@ -5639,12 +5661,12 @@ sub runReach {
 		$NI->{graphtype}{health} = "";
 	}
 	else {
-		$NI->{graphtype}{health} = "health,kpi,response,numintf";
+		$NI->{graphtype}{health} = "health,kpi,response,numintf,polltime";
 	}
-
-END_runReach:
 	info("Finished");
-} # end runReach
+
+	return \%reachVal;
+}
 
 #=========================================================================================
 
