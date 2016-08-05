@@ -805,10 +805,11 @@ sub doUpdate
 
 	my $updatetime = $updatetimer->elapTime();
 	info("updatetime for $name was $updatetime");
+	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
 	# note: this structure is adjusted in TWO places, here and in docollect,
 	# to ensure that both DS are defined as soon as feasible.
-	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
-	$reachdata->{polltime} = { value => "U", option => "gauge,0:U," };
+	#	disabled for now, seems counterproductive
+	# $reachdata->{polltime} = { value => "U", option => "gauge,0:U," };
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
@@ -1059,10 +1060,11 @@ sub doCollect {
 	}
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
+	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
 	# note: this structure is adjusted in TWO places, here and in doupdate,
 	# to ensure that both DS are defined as soon as feasible.
-	$reachdata->{updatetime} = { value => "U", option => "gauge,0:U,".(86400*3) };
-	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	# disabled for now, seems counterproductive
+	# $reachdata->{updatetime} = { value => "U", option => "gauge,0:U,".(86400*3) };
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
