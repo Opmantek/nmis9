@@ -41,25 +41,18 @@ use func;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+my $headeropts = {type=>'text/html',expires=>'now'};
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *th *form *Select *div *hr);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span );
-
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 # this cgi script defaults to widget mode ON
 my $widget = getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
-
 
 moduleMenu();
 

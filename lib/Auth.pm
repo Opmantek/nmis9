@@ -59,13 +59,12 @@
 #		exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 #					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 #
-
 package Auth;
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-
-use Exporter;
-
 our $VERSION = "1.1.1";
+
+use strict;
+use vars qw(@ISA @EXPORT);
+use Exporter;
 
 @ISA = qw(Exporter);
 
@@ -88,8 +87,6 @@ our $VERSION = "1.1.1";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
-
 my $C;
 
 # import external symbols from NMIS module
@@ -100,17 +97,13 @@ use notify;											# for auth lockout emails
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
+use CGI qw(:standard);										# needed for current url lookup, http header, plus td/tr/bla_field helpery
+
 # import additional modules
 use Time::ParseDate;
 use File::Basename;
 
 use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
-
-# I prefer the use of the library when debugging the resulting HTML script
-# either one will work
-use CGI::Pretty qw(:standard form *table *Tr *td center b h1 h2);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
 
 # for handling errors in javascript
 use JSON::XS;
@@ -249,11 +242,11 @@ sub CheckAccess {
 
 	# Authorization failed--put access denied page and stop
 
-	print header({type=>'text/html',expires=>'now'}) if $option eq 'header'; # add header
+	print CGI::header({type=>'text/html',expires=>'now'}) if $option eq 'header'; # add header
 
-	print table(Tr(td({class=>'Error',align=>'center'},"Access denied")),
-			Tr(td("Authorization required to access this function")),
-			Tr(td("Requested access identifier is \'$cmd\'"))
+	print CGI::table(CGI::Tr(CGI::td({class=>'Error',align=>'center'},"Access denied")),
+			CGI::Tr(CGI::td("Authorization required to access this function")),
+			CGI::Tr(CGI::td("Requested access identifier is \'$cmd\'"))
 		);
 
 	exit 0;
@@ -287,7 +280,7 @@ sub get_cookie_token
 	my($user_name) = @_;
 
 	my $token;
-	my $remote_addr = remote_addr();
+	my $remote_addr = CGI::remote_addr();
 	if( $self->{config}{auth_debug} ne '' && $self->{config}{auth_debug_remote_addr} ne '' ) {
 		$remote_addr = $self->{config}{auth_debug_remote_addr};
 	}
@@ -326,7 +319,7 @@ sub get_cookie
 {
 	my $self = shift;
 	my $cookie;
-	$cookie = cookie( $self->get_cookie_name() );
+	$cookie = CGI::cookie( $self->get_cookie_name() );
 	logAuth("get_cookie: got cookie $cookie") if $debug;
 	return $cookie;
 }
@@ -381,7 +374,7 @@ sub generate_cookie {
 	}
 
 	my $domain = $self->get_cookie_domain();
-	my $cookie = cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;
+	my $cookie = CGI::cookie( {-name=> $self->get_cookie_name(), -domain=>$domain, -value=>$value, -expires=>$expires} ) ;
 
 	return $cookie;
 }
@@ -820,7 +813,7 @@ sub do_login {
 	my $url = $subcgi->url(-absolute => 1);
 
 
-	if( http("X-Requested-With") eq "XMLHttpRequest" )
+	if( CGI::http("X-Requested-With") eq "XMLHttpRequest" )
 	{
 		# forward url will have a function in it, we want to go back to regular nmis
 		# my $url_no_forward = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$configfile_name";
@@ -837,7 +830,7 @@ EOHTML
 	}
 	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
 	logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $debug;
-	print header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
+	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
@@ -866,31 +859,31 @@ EOHTML
 
 	print $self->do_login_banner();
 
-	print start_form({method=>"POST", action=> $url, target=>"_top"});
+	print CGI::start_form({method=>"POST", action=> $url, target=>"_top"});
 
-	print start_table({class=>""});
+	print CGI::start_table({class=>""});
 
 	if ( $C->{'company_logo'} ne "" ) {
-		print Tr(td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$C->{'company_logo'}"/>|));
+		print CGI::Tr(CGI::td({class=>"info Plain",colspan=>'2'}, qq|<img class="logo" src="$C->{'company_logo'}"/>|));
 	}
 
 	my $motd = "Authentication required: Please log in with your appropriate username and password in order to gain access to this system";
 	$motd = $C->{auth_login_motd} if $C->{auth_login_motd} ne "";
 
-	print Tr(td({class=>'infolft Plain',colspan=>'2'},$motd));
+	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
 
-	print Tr(td({class=>'info Plain'},"Username") . td({class=>'info Plain'},textfield({name=>'auth_username'})));
-	print Tr(td({class=>'info Plain'},"Password") . td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
-	print Tr(td({class=>'info Plain'},"&nbsp;") . td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
 
 
 	if ( $C->{'auth_sso_domain'} ne "" and $C->{'auth_sso_domain'} ne ".domain.com" ) {
-		print Tr(td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
+		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$C->{'auth_sso_domain'}\""));
 	}
 
-	print Tr(td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
+	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
 
-	print end_table;
+	print CGI::end_table;
 
 	print hidden(-name=>'conf', -default=>$config, -override=>'1');
 
@@ -903,7 +896,7 @@ EOHTML
 		}
 	}
 
-	print end_form;
+	print CGI::end_form();
 
 	print "\n      </div>\n";
 
@@ -929,7 +922,7 @@ EOHTML
     </div>
 |;
 
-	print end_html;
+	print CGI::end_html;
 }
 
 ##############################################################################
@@ -950,11 +943,11 @@ sub do_force_login {
 		$config = "&conf=$config";
 	}
 
-	my $url = url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
+	my $url = CGI::url(-base=>1) . $C->{'<cgi_url_base>'} . "/nmiscgi.pl?auth_type=login$config";
 
 	# if this request is coming through an AJAX'Y method, respond in a different mannor that commonV8.js will understand
 	# and redirect for us
-	if( http("X-Requested-With") eq "XMLHttpRequest" )
+	if( CGI::http("X-Requested-With") eq "XMLHttpRequest" )
 	{
 		my $url_no_forward = $url;
 		my $ret = { name => "JSONRequestError", message => "Authentication Error", redirect_url => $url_no_forward };
@@ -975,15 +968,15 @@ EOHTML
 
 	$javascript = "function redir() {} " if($C->{'web-auth-debug'});
 
-	print header({ target=>'_top', expires=>"now" })."\n";
-	print start_html({ title =>"Login Required",
+	print CGI::header({ target=>'_top', expires=>"now" })."\n";
+	print CGI::start_html({ title =>"Login Required",
 						expires => "now",  script => $javascript,
 						onload => "redir()", bgcolor=>'#CFF' }),"\n";
-	print h1("Authentication required")."\n";
-	print "Please ".a({href=>$url},"login")	." before continuing.\n";
+	print CGI::h1("Authentication required")."\n";
+	print "Please ".CGI::a({href=>$url},"login")	." before continuing.\n";
 
 	print "<!-- $err -->\n";
-	print end_html;
+	print CGI::end_html;
 }
 
 #----------------------------------
@@ -1000,7 +993,7 @@ sub do_logout {
 	# ensure the  conf argument is kept
 	param(conf=>$config) if ($config);
 	CGI::delete('auth_type'); 		# but don't keep that one
-	my $url = url(-full=>1, -query=>1);
+	my $url = CGI::url(-full=>1, -query=>1);
 	$url =~ s!^[^:]+://!//!;
 
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
@@ -1008,7 +1001,7 @@ sub do_logout {
 
 	logAuth("INFO logout of user=$self->{user} conf=$config");
 
-	print header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
+	print CGI::header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({
 	#	-title =>"Logout complete",
 	#	-expires => "5s",
@@ -1047,16 +1040,16 @@ $javascript
 
 	print $self->do_login_banner();
 
-	print start_table();
-	print Tr(td({class=>"info Plain"}, p(h2("Logged out of system") .
-	p("Please " . a({href=>url(-full=>1) . ""},"go back to the login page") ." to continue."))));
+	print CGI::start_table();
+	print CGI::Tr(CGI::td({class=>"info Plain"}, CGI::p(CGI::h2("Logged out of system") .
+	CGI::p("Please " . CGI::a({href=>CGI::url(-full=>1) . ""},"go back to the login page") ." to continue."))));
 
-	print end_table;
+	print CGI::end_table;
 
 	print "    </div>\n";
 	print "  </div>\n";
 
-	print end_html;
+	print CGI::end_html;
 }
 
 #####################################################################
@@ -1076,8 +1069,8 @@ sub do_login_banner {
 	#print STDERR "DEBUG AUTH banner=$banner_string self->{banner}=$self->{banner}\n";
 
 	my $logo = qq|<a href="http://www.opmantek.com"><img height="20px" width="20px" class="logo" src="$C->{'nmis_favicon'}"/></a>|;
-	push @banner,div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
-	push @banner,div({class=>'title2'},"Network Management Information System");
+	push @banner,CGI::div({class=>'ui-dialog-titlebar ui-dialog-header ui-corner-top ui-widget-header lrg pad'},$logo, $banner_string);
+	push @banner,CGI::div({class=>'title2'},"Network Management Information System");
 
 	return @banner;
 }

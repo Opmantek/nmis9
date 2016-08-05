@@ -43,18 +43,11 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use Fcntl qw(:DEFAULT :flock);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *hr);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span );
-#use CGI::Debug;
-
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
 # load NMIS configuration table
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
@@ -66,8 +59,8 @@ if ( $#ARGV > 0 ) { $C->{auth_require} = 0; } # bypass auth
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -366,9 +359,9 @@ print dumper_html($overrides);
 print '<h2>Group Table [\$GT]</h2>';
 print dumper_html($GT);
 
-loadInterfaceInfo;
+my $x = loadInterfaceInfo;
 print "<h2>InterfaceInfo Table ( all node interfaces)</h2>";
-print dumper_html(\%NMIS::interfaceInfo);
+print dumper_html($x);
 
 print "<h2>Current Events</h2>";
 my %allevents = loadAllEvents;

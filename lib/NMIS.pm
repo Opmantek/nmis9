@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.5.12G";
+our $VERSION = "8.6.0a";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -47,18 +47,13 @@ use DBfunc;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
+use CGI qw();												# very ugly but createhrbuttons needs it :(
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
-
-# added for authentication
-use CGI::Pretty qw(:standard *table *Tr *td *Select *form escape);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
 
 use vars qw(@ISA @EXPORT);
 use Exporter;
@@ -2303,29 +2298,30 @@ sub htmlGraph {
 		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-		return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
+		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
+<img alt='Network Info' src="$src"></img></a>|;
 	}
 }
 
-# fixme: works ONLY if main:: has a Q cgi object and an AU auth object!
-sub createHrButtons {
+# args: user, node, system, refresh, widget, au (object), 
+# conf (=name of config for links)
+# returns: html as array of lines
+sub createHrButtons 
+{
 	my %args = @_;
 	my $user = $args{user};
 	my $node = $args{node};
 	my $S = $args{system};
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
+	my $AU = $args{AU};
+	my $confname = $args{conf};
 
-	$refresh = "false" if $refresh eq "";
-
-	# fixme: these should be passed in as arguments
-	my $Q = $main::Q;
-	my $AU = $main::AU;
+	return "" if (!$node);
+	$refresh = "false" if (!getbool($refresh));
 
 	my @out;
-
-	return "" if $node eq '';
-
+	
 	my $NI = loadNodeInfoTable($node);
 	my $C = loadConfTable();
 
@@ -2334,51 +2330,51 @@ sub createHrButtons {
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
 	my $urlsafenode = uri_escape($node);
 
-	push @out, start_table({class=>'table'}),start_Tr;
+	push @out, "<table class='table'><tr>\n";
 
 	# provide link back to the main dashboard if not in widget mode
-	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
+	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"}, "NMIS $NMIS::VERSION"))
 			if (!getbool($widget));
 
-	push @out, td({class=>'header litehead'},'Node ',
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+	push @out, CGI::td({class=>'header litehead'},'Node ',
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if (scalar keys %{$NI->{module}}) {
-		push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
+		push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
 	}
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
-		push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+		push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
 	if (getbool($NI->{system}{collect})) {
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 				if defined $NI->{status} and defined $C->{display_status_summary}
 		and getbool($C->{display_status_summary});
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
 		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}})
 		{
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
 		{
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if (defined $NI->{services} && keys %{$NI->{services}}) {
-					push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+					push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
 
 		# let's show the possibly many systemhealth items in a dropdown menu
@@ -2391,7 +2387,7 @@ sub createHrButtons {
 				# don't show spurious blank entries
 				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}}))
 				{
-					push @out, li(a({ class=>'wht',  href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
+					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?conf=$confname&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
 			}
 			push @out, "</ul></li></ul></td>";
@@ -2399,75 +2395,75 @@ sub createHrButtons {
 
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{cssgroup} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
  		if ($NI->{csscontent} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
 		}
 	}
 
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+	push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+	push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
 	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
 
-	push @out, li(a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
+	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
 			if (getbool($C->{view_telnet}));
 
 	if (getbool($C->{view_ssh})) {
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
-		push @out, li(a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
+		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
 										 target=>'_blank'},"ssh"));
 	}
 
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if getbool($C->{view_ping});
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
 			if getbool($C->{view_trace});
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
 			if getbool($C->{view_mtr});
 
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
 			if getbool($C->{view_lft});
 
-	push @out, li(a({class=>'wht',
+	push @out, CGI::li(CGI::a({class=>'wht',
 									 href=>"http://$NI->{system}{host}",target=>'_blank'},"http"))
 			if getbool($NI->{system}{webserver});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
 					if $NI->{system}{sysLocation} ne '';
 	}
 
-	push @out, end_Tr,end_table;
+	push @out, "</tr></table>";
 
 	return @out;
 }
@@ -2717,7 +2713,7 @@ sub pageStartJscript {
 }
 
 sub pageEnd {
-	print end_html;
+	print "</body></html>";
 }
 
 

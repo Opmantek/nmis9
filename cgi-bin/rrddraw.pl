@@ -35,10 +35,6 @@ use lib "$FindBin::Bin/../lib";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
-#
-#****** Shouldn't be anything else to customise below here *******************
-
-require 5;
 
 use strict;
 use RRDs 1.4004;
@@ -47,13 +43,12 @@ use Sys;
 use NMIS;
 use Data::Dumper;
 
-use CGI qw(:standard);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-use vars qw($q $Q $C $AU);
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars;
 
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars;
-
+my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 $C->{auth_require} = 0; # bypass auth
 
@@ -61,8 +56,8 @@ $C->{auth_require} = 0; # bypass auth
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -238,7 +233,7 @@ sub rrdDraw {
 
 	{
 		# scalars must be global
-		no strict;
+		no strict;									# *shudder*
 		if ($intf ne "") {
 			$indx = $intf;
 			$ifDescr = $IF->{$intf}{ifDescr};

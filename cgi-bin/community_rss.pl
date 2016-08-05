@@ -34,8 +34,6 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#use CGI::Debug( report=> [ 'errors', 'empty_body', 'time', 'params', 'cookies', 'environment'], header => 'control' );
-
 use strict;
 use NMIS;
 use func;
@@ -44,17 +42,12 @@ use NMIS::License;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+my $headeropts = {type=>'text/html',expires=>'now'};
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *th *form *Select *div *hr);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span );
-
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
 # load NMIS configuration table
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };

@@ -44,17 +44,11 @@ $Data::Dumper::Indent = 1;
 
 use URI::Escape;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-#use CGI::Debug;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
@@ -65,8 +59,8 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -122,7 +116,7 @@ sub viewEvent
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 
@@ -376,55 +370,54 @@ sub displayEvents
 				button(-name=>'button',onclick=> ($wantwidget? "get('src_events_form');" : "submit()"),
 							 -value=>"Submit Changes")),
 					td({class=>'info Plain',colspan=>'2'}, '&nbsp'));
-
-	# java - ack=false event=active
-	sub active {
-		my $server =shift;
-		my $tempnode = shift;
-		my $tempnodeack = shift;
-		my $eventnoackcount = shift;
-		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
-				td({class=>'info Plain',colspan=>'9'},
-				img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
-				"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
-				"&nbsp;(Set Events Inactive for $tempnode ",
-				checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'$tempnodeack$server$tempnode')",-checked=>'',override=>'1'),
-				")"));
-	} # sub active
-
-	# java - ack=true event=inactive
-	sub inactive {
-		my $server =shift;
-		my $tempnode = shift;
-		my $tempnodeack = shift;
-		my $eventackcount = shift;
-		print Tr(td({class=>'header'},
-			a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
-				td({class=>'info Plain',colspan=>'9'},
-				img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
-				"&nbsp;$eventackcount->{$tempnode} Event(s)",
-				"&nbsp;(Set Events Active for $tempnode ",
-				checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'$tempnodeack$server$tempnode')",-checked=>'',override=>'1'),
-				")"));
-	} # sub inactive
-
-	sub typeHeader {
-		print Tr(
-			td({class=>'header',align=>'center'},'Name'),
-			td({class=>'header',align=>'center'},'Outage'),
-			td({class=>'header',align=>'center'},'Start'),
-			td({class=>'header',align=>'center'},'Event'),
-			td({class=>'header',align=>'center'},'Level'),
-			td({class=>'header',align=>'center'},'Element'),
-			td({class=>'header',align=>'center'},'Details'),
-			td({class=>'header',align=>'center'},'Ack.'),
-			td({class=>'header',align=>'center'},'Esc.'),
-			td({class=>'header',align=>'center'},'User')
-			);
-	}
-
 } # sub displayEvents
+
+# java - ack=false event=active
+sub active {
+	my $server =shift;
+	my $tempnode = shift;
+	my $tempnodeack = shift;
+	my $eventnoackcount = shift;
+	print Tr(td({class=>'header'},
+							a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"false$tempnode\"); return false;"},$tempnode)),
+					 td({class=>'info Plain',colspan=>'9'},
+							img({src=>"$C->{'<menu_url_base>'}/img/sumup.gif",id=>"false${tempnode}img",border=>'0'}),
+							"&nbsp;$eventnoackcount->{$tempnode} Event(s)",
+							"&nbsp;(Set Events Inactive for $tempnode ",
+							checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'$tempnodeack$server$tempnode')",-checked=>'',override=>'1'),
+							")"));
+} # sub active
+
+# java - ack=true event=inactive
+sub inactive {
+	my $server =shift;
+	my $tempnode = shift;
+	my $tempnodeack = shift;
+	my $eventackcount = shift;
+	print Tr(td({class=>'header'},
+							a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($tempnode)."&widget=$widget",onClick=>"ExpandCollapse(\"true$tempnode\"); return false;"},$tempnode)),
+					 td({class=>'info Plain',colspan=>'9'},
+							img({src=>"$C->{'<menu_url_base>'}/img/sumdown.gif",id=>"true${tempnode}img",border=>'0'}),
+							"&nbsp;$eventackcount->{$tempnode} Event(s)",
+							"&nbsp;(Set Events Active for $tempnode ",
+							checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'$tempnodeack$server$tempnode')",-checked=>'',override=>'1'),
+							")"));
+} # sub inactive
+
+sub typeHeader {
+	print Tr(
+		td({class=>'header',align=>'center'},'Name'),
+		td({class=>'header',align=>'center'},'Outage'),
+		td({class=>'header',align=>'center'},'Start'),
+		td({class=>'header',align=>'center'},'Event'),
+		td({class=>'header',align=>'center'},'Level'),
+		td({class=>'header',align=>'center'},'Element'),
+		td({class=>'header',align=>'center'},'Details'),
+		td({class=>'header',align=>'center'},'Ack.'),
+		td({class=>'header',align=>'center'},'Esc.'),
+		td({class=>'header',align=>'center'},'User')
+			);
+}
 
 # change ack for the matching events
 sub updateEvent 
