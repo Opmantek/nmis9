@@ -47,15 +47,9 @@
 # Auto configure to the <nmis-base>/lib and <nmis-base>/files/nmis.conf
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-#use lib "/usr/local/rrdtool/lib/perl";
+
 use Data::Dumper;
-
 use Socket;
-
-$SIG{PIPE} = sub { };  # Supress broken pipe error messages.
-
-#
-#****** Shouldn't be anything else to customise below here *******************
 
 use strict;
 use func;
@@ -65,26 +59,17 @@ use Time::Local;
 use Fcntl qw(:DEFAULT :flock);
 use Sys;
 
-# ----------------------------------------------------
-
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *th *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-# use CGI qw(:standard);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 
 use URI::Escape;
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
-## uncomment for debug
-#$Q->{debug} = 'true';
-##
+$SIG{PIPE} = sub { };  # Supress broken pipe error messages.
+
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # -------------------------------------------------------
@@ -98,8 +83,8 @@ my $privlevel = 5;
 my $user;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {

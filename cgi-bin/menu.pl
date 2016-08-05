@@ -29,10 +29,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
-package main;
-#use CGI::Debug( report => 'everything', on => 'anything' );
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Data::Dumper;
@@ -44,20 +40,13 @@ use NMIS::Modules;
 
 use JSON::XS;
 
-# Prefer to use CGI::Pretty for html processing
-# use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *ul *li);
-#use CGI qw(:standard *table *Tr *td *form *Select *div *ul *li);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-use CGI qw(:standard *table *Tr *td *form *Select *div *form escape *ul *li);
-
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 $Q->{conf} = (exists $Q->{conf} and $Q->{conf} ) ?  $Q->{conf} : $C->{conf};
 
 # set some defaults
@@ -67,8 +56,8 @@ my $widget_refresh = $C->{widget_refresh_time} ? $C->{widget_refresh_time} : 180
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},

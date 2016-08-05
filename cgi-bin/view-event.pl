@@ -41,29 +41,22 @@ use Sys;
 
 use vars qw($CT); # Contact table
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
+my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # NMIS Authentication module
 use Auth;
 
-# variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},

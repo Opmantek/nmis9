@@ -49,7 +49,7 @@ use NMIS;
 use Data::Dumper;
 use LWP::Simple qw(!head);
 
-use CGI qw(:standard);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 use vars qw($q $Q $C $AU);
 

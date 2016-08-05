@@ -32,9 +32,6 @@
 #  https://community.opmantek.com/
 #
 # *****************************************************************************
-
-package main;
-
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -44,28 +41,21 @@ use NMIS::Modules;
 use NMIS::License;
 use JSON::XS;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-#use CGI::Debug;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 use Data::Dumper;
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = CGI->new; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = CGI->new; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # toss in a default conf=Config.nmis
 $Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
-# For for Tenants
-#if ( ($Q->{conf} eq "" or $Q->{conf} eq "Config" or $Q->{conf} eq "Config.nmis")
 if ( ($Q->{conf} eq "" )
-	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" and -f "$C->{'<nmis_cgi>'}/tenants.pl" 
-) {
+	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" 
+		 and -f "$C->{'<nmis_cgi>'}/tenants.pl" ) 
+{
 	logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
 	print $q->header($q->redirect(
 			-url=>"$C->{'<cgi_url_base>'}/tenants.pl",
@@ -91,10 +81,10 @@ my $moduleCode = $M->getModuleCode();
 my $installedModules = $M->installedModules();
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+my $headeropts = {type=>'text/html',expires=>'now'};
 # pass in confname ONLY if its not the default
 my $custom_confname = $Q->{conf}; undef $custom_confname if ($custom_confname eq "Config.nmis");
-$AU = Auth->new(conf => $C, confname => $custom_confname);  # Auth::new will reap init values from NMIS configuration
+my $AU = Auth->new(conf => $C, confname => $custom_confname);  # Auth::new will reap init values from NMIS configuration
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann

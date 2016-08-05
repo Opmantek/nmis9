@@ -49,21 +49,13 @@ use Fcntl qw(:DEFAULT :flock);
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-#use CGI::Debug;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# declare holder for CGI objects
-use vars qw($q $Q $C);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
-
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 ####################################
 

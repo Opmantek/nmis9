@@ -38,11 +38,7 @@ use func;
 use NMIS;
 use Auth;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash

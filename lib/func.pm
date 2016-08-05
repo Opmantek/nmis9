@@ -38,7 +38,6 @@ use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
 use Time::Local;		 # fixme: actuall NOT used by func
 use POSIX qw();			 # we want just strftime
-use CGI::Pretty qw(:standard);	# fixme: ditch, dead slow
 use Cwd qw();
 use version 0.77;
 
@@ -1669,7 +1668,7 @@ sub getConfFileName {
 			print "Can't access neither NMIS configuration file=$configfile, nor $altconf \n";
 
 			if ( $ENV{SCRIPT_NAME} ne "" ) {
-				print end_html;
+				print "</body></html>";
 			}
 
 			return;

@@ -39,8 +39,6 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#use CGI::Debug( report=> [ 'errors', 'empty_body', 'time', 'params', 'cookies', 'environment'], header => 'control' );
-
 use strict;
 use NMIS;
 use func;
@@ -52,11 +50,7 @@ use URI::QueryParam;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *th *form *Select *div *hr);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span );
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 # declare holder for CGI objects
 use vars qw($q $Q $C $AU);
@@ -1519,7 +1513,7 @@ EO_HTML
 		$remote = qq| <a href="$url" target="remote_$node" style="color:white;">$NT->{$node}{remote_connection_name}</a>|;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'dash'});
 	
@@ -1824,7 +1818,7 @@ sub viewInterface {
 	map { $_ =~ s/^\d+_// } @keys;
 	map { $_ =~ s/_value$// } @keys; # get only item
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table;
 	
@@ -1975,7 +1969,7 @@ sub viewAllIntf {
 		if ($items{$_} and $titles{$_} ne '' ) { push @hd,$_; } # available item
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table;
 	
@@ -2108,7 +2102,7 @@ sub viewActivePort {
 	# start of form
 	print start_form(-id=>"nmis",-href=>"$url");
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table;
 	
@@ -2217,7 +2211,7 @@ sub viewStorage {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2275,7 +2269,7 @@ sub viewService {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2356,7 +2350,7 @@ sub viewServiceList {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2455,7 +2449,7 @@ sub viewStatus {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2552,7 +2546,7 @@ sub viewEnvironment {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2620,7 +2614,7 @@ sub viewSystemHealth {
 		return;
 	}
 	
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	
 	print start_table({class=>'table'});
 	
@@ -2757,7 +2751,7 @@ sub viewCSSGroup {
 		return;
 	}
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 
 	if ( not nodeStatus(NI => $NI) ) {
@@ -2799,7 +2793,7 @@ sub viewCSSContent {
 		return;
 	}
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 	if ( not nodeStatus(NI => $NI) ) {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable')); 
