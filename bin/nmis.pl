@@ -806,10 +806,6 @@ sub doUpdate
 	my $updatetime = $updatetimer->elapTime();
 	info("updatetime for $name was $updatetime");
 	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
-	# note: this structure is adjusted in TWO places, here and in docollect,
-	# to ensure that both DS are defined as soon as feasible.
-	#	disabled for now, seems counterproductive
-	# $reachdata->{polltime} = { value => "U", option => "gauge,0:U," };
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
@@ -1061,16 +1057,12 @@ sub doCollect {
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
-	# note: this structure is adjusted in TWO places, here and in doupdate,
-	# to ensure that both DS are defined as soon as feasible.
-	# disabled for now, seems counterproductive
-	# $reachdata->{updatetime} = { value => "U", option => "gauge,0:U,".(86400*3) };
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
 
-	if (getbool($C->{log_polling_time})) 
+	if (getbool($C->{log_polling_time}))
 	{
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
 	}
@@ -4382,7 +4374,8 @@ sub runServer {
 # this function runs all services that are directly associated with a given node
 # args: live sys object for the node in question, and optional snmp (true/false) arg
 # attention: when run with snmp false then snmp-based services are NOT checked!
-sub runServices {
+sub runServices
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -4395,7 +4388,6 @@ sub runServices {
 	my $node = $NI->{system}{name};
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
-	#logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
@@ -4520,6 +4512,8 @@ sub runServices {
 			$msg .= "must be checked this time.";
 			info($msg); logMsg("INFO: $msg");
 		}
+		# make sure that the rrd heartbeat is suitable for the service interval!
+		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
 
 		$didRunServices = 1;
 
@@ -4798,7 +4792,7 @@ sub runServices {
  							dbg("collected response $k value $v");
 
 							# for rrd storage, but only numeric values can be stored!
-							$Val{$k} = {value => $v};
+							$Val{$k} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
 
 							if ($k eq "responsetime") # response time is handled specially
 							{
@@ -4929,17 +4923,18 @@ sub runServices {
 		my @servicegraphs = (qw(service service-response));
 
 		# save result for availability history - one rrd file per service per node
-		$Val{service}{value} = $serviceValue;
-		$cpu = -$cpu 	if ( $cpu < 0 );
-		$Val{responsetime}{value} = $responsetime; # might be a NOP
-		$Val{responsetime}{option} = "GAUGE,0:U";
+		$Val{service} = { value => $serviceValue,
+											option => "GAUGE,0:100,$serviceheartbeat" };
 
+		$cpu = -$cpu 	if ( $cpu < 0 );
+		$Val{responsetime} = { value  => $responsetime, # might be a NOP
+													 option => "GAUGE,0:U,$serviceheartbeat"};
 		if ($gotMemCpu)
 		{
-			$Val{cpu}{value} = $cpu;
-			$Val{cpu}{option} = "COUNTER,U:U";
-			$Val{memory}{value} = $memory;
-			$Val{memory}{option} = "GAUGE,U:U";
+			$Val{cpu} = {value => $cpu,
+									 option => "COUNTER,U:U,$serviceheartbeat" };
+			$Val{memory} = {value => $memory,
+											option => "GAUGE,U:U,$serviceheartbeat" };
 
 			# cpu is a counter, need to get the delta(counters)/period from rrd
 			$status{$service}->{memory} = $memory;
@@ -4949,7 +4944,7 @@ sub runServices {
 			push @servicegraphs, (qw(service-mem service-cpu));
 		}
 
-		if ((my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service)))
+		if ((my $db = updateRRD(data=>\%Val, sys=>$S, type=>"service", item=>$service)))
 		{
 			# check what custom graphs exist for this service
 			# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
@@ -5213,17 +5208,17 @@ sub snmpNodeDown {
 
 
 # performs various node health status checks
-# optionally! updates rrd 
+# optionally! updates rrd
 # args: sys, delayupdate (default: 0),
-# if delayupdate is set, this DOES NOT update the 
+# if delayupdate is set, this DOES NOT update the
 #type 'health' rrd (to be done later, with total polltime)
 # returns: reachability data (hashref)
-sub runReach 
+sub runReach
 {
 	my %args = @_;
 	my $S = $args{sys};	# system object
 	my $donotupdaterrd = getbool($args{delayupdate});
-	
+
 	my $NI = $S->ndinfo;	# node info
 	my $IF = $S->ifinfo;	# interface info
 	my $RI = $S->reach;	# reach info
