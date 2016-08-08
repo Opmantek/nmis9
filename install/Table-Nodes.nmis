@@ -60,7 +60,7 @@ my $uuid = getUUID();
 	Nodes =>
 	[
 	 { name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""] }},
-	 { new_name => { header => 'New Name', display => 'header,text,editonly', value => [""] }},
+	 { new_name => { header => 'New Name', display => 'text,editonly', value => [""] }},
 	 
 	 { uuid => { header => 'UUID',display => 'header,readonly',value => ["$uuid"] }},
 	 
