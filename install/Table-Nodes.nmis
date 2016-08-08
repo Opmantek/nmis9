@@ -75,7 +75,7 @@ my $uuid = getUUID();
 	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
 	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
 	 { extra_options => { special => 'separator', header => 'Extra Options'}},
-	 { display_name => { header => "Display Name" => display => "header,textbox", value => "" }},
+	 { display_name => { header => "Display Name", display => "header,text", value => "" }},
 	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
 	 { roleType => { header => 'Role Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
 	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }},
