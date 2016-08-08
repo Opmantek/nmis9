@@ -806,6 +806,15 @@ sub doUpdate
 	my $updatetime = $updatetimer->elapTime();
 	info("updatetime for $name was $updatetime");
 	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
+	# parrot the previous reading's poll time
+	my $prevval = "U";
+	if (my $rrdfilename = $S->getDBName(type => "health"))
+	{
+		my $infohash =RRDs::info($rrdfilename);
+		$prevval = $infohash->{'ds[polltime].last_ds'} if (defined $infohash->{'ds[polltime].last_ds'});
+	}
+	$reachdata->{polltime} = { value => $prevval, option => "gauge,0:U," };
+
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
@@ -1057,6 +1066,15 @@ sub doCollect {
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	# parrot the previous reading's update time
+	my $prevval = "U";
+	if (my $rrdfilename = $S->getDBName(type => "health"))
+	{
+		my $infohash =RRDs::info($rrdfilename);
+		$prevval = $infohash->{'ds[updatetime].last_ds'} if (defined $infohash->{'ds[updatetime].last_ds'});
+	}
+	$reachdata->{updatetime} = { value => $prevval, option => "gauge,0:U,".(86400*3) };
+
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
