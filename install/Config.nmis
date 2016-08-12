@@ -188,6 +188,8 @@
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'nmis4_compatibility' => 'false',
 		'plugins_enabled' => 'true',
+		# set to false to disable keeping of closed events in history section
+		'keep_event_history' => 'true',
   },
   'url' => {
     '<url_base>' => '/nmis8',

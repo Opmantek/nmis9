@@ -5281,6 +5281,8 @@ sub runReach
 	my $swapMax = 0;
 	my $diskMax = 0;
 
+	my %reach;
+
 	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
@@ -5317,11 +5319,13 @@ sub runReach
 		}
 	}
 
-	# copy results from object
+	# copy stashed results (produced by runPing and getnodeinfo)
 	my $pingresult = $RI->{pingresult};
+	$reach{responsetime} = $RI->{pingavg};
+	$reach{loss} = $RI->{pingloss};
+
 	my $snmpresult = $RI->{snmpresult};
 
-	my %reach;		# copy in local table
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
 	if ( $RI->{swap} ) {
@@ -5331,8 +5335,6 @@ sub runReach
 	if ( defined $RI->{disk} and $RI->{disk} > 0 ) {
 		$reach{disk} = $RI->{disk};
 	}
-	$reach{responsetime} = $RI->{pingavg};
-	$reach{loss} = $RI->{pingloss};
 	$reach{operStatus} = $RI->{operStatus};
 	$reach{operCount} = $RI->{operCount};
 
@@ -7495,8 +7497,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # backup configuration, models and crontabs once a day, and keep 30 backups
 22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################
-# purge old files every week
-0 2 * * 0 $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
+# purge old files every few days
+0 2 */3 * * $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
