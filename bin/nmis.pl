@@ -8413,10 +8413,11 @@ sub purge_files
 			description => "Legacy .nmis files",
 		},
 		{
-			# old nmis state files - json files but only directly in var
+			# old nmis state files - json files but only directly in var,
+			# or in network or in service_status
 			minage => $C->{purge_state_after} || 30*86400,
 			location => $C->{'<nmis_var>'},
-			path => qr!^$C->{'<nmis_var>'}/?.+\.json$!,
+			path => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
 			empties =>  1,
 			description => "Old JSON state files",
 		},
