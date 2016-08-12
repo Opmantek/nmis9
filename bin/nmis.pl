@@ -41,10 +41,12 @@ use Net::SNMP qw(oid_lex_sort);
 use Proc::ProcessTable;
 use Proc::Queue ':all';
 use Data::Dumper;
+use File::Find;
+use File::Spec;
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
-# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
-use Fcntl qw(:DEFAULT :flock);
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
 
 use NMIS;
@@ -170,6 +172,7 @@ elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
+elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
 else { checkArgs(); }
 
 exit;
@@ -7464,7 +7467,7 @@ sub printCrontab
 
 	my $usercol = getbool($nvp{system})? "\troot\t" : '';
 
-	print <<EO_TEXT;
+	print qq|
 # if you DON'T want any NMIS cron mails to go to root,
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
@@ -7482,7 +7485,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
-*/2 * * * * $usercol /usr/local/nmis8/bin/nmis.pl type=summary
+*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
@@ -7495,10 +7498,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # the installer offers to setup using install/logrotate*.conf
 #
 # backup configuration, models and crontabs once a day, and keep 30 backups
-22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
+22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
 ##################################################
 # purge old files every few days
-0 2 */3 * * $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
+2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
@@ -7521,7 +7524,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month response
 50 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month avail
 ###########################################
-EO_TEXT
+|;
 }
 
 #=========================================================================================
@@ -7727,6 +7730,7 @@ command line options are:
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
+      purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
@@ -8373,6 +8377,123 @@ sub sync_groups
 
 	return undef;
 }
+
+# this is a maintenance command for removing old, broken or unwanted files, 
+# replaces and extends the old admin/nmis_file_cleanup.sh
+#
+# args: none, but checks nvp simulate (default: false, if true only prints 
+# what it would do)
+# returns: undef if ok, error message otherwise
+sub purge_files
+{
+	my %nukem;
+
+	info("Starting to look for purgable files");
+	# config option, extension, where to look...
+	my @purgatory = (
+		{ ext => qr/\.rrd$/,
+			minage => $C->{purge_rrd_after} || 30*86400,
+			location => $C->{database_root},
+			empties => 1,
+			description => "Old RRD files",
+		},
+		{
+			ext => qr/\.(tgz|tar\.gz)$/,
+			minage => $C->{purge_backup_after} || 30*86400,
+			location => $C->{'<nmis_backups>'},
+			empties => 1,
+			description => "Old Backup files",
+		},
+		{
+			# old nmis state files - legacy .nmis under var
+			minage => $C->{purge_state_after} || 30*86400,
+			ext => qr/\.nmis$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Legacy .nmis files",
+		},
+		{
+			# old nmis state files - json files but only directly in var
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'},
+			path => qr!^$C->{'<nmis_var>'}/?.+\.json$!,
+			empties =>  1,
+			description => "Old JSON state files",
+		},
+		{
+			# old nmis state files - json files under nmis_system
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'}."/nmis_system",
+			ext => qr/\.json$/,
+			empties =>  1,
+			description => "Old internal JSON state files",
+		},
+		{
+			# broken empty json files - don't nuke them immediately, they may be tempfiles!
+			minage => 3600,						# 60 minutes seems a safe upper limit for tempfiles
+			ext => qr/\.json$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Empty JSON state files",
+		},
+		{
+			minage => $C->{purge_event_after} || 30*86400,
+			path => qr!events/.+?/history/.+\.json$!,
+			empties => 1,
+			location => $C->{'<nmis_var>'}."/events",
+			description => "Old event history files",
+		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			empties => 1,
+			ext => qr/\.json/,
+			location => $C->{json_logs},
+			description => "Old JSON log files",
+		},
+			);
+	my $simulate = getbool($nvp{simulate});
+
+	for my $rule (@purgatory)
+	{
+		my $olderthan = time - $rule->{minage};
+		next if (! $rule->{location});
+		info("checking dir $rule->{location} for $rule->{description}");
+
+		File::Find::find( {
+			wanted => sub
+			{
+				my ($localname) = @_;
+				# don't need it at the moment my $dir = $File::Find::dir;
+				my $fn = $File::Find::name;
+				my @stat = stat($fn);
+
+				next if (!S_ISREG($stat[2]) # not a file
+								 or ($rule->{ext} and $localname !~ $rule->{ext}) # not a matching ext
+								 or ($rule->{path} and $fn !~ $rule->{path})); # not a matching path
+
+				next if ( ($stat[7] or !$rule->{empties}) # zero size allowed if empties is off
+									and ($stat[9] >= $olderthan) );			# younger than the cutoff?
+				$nukem{$fn} = $rule->{description};
+			},
+			follow => 1, }, $rule->{location});
+	}
+
+	for my $fn (sort keys %nukem)
+	{
+		if ($simulate)
+		{
+			my $shortfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
+			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
+		}
+		else
+		{
+			unlink($fn) or return "Failed to unlink $fn: $!";
+		}
+	}
+	info("Purging complete");
+	return undef;
+}
+
 
 
 # *****************************************************************************
