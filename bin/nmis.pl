@@ -8481,13 +8481,14 @@ sub purge_files
 
 	for my $fn (sort keys %nukem)
 	{
+		my $shortfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
 		if ($simulate)
 		{
-			my $shortfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
 			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
 		}
 		else
 		{
+			info("removing $shortfn (rule '$nukem{$fn}')");
 			unlink($fn) or return "Failed to unlink $fn: $!";
 		}
 	}
