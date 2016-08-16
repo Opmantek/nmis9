@@ -195,6 +195,8 @@ my %hash = (
 		'plugins_enabled' => 'true',
 		# set to false to disable keeping of closed events in history section
 		'keep_event_history' => 'true',
+		'use_json' => 'true',
+		'use_json_pretty' => 'false', 
   },
 
   'url' => {
