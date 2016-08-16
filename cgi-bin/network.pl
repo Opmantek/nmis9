@@ -1580,11 +1580,13 @@ EO_HTML
 					}
 
 					if ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ ) {
-						# convert to uptime format, time since change
-						$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
-						# did this reset in the last 1 h
-						if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
-							$color = "#ffcc00"; # to late
+						if ( $value ne "N/A" ) {
+							# convert to uptime format, time since change
+							$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
+							# did this reset in the last 1 h
+							if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
+								$color = "#ffcc00"; # to late
+							}
 						}
 					}
 
@@ -2235,16 +2237,20 @@ sub viewStorage {
 
 		my $util = sprintf("%.1f%", $used / $total * 100);
 
+		my $rowSpan = 5;
+		$rowSpan = 6 if defined $D->{hrFSRemoteMountPoint};
 		print start_Tr;
 		print Tr(td({class=>'header'},'Type'),td({class=>'info header',width=>'40%'},$D->{hrStorageType}),
 		td({class=>'header'},$D->{hrStorageDescr}));
 		print Tr(td({class=>'header'},'Units'),td({class=>'info Plain'},$D->{hrStorageUnits}),
-		td({class=>'image',rowspan=>'5'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
+		td({class=>'image',rowspan=>$rowSpan},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 		print Tr(td({class=>'header'},'Size'),td({class=>'info Plain'},$D->{hrStorageSize}));
 		# disks use crazy multiples to display MB, GB, etc.
 		print Tr(td({class=>'header'},'Total'),td({class=>'info Plain'},getDiskBytes($total)));
 		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getDiskBytes($used),"($util)"));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hrStorageDescr}));
+		print Tr(td({class=>'header'},'Mount Point'),td({class=>'info Plain'},$D->{hrFSRemoteMountPoint})) if defined $D->{hrFSRemoteMountPoint};
+		
 		print end_Tr;
 	}
 	print end_table;

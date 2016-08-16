@@ -4278,6 +4278,9 @@ sub runServer {
 		# get storage info
 		my $disk_cnt = 1;
 		my $storageIndex = $SNMP->getindex('hrStorageIndex',$max_repetitions);
+		my $hrFSMountPoint = undef;
+		my $hrFSRemoteMountPoint = undef;
+		my $fileSystemTable = undef;
 		foreach my $index (keys %{$storageIndex}) {
 			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
 				my $D = $NI->{storage}{$index};
@@ -4286,8 +4289,12 @@ sub runServer {
 							or $D->{hrStorageSize} <= 0) {
 					delete $NI->{storage}{$index};
 				} else {
-					if ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4') { # hrStorageFixedDisk
+					if ( 
+						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
+						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageFixedDisk
+					) { 
 						undef %Val;
+						my $hrStorageType = $D->{hrStorageType};
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
@@ -4304,6 +4311,22 @@ sub runServer {
 							$D->{hrStorageGraph} = "hrdisk";
 							$disk_cnt++;
 						}
+						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
+							# only get this snmp once if we need to, and created an named index.
+							if ( not defined $fileSystemTable ) {
+								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint',$max_repetitions);
+								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint',$max_repetitions);
+								foreach my $fsIndex ( keys %$hrFSMountPoint ) {
+									my $mp = $hrFSMountPoint->{$fsIndex};
+									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
+								}
+							}
+							#print Dumper $hrFSRemoteMountPoint;
+							
+							$D->{hrStorageType} = 'Network Disk';
+							$D->{hrFSRemoteMountPoint} = $fileSystemTable->{$D->{hrStorageDescr}};
+						}
+
 					}
 					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2' or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20') { # Memory
