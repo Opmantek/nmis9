@@ -2919,6 +2919,7 @@ sub eventLoad
 
 # deletes ONE event, does NOT (event-)log anything
 # args: event (=record suitably filled in to find the file)
+# the event file is parked in the history subdir, iff possible and allowed to
 # returns undef if ok, error message otherwise
 sub eventDelete
 {
@@ -2941,8 +2942,10 @@ sub eventDelete
 	createDir($historydirname) if ($historydirname and !-d $historydirname);
 	setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
 
-	# now move the event into the history section if we can
-	if ($historydirname and -d $historydirname)
+	# now move the event into the history section if we can,
+	# and if we're allowed to
+	if (!getbool($C->{"keep_event_history"},"invert") # if not set to 'false'
+			and $historydirname and -d $historydirname)
 	{
 		my $newfn = "$historydirname/".time."-".basename($efn);
 			rename($efn, $newfn)

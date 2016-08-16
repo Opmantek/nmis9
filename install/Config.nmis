@@ -1,4 +1,4 @@
-%hash = (
+my %hash = ( 		 
   'modules' => {
     '<opmantek_base>' => '/usr/local/opmantek',
     'display_opcharts' => 'false',
@@ -14,11 +14,13 @@
     'rss_widget_width' => '210',
     'rss_widget_height' => '460'
   },
+	
   'online' => {
     'nmis_docs_online' => 'https://community.opmantek.com/',
     'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
-  'directories' => {
+  
+	'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
@@ -39,8 +41,10 @@
     'script_root' => '<nmis_conf>/scripts',
     'web_root' => '<nmis_base>/htdocs',
 		'plugin_root' => '<nmis_conf>/plugins',
+		'<nmis_backups>' => '<nmis_data>/backups',
   },
-  'globals' => {
+  
+	'globals' => {
     'global_threshold' => 'true',
     'threshold_poll_cycle' => 'true',
     'threshold_rising_reset_dampening' => '0.9',
@@ -61,7 +65,8 @@
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com'
   },
-  'system' => {
+  
+	'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
@@ -188,13 +193,17 @@
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'nmis4_compatibility' => 'false',
 		'plugins_enabled' => 'true',
+		# set to false to disable keeping of closed events in history section
+		'keep_event_history' => 'true',
   },
+
   'url' => {
     '<url_base>' => '/nmis8',
     '<cgi_url_base>' => '/cgi-nmis8',
     '<menu_url_base>' => '/menu8',
     'web_report_root' => '<url_base>/reports'
   },
+	
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
     'rrddraw' => '<cgi_url_base>/rrddraw.pl', #'rrddraw' => '<cgi_url_base>/opmantek_rrddraw.pl',
@@ -217,11 +226,13 @@
     'nmis_slave' => '<menu_url_base>/img/slave.png',
     'company_logo' => ''
   },
+	
   'css' => {
     'jquery_jdmenu_css' => '<menu_url_base>/css/jquery.jdMenu.css',
     'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.9.2.custom.css',
     'styles' => '<menu_url_base>/css/dash8.css'
   },
+	
   'javascript' => {
     'jquery' => '<menu_url_base>/js/jquery-1.8.3.min.js',
     'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.9.2.custom.js',
@@ -236,6 +247,7 @@
     'highcharts' => '', #'<menu_url_base>/js/highcharts.js',
     'highstock' => '', #'<menu_url_base>/js/highstock.js'
   },
+	
   'email' => {
     'mail_server' => '127.0.0.1',
     'mail_server_ipproto' => undef,
@@ -247,12 +259,14 @@
     'mail_user' => 'your mail username',
     'mail_password' => ''
   },
+	
   'syslog' => {
     'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
     'syslog_events' => 'false'
   },
+	
   'sql' => {
     'nmisdb' => 'nmisdb',
     'db_server' => 'localhost',
@@ -269,6 +283,7 @@
     'db_debug' => '0',
     'db_links_sql' => 'false'
   },
+	
   'daemons' => {
     'logwatch' => 'false',
     'daemon_ipsla_active' => 'false',
@@ -277,6 +292,7 @@
     'daemon_fping_dns_cache' => 'true',
     'daemon_fping_filename' => 'fpingd.pl'
   },
+	
   'authentication' => {
 		'auth_lockout_after' => 0,
     'auth_debug' => '',
@@ -310,6 +326,7 @@
     'auth_ms_ldap_attr' => 'sAMAccountName',
     'auth_ms_ldap_debug' => 'false',
   },
+
   'master_slave' => {
     'nmis_master_poll_cycle' => 'false',
     'server_master' => 'false',
@@ -322,6 +339,7 @@
     'server_community' => 'secret',
     'server_user' => 'nmismst'
   },
+
   'tools' => {
     'view_ssh' => 'true',
     'ssh_port' => '',
@@ -334,6 +352,7 @@
     'mtr' => '/usr/sbin/mtr',
     'lft' => '/usr/local/bin/lft'
   },
+
   'menu' => {
     'menu_vendors_active' => 'false',
     'menu_groups_defer_load' => 'false',
@@ -352,6 +371,7 @@
     'menu_vendors_full' => 'false',
     'menu_suspend_link' => 'true'
   },
+
   'metrics' => {
     # The start time of each of the periods for metrics
     'metric_comparison_first_period' => '-8 hours',
@@ -370,6 +390,7 @@
     'average_diff' => '0.1',
     'average_decimals' => '2',
   },
+
   'escalation' => {
     'escalate0' => '0',
     'escalate1' => '300',
@@ -383,6 +404,7 @@
     'escalate9' => '43200',
     'escalate10' => '86400'
   },
+
   'graph' => {
     'graph_unit' => 'hours',
     'graph_amount' => '48',
@@ -397,6 +419,7 @@
     'graph_default_font_standard' => 'DEFAULT:8:Sans-Serif',
     'graph_default_font_small' => 'DEFAULT:8:Sans-Serif',
   },
+
   'tables NMIS4' => {
     'Users_Key' => 'user',
     'Interface_Table' => '<nmis_var>/interface.csv',
@@ -411,9 +434,11 @@
     'Users_Table' => '<nmis_conf>/users.csv',
     'Escalation_Key' => 'Group:Role:Type:Event:Event_Node:Event_Element'
   },
+
   'mibs' => {
     'full_mib' =>'nmis_mibs.oid,a3com.oid,dell.oid,ups.oid,akcp.oid'
   },
+
   'sound' => {
 # to enable audio feedback, set the severity levels that you want sound for,
 # and point the sound_X to a suitable url
@@ -427,6 +452,7 @@
     'sound_warning' => undef,
     'sound_normal' => undef,
   },
+
   'icons' => {
     'normal_net_icon' => '<menu_url_base>/img/network-green.gif',
     'mtr_icon' => '<menu_url_base>/img/mtr.jpg',
@@ -454,5 +480,13 @@
     'arrow_up_red' => '<menu_url_base>/img/arrow_up_red.gif',
     'critical_net_icon' => '<menu_url_base>/img/network-red.gif',
     'arrow_down_black' => '<menu_url_base>/img/arrow_down_black.gif'
-  }
+  },
+
+	'expiration' => {
+		'purge_rrd_after' => 30*86400,		# unused rrd files older than 30 days
+		'purge_backup_after' => 30*86400, # backup files
+		'purge_state_after' => 30*86400,	 # unused nmis state files
+		'purge_event_after' => 30*86400,	 # historic, closed events
+		'purge_jsonlog_after' => 30*86400, # json log files 
+	},
 );
