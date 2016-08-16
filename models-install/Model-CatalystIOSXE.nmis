@@ -699,7 +699,11 @@
           },
           'TimeSinceTopologyChange' => {
             'oid' => 'dot1dStpTimeSinceTopologyChange',
-            'Title' => 'Time Since STP Topology Change'
+            'Title' => 'Time Since STP Topology Change',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
           },
         },
       },

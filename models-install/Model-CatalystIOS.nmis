@@ -214,9 +214,9 @@
             'oid' => 'dot1dStpTimeSinceTopologyChange',
             'Title' => 'Time Since STP Topology Change',
             'replace' => {
-              'noSuchObject' => '',
-              'noSuchInstance' => '',
-            },
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
           },
         }
       }
