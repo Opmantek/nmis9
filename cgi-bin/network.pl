@@ -1580,11 +1580,13 @@ EO_HTML
 					}
 
 					if ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ ) {
-						# convert to uptime format, time since change
-						$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
-						# did this reset in the last 1 h
-						if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
-							$color = "#ffcc00"; # to late
+						if ( $value ne "N/A" ) {
+							# convert to uptime format, time since change
+							$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
+							# did this reset in the last 1 h
+							if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
+								$color = "#ffcc00"; # to late
+							}
 						}
 					}
 
