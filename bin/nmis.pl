@@ -8486,7 +8486,7 @@ sub purge_files
 		File::Find::find( {
 			wanted => sub
 			{
-				my ($localname) = @_;
+				my $localname = $_;
 				# don't need it at the moment my $dir = $File::Find::dir;
 				my $fn = $File::Find::name;
 				my @stat = stat($fn);
