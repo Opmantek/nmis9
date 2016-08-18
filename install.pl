@@ -534,7 +534,7 @@ and then restart the installer.\n\n";
 		# prime cpan if necessary: non-interactive, follow prereqs,
 		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
 		{
-			echolog("Performing initial CPAN configuration\nPlease be patient, this can take a bit...");
+			echolog("Performing initial CPAN configuration");
 			if ($noninteractive)
 			{
 				# no inputs, all defaults
@@ -547,6 +547,9 @@ and then restart the installer.\n\n";
 			}
 			else
 			{
+				print "To return to the installer when done with the CPAN configuration
+please exit the CPAN shell (with 'exit').\n";
+				&input_ok;
 				system("cpan");
 			}
 			echolog("CPAN configuration complete, proceeding with module installation");

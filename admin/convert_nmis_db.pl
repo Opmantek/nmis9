@@ -80,6 +80,11 @@ File::Find::find({ follow => 1,
 								 },
 								 $C->{'<nmis_var>'});
 
+
+# unfortunately readfiletohash does NOT handle overriding args properly, 
+# if the config says use_json...so we fudge this, in memory only.
+$C->{use_json} = 'false';
+
 my $actualcandidates;
 for my $fn (@candidates)
 {
@@ -98,6 +103,8 @@ for my $fn (@candidates)
 	else
 	{
 		info("starting conversion of $fn");
+		# unfortunately readfiletohash does NOT handle overriding args properly, if the config says use_json...
+		# hence the ugly fudgery above
 		my $data = readFiletoHash(file => $fn, json => 0);
 		die "file $fn unparseable!\n" if (!defined $data);
 		
