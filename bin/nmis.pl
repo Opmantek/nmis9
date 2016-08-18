@@ -8383,6 +8383,123 @@ sub sync_groups
 	return undef;
 }
 
+# this is a maintenance command for removing old, broken or unwanted files, 
+# replaces and extends the old admin/nmis_file_cleanup.sh
+#
+# args: none, but checks nvp simulate (default: false, if true only prints 
+# what it would do)
+# returns: undef if ok, error message otherwise
+sub purge_files
+{
+	my %nukem;
+
+	info("Starting to look for purgable files");
+	# config option, extension, where to look...
+	my @purgatory = (
+		{ ext => qr/\.rrd$/,
+			minage => $C->{purge_rrd_after} || 30*86400,
+			location => $C->{database_root},
+			empties => 1,
+			description => "Old RRD files",
+		},
+		{
+			ext => qr/\.(tgz|tar\.gz)$/,
+			minage => $C->{purge_backup_after} || 30*86400,
+			location => $C->{'<nmis_backups>'},
+			empties => 1,
+			description => "Old Backup files",
+		},
+		{
+			# old nmis state files - legacy .nmis under var
+			minage => $C->{purge_state_after} || 30*86400,
+			ext => qr/\.nmis$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Legacy .nmis files",
+		},
+		{
+			# old nmis state files - json files but only directly in var,
+			# or in network or in service_status
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'},
+			path => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
+			empties =>  1,
+			description => "Old JSON state files",
+		},
+		{
+			# old nmis state files - json files under nmis_system
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'}."/nmis_system",
+			ext => qr/\.json$/,
+			empties =>  1,
+			description => "Old internal JSON state files",
+		},
+		{
+			# broken empty json files - don't nuke them immediately, they may be tempfiles!
+			minage => 3600,						# 60 minutes seems a safe upper limit for tempfiles
+			ext => qr/\.json$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Empty JSON state files",
+		},
+		{
+			minage => $C->{purge_event_after} || 30*86400,
+			path => qr!events/.+?/history/.+\.json$!,
+			empties => 1,
+			location => $C->{'<nmis_var>'}."/events",
+			description => "Old event history files",
+		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			empties => 1,
+			ext => qr/\.json/,
+			location => $C->{json_logs},
+			description => "Old JSON log files",
+		},
+			);
+	my $simulate = getbool($nvp{simulate});
+
+	for my $rule (@purgatory)
+	{
+		my $olderthan = time - $rule->{minage};
+		next if (! $rule->{location});
+		info("checking dir $rule->{location} for $rule->{description}");
+
+		File::Find::find( {
+			wanted => sub
+			{
+				my $localname = $_;
+				# don't need it at the moment my $dir = $File::Find::dir;
+				my $fn = $File::Find::name;
+				my @stat = stat($fn);
+
+				next if (!S_ISREG($stat[2]) # not a file
+								 or ($rule->{ext} and $localname !~ $rule->{ext}) # not a matching ext
+								 or ($rule->{path} and $fn !~ $rule->{path})); # not a matching path
+
+				next if ( ($stat[7] or !$rule->{empties}) # zero size allowed if empties is off
+									and ($stat[9] >= $olderthan) );			# younger than the cutoff?
+				$nukem{$fn} = $rule->{description};
+			},
+			follow => 1, }, $rule->{location});
+	}
+
+	for my $fn (sort keys %nukem)
+	{
+		my $shortfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
+		if ($simulate)
+		{
+			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
+		}
+		else
+		{
+			info("removing $shortfn (rule '$nukem{$fn}')");
+			unlink($fn) or return "Failed to unlink $fn: $!";
+		}
+	}
+	info("Purging complete");
+	return undef;
+}
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)

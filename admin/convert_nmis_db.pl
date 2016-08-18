@@ -32,163 +32,115 @@
 # are viewable at http://opmantek.com/licensing
 #   
 # *****************************************************************************
+use strict;
+our $VERSION = "1.0.0";
 
-# Auto configure to the <nmis-base>/lib
+use File::Find;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
-use strict;
 use func;
 use NMIS;
 
-my $debug = 0;
+die "Usage: $0 [simulate=t/f] [info=t/f] [debug=t/f]\nsimulate: exit code 0 if no upgradables detected, 1 otherwise\n" 
+		if (@ARGV == 1 && $ARGV[0] =~ /^(-h|--h(elp)?|-\?)$/);
+my %args = getArguements(@ARGV);
 
-# load configuration table
-my $C = loadConfTable(conf=>undef,debug=>$debug);
+my $simulate = getbool($args{simulate});
 
-my $pass = 0;
-my $dirpass = 1;
-my $dirlevel = 0;
-my $maxrecurse = 200;
-my $maxlevel = 10;
+my $C = loadConfTable(conf => $args{conf},
+											debug=> setDebug($args{debug}),
+											info => $args{info});
 
-my $bad_file = qr/nmis-ldap-debug/; # incorrectly located file
-my $bad_dir;
-my $file_count;
-my $extension = "nmis";
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
 
-my $indent = 0;
-my @path;
-my $rrdlen = 19;
-
-print "This script will convert the NMIS database to use JSON.\n";
-print "Using configured var directory $C->{'<nmis_var>'}\n";
-
-# Process
-# 1. Stop NMIS Polling
-# 2. Convert NMIS files to JSON files
-# 3. Change config to use JSON
-# 4. Start NMIS polling.
-
-&updateNmisConfigBefore();
-&processDir(dir => $C->{'<nmis_var>'});
-&updateNmisConfigAfter();
-
-print "Done.  Processed $file_count NMIS files.\n";
-
-sub indent {
-	for (1..$indent) {
-		print " ";
-	}
+# first check if a lock exist, if not: make one
+my $waslocked = (-f $lockoutfile);
+if (!$waslocked && !$simulate)
+{
+	open(F, ">$lockoutfile") or die "cannot open $lockoutfile: $!\n";
+	close(F);
 }
 
-sub processDir {
-	my %args = @_;
-	# Starting point
-	my $dir = $args{dir};
-	my @dirlist;
-	my $index;
-	++$dirlevel;
-	my @filename;
-	my $key;
+# then find the files in question
+my @candidates;
+File::Find::find({ follow => 1,
+									 wanted => sub {
+										 my $localname = $_;
+										 # don't need it at the moment my $dir = $File::Find::dir;
+										 my $fn = $File::Find::name;
 
-	if ( -d $dir ) {
-		print "\nProcessing Directory $dir pass=$dirpass level=$dirlevel\n";
+										 dbg("checking file $fn");
+										 next if ($localname !~ /\.nmis$/ 
+															or $localname =~ /nmis-ldap-debug/ # must ignore badly named/located file
+															or ($localname eq "nmis-event.nmis" # nmis-event is special, convert only ONCE
+																	and -f "nmis-event.json.disabled")); # i.e. NOT if this exists
+										 dbg("file $fn needs work");
+										 push @candidates, $fn;
+									 },
+								 },
+								 $C->{'<nmis_var>'});
+
+
+# unfortunately readfiletohash does NOT handle overriding args properly, 
+# if the config says use_json...so we fudge this, in memory only.
+$C->{use_json} = 'false';
+
+my $actualcandidates;
+for my $fn (@candidates)
+{
+	my ($jsonfile,undef) = getFileName(file => $fn, json => 1);
+	if (-f $jsonfile)
+	{
+		info("Skipping $fn: JSON file already exists.");
+		next;
 	}
-	else {
-		print "\n$dir is not a directory\n";
-		exit -1;
-	}
-
-	#sleep 1;
-	if ( $dirpass >= 1 and $dirpass < $maxrecurse and $dirlevel <= $maxlevel ) {
-		++$dirpass;
-		opendir (DIR, "$dir");
-		@dirlist = readdir DIR;
-		closedir DIR;
-		my $pretty = 1;
-		if( $dir eq $C->{'<nmis_var>'} ) { $pretty = 0; }
-		if ($debug > 1) { print "\tFound $#dirlist entries\n"; }
-
-		for ( $index = 0; $index <= $#dirlist; ++$index ) {
-			@filename = split(/\./,"$dir/$dirlist[$index]");
-			if ( -f "$dir/$dirlist[$index]"
-				and $extension =~ /$filename[$#filename]/i
-				and $dirlist[$index] !~ $bad_file
-			) {
-				if ($debug>1) { print "\t\t$index file $dir/$dirlist[$index]\n"; }
-				&processNmisFile(file => "$dir/$dirlist[$index]", pretty => $pretty)
-			}
-			elsif ( -d "$dir/$dirlist[$index]"
-				and $dirlist[$index] !~ /^\.|CVS/
-				and $bad_dir !~ /$dirlist[$index]/i
-			) {
-				#if (!$debug) { print "."; }
-				&processDir(dir => "$dir/$dirlist[$index]");
-				--$dirlevel;
-			}
-		}
-	}
-} # processDir
-
-sub processNmisFile {
-	my %args = @_;
-	my $file = $args{file};
-	my $pretty = $args{pretty};
-	$indent = 2;
-	++$file_count;
-
-	my ($jsonfile,undef) = getFileName(file => $file, json => 1);
 	
-	if ( $jsonfile =~ /json/ ) {
-		if ( not -f $jsonfile ) {
-			print &indent . "Converting $file to $jsonfile\n";
-			my $data = readFiletoHash(file=>$file);
-			writeHashtoFile(data=>$data,file=>$file, json => 1, pretty => $pretty);	
-		}
-		else {
-			print &indent . "SKIPPING: JSON file $jsonfile already exists for $file, remove json file to recreate\n";
-		}
+	if ($simulate)
+	{
+		info("Would convert $fn but in simulate mode");
+		++$actualcandidates;
 	}
-}
-
-sub updateNmisConfigBefore {
-	my $configFile = "$C->{'<nmis_conf>'}/Config.nmis";
-	my $conf;
-	
-	if ( -f $configFile ) {
-		$conf = readFiletoHash(file=>$configFile);
-	}
-	else {
-		print "ERROR: something wrong with config file 1: $configFile\n";
-		exit 1;
-	}
-	$conf->{'system'}{'global_collect'} = "false";
-
-	writeHashtoFile(file=>$configFile,data=>$conf);
-}
-
-sub updateNmisConfigAfter {
-	my $configFile = "$C->{'<nmis_conf>'}/Config.nmis";
-	my $conf;
+	else
+	{
+		info("starting conversion of $fn");
+		# unfortunately readfiletohash does NOT handle overriding args properly, if the config says use_json...
+		# hence the ugly fudgery above
+		my $data = readFiletoHash(file => $fn, json => 0);
+		die "file $fn unparseable!\n" if (!defined $data);
 		
-	if ( -f $configFile ) {
-		$conf = readFiletoHash(file=>$configFile);
+		writeHashtoFile(data => $data, file => $fn, json => 1);
+		info("done with $jsonfile");
 	}
-	else {
-		print "ERROR: something wrong with config file 1: $configFile\n";
-		exit 1;
-	}
-	
-	# reconfigure nmis to use json 
-	$conf->{'system'}{'use_json'} = "true";
-	# but set json_pretty only if not present already
-	if ( not exists $conf->{'system'}{'use_json_pretty'} ) 
-	{ 
-		$conf->{'system'}{'use_json_pretty'} = "true";
-	}
-	$conf->{'system'}{'global_collect'} = "true";
-
-	writeHashtoFile(file=>$configFile,data=>$conf);
 }
+
+# now update nmis to actually use the json files
+if (!$simulate)
+{
+	my $cfgfn = $C->{'<nmis_conf>'}."/".$C->{conf}.".nmis";
+	my $unflattened = readFiletoHash(file => $cfgfn);
+				
+	$unflattened->{system}->{"use_json"} = 'true';
+	$unflattened->{system}->{"use_json_pretty"} = 'false' if (!exists $C->{system}->{"use_json_pretty"});
+
+	writeHashtoFile(data => $unflattened, file => $cfgfn);
+
+	# finally remove the lock file (if it wasn't already present!)
+	if (!$waslocked)
+	{
+		unlink $lockoutfile or die "cannot remove $lockoutfile: $!\n";
+	}
+}
+if (!$simulate)
+{
+	info("conversion complete");
+}
+else
+{
+	info("simulate run complete, found ".($actualcandidates || "no")." files to convert");
+}
+		
+
+# report back to the installer if in simulation mode
+exit ($simulate && $actualcandidates? 1 : 0);

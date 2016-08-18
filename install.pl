@@ -534,7 +534,7 @@ and then restart the installer.\n\n";
 		# prime cpan if necessary: non-interactive, follow prereqs,
 		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
 		{
-			echolog("Performing initial CPAN configuration\nPlease be patient, this can take a bit...");
+			echolog("Performing initial CPAN configuration");
 			if ($noninteractive)
 			{
 				# no inputs, all defaults
@@ -547,6 +547,11 @@ and then restart the installer.\n\n";
 			}
 			else
 			{
+				# there doesn't seem an easy way to prime the cpan shell with args,
+				# then let interact with the user via stdin/stdout...
+				print "\n
+Please start the CPAN configuration by entering 'o conf init' on\nthe CPAN prompt. To return to the installer when done, please exit the CPAN\nshell with 'exit'.\n";
+				&input_ok;
 				system("cpan");
 			}
 			echolog("CPAN configuration complete, proceeding with module installation");
@@ -902,6 +907,33 @@ https://community.opmantek.com/x/-wd4\n";
 			echolog("No upgradeable model files detected.");
 		}
 
+		printBanner("Checking JSON Migration");
+
+		my $havelegacy = execLog("$site/admin/convert_nmis_db.pl simulate=true 2>&1");
+		if ($havelegacy)
+		{
+			print "The installer has detected that your NMIS installation is still using
+legacy '.nmis' database files. We recommend that you use the
+db conversion tool to migrate your NMIS to JSON.\n\n";
+			
+			if (input_yn("Do you want to perform the JSON migration now?"))
+			{
+				execPrint("$site/admin/convert_nmis_db.pl simulate=false info=1");
+			}
+			else
+			{
+				echolog("Not upgrading to JSON files, as directed.");
+
+				print "\nWe recommend that you use the db conversion tool to
+switch to JSON. You can find this tool in $site/admin/convert_nmis_db.pl.\n";
+				&input_ok;
+			}
+		}
+		else
+		{
+			echolog("JSON migration not necessary.");
+		}
+		
 		printBanner("Performing RRD Tuning");
 		print "Please be patient, this step can take a while...\n";
 
@@ -1003,6 +1035,10 @@ It is highly recommended that you perform the RRD migration.");
 		echolog("No relevant differences between current and new Common-database.nmis,
 no RRD migration required.");
 	}
+
+
+
+	
 }
 
 echolog("Ensuring correct file permissions...");
