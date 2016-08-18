@@ -517,7 +517,8 @@ sub editTable
 	pageEnd() if (getbool($widget,"invert"));
 }
 
-sub doeditTable {
+sub doeditTable 
+{
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
 
@@ -536,11 +537,11 @@ sub doeditTable {
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
 	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
-	if ($table eq "Nodes")	# key and 'name' property values must match up, and be space-stripped
+	# key and 'name' property values must match up, and be space-stripped, for both users and nodes
+	if ($table eq "Nodes" or $table eq "Users")	
 	{
-	    $key = stripSpaces($key);
+		$key = stripSpaces($key);
 	}
-	my $thisentry  = $T->{$key};
 
 	# test on existing key
 	if ($Q->{act} =~ /doadd/)
@@ -557,9 +558,13 @@ sub doeditTable {
 		}
 	}
 
+	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
+	my $thisentry  = $T->{$key} ||= {};
+
 	my $V;
 	# store new values in table structure
-	for my $ref ( @{$CT}) {
+	for my $ref ( @{$CT}) 
+	{
 		for my $item (keys %{$ref})
 		{
 			# but handle multi-valued inputs correctly!
@@ -619,7 +624,7 @@ sub doeditTable {
 			return 0;
 		}
 	} else {
-		writeTable(dir=>'conf',name=>$table,data=>$T);
+		writeTable(dir=>'conf',name=>$table, data=>$T);
 	}
 
 
