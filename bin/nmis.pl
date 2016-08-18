@@ -41,12 +41,10 @@ use Net::SNMP qw(oid_lex_sort);
 use Proc::ProcessTable;
 use Proc::Queue ':all';
 use Data::Dumper;
-use File::Find;
-use File::Spec;
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
-# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
-use Fcntl qw(:DEFAULT :flock :mode);
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
+use Fcntl qw(:DEFAULT :flock);
 use Errno qw(EAGAIN ESRCH EPERM);
 
 use NMIS;
@@ -172,7 +170,6 @@ elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
-elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
 else { checkArgs(); }
 
 exit;
@@ -809,15 +806,6 @@ sub doUpdate
 	my $updatetime = $updatetimer->elapTime();
 	info("updatetime for $name was $updatetime");
 	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
-	# parrot the previous reading's poll time
-	my $prevval = "U";
-	if (my $rrdfilename = $S->getDBName(type => "health"))
-	{
-		my $infohash =RRDs::info($rrdfilename);
-		$prevval = $infohash->{'ds[polltime].last_ds'} if (defined $infohash->{'ds[polltime].last_ds'});
-	}
-	$reachdata->{polltime} = { value => $prevval, option => "gauge,0:U," };
-
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
@@ -925,6 +913,13 @@ sub doCollect {
 	info("Starting collect, node $name");
 
 	#Check for update LOCK
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
+		print STDERR "Error: running collect but update lock exists for $name which has not finished!\n";
+		logMsg("WARNING running collecct but update lock exists for $name which has not finished!");
+		return;
+	}
+
+	#Check for collect LOCK
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: collect lock exists for $name which has not finished!\n";
 		logMsg("WARNING collect lock exists for $name which has not finished!");
@@ -1069,15 +1064,6 @@ sub doCollect {
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
-	# parrot the previous reading's update time
-	my $prevval = "U";
-	if (my $rrdfilename = $S->getDBName(type => "health"))
-	{
-		my $infohash =RRDs::info($rrdfilename);
-		$prevval = $infohash->{'ds[updatetime].last_ds'} if (defined $infohash->{'ds[updatetime].last_ds'});
-	}
-	$reachdata->{updatetime} = { value => $prevval, option => "gauge,0:U,".(86400*3) };
-
 	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
 	$S->close;
 
@@ -4321,7 +4307,6 @@ sub runServer {
 									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
 								}
 							}
-							#print Dumper $hrFSRemoteMountPoint;
 							
 							$D->{hrStorageType} = 'Network Disk';
 							$D->{hrFSRemoteMountPoint} = $fileSystemTable->{$D->{hrStorageDescr}};
@@ -5307,8 +5292,6 @@ sub runReach
 	my $swapMax = 0;
 	my $diskMax = 0;
 
-	my %reach;
-
 	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
@@ -5345,13 +5328,11 @@ sub runReach
 		}
 	}
 
-	# copy stashed results (produced by runPing and getnodeinfo)
+	# copy results from object
 	my $pingresult = $RI->{pingresult};
-	$reach{responsetime} = $RI->{pingavg};
-	$reach{loss} = $RI->{pingloss};
-
 	my $snmpresult = $RI->{snmpresult};
 
+	my %reach;		# copy in local table
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
 	if ( $RI->{swap} ) {
@@ -5361,6 +5342,8 @@ sub runReach
 	if ( defined $RI->{disk} and $RI->{disk} > 0 ) {
 		$reach{disk} = $RI->{disk};
 	}
+	$reach{responsetime} = $RI->{pingavg};
+	$reach{loss} = $RI->{pingloss};
 	$reach{operStatus} = $RI->{operStatus};
 	$reach{operCount} = $RI->{operCount};
 
@@ -7490,7 +7473,7 @@ sub printCrontab
 
 	my $usercol = getbool($nvp{system})? "\troot\t" : '';
 
-	print qq|
+	print <<EO_TEXT;
 # if you DON'T want any NMIS cron mails to go to root,
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
@@ -7508,7 +7491,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
+*/2 * * * * $usercol /usr/local/nmis8/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
@@ -7521,10 +7504,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # the installer offers to setup using install/logrotate*.conf
 #
 # backup configuration, models and crontabs once a day, and keep 30 backups
-22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
+22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
 ##################################################
-# purge old files every few days
-2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
+# purge old files every week
+0 2 * * 0 $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
@@ -7547,7 +7530,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month response
 50 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month avail
 ###########################################
-|;
+EO_TEXT
 }
 
 #=========================================================================================
@@ -7753,7 +7736,6 @@ command line options are:
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
-      purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
@@ -8518,8 +8500,6 @@ sub purge_files
 	info("Purging complete");
 	return undef;
 }
-
-
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)

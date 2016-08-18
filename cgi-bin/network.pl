@@ -1778,7 +1778,36 @@ EO_HTML
 				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>$smallGraphWidth,height=>$smallGraphHeight) ));
 			}
 		} # end for
-	} else {
+	}
+	elsif ( defined $NI->{system}{services} and $NI->{system}{services} ne "" ) {
+		print Tr(td({class=>'header'},'Monitored Services'));
+		my $serviceStatus = $NI->{service_status};
+		foreach my $servicename (keys %{$serviceStatus}) {
+			
+			my $thisservice = $serviceStatus->{$servicename};
+
+			my $thiswidth = int(2/3*$smallGraphWidth);
+
+			my $serviceurl = "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+					.uri_escape($node)."&service=".uri_escape($servicename);
+			my $color = $thisservice->{status} == 100? 'Normal': $thisservice->{status} > 0? 'Warning' : 'Fatal';
+
+			my $statustext = "$servicename";
+			$statustext .= " - " .$thisservice->{status_text} if $thisservice->{status_text} ne "";
+
+			print Tr(
+				td({class=>"info Plain"},a({class => "islink", href=> $serviceurl}, "$statustext")),
+					);
+			print Tr(
+				td({class=>'image'}, 
+					htmlGraph(graphtype => "service", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight), 
+					htmlGraph(graphtype => "service-response", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight)
+				));
+
+		}
+
+	} 
+	else {
 		print Tr(td({class=>'info Plain'},'no Graph info'));
 	}
 	print end_table,end_td;
