@@ -275,7 +275,20 @@
     'level5' => '0',
     'name' => 'dyn_health'
   },
-  'dyn_outage' => {
+	
+  'dyn_times' => {
+    'descr' => 'Enable button Reports Dyn Time',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'dyn_time'
+  },
+	
+	'dyn_outage' => {
     'descr' => 'Enable button Reports Dyn Outage',
     'group' => 'button',
     'level0' => '1',
@@ -671,6 +684,18 @@
     'level5' => '0',
     'name' => 'strd_health'
   },
+	'strd_times' => {
+    'descr' => 'Enable button Reports Stored Time',
+    'group' => 'button',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '1',
+    'level3' => '1',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'strd_times'
+  },
+
   'strd_outage' => {
     'descr' => 'Enable button Reports Stored Outage',
     'group' => 'button',

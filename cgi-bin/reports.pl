@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: reports.pl,v 8.8 2012/01/06 07:09:38 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -71,14 +69,11 @@
 # 0 0 1 * * /mypath/run-reports.pl month response
 # 0 0 1 * * /mypath/run-reports.pl month avail
 ###########################################
-#
-#*****************************************************************************
-# Auto configure to the <nmis-base>/lib
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "/usr/local/rrdtool/lib/perl"; 
-# 
-#****** Shouldn't be anything else to customise below here *******************
+
 use strict;
 use Fcntl qw(:DEFAULT :flock);
 
@@ -87,6 +82,7 @@ use csv;
 use NMIS;
 use func;
 use Sys;
+use rrdfunc;
 
 use Data::Dumper;
 Data::Dumper->import();
@@ -114,13 +110,12 @@ if ( $#ARGV > 0 ) {
 	$Q->{conf} = $nvp{conf};
 	$Q->{time_start} = returnDateStamp($nvp{start}); # start time in epoch seconds
 	$Q->{time_end} = returnDateStamp($nvp{end});
-	if ( $nvp{outfile} ) {
-		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}. $!";
+	if ( $nvp{outfile} ) 
+	{
+		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}: $!\n";
 	}
 	$Q->{print} = 1;
 }
-
-#=======================
 
 my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
@@ -147,8 +142,7 @@ if ($AU->Require) {
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
-my $nodewrap = "nowrap";
-$nodewrap = "wrap" if (getbool($C->{'wrap_node_names'}));
+my $nodewrap = getbool($C->{'wrap_node_names'})? "wrap" : "nowrap";
 
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
@@ -161,6 +155,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 } elsif ($Q->{act} eq 'report_dynamic_port') {		portReport();
 } elsif ($Q->{act} eq 'report_dynamic_top10') {		top10Report();
 } elsif ($Q->{act} eq 'report_dynamic_outage') {	outageReport();
+} elsif ($Q->{act} eq 'report_dynamic_times') {	timesReport();
 } elsif ($Q->{act} eq 'report_stored_health') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_avail') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_response') {	storedReport();
@@ -169,9 +164,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 } elsif ($Q->{act} eq 'report_stored_outage') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_file') {		fileReport();
 } elsif ($Q->{act} eq 'report_csv_nodedetails') {	nodedetailsReport();
-} else { notfound(); }
-
-sub notfound {
+} else { 
 	if (not $Q->{print})
 	{
 		print header($headeropts);
@@ -183,7 +176,7 @@ sub notfound {
 	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
 	
-exit;
+exit 0;
 
 #===============================================================================
 
@@ -769,6 +762,150 @@ sub responseReport {
 	print pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
+
+
+# create report of poll and update times
+sub timesReport 
+{
+	my $debug = getbool($Q->{debug});
+	if (not $Q->{print} && !$debug)
+	{
+		print header($headeropts);
+		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	}
+	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
+
+	my ($time_elements,$start,$end) = getPeriod();
+	if ($start eq '' or $end eq '') {
+		print Tr(td({class=>'error'},'Illegal time values'));
+		return;
+	}
+	
+	my $datestamp_start = returnDateStamp($start);
+	my $datestamp_end = returnDateStamp($end);
+	my $header = "Collect and Update Time Summary from $datestamp_start to $datestamp_end";
+
+	my @report;
+
+	my $NT = loadNodeTable();
+	foreach my $reportnode (keys %{$NT}) 
+	{
+		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+
+		if ( getbool($NT->{$reportnode}->{active}) ) 
+		{
+			my $S = Sys->new;
+			$S->init(name => $reportnode, snmp=>'false');
+			my $normalpoll = $S->{mdl}{database}{db}{poll} || 300;
+
+			my %entry = ( node => $reportnode,
+										polltime => "N/A",
+										updatetime => "N/A",
+										polltimecolor => "#000000",
+										updatetimecolor => "#000000" );
+			# find health rrd
+			if (-f (my $rrdfilename = $S->getDBName(type => "health")))
+			{
+				my $stats = getRRDStats(sys => $S, graphtype => "health",
+																index => undef, item => undef, 
+																start => $start,  end => $end);
+
+				for my $thing (qw(polltime updatetime))
+				{
+					my $value = $stats->{$thing}->{mean};
+					if (defined $value)
+					{
+						$entry{$thing} = $value;
+						# colors: linear graduation from 0.0s=perfect towards 75% of poll interval=bad, then flat bad
+						my $colorpct = ($normalpoll - $value)/$normalpoll/0.75;
+						$colorpct = 1 if $colorpct > 1;
+
+						$entry{"${thing}color"} = colorPercentHi(100 * $colorpct);
+					}
+				}
+			}
+			push @report, \%entry;
+		}
+
+	}
+
+	if ($debug)
+	{
+		print Dumper(\@report);
+		return;
+	}
+
+	# start of form
+	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "report_dynamic_times")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			if (not $Q->{print});
+	
+	print start_table, Tr(th({class=>'title',colspan=>'3'},$header));
+
+	print $time_elements if not $Q->{print} ; # time set
+
+	# header and data summary
+	print start_Tr,start_td({width=>'100%',colspan=>'3'}),start_table;
+
+	my $sortcrit = $Q->{sort} || 'node';
+	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
+	
+	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_times&sortdir=$sortdir"
+			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
+
+	print Tr(
+		td({class=>'header',align=>'center'},
+			 a({href=>"$url&sort=node"},'Node')),
+		td({class=>'header',align=>'center'},
+			 a({href=>"$url&sort=polltime"},'Collect Time (s)')),
+		td({class=>'header',align=>'center'},
+			 a({href=>"$url&sort=updatetime"},'Update Time (s)')),
+			);
+
+	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?conf=$Q->{conf}&act=network_graph_view&graphtype=polltime&start=$start&end=$end";
+	for my $sorted (sort { my ($first,$second) = $sortdir eq 'rev'? ($b,$a): ($a,$b);
+												 $sortcrit eq "node"? $first->{$sortcrit} cmp $second->{$sortcrit} 
+												 : $first->{$sortcrit} <=> $second->{$sortcrit}; } @report)
+	{
+		my ($node,$poll,$update,$pollcolor,$updatecolor) = @{$sorted}{"node","polltime","updatetime",
+																																	"polltimecolor","updatetimecolor"};
+		$poll = "N/A" if (!defined $poll);
+		$update = "N/A" if (!defined $update);
+
+		my $thisnodegraph = $graphlinkbase ."&node=".uri_escape($node);
+
+
+		#	fixme	my $color = colorResponseTime($);
+		print Tr(
+			td({class=>'info Plain', },
+				 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node)),
+
+			td({class=>'info Plain', style=> getBGColor($pollcolor)},
+				 a({target => "Graph-$node",
+						class => "islink", 
+						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+					 $poll)),
+
+			td({class=>'info Plain', style => getBGColor($updatecolor)},
+				 a({target => "Graph-$node",
+						class => "islink", 
+						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+					 $update)),
+				);
+	}
+	print end_table, end_td, end_Tr, end_table;
+
+	print end_form if not $Q->{print};
+
+	# fixme
+	#	purge_files('times') if $Q->{print};
+	
+	pageEnd if (not $Q->{print} and not $wantwidget);
+	return;
+}
+
 
 #===============
 

@@ -228,8 +228,12 @@ sub rmBadChars {
 	return $intf;
 }
 
-sub stripSpaces{
+# strips both leading and trailing spaces
+sub stripSpaces
+{
 	my $str = shift;
+	return undef if (!defined $str);
+	
 	$str =~ s/^\s+//;
 	$str =~ s/\s+$//;
 	return $str;
