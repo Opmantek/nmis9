@@ -1788,9 +1788,6 @@ EO_HTML
 
 			my $thiswidth = int(2/3*$smallGraphWidth);
 
-			my $serviceGraphs = htmlGraph(graphtype => "service", node=>$node, intf=>$servicename,
-																		width=>$thiswidth, height=>$smallGraphHeight);
-
 			my $serviceurl = "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
 					.uri_escape($node)."&service=".uri_escape($servicename);
 			my $color = $thisservice->{status} == 100? 'Normal': $thisservice->{status} > 0? 'Warning' : 'Fatal';
@@ -1802,8 +1799,11 @@ EO_HTML
 				td({class=>"info Plain"},a({class => "islink", href=> $serviceurl}, "$statustext")),
 					);
 			print Tr(
-				td({class=>'image'}, $serviceGraphs)
-					);
+				td({class=>'image'}, 
+					htmlGraph(graphtype => "service", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight), 
+					htmlGraph(graphtype => "service-response", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight)
+				));
+
 		}
 
 	} 
