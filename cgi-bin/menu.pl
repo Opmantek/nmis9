@@ -244,6 +244,7 @@ sub menu_bar_site {
 				
 				my @details=("avail","Availability","available",
 										 "health","Health","health",
+										 "times","Collect/Update Time","times",
 										 "response","Response Time","response",
 										 "top10","Top 10","top10",
 										 "outage","Outage","outage",
