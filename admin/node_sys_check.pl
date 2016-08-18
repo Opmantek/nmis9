@@ -92,6 +92,7 @@ sub checkNode {
 		my $NI = $S->ndinfo;
 		my $V =  $S->view;
 		my $MDL = $S->mdl;
+		my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 				
 		my $changes = 0;
 		my @interfaceSections = qw(interface pkts pkts_hc);
@@ -287,6 +288,46 @@ sub checkNode {
 				print "FIXING: $node $indx is unknown?\n";
 				print Dumper $NI->{graphtype}{$indx};
 
+			}
+		}
+		
+		# lets look for redundant events.......
+		if (my %nodeevents = loadAllEvents(node => $node)) {
+			for my $eventkey (sort keys %nodeevents) {
+				my $thisevent = $nodeevents{$eventkey};
+				
+				if ( defined $thisevent->{element} ) {
+					my $element = $thisevent->{element};
+					
+					# simple match first.
+					if ( ref($NI->{graphtype}{$element}) eq "HASH" and keys %{$NI->{graphtype}{$element}} ) {
+						print "INFO: Found element $element for event $thisevent->{event}\n";
+					}
+					else {
+						# lets try to match interfaces
+						my $gotOne = 0;
+						my @elements = split(":",$element);
+						foreach my $ele (@elements) {
+							if (defined $IFD->{$ele}{ifIndex} ) {
+								print "INFO: got ifIndex $IFD->{$ele}{ifIndex} from $element\n";
+								$element = $IFD->{$ele}{ifIndex};
+								last;
+							}
+							#$entry->{lldpIfIndex} = $IFD->{$ifDescr}{ifIndex};
+						}
+	
+						if ( ref($NI->{graphtype}{$element}) eq "HASH" and keys %{$NI->{graphtype}{$element}} ) {
+							print "INFO: Found element $element for event $thisevent->{event}\n";
+							$gotOne = 1;
+						}
+	
+	
+						if ( not $gotOne ) {
+							print "ERROR: NO ELEMENT $element for event $thisevent->{event}\n";
+							print Dumper $thisevent;
+						}
+					}
+				}
 			}
 		}
 		

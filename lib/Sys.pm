@@ -72,15 +72,19 @@ sub new {
 # initialise the system object for a given node
 # node config is loaded only if snmp is true
 # args: node (required, or name), snmp (defaults to 1), update (defaults to 0),
-# cache_models (see code comments for defaults)
+# cache_models (see code comments for defaults), force (defaults to 0)
 #
 # update means ignore model loading errors, also disables cache_models
+# force means ignore the old node file, only relevant if update is enabled as well.
+#
+# returns: 1 if successful, 0 otherwise
 sub init
 {
-	my $self = shift;
-	my %args = @_;
+	my ($self, %args) = @_;
+
 	$self->{name} = $args{name};
 	$self->{node} = lc $args{name}; # always lower case
+
 	$self->{debug} = $args{debug};
 	$self->{update} = getbool($args{update});
 	my $snmp = $args{snmp} || 1;
@@ -117,24 +121,35 @@ sub init
 
 	my $ext = getExtension(dir=>'var');
 
-	# load info of node and interfaces in tables of this object
-	if ($self->{name} ne "") {
-		if (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node"))) { # load in table {info}
-			$self->{info}{system}{host_addr} = ''; # clear ip address
-			if (getbool($self->{debug})) {
+	# load info of node  and interfaces in tables of this object, if a node is given
+	if ($self->{name} ne "")
+	{
+		# if force is off, load the existing node info
+		# if on, ignore that information and start from scratch (to bypass optimisations)
+		if ($self->{update} && getbool($args{force}))
+		{
+			dbg("Not loading info of node=$self->{name}, force means start from scratch");
+		}
+		# load in table {info}
+		elsif (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node")))
+		{
+			if (getbool($self->{debug}))
+			{
 				foreach my $k (keys %{$self->{info}}) {
-					dbg("Node=$self->{name} info $k=$self->{info}{$k}",3);
+					dbg("Node=$self->{name} info $k=$self->{info}{$k}", 3);
 				}
 			}
 			dbg("info of node=$self->{name} loaded");
-		} else {
+		}
+		else
+		{
 			$self->{error} = "ERROR loading var/$self->{node}-node.$ext";
 			dbg("ignore error message") if $self->{update};
 			$exit = 0;
 		}
 	}
 
-	$exit = 1 if $self->{update}; # ignore errors before with update
+	$exit = 1 if $self->{update}; # ignore previous errors if update
 
 	## This is overriding the devices with the nodedown=true!
 	if (($info = loadTable(dir=>'var',name=>"nmis-system"))) { # add nmis system database filenames and attribs
@@ -718,10 +733,9 @@ sub getValues {
 				}
 			}
 		}
-		else {
+		else
+		{
 			dbg("ERROR ($self->{info}{system}{name}) on get values by snmp");
-			$self->{info}{system}{host_addr} = ''; # clear cache
-			### 2012-03-29 keiths, return needs to be null/undef so that exception handling works at other end.
 			return undef;
 		}
 	}
@@ -904,6 +918,7 @@ sub loadModel
 			dbg("policy rule $polnr matched",2);
 			# policy rule has matched, let's apply the settings
 			# systemHealth is the only supported setting so far
+			# note: _anything is reserved for internal purposes
 			for my $sectionname (qw(systemHealth))
 			{
 				$thisrule->{$sectionname} ||= {};
@@ -913,6 +928,8 @@ sub loadModel
 
 				for my $conceptname (keys %{$thisrule->{$sectionname}})
 				{
+					# _anything is reserved for internal purposes, also on the inner level
+					next if ($conceptname =~ /^_/);
 					my $ispresent = List::Util::first { $conceptname eq $current[$_] } (0..$#current);
 
 					if (getbool($thisrule->{$sectionname}->{$conceptname}))
@@ -1026,24 +1043,40 @@ sub parseString {
 	my $sect = $args{sect};
 	my $type = $args{type};
 
-
 	dbg("parseString:: string to parse $str",3);
 
 	{
-		no strict;
-		if ($self->{info}) {
+		no strict;									# *shudder*
+		map { undef ${"CVAR$_"} } ('',0..9); # *twitch* but better than reusing old cvar values...
 
-			# find custom variable VAR=oid;$CVAR=~/something/
-			if ( $sect ne "" && $str =~ /\(CVAR=(\w+);(.*)/ ) {
-				if ( defined $self->{info}{$sect}{$indx}{$1} and $self->{info}{$sect}{$indx}{$1} ne "" ) {
-					$CVAR = $self->{info}{$sect}{$indx}{$1};
-					# put the brackets back in so we have "(check) ? 1:0" again
-					$str = "(".$2;
-					dbg("1=$1, CVAR=$CVAR;str=$str, sect=$sect indx=$indx");
+		if ($self->{info})
+		{
+			# find custom variables CVAR[n]=thing; in section, and substitute $CVAR[n] with the value
+			if ( $sect
+					 &&  ref($self->{info}->{$sect}) eq "HASH"
+					 &&  ref($self->{info}->{$sect}->{$indx}) eq "HASH" )
+			{
+				my $consumeme = $str;
+				my $rebuilt;
+
+				# nongreedy consumption up to the first CVAR assignment
+				while ($consumeme =~ s/^(.*?)CVAR(\d)?=(\w+);//)
+				{
+					my ($number, $thing)=($2,$3);
+					$rebuilt .= $1;
+					$number = '' if (!defined $number); # let's support CVAR, CVAR0 .. CVAR9, all separate
+
+					if (!exists $self->{info}->{$sect}->{$indx}->{$thing})
+					{
+						logMsg("ERROR: $thing not a known property in section $sect, index $indx!");
+					}
+					# let's set the global CVAR or CVARn to whatever value from the node info section
+					${"CVAR$number"} = $self->{info}->{$sect}->{$indx}->{$thing};
+					dbg("found assignment for CVAR$number, $thing, value ".${"CVAR$number"}, 3);
 				}
-				else {
-					return undef;
-				}
+				$rebuilt .= $consumeme;	# what's left after looking for CVAR assignments
+				dbg("var extraction transformed \"$str\" into \"$rebuilt\"", 3);
+				$str = $rebuilt;
 			}
 
 			$name = $self->{info}{system}{name};

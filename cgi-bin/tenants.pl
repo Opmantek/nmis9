@@ -32,28 +32,19 @@
 #  https://community.opmantek.com/
 #
 # *****************************************************************************
-
-package main;
-
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use func;
 use NMIS;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-#use CGI::Debug;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 use Data::Dumper;
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = CGI->new; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = CGI->new; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 tenantMenu();
 exit;

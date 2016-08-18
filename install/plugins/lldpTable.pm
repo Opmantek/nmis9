@@ -76,6 +76,7 @@ sub update_plugin
 		$changesweremade = 1;
 
 		my $possNeighbour;
+		my $gotNeighbourName = 0;		
 
 		foreach $possNeighbour (@possibleNames) {
 			if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
@@ -86,6 +87,24 @@ sub update_plugin
 				$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$possNeighbour";
 				$entry->{lldpNeighbour_id} = "node_view_$possNeighbour";
 				last;
+			}
+		}
+
+		# did I get one, if not, look harder be a brute!
+		if ( not $gotNeighbourName ) {
+			foreach my $possNeighbour (@possibleNames) {
+				foreach my $aNode (keys %{$LNT}) {
+					if ( $possNeighbour eq $LNT->{$aNode}{host} ) {
+						# but the neighbour is actually the name from the LNT
+						$changesweremade = 1;
+						$entry->{lldpRemSysName_raw} = $entry->{cdpCacheDeviceId};
+						$entry->{lldpRemSysName} = $aNode;
+						$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$aNode";
+						$entry->{lldpNeighbour_id} = "node_view_$aNode";
+						$gotNeighbourName = 1;
+						last;						
+					}
+				}
 			}
 		}
 

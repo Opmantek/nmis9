@@ -29,10 +29,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
-package main;
-#use CGI::Debug( report => 'everything', on => 'anything' );
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Data::Dumper;
@@ -44,20 +40,13 @@ use NMIS::Modules;
 
 use JSON::XS;
 
-# Prefer to use CGI::Pretty for html processing
-# use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div *ul *li);
-#use CGI qw(:standard *table *Tr *td *form *Select *div *ul *li);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-use CGI qw(:standard *table *Tr *td *form *Select *div *form escape *ul *li);
-
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-$C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 $Q->{conf} = (exists $Q->{conf} and $Q->{conf} ) ?  $Q->{conf} : $C->{conf};
 
 # set some defaults
@@ -67,8 +56,8 @@ my $widget_refresh = $C->{widget_refresh_time} ? $C->{widget_refresh_time} : 180
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -179,6 +168,7 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='ntw_view' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_view">Network Metrics and Health</a>|;
 		push @netstatus, qq|<a id='ntw_health' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_health">Network Status and Health</a>|;
 		push @netstatus, qq|<a id='ntw_summary' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_large">Network Status and Health by Group</a>|;
+
 		push @netstatus, qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">Monitored Services</a>|;
 		push @netstatus, qq|<a id='src_events' href="events.pl?conf=$Q->{conf}&amp;act=event_table_list">Current Events</a>|
 				if ($AU->CheckAccess("tls_event_db","check"));
@@ -254,6 +244,7 @@ sub menu_bar_site {
 				
 				my @details=("avail","Availability","available",
 										 "health","Health","health",
+										 "times","Collect/Update Time","times",
 										 "response","Response Time","response",
 										 "top10","Top 10","top10",
 										 "outage","Outage","outage",
@@ -304,7 +295,10 @@ sub menu_bar_site {
 				qq|<a id='find_interface' href="find.pl?conf=$Q->{conf}&amp;act=find_interface_menu">Interface</a>|
 		];
 		push @sdeskstuff, qq|Logs|, \@logstuff if (@logstuff);
-		push @sdeskstuff, qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">Monitored Services</a>|;
+
+		push @sdeskstuff, qq|Monitored Services|, [ qq|<a id='ntw_services' href="services.pl?conf=$Q->{conf}">All Services</a>|,
+																								qq|<a id='ntw_services_ok' href="services.pl?conf=$Q->{conf}&only_show=ok">Only running Services</a>|,
+																								qq|<a id='ntw_services_notok' href="services.pl?conf=$Q->{conf}&only_show=notok">Only Services with Problems</a>| ];
 								
 		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 
@@ -323,6 +317,9 @@ sub menu_bar_site {
 
 		push @tableMenu, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Configuration</a>|
 				if ($AU->CheckAccess("table_nodeconf_view","check"));
+
+		push @tableMenu, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+				if ($AU->CheckAccess("table_models_view","check"));
 
 		push @tableMenu, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
@@ -416,7 +413,10 @@ sub menu_bar_site {
 				if ($AU->CheckAccess("Table_Events_view","check"));
 				
 		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alert Tuning</a>| 
-				if ($AU->CheckAccess("table_models_view","check"));				
+				if ($AU->CheckAccess("table_models_view","check"));
+
+		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
+				if ($AU->CheckAccess("table_models_view","check"));
 
 		#push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
 		#		if ($AU->CheckAccess("table_models_view","check"));				

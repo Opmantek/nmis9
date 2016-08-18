@@ -1,8 +1,5 @@
 #
-#
-## $Id: Timing.pm,v 8.3 2012/01/04 04:57:42 keiths Exp $
-#
-#  Copyright (C) Opmantek Limited (www.opmantek.com)
+#  Copyright (c) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -30,42 +27,29 @@
 #  
 # *****************************************************************************
 
-package NMIS::Timing;
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Run Time (s)',
+		'short' => 'seconds',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:poll=$database:polltime:AVERAGE',
+			'DEF:update=$database:updatetime:AVERAGE',
 
-require 5;
+			'LINE2:poll#006400:Collect Time\t',
+			'GPRINT:poll:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:poll:LAST:\tLast %1.2lf seconds',
+			'GPRINT:poll:MAX:\tMax %1.2lf seconds\l',
 
-use strict;
-use Time::HiRes;
-
-# Create the class and bless the vars you want to "share"
-sub new {
-	my $class = shift;
-	my $self = {
-	   	time => Time::HiRes::time(),
-	   	mark => undef
-   	};
-   	bless $self,$class;
-}
-
-sub elapTime {
-	my ($self) = @_;
-	return sprintf("%.2f", Time::HiRes::tv_interval([$self->{time}]))
-}
-
-sub resetTime {
-	my ($self) = @_;
-	$self->{time} = Time::HiRes::time();
-}
-
-sub markTime {
-	my ($self) = @_;
-	$self->{mark} = Time::HiRes::time();
-	return sprintf("%.2f", Time::HiRes::tv_interval([$self->{time}]))
-}
-
-sub deltaTime {
-	my ($self) = @_;
-	return sprintf("%.2f", Time::HiRes::tv_interval([$self->{mark}]))
-}
-
-1;
+			'LINE2:update#FF8c00:Update Time\t',
+			'GPRINT:update:AVERAGE:\tAvg %1.2lf seconds',
+			'GPRINT:update:LAST:\tLast %1.2lf seconds',
+			'GPRINT:update:MAX:\tMax %1.2lf seconds\l',
+		]
+	}
+);

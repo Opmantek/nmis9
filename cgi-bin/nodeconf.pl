@@ -38,16 +38,11 @@ use func;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
@@ -61,8 +56,8 @@ my $wantwidget = !getbool($Q->{widget},"invert");
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type => 'text/html', expires => 'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type => 'text/html', expires => 'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -261,112 +256,132 @@ sub displayNodeConf
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
-	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-	# interfaces
-	if ( getbool($NI->{system}{collect}) ) {
+	if ( getbool($NI->{system}{collect}) ) 
+	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
-		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) {
-			### 2013-11-20 keiths, preventing an autovivifaction bug from displaying bad interfaces
-			if ( exists $IF->{$intf}{ifDescr} and  $IF->{$intf}{ifDescr} ne "" ) {
-				my ($description,$speed,$speedIn,$speedOut,$collect,$event,$threshold,$size);
-				
-				# keep the ifDescr to work on.
-				my $ifDescr = $IF->{$intf}{ifDescr};
-				my $thisintfover = ref($override->{$ifDescr}) eq "HASH"? $override->{$ifDescr} : {};
-	
-				# check if interfaces are changed
-				if ($thisintfover->{ifDescr} and $IF->{$intf}{ifDescr} ne $thisintfover->{ifDescr}) 
-				{
-					$collect = $event = $threshold = $description = $speed = "";
-				} 
-				else 
-				{
-					if ( !$thisintfover->{ifSpeedIn} and $thisintfover->{ifSpeed} )
-					{
-						$thisintfover->{ifSpeedIn} = $thisintfover->{ifSpeed};
-					}
-					if (!$thisintfover->{ifSpeedOut} and $thisintfover->{ifSpeed}) 
-					{
-						$thisintfover->{ifSpeedOut} = $thisintfover->{ifSpeed};
-					}
-					$description = $thisintfover->{Description};
-					$speed = $thisintfover->{ifSpeed};
-					$speedIn = $thisintfover->{ifSpeedIn};
-					$speedOut = $thisintfover->{ifSpeedOut};
-					$collect = $thisintfover->{collect};
-					$event = $thisintfover->{event};
-					$threshold = $thisintfover->{threshold};
-				}
-	
-				my $NCT_Description = exists $IF->{$intf}{nc_Description} ? $IF->{$intf}{nc_Description} : $IF->{$intf}{Description};
-				print Tr,
-					td({class=>'header'}, $IF->{$intf}{ifDescr}),
-					td({class=>'header'},"Description"),td({class=>'header3'},$NCT_Description),
-				td({class=>"Plain"},textfield(-name=>"descr_${intf}",
-																			-style => 'width: 95%',
-																			-override=>1,
-																			-value=>$description));
-				
-				my $NCT_ifSpeed = $IF->{$intf}{nc_ifSpeed} || $IF->{$intf}{ifSpeed};
-				#print Tr,td({class=>'header'}),
-				#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
-				#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
-	
-				my $NCT_ifSpeedIn = $IF->{$intf}{nc_ifSpeedIn} || $IF->{$intf}{ifSpeedIn};
-				$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
-				print Tr,td({class=>'header'}),
-					td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
-					td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
-	
-				my $NCT_ifSpeedOut = $IF->{$intf}{nc_ifSpeedOut} || $IF->{$intf}{ifSpeedOut};
-				$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
-				print Tr,td({class=>'header'}),
-					td({class=>'header'},"Speed Out"),td({class=>'header3'},$NCT_ifSpeedOut),
-					td({class=>"Plain"},textfield(-name=>"speedOut_${intf}",-override=>1,-value=>$speedOut));
-	
-				my $NCT_collect = $IF->{$intf}{nc_collect} || $IF->{$intf}{collect};
-				print Tr,td({class=>'header'}),
-					td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
-					td({class=>"Plain"},radio_group(-name=>"collect_${intf}",
-																					-values=>['unchanged',
-																										'true',
-																										'false'],
-																					-default=>$collect,-labels=>\%rglabels));
-	
-				if ( getbool($collect) or (!getbool($collect,"invert") 
-																	 and getbool($NCT_collect)) ) 
-				{
-					my $NCT_event = $IF->{$intf}{nc_event} || $IF->{$intf}{event};
-					print Tr,td({class=>'header'}),
-						td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
-						td({class=>"Plain"},radio_group(-name=>"event_${intf}",
-																						-values=>['unchanged',
-																											'true',
-																											'false'],
-																						-default=>$event,-labels=>\%rglabels));
-				} else {
-					print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
-				}
+		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) 
+		{
+			next if (!exists $IF->{$intf}{ifDescr} or $IF->{$intf}{ifDescr} eq "" );
 
-				if (getbool($NI->{system}{threshold}) 
-						and (getbool($collect) or (!getbool($collect,"invert") 
-																			 and getbool($NCT_collect)) )) {
-					my $NCT_threshold = $IF->{$intf}{nc_threshold} || $IF->{$intf}{threshold};
-					print Tr,td({class=>'header'}),
-						td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
-						td({class=>"Plain"},
-							 radio_group(-name=>"threshold_${intf}",
-													 -values=>['unchanged',
-																		 'true',
- 																		 'false'],
-													 -default=>$threshold,-labels=>\%rglabels));
-				} else {
-					print hidden(-name=>"threshold_${intf}", -default=>'unchanged',-override=>'1');
-				}				
+			my $intfstatus = $IF->{$intf};
+			my ($description, $speed,$speedIn,$speedOut, $collect,$event,$threshold,$size, $setlimits);
+				
+			my $ifDescr = $intfstatus->{ifDescr};
+			my $thisintfover = ref($override->{$ifDescr}) eq "HASH"? $override->{$ifDescr} : {};
+	
+			# check if interfaces are changed - fixme what does that mean?
+			if ($thisintfover->{ifDescr} and $ifDescr ne $thisintfover->{ifDescr}) 
+			{
+				# fixme undef better?
+				$collect = $event = $threshold = $description = $speed = undef;
 			}
+			else 
+			{
+				if ( !$thisintfover->{ifSpeedIn} and $thisintfover->{ifSpeed} )
+				{
+					$thisintfover->{ifSpeedIn} = $thisintfover->{ifSpeed};
+				}
+				if (!$thisintfover->{ifSpeedOut} and $thisintfover->{ifSpeed}) 
+				{
+					$thisintfover->{ifSpeedOut} = $thisintfover->{ifSpeed};
+				}
+			
+				$description = $thisintfover->{Description};
+				$speed = $thisintfover->{ifSpeed};
+				$speedIn = $thisintfover->{ifSpeedIn};
+				$speedOut = $thisintfover->{ifSpeedOut};
+				$collect = $thisintfover->{collect};
+				$event = $thisintfover->{event};
+				$threshold = $thisintfover->{threshold};
+				$setlimits = $thisintfover->{setlimits};
+			}
+			$setlimits = "normal" if (!$setlimits or $setlimits !~ /^(normal|strict|off)$/);
+	
+			my $NCT_Description = exists $intfstatus->{nc_Description} ? 
+					$intfstatus->{nc_Description} : $intfstatus->{Description};
+
+			print Tr,
+			td({class=>'header'}, $intfstatus->{ifDescr}),
+			td({class=>'header'},"Description"),td({class=>'header3'},$NCT_Description),
+			td({class=>"Plain"},textfield(-name=>"descr_${intf}",
+																		-style => 'width: 95%',
+																		-override=>1,
+																		-value=>$description));
+				
+			my $NCT_ifSpeed = $intfstatus->{nc_ifSpeed} || $intfstatus->{ifSpeed};
+			#print Tr,td({class=>'header'}),
+			#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
+			#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
+			
+			my $NCT_ifSpeedIn = $intfstatus->{nc_ifSpeedIn} || $intfstatus->{ifSpeedIn};
+			$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
+			print Tr,td({class=>'header'}),
+			td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
+			td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
+	
+			my $NCT_ifSpeedOut = $intfstatus->{nc_ifSpeedOut} || $intfstatus->{ifSpeedOut};
+			$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
+			print Tr,td({class=>'header'}),
+			td({class=>'header'},"Speed Out"),td({class=>'header3'},$NCT_ifSpeedOut),
+			td({class=>"Plain"},textfield(-name=>"speedOut_${intf}",-override=>1,-value=>$speedOut));
+
+
+			print Tr,td({class=>'header'}),
+			td({class=>'header'},"Speed Limit"), td({class=>'header3'}, $setlimits),
+			td({class=>"Plain"}, radio_group(-name=>"setlimits_${intf}",
+																			 -values=>['normal',
+																								 'strict',
+																								 'off'],
+																			 -default=>$setlimits, ));
+						
+			my $NCT_collect = $intfstatus->{nc_collect} || $intfstatus->{collect};
+			print Tr,td({class=>'header'}),
+			td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
+			td({class=>"Plain"},radio_group(-name=>"collect_${intf}",
+																			-values=>['unchanged',
+																								'true',
+																								'false'],
+																			-default=>$collect,-labels=>\%rglabels));
+
+
+			
+			if ( getbool($collect) or (!getbool($collect,"invert") 
+																 and getbool($NCT_collect)) ) 
+			{
+				my $NCT_event = $intfstatus->{nc_event} || $intfstatus->{event};
+				print Tr,td({class=>'header'}),
+				td({class=>'header'},"Events"),td({class=>'header3'},$NCT_event),
+				td({class=>"Plain"},radio_group(-name=>"event_${intf}",
+																				-values=>['unchanged',
+																									'true',
+																									'false'],
+																				-default=>$event,-labels=>\%rglabels));
+			} else {
+				print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
+			}
+
+			if (getbool($NI->{system}{threshold}) 
+					and (getbool($collect) or (!getbool($collect,"invert") 
+																		 and getbool($NCT_collect)) )) {
+				my $NCT_threshold = $intfstatus->{nc_threshold} || $intfstatus->{threshold};
+				print Tr,td({class=>'header'}),
+				td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
+				td({class=>"Plain"},
+					 radio_group(-name=>"threshold_${intf}",
+											 -values=>['unchanged',
+																 'true',
+																 'false'],
+											 -default=>$threshold,-labels=>\%rglabels));
+			} else {
+				print hidden(-name=>"threshold_${intf}", -default=>'unchanged',-override=>'1');
+			}
+
+			
 		}
-	} else {
-		print Tr(td({class=>'info',colspan=>'4'},"No collect of Interfaces"));
+	}
+	else 
+	{
+		print Tr(td({class=>'info',colspan=>'4'},"No collection of Interfaces"));
 	}
 	print end_table();
 	print end_form;
@@ -411,15 +426,14 @@ sub updateNodeConf {
 		$override->{nodeType} = $Q->{nodetype};
 	}
 
-	### 2012-10-08 keiths, updates to index node conf table by ifDescr instead of ifIndex.
-	### $intf if the ifIndex, and ifDescr is the ifDescr, and this needs to be done to handle the cross indexing.
+	# $intf is the ifIndex
 	foreach my $intf (keys %{$IF}) 
 	{
 		my $ifDescr = $IF->{$intf}{ifDescr};
 
 		my $thisintfover = $override->{$ifDescr} ||= {};
 		
-		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr};
+		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr}; # for linking the if state to the nodeconf
 
 		my %tranferrables = ("descr_$intf" => "Description",
 												 "speed_$intf" => "ifSpeed",
@@ -427,7 +441,8 @@ sub updateNodeConf {
 												 "speedOut_$intf" => "ifSpeedOut",
 												 "collect_$intf" => "collect",
 												 "event_$intf" => "event",
-												 "threshold_$intf" => "threshold"
+												 "threshold_$intf" => "threshold",
+												 "setlimits_$intf" => "setlimits",
 				);
 
 		while (my ($source, $target) = each %tranferrables)
@@ -497,7 +512,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running update on node $node - Please wait.....\n\n\n";
 	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true 2>&1 |"); 
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true force=true 2>&1 |"); 
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 

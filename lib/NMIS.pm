@@ -1,33 +1,33 @@
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
-
 package NMIS;
+our $VERSION = "8.6.0a";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -47,25 +47,20 @@ use DBfunc;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
-
-# added for authentication
-use CGI::Pretty qw(:standard *table *Tr *td *Select *form escape);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION );
-
-use Exporter;
+use CGI qw();												# very ugly but createhrbuttons needs it :(
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
 
-$VERSION = "8.5.12G";
+use Data::Dumper;
+$Data::Dumper::Indent = 1;
+
+use vars qw(@ISA @EXPORT);
+use Exporter;
 
 @ISA = qw(Exporter);
 
-@EXPORT = qw(	
+@EXPORT = qw(
 		loadLinkDetails
 		loadNodeTable
 		loadLocalNodeTable
@@ -88,7 +83,7 @@ $VERSION = "8.5.12G";
 		loadRMENodes
 		loadServersTable
 		loadWindowStateTable
-		
+
 		loadInterfaceInfo
 		loadInterfaceInfoShort
 		loadEnterpriseTable
@@ -149,22 +144,15 @@ $VERSION = "8.5.12G";
 		loadPortalCode
 		loadServerCode
 		loadTenantCode
-		
+
 		startNmisPage
 		pageStart
 		pageStartJscript
 		getJavaScript
 		pageEnd
-		
+
 		requestServer
 	);
-
-@EXPORT_OK = qw(	
-			$version
-		);
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
 
 # Cache table pointers
 my $NT_cache = undef; # node table (local + remote)
@@ -188,7 +176,7 @@ my $SRC_cache = undef; # Services table
 my $SRC_modtime;
 
 # preset kernel name
-my $kernel = $^O; 
+my $kernel = $^O;
 
 sub loadLinkDetails {
 	my $C = loadConfTable();
@@ -255,7 +243,7 @@ sub loadNodeTable {
 
 	if (getbool($C->{server_master})) {
 		# check modify of remote node tables
-		my $ST = loadServersTable();	
+		my $ST = loadServersTable();
 		my $NT;
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
@@ -264,14 +252,14 @@ sub loadNodeTable {
 			# Relies on nmis.pl getting the file every 5 minutes.
 			my $name = "nmis-${srv}-Nodes";
 			my $server_priority = $ST->{$srv}{server_priority} || 5;
-	
+
 			if (($NT = loadTable(dir=>'var',name=>$name)) ) {
 				foreach my $node (keys %{$NT}) {
 					$NT->{$node}{server} = $srv ;
 					$NT->{$node}{server_priority} = $server_priority ;
-					if ( 
+					if (
 						( not defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} eq "" )
-						or 
+						or
 						( defined $NT_cache->{$node}{name} and $NT_cache->{$node}{name} ne "" and $NT->{$node}{server_priority}  > $NT_cache->{$node}{server_priority} )
 					) {
 						foreach my $k (keys %{$NT->{$node}} ) {
@@ -293,14 +281,14 @@ sub loadGroupTable {
 	if( not defined $GT_cache or not defined $NT_cache or ( mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
 		loadNodeTable();
 	}
-	
+
 	return $GT_cache;
 }
 
 sub tableExists {
 	my $table = shift;
 	my $exists = 0;
-	
+
 	if (existFile(dir=>"conf",name=>$table)) {
 		$exists = 1;
 	}
@@ -321,8 +309,8 @@ sub loadFileOrDBTable {
 }
 
 sub loadGenericTable{
-	return loadFileOrDBTable( shift ); 
-}	
+	return loadFileOrDBTable( shift );
+}
 
 sub loadContactsTable {
 	return loadFileOrDBTable('Contacts');
@@ -360,7 +348,7 @@ sub loadEscalationsTable {
 	return loadFileOrDBTable('Escalations');
 }
 
-sub loadWindowStateTable 
+sub loadWindowStateTable
 {
 	my $C = loadConfTable();
 
@@ -394,7 +382,7 @@ sub findCfgEntry
 {
 	my (%args) = @_;
 	my ($section,$item) = @args{qw(section item)};
-	
+
 	my $meta = loadCfgTable();
 	for my $maybesection (defined $section? ($section) : keys %$meta)
 	{
@@ -416,8 +404,8 @@ sub loadCfgTable {
 	my %args = @_;
 
 	my $table = $args{table}; # fixme ignored, has no function
-	
-	my %Cfg = ( 
+
+	my %Cfg = (
   	'online' => [
 				{ 'nmis_docs_online' => { display => 'text', value => ['https://community.opmantek.com/']}},
 		],
@@ -427,7 +415,7 @@ sub loadCfgTable {
 				{ 'display_opmaps_widget' => { display => 'popup', value => ["true", "false"]}},
 				{ 'display_opflow_widget' => { display => 'popup', value => ["true", "false"]}},
 		],
-  		  
+
   	'directories' => [
 				{ '<nmis_base>' => { display => 'text', value => ['/usr/local/nmis']}},
 				{ '<nmis_bin>' => { display => 'text', value => ['<nmis_base>/bin']}},
@@ -518,7 +506,7 @@ sub loadCfgTable {
 				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
 
 		],
-		
+
 		'tools' => [
 				{ 'view_ping' => { display => 'popup', value => ["true", "false"]}},
 				{ 'view_trace' => { display => 'popup', value => ["true", "false"]}},
@@ -678,7 +666,7 @@ sub loadCfgTable {
 		'mibs' => [
 				{ 'full_mib' => { display => 'text', value => ['nmis_mibs.oid']}}
 		],
-			
+
 		'database' => [
 				{ 'db_events_sql' => { display => 'popup', value => ['true','false']}},
 				{ 'db_nodes_sql' => { display => 'popup', value => ['true','false']}},
@@ -720,11 +708,11 @@ sub loadRMENodes {
 	flock(DATAFILE, LOCK_SH) or warn "loadRMENodes, can't lock filename: $!";
 	while (<DATAFILE>) {
 	        chomp;
-		# Don't want comments 
+		# Don't want comments
 	        if ( $_ !~ /^\;|^$ciscoHeader/ ) {
 			# whack all the splits into an array
 			(@nodedetails) = split ",", $_;
-		
+
 			# check that the device is to be included in STATS
 			$nodedetails[4] =~ s/ //g;
 			@statsSplit = split(":",$nodedetails[4]);
@@ -744,7 +732,7 @@ sub loadRMENodes {
 				if ( $statsSplit[3] eq "c" ) { $nodeTable{$nodedetails[0]}{roleType} = "core"; }
 				elsif ( $statsSplit[3] eq "d" ) { $nodeTable{$nodedetails[0]}{roleType} = "distribution"; }
 				elsif ( $statsSplit[3] eq "a" ) { $nodeTable{$nodedetails[0]}{roleType} = "access"; }
-				else 
+				else
 				{
 					$nodeTable{$nodedetails[0]}{roleType} = "default";
 				}
@@ -771,7 +759,7 @@ sub loadNodeSummary {
 
 	my $C = loadConfTable();
 	my $SUM;
-	
+
 	my $nodesum = "nmis-nodesum";
 	# I should now have an up to date file, if I don't log a message
 	if (existFile(dir=>'var',name=>$nodesum) ) {
@@ -793,7 +781,7 @@ sub loadNodeSummary {
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
-			
+
 			my $slavenodesum = "nmis-$srv-nodesum";
 			dbg("Processing Slave $srv for $slavenodesum");
 			# I should now have an up to date file, if I don't log a message
@@ -810,8 +798,8 @@ sub loadNodeSummary {
 		}
 	}
 	return $SUM;
-}	
-	
+}
+
 
 
 
@@ -830,7 +818,7 @@ sub nodeStatus {
 	# 0 for unreachable
 	# -1 for degraded
 	my $status = 1;
-	
+
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
 
@@ -851,8 +839,8 @@ sub nodeStatus {
 	elsif (
 		defined $C->{node_status_uses_status_summary}
 		and getbool($C->{node_status_uses_status_summary})
-		and defined $NI->{system}{status_summary} 
-		and defined $NI->{system}{status_updated} 
+		and defined $NI->{system}{status_summary}
+		and defined $NI->{system}{status_updated}
 		and $NI->{system}{status_summary} <= 99
 		and $NI->{system}{status_updated} > time - 500
 	) {
@@ -861,7 +849,7 @@ sub nodeStatus {
 	else {
 		$status = 1;
 	}
-	
+
 	return $status;
 }
 
@@ -895,10 +883,10 @@ sub getLevelLogEvent {
 	# Get the event policy and the rest is easy.
 	if ( $event !~ /^Proactive|^Alert/i ) {
 		# proactive does already level defined
-		if ( $event =~ /down/i and $event !~ /SNMP|Node|Interface|Service/i ) { 
+		if ( $event =~ /down/i and $event !~ /SNMP|Node|Interface|Service/i ) {
 			$pol_event = "Generic Down";
 		}
-		elsif ( $event =~ /up/i and $event !~ /SNMP|Node|Interface|Service/i ) { 
+		elsif ( $event =~ /up/i and $event !~ /SNMP|Node|Interface|Service/i ) {
 			$pol_event = "Generic Up";
 		}
 		else { $pol_event = $event; }
@@ -907,15 +895,15 @@ sub getLevelLogEvent {
 		if ($mdl_level = $M->{event}{event}{lc $pol_event}{lc $role}{level}) {
 			$log = $M->{event}{event}{lc $pol_event}{lc $role}{logging};
 			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		} 
+		}
 		elsif ($mdl_level = $M->{event}{event}{default}{lc $role}{level}) {
 			$log = $M->{event}{event}{default}{lc $role}{logging};
 			$syslog = $M->{event}{event}{default}{lc $role}{syslog} if ($M->{event}{event}{default}{lc $role}{syslog} ne "");
-		} 
+		}
 		else {
 			$mdl_level = 'Major';
 			# not found, use default
-			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}"); 
+			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}");
 		}
 	}
 	elsif ( $event =~ /^Alert/i ) {
@@ -933,7 +921,7 @@ sub getLevelLogEvent {
 		$pol_event = "Proactive";
 		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
 			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		} 		
+		}
 	}
 	# overwrite the level argument if it wasn't set AND if the models reported something useful
 	if ($mdl_level && !defined $level) {
@@ -1018,10 +1006,10 @@ sub getSummaryStats{
 		}
 
 		($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-		if (($ERROR = RRDs::error)) { 
+		if (($ERROR = RRDs::error)) {
 			logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 		} else {
-			##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");   
+			##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
 			if ( scalar(@$graphret) ) {
 				map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
 				foreach my $line ( @$graphret ) {
@@ -1050,19 +1038,19 @@ sub getNodeSummary {
 	my %args = @_;
 	my $C = $args{C};
 	my $group = $args{group};
-	
+
 	my $NT = loadLocalNodeTable();
 	my $OT = loadOutageTable();
 	my %nt;
-	
+
 	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
 	my $node_summary_field_list = "customer,businessService";
 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
 		$node_summary_field_list = $C->{node_summary_field_list};
 	}
-	
+
 	my @node_summary_properties = split(",",$node_summary_field_list);
-	
+
 	foreach my $nd (keys %{$NT}) {
 		next if (!getbool($NT->{$nd}{active}));
 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
@@ -1086,7 +1074,7 @@ sub getNodeSummary {
 		foreach my $property (@node_summary_properties) {
 			$nt{$nd}{$property} = $NI->{system}{$property};
 		}
-		
+
 		$nt{$nd}{nodedown} = $NI->{system}{nodedown};
 		# find out if a node down event exists, and if so store
 		# its escalate setting
@@ -1110,12 +1098,12 @@ sub getNodeSummary {
 		else {
 			$nt{$nd}{nodestatus} = "reachable";
 		}
-		
+
 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
 		my $outageText;
 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
-		
+
 			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".returnDateStamp($OT->{$otgHash}{start})
 			."<br>end=".returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
 		}
@@ -1124,7 +1112,7 @@ sub getNodeSummary {
 
 		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
 		my $sysLocation = $NI->{system}{sysLocation};
-		if (($NI->{system}{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {  
+		if (($NI->{system}{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
 			# Node has sysLocation that is formatted for Geo Data
 			( my $lat, my $long, my $alt, $sysLocation) = split(',',$NI->{system}{sysLocation});
 		}
@@ -1180,7 +1168,7 @@ sub getGroupSummary {
 	### 2014-08-28 keiths, configurable metric periods
 	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
-	
+
 	if ( $start_time eq "" ) { $start_time = $metricsFirstPeriod; }
 	if ( $end_time eq "" ) { $end_time = time; }
 
@@ -1206,8 +1194,8 @@ sub getGroupSummary {
 		return;
 	}
 
-	dbg("Cache is $cache, filename=$filename"); 
-	
+	dbg("Cache is $cache, filename=$filename");
+
 	# this server
 	unless ($cache) {
 		$SUM = {};
@@ -1221,13 +1209,13 @@ sub getGroupSummary {
 			$SUM->{$node}{available} = 'NaN';
 			$SUM->{$node}{intfCollect} = 0;
 			$SUM->{$node}{intfColUp} = 0;
-		
+
 			my $stats;
 			if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start_time,end=>$end_time,index=>$node))) {
 				foreach (keys %{$stats}) { $SUM->{$node}{$_} = $stats->{$_};  }
 			}
-			
-			# The other way to get node status is to ask Event State DB. 
+
+			# The other way to get node status is to ask Event State DB.
 			if ( eventExist($node, "Node Down", undef) ) {
 				$SUM->{$node}{nodedown} = "true";
 			}
@@ -1245,7 +1233,7 @@ sub getGroupSummary {
 		my $NS = loadTable(dir=>'var',name=>$nodesum);
 		for my $node (keys %{$NS}) {
 			#if ( $group eq "" or $group eq $NS->{$node}{group} ) {
-			if ( 	($group eq "" and $customer eq "" and $business eq "") 
+			if ( 	($group eq "" and $customer eq "" and $business eq "")
 				 		or ($group ne "" and $NT->{$node}{group} eq $group)
 						or ($customer ne "" and $NT->{$node}{customer} eq $customer)
 						or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
@@ -1270,13 +1258,13 @@ sub getGroupSummary {
 
 			my $slavefile = "nmis-$srv-$filename";
 			dbg("Processing Slave $srv for $slavefile");
-			
+
 			# I should now have an up to date file, if I don't log a message
 			if (existFile(dir=>'var',name=>$slavefile) ) {
 				my $H = loadTable(dir=>'var',name=>$slavefile);
 				for my $node (keys %{$H}) {
 					if ( not exists $SUM->{$node}
-							or $SUM->{$node}{server} eq $srv		
+							or $SUM->{$node}{server} eq $srv
 							or ( exists $SUM->{$node}
 								and $SUM->{$node}{server_priority}
 								and $SUM->{$node}{server_priority} < $server_priority
@@ -1295,16 +1283,16 @@ sub getGroupSummary {
 			dbg("Processing Slave $srv for $slavenodesum");
 			# I should now have an up to date file, if I don't log a message
 			if (existFile(dir=>'var',name=>$slavenodesum) ) {
-				
+
 				my $NS = loadTable(dir=>'var',name=>$slavenodesum);
 				for my $node (keys %{$NS}) {
-					if ( 	($group eq "" and $customer eq "" and $business eq "") 
+					if ( 	($group eq "" and $customer eq "" and $business eq "")
 				 				or ($group ne "" and $NS->{$node}{group} eq $group)
-								or ($customer ne "" and $NS->{$node}{customer} eq $customer)					
+								or ($customer ne "" and $NS->{$node}{customer} eq $customer)
 								or ($business ne "" and $NS->{$node}{businessService} =~ /$business/)
 					) {
 						if ( not exists $SUM->{$node}
-								or $SUM->{$node}{server} eq $srv		
+								or $SUM->{$node}{server} eq $srv
 								or ( exists $SUM->{$node}
 									and $SUM->{$node}{server_priority}
 									and $SUM->{$node}{server_priority} < $server_priority
@@ -1321,17 +1309,17 @@ sub getGroupSummary {
 			}
 		}
 	}
-	
+
 	# copy this hash for modification
 	my %summaryHash = %{$SUM} if defined $SUM;
-	
+
 	# Insert some nice status info about the devices for the summary menu.
 NODE:
 	foreach $node (sort keys %{$NT} ) {
 		# Only do the group - or everything if no group passed to us.
-		if (	($group eq "" and $customer eq "" and $business eq "") 
+		if (	($group eq "" and $customer eq "" and $business eq "")
 				 	or ($group ne "" and $NT->{$node}{group} eq $group)
-					or ($customer ne "" and $NT->{$node}{customer} eq $customer)		
+					or ($customer ne "" and $NT->{$node}{customer} eq $customer)
 					or ($business ne "" and $NT->{$node}{businessService} =~ /$business/)
 		) {
 			if ( getbool($NT->{$node}{active}) ) {
@@ -1344,9 +1332,9 @@ NODE:
 					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$NT->{$node}{roleType});
 					++$nodecount{countdown};
 					($outage,undef) = outageCheck(node=>$node,time=>time());
-				} 
-				elsif (exists $C->{display_status_summary} 
-					and getbool($C->{display_status_summary}) 
+				}
+				elsif (exists $C->{display_status_summary}
+					and getbool($C->{display_status_summary})
 					and exists $summaryHash{$node}{nodestatus}
 					and $summaryHash{$node}{nodestatus} eq "degraded"
 				) {
@@ -1354,7 +1342,7 @@ NODE:
 					$summaryHash{$node}{event_color} = "#ffff00";
 					++$nodecount{countdegraded};
 					($outage,undef) = outageCheck(node=>$node,time=>time());
-				} 
+				}
 				else {
 					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$NT->{$node}{roleType});
 					++$nodecount{countup};
@@ -1367,30 +1355,30 @@ NODE:
 						$summaryHash{$node}{reachable_color} = colorHighGood($summaryHash{$node}{reachable});
 						$summaryHash{total}{reachable} = $summaryHash{total}{reachable} + $summaryHash{$node}{reachable};
 					} else { $summaryHash{$node}{reachable} = "NaN" }
-	
+
 					if ( $summaryHash{$node}{available} !~ /NaN/i ) {
 						++$nodecount{available};
 						$summaryHash{$node}{available_color} = colorHighGood($summaryHash{$node}{available});
 						$summaryHash{total}{available} = $summaryHash{total}{available} + $summaryHash{$node}{available};
 					} else { $summaryHash{$node}{available} = "NaN" }
-	
+
 					if ( $summaryHash{$node}{health} !~ /NaN/i ) {
 						++$nodecount{health};
 						$summaryHash{$node}{health_color} = colorHighGood($summaryHash{$node}{health});
 						$summaryHash{total}{health} = $summaryHash{total}{health} + $summaryHash{$node}{health};
 					} else { $summaryHash{$node}{health} = "NaN" }
-	
+
 					if ( $summaryHash{$node}{response} !~ /NaN/i ) {
 						++$nodecount{response};
 						$summaryHash{$node}{response_color} = colorResponseTime($summaryHash{$node}{response});
 						$summaryHash{total}{response} = $summaryHash{total}{response} + $summaryHash{$node}{response};
 					} else { $summaryHash{$node}{response} = "NaN" }
-	
+
 					if ( $summaryHash{$node}{intfCollect} !~ /NaN/i ) {
 						++$nodecount{intfCollect};
 						$summaryHash{total}{intfCollect} = $summaryHash{total}{intfCollect} + $summaryHash{$node}{intfCollect};
 					} else { $summaryHash{$node}{intfCollect} = "NaN" }
-	
+
 					if ( $summaryHash{$node}{intfColUp} !~ /NaN/i ) {
 						++$nodecount{intfColUp};
 						$summaryHash{total}{intfColUp} = $summaryHash{total}{intfColUp} + $summaryHash{$node}{intfColUp};
@@ -1398,18 +1386,18 @@ NODE:
 				} else {
 		###			logMsg("INFO Node=$node skipped OU=$outage");
 				}
-				
+
 			} else {
 				# node not active
 				$summaryHash{$node}{event_status} = "N/A";
 				$summaryHash{$node}{reachable} = "N/A";
 				$summaryHash{$node}{available} = "N/A";
-				$summaryHash{$node}{health} = "N/A";				
+				$summaryHash{$node}{health} = "N/A";
 				$summaryHash{$node}{response} = "N/A";
 				$summaryHash{$node}{event_color} = "#aaaaaa";
 				$summaryHash{$node}{reachable_color} = "#aaaaaa";
 				$summaryHash{$node}{available_color} = "#aaaaaa";
-				$summaryHash{$node}{health_color} = "#aaaaaa";				
+				$summaryHash{$node}{health_color} = "#aaaaaa";
 				$summaryHash{$node}{response_color} = "#aaaaaa";
 			}
 		}
@@ -1428,10 +1416,10 @@ NODE:
 		# Changing default precision to 1 decimal, as changing to 3 might mess up many screens.
 		$summaryHash{average}{response} = sprintf("%.1f",$summaryHash{total}{response} / $nodecount{response} );
 	}
-	
+
 	if ( $summaryHash{total}{reachable} > 0 and $summaryHash{total}{available} > 0 and $summaryHash{total}{health} > 0 ) {
 		# new weighting for metric
-		$summaryHash{average}{metric} = sprintf("%.3f",( 
+		$summaryHash{average}{metric} = sprintf("%.3f",(
 			( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
 			( $summaryHash{average}{available} * $C->{metric_availability} ) +
 			( $summaryHash{average}{health} ) * $C->{metric_health} )
@@ -1439,9 +1427,9 @@ NODE:
 	}
 
 	# interface availability calculation NEW
-	if ($nodecount{intfColUp} > 0 and $nodecount{intfCollect} > 0 and 
+	if ($nodecount{intfColUp} > 0 and $nodecount{intfCollect} > 0 and
 			$summaryHash{total}{intfColUp} > 0 and $summaryHash{total}{intfCollect} > 0) {
-		$summaryHash{average}{intfAvail} = (($summaryHash{total}{intfColUp} / $nodecount{intfColUp}) / 
+		$summaryHash{average}{intfAvail} = (($summaryHash{total}{intfColUp} / $nodecount{intfColUp}) /
 										($summaryHash{total}{intfCollect} / $nodecount{intfCollect})) * 100;
 	} else {
 		$summaryHash{average}{intfAvail} = 100;
@@ -1459,7 +1447,7 @@ NODE:
 	else {
 		$summaryHash{average}{countdowncolor} = 0;
 	}
-	
+
 	$summaryHash{average}{counttotal} = $nodecount{counttotal};
 	$summaryHash{average}{countup} = $nodecount{countup};
 
@@ -1467,15 +1455,15 @@ NODE:
 	if ( $summaryHash{average}{reachable} ne "" ) {
 		$summaryHash{average}{reachable} = 100 if $summaryHash{average}{reachable} > 100 ;
 		$summaryHash{average}{reachable_color} = colorHighGood($summaryHash{average}{reachable})
-	} 
-	else { 
+	}
+	else {
 		$summaryHash{average}{reachable_color} = "#aaaaaa";
 		$summaryHash{average}{reachable} = "N/A";
 	}
 
 	# modification of interface available calculation
 	if (getbool($C->{intf_av_modified})) {
-		$summaryHash{average}{available} = 
+		$summaryHash{average}{available} =
 				sprintf("%.3f",($summaryHash{total}{intfColUp} / $summaryHash{total}{intfCollect}) * 100 );
 	}
 
@@ -1483,7 +1471,7 @@ NODE:
 		$summaryHash{average}{available} = 100 if $summaryHash{average}{available} > 100 ;
 		$summaryHash{average}{available_color} = colorHighGood($summaryHash{average}{available});
 	}
-	else { 
+	else {
 		$summaryHash{average}{available_color} = "#aaaaaa";
 		$summaryHash{average}{available} = "N/A";
 	}
@@ -1492,7 +1480,7 @@ NODE:
 		$summaryHash{average}{health} = 100 if $summaryHash{average}{health} > 100 ;
 		$summaryHash{average}{health_color} = colorHighGood($summaryHash{average}{health});
 	}
-	else { 
+	else {
 		$summaryHash{average}{health_color} = "#aaaaaa";
 		$summaryHash{average}{health} = "N/A";
 	}
@@ -1500,7 +1488,7 @@ NODE:
 	if ( $summaryHash{average}{response} ne "" ) {
 		$summaryHash{average}{response_color} = colorResponseTime($summaryHash{average}{response})
 	}
-	else { 
+	else {
 		$summaryHash{average}{response_color} = "#aaaaaa";
 		$summaryHash{average}{response} = "N/A";
 	}
@@ -1509,7 +1497,7 @@ NODE:
 		$summaryHash{average}{metric} = 100 if $summaryHash{average}{metric} > 100 ;
 		$summaryHash{average}{metric_color} = colorHighGood($summaryHash{average}{metric})
 	}
-	else { 
+	else {
 		$summaryHash{average}{metric_color} = "#aaaaaa";
 		$summaryHash{average}{metric} = "N/A";
 	}
@@ -1528,10 +1516,10 @@ sub getAdminColor {
 		$IF = $S->ifinfo;
 	}
 	my $adminColor;
-	
+
 	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
 	my $collect = $IF->{$index}{collect};
-	
+
 	if ( $index eq "" ) {
 		$ifAdminStatus = $args{ifAdminStatus};
 		$collect = $args{collect};
@@ -1554,13 +1542,13 @@ sub getOperColor {
 		$S = $args{sys};
 		$index = $args{index};
 		$IF = $S->ifinfo;
-	}	
+	}
 	my $operColor;
-	
+
 	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
 	my $ifOperStatus = $IF->{$index}{ifOperStatus};
 	my $collect = $IF->{$index}{collect};
-	
+
 	if ( $index eq "" ) {
 		$ifAdminStatus = $args{ifAdminStatus};
 		$ifOperStatus = $args{ifOperStatus};
@@ -1696,7 +1684,7 @@ sub colorResponseTimeStatic {
 
 	return $color;
 }
-	
+
 
 
 # fixme: az looks like this function should be reworked with
@@ -1712,7 +1700,7 @@ sub overallNodeStatus {
 	if (scalar(@_) == 1) {
 		$group = shift;
 	}
-	
+
 	my $node;
 	my $event_status;
 	my $overall_status;
@@ -1739,7 +1727,7 @@ sub overallNodeStatus {
 					my $down_event = "Node Down";
 					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
-					
+
 					($outage,undef) = outageCheck(node=>$node,time=>time());
 				}
 				else {
@@ -1748,18 +1736,18 @@ sub overallNodeStatus {
 						$nodedown = 1;
 					}
 				}
-				
+
 				if ( $nodedown and $outage ne 'current' ) {
 					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
 				}
 				else {
 					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
 				}
-				
+
 				++$statusHash{$event_status};
 				++$statusHash{count};
 			}
-		}	
+		}
 	}
 	elsif ( $netType ne "" and $roleType ne "" ) {
 		foreach $node (sort keys %{$NT} ) {
@@ -1767,7 +1755,7 @@ sub overallNodeStatus {
 				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
 					my $nodedown = 0;
 					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} ) 
+					if ( $NT->{$node}{server} eq $C->{server_name} )
 					{
 						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 						my $down_event = "Node Down";
@@ -1782,14 +1770,14 @@ sub overallNodeStatus {
 							$nodedown = 1;
 						}
 					}
-					
+
 					if ( $nodedown and $outage ne 'current' ) {
 						($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
 					}
 					else {
 						($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
 					}
-					
+
 					++$statusHash{$event_status};
 					++$statusHash{count};
 				}
@@ -1798,7 +1786,7 @@ sub overallNodeStatus {
 	}
 	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
 		foreach $node (sort keys %{$NT} ) {
-			if ( 
+			if (
 				getbool($NT->{$node}{active})
 				and ( ($group ne "" and $NT->{$node}{group} eq $group)
 							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
@@ -1807,7 +1795,7 @@ sub overallNodeStatus {
 			) {
 				my $nodedown = 0;
 				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) 
+				if ( $NT->{$node}{server} eq $C->{server_name} )
 				{
 					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
 					my $down_event = "Node Down";
@@ -1822,7 +1810,7 @@ sub overallNodeStatus {
 						$nodedown = 1;
 					}
 				}
-				
+
 				if ( $nodedown and $outage ne 'current' ) {
 					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
 				}
@@ -1849,13 +1837,13 @@ sub overallNodeStatus {
 	#print STDERR "New CALC: status_number=$status_number count=$statusHash{count}\n";
 
 	### 2014-08-27 keiths, adding a more coarse any nodes down is red
-	if ( defined $C->{overall_node_status_coarse} 
+	if ( defined $C->{overall_node_status_coarse}
 			 and getbool($C->{overall_node_status_coarse})) {
 		$C->{overall_node_status_level} = "Critical" if not defined $C->{overall_node_status_level};
 		if ( $status_number == 100 ) { $overall_status = "Normal"; }
 		else { $overall_status = $C->{overall_node_status_level}; }
 	}
-	else {	
+	else {
 		### AS 11/4/01 - Fixed up status for single node groups.
 		# if the node count is one we do not require weighting.
 		if ( $statusHash{count} == 1 ) {
@@ -1900,7 +1888,7 @@ sub convertConfFiles {
 		if ( -r $C->{Nodes_Table} ) {
 			if ( (%nodeTable = &loadCSV($C->{Nodes_Table},$C->{Nodes_Key},"\t")) ) {
 				dbg("Loaded $C->{Nodes_Table}");
-				rename "$C->{Nodes_Table}","$C->{Nodes_Table}.old";		
+				rename "$C->{Nodes_Table}","$C->{Nodes_Table}.old";
 				# copy what we need
 				foreach my $i (sort keys %nodeTable) {
 					dbg("update node=$nodeTable{$i}{node} to NMIS8 format");
@@ -1938,7 +1926,7 @@ sub convertConfFiles {
 					# only first part of (fqdn) name
 					($nodeTable{$i}{name}) = split /\./,$nodeTable{$i}{name} ;
 					dbg("result update name=$nodeTable{$i}{name}");
-		
+
 					my $node = $nodeTable{$i}{name};
 					$NT->{$node}{name} = $nodeTable{$i}{name};
 					$NT->{$node}{host} = $nodeTable{$i}{host} || $nodeTable{$i}{node};
@@ -1978,7 +1966,7 @@ sub convertConfFiles {
 	if (!existFile(dir=>'conf',name=>'Escalations')) {
 		if ( -r "$C->{'Escalation_Table'}") {
 			my %table_data = loadCSV($C->{'Escalation_Table'},$C->{'Escalation_Key'});
-			foreach my $k (keys %table_data) { 
+			foreach my $k (keys %table_data) {
 				if (not exists $table_data{$k}{Event_Element}) {
 					$table_data{$k}{Event_Element} = $table_data{$k}{Event_Details} ;
 					delete $table_data{$k}{Event_Details};
@@ -2010,7 +1998,7 @@ sub convertConfFiles {
 			if ( -r "$C->{\"${name}_Table\"}") {
 				my %table_data = loadCSV($C->{"${name}_Table"},$C->{"${name}_Key"});
 				writeTable(dir=>'conf',name=>$name,data=>\%table_data);
-	
+
 				my $ext = getExtension(dir=>'conf');
 				print " csv file $C->{\"${name}_Table\"} converted to conf/${name}.$ext\n";
 				rename "$C->{\"${name}_Table\"}","$C->{\"${name}_Table\"}.old";
@@ -2055,11 +2043,11 @@ sub logMessage {
 
 # load the info of a node
 # if optional arg suppress_errors is given, then no errors are logged
-sub loadNodeInfoTable 
+sub loadNodeInfoTable
 {
 	my $node = lc shift;
 	my %args = @_;
-	
+
 	return loadTable(dir=>'var', name=>"$node-node",  suppress_errors => $args{suppress_errors});
 }
 
@@ -2153,7 +2141,7 @@ sub outageRemove {
 	if ($string ne '') {
 		# log this action but DON'T DEADLOCK - logMsg locks, too!
 		if ( open($handle,">>$C->{outage_log}") ) {
-			if ( flock($handle, LOCK_EX) ) { 
+			if ( flock($handle, LOCK_EX) ) {
 				if ( not print $handle returnDateStamp()." $string\n" ) {
 					push(@problems, "cannot write file $C->{outage_log}: $!");
 				}
@@ -2179,12 +2167,12 @@ sub outageRemove {
 #		print "Sending trap to $server\n";
 #		#my($host, $ent, $agent, $gen, $spec, @vars) = @_;
 #		snmptrap(
-#			$server, 
-#			".1.3.6.1.4.1.4818", 
-#			"127.0.0.1", 
-#			6, 
-#			1000, 
-#	        ".1.3.6.1.4.1.4818.1.1000", 
+#			$server,
+#			".1.3.6.1.4.1.4818",
+#			"127.0.0.1",
+#			6,
+#			1000,
+#	        ".1.3.6.1.4.1.4818.1.1000",
 #	        "int",
 #	        "2448816"
 #	    );
@@ -2237,7 +2225,7 @@ sub dutyTime {
 				dbg("returning success on dutytime test for $contact");
 				return 1;
 			}
-			elsif ( $finish_time < $start_time ) { 
+			elsif ( $finish_time < $start_time ) {
 				if ( $ltime[2] >= $start_time || $ltime[2] < $finish_time ) {
 					dbg("returning success on dutytime test for $contact");
 					return 1;
@@ -2263,12 +2251,12 @@ sub resolveDNStoAddr {
 	# convert node name to octal ip address
 	if ($dns ne "" ) {
 		if ($dns !~ /\d+\.\d+\.\d+\.\d+/) {
-			my $h = gethostbyname($dns); 
+			my $h = gethostbyname($dns);
 			return if not $h;
 			$addr = inet_ntoa($h->addr) ;
 		} else { $addr = $dns; }
 		return $addr if $addr =~ /\d+\.\d+\.\d+\.\d+/;
-	} 
+	}
 	return;
 }
 
@@ -2281,7 +2269,7 @@ sub htmlGraph {
 	my $node = $args{node};
 	my $intf = $args{intf};
 	my $server = $args{server};
-	
+
 	my $target = $node;
 	if ($node eq "" and $group ne "") {
 		$target = $group;
@@ -2299,104 +2287,107 @@ sub htmlGraph {
 
 	my $time = time();
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&intf=$intf&server=$server&node=$urlsafenode";
-	
+
 
 	if( getbool($C->{display_opcharts}) ) {
 		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
-		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;		
+		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
 	}
 	else {
 		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-		return a({target=>"Graph-$target",onClick=>"viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)"},img({alt=>'Network Info',src=>"$src"}));
-	}	
+		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
+<img alt='Network Info' src="$src"></img></a>|;
+	}
 }
 
-sub createHrButtons {
+# args: user, node, system, refresh, widget, au (object), 
+# conf (=name of config for links)
+# returns: html as array of lines
+sub createHrButtons 
+{
 	my %args = @_;
 	my $user = $args{user};
 	my $node = $args{node};
 	my $S = $args{system};
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
-	
-	$refresh = "false" if $refresh eq "";
+	my $AU = $args{AU};
+	my $confname = $args{conf};
 
-	my $Q = $main::Q;
-	my $AU = $main::AU;
+	return "" if (!$node);
+	$refresh = "false" if (!getbool($refresh));
 
 	my @out;
-
-	return "" if $node eq '';
-
+	
 	my $NI = loadNodeInfoTable($node);
 	my $C = loadConfTable();
 
 	return unless $AU->InGroup($NI->{system}{group});
 
 	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
-	my $urlsafenode = uri_escape($node);   
-	
-	push @out, start_table({class=>'table'}),start_Tr;
-	
+	my $urlsafenode = uri_escape($node);
+
+	push @out, "<table class='table'><tr>\n";
+
 	# provide link back to the main dashboard if not in widget mode
-	push @out, td({class=>"header litehead"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
+	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"}, "NMIS $NMIS::VERSION"))
 			if (!getbool($widget));
 
-	push @out, td({class=>'header litehead'},'Node ',
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
+	push @out, CGI::td({class=>'header litehead'},'Node ',
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
 
 	if (scalar keys %{$NI->{module}}) {
-		push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
+		push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
 	}
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
-		push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
+		push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
 	if (getbool($NI->{system}{collect})) {
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
-				if defined $NI->{status} and defined $C->{display_status_summary} 
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
+				if defined $NI->{status} and defined $C->{display_status_summary}
 		and getbool($C->{display_status_summary});
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_all&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"interfaces"))
 				if (defined $S->{mdl}{interface});
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
-		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}}) 
+		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}})
 		{
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
 		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
 		{
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
 
 		# adding services list support, but hide the tab if the snmp service collection isn't working
 		if (defined $NI->{services} && keys %{$NI->{services}}) {
-					push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
-		}	
-    
+					push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
+		}
+
 		# let's show the possibly many systemhealth items in a dropdown menu
-		if ( defined $S->{mdl}{systemHealth}{sys} ) 
+		if ( defined $S->{mdl}{systemHealth}{sys} )
 		{
     	my @systemHealth = split(",",$S->{mdl}{systemHealth}{sections});
 			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
-			foreach my $sysHealth (@systemHealth) 
+			foreach my $sysHealth (@systemHealth)
 			{
 				# don't show spurious blank entries
-				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}})) 
+				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}}))
 				{
-					push @out, li(a({ class=>'wht',  href=>"network.pl?conf=$Q->{conf}&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
+					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?conf=$confname&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
 			}
 			push @out, "</ul></li></ul></td>";
@@ -2404,75 +2395,75 @@ sub createHrButtons {
 
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
 		if ($NI->{cssgroup} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
 		}
 		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
  		if ($NI->{csscontent} ne '') {
-			push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"network.pl?conf=$Q->{conf}&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
+			push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
 		}
 	}
 
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"events.pl?conf=$Q->{conf}&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
-	push @out, td({class=>'header litehead'},
-			a({class=>'wht',href=>"outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
+	push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"events.pl?conf=$confname&act=event_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"events"));
+	push @out, CGI::td({class=>'header litehead'},
+			CGI::a({class=>'wht',href=>"outages.pl?conf=$confname&act=outage_table_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"outage"));
 
 
 	# and let's combine these in a 'diagnostic' menu as well
 	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
-	
-	push @out, li(a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet")) 
+
+	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
 			if (getbool($C->{view_telnet}));
-	
+
 	if (getbool($C->{view_ssh})) {
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
-		push @out, li(a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
-										 target=>'_blank'},"ssh")); 
+		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
+										 target=>'_blank'},"ssh"));
 	}
-	
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
+
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_ping&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ping"))
 			if getbool($C->{view_ping});
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_trace&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"trace"))
 			if getbool($C->{view_trace});
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr")) 
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_mtr&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"mtr"))
 			if getbool($C->{view_mtr});
-	
-	push @out, li(a({class=>'wht',
-									 href=>"tools.pl?conf=$Q->{conf}&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft")) 
+
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"tools.pl?conf=$confname&act=tool_system_lft&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"lft"))
 			if getbool($C->{view_lft});
-	
-	push @out, li(a({class=>'wht', 
-									 href=>"http://$NI->{system}{host}",target=>'_blank'},"http")) 
+
+	push @out, CGI::li(CGI::a({class=>'wht',
+									 href=>"http://$NI->{system}{host}",target=>'_blank'},"http"))
 			if getbool($NI->{system}{webserver});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
-		push @out, td({class=>'header litehead'},
-				a({class=>'wht',href=>"tables.pl?conf=$Q->{conf}&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+		push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
 					if $NI->{system}{sysLocation} ne '';
 	}
 
-	push @out, end_Tr,end_table;
+	push @out, "</tr></table>";
 
 	return @out;
 }
@@ -2481,24 +2472,24 @@ sub loadPortalCode {
 	my %args = @_;
 	my $conf = $args{conf};
 	my $C = $main::C;
-	
+
 	$conf = $C->{'conf'} if not $conf;
-	
+
 	my $portalCode;
 	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Portal") ) {
 		# portal menu of nodes or clients to link to.
 		my $P = loadTable(dir=>'conf',name=>"Portal");
-		
+
 		my $portalOption;
-		
+
 		foreach my $p ( sort {$a <=> $b} keys %{$P} ) {
 			# If the link is part of NMIS, append the config
 			my $selected;
-			
+
 			if ( $P->{$p}{Link} =~ /cgi-nmis8/ ) {
 				$P->{$p}{Link} .= "?conf=$conf";
 			}
-			
+
 			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS8/ ) {
 				$selected = " selected=\"$P->{$p}{Name}\"";
 			}
@@ -2510,17 +2501,17 @@ sub loadPortalCode {
 			}
 			$portalOption .= qq|<option value="$P->{$p}{Link}"$selected>$P->{$p}{Name}</option>\n|;
 		}
-		
-		
+
+
 		$portalCode = qq|
-				<div class="left"> 
+				<div class="left">
 					<form id="viewpoint">
 						<select name="viewselect" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
 							$portalOption
 						</select>
 					</form>
 				</div>|;
-		
+
 	}
 	return $portalCode;
 }
@@ -2529,18 +2520,18 @@ sub loadServerCode {
 	my %args = @_;
 	my $conf = $args{conf};
 	my $C = $main::C;
-	
+
 	$conf = $C->{'conf'} if not $conf;
-	
+
 	my $serverCode;
 	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Servers") ) {
 		# portal menu of nodes or clients to link to.
 		my $ST = loadServersTable();
-		
+
 		my $serverOption;
-		
+
 		$serverOption .= qq|<option value="$ENV{SCRIPT_NAME}" selected="NMIS Servers">NMIS Servers</option>\n|;
-		
+
 		foreach my $srv ( sort {$ST->{$a}{name} cmp $ST->{$b}{name}} keys %{$ST} ) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
@@ -2548,17 +2539,17 @@ sub loadServerCode {
 			# If the link is part of NMIS, append the config
 			$serverOption .= qq|<option value="$ST->{$srv}{portal_protocol}://$ST->{$srv}{portal_host}:$ST->{$srv}{portal_port}$ST->{$srv}{cgi_url_base}/nmiscgi.pl?conf=$ST->{$srv}{config}">$ST->{$srv}{name}</option>\n|;
 		}
-		
-		
+
+
 		$serverCode = qq|
-				<div class="left"> 
+				<div class="left">
 					<form id="serverSelect">
 						<select name="serverOption" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
 							$serverOption
 						</select>
 					</form>
 				</div>|;
-		
+
 	}
 	return $serverCode;
 }
@@ -2567,34 +2558,34 @@ sub loadTenantCode {
 	my %args = @_;
 	my $conf = $args{conf};
 	my $C = $main::C;
-	
+
 	$conf = $C->{'conf'} if not $conf;
-	
+
 	my $tenantCode;
 	if  ( -f getFileName(file => "$C->{'<nmis_conf>'}/Tenants") ) {
 		# portal menu of nodes or clients to link to.
 		my $MT = loadTable(dir=>'conf',name=>"Tenants");
-		
+
 		my $tenantOption;
-		
+
 		$tenantOption .= qq|<option value="$ENV{SCRIPT_NAME}" selected="NMIS Tenants">NMIS Tenants</option>\n|;
-		
+
 		foreach my $t ( sort {$MT->{$a}{Name} cmp $MT->{$b}{Name}} keys %{$MT} ) {
 			# If the link is part of NMIS, append the config
-			
+
 			$tenantOption .= qq|<option value="?conf=$MT->{$t}{Config}">$MT->{$t}{Name}</option>\n|;
 		}
-		
-		
+
+
 		$tenantCode = qq|
-				<div class="left"> 
+				<div class="left">
 					<form id="serverSelect">
 						<select name="serverOption" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
 							$tenantOption
 						</select>
 					</form>
 				</div>|;
-		
+
 	}
 	return $tenantCode;
 }
@@ -2619,18 +2610,18 @@ sub startNmisPage {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>        
+    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
     <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
     <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
     <script src="$C->{'calendar'}" type="text/javascript"></script>
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
     <script src="$C->{'highstock'}" type="text/javascript"></script>
 		<script src="$C->{'chart'}" type="text/javascript"></script>
@@ -2663,11 +2654,11 @@ sub pageStart {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery'}" type="text/javascript"></script>
     <script src="$C->{'highstock'}" type="text/javascript"></script>
 		<script src="$C->{'chart'}" type="text/javascript"></script>
     <script>
@@ -2700,18 +2691,18 @@ sub pageStartJscript {
     <meta http-equiv="Expires" content="-1" />
     <meta http-equiv="Robots" content="none" />
     <meta http-equiv="Googlebot" content="noarchive" />
-    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />    
+    <link type="image/x-icon" rel="shortcut icon" href="$C->{'nmis_favicon'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_ui_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
-    <script src="$C->{'jquery'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ui'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>        
+    <script src="$C->{'jquery_bgiframe'}" type="text/javascript"></script>
     <script src="$C->{'jquery_positionby'}" type="text/javascript"></script>
     <script src="$C->{'jquery_jdmenu'}" type="text/javascript"></script>
     <script src="$C->{'calendar'}" type="text/javascript"></script>
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
-    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>    
+    <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
     <script src="$C->{'highstock'}" type="text/javascript"></script>
 		<script src="$C->{'chart'}" type="text/javascript"></script>
@@ -2722,11 +2713,11 @@ sub pageStartJscript {
 }
 
 sub pageEnd {
-	print end_html;	
+	print "</body></html>";
 }
 
 
-sub getJavaScript {	
+sub getJavaScript {
 	my $jscript = <<JS_END;
 function viewwndw(wndw,url,width,height)
 {
@@ -2748,7 +2739,7 @@ sub requestServer {
 # inputs: a sys object, an index and a graphtype
 # returns ref to sorted list of names, ref to hash of description/bandwidth/color/index/section
 # this function is not exported on purpose, to reduce namespace clashes.
-sub loadCBQoS 
+sub loadCBQoS
 {
 	my %args = @_;
 	my $S = $args{sys};
@@ -2764,7 +2755,7 @@ sub loadCBQoS
 
 	# define line/area colors of the graph
 	my @colors = ("3300ff", "33cc33", "ff9900", "660099",
-								"ff66ff", "ff3333", "660000", "0099CC", 
+								"ff66ff", "ff3333", "660000", "0099CC",
 								"0033cc", "4B0082","00FF00", "FF4500",
 								"008080","BA55D3","1E90FF",  "cc00cc");
 
@@ -2797,7 +2788,7 @@ sub loadCBQoS
 	else													# the cisco case
 	{
 		$PMName = $CB->{$index}{$direction}{PolicyMap}{Name};
-		
+
 		foreach my $k (keys %{$CB->{$index}{$direction}{ClassMap}}) {
 			my $CMName = $CB->{$index}{$direction}{ClassMap}{$k}{Name};
 			push @CMNames , $CMName if $CMName ne "";
@@ -2828,7 +2819,7 @@ sub loadCBQoS
 	}
 
 	@CBQosNames = ($PMName,@qNames,@CMNames); #policy name, classmap names sorted, classmap names unsorted
-	if ($#CBQosNames) { 
+	if ($#CBQosNames) {
 		# colors of the graph in the same order
 		for my $i (1..$#CBQosNames) {
 			if ($i < $#colors ) {
@@ -2860,28 +2851,28 @@ sub eventLevel {
 	# the config now has a structure for xlat between roletype and severities for node down/other events
 	my $rt2sev = $C->{severity_by_roletype};
 	$rt2sev = { default => [ "Major", "Minor" ] } if (ref($rt2sev) ne "HASH" or !keys %$rt2sev);
-	
+
 	if ( $event eq 'Node Down' )
 	{
 		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[0] :
 				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[0] : "Major";
 	}
-	elsif ( $event =~ /up/i ) 
+	elsif ( $event =~ /up/i )
 	{
 		$event_level = "Normal";
 	}
-	else 
+	else
 	{
 		$event_level = ref($rt2sev->{$role}) eq "ARRAY"? $rt2sev->{$role}->[1] :
 				ref($rt2sev->{default}) eq "ARRAY"? $rt2sev->{default}->[1] : "Major";
 	}
 	$event_level = "Major" if ($event_level !~ /^(fatal|critical|major|minor|warning|normal)$/i); 	# last-ditch fallback
 	$event_color = eventColor($event_level);
-	
+
 	return ($event_level,$event_color);
 }
 
-# this function checks if a particular event exists 
+# this function checks if a particular event exists
 # in the list of current event, NOT the history list!
 #
 # args: node, event(name), element (element may be missing)
@@ -2903,8 +2894,8 @@ sub eventExist
 sub eventLoad
 {
 	my (%args) = @_;
-	
-	my $efn = $args{filename} 
+
+	my $efn = $args{filename}
 	|| event_to_filename( event => { node => $args{node},
 																	 event => $args{event},
 																	 element => $args{element} },
@@ -2922,12 +2913,13 @@ sub eventLoad
 		logMsg("ERROR event file $efn has malformed data: $@");
 		return undef;
 	}
-	
+
 	return $erec;
 }
 
 # deletes ONE event, does NOT (event-)log anything
 # args: event (=record suitably filled in to find the file)
+# the event file is parked in the history subdir, iff possible and allowed to
 # returns undef if ok, error message otherwise
 sub eventDelete
 {
@@ -2943,34 +2935,36 @@ sub eventDelete
 
 	# be polite and robust, fix up any dir perm messes
 	setFileProtParents(dirname($efn), $C->{'<nmis_var>'});
-	
+
 	my $hfn = event_to_filename( event => $args{event},
 															 category => "history" ); # file to dir is a bit of a hack
 	my $historydirname = dirname($hfn) if ($hfn);
 	createDir($historydirname) if ($historydirname and !-d $historydirname);
 	setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
 
-	# now move the event into the history section if we can
-	if ($historydirname and -d $historydirname)
+	# now move the event into the history section if we can,
+	# and if we're allowed to
+	if (!getbool($C->{"keep_event_history"},"invert") # if not set to 'false'
+			and $historydirname and -d $historydirname)
 	{
 		my $newfn = "$historydirname/".time."-".basename($efn);
-			rename($efn, $newfn) 
+			rename($efn, $newfn)
 					or return"could not move event file $efn to history: $!";
 	}
 	else
 	{
-		unlink($efn) 
+		unlink($efn)
 				or return "could not remove event file $efn: $!";
 	}
 	return undef;
 }
 
-# replaces the event data for one given EXISTING event 
+# replaces the event data for one given EXISTING event
 # or CREATES a new event with option create_if_missing
 #
 # args: event (=full record, for finding AND updating)
 # create_if_missing (default false)
-# 
+#
 # the node, event name and elements of an event CANNOT be changed,
 # because they are part of the naming components!
 #
@@ -3025,7 +3019,7 @@ sub eventUpdate
 # only_known is 1 by default, which ensures that only locally known, active services
 # listed in Services.nmis and attached to active nodes are returned.
 #
-# if only_known is set to zero, then all services, remote or local, 
+# if only_known is set to zero, then all services, remote or local,
 # active or not are returned.
 #
 # returns: hash of server -> service -> node -> data; empty if invalid args
@@ -3033,19 +3027,19 @@ sub loadServiceStatus
 {
 	my (%args) = @_;
 	my $C = loadConfTable();			# generally cached anyway
-	
+
 	my $wantnode = $args{node};
 	my $wantservice = $args{service};
 	my $wantserver = $args{server} || $C->{server_name};
 	my $onlyknown = !(getbool($args{only_known}, "invert")); # default is 1
-	
+
 
 	my $ST = loadServicesTable;
 	my $LNT = loadLocalNodeTable;
 
 	my %result;
 	# ask the one function that knows where this things live
-	my $statusdir = dirname(service_to_filename(service => "dummy", 
+	my $statusdir = dirname(service_to_filename(service => "dummy",
 																							node => "dummy",
 																							server => $wantserver));
 	return %result if (!$statusdir or !-d $statusdir);
@@ -3060,9 +3054,9 @@ sub loadServiceStatus
 																			 server => $wantserver);
 		# no node or unknown service is ok only if unknowns are allowed
 		@candidates = $statusfn if (-f $statusfn
-																and (!$onlyknown or 
-																		 ($LNT->{$wantnode} 
-																			and $ST->{$wantservice} 
+																and (!$onlyknown or
+																		 ($LNT->{$wantnode}
+																			and $ST->{$wantservice}
 																			and $C->{server_name} eq $wantserver)));
 	}
 	# otherwise read them all...
@@ -3099,7 +3093,7 @@ sub loadServiceStatus
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
 		my $thisserver = $sdata->{server} || $C->{server_name};
-		if (!$onlyknown 
+		if (!$onlyknown
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service
 						 and $thisserver eq $C->{server_name} # our service
@@ -3108,21 +3102,21 @@ sub loadServiceStatus
 			$result{$thisserver}->{$thisservice}->{$thisnode} = $sdata;
 		}
 	}
-		
+
 	return %result;
 }
 
-# takes service, node, and server and translates 
+# takes service, node, and server and translates
 # that into the file name for service status saving
 # returns: undef if the args were duds, file path otherwise
 sub service_to_filename
 {
 	my (%args) = @_;
 	my $C = loadConfTable();			# likely cached
-	
+
 	my ($service, $node, $server) = @args{"service","node","server"};
 	return undef if (!$service or !$node or !$server);
-	
+
 	# structure: nmis_var/service_status/<safed service>_<safed node>_<safed server>.json
 	# assumption is FLAT dir, so that ONLY this function needs to know the layout
 	my $statusdir = $C->{'<nmis_var>'}."/service_status";
@@ -3153,7 +3147,7 @@ sub saveServiceStatus
 	my (%args) = @_;
 	my $servicerec = $args{service};
 
-	return "Cannot save service status without status data!" 
+	return "Cannot save service status without status data!"
 			if (ref($servicerec) ne "HASH" or !keys %$servicerec);
 
 	# things that *must* be present - undef isn't cutting it
@@ -3175,11 +3169,11 @@ sub saveServiceStatus
 	return undef;
 }
 
-# looks up all events (for one node or all), 
+# looks up all events (for one node or all),
 # in current or history section
 #
 # args: node (optional, if not there all are loaded),
-# category (optional: default is "current") 
+# category (optional: default is "current")
 # returns hash of: event file name (=full path!) => the event's record
 sub loadAllEvents
 {
@@ -3190,12 +3184,12 @@ sub loadAllEvents
 	my @wantednodes = $args{node}? ($args{node}) : (keys %{loadLocalNodeTable()});
 	my $category  = $args{category} || "current";
 	my %results = ();
-	
+
 	for my $node (@wantednodes)
 	{
 		# find the relevant dir via a dummy event and suck them all in
-		my $efn = event_to_filename( event => { node => $node, 
-																						event => "dummy", 
+		my $efn = event_to_filename( event => { node => $node,
+																						event => "dummy",
 																						element => "dummy" },
 																 category => $category );
 		my $dirname = dirname($efn) if ($efn);
@@ -3204,7 +3198,7 @@ sub loadAllEvents
 		opendir(D, $dirname) or logMsg("ERROR could not opendir $dirname: $!");
 		my @candidates = readdir(D);
 		closedir(D);
-		
+
 		for my $efn (@candidates)
 		{
 			next if ($efn =~ /^\./ or $efn !~ /\.json$/);
@@ -3218,14 +3212,14 @@ sub loadAllEvents
 	return %results;
 }
 
-# removes all current events for a node 
+# removes all current events for a node
 # this is normally used after editing/deleting nodes to clean the slate and
 # make sure there's no lingering phantom events
-# 
+#
 # note: logs if allowed to
 # args: node, caller (for logging)
 # return nothing
-sub cleanEvent 
+sub cleanEvent
 {
 	my ($node, $caller) = @_;
 
@@ -3241,10 +3235,10 @@ sub cleanEvent
 	$efn = event_to_filename( event => { node => $node, event => "dummy", element => "dummy" },
 														category => "history" );
 	my $historydirname = dirname($efn) if $efn; # shouldn't fail but BSTS
-	func::createDir($historydirname) 
+	func::createDir($historydirname)
 			if ($historydirname and !-d $historydirname);
 	func::setFileProtParents($historydirname, $C->{'<nmis_var>'}) if (-d $historydirname);
-	
+
 	# get the event configuration which controls logging
 	my $events_config = loadTable(dir => 'conf', name => 'Events');
 
@@ -3264,27 +3258,27 @@ sub cleanEvent
 		}
 		my $eventname = $erec->{event} if $erec;
 
-		# log the deletion meta-event iff the original event had logging enabled			
+		# log the deletion meta-event iff the original event had logging enabled
 		# event logging: true unless overridden by event_config
-		if (!$eventname or ref($events_config->{$eventname}) ne "HASH" 
+		if (!$eventname or ref($events_config->{$eventname}) ne "HASH"
 				or !getbool($events_config->{$eventname}->{Log}, "invert") )
 		{
-			logEvent( node => $node, 
-								event => "$caller: deleted event: $eventname", 
-								level => "Normal", 
-								element => $erec->{element}||'', 
+			logEvent( node => $node,
+								event => "$caller: deleted event: $eventname",
+								level => "Normal",
+								element => $erec->{element}||'',
 								details => $erec->{details}||'');
 		}
 		# now move the event into the history section if we can
 		if ($historydirname and -d $historydirname)
 		{
 			my $newfn = "$historydirname/".time."-$moriturus";
-			rename("$dirname/$moriturus", $newfn) 
+			rename("$dirname/$moriturus", $newfn)
 					or  logMsg("ERROR could not move event file $dirname/$moriturus to history: $!");
 		}
 		else
 		{
-			unlink("$dirname/$moriturus") 
+			unlink("$dirname/$moriturus")
 					or logMsg("ERROR could not remove event file $dirname/$moriturus: $!");
 		}
 	}
@@ -3295,7 +3289,7 @@ sub cleanEvent
 # args: node, event, element (may be missing), level, details (may be missing)
 # logs errors
 # returns: undef if ok, error message otherwise
-sub logEvent 
+sub logEvent
 {
 	my %args = @_;
 
@@ -3306,7 +3300,7 @@ sub logEvent
 	my $details = $args{details};
 	$details =~ s/,//g; # strip any commas
 
-	if (!$node  or !$event or !$level) 
+	if (!$node  or !$event or !$level)
 	{
 		logMsg("ERROR logging event, required argument missing: node=$node, event=$event, level=$level");
 		return "required argument missing: node=$node, event=$event, level=$level";
@@ -3314,13 +3308,13 @@ sub logEvent
 
 	my $time = time();
 	my $C = loadConfTable();
-	
+
 	my @problems;
 
 	# MUST NOT logMsg while holding that lock, as logmsg locks, too!
 	sysopen(DATAFILE, "$C->{event_log}", O_WRONLY | O_APPEND | O_CREAT)
 			or push(@problems, "Cannot open $C->{event_log}: $!");
-	flock(DATAFILE, LOCK_EX) 
+	flock(DATAFILE, LOCK_EX)
 			or push(@problems,"Cannot lock $C->{event_log}: $!");
 	&func::enter_critical;
 	# it's possible we shouldn't write if we can't lock it...
@@ -3328,7 +3322,7 @@ sub logEvent
 	close(DATAFILE) or push(@problems, "Cannot close $C->{event_log}: $!");
 	&func::leave_critical;
 	setFileProt($C->{event_log}); # set file owner/permission, default: nmis, 0775
-	
+
 	if (@problems)
 	{
 		my $msg = join("\n", @problems);
@@ -3343,10 +3337,10 @@ sub logEvent
 #
 # args: node, event, element, level, details, ack, user;
 # returns: undef if ok, error message otherwise
-sub eventAck 
+sub eventAck
 {
 	my %args = @_;
-	
+
 	my $node = $args{node};
 	my $event = $args{event};
 	my $element = $args{element};
@@ -3367,13 +3361,13 @@ sub eventAck
 	}
 
 	# event control for logging:  as configured or default true, ie. only off if explicitely configured off.
-	my $wantlog = (!$events_config or !$events_config->{$event} 
+	my $wantlog = (!$events_config or !$events_config->{$event}
 								 or !getbool($events_config->{$event}->{Log}, "invert"))? 1 : 0;
-	
+
 	# events are only acknowledgeable while they are current (ie. not in the process of
 	# being deleted)!
 	return undef if (!getbool($erec->{current}));
-	
+
 	### if a TRAP type event, then trash when ack. event record will be in event log if required
 	if (getbool($ack) and getbool($erec->{ack},"invert") and $event eq "TRAP")
 	{
@@ -3381,7 +3375,7 @@ sub eventAck
 		{
 			logMsg("ERROR: $error");
 		}
-		logEvent(node => $node, event => "deleted event: $event", 
+		logEvent(node => $node, event => "deleted event: $event",
 						 level => "Normal", element => $element) if ($wantlog);
 	}
 	else	# a 'normal' event
@@ -3397,9 +3391,9 @@ sub eventAck
 			{
 				logMsg("ERROR: $error");
 			}
-			
-			logEvent(node => $node, event => $event, 
-							 level => "Normal", element => $element, 
+
+			logEvent(node => $node, event => $event,
+							 level => "Normal", element => $element,
 							 details => "acknowledge=$newack ($user)")
 					if $wantlog;
 		}
@@ -3411,11 +3405,11 @@ sub eventAck
 # this is a HIGHLEVEL function, doing all kinds of nmis-related stuff!
 # to JUST create an event record, use eventUpdate() w/create_if_missing
 #
-# args: node, event, element (may be missing), level, 
+# args: node, event, element (may be missing), level,
 # details (may be missing), stateless (optional, default false)
 #
 # returns: undef if ok, error message otherwise
-sub eventAdd 
+sub eventAdd
 {
 	my %args = @_;
 
@@ -3429,7 +3423,7 @@ sub eventAdd
 	my $C = loadConfTable();
 
 	my $efn = event_to_filename( event => { node => $node,
-																					event => $event, 
+																					event => $event,
 																					element => $element },
 															 category => "current" );
 	return "Cannot create event with missing parameters, node=$node, event=$event, element=$element!"
@@ -3438,19 +3432,19 @@ sub eventAdd
 	# workaround for perl bug(?); the next if's misfire if
 	# we do "my $existing = eventLoad() if (-f $efn);"...
 	my $existing = undef;
-	if (-f $efn) 
+	if (-f $efn)
 	{
 	    $existing = eventLoad(filename => $efn);
 	}
 
 	# is this an already EXISTING stateless event?
-	# they will reset after the dampening time, default dampen of 15 minutes.	
-	if ( ref($existing) eq "HASH" && getbool($existing->{stateless}) ) 
+	# they will reset after the dampening time, default dampen of 15 minutes.
+	if ( ref($existing) eq "HASH" && getbool($existing->{stateless}) )
 	{
 		my $stateless_event_dampening =  $C->{stateless_event_dampening} || 900;
-		
+
 		# if the stateless time is greater than the dampening time, reset the escalate.
-		if ( time() > $existing->{startdate} + $stateless_event_dampening ) 
+		if ( time() > $existing->{startdate} + $stateless_event_dampening )
 		{
 			$existing->{current} = 'true';
 			$existing->{startdate} = time();
@@ -3465,7 +3459,7 @@ sub eventAdd
 		}
 	}
 	# before we log, check the state if there is an event and if it's current
-	elsif ( ref($existing) eq "HASH" && getbool($existing->{current}) ) 
+	elsif ( ref($existing) eq "HASH" && getbool($existing->{current}) )
 	{
 	    dbg("event exists, node=$node, event=$event, level=$level, element=$element, details=$details");
 	    logMsg("ERROR cannot add event=$event, node=$node: already exists, is current and not stateless!");
@@ -3473,10 +3467,10 @@ sub eventAdd
 	}
 	# doesn't exist or isn't current
 	# fixme: existing  but not current isn't cleanly handled here
-	else 
+	else
 	{
 		$existing ||= {};
-		
+
 		$existing->{current} = 'true';
 		$existing->{startdate} = time();
 		$existing->{node} = $node;
@@ -3507,14 +3501,14 @@ sub eventAdd
 #
 # and then calls notify with a new Up event including the time of the outage
 # args: a LIVE sys object for the node, event(name);
-#  element, details and level are optional 
+#  element, details and level are optional
 #
 # returns: nothing
 sub checkEvent
 {
 	my %args = @_;
 
-	my $S = $args{sys}; 
+	my $S = $args{sys};
 	my $node = $S->{node};
 	my $event = $args{event};
 	my $element = $args{element};
@@ -3522,14 +3516,14 @@ sub checkEvent
 	my $level = $args{level};
 	my $log;
 	my $syslog;
-	
+
 	my $C = loadConfTable();
 
 	# events.nmis controls which events are active/logging/notifying
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); 
+	my $events_config = loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
-	
+
 	# set defaults just in case any are blank.
 	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Reset';
 	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
@@ -3540,7 +3534,7 @@ sub checkEvent
 	my $erec = eventLoad(filename => $event_exists) if $event_exists;
 
 	if ($event_exists
-			and getbool($erec->{current})) 
+			and getbool($erec->{current}))
 	{
 		# a down event exists, so log an UP and delete the original event
 
@@ -3548,29 +3542,29 @@ sub checkEvent
 		my $outage = convertSecsHours(time() - $erec->{startdate});
 
 		# Just log an up event now.
-		if ( $event eq "Node Down" ) 
+		if ( $event eq "Node Down" )
 		{
 			$event = "Node Up";
 		}
-		elsif ( $event eq "Interface Down" ) 
+		elsif ( $event eq "Interface Down" )
 		{
 			$event = "Interface Up";
 		}
-		elsif ( $event eq "RPS Fail" ) 
+		elsif ( $event eq "RPS Fail" )
 		{
 			$event = "RPS Up";
 		}
-		elsif ( $event =~ /Proactive/ ) 
+		elsif ( $event =~ /Proactive/ )
 		{
 			# but only if we have cleared the threshold by 10%
 			# for thresholds where high = good (default 1.1)
-			if ( defined($args{value}) and defined($args{reset}) ) 
+			if ( defined($args{value}) and defined($args{reset}) )
 			{
-				if ( $args{value} >= $args{reset} ) 
+				if ( $args{value} >= $args{reset} )
 				{
 					return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
-				} 
-				else 
+				}
+				else
 				{
 				# for thresholds where low = good (default 0.9)
 					return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
@@ -3578,16 +3572,16 @@ sub checkEvent
 			}
 			$event = "$event Closed";
 		}
-		elsif ( $event =~ /^Alert/ ) 
+		elsif ( $event =~ /^Alert/ )
 		{
 			# A custom alert is being cleared.
 			$event = "$event Closed";
 		}
-		elsif ( $event =~ /down/i ) 
+		elsif ( $event =~ /down/i )
 		{
 			$event =~ s/down/Up/i;
 		}
-		
+
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
@@ -3597,7 +3591,7 @@ sub checkEvent
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
 		my $OT = loadOutageTable();
-		
+
 		my ($otg,$key) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
 			$details .= " change=$OT->{$key}{change}";
@@ -3609,7 +3603,7 @@ sub checkEvent
 		$newevent->{event} = $event;
 		$newevent->{details} = $details;
 		$newevent->{level} = $level;
-		
+
 		# make the new one FIRST
 		if (my $error = eventUpdate(event => $newevent, create_if_missing => 1))
 		{
@@ -3625,10 +3619,10 @@ sub checkEvent
 		}
 
 		dbg("event node=$erec->{node}, event=$erec->{event}, element=$erec->{element} marked for UP notify and delete");
-		if (getbool($log) and getbool($thisevent_control->{Log})) 
+		if (getbool($log) and getbool($thisevent_control->{Log}))
 		{
-			logEvent( node=>$S->{name}, 
-								event=>$event, 
+			logEvent( node=>$S->{name},
+								event=>$event,
 								level=>$level,
 								element=>$element,
 								details=>$details);
@@ -3637,7 +3631,7 @@ sub checkEvent
 		# Syslog must be explicitly enabled in the config and will escalation is not being used.
 		if (getbool($C->{syslog_events}) and getbool($syslog)
 				and getbool($thisevent_control->{Log})
-				and !getbool($C->{syslog_use_escalation})) 
+				and !getbool($C->{syslog_use_escalation}))
 		{
 			sendSyslog(
 				server_string => $C->{syslog_server},
@@ -3654,14 +3648,14 @@ sub checkEvent
 	}
 }
 
-# notify creates new events 
+# notify creates new events
 # OR updates level changes for existing threshold/alert ones
 # note that notify ignores any outage configuration.
 #
 # args: LIVE sys for this node, event(=name), element (optional),
 # details, level (all optional)
 # returns: nothing
-sub notify 
+sub notify
 {
 	my %args = @_;
 	my $S = $args{sys};
@@ -3679,23 +3673,23 @@ sub notify
 	my $C = loadConfTable();
 
 	dbg("Start of Notify");
-	
+
 	# events.nmis controls which events are active/logging/notifying
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); 
+	my $events_config = loadTable(dir => 'conf', name => 'Events');
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
-	
+
 	my $event_exists = eventExist($S->{name},$event,$element);
 	my $erec = eventLoad(filename => $event_exists) if $event_exists;
 
 
-	if ( $event_exists and getbool($erec->{current})) 
+	if ( $event_exists and getbool($erec->{current}))
 	{
 		# event exists, maybe a level change of proactive threshold?
-		if ($event =~ /Proactive|Alert\:/ ) 
+		if ($event =~ /Proactive|Alert\:/ )
 		{
-			if ($erec->{level} ne $level) 
+			if ($erec->{level} ne $level)
 			{
 				# change of level; must update the event record
 				# note: 2014-08-27 keiths, update the details as well when changing the level
@@ -3714,53 +3708,53 @@ sub notify
 		{
 			dbg("Event node=$node event=$event element=$element already exists");
 		}
-	} 
+	}
 	else # event doesn't exist OR is set to non-current
 	{
 		# get level(if not defined) and log status from Model
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
 
-		my $is_stateless = ($C->{non_stateful_events} !~ /$event/ 
+		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
 												or getbool($thisevent_control->{Stateful}))? "false": "true";
-												
+
 		### 2016-04-30 ks adding outage tagging to event when opened.
 		my $OT = loadOutageTable();
-		
+
 		my ($otg,$key) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
 			$details .= " change=$OT->{$key}{change}";
 		}
-												
+
 		# Create and store this new event; record whether stateful or not
 		# a stateless event should escalate to a level and then be automatically deleted.
-		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level, 
+		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level,
 															element=>$element, details=>$details, stateless => $is_stateless))
 		{
 			logMsg("ERROR: $error");
 		}
-		
-		if (getbool($C->{log_node_configuration_events}) 
+
+		if (getbool($C->{log_node_configuration_events})
 				and $C->{node_configuration_events} =~ /$event/
 				and getbool($thisevent_control->{Log}))
 		{
 			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
-										 element=>$element, details=>$details, host => $NI->{system}{host}, 
-										 nmis_server => $C->{nmis_host} );			
+										 element=>$element, details=>$details, host => $NI->{system}{host},
+										 nmis_server => $C->{nmis_host} );
 		}
 	}
 
 	# log events if allowed
-	if ( getbool($log) and getbool($thisevent_control->{Log})) 
+	if ( getbool($log) and getbool($thisevent_control->{Log}))
 	{
 		logEvent(node=>$node, event=>$event, level=>$level, element=>$element, details=>$details);
 	}
 
-	# Syslog must be explicitly enabled in the config and 
+	# Syslog must be explicitly enabled in the config and
 	# is used only if escalation isn't
-	if (getbool($C->{syslog_events}) 
+	if (getbool($C->{syslog_events})
 			and getbool($syslog)
 			and getbool($thisevent_control->{Log})
-			and !getbool($C->{syslog_use_escalation})) 
+			and !getbool($C->{syslog_use_escalation}))
 	{
 		sendSyslog(
 			server_string => $C->{syslog_server},
@@ -3779,7 +3773,7 @@ sub notify
 }
 
 # translates a full event structure into a filename
-# args: event (= hashref), category (optional, current or history; 
+# args: event (= hashref), category (optional, current or history;
 # otherwise taken from event - event with current=false go into history)
 #
 # returns: file name or undef if inputs make no sense
@@ -3787,14 +3781,14 @@ sub event_to_filename
 {
 	my (%args) = @_;
 	my $C = loadConfTable();			# likely cached
-	
+
 	my $erec = $args{event};
 	return undef if (!$erec or ref($erec) ne "HASH" or !$erec->{node}
 									 or !$erec->{event}); # element is optional
 
 	# note: just a few spots need to know anything about this structure (or its location):
-	# here, in the upgrade_events_structure function (assumes under var), 
-	# eventDelete, eventUpdate and cleanEvent functions (assume under nmis_var) 
+	# here, in the upgrade_events_structure function (assumes under var),
+	# eventDelete, eventUpdate and cleanEvent functions (assume under nmis_var)
 	# and in nmis_file_cleanup.sh.
 	#
 	# structure: nmis_var/events/lcNODENAME/{current,history}/EVENTNAME.json
@@ -3805,21 +3799,21 @@ sub event_to_filename
 		func::createDir($eventbasedir);
 		func::setFileProt($eventbasedir);
 	}
-	
-	# overridden, or not current then history, or 
-	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/? 
+
+	# overridden, or not current then history, or
+	my $category = defined($args{category}) && $args{category} =~ /^(current|history)$/?
 			$args{category} : getbool($erec->{current})? "current" : "history";
-	
-	my $nodecomp = lc($erec->{node}); 
+
+	my $nodecomp = lc($erec->{node});
 	$nodecomp =~ s![ :/]!_!g; # no slashes possible, no colons and spaces just for backwards compat
-	
+
 	my $eventcomp = lc($erec->{event}."-".($erec->{element}? $erec->{element} : ''));
 	$eventcomp =~ s![ :/]!_!g;			#  backwards compat
-	
+
 	my $result = "$eventbasedir/$nodecomp/$category/$eventcomp.json";
 	return $result;
 }
-	
+
 # this reads an old-style nmis-events file if present,
 # and splits the events out into the desired new dir structure
 # when done it renames the nmis-events file.
@@ -3846,7 +3840,7 @@ sub upgrade_events_structure
 			close $fh;
 			return "Error: no file name for eventkey $eventkey!";
 		}
-		
+
 		my $dirname = dirname($newfn);
 		if (!-d $dirname)
 		{
@@ -3909,7 +3903,7 @@ sub upgrade_nodeconf_structure
 		# nodeconf data must include the original nodename, as the filename won't necessarily.
 		$old->{$nodekey}->{name} = $nodekey;
 
-		if (my $errormsg = update_nodeconf(node => $nodekey, 
+		if (my $errormsg = update_nodeconf(node => $nodekey,
 																			 data => $old->{$nodekey}))
 		{
 			close $fh;
@@ -3942,7 +3936,7 @@ sub update_nodeconf
 
 	my $C = loadConfTable();			# likely cached
 
-	return "Cannot save nodeconf without nodename argument!" 
+	return "Cannot save nodeconf without nodename argument!"
 			if (!$nodename);					# note: we don't check (yet) if the node is known
 
 	return "Cannot save nodeconf for $nodename, data is missing!"
@@ -3957,7 +3951,7 @@ sub update_nodeconf
 		my $errmsg = func::setFileProtDiag(file => $ncdirname);
 		return $errmsg if ($errmsg);
 	}
-		
+
 	my $ncfn = "$ncdirname/$safenodename.json";
 
 	# the deletion case
@@ -3992,7 +3986,7 @@ sub has_nodeconf
 	$nodename = lc($nodename);
 	$nodename =~ s/[^a-z0-9_-]/_/g;
 
-	my $C = loadConfTable();			# likely cached	
+	my $C = loadConfTable();			# likely cached
 	my $ncfn = $C->{'<nmis_conf>'}."/nodeconf/$nodename.json";
 	return (-f $ncfn? $ncfn : 0);
 }
@@ -4010,7 +4004,7 @@ sub get_nodeconf
 	if (exists($args{node}))
 	{
 		return "Cannot get nodeconf for unnamed node!" if (!$nodename);
-		
+
 		my $ncfn = has_nodeconf(node => $nodename);
 		return "No nodeconf exists for node $nodename!" if (!$ncfn);
 
@@ -4031,7 +4025,7 @@ sub get_nodeconf
 		closedir(D);
 
 		my %allofthem;
-		
+
 		for my $maybe (@cands)
 		{
 			my $data = readFiletoHash(file => "$ncdir/$maybe", json => 1);
@@ -4050,7 +4044,7 @@ sub get_nodeconf
 
 
 # this is now a backwards-compatibilty wrapper around get_nodeconf()
-sub loadNodeConfTable 
+sub loadNodeConfTable
 {
 	my ($error, $data) = get_nodeconf;
 	if ($error)
@@ -4061,5 +4055,211 @@ sub loadNodeConfTable
 	return $data;
 }
 
+# this method renames a node, and all its files, too
+#
+# args: old, new,
+# (optional) debug, (optional) info, (optional) originator
+# originator is used for cleanEvent
+# returns: (0,undef) if ok, (1, error message) if op failed
+#
+# note: prints progress info to stderr if debug or info are enabled!
+sub rename_node
+{
+	my (%args) = @_;
+
+	my ($old, $new) = @args{"old","new"};
+	my $wantdiag = func::setDebug($args{debug})
+			|| func::setDebug($args{info}); # don't care about the actual values
+
+	return (1, "Cannot rename node without separate old and new names!")
+			if (!$old or !$new or $old eq $new);
+
+	my $C = loadConfTable();
+
+	my $nodeinfo = loadLocalNodeTable();
+	my $oldnoderec = $nodeinfo->{$old};
+	return (1, "Old node $old does not exist!") if (!$oldnoderec);
+
+	# fixme: less picky? spaces required?
+	return(1, "Invalid node name \"$new\"")	if ($new =~ /[^a-zA-Z0-9_-]/);
+
+	my $newnoderec = $nodeinfo->{$new};
+	return(1, "New node $new already exists, NOT overwriting!")
+			if ($newnoderec);
+
+	$newnoderec = { %$oldnoderec  };
+	$newnoderec->{name} = $new;
+	$nodeinfo->{$new} = $newnoderec;
+
+	# now write out the new nodes file, so that the new node becomes
+	# workable (with sys etc)
+	# fixme lowprio: if db_nodes_sql is enabled we need to use a
+	#different write function
+	print STDERR "Saving new name in Nodes table\n" if ($wantdiag);
+	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+
+	# then hardlink the var files - do not delete anything yet!
+	my @todelete;
+	my $vardir = $C->{'<nmis_var>'};
+	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
+	for my $fn (readdir(D))
+	{
+		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
+		{
+			my ($component,$ext) = ($1,$2);
+			my $newfn = lc("$new-$component.$ext");
+			push @todelete, "$vardir/$fn";
+			print STDERR "Renaming/linking var/$fn to $newfn\n" if ($wantdiag);
+			link("$vardir/$fn", "$vardir/$newfn") or
+					return(1,"cannot hardlink $fn to $newfn: $!");
+		}
+	}
+	closedir(D);
+
+	print STDERR "Priming Sys objects for finding RRDs\n" if ($wantdiag);
+	# now prime sys objs for both old and new nodes, so that we can find and translate rrd names
+	my $oldsys = Sys->new; $oldsys->init(name => $old, snmp => "false");
+	my $newsys = Sys->new; $newsys->init(name => $new, snmp => "false");
+
+	my $oldinfo = $oldsys->ndinfo;
+	my %seen;									 # state cache for renamerrd
+
+	# find all rrds belonging to the old node
+	for my $section (keys %{$oldinfo->{graphtype}})
+	{
+		if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
+		{
+			my $index = $section;
+			for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
+			{
+				if ($subsection =~ /^cbqos-(in|out)$/)
+				{
+					my $dir = $1;
+					# need to find the qos classes and hand them to getdbname as item
+					for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
+					{
+						my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
+						push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection,
+																			index => $index, item => $item, debug => $wantdiag,
+																			seen => \%seen);
+					}
+				}
+				else
+				{
+					push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection,
+																		index => $index, debug => $wantdiag, seen => \%seen);
+				}
+			}
+		}
+		else
+		{
+			push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $section,
+																debug => $wantdiag, seen => \%seen);
+		}
+	}
+
+	# then deal with the no longer wanted data: remove the old links
+	for my $fn (@todelete)
+	{
+		next if (!defined $fn);
+		my $relfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
+		print STDERR "Deleting file $relfn, no longer required\n" if ($wantdiag);
+		unlink($fn);
+	}
+
+	# now, finally reread the nodes table and remove the old node
+	print STDERR "Deleting old node $old from Nodes table\n" if ($wantdiag);
+	my $newnodeinfo = loadLocalNodeTable();
+	delete $newnodeinfo->{$old};
+	# fixme lowprio: if db_nodes_sql is enabled we need to use a
+	# different write function
+	writeTable(dir => 'conf', name => "Nodes", data => $newnodeinfo);
+
+	# now clear all events for old node
+	print STDERR "Removing events for old node\n" if ($wantdiag);
+	cleanEvent($old,$args{originator});
+
+	print STDERR "Successfully renamed node $old to $new\n" if ($wantdiag);
+	return (0,undef);
+}
+
+# internal helper function for rename_node, LINKS one given rrd file to new name
+# caller must take care of removing the old rrd file later.
+#
+# args: old and new (both sys objects), graphtype, seen (hash REF for state caching),
+# index (optional), item (optional), info, debug (both optional),
+# returns: old (now removable) file name, or undef if nothing done
+#
+# higher-level functionality/logic, so NOT a candidate for rrdfunc.pm.
+#
+# note: prints diags on stderr if info or debug are set!
+sub renameRRD
+{
+	my (%args) = @_;
+
+	my $C = loadConfTable();
+
+	my $oldfilename = $args{old}->getDBName(graphtype => $args{graphtype},
+																			 index => $args{index},
+																			 item => $args{item});
+	# don't try to rename a file more than once...
+	return undef if $args{seen}->{$oldfilename};
+	$args{seen}->{$oldfilename}=1;
+
+	my $wantdiag = func::setDebug($args{debug})
+			|| func::setDebug($args{info}); # don't care about the actual values
+
+	my $newfilename = $args{new}->getDBName(graphtype => $args{graphtype},
+																			 index => $args{index},
+																			 item => $args{item});
+	return undef if ($newfilename eq $oldfilename);
+
+	if (!$newfilename or !$oldfilename)
+	{
+		print STDERR "Warning: no RRD file name found for graphtype $args{graphtype} index $args{index} item $args{item}\n"
+				if ($wantdiag);
+		return undef;
+	}
+
+	my $oldrelname = File::Spec->abs2rel( $oldfilename, $C->{'<nmis_base>'} );
+	my $newrelname = File::Spec->abs2rel( $newfilename, $C->{'<nmis_base>'} );
+
+	if (!-f $oldfilename)
+	{
+		print STDERR "Warning: RRD file $oldrelname does not exist, cannot rename!\n" if ($wantdiag);
+		return undef;
+	}
+
+	# ensure the target dir hierarchy exists
+	my $dirname = dirname($newfilename);
+	if (!-d $dirname)
+	{
+		print STDERR "Creating directory $dirname for RRD files\n" if ($wantdiag);
+		my $curdir;
+		for my $component (File::Spec->splitdir($dirname))
+		{
+			next if !$component;
+			$curdir.="/$component";
+			if (!-d $curdir)
+			{
+				if (!mkdir $curdir,0755)
+				{
+					print STDERR "cannot create directory $curdir: $!\n"  if ($wantdiag);
+					return undef;
+				}
+				setFileProt($curdir);
+			}
+		}
+	}
+
+	print STDERR "Renaming/linking RRD file $oldrelname to $newrelname\n" if ($wantdiag);
+	if (!link($oldfilename,$newfilename))
+	{
+		print STDERR "cannot link $oldrelname to $newrelname: $!\n"  if ($wantdiag);
+		return undef;
+	}
+
+	return $oldfilename;
+}
 
 1;

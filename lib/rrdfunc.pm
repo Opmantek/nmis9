@@ -610,35 +610,42 @@ sub optionsRRD {
 		$M = $S;
 	}
 
-	my $RRD_poll;
-	my $RRD_hbeat;
-	if (!($RRD_poll = $M->{mdl}{database}{db}{poll})) { $RRD_poll = 300;}
-	if (!($RRD_hbeat = $M->{mdl}{database}{db}{hbeat})) { $RRD_hbeat = $RRD_poll * 3;}
-
+	# rrd step, from model database or our standard 5min
+	my $RRD_poll = $M->{mdl}{database}{db}{poll} || 300;
+	# rrd heartbeat, either from model database or 3 times the step
+	# note: overridable by passing in 'heartbeat' in data!
+	my $RRD_hbeat = $M->{mdl}{database}{db}{hbeat} || ($RRD_poll*3);
 
 	@options = ("-b", $START, "-s", $RRD_poll);
 
-	#
 	# $data{ds_name}{value} contains the values
-	# $data{ds_name}{option} contains the info for creating the dds, format is "source,low:high"
-	# where source can be GAUGE,COUNTER etc. low:high are the limits of values to store
-	# default is GAUGE,"U:U"
+	# $data{ds_name}{option} contains the info for creating the dds, format is "source,low:high,heartbeat"
+	# where source can be GAUGE,COUNTER etc. low:high are the limits of values to store, heartbeat
+	# is for overriding the rrdfile-level heartbeat. range and heartbeat are optional, the ',' are clearly needed
+	# even if you skip range but provide heartbeat.
 	#
-	# get the keys of the hash to create the identifiers
-	foreach my $id (sort keys %{$data}) {
+	# default is GAUGE,"U:U",standard heartbeat
+	foreach my $id (sort keys %{$data}) 
+	{
 		if (length($id) > 18) {
 			logMsg("ERROR, DS name=$id greater then 18 characters") ;
 			next;
 		}
-		my $source = "GAUGE";
-		my $range = "U:U";
-		if ($data->{$id}{option} ne "") {
-			($source,$range) = split (/\,/,$data->{$id}{option});
+
+		my ($source,$range,$heartbeat);
+		if ($data->{$id}{option}) 
+		{
+			($source,$range,$heartbeat) = split (/\,/,$data->{$id}{option});
+
 			$range = $S->parseString(string=>$range,sys=>$S,type=>$type,index=>$index) if $S ne "";
 			$source = uc $source;
 		}
-		dbg("ID of data is $id, source $source, range $range",2);
-		push @options,"DS:$id:$source:$RRD_hbeat:$range";
+		$source ||= "GAUGE";
+		$range ||= "U:U";
+		$heartbeat ||= $RRD_hbeat;
+
+		dbg("ID of data is $id, source $source, range $range, heartbeat $heartbeat",2);
+		push @options,"DS:$id:$source:$heartbeat:$range";
 	}
 
 	my $DB;

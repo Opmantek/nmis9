@@ -45,17 +45,11 @@ use URI::Escape;
 
 use DBfunc;
 
-# Prefer to use CGI::Pretty for html processing
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-$CGI::Pretty::INDENT = "  ";
-$CGI::Pretty::LINEBREAK = "\n";
-push @CGI::Pretty::AS_IS, qw(p h1 h2 center b comment option span);
-#use CGI::Debug;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI; # This processes all parameters passed via GET and POST
-$Q = $q->Vars; # values in hash
+my $q = new CGI; # This processes all parameters passed via GET and POST
+my $Q = $q->Vars; # values in hash
+my $C;
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
@@ -66,8 +60,8 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 use Auth;
 
 # variables used for the security mods
-use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
-$AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -337,7 +331,7 @@ sub showTable {
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh}, widget=>$widget);
+	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
@@ -373,8 +367,8 @@ sub showTable {
 	pageEnd() if (getbool($widget,"invert"));
 }
 
-sub editTable {
-
+sub editTable
+{
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
@@ -410,74 +404,92 @@ sub editTable {
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
 
-	for my $ref ( @{$CT}) { # trick for order of header items
-		for my $item (keys %{$ref}) {
+	for my $ref ( @{$CT})
+	{
+		for my $item (keys %{$ref})
+		{
+			my $thisitem = $ref->{$item}; # table config record for this item
+			my $thiscontent = $T->{$key}->{$item}; # table CONTENT for this item
+
 			my $mandatory = "";
 			my $headerclass = "header";
 			my $headspan = 1;
-			if ( exists $ref->{$item}{mandatory}
-					 and getbool($ref->{$item}{mandatory}) ) {
+			if ( getbool($thisitem->{mandatory}) )
+			{
 				$mandatory = " <span style='color:#FF0000'>*</span>";
 				$anyMandatory = 1;
 			}
 
-			if ( exists $ref->{$item}{special} and $ref->{$item}{special} eq "separator" ) {
+			if ( exists $thisitem->{special} and $thisitem->{special} eq "separator" )
+			{
 				$headerclass = "heading4";
 				$headspan = 2;
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
-										escapeHTML($ref->{$item}{header}).$mandatory));
+										escapeHTML($thisitem->{header}).$mandatory));
 			}
-			else {
+			# things tagged editonly are ONLY editable, NOT settable initially on add
+			elsif ($func eq "doadd" and $thisitem->{display} =~ /editonly/)
+			{
+				# do nothing, skip this thing's row completely
+			}
+			else
+			{
 				print Tr(td({class=>$headerclass,align=>'center',colspan=>$headspan},
-										escapeHTML($ref->{$item}{header}).$mandatory),
-					eval { my $line;
-						if ($ref->{$item}{display} =~ /key/) {
-							push @hash,$item;
-						}
-						if ($func eq 'doedit' and $ref->{$item}{display} =~ /key/) {
-							$line .= td({class=>'header'}, escapeHTML($T->{$key}{$item}));
-							$line .= hidden(-name=>$item, -default=>$T->{$key}{$item},-override=>'1'); 
-						} 
+										escapeHTML($thisitem->{header}).$mandatory),
+								 eval {
+									 my $line;
+									 if ($thisitem->{display} =~ /key/)
+									 {
+										 push @hash,$item;
+									 }
 
-						elsif ($ref->{$item}{display} =~ /textbox/) {
-							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-							$line .= td(textarea(-name=> $item, -value=>$value,
-																	 -style=> 'width: 95%;',
-																	 -rows => 3,
-																	 -columns => ($wantwidget? 35 : 70)));
-						}
-						elsif ($ref->{$item}{display} =~ /text/) {
-							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
-							#print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-							$line .= td(textfield(-name=>$item, -value=>$value,
-																		-style=> 'width: 95%;',
-																		-size=>  ($wantwidget? 35 : 70)));
-						}
-						elsif ($ref->{$item}{display} =~ /readonly/) {
-							my $value = ($T->{$key}{$item} or $func eq 'doedit') ? $T->{$key}{$item} : $ref->{$item}{value}[0];
+									 # things tagged key are NOT editable, only settable initially on add.
+									 # on edit the text is static
+									 if ($func eq 'doedit' and $thisitem->{display} =~ /key/)
+									 {
+										 $line .= td({class=>'header'}, escapeHTML($thiscontent));
+										 $line .= hidden("-name"=>$item, "-default"=>$thiscontent, "-override"=>'1');
+									 }
+									 elsif ($thisitem->{display} =~ /textbox/)
+									 {
+										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+										 $line .= td(textarea(-name=> $item, -value=>$value,
+																					-style=> 'width: 95%;',
+																					-rows => 3,
+																					-columns => ($wantwidget? 35 : 70)));
+									 }
+									 elsif ($thisitem->{display} =~ /text/) {
+										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
+										 #print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
+										 $line .= td(textfield(-name=>$item, -value=>$value,
+																					 -style=> 'width: 95%;',
+																					 -size=>  ($wantwidget? 35 : 70)));
+									 }
+									 elsif ($thisitem->{display} =~ /readonly/) {
+										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
 
-							$line .= td(escapeHTML($value));
-							$line .= hidden(-name=>$item, -default=>$value, -override=>'1'); 
-						} 
-						elsif ($ref->{$item}{display} =~ /pop/) {
-							#print STDERR "DEBUG editTable: popup -- item=$item\n";
-							$line .= td(popup_menu(
-									-name=> $item,
+										 $line .= td(escapeHTML($value));
+										 $line .= hidden(-name=>$item, -default=>$value, -override=>'1');
+									 }
+									 elsif ($thisitem->{display} =~ /pop/) {
+										 #print STDERR "DEBUG editTable: popup -- item=$item\n";
+										 $line .= td(popup_menu(
+																	 -name=> $item,
 
-									-values=>$ref->{$item}{value},
-									-style=>'width: 95%;',
-									-default=>$T->{$key}{$item}));
-						}
-						elsif ($ref->{$item}{display} =~ /scrol/) {
-							my @items = split(/,/,$T->{$key}{$item});
-							$line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
-									-style=>'width: 95%;',
-									-size=>'6',
-									-values=>$ref->{$item}{value},
-									-default=>\@items));
-						}
-						return $line;
-					});
+																	 -values=>$thisitem->{value},
+																	 -style=>'width: 95%;',
+																	 -default=>$thiscontent));
+									 }
+									 elsif ($thisitem->{display} =~ /scrol/) {
+										 my @items = split(/,/,$T->{$key}{$item});
+										 $line.= td(scrolling_list(-name=>"$item", -multiple=>'true',
+																							 -style=>'width: 95%;',
+																							 -size=>'6',
+																							 -values=>$thisitem->{value},
+																							 -default=>\@items));
+									 }
+									 return $line;
+								 });
 			}
 		}
 	}
@@ -505,9 +517,12 @@ sub editTable {
 	pageEnd() if (getbool($widget,"invert"));
 }
 
-sub doeditTable {
+sub doeditTable 
+{
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
+
+	my $new_name;									# only needed for nodes table
 
 	return 1 if (getbool($Q->{cancel}));
 
@@ -522,13 +537,15 @@ sub doeditTable {
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
 	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
-	if ($table eq "Nodes")	# key and 'name' property values must match up, and be space-stripped
+	# key and 'name' property values must match up, and be space-stripped, for both users and nodes
+	if ($table eq "Nodes" or $table eq "Users")	
 	{
-	    $key = stripSpaces($key);
+		$key = stripSpaces($key);
 	}
 
 	# test on existing key
-	if ($Q->{act} =~ /doadd/) {
+	if ($Q->{act} =~ /doadd/)
+	{
 		if (exists $T->{$key}) {
 			print header({-type=>"text/html",-expires=>'now'});
 			print Tr(td({class=>'error'} , escapeHTML("Key $key already exists in table")));
@@ -541,9 +558,13 @@ sub doeditTable {
 		}
 	}
 
+	# make room, make room! accessing a nonexistent $T->{$key} does NOT attach it to $T...
+	my $thisentry  = $T->{$key} ||= {};
+
 	my $V;
 	# store new values in table structure
-	for my $ref ( @{$CT}) {
+	for my $ref ( @{$CT}) 
+	{
 		for my $item (keys %{$ref})
 		{
 			# but handle multi-valued inputs correctly!
@@ -551,7 +572,7 @@ sub doeditTable {
 			# if submission was under widget mode, then javascript:get() will have transformed
 			# any such into comma-sep data - but for a standalone submission that does not happen.
 			my $value = join(",", unpack("(Z*)*", stripSpaces($Q->{$item})));
-			$T->{$key}{$item} = $V->{$item} = $value;
+			$thisentry->{$item} = $V->{$item} = $value;
 		}
 	}
 
@@ -559,26 +580,33 @@ sub doeditTable {
 	if ($table eq 'Nodes')
 	{
 		# check host address
-		if ($T->{$key}{host} eq '') {
+		if (!$thisentry->{host})
+		{
 			print header($headeropts);
 			print Tr(td({class=>'error'} , "Field \'host\' must be filled in table $table"));
 			return 0;
 		}
 
 		### test the DNS for DNS names, if no IP returned, error exit
-		if ( $T->{$key}{host} !~ /\d+\.\d+\.\d+\.\d+/ ) {
-			my $address = resolveDNStoAddr($T->{$key}{host});
+		# fixme: ipv6 not supported yet
+		if ( $thisentry->{host} !~ /\d+\.\d+\.\d+\.\d+/ )
+		{
+			my $address = resolveDNStoAddr($thisentry->{host});
 			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
 				print header($headeropts);
-				print Tr(td({class=>'error'} , escapeHTML("ERROR, cannot resolve IP address \'$T->{$key}{host}\'")
+				print Tr(td({class=>'error'} , escapeHTML("ERROR, cannot resolve IP address \'$thisentry->{host}\'")
 										."<br>". "Please correct this item in table $table"));
 				return 0;
 			}
 		}
 
 		# ensure a uuid is present
-		$T->{$key}->{uuid} ||= getUUID($key);
-		$V->{uuid} ||= $T->{$key}->{uuid};
+		$thisentry->{uuid} ||= getUUID($key);
+		$V->{uuid} ||= $thisentry->{uuid};
+
+		# keep the new_name from being written to the config file
+		$new_name = $thisentry->{new_name};
+		delete $thisentry->{new_name};
 	}
 
 	my $db = "db_".lc($table)."_sql";
@@ -596,15 +624,31 @@ sub doeditTable {
 			return 0;
 		}
 	} else {
-		writeTable(dir=>'conf',name=>$table,data=>$T);
+		writeTable(dir=>'conf',name=>$table, data=>$T);
 	}
 
-	# do update node with new values
+
+	# further special handling for nodes: rename and general update
 	if ($table eq 'Nodes')
 	{
-		#print STDERR "DEBUG: doeditTable->cleanEvent key=$key\n";
-		cleanEvent($key,"tables.pl.editNodeTable");
-		if (getbool($Q->{update})) {
+		# handle the renaming case
+		if ($new_name && $new_name ne $thisentry->{name})
+		{
+			my ($error,$message) = NMIS::rename_node(old => $thisentry->{name}, new => $new_name,
+																							 originator => "tables.pl.editNodeTable");
+			if ($error)
+			{
+				print header($headeropts),
+				Tr(td({class=>'error'}, escapeHTML("ERROR, renaming node \'$thisentry->{name}\' to \'$new_name\' failed: $message")));
+				return 0;
+			}
+			$key = $new_name;
+		}
+
+		cleanEvent($key, "tables.pl.editNodeTable");
+
+		if (getbool($Q->{update}))
+		{
 			doNodeUpdate(node=>$key);
 			return 0;
 		}
@@ -683,12 +727,12 @@ sub doNodeUpdate {
 	{
 		# child
 		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
-		exec("$C->{'<nmis_bin>'}/nmis.pl","type=update", "node=$node", "info=true");
+		exec("$C->{'<nmis_bin>'}/nmis.pl","type=update", "node=$node", "info=true", "force=true");
 		die "Failed to exec: $!\n";
 	}
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);		# unbuffer stdout
-	
+
 	while ( <PIPE> ) {
 		print escapeHTML($_);
 	}

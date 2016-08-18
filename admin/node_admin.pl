@@ -58,7 +58,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename old=nodeX new=nodeY
 
-mktemplate: prints blank template for node creation, 
+mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
 create: requires file=NewNodeDef.json
 export: exports to file=someFile.json (or STDOUT if no file given)
@@ -114,7 +114,7 @@ elsif ($args{act} eq "export")
 	my $noderec = $nodeinfo->{$node};
 	die "Node $node does not exist.\n" if (!$noderec);
 
-	my $fh; 
+	my $fh;
 	if (!$file or $file eq "-")
 	{
 		$fh = \*STDOUT;
@@ -125,7 +125,7 @@ elsif ($args{act} eq "export")
 	}
 	print $fh JSON::XS->new->pretty(1)->canonical(1)->utf8->encode($noderec);
 	close $fh if ($fh != \*STDOUT);
-	
+
 	print STDERR "Successfully exported $node configuration to file $file\n" if ($fh != \*STDOUT);
 	exit 0;
 }
@@ -214,102 +214,11 @@ elsif ($args{act} eq "rename")
 {
 	my ($old, $new) = @args{"old","new"};
 
-	die "Cannot rename node without separate old and new names\n\n$usage\n" 
-			if (!$old or !$new or $old eq $new);
-	my $oldnoderec = $nodeinfo->{$old};
-	die "Old node $old does not exist!\n" if (!$oldnoderec);
-
-	die "Invalid node name \"$new\"\n"
-			if ($new =~ /[^a-zA-Z0-9_-]/);
-
-	my $newnoderec = $nodeinfo->{$new};
-	die "New node $new already exists, NOT overwriting!\n" if ($newnoderec);
-
-	$newnoderec = { %$oldnoderec  };
-	$newnoderec->{name} = $new;
-	$nodeinfo->{$new} = $newnoderec;
-
-	# now write out the new nodes file, so that the new node becomes workable (with sys etc)
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	print STDERR "Saving new name in Nodes table\n" if ($debuglevel or $infolevel);
-	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
-
-	# then hardlink the var files - do not delete anything yet!
-	my @todelete;
-	my $vardir = $config->{'<nmis_var>'};
-	opendir(D, $vardir) or die "cannot read dir $vardir: $!\n";
-	for my $fn (readdir(D))
-	{
-		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
-		{
-			my ($component,$ext) = ($1,$2);
-			my $newfn = lc("$new-$component.$ext");
-			push @todelete, "$vardir/$fn";
-			print STDERR "Renaming/linking var/$fn to $newfn\n" if ($debuglevel or $infolevel);
-			link("$vardir/$fn", "$vardir/$newfn") 
-					or die "cannot hardlink $fn to $newfn: $!\n";
-		}
-	}
-	closedir(D);
-
-	print STDERR "Priming Sys objects for finding RRDs\n" if ($debuglevel or $infolevel);
-	# now prime sys objs for both old and new nodes, so that we can find and translate rrd names
-	my $oldsys = Sys->new; $oldsys->init(name => $old, snmp => "false");
-	my $newsys = Sys->new; $newsys->init(name => $new, snmp => "false");
-
-	my $oldinfo = $oldsys->ndinfo;
-	# find all rrds belonging to the old node
-	for my $section (keys %{$oldinfo->{graphtype}})
-	{
-		if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
-		{
-			my $index = $section;
-			for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
-			{
-				if ($subsection =~ /^cbqos-(in|out)$/)
-				{
-					my $dir = $1;
-					# need to find the qos classes and hand them to getdbname as item
-					for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
-					{
-						my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
-						push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection,
-																			index => $index, item => $item);
-					}
-				}
-				else
-				{
-					push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection, index => $index);
-				}
-			}
-		}
-		else
-		{
-			push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $section);
-		}
-	}
-	
-	# then deal with the no longer wanted data: remove the old links
-	for my $fn (@todelete)
-	{
-		next if (!defined $fn);
-		my $relfn = File::Spec->abs2rel($fn, $config->{'<nmis_base>'});
-		print STDERR "Deleting file $relfn, no longer required\n" if ($debuglevel or $infolevel);
-		unlink($fn);
-	}
-
-	# now, finally reread the nodes table and remove the old node
-	print STDERR "Deleting old node $old from Nodes table\n" if ($debuglevel or $infolevel);
-	my $newnodeinfo = loadLocalNodeTable();
-	delete $newnodeinfo->{$old};
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	writeTable(dir => 'conf', name => "Nodes", data => $newnodeinfo);
-
-	# now clear all events for old node
-	print STDERR "Removing events for old node\n" if ($debuglevel or $infolevel);
-	cleanEvent($old,"node_admin");
-
-	print STDERR "Successfully renamed node $old to $new\n";
+	my ($error, $msg) = NMIS::rename_node(old => $args{old}, new => $args{new},
+																				originator => "node_admin",
+																				info => $infolevel, debug => $debuglevel);
+	die "$msg\n" if ($error);
+	print STDERR "Successfully renamed node $args{old} to $args{new}.\n";
 	exit 0;
 }
 elsif ($args{act} eq "mktemplate")
@@ -333,7 +242,7 @@ elsif ($args{act} eq "mktemplate")
 
 											 "notes is for free-form notes or comments",
 											 "location provides further categorization info" );
-											
+
 	my $dummynode = {
 		name => $wantblank? '' : "__REPLACE_NAME__",
 		host => $wantblank? '' : "__REPLACE_HOST__",
@@ -343,7 +252,7 @@ elsif ($args{act} eq "mktemplate")
 		netType =>  $wantblank? '' : "__REPLACE_NETTYPE__",
 		roleType => $wantblank? '' : "__REPLACE_ROLETYPE__",
 		location => $wantblank? '' : "__REPLACE_LOCATION__",
-		
+
 		active => $wantblank? 'true' : "__REPLACE_ACTIVE__",
 		ping => $wantblank? 'true' : "__REPLACE_PING__",
 		collect => $wantblank? 'true' : "__REPLACE_COLLECT__",
@@ -351,9 +260,9 @@ elsif ($args{act} eq "mktemplate")
 		version => $wantblank? 'snmpv2c': "__REPLACE_VERSION__",
 	};
 
-	print "// ",join("\n// ",@nodecomments),"\n\n", 
+	print "// ",join("\n// ",@nodecomments),"\n\n",
 	JSON::XS->new->pretty(1)->canonical(1)->utf8->encode($dummynode);
-	
+
 	exit 0;
 }
 elsif ($args{act} =~ /^(create|update)$/)
@@ -372,7 +281,7 @@ elsif ($args{act} =~ /^(create|update)$/)
 
 	print STDERR "Reading node configuration data for $node\n" if ($debuglevel or $infolevel);
 	# suck in the data
-	my $fh; 
+	my $fh;
 	if (!$file or $file eq "-")
 	{
 		$fh = \*STDIN;
@@ -393,18 +302,18 @@ elsif ($args{act} =~ /^(create|update)$/)
 	eval { $mayberec = decode_json($nodedata); };
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
 
-	die "Invalid node data, name value \"$mayberec->{name}\" does not match argument \"$node\". 
+	die "Invalid node data, name value \"$mayberec->{name}\" does not match argument \"$node\".
 Use act=rename for renaming nodes.\n"
 			if ($mayberec->{name} ne $node);
 
-	
+
 	die "Invalid node data, not a hash!\n" if (ref($mayberec) ne 'HASH');
 	die "Invalid node data, does not have required attributes name, host and group\n"
 			if (!$mayberec->{name} or !$mayberec->{host} or !$mayberec->{group});
 
-	die "Invalid node data, netType \"$mayberec->{netType}\" is not known!\n" 
+	die "Invalid node data, netType \"$mayberec->{netType}\" is not known!\n"
 			if (!grep($mayberec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));
-	die "Invalid node data, roleType \"$mayberec->{roleType}\" is not known!\n" 
+	die "Invalid node data, roleType \"$mayberec->{roleType}\" is not known!\n"
 			if (!grep($mayberec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
 
 	# no uuid? then we add one
@@ -412,7 +321,7 @@ Use act=rename for renaming nodes.\n"
 	{
 		$mayberec->{uuid} = getUUID($node);
 	}
-	
+
 	# ok, looks good enough. save the node info.
 	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
 	$nodeinfo->{$node} = $mayberec;
@@ -434,7 +343,6 @@ Use act=rename for renaming nodes.\n"
 Please adjust group_list in your configuration,
 or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing groups.\n\n";
 	}
-	
 
 	print STDERR "Successfully $args{act}d node $node.
 You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
@@ -447,63 +355,3 @@ else
 }
 
 exit 0;
-
-my %seenrrd;
-
-# takes old and new sys, graphtype, index (optional), item (optional)
-# and links the files
-# returns old removable file name, or undef if nothing required
-sub renameRRD
-{
-	my (%args) = @_;
-
-	my $oldfilename = $args{old}->getDBName(graphtype => $args{graphtype},
-																			 index => $args{index},
-																			 item => $args{item});
-	# don't try to rename a file more than once...
-	return undef if $seenrrd{$oldfilename}; 
-	$seenrrd{$oldfilename}=1;
-
-	my $newfilename = $args{new}->getDBName(graphtype => $args{graphtype},
-																			 index => $args{index},
-																			 item => $args{item});
-	return undef if ($newfilename eq $oldfilename);
-
-	if (!$newfilename or !$oldfilename)
-	{
-		warn "Warning: no RRD file name found for graphtype $args{graphtype} index $args{index} item $args{item}\n";
-		return undef;
-	}
-
-	my $oldrelname = File::Spec->abs2rel( $oldfilename, $config->{'<nmis_base>'} );
-	my $newrelname = File::Spec->abs2rel( $newfilename, $config->{'<nmis_base>'} );
-
-	if (!-f $oldfilename)
-	{
-		warn "Warning: RRD file $oldrelname does not exist, cannot rename!\n";
-		return undef;
-	}
-
-	# ensure the target dir hierarchy exists
-	my $dirname = dirname($newfilename);
-	if (!-d $dirname)
-	{
-		print STDERR "Creating directory $dirname for RRD files\n" if ($debuglevel or $infolevel);
-		my $curdir;
-		for my $component (File::Spec->splitdir($dirname))
-		{
-			next if !$component;
-			$curdir.="/$component";
-			if (!-d $curdir)
-			{
-				mkdir $curdir,0755 or die "cannot create directory $curdir: $!\n";
-				setFileProt($curdir);
-			}
-		}
-	}
-
-	print STDERR "Renaming/linking RRD file $oldrelname to $newrelname\n" if ($debuglevel or $infolevel);
-	link($oldfilename,$newfilename) or die "cannot link $oldrelname to $newrelname: $!\n";
-		
-	return $oldfilename;
-}

@@ -51,7 +51,7 @@ use NMIS;
 # NMIS Authentication module
 use Auth;
 
-use CGI ':standard';
+use CGI qw(:standard *table *Tr *td *form *Select *div);
 use GD::Graph::area;
 #use GD::Graph::colour qw(:colours :lists :files :convert); 
 

@@ -27,10 +27,6 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
-# TODO:
-# * support for completely unattended install (silencing confirmations)
-# e.g. install.pl site=/usr/local/nmis8 fping=/usr/local/sbin/fping cpan=true
 use 5.10.1;
 
 # Load the necessary libraries
@@ -227,7 +223,7 @@ libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl));
 
-	my @rhpackages = (qw(autoconf automake gcc cvs cairo cairo-devel
+	my @rhpackages = (qw(perl-core cpan autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
@@ -236,10 +232,11 @@ perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
-perl-rrdtool perl-Test-Deep dialog perl-UI-Dialog
+rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX
  perl-Digest-HMAC perl-Crypt-DES perl-Clone
 ));
+	# perl-UI-Dialog was only available in rpm/repoforge...
 
 	# cgi was removed from core in 5.20
 	if (version->parse($^V) >= version->parse("5.19.7"))
@@ -354,7 +351,7 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 
 		printBanner("Checking Dependencies...");
 
-		# a few packages are only available via the EPEL repo and others need repoforge/rpmfore, too
+		# a few packages are only available via the EPEL repo, others need more magic...
 		open(F,"/etc/redhat-release");
 		my $rhver =	<F>;
 		chomp $rhver;
@@ -374,6 +371,22 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 		}
 		close(F);
 
+		# first, disable the rpmforge/repoforge repo, it's unfortunately quite dead...
+		if ($enabled_repos{"rpmforge"})
+		{
+			$enabled_repos{"rpmforge"} = 0;
+			if (open(F, "/etc/yum.repos.d/rpmforge.repo"))
+			{
+				my $repodata = join("",<F>);
+				close F;
+				$repodata =~  s/enabled\s*=\s*1/enabled=0/g;
+				open(F, ">/etc/yum.repos.d/rpmforge.repo") or die "cannot open rpmforge.repo: $!\n";
+				print F $repodata;
+				close F;
+			}
+		}
+
+		my @needed;
 		for my $pkg (@rhpackages)
 		{
 			my $installcmd = "yum -y install $pkg";
@@ -384,7 +397,7 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 				$present_version = version->parse($1) if ($rpmstatus =~ /^\S+-(\d+\.\d+(\.\d+)?)/m);
 				$ispresent = 1;
 
-				# rrdtool and perl-rrdtool are doubly special - we need a recent enough version
+				# rrdtool and rrdtool-perl are doubly special - we need a recent enough version
 				$ispresent = 0
 						if (($pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
 								and $present_version < version->parse("1.4.4"));
@@ -397,15 +410,17 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 				next;
 			}
 
-			# special handling for rpmforge packages
-			if ($pkg eq "fping" or $pkg eq "rrdtool" or $pkg eq "rrdtool-perl")
+			# special handling for certain packages: ghettoforge, epel
+			# and for centos/rh 6 mainly
+			if ($rhver == 6 and
+					($pkg eq "fping" or $pkg eq "rrdtool" or $pkg eq "rrdtool-perl"))
 			{
-				$installcmd = "yum -y --enablerepo=rpmforge-extras install $pkg";
-				$repo="rpmforge";
-				$reponame="RPMforge";
-				$repourl = "http://repoforge.org/";
+				$installcmd = "yum -y --enablerepo=gf-plus install $pkg";
+				$repo="gf";
+				$reponame="ghettoforge";
+				$repourl = "http://ghettoforge.org/";
 			}
-			# ditto for epel
+			# similar for epel
 			elsif ($pkg eq "perl-Net-SNMP" or $pkg eq "glib" or $pkg eq "glib-devel"
 						 or $pkg eq "perl-Crypt-Rijndael" or $pkg eq "perl-JSON-XS"
 						 or $pkg eq "perl-Net-SMTPS" or $pkg eq "perl-Net-SNPP"
@@ -422,18 +437,19 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 														repo => $repo,
 														reponame => $reponame,
 														repourl => $repourl };
+			push @needed, $pkg;				# would like to install them in order
 		}
 
 		if (keys %unresolved)
 		{
-			my $packages = join(" ",sort keys %unresolved);
+			my $packages = join(" ",@needed);
 			echolog("\n\nSome required packages are missing:
 $packages\n
 The installer can use $pkgmgr to download and install these packages.\n");
 
 			if (input_yn("Do you want to install these packages with $pkgmgr now?"))
 			{
-				for my $missing (keys %unresolved)
+				for my $missing (@needed)
 				{
 					my ($installcmd, $repo, $reponame, $repourl ) = @{$unresolved{$missing}}{qw(installcmd repo reponame repourl)};
 
@@ -518,7 +534,7 @@ and then restart the installer.\n\n";
 		# prime cpan if necessary: non-interactive, follow prereqs,
 		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
 		{
-			echolog("Performing initial CPAN configuration\nPlease be patient, this can take a bit...");
+			echolog("Performing initial CPAN configuration");
 			if ($noninteractive)
 			{
 				# no inputs, all defaults
@@ -531,6 +547,11 @@ and then restart the installer.\n\n";
 			}
 			else
 			{
+				# there doesn't seem an easy way to prime the cpan shell with args,
+				# then let interact with the user via stdin/stdout...
+				print "\n
+Please start the CPAN configuration by entering 'o conf init' on\nthe CPAN prompt. To return to the installer when done, please exit the CPAN\nshell with 'exit'.\n";
+				&input_ok;
 				system("cpan");
 			}
 			echolog("CPAN configuration complete, proceeding with module installation");
@@ -886,6 +907,33 @@ https://community.opmantek.com/x/-wd4\n";
 			echolog("No upgradeable model files detected.");
 		}
 
+		printBanner("Checking JSON Migration");
+
+		my $havelegacy = execLog("$site/admin/convert_nmis_db.pl simulate=true 2>&1");
+		if ($havelegacy)
+		{
+			print "The installer has detected that your NMIS installation is still using
+legacy '.nmis' database files. We recommend that you use the
+db conversion tool to migrate your NMIS to JSON.\n\n";
+			
+			if (input_yn("Do you want to perform the JSON migration now?"))
+			{
+				execPrint("$site/admin/convert_nmis_db.pl simulate=false info=1");
+			}
+			else
+			{
+				echolog("Not upgrading to JSON files, as directed.");
+
+				print "\nWe recommend that you use the db conversion tool to
+switch to JSON. You can find this tool in $site/admin/convert_nmis_db.pl.\n";
+				&input_ok;
+			}
+		}
+		else
+		{
+			echolog("JSON migration not necessary.");
+		}
+		
 		printBanner("Performing RRD Tuning");
 		print "Please be patient, this step can take a while...\n";
 
@@ -987,7 +1035,14 @@ It is highly recommended that you perform the RRD migration.");
 		echolog("No relevant differences between current and new Common-database.nmis,
 no RRD migration required.");
 	}
+
+
+
+	
 }
+
+echolog("Ensuring correct file permissions...");
+execPrint("$site/admin/fixperms.pl");
 
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
@@ -1627,13 +1682,13 @@ sub enable_custom_repo
 			execPrint("yum -y install 'https://dl.fedoraproject.org/pub/epel/epel-release-latest-$majorlevel.noarch.rpm'");
 		}
 	}
-	elsif ($reponame =~ /^(repo|rpm)forge$/i)
+	elsif ($reponame eq "gf")
 	{
-		echolog("\nEnabling RepoForge repository\n");
-		execPrint("yum -y install 'http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el$majorlevel.rf.x86_64.rpm'");
+		echolog("\nEnabling Ghettoforge repository\n");
+		execPrint("yum -y install 'http://mirror.symnds.com/distributions/gf/el/$majorlevel/gf/x86_64/gf-release-$majorlevel-10.gf.el$majorlevel.noarch.rpm'");
 	}
 	else
 	{
-		die "Cannot enable unknown custom repository \"reponame\"!\n";
+		die "Cannot enable unknown custom repository \"$reponame\"!\n";
 	}
 }

@@ -91,7 +91,8 @@ sub update_plugin
 			push(@possibleNames,$fqdn[0]);
 			push(@possibleNames,lc($fqdn[0]));
 		}
-		
+
+		my $gotNeighbourName = 0;		
 		foreach my $cdpNeighbour (@possibleNames) {
 			if ( defined $LNT->{$cdpNeighbour} and defined $LNT->{$cdpNeighbour}{name} and $LNT->{$cdpNeighbour}{name} eq $cdpNeighbour ) {
 				$changesweremade = 1;
@@ -99,7 +100,26 @@ sub update_plugin
 				$entry->{cdpCacheDeviceId} = $cdpNeighbour;
 				$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$cdpNeighbour";
 				$entry->{cdpCacheDeviceId_id} = "node_view_$cdpNeighbour";
+				$gotNeighbourName = 1;
 				last;
+			}
+		}
+		
+		# did I get one, if not, look harder be a brute!
+		if ( not $gotNeighbourName ) {
+			foreach my $cdpNeighbour (@possibleNames) {
+				foreach my $aNode (keys %{$LNT}) {
+					if ( $cdpNeighbour eq $LNT->{$aNode}{host} ) {
+						# but the neighbour is actually the name from the LNT
+						$changesweremade = 1;
+						$entry->{cdpCacheDeviceId_raw} = $entry->{cdpCacheDeviceId};
+						$entry->{cdpCacheDeviceId} = $aNode;
+						$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$aNode";
+						$entry->{cdpCacheDeviceId_id} = "node_view_$aNode";
+						$gotNeighbourName = 1;
+						last;						
+					}
+				}
 			}
 		}
 		

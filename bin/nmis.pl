@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: nmis.pl,v 8.52 2012/12/03 07:47:26 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,49 +27,44 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-package main;
+use strict;
 
-# Auto configure to the <nmis-base>/lib
+# local modules live in <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-#
-# ****** Shouldn't be anything else to customise below here *******************
-# best to customise in the nmis.conf file.
-#
-require 5.008_001;
 
-use strict;
-use csv;				# local
 use URI::Escape;
 use Cwd qw();
-use rrdfunc; 			# createRRD, updateRRD etc.
-use NMIS;				# local
-use NMIS::Connect;
 use Time::HiRes;								# also needed by nmis::timing, but bsts
-use NMIS::Timing;
-use NMIS::UUID;
-use func;				# local
-use ip;					# local
-use sapi;				# local
-use ping;				# local
 use Socket;
-use notify;
 use Net::SNMP qw(oid_lex_sort);
-use Mib;				# local
-use Sys;				# local
-use Proc::ProcessTable; # from CPAN
-use Proc::Queue ':all'; # from CPAN
+use Proc::ProcessTable;
+use Proc::Queue ':all';
 use Data::Dumper;
-use DBfunc;				# local
+use File::Find;
+use File::Spec;
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
-
-Data::Dumper->import();
-$Data::Dumper::Indent = 1;
-
-# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
-use Fcntl qw(:DEFAULT :flock);
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
+
+use NMIS;
+use NMIS::Connect;
+use NMIS::Timing;
+use NMIS::UUID;
+use csv;
+use rrdfunc; 			# createRRD, updateRRD etc.
+use func;
+use ip;
+use sapi;
+use ping;
+use notify;
+use Mib;
+use Sys;
+use DBfunc;
+
+$Data::Dumper::Indent = 1;
 
 # Variables for command line munging
 my %nvp = getArguements(@ARGV);
@@ -179,6 +172,7 @@ elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
+elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
 else { checkArgs(); }
 
 exit;
@@ -202,6 +196,10 @@ sub	runThreads
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if (!$node_select and $type ne "services")
 	{
+		info("Ensuring correct permissions on conf and model directories...");
+		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
+		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
+
 		info("Starting selftest (takes about 5 seconds)...");
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
@@ -679,38 +677,47 @@ sub catch_zap
 
 #====================================================================================
 
-sub doUpdate {
+sub doUpdate
+{
 	my %args = @_;
 	my $name = $args{name};
 	my $C = loadConfTable();
 
-	my $pollTimer = NMIS::Timing->new;
+	my $updatetimer = NMIS::Timing->new;
 
 	dbg("================================");
 	dbg("Starting update, node $name");
 
-	#Check for update LOCK
+	# Check for existing update LOCK
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
 		logMsg("WARNING update lock exists for $name which has not finished!");
 		return;
 	}
-	# create the poll lock now.
+	# create the update lock now.
 	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
 	# lets change our name, so a ps will report who we are
 	$0 = "nmis-".$C->{conf}."-update-$name";
 
-
 	my $S = Sys::->new; # create system object
-	$S->init(name=>$name,update=>'true'); # loads old node info, and the DEFAULT(!) model (always)
-	# uses the node config loaded by init, and updates the node info table (model and nodetype only if missing)
+	# loads old node info (unless force is active), and the DEFAULT(!) model (always),
+	# and primes the sys object for snmp ops
+	$S->init(name=>$name, update=>'true', force => $nvp{force});
+
+	# uses the node config loaded by init, and updates the node info table
+	# (model and nodetype only if missing)
 	$S->copyModelCfgInfo(type=>'all');
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->{doupdate} = 'true'; # flag what is running
-	$S->readNodeView; # from prev. run
+
+	if (!getbool($nvp{force}))
+	{
+		$S->readNodeView; # from prev. run, but only if force isn't active
+	}
+
 	# if reachable then we can update the model and get rid of the default we got from init above
 	if (runPing(sys=>$S)) {
 		if ($S->open(timeout => $C->{snmp_timeout},
@@ -758,10 +765,11 @@ sub doUpdate {
 	}
 	else
 	{		# no ping, no snmp, no type
-		$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";		# nmisdev Dec2010 first time model seen, collect, but no snmp answer
-		$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
+		$NI->{system}{nodeModel} ||= 'Generic';
+		$NI->{system}{nodeType} ||= 'generic';
 	}
-	runReach(sys=>$S);
+
+	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;  # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
 
@@ -794,22 +802,35 @@ sub doUpdate {
 		}
 	}
 
-	### 2013-03-19 keiths, NMIS Plugins!
 	# fixme: deprecated, to be removed once all model-level custom plugins are converted to new plugin infrastructure
 	# and when the remaining customers using this have upgraded
 	runCustomPlugins(node => $name, sys=>$S) if (defined $S->{mdl}{custom});
 
+	my $updatetime = $updatetimer->elapTime();
+	info("updatetime for $name was $updatetime");
+	$reachdata->{updatetime} = { value => $updatetime, option => "gauge,0:U,".(86400*3) };
+	# parrot the previous reading's poll time
+	my $prevval = "U";
+	if (my $rrdfilename = $S->getDBName(type => "health"))
+	{
+		my $infohash =RRDs::info($rrdfilename);
+		$prevval = $infohash->{'ds[polltime].last_ds'} if (defined $infohash->{'ds[polltime].last_ds'});
+	}
+	$reachdata->{polltime} = { value => $prevval, option => "gauge,0:U," };
+
+	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	$S->close;
+
 	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
 
-	dbg("Finished");
-
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
-		my $polltime = $pollTimer->elapTime();
-		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
+
+		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $updatetime");
 	}
 
+	info("Finished");
 	return;
-} # end runUpdate
+}
 
 #=========================================================================================
 
@@ -1011,9 +1032,8 @@ sub doCollect {
 	runServices(sys=>$S, snmp => 'true');
 
 	runCheckValues(sys=>$S);
-	runReach(sys=>$S);
-
-	#print Dumper($S)."\n" if ( $name eq "meatball") ;
+	# don't let runreach perform the rrd update, we want to add the polltime to it!
+	my $reachdata = runReach(sys=>$S, delayupdate => 1);
 
 	$S->writeNodeView;
 	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
@@ -1046,17 +1066,28 @@ sub doCollect {
 			dbg("Plugin $plugin indicated no changes");
 		}
 	}
+	my $polltime = $pollTimer->elapTime();
+	info("polltime for $name was $polltime");
+	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	# parrot the previous reading's update time
+	my $prevval = "U";
+	if (my $rrdfilename = $S->getDBName(type => "health"))
+	{
+		my $infohash =RRDs::info($rrdfilename);
+		$prevval = $infohash->{'ds[updatetime].last_ds'} if (defined $infohash->{'ds[updatetime].last_ds'});
+	}
+	$reachdata->{updatetime} = { value => $prevval, option => "gauge,0:U,".(86400*3) };
+
+	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	$S->close;
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
 
-	$S->close;
-	info("Finished");
-
-	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
-		my $polltime = $pollTimer->elapTime();
+	if (getbool($C->{log_polling_time}))
+	{
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
 	}
-
+	info("Finished");
 	return;
 } # end doCollect
 
@@ -1356,10 +1387,8 @@ sub getNodeInfo {
 	#####################
 
 	# process status
-	if ($exit) {
-		# why delete this here?
-		#delete $NI->{interface}; # reset intf info
-
+	if ($exit)
+	{
 		### 2012-03-28 keiths, changing to reflect correct event type.
 		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
 
@@ -1374,17 +1403,24 @@ sub getNodeInfo {
 		$V->{system}{roleType_title} = 'Role';
 		$V->{system}{netType_value} = $NI->{system}{netType};
 		$V->{system}{netType_title} = 'Net';
-		# get ip address
-		if ((my $addr = resolveDNStoAddr($NI->{system}{host}))) {
-			$NI->{system}{host_addr} = $addr; # cache
-			if ($addr eq $NI->{system}{host}) {
-				$V->{system}{host_addr_value} = $addr;
-			} else {
-				$V->{system}{host_addr_value} = "$addr ($NI->{system}{host})";
-			}
+
+		# get the current ip address if the host property was a name
+		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
+		{
+			$NI->{system}{host_addr} = $addr; # cache it
+			$V->{system}{host_addr_value} = $addr;
+			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ($addr ne $NI->{system}{host});
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
-	} else {
+		else
+		{
+			$NI->{system}->{host_addr} = '';
+			$V->{system}{host_addr_value} = "N/A";
+			$V->{system}{host_addr_title} = 'IP Address';
+		}
+	}
+	else
+	{
 		# failed by snmp
 		$exit = snmpNodeDown(sys=>$S);
 
@@ -1610,7 +1646,6 @@ sub getIntfInfo {
 		### does this need to be defined per model?
 		if (
 			not $singleInterface
-			and defined $S->{mdl}{custom}{interface}{ifTableLastChange}
 			and getbool($S->{mdl}{custom}{interface}{ifTableLastChange})
 			and my $result = $SNMP->get("ifTableLastChange.0")
 		) {
@@ -1704,8 +1739,10 @@ sub getIntfInfo {
 		my @ifIndexNumManage;
 		foreach my $index (@ifIndexNum) {
 			next if ($singleInterface and $intf_one ne $index); # only one interface
-			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model)) {
-				checkIntfInfo(sys=>$S,index=>$index,iftype=>$IFT);
+			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model))
+			{
+				# note: nodeconf overrides are NOT applied at this point!
+				checkIntfInfo(sys=>$S, index=>$index, iftype=>$IFT);
 
 				my $keepInterface = 1;
 				if ( defined $S->{mdl}{custom}{interface}{skipIfType}
@@ -1922,25 +1959,24 @@ sub getIntfInfo {
 		{
 			next if ($singleInterface and $intf_one ne $index);
 
-			my $ifDescr = $IF->{$index}{ifDescr};
+			my $thisintf = $IF->{$index};
+			my $ifDescr = $thisintf->{ifDescr};
 			$intfTotal++;
 			# count total number of real interfaces
-			if ($IF->{$index}{ifType} !~ /$qr_no_collect_ifType_gen/ and $IF->{$index}{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
-				$IF->{$index}{real} = 'true';
+			if ($thisintf->{ifType} !~ /$qr_no_collect_ifType_gen/ and $thisintf->{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
+				$thisintf->{real} = 'true';
 			}
 
 			### add in anything we find from nodeConf - allows manual updating of interface variables
 			### warning - will overwrite what we got from the device - be warned !!!
-			### 2013-09-26 keiths, fix for nodes with Capital Letters!
-
 			if (ref($override->{$ifDescr}) eq "HASH")
 			{
 				my $thisintfover = $override->{$ifDescr};
 
 				if ($thisintfover->{Description})
 				{
-					$IF->{$index}{nc_Description} = $IF->{$index}{Description}; # save
-					$IF->{$index}{Description} = $V->{interface}{"${index}_Description_value"}
+					$thisintf->{nc_Description} = $thisintf->{Description}; # save
+					$thisintf->{Description} = $V->{interface}{"${index}_Description_value"}
 					= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
 				}
@@ -1949,144 +1985,150 @@ sub getIntfInfo {
 				{
 					if ($thisintfover->{$speedname})
 					{
-						$IF->{$index}{"nc_$speedname"} = $IF->{$index}{$speedname}; # save
-						$IF->{$index}{$speedname} = $thisintfover->{$speedname};
+						$thisintf->{"nc_$speedname"} = $thisintf->{$speedname}; # save
+						$thisintf->{$speedname} = $thisintfover->{$speedname};
 
 						### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed($IF->{$index}{$speedname});
+						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed($thisintf->{$speedname});
 						info("Manual update of $speedname by nodeConf");
 					}
 				}
+
+				if ($thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/)
+				{
+					$thisintf->{setlimits} = $thisintfover->{setlimits};
+				}
 			}
 
+			# set default for the speed  limit enforcement
+			$thisintf->{setlimits} ||= 'normal';
+
 			# set default for collect, event and threshold: on, possibly overridden later
-			$IF->{$index}{collect} = "true";
-			$IF->{$index}{event} = "true";
-			$IF->{$index}{threshold} = "true";
-			$IF->{$index}{nocollect} = "Collecting: Collection Policy";
+			$thisintf->{collect} = "true";
+			$thisintf->{event} = "true";
+			$thisintf->{threshold} = "true";
+			$thisintf->{nocollect} = "Collecting: Collection Policy";
 			#
 			#Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
 			# If the interface is admin down no statistics
 			### 2012-03-14 keiths, collecting override based on interface description.
 			if ($qr_collect_ifAlias_gen
-					and $IF->{$index}{Description} =~ /$qr_collect_ifAlias_gen/i )
+					and $thisintf->{Description} =~ /$qr_collect_ifAlias_gen/i )
 			{
-				$IF->{$index}{collect} = "true";
-				$IF->{$index}{nocollect} = "Collecting: found $1 in Description"; # reason
+				$thisintf->{collect} = "true";
+				$thisintf->{nocollect} = "Collecting: found $1 in Description"; # reason
 			}
 			elsif ($qr_collect_ifDescr_gen
-					and $IF->{$index}{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
+					and $thisintf->{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
 			{
-					$IF->{$index}{collect} = "true";
-					$IF->{$index}{nocollect} = "Collecting: found $1 in ifDescr";
+					$thisintf->{collect} = "true";
+					$thisintf->{nocollect} = "Collecting: found $1 in ifDescr";
 			}
-			elsif ($IF->{$index}{ifAdminStatus} =~ /down|testing|null/ ) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{event} = "false";
-				$IF->{$index}{nocollect} = "ifAdminStatus eq down|testing|null"; # reason
-				$IF->{$index}{noevent} = "ifAdminStatus eq down|testing|null"; # reason
+			elsif ($thisintf->{ifAdminStatus} =~ /down|testing|null/ ) {
+				$thisintf->{collect} = "false";
+				$thisintf->{event} = "false";
+				$thisintf->{nocollect} = "ifAdminStatus eq down|testing|null"; # reason
+				$thisintf->{noevent} = "ifAdminStatus eq down|testing|null"; # reason
 			}
-			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifDescr"; # reason
+			elsif ($thisintf->{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i ) {
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: found $1 in ifDescr"; # reason
 			}
-			elsif ($IF->{$index}{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifType"; # reason
+			elsif ($thisintf->{ifType} =~ /$qr_no_collect_ifType_gen/i ) {
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: found $1 in ifType"; # reason
 			}
-			elsif ($IF->{$index}{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: found $1 in Description"; # reason
+			elsif ($thisintf->{Description} =~ /$qr_no_collect_ifAlias_gen/i ) {
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: found $1 in Description"; # reason
 			}
-			elsif ($IF->{$index}{Description} eq "" and $noDescription eq 'true') {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: no Description (ifAlias)"; # reason
+			elsif ($thisintf->{Description} eq "" and $noDescription eq 'true') {
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: no Description (ifAlias)"; # reason
 			}
-			elsif ($IF->{$index}{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
+			elsif ($thisintf->{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i ) {
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: found $1 in ifOperStatus"; # reason
 			}
 			# if the interface has been down for too many days to be in use now.
-			elsif ( $IF->{$index}{ifAdminStatus} =~ /up/
-				and $IF->{$index}{ifOperStatus} =~ /down/
-				and ($NI->{system}{sysUpTimeSec} - $IF->{$index}{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days
+			elsif ( $thisintf->{ifAdminStatus} =~ /up/
+				and $thisintf->{ifOperStatus} =~ /down/
+				and ($NI->{system}{sysUpTimeSec} - $thisintf->{ifLastChangeSec}) / 86400 > $nocollect_interface_down_days
 			) {
-				$IF->{$index}{collect} = "false";
-				$IF->{$index}{nocollect} = "Not Collecting: interface down for more than $nocollect_interface_down_days days"; # reason
+				$thisintf->{collect} = "false";
+				$thisintf->{nocollect} = "Not Collecting: interface down for more than $nocollect_interface_down_days days"; # reason
 			}
 
 			# send events ?
-			if ($IF->{$index}{Description} =~ /$qr_no_event_ifAlias_gen/i ) {
-				$IF->{$index}{event} = "false";
-				$IF->{$index}{noevent} = "found $1 in ifAlias"; # reason
+			if ($thisintf->{Description} =~ /$qr_no_event_ifAlias_gen/i ) {
+				$thisintf->{event} = "false";
+				$thisintf->{noevent} = "found $1 in ifAlias"; # reason
 			}
-			elsif ($IF->{$index}{ifType} =~ /$qr_no_event_ifType_gen/i ) {
-				$IF->{$index}{event} = "false";
-				$IF->{$index}{noevent} = "found $1 in ifType"; # reason
+			elsif ($thisintf->{ifType} =~ /$qr_no_event_ifType_gen/i ) {
+				$thisintf->{event} = "false";
+				$thisintf->{noevent} = "found $1 in ifType"; # reason
 			}
-			elsif ($IF->{$index}{ifDescr} =~ /$qr_no_event_ifDescr_gen/i ) {
-				$IF->{$index}{event} = "false";
-				$IF->{$index}{noevent} = "found $1 in ifDescr"; # reason
+			elsif ($thisintf->{ifDescr} =~ /$qr_no_event_ifDescr_gen/i ) {
+				$thisintf->{event} = "false";
+				$thisintf->{noevent} = "found $1 in ifDescr"; # reason
 			}
 
 			# convert interface name
-			$IF->{$index}{interface} = convertIfName($IF->{$index}{ifDescr});
-			$IF->{$index}{ifIndex} = $index;
-
-			### 2012-11-20 keiths, updates to index node conf table by ifDescr instead of ifIndex.
+			$thisintf->{interface} = convertIfName($thisintf->{ifDescr});
+			$thisintf->{ifIndex} = $index;
 
 			# modify by node Config ?
 			if (ref($override->{$ifDescr}) eq "HASH")
 			{
 				my $thisintfover = $override->{$ifDescr};
 
-				if ($thisintfover->{collect} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
+				if ($thisintfover->{collect} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr})
 				{
-					$IF->{$index}{nc_collect} = $IF->{$index}{collect};
-					$IF->{$index}{collect} = $thisintfover->{collect};
+					$thisintf->{nc_collect} = $thisintf->{collect};
+					$thisintf->{collect} = $thisintfover->{collect};
 					info("Manual update of Collect by nodeConf");
 
 					### 2014-04-28 keiths, fixing info for GUI
-					if (getbool($IF->{$index}{collect},"invert")) {
-						$IF->{$index}{nocollect} = "Not Collecting: Manual update by nodeConf";
+					if (getbool($thisintf->{collect},"invert")) {
+						$thisintf->{nocollect} = "Not Collecting: Manual update by nodeConf";
 					}
 					else {
-						$IF->{$index}{nocollect} = "Collecting: Manual update by nodeConf";
+						$thisintf->{nocollect} = "Collecting: Manual update by nodeConf";
 					}
 				}
 
-				if ($thisintfover->{event} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
+				if ($thisintfover->{event} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr})
 				{
-					$IF->{$index}{nc_event} = $IF->{$index}{event};
-					$IF->{$index}{event} = $thisintfover->{event};
-					$IF->{$index}{noevent} = "Manual update by nodeConf"
-							if (getbool($IF->{$index}{event},"invert")); # reason
+					$thisintf->{nc_event} = $thisintf->{event};
+					$thisintf->{event} = $thisintfover->{event};
+					$thisintf->{noevent} = "Manual update by nodeConf"
+							if (getbool($thisintf->{event},"invert")); # reason
 					info("Manual update of Event by nodeConf");
 				}
 
-				if ($thisintfover->{threshold} and $thisintfover->{ifDescr} eq $IF->{$index}{ifDescr})
+				if ($thisintfover->{threshold} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr})
 				{
-					$IF->{$index}{nc_threshold} = $IF->{$index}{threshold};
-					$IF->{$index}{threshold} = $thisintfover->{threshold};
-					$IF->{$index}{nothreshold} = "Manual update by nodeConf"
-							if (getbool($IF->{$index}{threshold},"invert")); # reason
+					$thisintf->{nc_threshold} = $thisintf->{threshold};
+					$thisintf->{threshold} = $thisintfover->{threshold};
+					$thisintf->{nothreshold} = "Manual update by nodeConf"
+							if (getbool($thisintf->{threshold},"invert")); # reason
 					info("Manual update of Threshold by nodeConf");
 				}
 			}
 
 			# interface now up or down, check and set or clear outstanding event.
-			if ( getbool($IF->{$index}{collect})
-					and $IF->{$index}{ifAdminStatus} =~ /up|ok/
-					and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/
+			if ( getbool($thisintf->{collect})
+					and $thisintf->{ifAdminStatus} =~ /up|ok/
+					and $thisintf->{ifOperStatus} !~ /up|ok|dormant/
 			) {
-				if (getbool($IF->{$index}{event})) {
-					notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+				if (getbool($thisintf->{event})) {
+					notify(sys=>$S,event=>"Interface Down",element=>$thisintf->{ifDescr},details=>$thisintf->{Description});
 				}
 			} else {
-				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$thisintf->{ifDescr},details=>$thisintf->{Description});
 			}
 
-			if ( getbool($IF->{$index}{collect},"invert") ) {
+			if ( getbool($thisintf->{collect},"invert") ) {
 				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
 				my @types = qw(pkts pkts_hc interface);
 				foreach my $type (@types) {
@@ -2098,8 +2140,8 @@ sub getIntfInfo {
 			}
 
 			# number of interfaces collected with collect and event on
-			$intfCollect++ if (getbool($IF->{$index}{collect})
-												 && getbool($IF->{$index}{event}));
+			$intfCollect++ if (getbool($thisintf->{collect})
+												 && getbool($thisintf->{event}));
 
 			# save values only if all interfaces are updated
 			if ($intf_one eq '') {
@@ -2108,26 +2150,26 @@ sub getIntfInfo {
 			}
 
 			# prepare values for web page
-			$V->{interface}{"${index}_event_value"} = $IF->{$index}{event};
+			$V->{interface}{"${index}_event_value"} = $thisintf->{event};
 			$V->{interface}{"${index}_event_title"} = 'Event on';
 
-			$V->{interface}{"${index}_threshold_value"} = !getbool($NC->{node}{threshold}) ? 'false': $IF->{$index}{threshold};
+			$V->{interface}{"${index}_threshold_value"} = !getbool($NC->{node}{threshold}) ? 'false': $thisintf->{threshold};
 			$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
 
-			$V->{interface}{"${index}_collect_value"} = $IF->{$index}{collect};
+			$V->{interface}{"${index}_collect_value"} = $thisintf->{collect};
 			$V->{interface}{"${index}_collect_title"} = 'Collect on';
 
-			$V->{interface}{"${index}_nocollect_value"} = $IF->{$index}{nocollect};
+			$V->{interface}{"${index}_nocollect_value"} = $thisintf->{nocollect};
 			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
 
 			# collect status
-			if ( getbool($IF->{$index}{collect}) ) {
-				info("$IF->{$index}{ifDescr} ifIndex $index, collect=true");
+			if ( getbool($thisintf->{collect}) ) {
+				info("$thisintf->{ifDescr} ifIndex $index, collect=true");
 			} else {
-				info("$IF->{$index}{ifDescr} ifIndex $index, collect=false, $IF->{$index}{nocollect}");
+				info("$thisintf->{ifDescr} ifIndex $index, collect=false, $thisintf->{nocollect}");
 				# if  collect is of then disable event and threshold (clearly not applicable)
-				$IF->{$index}{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
-				$IF->{$index}{event} = $V->{interface}{"${index}_event_value"} = 'false';
+				$thisintf->{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
+				$thisintf->{event} = $V->{interface}{"${index}_event_value"} = 'false';
 			}
 
 			# get color depending of state
@@ -2137,6 +2179,58 @@ sub getIntfInfo {
 			# index number of interface
 			$V->{interface}{"${index}_ifIndex_value"} = $index;
 			$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
+
+
+			# at this point every thing is ready for the rrd speed limit enforcement
+			my $desiredlimit = $thisintf->{setlimits};
+			# no limit or dud limit or dud speed or non-collected interface?
+			if ($desiredlimit && $desiredlimit =~ /^(normal|strict|off)$/
+					&& $thisintf->{ifSpeed}
+					&& getbool($thisintf->{collect})
+					)
+			{
+				info("performing rrd speed limit tuning for $ifDescr, limit enforcement: $desiredlimit, interface speed is ".convertIfSpeed($thisintf->{ifSpeed})." ($thisintf->{ifSpeed})");
+
+				# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
+				my $maxbytes = 	$desiredlimit eq "off"? "U": $desiredlimit eq "normal"?
+						int($thisintf->{ifSpeed}/4) : int($thisintf->{ifSpeed}/8);
+				my $maxpkts = $maxbytes eq "U"? "U" : int($maxbytes/50); # this is a dodgy heuristic
+
+				for (["interface", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)/],
+						 ["pkts", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)/ ],
+						 ["pkts_hc", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)/ ], )
+				{
+					my ($datatype, $dsregex) = @$_;
+
+					# rrd file exists and readable?
+					if (-r (my $rrdfile = $S->getDBName(graphtype => $datatype, index => $index)))
+					{
+						my $fileinfo = RRDs::info($rrdfile);
+						for my $matching (grep /^ds\[.+\]\.max$/, keys %$fileinfo)
+						{
+							# only touch relevant and known datasets
+							next if ($matching !~ /($dsregex)/);
+							my $dsname = $1;
+
+							my $curval = $fileinfo->{$matching};
+							$curval = "U" if (!defined $curval or $curval eq "");
+
+							# the pkts, discards, errors DS are packet based; the octets ones are bytes
+							my $desiredval = $dsname =~ /octets/i? $maxbytes : $maxpkts;
+
+							if ($curval ne $desiredval)
+							{
+								info("rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+								RRDs::tune($rrdfile, "--maximum", "$dsname:$desiredval");
+							}
+							else
+							{
+								info("rrd section $datatype, ds $dsname, current limit $curval is correct");
+							}
+						}
+					}
+				}
+			}
 		}
 
 		info("Finished");
@@ -2152,53 +2246,53 @@ sub getIntfInfo {
 
 #=========================================================================================
 
-# check and modify some values of interface
-sub checkIntfInfo {
+# check and adjust/modify some values of interface
+# args: sys object, index, iftype
+# returns: nothing
+sub checkIntfInfo
+{
 	my %args = @_;
+
 	my $S = $args{sys};
 	my $index = $args{index};
 	my $ifTypeDefs = $args{iftype};
+
 	my $IF = $S->ifinfo;
 	my $NI = $S->ndinfo;
 	my $V =  $S->view;
 
-	if ( $IF->{$index}{ifDescr} eq "" ) { $IF->{$index}{ifDescr} = "null"; }
+	my $thisintf = $IF->{$index};
+	if ( $thisintf->{ifDescr} eq "" ) { $thisintf->{ifDescr} = "null"; }
 
 	# remove bad chars from interface descriptions
-	$IF->{$index}{ifDescr} = rmBadChars($IF->{$index}{ifDescr});
-	$IF->{$index}{Description} = rmBadChars($IF->{$index}{Description});
+	$thisintf->{ifDescr} = rmBadChars($thisintf->{ifDescr});
+	$thisintf->{Description} = rmBadChars($thisintf->{Description});
 
 	# Try to set the ifType to be something meaningful!!!!
-	if (exists $ifTypeDefs->{$IF->{$index}{ifType}}{ifType}) {
-		$IF->{$index}{ifType} = $ifTypeDefs->{$IF->{$index}{ifType}}{ifType};
+	if (exists $ifTypeDefs->{$thisintf->{ifType}}{ifType}) {
+		$thisintf->{ifType} = $ifTypeDefs->{$thisintf->{ifType}}{ifType};
 	}
 
 	# Just check if it is an Frame Relay sub-interface
-	if ( ( $IF->{$index}{ifType} eq "frameRelay" and $IF->{$index}{ifDescr} =~ /\./ ) ) {
-		$IF->{$index}{ifType} = "frameRelay-subinterface";
+	if ( ( $thisintf->{ifType} eq "frameRelay" and $thisintf->{ifDescr} =~ /\./ ) ) {
+		$thisintf->{ifType} = "frameRelay-subinterface";
 	}
-	$V->{interface}{"${index}_ifType_value"} = $IF->{$index}{ifType};
+	$V->{interface}{"${index}_ifType_value"} = $thisintf->{ifType};
 	# get 'ifHighSpeed' if 'ifSpeed' = 4,294,967,295 - refer RFC2863 HC interfaces.
-	if ( $IF->{$index}{ifSpeed} == 4294967295 ) {
-		$IF->{$index}{ifSpeed} = $IF->{$index}{ifHighSpeed};
-		$IF->{$index}{ifSpeed} *= 1000000;
-	}
-	### 2012-08-14 keiths, use ifHighSpeed if 0
-	elsif ( $IF->{$index}{ifSpeed} == 0 ) {
-		$IF->{$index}{ifSpeed} = $IF->{$index}{ifHighSpeed};
-		$IF->{$index}{ifSpeed} *= 1000000;
+	# ditto if ifspeed is zero
+	if ( $thisintf->{ifSpeed} == 4294967295  or $thisintf->{ifSpeed} == 0) {
+		$thisintf->{ifSpeed} = $thisintf->{ifHighSpeed};
+		$thisintf->{ifSpeed} *= 1000000;
 	}
 
-	### 2012-08-14 keiths, triple check in case SNMP agent is DODGY
-	if ( $IF->{$index}{ifSpeed} == 0 ) {
-		$IF->{$index}{ifSpeed} = 1000000000;
-	}
+	# final fallback in case SNMP agent is DODGY
+	$thisintf->{ifSpeed} ||= 1000000000;
 
-	$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($IF->{$index}{ifSpeed});
+	$V->{interface}{"${index}_ifSpeed_value"} = convertIfSpeed($thisintf->{ifSpeed});
 	# convert time integer to time string
 	$V->{interface}{"${index}_ifLastChange_value"} =
-		$IF->{$index}{ifLastChange} =
-			convUpTime($IF->{$index}{ifLastChangeSec} = int($IF->{$index}{ifLastChange}/100));
+		$thisintf->{ifLastChange} =
+		convUpTime($thisintf->{ifLastChangeSec} = int($thisintf->{ifLastChange}/100));
 
 } # end checkIntfInfo
 
@@ -3339,11 +3433,9 @@ sub getIntfData {
 
 #=========================================================================================
 
-###
 ### Class Based Qos handling
-### written by Cologne
-###
-sub getCBQoS {
+sub getCBQoS
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -3367,10 +3459,12 @@ sub getCBQoS {
 
 	info("Finished");
 
-	return;
+	return 1;
+}
 
 #===
-	sub getCBQoSdata {
+sub getCBQoSdata
+{
 		my %args = @_;
 		my $S = $args{sys};
 		my $NI = $S->ndinfo;
@@ -3439,244 +3533,306 @@ sub getCBQoS {
 			return;
 		}
 	return 1;
-	}
+}
 
-#====
-	sub getCBQoSwalk {
-		my %args = @_;
-		my $S = $args{sys};
-		my $NI = $S->ndinfo;
-		my $IF = $S->ifinfo;
-		my $NC = $S->ndcfg;
-		my $SNMP = $S->snmp;
+# collect cbqos data from snmp, for update operation
+# this is expected to run AFTER getintfinfo (because that's where overrides are transferred into NI)
+# args: sys
+# returns: 1 if ok
+sub getCBQoSwalk
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
+	my $NC = $S->ndcfg;
+	my $SNMP = $S->snmp;
 
+	my $message;
+	my %qosIntfTable;
+	my @arrOID;
+	my %cbQosTable;
+	my $ifIndexTable;
 
-		my $message;
-		my %qosIntfTable;
-		my @arrOID;
-		my %cbQosTable;
-		my $ifIndexTable;
+	# get the qos interface indexes and objects from the snmp table
 
-		# get the interface indexes and objects from the snmp table
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
-		# the default-default is no value whatsoever, for letting the snmp module do its thing
-		my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+	info("start table scanning");
 
-		info("start table scanning");
+	# read qos interface table
+	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions))
+	{
+		foreach my $PIndex (keys %{$ifIndexTable}) {
+			my $intf = $ifIndexTable->{$PIndex}; # the interface number from de snmp qos table
+			info("CBQoS, scan interface $intf");
+			# is this an active interface
+			if ( exists $IF->{$intf}) {
+				### 2014-03-27 keiths, skipping CBQoS if not collecting data
+				if ( getbool($IF->{$intf}{collect},"invert")) {
+					dbg("Skipping CBQoS, No collect on interface $IF->{$intf}{ifDescr} ifIndex=$intf");
+					next;
+				}
 
-		# read qos interface table
-		if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions)) {
-			foreach my $PIndex (keys %{$ifIndexTable}) {
-				my $intf = $ifIndexTable->{$PIndex}; # the interface number from de snmp qos table
-				info("CBQoS, scan interface $intf");
-				# is this an active interface
-				if ( exists $IF->{$intf}) {
+				# oke, go
+				my $answer;
+				my %CMValues;
+				my $direction;
+				# check direction of qos with node table
+				($answer->{'cbQosPolicyDirection'}) = $SNMP->getarray("cbQosPolicyDirection.$PIndex") ;
+				dbg("direction of policy is $answer->{'cbQosPolicyDirection'}, Node table $NC->{node}{cbqos}");
 
-					### 2014-03-27 keiths, skipping CBQoS if not collecting data
-					if ( getbool($IF->{$intf}{collect},"invert")) {
-						dbg("Skipping CBQoS, No collect on interface $IF->{$intf}{ifDescr} ifIndex=$intf");
-						next;
+				if( ($answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/) or
+						($answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/) ) {
+					# interface found with QoS input or output configured
+
+					$direction = ($answer->{'cbQosPolicyDirection'} == 1) ? "in" : "out";
+					info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+
+					my $ifSpeedIn = $IF->{$intf}{ifSpeedIn} ? $IF->{$intf}{ifSpeedIn} : $IF->{$intf}{ifSpeed};
+					my $ifSpeedOut = $IF->{$intf}{ifSpeedOut} ? $IF->{$intf}{ifSpeedOut} : $IF->{$intf}{ifSpeed};
+					my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
+
+					# get the policy config table for this interface
+					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex",$max_repetitions);
+
+					if ( $C->{debug} > 5 ) {
+						print Dumper ( $qosIndexTable );
 					}
 
-					# oke, go
-					my $answer;
-					my %CMValues;
-					my $direction;
-					# check direction of qos with node table
-					($answer->{'cbQosPolicyDirection'}) = $SNMP->getarray("cbQosPolicyDirection.$PIndex") ;
-					dbg("direction of policy is $answer->{'cbQosPolicyDirection'}, Node table $NC->{node}{cbqos}");
-					if( ($answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/) or
-							($answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/) ) {
-						# interface found with QoS input or output configured
+					# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
+				BLOCK2:
+					foreach my $OIndex (keys %{$qosIndexTable}) {
+						# look for the Object type for each
+						($answer->{'cbQosObjectsType'}) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
+						dbg("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
+						if($answer->{'cbQosObjectsType'} eq 1) {
+							# it's a policy-map object, is it the primairy
+							($answer->{'cbQosParentObjectsIndex'}) =
+									$SNMP->getarray("cbQosParentObjectsIndex.$PIndex.$OIndex");
+							if ($answer->{'cbQosParentObjectsIndex'} eq 0){
+								# this is the primairy policy-map object, get the name
+								($answer->{'cbQosPolicyMapName'}) =
+										$SNMP->getarray("cbQosPolicyMapName.$qosIndexTable->{$OIndex}");
+								dbg("policymap - name is $answer->{'cbQosPolicyMapName'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
+							}
+						} elsif ($answer->{'cbQosObjectsType'} eq 2) {
+							# it's a classmap, ask the name and the parent ID
+							($answer->{'cbQosCMName'},$answer->{'cbQosParentObjectsIndex'}) =
+									$SNMP->getarray("cbQosCMName.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
+							dbg("classmap - name is $answer->{'cbQosCMName'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
 
-						$direction = ($answer->{'cbQosPolicyDirection'} == 1) ? "in" : "out";
-						info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+							$answer->{'cbQosParentObjectsIndex2'} = $answer->{'cbQosParentObjectsIndex'} ;
+							my $cnt = 0;
 
-						my $ifSpeedIn = $IF->{$intf}{ifSpeedIn} ? $IF->{$intf}{ifSpeedIn} : $IF->{$intf}{ifSpeed};
-						my $ifSpeedOut = $IF->{$intf}{ifSpeedOut} ? $IF->{$intf}{ifSpeedOut} : $IF->{$intf}{ifSpeed};
-						my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
+							#KS 2011-10-27 Redundant model object not in use: getbool($M->{system}{cbqos}{collect_all_cm})
+							while ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
+											and $answer->{'cbQosParentObjectsIndex2'} ne 0
+											and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex
+											and $cnt++ lt 5) {
+								($answer->{'cbQosConfigIndex'}) = $SNMP->getarray("cbQosConfigIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+								if ( $C->{debug} > 5 ) {
+									print "Dumping cbQosConfigIndex\n";
+									print Dumper ( $answer->{'cbQosConfigIndex'} );
+								}
 
-						# get the policy config table for this interface
-						my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex",$max_repetitions);
+								# it is not the first level, get the parent names
+								($answer->{'cbQosObjectsType2'}) = $SNMP->getarray("cbQosObjectsType.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+								if ( $C->{debug} > 5 ) {
+									print "Dumping cbQosObjectsType2\n";
+									print Dumper ( $answer->{'cbQosObjectsType2'} );
+								}
+
+								dbg("look for parent of ObjectsType $answer->{'cbQosObjectsType2'}");
+								if ($answer->{'cbQosObjectsType2'} eq 1) {
+									# it is a policymap name
+									($answer->{'cbQosName'},$answer->{'cbQosParentObjectsIndex2'}) =
+											$SNMP->getarray("cbQosPolicyMapName.$answer->{'cbQosConfigIndex'}","cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+									dbg("parent policymap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}");
+									if ( $C->{debug} > 5 ) {
+										print "Dumping cbQosName\n";
+										print Dumper ( $answer->{'cbQosName'} );
+										print "Dumping cbQosParentObjectsIndex2\n";
+										print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
+									}
+
+								} elsif ($answer->{'cbQosObjectsType2'} eq 2) {
+									# it is a classmap name
+									($answer->{'cbQosName'},$answer->{'cbQosParentObjectsIndex2'}) =
+											$SNMP->getarray("cbQosCMName.$answer->{'cbQosConfigIndex'}","cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+									dbg("parent classmap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}");
+									if ( $C->{debug} > 5 ) {
+										print "Dumping cbQosName\n";
+										print Dumper ( $answer->{'cbQosName'} );
+										print "Dumping cbQosParentObjectsIndex2\n";
+										print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
+									}
+								} elsif ($answer->{'cbQosObjectsType2'} eq 3) {
+									dbg("skip - this class-map is part of a match statement");
+									next BLOCK2; # skip this class-map, is part of a match statement
+								}
+								# concatenate names
+								if ($answer->{'cbQosParentObjectsIndex2'} ne 0) {
+									$answer->{'cbQosCMName'} = "$answer->{'cbQosName'}--$answer->{'cbQosCMName'}";
+								}
+							}
+
+							# collect all levels of classmaps or only the first level
+							# KS 2011-10-27: by default collect hierarchical QoS
+							if ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
+									 or $answer->{'cbQosParentObjectsIndex'} eq $PIndex)
+							{
+								#
+								$CMValues{"H".$OIndex}{'CMName'} = $answer->{'cbQosCMName'} ;
+								$CMValues{"H".$OIndex}{'CMIndex'} = $OIndex ;
+							}
+						} elsif ($answer->{'cbQosObjectsType'} eq 4) {
+							my $CMRate;
+							# it's a queueing object, look for the bandwidth
+							($answer->{'cbQosQueueingCfgBandwidth'},$answer->{'cbQosQueueingCfgBandwidthUnits'},$answer->{'cbQosParentObjectsIndex'})
+									= $SNMP->getarray("cbQosQueueingCfgBandwidth.$qosIndexTable->{$OIndex}","cbQosQueueingCfgBandwidthUnits.$qosIndexTable->{$OIndex}",
+																		"cbQosParentObjectsIndex.$PIndex.$OIndex");
+							if ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1) {
+								$CMRate = $answer->{'cbQosQueueingCfgBandwidth'}*1000;
+							}
+							elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2 or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 ) {
+								$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed/100;
+							}
+							if ($CMRate eq 0) { $CMRate = "undef"; }
+							dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
+									"rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}");
+							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate ;
+						} elsif ($answer->{'cbQosObjectsType'} eq 6) {
+							# traffic shaping
+							($answer->{'cbQosTSCfgRate'},$answer->{'cbQosParentObjectsIndex'})
+									= $SNMP->getarray("cbQosTSCfgRate.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
+							dbg("shaping - rate $answer->{'cbQosTSCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
+							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMTSCfgRate'} = $answer->{'cbQosPoliceCfgRate'};
+
+						} elsif ($answer->{'cbQosObjectsType'} eq 7) {
+							# police
+							($answer->{'cbQosPoliceCfgRate'},$answer->{'cbQosParentObjectsIndex'})
+									= $SNMP->getarray("cbQosPoliceCfgRate.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
+							dbg("police - rate $answer->{'cbQosPoliceCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
+							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMPoliceCfgRate'} = $answer->{'cbQosPoliceCfgRate'};
+						}
 
 						if ( $C->{debug} > 5 ) {
-							print Dumper ( $qosIndexTable );
+							print Dumper ( $answer );
 						}
 
-						# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
-						BLOCK2:
-						foreach my $OIndex (keys %{$qosIndexTable}) {
-							# look for the Object type for each
-							($answer->{'cbQosObjectsType'}) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
-							dbg("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
-							if($answer->{'cbQosObjectsType'} eq 1) {
-								# it's a policy-map object, is it the primairy
-								($answer->{'cbQosParentObjectsIndex'}) =
-									$SNMP->getarray("cbQosParentObjectsIndex.$PIndex.$OIndex");
-								if ($answer->{'cbQosParentObjectsIndex'} eq 0){
-									# this is the primairy policy-map object, get the name
-									($answer->{'cbQosPolicyMapName'}) =
-										$SNMP->getarray("cbQosPolicyMapName.$qosIndexTable->{$OIndex}");
-									dbg("policymap - name is $answer->{'cbQosPolicyMapName'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
-								}
-							} elsif ($answer->{'cbQosObjectsType'} eq 2) {
-								# it's a classmap, ask the name and the parent ID
-								($answer->{'cbQosCMName'},$answer->{'cbQosParentObjectsIndex'}) =
-									$SNMP->getarray("cbQosCMName.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
-								dbg("classmap - name is $answer->{'cbQosCMName'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
+					}
 
-								$answer->{'cbQosParentObjectsIndex2'} = $answer->{'cbQosParentObjectsIndex'} ;
-								my $cnt = 0;
+					if ( $answer->{'cbQosPolicyMapName'} eq "" ) {
+						$answer->{'cbQosPolicyMapName'} = 'default';
+						dbg("policymap - name is blank, so setting to default");
+					}
 
-								#KS 2011-10-27 Redundant model object not in use: getbool($M->{system}{cbqos}{collect_all_cm})
-								while ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
-											 and $answer->{'cbQosParentObjectsIndex2'} ne 0
-											 and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex
-											 and $cnt++ lt 5) {
-									($answer->{'cbQosConfigIndex'}) = $SNMP->getarray("cbQosConfigIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-									if ( $C->{debug} > 5 ) {
-										print "Dumping cbQosConfigIndex\n";
-										print Dumper ( $answer->{'cbQosConfigIndex'} );
-									}
+					$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $IF->{$intf}{'ifDescr'} ;
+					$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'} = $answer->{'cbQosPolicyMapName'} ;
+					$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex ;
 
-									# it is not the first level, get the parent names
-									($answer->{'cbQosObjectsType2'}) = $SNMP->getarray("cbQosObjectsType.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-									if ( $C->{debug} > 5 ) {
-										print "Dumping cbQosObjectsType2\n";
-										print Dumper ( $answer->{'cbQosObjectsType2'} );
-									}
+					# combine CM name and bandwidth
+					foreach my $index (keys %CMValues ) {
+						# check if CM name does exist
+						if (exists $CMValues{$index}{'CMName'}) {
 
-									dbg("look for parent of ObjectsType $answer->{'cbQosObjectsType2'}");
-									if ($answer->{'cbQosObjectsType2'} eq 1) {
-										# it is a policymap name
-										($answer->{'cbQosName'},$answer->{'cbQosParentObjectsIndex2'}) =
-											$SNMP->getarray("cbQosPolicyMapName.$answer->{'cbQosConfigIndex'}","cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-										dbg("parent policymap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}");
-										if ( $C->{debug} > 5 ) {
-											print "Dumping cbQosName\n";
-											print Dumper ( $answer->{'cbQosName'} );
-											print "Dumping cbQosParentObjectsIndex2\n";
-											print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
-										}
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Name'} = $CMValues{$index}{'CMName'};
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Index'} = $CMValues{$index}{'CMIndex'};
 
-									} elsif ($answer->{'cbQosObjectsType2'} eq 2) {
-										# it is a classmap name
-										($answer->{'cbQosName'},$answer->{'cbQosParentObjectsIndex2'}) =
-											$SNMP->getarray("cbQosCMName.$answer->{'cbQosConfigIndex'}","cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-										dbg("parent classmap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}");
-										if ( $C->{debug} > 5 ) {
-											print "Dumping cbQosName\n";
-											print Dumper ( $answer->{'cbQosName'} );
-											print "Dumping cbQosParentObjectsIndex2\n";
-											print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
-										}
-									} elsif ($answer->{'cbQosObjectsType2'} eq 3) {
-										dbg("skip - this class-map is part of a match statement");
-										next BLOCK2; # skip this class-map, is part of a match statement
-									}
-									# concatenate names
-									if ($answer->{'cbQosParentObjectsIndex2'} ne 0) {
-										$answer->{'cbQosCMName'} = "$answer->{'cbQosName'}--$answer->{'cbQosCMName'}";
-									}
-								}
-
-								# collect all levels of classmaps or only the first level
-								# KS 2011-10-27: by default collect hierarchical QoS
-								if ( !getbool($C->{'cbqos_cm_collect_all'},"invert")
-										 or $answer->{'cbQosParentObjectsIndex'} eq $PIndex)
-								{
-									#
-									$CMValues{"H".$OIndex}{'CMName'} = $answer->{'cbQosCMName'} ;
-									$CMValues{"H".$OIndex}{'CMIndex'} = $OIndex ;
-								}
-							} elsif ($answer->{'cbQosObjectsType'} eq 4) {
-								my $CMRate;
-								# it's a queueing object, look for the bandwidth
-								($answer->{'cbQosQueueingCfgBandwidth'},$answer->{'cbQosQueueingCfgBandwidthUnits'},$answer->{'cbQosParentObjectsIndex'})
-									= $SNMP->getarray("cbQosQueueingCfgBandwidth.$qosIndexTable->{$OIndex}","cbQosQueueingCfgBandwidthUnits.$qosIndexTable->{$OIndex}",
-										"cbQosParentObjectsIndex.$PIndex.$OIndex");
-								if ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1) {
-									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'}*1000;
-								} elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2 or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 ) {
-									$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed/100;
-								}
-								if ($CMRate eq 0) { $CMRate = "undef"; }
-								dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
-									"rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}");
-								$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate ;
-							} elsif ($answer->{'cbQosObjectsType'} eq 6) {
-								# traffic shaping
-								($answer->{'cbQosTSCfgRate'},$answer->{'cbQosParentObjectsIndex'})
-									= $SNMP->getarray("cbQosTSCfgRate.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
-								dbg("shaping - rate $answer->{'cbQosTSCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
-									$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMTSCfgRate'} = $answer->{'cbQosPoliceCfgRate'};
-
-							} elsif ($answer->{'cbQosObjectsType'} eq 7) {
-								# police
-								($answer->{'cbQosPoliceCfgRate'},$answer->{'cbQosParentObjectsIndex'})
-									= $SNMP->getarray("cbQosPoliceCfgRate.$qosIndexTable->{$OIndex}","cbQosParentObjectsIndex.$PIndex.$OIndex");
-								dbg("police - rate $answer->{'cbQosPoliceCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}");
-								$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMPoliceCfgRate'} = $answer->{'cbQosPoliceCfgRate'};
-							}
-
-							if ( $C->{debug} > 5 ) {
-								print Dumper ( $answer );
+							# lets print the just type
+							if (exists $CMValues{$index}{'CMCfgRate'}) {
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth" ;
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMCfgRate'} ;
+							} elsif (exists $CMValues{$index}{'CMTSCfgRate'}) {
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Traffic shaping" ;
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMTSCfgRate'} ;
+							} elsif (exists $CMValues{$index}{'CMPoliceCfgRate'}) {
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Police" ;
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMPoliceCfgRate'} ;
+							} else {
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth" ;
+								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef" ;
 							}
 
 						}
-
-						if ( $answer->{'cbQosPolicyMapName'} eq "" ) {
-							$answer->{'cbQosPolicyMapName'} = 'default';
-							dbg("policymap - name is blank, so setting to default");
-						}
-
-						$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $IF->{$intf}{'ifDescr'} ;
-						$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'} = $answer->{'cbQosPolicyMapName'} ;
-						$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex ;
-
-						# combine CM name and bandwidth
-						foreach my $index (keys %CMValues ) {
-							# check if CM name does exist
-							if (exists $CMValues{$index}{'CMName'}) {
-
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Name'} = $CMValues{$index}{'CMName'};
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Index'} = $CMValues{$index}{'CMIndex'};
-
-								# lets print the just type
-								if (exists $CMValues{$index}{'CMCfgRate'}) {
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth" ;
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMCfgRate'} ;
-								} elsif (exists $CMValues{$index}{'CMTSCfgRate'}) {
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Traffic shaping" ;
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMTSCfgRate'} ;
-								} elsif (exists $CMValues{$index}{'CMPoliceCfgRate'}) {
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Police" ;
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = $CMValues{$index}{'CMPoliceCfgRate'} ;
-								} else {
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth" ;
-									$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef" ;
-								}
-
-							}
-						}
-					} else {
-						dbg("No collect requested in Node table");
 					}
 				} else {
-					dbg("Interface $intf does not exist");
+					dbg("No collect requested in Node table");
+				}
+			} else {
+				dbg("Interface $intf does not exist");
+			}
+		}
+		delete $S->{info}{cbqos}; # remove old info
+		if (scalar (keys %{$ifIndexTable}) )
+		{
+			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
+			$S->{info}{cbqos} = \%cbQosTable;
+
+			# cbqos info structure is a tad different from interfaces, but the rrds also need tuning
+
+			# that's an ifindex
+			for my $index (keys %cbQosTable)
+			{
+				my $thisqosinfo = $cbQosTable{$index};
+				next if (ref($IF->{$index}) ne "HASH"
+								 or !$IF->{$index}->{ifSpeed}
+								 or $IF->{$index}->{setlimits} !~ /^(normal|strict|off)$/
+								 or !getbool($IF->{$index}{collect})); # don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
+
+				my $thisintf = $IF->{$index};
+				my $desiredlimit = $thisintf->{setlimits};
+
+				info("performing rrd speed limit tuning for cbqos on $thisintf->{ifDescr}, limit enforcement: $desiredlimit, interface speed is ".convertIfSpeed($thisintf->{ifSpeed})." ($thisintf->{ifSpeed})");
+
+				# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
+				my $maxbytes = 	$desiredlimit eq "off"? "U": $desiredlimit eq "normal"?
+						int($thisintf->{ifSpeed}/4) : int($thisintf->{ifSpeed}/8);
+				my $maxpkts = $maxbytes eq "U"? "U" : int($maxbytes/50); # this is a dodgy heuristic
+
+				for my $direction (qw(in out))
+				{
+					foreach my $class (keys %{$thisqosinfo->{$direction}->{ClassMap}})
+					{
+						# rrd file exists and readable?
+						if (-r (my $rrdfile = $S->getDBName(graphtype => "cbqos-$direction",
+																								index => $index,
+																								item => $thisqosinfo->{$direction}->{ClassMap}->{$class}->{Name})))
+						{
+							my $fileinfo = RRDs::info($rrdfile);
+							for my $matching (grep /^ds\[.+\]\.max$/, keys %$fileinfo)
+							{
+								next if ($matching !~ /ds\[(PrePolicyByte|DropByte|PostPolicyByte|PrePolicyPkt|DropPkt|NoBufDropPkt)\]\.max/ );
+								my $dsname = $1;
+								my $curval = $fileinfo->{$matching};
+
+								# all DS but the byte ones are packet based
+								my $desiredval = $dsname =~ /byte/i? $maxbytes : $maxpkts;
+
+								if ($curval ne $desiredval)
+								{
+									info("rrd cbqos-$direction-$class, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+									RRDs::tune($rrdfile, "--maximum", "$dsname:$desiredval");
+								}
+								else
+								{
+									info("rrd cbqos-$direction-$class, ds $dsname, current limit $curval is correct");
+								}
+							}
+						}
+					}
 				}
 			}
-			delete $S->{info}{cbqos}; # remove old info
-			if (scalar (keys %{$ifIndexTable}) ) {
-				# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
-				$S->{info}{cbqos} = \%cbQosTable;
-			} else {
-				dbg("no entries found in QoS table of node $NI->{name}");
-			}
+		}
+		else
+		{
+			dbg("no entries found in QoS table of node $NI->{name}");
 		}
 	}
 	return 1;
-} # end getCBQoS
+}
 
 #=========================================================================================
 
@@ -4122,6 +4278,9 @@ sub runServer {
 		# get storage info
 		my $disk_cnt = 1;
 		my $storageIndex = $SNMP->getindex('hrStorageIndex',$max_repetitions);
+		my $hrFSMountPoint = undef;
+		my $hrFSRemoteMountPoint = undef;
+		my $fileSystemTable = undef;
 		foreach my $index (keys %{$storageIndex}) {
 			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
 				my $D = $NI->{storage}{$index};
@@ -4130,8 +4289,12 @@ sub runServer {
 							or $D->{hrStorageSize} <= 0) {
 					delete $NI->{storage}{$index};
 				} else {
-					if ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4') { # hrStorageFixedDisk
+					if ( 
+						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
+						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageFixedDisk
+					) { 
 						undef %Val;
+						my $hrStorageType = $D->{hrStorageType};
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
@@ -4148,6 +4311,22 @@ sub runServer {
 							$D->{hrStorageGraph} = "hrdisk";
 							$disk_cnt++;
 						}
+						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
+							# only get this snmp once if we need to, and created an named index.
+							if ( not defined $fileSystemTable ) {
+								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint',$max_repetitions);
+								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint',$max_repetitions);
+								foreach my $fsIndex ( keys %$hrFSMountPoint ) {
+									my $mp = $hrFSMountPoint->{$fsIndex};
+									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
+								}
+							}
+							#print Dumper $hrFSRemoteMountPoint;
+							
+							$D->{hrStorageType} = 'Network Disk';
+							$D->{hrFSRemoteMountPoint} = $fileSystemTable->{$D->{hrStorageDescr}};
+						}
+
 					}
 					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2' or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20') { # Memory
@@ -4239,7 +4418,8 @@ sub runServer {
 # this function runs all services that are directly associated with a given node
 # args: live sys object for the node in question, and optional snmp (true/false) arg
 # attention: when run with snmp false then snmp-based services are NOT checked!
-sub runServices {
+sub runServices
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -4252,7 +4432,6 @@ sub runServices {
 	my $node = $NI->{system}{name};
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
-	#logMsg("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
@@ -4377,6 +4556,8 @@ sub runServices {
 			$msg .= "must be checked this time.";
 			info($msg); logMsg("INFO: $msg");
 		}
+		# make sure that the rrd heartbeat is suitable for the service interval!
+		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
 
 		$didRunServices = 1;
 
@@ -4655,7 +4836,7 @@ sub runServices {
  							dbg("collected response $k value $v");
 
 							# for rrd storage, but only numeric values can be stored!
-							$Val{$k} = {value => $v};
+							$Val{$k} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
 
 							if ($k eq "responsetime") # response time is handled specially
 							{
@@ -4786,17 +4967,18 @@ sub runServices {
 		my @servicegraphs = (qw(service service-response));
 
 		# save result for availability history - one rrd file per service per node
-		$Val{service}{value} = $serviceValue;
-		$cpu = -$cpu 	if ( $cpu < 0 );
-		$Val{responsetime}{value} = $responsetime; # might be a NOP
-		$Val{responsetime}{option} = "GAUGE,0:U";
+		$Val{service} = { value => $serviceValue,
+											option => "GAUGE,0:100,$serviceheartbeat" };
 
+		$cpu = -$cpu 	if ( $cpu < 0 );
+		$Val{responsetime} = { value  => $responsetime, # might be a NOP
+													 option => "GAUGE,0:U,$serviceheartbeat"};
 		if ($gotMemCpu)
 		{
-			$Val{cpu}{value} = $cpu;
-			$Val{cpu}{option} = "COUNTER,U:U";
-			$Val{memory}{value} = $memory;
-			$Val{memory}{option} = "GAUGE,U:U";
+			$Val{cpu} = {value => $cpu,
+									 option => "COUNTER,U:U,$serviceheartbeat" };
+			$Val{memory} = {value => $memory,
+											option => "GAUGE,U:U,$serviceheartbeat" };
 
 			# cpu is a counter, need to get the delta(counters)/period from rrd
 			$status{$service}->{memory} = $memory;
@@ -4806,7 +4988,7 @@ sub runServices {
 			push @servicegraphs, (qw(service-mem service-cpu));
 		}
 
-		if ((my $db = updateRRD(data=>\%Val,sys=>$S,type=>"service",item=>$service)))
+		if ((my $db = updateRRD(data=>\%Val, sys=>$S, type=>"service", item=>$service)))
 		{
 			# check what custom graphs exist for this service
 			# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
@@ -5067,18 +5249,24 @@ sub snmpNodeDown {
 	$NI->{system}{snmpdown} = 'true';
 	return 0;
 }
-#=========================================================================================
 
-sub runReach {
+
+# performs various node health status checks
+# optionally! updates rrd
+# args: sys, delayupdate (default: 0),
+# if delayupdate is set, this DOES NOT update the
+#type 'health' rrd (to be done later, with total polltime)
+# returns: reachability data (hashref)
+sub runReach
+{
 	my %args = @_;
 	my $S = $args{sys};	# system object
-	my $check = $args{check} || 0;
+	my $donotupdaterrd = getbool($args{delayupdate});
+
 	my $NI = $S->ndinfo;	# node info
 	my $IF = $S->ifinfo;	# interface info
 	my $RI = $S->reach;	# reach info
 	my $C = loadConfTable();
-
-	#print Dumper($S);
 
 	my $cpuWeight;
 	my $diskWeight;
@@ -5119,6 +5307,8 @@ sub runReach {
 	my $swapMax = 0;
 	my $diskMax = 0;
 
+	my %reach;
+
 	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
@@ -5155,11 +5345,13 @@ sub runReach {
 		}
 	}
 
-	# copy results from object
+	# copy stashed results (produced by runPing and getnodeinfo)
 	my $pingresult = $RI->{pingresult};
+	$reach{responsetime} = $RI->{pingavg};
+	$reach{loss} = $RI->{pingloss};
+
 	my $snmpresult = $RI->{snmpresult};
 
-	my %reach;		# copy in local table
 	$reach{cpu} = $RI->{cpu};
 	$reach{mem} = $RI->{mem};
 	if ( $RI->{swap} ) {
@@ -5169,8 +5361,6 @@ sub runReach {
 	if ( defined $RI->{disk} and $RI->{disk} > 0 ) {
 		$reach{disk} = $RI->{disk};
 	}
-	$reach{responsetime} = $RI->{pingavg};
-	$reach{loss} = $RI->{pingloss};
 	$reach{operStatus} = $RI->{operStatus};
 	$reach{operCount} = $RI->{operCount};
 
@@ -5502,7 +5692,11 @@ sub runReach {
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option} = "gauge,0:U";
 
-	my $db = updateRRD(sys=>$S,data=>\%reachVal,type=>"health"); # database name is 'reach'
+	# update the rrd or leave it to a caller?
+	if (!$donotupdaterrd)
+	{
+		my $db = updateRRD(sys=>$S, data=>\%reachVal, type=>"health"); # database name is normally 'reach'
+	}
 	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
 		$NI->{graphtype}{health} = "health-ping,response";
 	}
@@ -5510,12 +5704,12 @@ sub runReach {
 		$NI->{graphtype}{health} = "";
 	}
 	else {
-		$NI->{graphtype}{health} = "health,kpi,response,numintf";
+		$NI->{graphtype}{health} = "health,kpi,response,numintf,polltime";
 	}
-
-END_runReach:
 	info("Finished");
-} # end runReach
+
+	return \%reachVal;
+}
 
 #=========================================================================================
 
@@ -7296,7 +7490,7 @@ sub printCrontab
 
 	my $usercol = getbool($nvp{system})? "\troot\t" : '';
 
-	print <<EO_TEXT;
+	print qq|
 # if you DON'T want any NMIS cron mails to go to root,
 # uncomment and adjust the next line
 # MAILTO=WhoeverYouAre\@yourdomain.tld
@@ -7314,7 +7508,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
 ######################################################
 # Run Summary Update every 2 minutes
-*/2 * * * * $usercol /usr/local/nmis8/bin/nmis.pl type=summary
+*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
@@ -7327,10 +7521,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # the installer offers to setup using install/logrotate*.conf
 #
 # backup configuration, models and crontabs once a day, and keep 30 backups
-22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_data>'}/backups 30
+22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
 ##################################################
-# purge old files every week
-0 2 * * 0 $usercol $C->{'<nmis_base>'}/admin/nmis_file_cleanup.sh $C->{'<nmis_base>'} 30
+# purge old files every few days
+2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
 ########################################
 # Run the Reports Weekly Monthly Daily
 # daily
@@ -7353,7 +7547,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month response
 50 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month avail
 ###########################################
-EO_TEXT
+|;
 }
 
 #=========================================================================================
@@ -7525,9 +7719,10 @@ EO_TEXT
 
 #=========================================================================================
 
-sub checkArgs {
-	print <<EO_TEXT;
-$0
+sub checkArgs
+{
+	print qq!
+
 NMIS Polling Engine - Network Management Information System
 
 Copyright (C) Opmantek Limited (www.opmantek.com)
@@ -7537,6 +7732,8 @@ redistribute it under certain conditions; see www.opmantek.com or email
 contact\@opmantek.com
 
 NMIS version $NMIS::VERSION
+
+Usage: $0 <type=action> [option=value...]
 
 command line options are:
   type=<option>
@@ -7556,16 +7753,17 @@ command line options are:
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
+      purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
-  [debug=true|false|0-9] default=false - Show debuging information, handy;
+  [force=true|false]     Makes an update operation run from scratch, without optimisations
+  [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
   [mthread=true|false]   default=false - Enable Multithreading or not;
   [mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
-  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create;
-
-EO_TEXT
+  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create\n
+!;
 }
 
 #=========================================================================================
@@ -8155,17 +8353,6 @@ sub thresholdProcess {
 	}
 }
 
-# az [2014-11-17 Mon 15:23]: this can be removed as we now use the process table
-# to keep track of our processes
-sub getPidFileName {
-	my $PIDFILE = "$C->{'<nmis_var>'}/nmis.pid";
-	if ($C->{conf} ne "") {
-		$PIDFILE = "$C->{'<nmis_var>'}/nmis-$C->{conf}.pid";
-	}
-	return $PIDFILE;
-}
-
-
 sub printRunTime {
 	my $endTime = sprintf("%.2f", Time::HiRes::time() - $starttime);
 	info("End of $0, type=$type ran for $endTime seconds.\n");
@@ -8213,6 +8400,125 @@ sub sync_groups
 
 	return undef;
 }
+
+# this is a maintenance command for removing old, broken or unwanted files, 
+# replaces and extends the old admin/nmis_file_cleanup.sh
+#
+# args: none, but checks nvp simulate (default: false, if true only prints 
+# what it would do)
+# returns: undef if ok, error message otherwise
+sub purge_files
+{
+	my %nukem;
+
+	info("Starting to look for purgable files");
+	# config option, extension, where to look...
+	my @purgatory = (
+		{ ext => qr/\.rrd$/,
+			minage => $C->{purge_rrd_after} || 30*86400,
+			location => $C->{database_root},
+			empties => 1,
+			description => "Old RRD files",
+		},
+		{
+			ext => qr/\.(tgz|tar\.gz)$/,
+			minage => $C->{purge_backup_after} || 30*86400,
+			location => $C->{'<nmis_backups>'},
+			empties => 1,
+			description => "Old Backup files",
+		},
+		{
+			# old nmis state files - legacy .nmis under var
+			minage => $C->{purge_state_after} || 30*86400,
+			ext => qr/\.nmis$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Legacy .nmis files",
+		},
+		{
+			# old nmis state files - json files but only directly in var,
+			# or in network or in service_status
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'},
+			path => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
+			empties =>  1,
+			description => "Old JSON state files",
+		},
+		{
+			# old nmis state files - json files under nmis_system
+			minage => $C->{purge_state_after} || 30*86400,
+			location => $C->{'<nmis_var>'}."/nmis_system",
+			ext => qr/\.json$/,
+			empties =>  1,
+			description => "Old internal JSON state files",
+		},
+		{
+			# broken empty json files - don't nuke them immediately, they may be tempfiles!
+			minage => 3600,						# 60 minutes seems a safe upper limit for tempfiles
+			ext => qr/\.json$/,
+			location => $C->{'<nmis_var>'},
+			empties =>  1,
+			description => "Empty JSON state files",
+		},
+		{
+			minage => $C->{purge_event_after} || 30*86400,
+			path => qr!events/.+?/history/.+\.json$!,
+			empties => 1,
+			location => $C->{'<nmis_var>'}."/events",
+			description => "Old event history files",
+		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			empties => 1,
+			ext => qr/\.json/,
+			location => $C->{json_logs},
+			description => "Old JSON log files",
+		},
+			);
+	my $simulate = getbool($nvp{simulate});
+
+	for my $rule (@purgatory)
+	{
+		my $olderthan = time - $rule->{minage};
+		next if (! $rule->{location});
+		info("checking dir $rule->{location} for $rule->{description}");
+
+		File::Find::find( {
+			wanted => sub
+			{
+				my $localname = $_;
+				# don't need it at the moment my $dir = $File::Find::dir;
+				my $fn = $File::Find::name;
+				my @stat = stat($fn);
+
+				next if (!S_ISREG($stat[2]) # not a file
+								 or ($rule->{ext} and $localname !~ $rule->{ext}) # not a matching ext
+								 or ($rule->{path} and $fn !~ $rule->{path})); # not a matching path
+
+				next if ( ($stat[7] or !$rule->{empties}) # zero size allowed if empties is off
+									and ($stat[9] >= $olderthan) );			# younger than the cutoff?
+				$nukem{$fn} = $rule->{description};
+			},
+			follow => 1, }, $rule->{location});
+	}
+
+	for my $fn (sort keys %nukem)
+	{
+		my $shortfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
+		if ($simulate)
+		{
+			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
+		}
+		else
+		{
+			info("removing $shortfn (rule '$nukem{$fn}')");
+			unlink($fn) or return "Failed to unlink $fn: $!";
+		}
+	}
+	info("Purging complete");
+	return undef;
+}
+
 
 
 # *****************************************************************************

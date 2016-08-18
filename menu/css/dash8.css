@@ -608,3 +608,7 @@ nmisbut:active.wht {
 	color:#000000
 }
 
+.forbidden
+{
+		cursor: not-allowed;
+}

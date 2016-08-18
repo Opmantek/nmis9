@@ -5,8 +5,6 @@ use NMIS;
 use Auth;
 use Data::Dumper;
 
-use CGI::Pretty qw(:standard *table *Tr *td *form *Select *div);
-
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
