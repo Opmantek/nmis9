@@ -73,7 +73,9 @@ File::Find::find({ follow => 1,
 
 										 dbg("checking file $fn");
 										 next if ($localname !~ /\.nmis$/ 
-															or $localname =~ /nmis-ldap-debug/); # must ignore badly named/located file
+															or $localname =~ /nmis-ldap-debug/ # must ignore badly named/located file
+															or ($localname eq "nmis-event.nmis" # nmis-event is special, convert only ONCE
+																	and -f "nmis-event.json.disabled")); # i.e. NOT if this exists
 										 dbg("file $fn needs work");
 										 push @candidates, $fn;
 									 },
@@ -130,7 +132,15 @@ if (!$simulate)
 		unlink $lockoutfile or die "cannot remove $lockoutfile: $!\n";
 	}
 }
-info("conversion complete") if (!$simulate);
+if (!$simulate)
+{
+	info("conversion complete");
+}
+else
+{
+	info("simulate run complete, found ".($actualcandidates || "no")." files to convert");
+}
+		
 
 # report back to the installer if in simulation mode
 exit ($simulate && $actualcandidates? 1 : 0);
