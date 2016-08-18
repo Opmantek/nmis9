@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.5.0";
+our $VERSION = "1.5.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1181,39 +1181,34 @@ sub readFiletoHash {
 	return;
 }
 
-# debug info with (class::)method names and line number
-sub info {
-	my $msg = shift;
-	my $level = shift || 1;
-	my $string;
-	my $caller;
+# prints info message with (class::)method name
+# args: message, level (optional, default 1)
+# level must be BELOW filter limit level for printouts
+# if loadconftable() was given a debug level, THAT level controls printout and format.
+# if NO debug level is set, the info filter level given to loadconftable() controls printout.
+sub info
+{
+	my ($msg, $level) = @_;
+	$level ||= 1;
 
-	if ($C_cache->{debug}) {
+	if ($C_cache->{debug})
+	{
 		my $upCall = (caller(1))[3];
 		$upCall =~ s/main:://;
 		dbg($msg,$level,$upCall);
 	}
-	else {
-		if ($C_cache->{info} >= $level or $level == 0) {
-			if ($level == 1) {
-				($string = (caller(1))[3]) =~ s/\w+:://;
-				$string .= ",";
-			} else {
-				if ((my $caller = (caller(1))[3]) =~ s/main:://) {
-					my $ln = (caller(0))[2];
-					print returnTime." $caller#$ln, $msg\n";
-				} else {
-					for my $i (1..10) {
-						my ($caller) = (caller($i))[3];
-						my ($ln) = (caller($i-1))[2];
-						$string = "$caller#$ln->".$string;
-						last if $string =~ s/main:://;
-					}
-					$string = "$string\n\t";
-				}
-			}
-			print returnTime." $string $msg\n";
+	else
+	{
+		return if ($level > $C_cache->{info});
+		my $prefix = '';
+
+		if (my $subname = (caller(1))[3])
+		{
+			$subname =~ s/\w+:://;
+			$subname .= "," if ($subname ne "");
+			$prefix = $subname;
 		}
+		print returnTime," ",$prefix,$msg,"\n";
 	}
 }
 

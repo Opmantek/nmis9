@@ -14,7 +14,13 @@ use rrdfunc;
 use Data::Dumper;
 
 my %nvp = getArguements(@ARGV);
-my $C = loadConfTable;
+my $C = loadConfTable(debug => $nvp{debug}, info=> $nvp{info});
+
+info("a message at level undef");
+for my $x (0..5)
+{
+	info("a message at level $x", $x);
+}
 
 if ($nvp{dir} or $nvp{file})
 {
