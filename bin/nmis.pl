@@ -913,6 +913,13 @@ sub doCollect {
 	info("Starting collect, node $name");
 
 	#Check for update LOCK
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
+		print STDERR "Error: running collect but update lock exists for $name which has not finished!\n";
+		logMsg("WARNING running collecct but update lock exists for $name which has not finished!");
+		return;
+	}
+
+	#Check for collect LOCK
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: collect lock exists for $name which has not finished!\n";
 		logMsg("WARNING collect lock exists for $name which has not finished!");
