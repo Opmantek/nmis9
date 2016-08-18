@@ -91,13 +91,13 @@ for my $fn (@candidates)
 	my ($jsonfile,undef) = getFileName(file => $fn, json => 1);
 	if (-f $jsonfile)
 	{
-		info("skipping: JSON file $jsonfile already exists, remove to reconvert!");
+		info("Skipping $fn: JSON file already exists.");
 		next;
 	}
 	
 	if ($simulate)
 	{
-		info("would convert $fn but in simulate mode");
+		info("Would convert $fn but in simulate mode");
 		++$actualcandidates;
 	}
 	else
@@ -109,6 +109,7 @@ for my $fn (@candidates)
 		die "file $fn unparseable!\n" if (!defined $data);
 		
 		writeHashtoFile(data => $data, file => $fn, json => 1);
+		info("done with $jsonfile");
 	}
 }
 
@@ -129,6 +130,7 @@ if (!$simulate)
 		unlink $lockoutfile or die "cannot remove $lockoutfile: $!\n";
 	}
 }
+info("conversion complete") if (!$simulate);
 
 # report back to the installer if in simulation mode
 exit ($simulate && $actualcandidates? 1 : 0);

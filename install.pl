@@ -547,8 +547,10 @@ and then restart the installer.\n\n";
 			}
 			else
 			{
-				print "To return to the installer when done with the CPAN configuration
-please exit the CPAN shell (with 'exit').\n";
+				# there doesn't seem an easy way to prime the cpan shell with args,
+				# then let interact with the user via stdin/stdout...
+				print "\n
+Please start the CPAN configuration by entering 'o conf init' on\nthe CPAN prompt. To return to the installer when done, please exit the CPAN\nshell with 'exit'.\n";
 				&input_ok;
 				system("cpan");
 			}
