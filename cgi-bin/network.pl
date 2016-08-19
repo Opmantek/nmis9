@@ -1778,7 +1778,36 @@ EO_HTML
 				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>$smallGraphWidth,height=>$smallGraphHeight) ));
 			}
 		} # end for
-	} else {
+	}
+	elsif ( defined $NI->{system}{services} and $NI->{system}{services} ne "" ) {
+		print Tr(td({class=>'header'},'Monitored Services'));
+		my $serviceStatus = $NI->{service_status};
+		foreach my $servicename (keys %{$serviceStatus}) {
+			
+			my $thisservice = $serviceStatus->{$servicename};
+
+			my $thiswidth = int(2/3*$smallGraphWidth);
+
+			my $serviceurl = "$C->{'<cgi_url_base>'}/services.pl?conf=$Q->{conf}&act=details&widget=$widget&node="
+					.uri_escape($node)."&service=".uri_escape($servicename);
+			my $color = $thisservice->{status} == 100? 'Normal': $thisservice->{status} > 0? 'Warning' : 'Fatal';
+
+			my $statustext = "$servicename";
+			$statustext .= " - " .$thisservice->{status_text} if $thisservice->{status_text} ne "";
+
+			print Tr(
+				td({class=>"info Plain"},a({class => "islink", href=> $serviceurl}, "$statustext")),
+					);
+			print Tr(
+				td({class=>'image'}, 
+					htmlGraph(graphtype => "service", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight), 
+					htmlGraph(graphtype => "service-response", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight)
+				));
+
+		}
+
+	} 
+	else {
 		print Tr(td({class=>'info Plain'},'no Graph info'));
 	}
 	print end_table,end_td;
@@ -3144,7 +3173,8 @@ sub nodeAdminSummary {
 					"group",
 					"summary",
 					"active",
-					"last updated",
+					"last collect poll",
+					"last update poll",
 					"ping (icmp)",
 					"icmp working",
 					"collect (snmp)",
@@ -3208,8 +3238,11 @@ sub nodeAdminSummary {
 					my $community = "OK";
 					my $commClass = "info Plain";
 
-					my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
-					my $lastClass = "info Plain";
+					my $lastCollectPoll = returnDateStamp($NI->{system}{lastCollectPoll});
+					my $lastCollectClass = "info Plain";
+
+					my $lastUpdatePoll = returnDateStamp($NI->{system}{lastUpdatePoll});
+					my $lastUpdateClass = "info Plain";
 
 					my $pingable = "unknown";
 					my $pingClass = "info Plain";
@@ -3225,16 +3258,28 @@ sub nodeAdminSummary {
 					}
 					else {
 						$actClass = "info Plain";
-						if ( not defined $NI->{system}{lastUpdateSec} ) {
-							$lastUpdate = "unknown";
-							$lastClass = "info Plain Minor";
+						if ( not defined $NI->{system}{lastCollectPoll} ) {
+							$lastCollectPoll = "unknown";
+							$lastCollectClass = "info Plain Minor";
 							$exception = 1;
-							push(@issueList,"Last update is unknown");
+							push(@issueList,"Last collect poll is unknown");
 						}
-						elsif ( $NI->{system}{lastUpdateSec} < (time - 60*15) ) {
-							$lastClass = "info Plain Major";
+						elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
+							$lastCollectClass = "info Plain Major";
 							$exception = 1;
-							push(@issueList,"Last update was over 5 minutes ago");
+							push(@issueList,"Last collect poll was over 5 minutes ago");
+						}
+
+						if ( not defined $NI->{system}{lastUpdatePoll} ) {
+							$lastUpdatePoll = "unknown";
+							$lastUpdateClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Last update poll is unknown");
+						}
+						elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
+							$lastUpdateClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Last update poll was over 1 day ago");
 						}
 
 						$pingable = "true";
@@ -3295,7 +3340,6 @@ sub nodeAdminSummary {
 						}
 					}
 
-					#print qq|"$LNT->{$node}{name}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$NI->{system}{roleType}","$NI->{system}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 					my $wd = 850;
 					my $ht = 700;
 
@@ -3325,7 +3369,8 @@ sub nodeAdminSummary {
 							),
 							td({class => 'infolft Plain'},$issues),
 							td({class => $actClass},$LNT->{$node}{active}),
-							td({class => $lastClass},$lastUpdate),
+							td({class => $lastCollectClass},$lastCollectPoll),
+							td({class => $lastUpdateClass},$lastUpdatePoll),
 
 							td({class => 'info Plain'},$LNT->{$node}{ping}),
 							td({class => $pingClass},$pingable),
