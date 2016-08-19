@@ -3173,7 +3173,8 @@ sub nodeAdminSummary {
 					"group",
 					"summary",
 					"active",
-					"last updated",
+					"last collect poll",
+					"last update poll",
 					"ping (icmp)",
 					"icmp working",
 					"collect (snmp)",
@@ -3237,8 +3238,11 @@ sub nodeAdminSummary {
 					my $community = "OK";
 					my $commClass = "info Plain";
 
-					my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
-					my $lastClass = "info Plain";
+					my $lastCollectPoll = returnDateStamp($NI->{system}{lastCollectPoll});
+					my $lastCollectClass = "info Plain";
+
+					my $lastUpdatePoll = returnDateStamp($NI->{system}{lastUpdatePoll});
+					my $lastUpdateClass = "info Plain";
 
 					my $pingable = "unknown";
 					my $pingClass = "info Plain";
@@ -3254,16 +3258,28 @@ sub nodeAdminSummary {
 					}
 					else {
 						$actClass = "info Plain";
-						if ( not defined $NI->{system}{lastUpdateSec} ) {
-							$lastUpdate = "unknown";
-							$lastClass = "info Plain Minor";
+						if ( not defined $NI->{system}{lastCollectPoll} ) {
+							$lastCollectPoll = "unknown";
+							$lastCollectClass = "info Plain Minor";
 							$exception = 1;
-							push(@issueList,"Last update is unknown");
+							push(@issueList,"Last collect poll is unknown");
 						}
-						elsif ( $NI->{system}{lastUpdateSec} < (time - 60*15) ) {
-							$lastClass = "info Plain Major";
+						elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
+							$lastCollectClass = "info Plain Major";
 							$exception = 1;
-							push(@issueList,"Last update was over 5 minutes ago");
+							push(@issueList,"Last collect poll was over 5 minutes ago");
+						}
+
+						if ( not defined $NI->{system}{lastUpdatePoll} ) {
+							$lastUpdatePoll = "unknown";
+							$lastUpdateClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Last update poll is unknown");
+						}
+						elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
+							$lastUpdateClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Last update poll was over 1 day ago");
 						}
 
 						$pingable = "true";
@@ -3324,7 +3340,6 @@ sub nodeAdminSummary {
 						}
 					}
 
-					#print qq|"$LNT->{$node}{name}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$NI->{system}{roleType}","$NI->{system}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 					my $wd = 850;
 					my $ht = 700;
 
@@ -3354,7 +3369,8 @@ sub nodeAdminSummary {
 							),
 							td({class => 'infolft Plain'},$issues),
 							td({class => $actClass},$LNT->{$node}{active}),
-							td({class => $lastClass},$lastUpdate),
+							td({class => $lastCollectClass},$lastCollectPoll),
+							td({class => $lastUpdateClass},$lastUpdatePoll),
 
 							td({class => 'info Plain'},$LNT->{$node}{ping}),
 							td({class => $pingClass},$pingable),

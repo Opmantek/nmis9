@@ -88,7 +88,10 @@ Use the arrow keys and tab to navigate, space to select from lists.");
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 
 my %allsvc = loadServiceStatus;
+# only interested in this server's services!
+%allsvc = %{$allsvc{$config->{server_name}}} if (ref($allsvc{$config->{server_name}}) eq "HASH");
 
+	
 my $servicesel = $dia->menu( text => "Please select the service you want to graph:",
 														 list => [ map { ($_,'') } (sort keys %allsvc) ] );
 

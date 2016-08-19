@@ -66,7 +66,7 @@ sub update_plugin
 
 	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
 	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
-	my $asamVersion43 = qr/OSWPRA43/;
+	my $asamVersion43 = qr/OSWPRA43|OSWPAN43/;
 	
 	my $rack_count = 1;
 	my $shelf_count = 1;
@@ -111,7 +111,7 @@ sub update_plugin
 		@ifIndexNum = @{$indexes};
 	}
 	else {
-		logMsg("Error: WHAT!  asamSoftwareVersion=$asamSoftwareVersion");
+		logMsg("ERROR: Unknown ASAM Version $node asamSoftwareVersion=$asamSoftwareVersion");
 	}
 	
 	dbg("DEBUG version=$version asamSoftwareVersion=$asamSoftwareVersion");
