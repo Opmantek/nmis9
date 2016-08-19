@@ -3594,7 +3594,7 @@ sub checkEvent
 
 		my ($otg,$key) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$OT->{$key}{change}";
 		}
 
 		# now we save the new up event, and move the old down event into history
@@ -3722,7 +3722,7 @@ sub notify
 
 		my ($otg,$key) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$OT->{$key}{change}";
 		}
 
 		# Create and store this new event; record whether stateful or not
