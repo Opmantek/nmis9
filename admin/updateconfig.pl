@@ -29,90 +29,71 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+our $VERSION="1.1.0";
+use strict;
+use File::Basename;
 
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
-use strict;
 use func;
 
-
-print <<EO_TEXT;
-This script will update your running NMIS Config based on the NMIS install 
-"template".  This will assist with code updates and patches.
-
-The script will ONLY add items in the existing config which are NULL when 
-compared to the NMIS Install template.
-
-EO_TEXT
-
-if ( $ARGV[0] eq "" ) {
-	print <<EO_TEXT;
-ERROR: $0 needs to know the NMIS config files to compare
-usage: $0 <CONFIG_1> <CONFIG_2>
-eg: $0 /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/Config.nmis
-
-EO_TEXT
-	exit 1;
-}
-
-print "The NMIS8 install config template is: $ARGV[0]\n";
-print "The current NMIS8 config file: $ARGV[1]\n";
-
-my $conf1;
-my $conf2; 
-
-# load configuration table
-if ( -f $ARGV[0] ) {
-	$conf1 = readFiletoHash(file=>$ARGV[0]);
-}
-else {
-	print "ERROR: something wrong with config file 1: $ARGV[0]\n";
-	exit 1;
-}
-
-if ( -f $ARGV[1] ) {
-	$conf2 = readFiletoHash(file=>$ARGV[1]);
-}
-else {
-	print "ERROR: something wrong with config file 2: $ARGV[1]\n";
-	exit 1;
-}
-
-my %added;
-
-my $confnew = updateConfig("Template","Current",$conf1,$conf2);
-
-writeHashtoFile(file=>$ARGV[1],data=>$confnew);
-
-print "Items Added to Current Config:\n";
-foreach my $add (sort keys(%added)) {
-	my ($section,$item) = split("--",$add);
-	print "  $section/$item=$added{$add}\n";
-}
-
-sub updateConfig {
-	my $which1 = shift;
-	my $which2 = shift;
-	my $thing1 = shift;
-	my $thing2 = shift;
+my ($template, $live) = @ARGV;
+if (!$template or !-f $template or !$live or !-f $live)
+{
+	my $me = basename($0);
 	
-	#Recurse over the first Config Hash and compare results
-	print "Using $which1 as the base for comparison\n";
-	foreach my $section (sort keys %{$thing1}) {
-		#print "  Working on Config Section: $section\n";
-		foreach my $item (sort keys %{$thing1->{$section}}) {
-			if ( not defined $thing2->{$section}{$item} ) { 
-				print "  Null item found: $which1/$section/$item=$thing1->{$section}{$item}\n";
-				print "  Adding config item to $which2\n";
-				
-				$thing2->{$section}{$item} =  $thing1->{$section}{$item};
-				
-				$added{"$section--$item"} = $thing1->{$section}{$item};
-			}
-		}
-	}
-	return($thing2);
+	die "Usage: $me <install template> <live config>
+e.g. $me /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/Config.nmis
+
+This script updates your current NMIS Config with new config entries
+based on the NMIS install \"template\". Only missing entries are added.\n\n";
 }
+
+# load the live config or the results will be messy wrt perms
+my $current = loadConfTable();
+
+my $templateconf = readFiletoHash(file => $template);
+my $liveconf = readFiletoHash(file => $live);
+
+die "Invalid template config!\n" if (ref($templateconf) ne "HASH"
+																						or !keys %$templateconf);
+
+die "Invalid live config!\n" if (ref($liveconf) ne "HASH"
+																 or !keys %$liveconf);
+
+my @added;
+
+# attention: this covers ONLY TWO LEVELS of indirection!
+for my $section (sort keys %$templateconf)
+{
+	for my $item (sort keys %{$templateconf->{$section}})
+	{
+		next if (exists $liveconf->{$section}->{$item}); # undef is fine, only interested in MISSING
+		print "Updating missing $section/$item\n";
+
+		$liveconf->{$section}->{$item} =  $templateconf->{$section}->{$item};
+		push @added, [ $section, $item];
+	}
+}
+if (@added)
+{
+	writeHashtoFile(file=>$live, data=>$liveconf);
+	
+	print "\nItems added to Live Config:\n";
+	for (@added)
+	{
+		my ($section, $item) = @$_;
+		my $value = $liveconf->{$section}->{$item};
+		
+		print "  $section/$item=". (defined($value)?
+																$value =~ /\s+/ || $value eq ""? "'$value'": 
+																$value : "undef"). "\n";
+	}
+}
+else
+{
+	print "Found no items to add to Live Config.\n";
+}
+exit 0;
+
