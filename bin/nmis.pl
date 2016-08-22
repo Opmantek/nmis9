@@ -8423,14 +8423,14 @@ sub purge_files
 		{ ext => qr/\.rrd$/,
 			minage => $C->{purge_rrd_after} || 30*86400,
 			location => $C->{database_root},
-			empties => 1,
+			also_empties => 1,
 			description => "Old RRD files",
 		},
 		{
 			ext => qr/\.(tgz|tar\.gz)$/,
 			minage => $C->{purge_backup_after} || 30*86400,
 			location => $C->{'<nmis_backups>'},
-			empties => 1,
+			also_empties => 1,
 			description => "Old Backup files",
 		},
 		{
@@ -8438,7 +8438,7 @@ sub purge_files
 			minage => $C->{purge_state_after} || 30*86400,
 			ext => qr/\.nmis$/,
 			location => $C->{'<nmis_var>'},
-			empties =>  1,
+			also_empties =>  1,
 			description => "Legacy .nmis files",
 		},
 		{
@@ -8447,15 +8447,17 @@ sub purge_files
 			minage => $C->{purge_state_after} || 30*86400,
 			location => $C->{'<nmis_var>'},
 			path => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
-			empties =>  1,
+			also_empties =>  1,
 			description => "Old JSON state files",
 		},
 		{
-			# old nmis state files - json files under nmis_system
+			# old nmis state files - json files under nmis_system,
+			# except auth_failure files
 			minage => $C->{purge_state_after} || 30*86400,
 			location => $C->{'<nmis_var>'}."/nmis_system",
+			notpath => qr!^$C->{'<nmis_var>'}/nmis_system/auth_failures/!,
 			ext => qr/\.json$/,
-			empties =>  1,
+			also_empties =>  1,
 			description => "Old internal JSON state files",
 		},
 		{
@@ -8463,19 +8465,19 @@ sub purge_files
 			minage => 3600,						# 60 minutes seems a safe upper limit for tempfiles
 			ext => qr/\.json$/,
 			location => $C->{'<nmis_var>'},
-			empties =>  1,
+			only_empties => 1,
 			description => "Empty JSON state files",
 		},
 		{
 			minage => $C->{purge_event_after} || 30*86400,
 			path => qr!events/.+?/history/.+\.json$!,
-			empties => 1,
+			also_empties => 1,
 			location => $C->{'<nmis_var>'}."/events",
 			description => "Old event history files",
 		},
 		{
 			minage => $C->{purge_jsonlog_after} || 30*86400,
-			empties => 1,
+			also_empties => 1,
 			ext => qr/\.json/,
 			location => $C->{json_logs},
 			description => "Old JSON log files",
@@ -8499,10 +8501,19 @@ sub purge_files
 
 				next if (!S_ISREG($stat[2]) # not a file
 								 or ($rule->{ext} and $localname !~ $rule->{ext}) # not a matching ext
-								 or ($rule->{path} and $fn !~ $rule->{path})); # not a matching path
+								 or ($rule->{path} and $fn !~ $rule->{path}) # not a matching path
+								 or ($rule->{notpath} and $fn =~ $rule->{notpath})); # or an excluded path
 
-				next if ( ($stat[7] or !$rule->{empties}) # zero size allowed if empties is off
-									and ($stat[9] >= $olderthan) );			# younger than the cutoff?
+				# also_empties: purge by age or empty, versus only_empties: only purge empties
+				if ($rule->{only_empties})
+				{
+					next if ($stat[7]);		# size
+				}
+				else
+				{
+					next if ( ($stat[7] or !$rule->{also_empties}) # zero size allowed if empties is off
+										and ($stat[9] >= $olderthan) );			# younger than the cutoff?
+				}
 				$nukem{$fn} = $rule->{description};
 			},
 			follow => 1, }, $rule->{location});
