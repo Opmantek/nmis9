@@ -143,11 +143,13 @@ sub display_details
 		$q->td({ -class=>"info Plain" }, $label),
 		$q->td({ -class=>"info Plain" }, $value), "</tr>";
 	}
-	
+		
+	my $lastClass = ( $thisservice->{last_run} > time - 900 ) ? "" : "Warning";
+
 	# status: when last run, status (translated and numeric), textual status
 	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status Details"), "</tr>",
 	"<tr>", $q->td({ -class=>"info Plain" }, "Last Tested"),
-		$q->td({ -class=>"info Plain" }, returnDateStamp($thisservice->{last_run})), "</tr>";
+		$q->td({ -class=>"info Plain $lastClass" }, returnDateStamp($thisservice->{last_run})), "</tr>";
 	
 	my ($nicestatus, $statuscolor);
 	if ($thisservice->{status} == 100)
@@ -381,9 +383,12 @@ sub display_overview
 			
 			my $statuscolor = $one->{status} == 100? 'Normal': $one->{status} > 0? 'Warning' : 'Fatal';
 			my $statustext = $one->{status} == 100? 'running': $one->{status} > 0? 'degraded' : 'down';
+			
+			my $lastClass = ( $one->{last_run} > time - 900 ) ? "" : "Warning";
+
 			print $q->td({-class => "info $statuscolor"}, $statustext);
 
-			print $q->td({-class=>'info Plain'}, returnDateStamp($one->{last_run})),
+			print $q->td({-class=>"info Plain $lastClass"}, returnDateStamp($one->{last_run})),
 			$q->td({-class=>'info Plain'}, $one->{status_text}? escape($one->{status_text}) : "N/A");
 			
 			print "</tr>";
