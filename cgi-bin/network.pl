@@ -3252,35 +3252,37 @@ sub nodeAdminSummary {
 
 					my $moduleClass = "info Plain";
 
+					if ( not defined $NI->{system}{lastCollectPoll} ) {
+						$lastCollectPoll = "unknown";
+						$lastCollectClass = "info Plain Minor";
+						$exception = 1;
+						push(@issueList,"Last collect poll is unknown");
+					}
+					elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
+						$lastCollectClass = "info Plain Major";
+						$exception = 1;
+						push(@issueList,"Last collect poll was over 5 minutes ago");
+					}
+
 					my $actClass = "info Plain Minor";
 					if ( $LNT->{$node}{active} eq "false" ) {
 						push(@issueList,"Node is not active");
 					}
-					else {
-						$actClass = "info Plain";
-						if ( not defined $NI->{system}{lastCollectPoll} ) {
-							$lastCollectPoll = "unknown";
-							$lastCollectClass = "info Plain Minor";
-							$exception = 1;
-							push(@issueList,"Last collect poll is unknown");
-						}
-						elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
-							$lastCollectClass = "info Plain Major";
-							$exception = 1;
-							push(@issueList,"Last collect poll was over 5 minutes ago");
-						}
 
-						if ( not defined $NI->{system}{lastUpdatePoll} ) {
-							$lastUpdatePoll = "unknown";
-							$lastUpdateClass = "info Plain Minor";
-							$exception = 1;
-							push(@issueList,"Last update poll is unknown");
-						}
-						elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
-							$lastUpdateClass = "info Plain Major";
-							$exception = 1;
-							push(@issueList,"Last update poll was over 1 day ago");
-						}
+					if ( not defined $NI->{system}{lastUpdatePoll} ) {
+						$lastUpdatePoll = "unknown";
+						$lastUpdateClass = "info Plain Minor";
+						$exception = 1;
+						push(@issueList,"Last update poll is unknown");
+					}
+					elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
+						$lastUpdateClass = "info Plain Major";
+						$exception = 1;
+						push(@issueList,"Last update poll was over 1 day ago");
+					}
+
+					if ( $LNT->{$node}{active} eq "true" ) {
+						$actClass = "info Plain";
 
 						$pingable = "true";
 						$pingClass = "info Plain";
