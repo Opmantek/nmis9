@@ -84,7 +84,7 @@ foreach my $node (sort keys %{$LNT}) {
 		if ( $NI->{system}{lastUpdatePoll} > time() - $update ) {
 			$recentUpdate = 1;
 		}
-		print "DEBUG: recentUpdate=$recentUpdate $NI->{system}{lastUpdatePoll}\n";
+		
 		my $runIt = 0;
 		if ( defined $NI->{system}{$arg{field}} and $NI->{system}{$arg{field}} =~ /$arg{match}/ ) {
 			print "MATCH $NI->{system}{name}: $arg{field}=$NI->{system}{$arg{field}}\n";
