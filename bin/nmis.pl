@@ -1323,6 +1323,17 @@ sub getNodeInfo {
 				$V->{system}{serviceStatus_title} = 'Service Status';
 				$V->{system}{notes_value} = $NI->{system}{notes};
 				$V->{system}{notes_title} = 'Notes';
+				
+				# make sure any required data from network_viewNode_field_list gets added.
+				my @viewNodeFields = split(",",$C->{network_viewNode_field_list});
+				foreach my $field (@viewNodeFields) {
+					if ( defined $NI->{system}{$field} 
+						and ( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} )
+					) {
+						$V->{system}{"${field}_title"} = $field;
+						$V->{system}{"${field}_value"} = $NI->{system}{$field};
+					}
+				}
 
 				# update node info table with this new model
 				if ($S->loadNodeInfo(config=>$C)) {

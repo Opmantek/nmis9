@@ -1411,6 +1411,7 @@ sub viewNode {
 
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
+
 	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
 	my $time = time;
@@ -1425,6 +1426,9 @@ sub viewNode {
 		print "You are not authorized for this request! (group=$NT->{$node}{group})";
 		return;
 	}
+
+	$S->readNodeView();
+	my $V = $S->view;
 
 	### 2012-01-05 keiths, check if node is managed by slave server
 	if ( $NT->{$node}{server} ne $C->{server_name} ) {
@@ -1443,8 +1447,6 @@ sub viewNode {
 EO_HTML
   	return;
 	}
-
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
 
 	# fallback/default order and set of propertiess for displaying all information
 	my @order = (
@@ -1484,8 +1486,14 @@ EO_HTML
 		for (my $ii=0;$ii<=$#keys;$ii++) {
 			if (lc $i eq lc $keys[$ii]) { push @items,$i; splice(@keys,$ii,1); last;}
 		}
+		# ok, an update hasn't run, so its not in the view, just push it in!
+		if ( not grep { $_ eq $i } @items ) {
+			push @items,$i;
+		}
 	}
 	@items = (@items,@keys);
+
+	print STDERR "order=@order items=@items\n";
 
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
@@ -1530,7 +1538,15 @@ EO_HTML
 		eval {
 			my @out;
 			foreach my $k (@items){
-				my $title = $V->{system}{"${k}_title"} || $S->getTitle(attr=>$k,section=>'system');
+				# the default title is the key name.
+				my $title = $k;
+				#Can I get a better title?
+				if ( defined $V->{system}{"${k}_title"} or $S->getTitle(attr=>$k,section=>'system') ) {
+					$title = $V->{system}{"${k}_title"} || $S->getTitle(attr=>$k,section=>'system');
+				}
+				
+				print STDERR "DEBUG: k=$k, title=$title\n";
+				
 				if ($title ne '') {
 					my $color = $V->{system}{"${k}_color"} || '#FFF';
 					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
@@ -1545,9 +1561,17 @@ EO_HTML
 						$url = $u->as_string;
 					}
 
+					my $value;
+					# get the value from the view if it one of the special ones.
+					if ( $k =~ /host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged/) {
+						$value = $V->{system}{"${k}_value"};
+					}
+					else {
+						$value = $NI->{system}{$k};
+					}
+
 					# escape the input if there's anything in need of escaping;
 					# we don't want doubly-escaped uglies.
-					my $value = $V->{system}{"${k}_value"};
 					$value = escapeHTML($value) if ($value =~ /[<>]/);
 
 					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
@@ -1831,13 +1855,13 @@ sub viewInterface {
 	print header($headeropts);
 	pageStartJscript(title => "$node - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
-
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
 		return;
 	}
 
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
+	$S->readNodeView();
+	my $V = $S->view();
 
 	# order of items
 	my @order = ('ifAdminStatus','ifOperStatus','ifDescr','ifType','ifPhysAddress','Description','operAvail','totalUtil',
@@ -1973,7 +1997,8 @@ sub viewAllIntf {
 		return;
 	}
 
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
+	$S->readNodeView();
+	my $V = $S->view();
 
 	# order of header
 	my @header = ('ifDescr','Description','ipAdEntAddr1','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
@@ -2094,8 +2119,6 @@ sub viewActivePort {
 	print header($headeropts);
 	pageStartJscript(title => "$node - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read interface view table
-
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
@@ -2105,6 +2128,9 @@ sub viewActivePort {
 		print 'You are not authorized for this request';
 		return;
 	}
+
+	$S->readNodeView();
+	my $V = $S->view();
 
 	# order of header
 	my @header = ('ifDescr','Description','ifAdminStatus','ifOperStatus','operAvail','totalUtil');
@@ -2388,12 +2414,13 @@ sub viewServiceList {
 	print header($headeropts);
 	pageStartJscript(title => "$node - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
-
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
 		return;
 	}
+
+	$S->readNodeView();
+	my $V = $S->view();
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
@@ -2487,12 +2514,13 @@ sub viewStatus {
 	print header($headeropts);
 	pageStartJscript(title => "$node - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
-	my $V = loadTable(dir=>'var',name=>lc("${node}-view")); # read node view table
-
 	if (!$AU->InGroup($NI->{system}{group})) {
 		print 'You are not authorized for this request';
 		return;
 	}
+
+	$S->readNodeView();
+	my $V = $S->view();
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
@@ -3252,37 +3280,35 @@ sub nodeAdminSummary {
 
 					my $moduleClass = "info Plain";
 
-					if ( not defined $NI->{system}{lastCollectPoll} ) {
-						$lastCollectPoll = "unknown";
-						$lastCollectClass = "info Plain Minor";
-						$exception = 1;
-						push(@issueList,"Last collect poll is unknown");
-					}
-					elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
-						$lastCollectClass = "info Plain Major";
-						$exception = 1;
-						push(@issueList,"Last collect poll was over 5 minutes ago");
-					}
-
 					my $actClass = "info Plain Minor";
 					if ( $LNT->{$node}{active} eq "false" ) {
 						push(@issueList,"Node is not active");
 					}
-
-					if ( not defined $NI->{system}{lastUpdatePoll} ) {
-						$lastUpdatePoll = "unknown";
-						$lastUpdateClass = "info Plain Minor";
-						$exception = 1;
-						push(@issueList,"Last update poll is unknown");
-					}
-					elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
-						$lastUpdateClass = "info Plain Major";
-						$exception = 1;
-						push(@issueList,"Last update poll was over 1 day ago");
-					}
-
-					if ( $LNT->{$node}{active} eq "true" ) {
+					else {
 						$actClass = "info Plain";
+						if ( not defined $NI->{system}{lastCollectPoll} ) {
+							$lastCollectPoll = "unknown";
+							$lastCollectClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Last collect poll is unknown");
+						}
+						elsif ( $NI->{system}{lastCollectPoll} < (time - 60*15) ) {
+							$lastCollectClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Last collect poll was over 5 minutes ago");
+						}
+
+						if ( not defined $NI->{system}{lastUpdatePoll} ) {
+							$lastUpdatePoll = "unknown";
+							$lastUpdateClass = "info Plain Minor";
+							$exception = 1;
+							push(@issueList,"Last update poll is unknown");
+						}
+						elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
+							$lastUpdateClass = "info Plain Major";
+							$exception = 1;
+							push(@issueList,"Last update poll was over 1 day ago");
+						}
 
 						$pingable = "true";
 						$pingClass = "info Plain";
