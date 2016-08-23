@@ -1562,10 +1562,10 @@ EO_HTML
 					}
 
 					my $value;
-					# get the value from the view if it one of the special ones.
+					# get the value from the view if it one of the special ones, or only present there
 					if ( 
-						$k =~ /host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged/
-						or not defined $NI->{system}{$k} 
+						$k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+						or not exists($NI->{system}{$k})
 					) {
 						$value = $V->{system}{"${k}_value"};
 					}
