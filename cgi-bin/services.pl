@@ -385,9 +385,14 @@ sub display_overview
 		my $detailurl = $serviceurl . "&node=".uri_escape($one->{node})
 				."&service=".uri_escape($one->{service});
 
+		# need separate view id per node+service to show more than one widget at at time, 
+		# but spaces and () badly confuse the js widget code...
+		my $viewid = "service_view_$one->{node}_$one->{service}";
+		$viewid =~ s/[^a-zA-Z0-9_-]+//g;
+
 		print "<tr>", $q->td({-class=>'info Plain'},
 												 $q->a({ -href => $detailurl,
-																 id => "service_view_$one->{node}_$one->{service}" },
+																 id => $viewid },
 															 $one->{service})),
 		$q->td({-class=>'info Plain'},
 					 $q->a({-href=>$nodelink.uri_escape($one->{node}), id=>"node_view_".uri_escape($one->{node}) }, $one->{node}));
