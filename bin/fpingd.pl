@@ -116,7 +116,7 @@ if ( $alreadyrunning and ( getbool($nvp{kill}) or getbool($nvp{restart}) ))
 	killall($alreadyrunning);
 }
 
-if (defined $nvp{kill} and getbool($nvp{kill})) 
+if (defined $nvp{kill} and getbool($nvp{kill}))
 {
 	debug("Killed process $FindBin::Script, deleted $runfile");
 	exit(0);
@@ -216,7 +216,7 @@ else {
 
 # remember the original script location plus the parameter that we want to push through for restart
 # old path might have been relative and doesn't work past chdir
-my $origscript = $FindBin::RealBin."/".$FindBin::Script; 
+my $origscript = $FindBin::RealBin."/".$FindBin::Script;
 # we want to keep any params, except kill
 my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
 
@@ -232,7 +232,7 @@ exit 0;
 
 
 # loop over nodes, ping them; wait a little then continue
-sub fastping 
+sub fastping
 {
 	my $nodelist;
 	my $read_cnt = 0;
@@ -240,7 +240,7 @@ sub fastping
 	my $prevlnt;
 
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $oldeventconfig = loadTable(dir => 'conf', name => 'Events'); 
+	my $oldeventconfig = loadTable(dir => 'conf', name => 'Events');
 	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
 	while(1)
@@ -259,24 +259,24 @@ sub fastping
 		if ($read_cnt-- <= 0) {
 			# check every 10 runs for update of Node table - not on every cycle as it involves lots of dns!
 			debug("Rereading Nodes list");
-			$nodelist = readNodes(); 
+			$nodelist = readNodes();
 			$read_cnt = 10;
 		}
 
 		my %ping_result = (); # clear hash
-		
-		foreach my $row (sort keys %{$nodelist}) 
+
+		foreach my $row (sort keys %{$nodelist})
 		{
 			my $nodes = $nodelist->{$row};
 			&debug("\nfping $row about to ping :\t$nodes");
-			if ( open(IN, "$fpingcmd  $nodes  2>&1 |") ) { 
-		
+			if ( open(IN, "$fpingcmd  $nodes  2>&1 |") ) {
+
 				while (<IN>) {
 					chomp;
-		
+
 					my ( $flag, $hostname, $r, @rlist, $min, $max, $avg, $loss, $tot, $count);
 					$flag = $loss = $count = $min = $max = $avg = $tot = 0;
-	
+
 					# possible results are:
 					# host1 : - - -
 					# host2 : 0.18 0.19 0.19
@@ -284,11 +284,11 @@ sub fastping
 					# or rubbbish
 					&debug( "fping returned:\t$_") if $debug > 1;
 					if (/$qr_parse_result/) {
-	
+
 						($hostname, $r) = split /:/, $_ ;		# split on : into name, list of results
 						$hostname = trim($hostname);
 						$r = trim($r);
-			
+
 						foreach my $s ( split / /, $r ) {
 							$s = trim($s);
 							if ( $s eq '-' ) {
@@ -297,9 +297,9 @@ sub fastping
 								$min = $s if !$flag;			# seed $min on first pass
 								$max = $s if !$flag;
 								$flag++;
-				
+
 								# result - set min, max, and count for total
-			
+
 								$min = $s if $s < $min;
 								$max = $s if $s > $max;
 								$tot += $s;
@@ -323,37 +323,37 @@ sub fastping
 							$hostname=$pingedhost;
             }
 					}
-	
-	
+
+
 					&debug( localtime( time() ) . " $hostname : $min, $max, $avg, $loss");
-	
-					# get node name back from host 
+
+					# get node name back from host
 					if ( not exists $INFO{$hostname}{node} ) {
 						## 2011-12-07 keiths, changing error to be more accurate.
 						logMsg("ERROR hostname $hostname not found in FPING results");
 					} else {
 						# save only used info by nmis.pl
-						$ping_result{$INFO{$hostname}{node}} = { 
+						$ping_result{$INFO{$hostname}{node}} = {
 									'loss'     => $loss,
 									'avg'      => $avg,
 									'lastping' => "". localtime(time())
 								};
 						#Other possible items can be added from here.
-						#$ping_result{$INFO{$hostname}{node}} = { 
+						#$ping_result{$INFO{$hostname}{node}} = {
 						#			'loss'     => $loss,
 						#			'min'      => $min,
 						#			'avg'      => $avg,
 						#			'max'      => $max,
 						#			'ip'       => $hostname,
-						#			'lastping' => "" . localtime( time() ) 
+						#			'lastping' => "" . localtime( time() )
 						#		};
 					}
 				}
 				close IN;
-				
+
 				### logMsg("INFO run time of fping is ".(time()-$start_time)." sec. pinged ".(scalar keys %ping_result)." nodes");
-			} 
-			else 
+			}
+			else
 			{
 				logMsg("ERROR could not open pipe to fping: $!");
 				exit 1;
@@ -362,7 +362,7 @@ sub fastping
 
 		# Loop over results and send out up or down events
 
-		foreach my $nd ( keys %ping_result ) 
+		foreach my $nd ( keys %ping_result )
 		{
 			# write raw events if requested - regardless of state change or not!
 			# note that this is a debugging aid only.
@@ -383,7 +383,7 @@ sub fastping
 					{
 						my $down = $ping_result{$nd}{'loss'} == 100;
 						my $event = "Node ".($down? "Down":"Up");
-						my $level = $down? "Critical":"Normal"; # fixme this is not as precise as the stateful 
+						my $level = $down? "Critical":"Normal"; # fixme this is not as precise as the stateful
 						my $details = $down? "Ping failed" : "Ping succeeded, loss=$ping_result{$nd}{'loss'}%";
 
 						print RF join(",", time, $nd, $event, $level, '', $details),"\n";
@@ -392,22 +392,22 @@ sub fastping
 				}
 				map { logMsg($_) } (@problems); # DO NOT run logMsg inside a critical section or while holding a lock!
 			}
-			
+
 			# only submit changes in status to the event system, or submit all if restart
 			if ( $ping_result{$nd}{'loss'} == 100 )
 			{
-				&debug( "[" . localtime( time() ) . 
+				&debug( "[" . localtime( time() ) .
 								"]\tPinging Failed $nd is NOT REACHABLE, returned loss=$ping_result{$nd}{'loss'}%");
 				$INFO{$nd}{name} = ''; # maybe DNS changed
 
 				# hold-off time is past?
-				if ($INFO{$nd}{postpone_time} >= $INFO{$nd}{postpone}) 
+				if ($INFO{$nd}{postpone_time} >= $INFO{$nd}{postpone})
 				{
 					if ( $restart )
 					{
 						fpingNotify($nd);
 					}
-					elsif ( not eventExist($nd, "Node Down", undef) ) 
+					elsif ( not eventExist($nd, "Node Down", undef) )
 					{
 						# Device is DOWN, was up, as no entry in event database
 						&debug("\t$nd is now DOWN, was UP, Updating event database");
@@ -419,7 +419,7 @@ sub fastping
 						# uncomment this if you want to force an update each run - intensive !!!
 						# fpingNotify($nd);
 					}
-				} 
+				}
 				else 										# still within the hold-off period
 				{
 					$ping_result{$nd}{'loss'} = 0; # simulate ok until postpone time elapsed
@@ -432,7 +432,7 @@ sub fastping
 				$INFO{$nd}{postpone_time} = 0; # reset
 				&debug( "[" . localtime( time() ) . "]\t$nd is PINGABLE: returned min/avg/max = $ping_result{$nd}{'min'}/$ping_result{$nd}{'avg'}/$ping_result{$nd}{'max'} ms loss=$ping_result{$nd}{'loss'}%");
 
-				if ( $restart ) 
+				if ( $restart )
 				{
 					fpingCheckEvent($nd);
 				}
@@ -472,11 +472,11 @@ sub fastping
 			logMsg("WARN fping is terminating because NMIS is disabled!");
 			die ("Attention: fping is terminating because NMIS is disabled!\n");
 		}
-		
-		# cannot use loadGenericTable as that checks and clashes with db_events_sql
-		my $eventconfig = loadTable(dir => 'conf', name => 'Events'); 
 
-		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ? 
+		# cannot use loadGenericTable as that checks and clashes with db_events_sql
+		my $eventconfig = loadTable(dir => 'conf', name => 'Events');
+
+		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ?
 				"Events List" : !eq_deeply($C,$newconf) ? "Config" : undef;
 		if ($whichchanged)
 		{
@@ -492,7 +492,7 @@ sub fastping
 		$restart = 0; # first run done
 		&debug("sleeping ...");
 		# Generate random # from 1-10 + $C->{fastping_sleep}
-		
+
 		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
 		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
 
@@ -504,7 +504,7 @@ sub fastping
 # check-and-remove existing node down event
 # args: node name
 # returns: nothing
-sub fpingCheckEvent 
+sub fpingCheckEvent
 {
 	my $node = shift;
 	&debug("\tUpdating event database via sub checkEvent() host: $node event: Node Up");
@@ -512,7 +512,7 @@ sub fpingCheckEvent
 	my $S = Sys::->new;
 	$S->init(name => $node, snmp => 'false');
 	my $NI = $S->ndinfo; # pointer to node info table
-	
+
 	checkEvent( sys		=> $S,
 							event   => "Node Down",
 							element => "",
@@ -523,7 +523,7 @@ sub fpingCheckEvent
 # create a new node down event
 # args: node name
 # returns: nothing
-sub fpingNotify 
+sub fpingNotify
 {
 	my $node = shift;
 
@@ -535,7 +535,8 @@ sub fpingNotify
 	notify(	sys		=> $S,
 					event   => "Node Down",
 					element => "",
-					details => "Ping failed" );
+					details => "Ping failed",
+					context => { type => "node" });
 }
 
 sub trim {
@@ -558,7 +559,7 @@ sub debug {
 sub catch_zap {
 	$fpingexit++;
 	&debug("I was killed by $_[0]");
-	logMsg("INFO daemon fpingd killed by $_[0]", 
+	logMsg("INFO daemon fpingd killed by $_[0]",
 				 do_not_lock => 1);
 	unlink $runfile;
 	die "I was killed by $_[0]: $!\n";
@@ -568,7 +569,7 @@ sub catch_zap {
 sub killall {
 	my (@shootthem) = @_;
 
-	foreach my $p (@shootthem) 
+	foreach my $p (@shootthem)
 	{
 		next if !$p or $p eq $$;
 		kill 9, $p;
@@ -578,7 +579,7 @@ sub killall {
 
 # read node info from file. maybe cached, or from db
 # returns sorted list of ips to ping, chunked into rows
-sub readNodes 
+sub readNodes
 {
 	my @hosts;
 	my $NT = loadLocalNodeTable(); # from (cached) file or db
@@ -589,7 +590,7 @@ sub readNodes
 				# new entry or changed host address
 				$INFO{$nd}{org_host} = $NT->{$nd}{host}; # remember original for changes
 				$INFO{$nd}{name} = $nd; # remember name of node
-								
+
 					# Optionally Caching DNS, improved performance but makes development harder :-)
           if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
 						if ($NT->{$nd}{host} =~ /$qripaddr/) {
@@ -657,8 +658,6 @@ sub readNodes
 	}
 	# put the left over nodes into nodelist!
 	$nodelist->{$row} = join(' ',@shorthosts);
-	
+
 	return $nodelist;
 }
-
-

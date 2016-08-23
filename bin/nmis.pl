@@ -1185,7 +1185,8 @@ sub runPing {
 				info("Pinging Failed $S->{name} is NOT REACHABLE");
 				logMsg("ERROR ($S->{name}) ping failed") if (!getbool($NI->{system}{nodedown}));
 
-				notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed");
+				notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed",
+							 context => { type => "node" } );
 			} else {
 				# Node is UP!
 				$RI->{pingavg} = $ping_avg; # results for sub runReach
@@ -1323,11 +1324,11 @@ sub getNodeInfo {
 				$V->{system}{serviceStatus_title} = 'Service Status';
 				$V->{system}{notes_value} = $NI->{system}{notes};
 				$V->{system}{notes_title} = 'Notes';
-				
+
 				# make sure any required data from network_viewNode_field_list gets added.
 				my @viewNodeFields = split(",",$C->{network_viewNode_field_list});
 				foreach my $field (@viewNodeFields) {
-					if ( defined $NI->{system}{$field} 
+					if ( defined $NI->{system}{$field}
 						and ( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} )
 					) {
 						$V->{system}{"${field}_title"} = $field;
@@ -1535,10 +1536,18 @@ sub checkPower {
 		if ($NI->{system}{$attr} !~ /noSuch/) {
 			$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
 			if ( $NI->{system}{$attr} =~ /normal|unknown|notPresent/ ) {
-				checkEvent(sys=>$S,event=>"RPS Fail",level=>"Normal",element=>$attr,details=>"RPS failed");
+				checkEvent(sys=>$S,
+									 event=>"RPS Fail",
+									 level=>"Normal",
+									 element=>$attr,
+									 details=>"RPS failed");
 				$V->{system}{"${attr}_color"} = '#0F0';
 			} else {
-				notify(sys=>$S,event=>"RPS Fail",element=>$attr,details=>"RPS failed");
+				notify(sys=>$S,
+							 event=>"RPS Fail",
+							 element=>$attr,
+							 details=>"RPS failed",
+							 context => { type => "rps" } );
 				$V->{system}{"${attr}_color"} = 'red';
 			}
 		}
@@ -1610,7 +1619,12 @@ sub checkNodeConfiguration {
 		$V->{system}{configChangeCount_value} = $NI->{system}{configChangeCount};
 		$V->{system}{configChangeCount_title} = "Configuration change count";
 
-		notify(sys=>$S,event=>"Node Configuration Change",element=>"",details=>"Changed at ".$V->{system}{configLastChanged_value} );
+		notify(sys=>$S,
+					 event=>"Node Configuration Change",
+					 element=>"",
+					 details=>"Changed at ".$V->{system}{configLastChanged_value},
+					 context => { type => "node" },
+				);
 		logMsg("checkNodeConfiguration configuration change detected on $NI->{system}{name}, creating event");
 	}
 
@@ -2140,7 +2154,12 @@ sub getIntfInfo {
 					and $thisintf->{ifOperStatus} !~ /up|ok|dormant/
 			) {
 				if (getbool($thisintf->{event})) {
-					notify(sys=>$S,event=>"Interface Down",element=>$thisintf->{ifDescr},details=>$thisintf->{Description});
+					notify(sys=>$S,
+								 event=>"Interface Down",
+								 element=>$thisintf->{ifDescr},
+								 details=>$thisintf->{Description},
+								 context => { type => "interface" },
+							);
 				}
 			} else {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$thisintf->{ifDescr},details=>$thisintf->{Description});
@@ -2362,7 +2381,10 @@ sub checkPIX {
 						{
 						dbg("PIX failover occurred");
 						# As this is not stateful, alarm not sent to state table in sub eventAdd
-						notify(sys=>$S,event=>"Node Failover",element=>'PIX',details=>"Primary now: $NI->{system}{pixPrimary}  Secondary now: $NI->{system}{pixSecondary}");
+						notify(sys=>$S,
+									 event=>"Node Failover",
+									 element=>'PIX',
+									 details=>"Primary now: $NI->{system}{pixPrimary}  Secondary now: $NI->{system}{pixSecondary}");
 					}
 				}
 				$NI->{system}{pixPrimary} = $result->{'cfwHardwareStatusValue.6'}; # remember
@@ -2880,8 +2902,10 @@ sub updateNodeInfo {
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
 		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
 			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
-			notify(sys=>$S, event=>"Node Reset",element=>"",
-						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}");
+			notify(sys=>$S, event=>"Node Reset",
+						 element=>"",
+						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}",
+						 context => { type => "node" } );
 
 			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
 			# so that no spikes appear in the graphs
@@ -2974,23 +2998,10 @@ sub processAlerts {
 	my $S = $args{S};
 	my $alerts = $S->{alerts};
 
-	#print Dumper $S->{alerts} if $C->{debug};
-
 	foreach my $alert (@{$alerts})
 	{
 		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
 		dbg("Processing alert ".Dumper($alert),4);
-		#$VAR1 = {
-		#  'ds' => '192.168.1.249',
-		#  'event' => 'BGP Peer Down',
-		#  'level' => 'Warning',
-		#  'name' => 'meatball',
-		#  'test' => 'CVAR1=bgpPeerState;$CVAR1 * 1',
-		#  'test_result' => 1,
-		#  'type' => 'test',
-		#  'unit' => '',
-		#  'value' => 100
-		#};
 
 		my $tresult = "Normal";
 		$tresult = $alert->{level} if $alert->{test_result};
@@ -2998,12 +3009,25 @@ sub processAlerts {
 		my $statusResult = "ok";
 		$statusResult = "error" if $tresult ne "Normal";
 
-		#$alert->{test}
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
-		if( $alert->{test_result} ) {
-			notify(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
-		} else {
-			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event}, level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
+		if( $alert->{test_result} )
+		{
+			notify(sys=>$S,
+						 event=>"Alert: ".$alert->{event},
+						 level=>$alert->{level},
+						 element=>$alert->{ds}, # vital part of context, too
+						 details=>$details,
+						 context => { type => "alert",
+													source => "snmp", # fixme: needs extension for wmi
+													section => $alert->{section},
+													name => $alert->{alert},
+													index => $alert->{index},
+						 } );
+		}
+		else
+		{
+			checkEvent(sys=>$S, event=>"Alert: ".$alert->{event},
+								 level=>$alert->{level}, element=>$alert->{ds}, details=>$details);
 		}
 
 		### save the Alert result into the Status thingy
@@ -3299,7 +3323,10 @@ sub getIntfData {
 												and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/
 										) {
 											if (getbool($IF->{$index}{event})) {
-												notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+												notify(sys=>$S,event=>"Interface Down",
+															 element=>$IF->{$index}{ifDescr},
+															 details=>$IF->{$index}{Description},
+															 context => { type => "interface" } );
 											}
 										} else {
 											checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
@@ -3414,11 +3441,9 @@ sub getIntfData {
 					dbg("ERROR ($S->{name}) on getting data of interface=$index");
 					$V->{interface}{"${index}_operAvail_value"} = 'N/A';
 					$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
-					# inerface problems
-					### 2013-11-06 keiths: this Interface Down does not appear to be valid, no data means we don't know commenting out the notify and changing to logMsg
+					# interface problems but no usable data, don't make an event
 					if (getbool($IF->{$index}{event})) {
 						logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
-						###notify(sys=>$S,event=>"Interface Down",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 					}
 				}
 
@@ -4307,10 +4332,10 @@ sub runServer {
 							or $D->{hrStorageSize} <= 0) {
 					delete $NI->{storage}{$index};
 				} else {
-					if ( 
+					if (
 						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
 						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageFixedDisk
-					) { 
+					) {
 						undef %Val;
 						my $hrStorageType = $D->{hrStorageType};
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
@@ -4339,7 +4364,7 @@ sub runServer {
 									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
 								}
 							}
-							
+
 							$D->{hrStorageType} = 'Network Disk';
 							$D->{hrFSRemoteMountPoint} = $fileSystemTable->{$D->{hrStorageDescr}};
 						}
@@ -4962,8 +4987,11 @@ sub runServices
 			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name},
 								 details=> ($status{$service}->{status_text}||"") );
 			# ...and create a degraded
-			notify(sys => $S, event => "Service Degraded", level => "Warning", element => $ST->{$service}{Name},
-						 details=> ($status{$service}->{status_text}||""));
+			notify(sys => $S, event => "Service Degraded",
+						 level => "Warning",
+						 element => $ST->{$service}{Name},
+						 details=> ($status{$service}->{status_text}||""),
+						 context => { type => "service" } );
 		}
 		else 			# Service is down
 		{
@@ -4975,8 +5003,10 @@ sub runServices
 								 details=> ($status{$service}->{status_text}||"") );
 
 			# and now create a down event
-			notify(sys=>$S, event=>"Service Down", level => "Fatal", element=>$ST->{$service}{Name},
-						 details=> ($status{$service}->{status_text}||"") );
+			notify(sys=>$S, event=>"Service Down", level => "Fatal",
+						 element=>$ST->{$service}{Name},
+						 details=> ($status{$service}->{status_text}||""),
+						 context => { type => "service" } );
 		}
 
 		# figure out which graphs to offer
@@ -5190,15 +5220,20 @@ sub runAlerts {
 							}
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
-							$alert->{type} = $CA->{$sect}{$alrt}{type};
+							$alert->{type} = $CA->{$sect}{$alrt}{type}; # threshold or test or whatever
 							$alert->{test} = $CA->{$sect}{$alrt}{value};
-							$alert->{name} = $S->{name};
+							$alert->{name} = $S->{name}; # node name, not much good here
 							$alert->{unit} = $CA->{$sect}{$alrt}{unit};
 							$alert->{event} = $CA->{$sect}{$alrt}{event};
 							$alert->{level} = $level;
-							$alert->{ds} = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
+							$alert->{ds} = $NI->{$sect}{$index}{ $CA->{$sect}{$alrt}{element} };
 							$alert->{test_result} = $test_result;
 							$alert->{value} = $test_value;
+							# also ensure that section, index and alertkey are known for the event context
+							$alert->{section} = $sect;
+							$alert->{alert} = $alrt; # the key, good enough
+							$alert->{index} = $index;
+
 							push( @{$S->{alerts}}, $alert );
 					}
 				}
@@ -5262,7 +5297,10 @@ sub snmpNodeDown {
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;	# node info
 	# failed by snmp
-	notify(sys=>$S,event=>"SNMP Down",element=>'',details=>"SNMP error");
+	notify(sys=>$S, event=>"SNMP Down",
+				 element=>'',
+				 details=>"SNMP error",
+				 context =>  { type => "node" } );
 	$NI->{system}{snmpdown} = 'true';
 	return 0;
 }
@@ -8109,7 +8147,8 @@ sub doThreshold {
 			if ($type eq "threshold");	# not if part of collect
 }
 
-sub runThrHld {
+sub runThrHld
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -8177,7 +8216,8 @@ sub runThrHld {
 	### 2012-04-25 keiths, fixing loop as not processing correctly.
 	$thrname = stripSpaces($thrname);
 	my @nm_list = split(/,/,$thrname);
-	foreach my $nm (@nm_list) {
+	foreach my $nm (@nm_list)
+	{
 		dbg("processing threshold $nm");
 
 		# check for control_regex
@@ -8194,7 +8234,11 @@ sub runThrHld {
 			}
 		}
 
-		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,thrname=>$nm,stats=>$stats,index=>$index,item=>$item);
+		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,
+																														thrname=>$nm,
+																														stats=>$stats,
+																														index=>$index,
+																														item=>$item);
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
 
@@ -8208,7 +8252,8 @@ sub runThrHld {
 		}
 
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
-		if ( getbool($C->{global_events_bandwidth}) and $type =~ /interface|pkts/ and $IF->{$index}{ifSpeed} ne "")
+		if ( getbool($C->{global_events_bandwidth})
+				 and $type =~ /interface|pkts/ and $IF->{$index}{ifSpeed} ne "")
 		{
 			my $ifSpeed = $IF->{$index}->{ifSpeed};
 
@@ -8221,7 +8266,18 @@ sub runThrHld {
 			$details .= $spacer."Bandwidth=".convertIfSpeed($ifSpeed);
 		}
 
-		thresholdProcess(sys=>$S,type=>$type,event=>$event,level=>$level,element=>$element,details=>$details,value=>$value,thrvalue=>$thrvalue,reset=>$reset,thrname=>$nm,index=>$index,class=>$class);
+		thresholdProcess(sys=>$S,
+										 type=>$type, # crucial for event context
+										 event=>$event,
+										 level=>$level,
+										 element=>$element, # crucial for context
+										 details=>$details,
+										 value=>$value,
+										 thrvalue=>$thrvalue,
+										 reset=>$reset,
+										 thrname=>$nm, # crucial for context
+										 index=>$index,	 # crucial for context
+										 class=>$class); # crucial for context
 	}
 
 }
@@ -8326,46 +8382,62 @@ sub getThresholdLevel {
 	return ($level,$value,$thrvalue,$reset);
 }
 
-sub thresholdProcess {
+sub thresholdProcess
+{
 	my %args = @_;
 	my $S = $args{sys};
 
-	if ( $args{value} =~ /^\d+$|^\d+\.\d+$/ ) {
+	# fixme why no error checking? what about negative or floating point values like 1.3e5?
+	if ( $args{value} =~ /^\d+$|^\d+\.\d+$/ )
+	{
 		info("$args{event}, $args{level}, $args{element}, value=$args{value} reset=$args{reset}");
-	###	logMsg("INFO ($S->{node}) event=$args{event}, level=$args{level}, element=$args{element}, value=$args{value}, reset=$args{reset}");
-		if ( $args{value} !~ /NaN/i ) {
-			my $details = "Value=$args{value} Threshold=$args{thrvalue}";
-			if ( defined $args{details} and $args{details} ne "" ) {
-				$details = "$args{details}: Value=$args{value} Threshold=$args{thrvalue}";
-			}
-			my $statusResult = "ok";
-			if ( $args{level} =~ /Normal/i ) {
-				checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details,value=>$args{value},reset=>$args{reset});
-			}
-			else {
-				notify(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details);
-				$statusResult = "error";
-			}
-			my $index = $args{index};
-			if ( $index eq "" ) {
-				$index = 0;
-			}
-			my $statusKey = "$args{thrname}--$index";
 
-			$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
+		my $details = "Value=$args{value} Threshold=$args{thrvalue}";
+		if ( defined $args{details} and $args{details} ne "" )
+		{
+			$details = "$args{details}: Value=$args{value} Threshold=$args{thrvalue}";
+		}
+		my $statusResult = "ok";
+		if ( $args{level} =~ /Normal/i )
+		{
+			checkEvent(sys=>$S,event=>$args{event},level=>$args{level},element=>$args{element},details=>$details,value=>$args{value},reset=>$args{reset});
+		}
+		else
+		{
+			notify(sys=>$S,
+						 event=>$args{event}, # this is cooked at this point and no good for context
+						 level=>$args{level},
+						 element=>$args{element},
+						 details=>$details,
+						 context => { type => "threshold",
+													source => "snmp", # fixme needs extension to support wmi as source
+													name => $args{thrname},
+													thresholdtype => $args{type},
+													index =>  $args{index},
+													class => $args{class},
+						 } );
+			$statusResult = "error";
+		}
+		my $index = $args{index};
+		if ( $index eq "" )
+		{
+			$index = 0;
+		}
+		my $statusKey = "$args{thrname}--$index";
 
-			$S->{info}{status}{$statusKey} = {
-				method => "Threshold",
-				type => $args{type},
-				property => $args{thrname},
-				event => $args{event},
-				index => $args{index},
-				level => $args{level},
-				status => $statusResult,
-				element => $args{element},
-				value => $args{value},
-				updated => time()
-			}
+		$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
+
+		$S->{info}{status}{$statusKey} = {
+			method => "Threshold",
+			type => $args{type},
+			property => $args{thrname},
+			event => $args{event},
+			index => $args{index},
+			level => $args{level},
+			status => $statusResult,
+			element => $args{element},
+			value => $args{value},
+			updated => time()
 		}
 	}
 }
@@ -8418,10 +8490,10 @@ sub sync_groups
 	return undef;
 }
 
-# this is a maintenance command for removing old, broken or unwanted files, 
+# this is a maintenance command for removing old, broken or unwanted files,
 # replaces and extends the old admin/nmis_file_cleanup.sh
 #
-# args: none, but checks nvp simulate (default: false, if true only prints 
+# args: none, but checks nvp simulate (default: false, if true only prints
 # what it would do)
 # returns: undef if ok, error message otherwise
 sub purge_files

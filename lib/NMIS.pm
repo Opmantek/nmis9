@@ -2303,10 +2303,10 @@ sub htmlGraph {
 	}
 }
 
-# args: user, node, system, refresh, widget, au (object), 
+# args: user, node, system, refresh, widget, au (object),
 # conf (=name of config for links)
 # returns: html as array of lines
-sub createHrButtons 
+sub createHrButtons
 {
 	my %args = @_;
 	my $user = $args{user};
@@ -2321,7 +2321,7 @@ sub createHrButtons
 	$refresh = "false" if (!getbool($refresh));
 
 	my @out;
-	
+
 	my $NI = loadNodeInfoTable($node);
 	my $C = loadConfTable();
 
@@ -3406,7 +3406,8 @@ sub eventAck
 # to JUST create an event record, use eventUpdate() w/create_if_missing
 #
 # args: node, event, element (may be missing), level,
-# details (may be missing), stateless (optional, default false)
+# details (may be missing), stateless (optional, default false),
+# context (optional, just passed through)
 #
 # returns: undef if ok, error message otherwise
 sub eventAdd
@@ -3450,6 +3451,8 @@ sub eventAdd
 			$existing->{startdate} = time();
 			$existing->{escalate} = -1;
 			$existing->{ack} = 'false';
+			$existing->{context} ||= $args{context};
+
 			dbg("event stateless, node=$node, event=$event, level=$level, element=$element, details=$details");
 			if (my $error = eventUpdate(event => $existing))
 			{
@@ -3466,7 +3469,7 @@ sub eventAdd
 	    return "cannot add event: already exists, is current and not stateless!";
 	}
 	# doesn't exist or isn't current
-	# fixme: existing  but not current isn't cleanly handled here
+	# fixme: existing but not current isn't cleanly handled here
 	else
 	{
 		$existing ||= {};
@@ -3482,6 +3485,7 @@ sub eventAdd
 		$existing->{escalate} = -1;
 		$existing->{notify} = "";
 		$existing->{stateless} = $stateless;
+		$existing->{context} = $args{context};
 
 		if (my $error = eventUpdate(event => $existing, create_if_missing => !(-f $efn)))
 		{
@@ -3653,7 +3657,7 @@ sub checkEvent
 # note that notify ignores any outage configuration.
 #
 # args: LIVE sys for this node, event(=name), element (optional),
-# details, level (all optional)
+# details, level (all optional), context (optional, deep structure)
 # returns: nothing
 sub notify
 {
@@ -3695,6 +3699,7 @@ sub notify
 				# note: 2014-08-27 keiths, update the details as well when changing the level
 				$erec->{level} = $level;
 				$erec->{details} = $details;
+				$erec->{context} ||= $args{context};
 				if (my $error = eventUpdate(event => $erec))
 				{
 					logMsg("ERROR $error");
@@ -3728,7 +3733,8 @@ sub notify
 		# Create and store this new event; record whether stateful or not
 		# a stateless event should escalate to a level and then be automatically deleted.
 		if (my $error = eventAdd( node=>$node, event=>$event, level=>$level,
-															element=>$element, details=>$details, stateless => $is_stateless))
+															element=>$element, details=>$details,
+															stateless => $is_stateless, context => $args{context}))
 		{
 			logMsg("ERROR: $error");
 		}
