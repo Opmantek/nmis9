@@ -3,37 +3,37 @@
 ## $Id: node.pl,v 8.5 2012/04/28 00:59:36 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use List::Util;
 use NMIS;
@@ -159,7 +159,7 @@ sub typeGraph {
 	print header($headeropts);
 	my $opcharts_scripts = "";
 	if( $C->{display_opcharts} ) {
-		$opcharts_scripts = "<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>".		
+		$opcharts_scripts = "<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>".
 			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>".
 			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
 	}
@@ -167,13 +167,13 @@ sub typeGraph {
 		-title => "Graph Drill In for $heading @ ".returnDateStamp." - $C->{server_name}",
 		-meta => { 'CacheControl' => "no-cache",
 			'Pragma' => "no-cache",
-			'Expires' => -1 
+			'Expires' => -1
 			},
 		-head=>[
 			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),			
+			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),
 			$opcharts_scripts
-			]			
+			]
 		);
 
 	# verify that user is authorized to view the node within the user's group list
@@ -195,7 +195,7 @@ sub typeGraph {
 
 	my $width = $C->{graph_width};
 	my $height = $C->{graph_height};
-	
+
 	### 2012-02-06 keiths, handling default graph length
 	# default is hours!
 	my $graphlength = $C->{graph_amount};
@@ -204,7 +204,7 @@ sub typeGraph {
 	}
 
 	# convert start time/date field to seconds
-	### 
+	###
 	if ( $date_start eq "" ) {
 		if ( $start eq "" ) { $start = $p_start = $time - ($graphlength*60*60); }
 	} else {
@@ -273,7 +273,7 @@ sub typeGraph {
 	#==== calculation done
 
 	my $GTT = $S->loadGraphTypeTable(index=>$index);
-	
+
 	#print STDERR "DEBUG: ", %$GTT, "\n";
 
 	my $itm;
@@ -292,12 +292,12 @@ sub typeGraph {
 		if ($AU->Require) {
 			my $lnode = lc($NT->{$node}{name});
 			if ( $NT->{$node}{group} ne "" ) {
-				if ( not $AU->InGroup($NT->{$node}{group}) ) { 
-					$auth = 0; 
+				if ( not $AU->InGroup($NT->{$node}{group}) ) {
+					$auth = 0;
 				}
 			}
 			else {
-				logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.") 
+				logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
 			}
 		}
 		if ($auth) {
@@ -308,13 +308,13 @@ sub typeGraph {
 	}
 
 	print comment("typeGraph begin");
-	
+
 	my $systemHealth = 0;
 	my $systemHealthSection = "";
 	my $systemHealthHeader = "";
 	my $systemHealthTitle = "";
 	my @systemHealthLabels;
-	
+
 	foreach my $index (keys %{$NI->{graphtype}}) {
 		if ( ref($NI->{graphtype}{$index}) eq "HASH" ) {
 			foreach my $gtype (keys %{$NI->{graphtype}{$index}}) {
@@ -341,7 +341,7 @@ sub typeGraph {
 			}
 		}
 	}
-	
+
 	print start_form( -method=>'get', -name=>"dograph", -action=>url(-absolute=>1));
 
 	print start_table();
@@ -356,7 +356,7 @@ sub typeGraph {
 					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23')),
 				# Node select menu
 				td({class=>'header',align=>'center',colspan=>'1'},eval {
-						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1') 
+						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
 							if $Q->{graphtype} eq 'metrics' or $Q->{graphtype}  eq 'nmis';
 						return "Node ",popup_menu(-name=>'node', -override=>'1',
 							-values=>[@nodelist],
@@ -381,12 +381,12 @@ sub typeGraph {
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
 						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $Q->{graphtype} eq 'nmis';
 						if ( $Q->{graphtype} eq "metrics") {
-							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', 
+							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1',
 										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
 										-default=>"$group",
 										-onChange=>'JavaScript:this.form.submit()'),
 										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
-						} 
+						}
 						elsif ($Q->{graphtype} eq "hrsmpcpu") {
 							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
@@ -439,20 +439,20 @@ sub typeGraph {
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
 										-onChange=>'JavaScript:this.form.submit()');
-						} 
+						}
 						elsif ($systemHealth) {
 							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort keys %{$NI->{$systemHealthSection}}],
 										-default=>"$index",
 										-labels=>{ @systemHealthLabels },
 										-onChange=>'JavaScript:this.form.submit()');
-						} 
+						}
 						else {
-							# all interfaces have an ifindex, but for the menu we only want 
+							# all interfaces have an ifindex, but for the menu we only want
 							# the ones that NMIS actually collects
-							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} } 
+							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} }
 							grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
-							
+
 							### 2014-10-21 keiths, if the ifIndex is specifically requested, show it in the menu.
 							if (not grep { $_ eq $index } @wantedifs ) {
 										push(@wantedifs, $index);
@@ -469,13 +469,13 @@ sub typeGraph {
 						my @out;
 						my $cg = "conf=$Q->{conf}&group=$group&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
 						foreach my $gtp (keys %graph_button_table) {
-							foreach my $gt (keys %{$GTT}) { 
+							foreach my $gt (keys %{$GTT}) {
 								if ($gtp eq $gt) {
 									push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
 								}
 							}
 						}
-						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) { 
+						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
 							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},"Export");
 							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},"Stats");
 						}
@@ -494,8 +494,10 @@ sub typeGraph {
 			$time = RRDs::last $db;
 			$lastUpdate = returnDateStamp($time);
 		}
-		
-		my $V = loadTable(dir=>'var',name=>lc("$node-view")); # read node view table
+
+		$S->readNodeView;
+		my $V = $S->view;
+
 		my $speed = &convertIfSpeed($IF->{$index}{ifSpeed});
 		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne "" and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" ) {
 				$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
@@ -525,7 +527,7 @@ sub typeGraph {
 	my @output;
 	# check if database selectable with this info
 	if ( ($S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item,
-											suppress_errors=>'true')) 
+											suppress_errors=>'true'))
 			 or $Q->{graphtype} =~ /calls|cbqos/) {
 
 		my %buttons;
@@ -533,9 +535,9 @@ sub typeGraph {
 		my $hvalue;
 		my @buttons;
 		my @intf;
-	
+
 		# figure out the available policy or classifier names and other cbqos details
-		if ( $Q->{graphtype} =~ /cbqos/ ) 
+		if ( $Q->{graphtype} =~ /cbqos/ )
 		{
 			my ($CBQosNames,undef) = NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
 			$htitle = 'Policy name';
@@ -547,7 +549,7 @@ sub typeGraph {
 				$buttons{$i}{item} = $CBQosNames->[$i];
 			}
 		}
-	
+
 		# display Call buttons if there is more then one call port for this node
 		if ( $Q->{graphtype} eq "calls" ) {
 			for my $i ($S->getTypeInstances(section => "calls")) {
@@ -569,15 +571,15 @@ sub typeGraph {
 																	-default=>"$item",
 																	-onChange=>'JavaScript:this.form.submit()'));
 			push @output, end_Tr;
-		}		
-		
+		}
+
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
 				"&node=$urlsafenode&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
 		my $chartDiv = "";
 		if( getbool($C->{display_opcharts}) ) {
-			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;	
+			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;
 		}
-				
+
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
 			if( getbool($C->{display_opcharts}) ) {
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
@@ -585,7 +587,7 @@ sub typeGraph {
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 			}
-		} 
+		}
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
 		}
@@ -608,7 +610,7 @@ sub typeGraph {
 	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
 	print hidden(-name=>'func', -default=>"view",-override=>'1');
 
-	print end_table, end_form, comment("typeGraph end");	
+	print end_table, end_form, comment("typeGraph end");
 	print end_html;
 
 } # end typeGraph
@@ -690,7 +692,7 @@ sub typeStats {
 		-title => "Statistics",
 		-meta => { 'CacheControl' => "no-cache",
 			'Pragma' => "no-cache",
-			'Expires' => -1 
+			'Expires' => -1
 			},
 		-head=>[
 			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"})
@@ -764,4 +766,3 @@ sub typeStats {
 	print end_table,end_html;
 
 }
-
