@@ -1563,8 +1563,9 @@ EO_HTML
 
 					my $value;
 					# get the value from the view if it one of the special ones.
-					if ( $title =~ /Service/ 
-						or $k =~ /host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged/
+					if ( 
+						$k =~ /host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged/
+						or not defined $NI->{system}{$k} 
 					) {
 						$value = $V->{system}{"${k}_value"};
 					}
