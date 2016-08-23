@@ -1493,7 +1493,7 @@ EO_HTML
 	}
 	@items = (@items,@keys);
 
-	print STDERR "order=@order items=@items\n";
+	# print STDERR "order=@order items=@items\n";
 
 	### 2013-03-13 Keiths, adding an edit node button.
 	my $editnode;
@@ -1544,9 +1544,9 @@ EO_HTML
 				if ( defined $V->{system}{"${k}_title"} or $S->getTitle(attr=>$k,section=>'system') ) {
 					$title = $V->{system}{"${k}_title"} || $S->getTitle(attr=>$k,section=>'system');
 				}
-				
-				print STDERR "DEBUG: k=$k, title=$title\n";
-				
+
+				# print STDERR "DEBUG: k=$k, title=$title\n";
+
 				if ($title ne '') {
 					my $color = $V->{system}{"${k}_color"} || '#FFF';
 					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
@@ -1635,20 +1635,50 @@ EO_HTML
 					}
 				}
 			}
-			# display events for this one node
+			# display events for this one node - also close one if asked to
 			if (my %nodeevents = loadAllEvents(node => $node))
 			{
 				push @out,Tr(td({class=>'header',colspan=>'2'},'Events'));
+				my $usermayclose = $AU->CheckAccess("src_events","check");
+
+				my $closemeurl = url(-absolute=>1)."?conf=$Q->{conf}&amp;act=network_node_view"
+						."&amp;widget=$widget"
+						."&amp;node=".uri_escape($node);
 
 				for my $eventkey (sort keys %nodeevents)
 				{
 					my $thisevent = $nodeevents{$eventkey};
+					# closing an event creates a temporary up event...we don't want to see that.
+					next if ($usermayclose && $thisevent->{details} =~ /^closed from GUI/);
+
+					# is this the event to close? same node, same name, element the same
+					if ($usermayclose && $Q->{closeevent} eq $thisevent->{event}
+							&& $Q->{closeelement} eq $thisevent->{element})
+					{
+						checkEvent(sys => $S, node => $node,
+											 event => $thisevent->{event},
+											 element => $thisevent->{element},
+											 details => "closed from GUI");
+						next;								# event is gone, don't show it
+					}
+
+					# offer a button for closing this event if the user is sufficiently privileged
+					# fixme: does currently NOT offer confirmation!
+					my @ecolumn = "Event";
+					if ($usermayclose)
+					{
+						my $closethisurl = $closemeurl
+								. "&amp;closeevent=".uri_escape($thisevent->{event})
+								. "&amp;closeelement=".uri_escape($thisevent->{element});
+
+						push @ecolumn, qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
+					}
 
 					my $state = getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
 					my $details = $thisevent->{details};
 					$details = "$thisevent->{element} $details" if ($thisevent->{event} =~ /^Proactive|^Alert/) ;
 					$details = $thisevent->{element} if (!$details);
-					push @out,Tr(td({class=>'info Plain'},'Event'),
+					push @out,Tr(td({class=>'info Plain'}, join("",@ecolumn)),
 											 td({class=>'info Plain'},
 													"$thisevent->{event} - $details, Escalate $thisevent->{escalate}, $state"));
 				}
@@ -1807,7 +1837,7 @@ EO_HTML
 		print Tr(td({class=>'header'},'Monitored Services'));
 		my $serviceStatus = $NI->{service_status};
 		foreach my $servicename (keys %{$serviceStatus}) {
-			
+
 			my $thisservice = $serviceStatus->{$servicename};
 
 			my $thiswidth = int(2/3*$smallGraphWidth);
@@ -1823,14 +1853,14 @@ EO_HTML
 				td({class=>"info Plain"},a({class => "islink", href=> $serviceurl}, "$statustext")),
 					);
 			print Tr(
-				td({class=>'image'}, 
-					htmlGraph(graphtype => "service", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight), 
+				td({class=>'image'},
+					htmlGraph(graphtype => "service", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight),
 					htmlGraph(graphtype => "service-response", node=>$node, intf=>$servicename, width=>$thiswidth, height=>$smallGraphHeight)
 				));
 
 		}
 
-	} 
+	}
 	else {
 		print Tr(td({class=>'info Plain'},'no Graph info'));
 	}
@@ -2305,7 +2335,7 @@ sub viewStorage {
 		print Tr(td({class=>'header'},'Used'),td({class=>'info Plain'},getDiskBytes($used),"($util)"));
 		print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hrStorageDescr}));
 		print Tr(td({class=>'header'},'Mount Point'),td({class=>'info Plain'},$D->{hrFSRemoteMountPoint})) if defined $D->{hrFSRemoteMountPoint};
-		
+
 		print end_Tr;
 	}
 	print end_table;
