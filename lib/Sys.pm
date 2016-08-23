@@ -605,6 +605,7 @@ sub getValues {
 		}
 
 		# build up arrays for calling snmp and for creating of result hash
+		# fixme: this needs repair/extension to support wmi!
 		foreach my $ds (keys %{$class->{$sect}{snmp}}) {
 			if (exists $class->{$sect}{snmp}{$ds}{oid}) {
 				dbg("oid for section $sect, ds $ds loaded",3);
