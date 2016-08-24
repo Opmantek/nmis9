@@ -411,9 +411,11 @@ sub	runThreads
 
 	# update the operation start/stop timestamp
 	func::update_operations_stamp(type => $type, start => $starttime, stop => undef);
+	my $maxruntime = defined($C->{max_child_runtime}) && $C->{max_child_runtime} > 0 ?
+			$C->{max_child_runtime} : 0;
 
 	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
-	alarm($C->{max_child_runtime}) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
+	alarm($maxruntime) if ($maxruntime && (!$mthread or $node_select));
 
 	my @list_of_handled_nodes;		# for any after_x_plugin() functions
 	if ($node_select eq "")
@@ -448,10 +450,9 @@ sub	runThreads
 							}
 
 							# don't run longer than X seconds
-							alarm($C->{max_child_runtime})
-									if (defined $C->{max_child_runtime});
+							alarm($maxruntime) if ($maxruntime);
 							&$meth(name=>$onenode);
-							alarm(0) if (defined $C->{max_child_runtime});
+							alarm(0) if ($maxruntime);
 
 							# all the work in this thread is done now this child will die.
 							if ($mthreadDebug) {
@@ -487,7 +488,9 @@ sub	runThreads
 			# wait this will block until children are done
 			1 while wait != -1;
 		}
-	} else {
+	}
+	else
+	{
 		# specific node is given to work on, threading not relevant
 		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
 			if ( getbool($NT->{$node}{active}) ) {
@@ -504,8 +507,7 @@ sub	runThreads
 			return;
 		}
 	}
-
-	alarm(0) if (defined $C->{max_child_runtime} && (!$mthread or $node_select));
+	alarm(0) if ($maxruntime && (!$mthread or $node_select));
 
 	dbg("### continue normally ###");
 	my $collecttime = Time::HiRes::time();
@@ -911,9 +913,13 @@ sub doServices
 	$S->init(name => $name);
 	runServices(sys=>$S, snmp => 'false');
 
+	# we also have to update the node info file, or newly added service status info will be lost/missed...
+	# same for node view
+	$S->writeNodeInfo;
+	$S->writeNodeView;
+
 	return;
 }
-
 
 sub doCollect {
 	my %args = @_;
@@ -4482,7 +4488,7 @@ sub runServices
 	my $memory;
 	my $msg;
 	my %services;		# hash to hold snmp gathered service status.
-	my %status;			# hash to hold generic/non-snmp service status
+	my %status;			# hash to collect generic/non-snmp service status
 
 	my $ST = loadServicesTable();
 	my $timer = NMIS::Timing->new;
@@ -4757,10 +4763,14 @@ sub runServices
 				{
 						$scripttext=join("",<F>);
 						close(F);
+
+						my $timeout = ($ST->{$service}->{Max_Runtime} > 0)?
+								$ST->{$service}->{Max_Runtime} : 3;
+
 						($ret,$msg) = sapi($NI->{system}{host},
 															 $ST->{$service}{Port},
 															 $scripttext,
-															 3);
+															 $timeout);
 						dbg("Results of $service is $ret, msg is $msg");
 				}
 		}
@@ -4792,12 +4802,18 @@ sub runServices
 			}
 
 			my $programexit = 0;
+			# save and restore any previously running alarm,
+			# but don't bother subtracting the time spent here
+			my $remaining = alarm(0);
+			dbg("saving running alarm, $remaining seconds remaining");
 			eval
 			{
 				my @responses;
+				my $svcruntime = defined($svc->{Max_Runtime}) && $svc->{Max_Runtime} > 0?
+						$svc->{Max_Runtime} : 0;
 
 				local $SIG{ALRM} = sub { die "alarm\n"; };
-				alarm($svc->{Max_Runtime}) if ($svc->{Max_Runtime} > 0); # setup execution timeout
+				alarm($svcruntime) if ($svcruntime); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
 				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
@@ -4806,6 +4822,7 @@ sub runServices
 						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
 				if (!open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |"))
 				{
+					alarm(0) if ($svcruntime); # cancel any timeout
 					info("ERROR, cannot start service program $svc->{Program}: $!");
 					logMsg("ERROR: cannot start service program $svc->{Program}: $!");
 				}
@@ -4814,6 +4831,8 @@ sub runServices
 					@responses = <PRG>; # always check for output but discard it if not required
 					close PRG;
 					$programexit = $?;
+					alarm(0) if ($svcruntime); # cancel any timeout
+
 					dbg("service exit code is ". ($programexit>>8));
 
 					# consume and warn about any stderr-output
@@ -4892,7 +4911,6 @@ sub runServices
 						}
 					}
 				}
-				alarm(0) if ($svc->{Max_Runtime} > 0); # cancel any timeout
 			};
 
 			if ($@ and $@ eq "alarm\n")
@@ -4928,6 +4946,8 @@ sub runServices
 					$ret = 0;
 				}
 			}
+			alarm($remaining) if ($remaining); # restore previously running alarm
+			dbg("restored alarm, $remaining seconds remaining");
 		}														# end of program/nagios-plugin service type
 		else
 		{
@@ -5088,10 +5108,14 @@ sub runServices
 		logMsg("ERROR: service status saving failed: $error") if ($error);
 	}
 
-	if ( $didRunServices ) {
-		# save the service_status node info
-		$S->{info}{service_status} = \%status;
-		### 2014-12-16 keiths, when did the services poll last complete properly.
+	# we ran one or more (but not necessarily all!) services
+	# so we must update, not overwrite the service_status node info...
+	if ( $didRunServices )
+	{
+		for my $newinfo (keys %status)
+		{
+			$S->{info}{service_status}->{$newinfo} = $status{$newinfo};
+		}
 		$NI->{system}{lastServicesPoll} = time();
 	}
 
