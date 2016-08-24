@@ -62,7 +62,10 @@ my @starttime = Time::HiRes::gettimeofday;
 print $dfh Time::HiRes::time." issuing GET\n" if ($dfh);
 my $res = $ua->get($url);
 my $responsetime = Time::HiRes::tv_interval(\@starttime);
-print $dfh Time::HiRes::time." done with GET, response status ".$res->status_line."\n" if ($dfh);
+my $contentlength = length($res->decoded_content);
+
+print $dfh Time::HiRes::time." done with GET, response status ".$res->status_line
+		.", content length $contentlength\n" if ($dfh);
 if ($res->code =~ $okcode)
 {
 	print $dfh Time::HiRes::time." status code matches okcode\n" if ($dfh);
@@ -88,6 +91,6 @@ if ($dfh)
 	close $dfh;
 }
 
-print "$statusmsg\nresponsetime=$responsetime\n";
+print "$statusmsg\nresponsetime=$responsetime\ncontentlength=$contentlength\n";
 # 100 is ok, 0 is 'service is down'
 exit $exitcode;
