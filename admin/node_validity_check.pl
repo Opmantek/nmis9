@@ -130,6 +130,8 @@ sub processNodes {
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		my $NI = $S->ndinfo;
 		
+		print "Processing $node active=$LNT->{$node}{active} ping=$LNT->{$node}{ping} collect=$LNT->{$node}{collect}\n" if $debug;
+		
 		my $pingDesired = getbool($LNT->{$node}{ping});
 		my $snmpDesired = getbool($LNT->{$node}{collect});
 		
@@ -160,25 +162,33 @@ sub processNodes {
 		if ( $opevents ) {
 			my $details;
 			
+			my $nodeInOpNodes = 0;
+			if ( grep { $_ eq $node } (@{$omkNodes} ) ) {
+				$nodeInOpNodes = 1;
+			}
+			
 			# is the node in opevents at all?
-			if ( $LNT->{$node}{active} eq "true" and not grep { $_ eq $node } (@{$omkNodes}) ) {
+			if ( $LNT->{$node}{active} eq "true" and not $nodeInOpNodes ) {
 				importNodeFromNmis($node);
 			}
 			
 			# what is the current state of this thing.
-			$details = getNodeDetails($node) if $LNT->{$node}{active} eq "true";
+			$details = getNodeDetails($node) if $nodeInOpNodes;
 			
 			# is the node NOT active and enabled for opEvents!
-			if ( $LNT->{$node}{active} ne "true" and exists($details->{activated}{opEvents}) and $details->{activated}{opEvents} == 1 ) {
+			if ( $LNT->{$node}{active} ne "true" and $nodeInOpNodes and ( not exists($details->{activated}{opEvents}) or $details->{activated}{opEvents} == 1 ) ) {
 				# yes, so disable the node in opEvents
+				print "DISABLE node in opEvents: $node\n" if $debug;
 				opEventsXable($node,0);
 			}
-			elsif ( $pingDesired and $nodePingable and exists($details->{activated}{opEvents}) and $details->{activated}{opEvents} == 0 ) {
+			elsif ( $pingDesired and $nodePingable and $LNT->{$node}{active} eq "true" and ( not exists($details->{activated}{opEvents}) or $details->{activated}{opEvents} == 0 ) ) {
 				# yes, so enable the node in opEvents
+				print "ENABLE node in opEvents: $node\n" if $debug;
 				opEventsXable($node,1);
 			}
-			elsif ( $snmpDesired and $nodeSnmp and exists($details->{activated}{opEvents}) and $details->{activated}{opEvents} == 0 ) {
+			elsif ( $snmpDesired and $nodeSnmp and $LNT->{$node}{active} eq "true" and ( not exists($details->{activated}{opEvents}) or $details->{activated}{opEvents} == 0 ) ) {
 				# yes, so enable the node in opEvents
+				print "ENABLE node in opEvents: $node\n" if $debug;
 				opEventsXable($node,1);
 			}
 		}
@@ -226,7 +236,7 @@ sub opEventsXable {
 		print "SIMULATE: opEventsXable node=$node disable/enable=$desired\n";
 	}
 	else {
-		my $result = `$opnodeadmin act=set entry.activated.opConfig=$desired node=$node 2>&1`;
+		my $result = `$opnodeadmin act=set entry.activated.opEvents=$desired node=$node 2>&1`;
 		print "opEventsXable: $result" if $debug;
 		if ( $result =~ /Success/ ) {
 			return 1;
