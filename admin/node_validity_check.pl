@@ -186,13 +186,15 @@ sub processNodes {
 
 	print "\n\n";
 
-	print "Nodes NOT Responding to POLLS EVER:\n";
+	print "There are ". @pingBad . " nodes NOT Responding to POLLS EVER:\n";
+	print "Active has been set to false:\n" if not $simulate;
 	my $badnoderising = join("\n",@pingBad);
 	print $badnoderising;
 
 	print "\n\n";
 
-	print "SNMP Not Working, collect has been set to false:\n";
+	print "There are ". @snmpBad . " nodes with SNMP Not Working\n";
+	print "Collect has been set to false:\n" if not $simulate;
 	my $snmpNodes = join("\n",@snmpBad);
 	print $snmpNodes;
 
