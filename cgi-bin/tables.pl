@@ -517,7 +517,7 @@ sub editTable
 	pageEnd() if (getbool($widget,"invert"));
 }
 
-sub doeditTable 
+sub doeditTable
 {
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
@@ -538,7 +538,7 @@ sub doeditTable
 	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
 	# key and 'name' property values must match up, and be space-stripped, for both users and nodes
-	if ($table eq "Nodes" or $table eq "Users")	
+	if ($table eq "Nodes" or $table eq "Users")
 	{
 		$key = stripSpaces($key);
 	}
@@ -563,10 +563,18 @@ sub doeditTable
 
 	my $V;
 	# store new values in table structure
-	for my $ref ( @{$CT}) 
+	for my $ref ( @{$CT})
 	{
 		for my $item (keys %{$ref})
 		{
+			my $thisitem = $ref->{$item}; # table config record for this item
+
+			# do not save anything for separator entries, they're just for visual use
+			if (defined($thisitem->{special}) && $thisitem->{special} eq "separator")
+			{
+				delete $thisentry->{$item};
+				next;
+			}
 			# but handle multi-valued inputs correctly!
 			# with Vars we get that as packed string of null-separated entries
 			# if submission was under widget mode, then javascript:get() will have transformed
