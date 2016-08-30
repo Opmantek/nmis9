@@ -119,13 +119,9 @@ sub ext_ping
 	if ($@)
 	{
 		die unless $@ eq "alarm\n";	# propagate unexpected errors
-		# timed out, kill child, get remaining output, ...
-		while (<PING>)
-		{
-			$ping_output .= $_;
-		}
-		close(PING);
+		# timed out: kill child
 		kill $pid;
+		close(PING);
 
 		# ... and set return values to dead values
 		if ($C->{debug}>2) {

@@ -61,12 +61,17 @@ my $uuid = getUUID();
 	[
 	 { name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""] }},
 	 { new_name => { header => 'New Name', display => 'text,editonly', value => [""] }},
-	 
+
 	 { uuid => { header => 'UUID',display => 'header,readonly',value => ["$uuid"] }},
-	 
+
 	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""] }},
 	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups] }},
 	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
+
+	 { wmi => { special=>'separator', header => "WMI Options", } },
+	 { wmiusername => { header => "WMI Username", display => 'text', value => [''] }},
+	 { wmipassword => { header => "WMI Password", display => 'text', value => [''] }},
+
 	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{loadGenericTable('Customers')}] }},
 	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},

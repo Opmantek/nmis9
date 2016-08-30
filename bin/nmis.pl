@@ -699,10 +699,10 @@ sub doUpdate
 	# create the update lock now.
 	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are
-	$0 = "nmis-".$C->{conf}."-update-$name";
+	# lets change our name, so a ps will report who we are - iff not debugging.
+	$0 = "nmis-".$C->{conf}."-update-$name" if (!$C->{debug});
 
-	my $S = Sys::->new; # create system object
+	my $S = Sys->new; # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always),
 	# and primes the sys object for snmp ops
 	$S->init(name=>$name, update=>'true', force => $nvp{force});
@@ -906,8 +906,8 @@ sub doServices
 	info("================================");
 	info("Starting services, node $name");
 
-	# lets change our name, so a ps will report who we are
-	$0 = "nmis-".$C->{conf}."-services-$name";
+	# lets change our name, so a ps will report who we are, iff not debugging
+	$0 = "nmis-".$C->{conf}."-services-$name" if (!$C->{debug});
 
 	my $S = Sys->new;
 	$S->init(name => $name);
@@ -946,10 +946,10 @@ sub doCollect {
 	# create the poll lock now.
 	my $lockHandle = createPollLock(type => "collect", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are
-	$0 = "nmis-".$C->{conf}."-collect-$name";
+	# lets change our name, so a ps will report who we are - iff not debugging
+	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
 
-	my $S = Sys::->new; # create system object
+	my $S = Sys->new; # create system object
 	### 2013-02-25 keiths, fixing down node refreshing......
 	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
 	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
@@ -4806,6 +4806,7 @@ sub runServices
 			# but don't bother subtracting the time spent here
 			my $remaining = alarm(0);
 			dbg("saving running alarm, $remaining seconds remaining");
+			my $pid;
 			eval
 			{
 				my @responses;
@@ -4820,7 +4821,8 @@ sub runServices
 				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
 				dbg("running external program '$svc->{Program} $finalargs', "
 						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-				if (!open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |"))
+				$pid = open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |");
+				if (!$pid)
 				{
 					alarm(0) if ($svcruntime); # cancel any timeout
 					info("ERROR, cannot start service program $svc->{Program}: $!");
@@ -4915,9 +4917,11 @@ sub runServices
 
 			if ($@ and $@ eq "alarm\n")
 			{
+				kill($pid);							# get rid of the service tester, it ran over time...
 				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				logMsg("ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				$ret=0;
+				kill("SIGKILL",$pid);
 			}
 			else
 			{
