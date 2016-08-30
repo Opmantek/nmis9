@@ -37,17 +37,18 @@ use File::Temp;
 
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
 #
-# args: host, username, password
+# args: host, username, password, timeout (password and timeout are optional)
 # returns: wmi object, or error message
 sub new
 {
 	my ($class, %args) = @_;
 
-	my $self = bless( 
+	my $self = bless(
 		{
 			username => $args{username},
 			password => $args{password},
 			host => $args{host},
+			timeout => $args{timeout},
 		},
 		$class);
 
@@ -65,7 +66,7 @@ sub new
 # retrieves X fields from a single wmi result row
 # if the query happens to return more than one row, only the first data row is considered
 # if the query happens to return multiple classes, only a random single class is considered
-# 
+#
 # args: wql (query, required), fields (list of fieldnames, optional)
 # no fields means all fields.
 #
@@ -79,7 +80,7 @@ sub get
 	my @wantedfields = @$fields if (ref($fields) eq "ARRAY");
 	return "query missing" if (!$wql);
 
-	my %raw = $self->_run_query(query => $wql);
+	my %raw = $self->_run_query(query => $wql, timeout => $self->{timeout});
 	return "get failed: $raw{error}" if (!$raw{ok});
 
 	my $classname = (keys %{$raw{data}})[0];
@@ -92,14 +93,14 @@ sub get
 # retrieves X fields from a wmi query
 # if the query happens to return multiple classes, only a random single class is considered!
 # args: wql (query, required), index, fields
-# 
+#
 # index is fieldname to index the result by. not present means return with row number as index.
 # if the desired index field is not unique, the result is ALSO returned indexed by row number!
 #
 # fields is list of fieldnames, optional; no fields means all fields.
-# 
 #
-# returns (undef, hashref of indexed field => hash of other fields -> values, hashref of metadata), 
+#
+# returns (undef, hashref of indexed field => hash of other fields -> values, hashref of metadata),
 # or (error message)
 # metadata: contains classname, index (fieldname echoed or undef if row number), future extras...
 sub gettable
@@ -107,10 +108,10 @@ sub gettable
 	my ($self, %args) = @_;
 	my ($wql, $indexfield, $fields) = @args{"wql","index","fields"};
 	my @wantedfields = @$fields if (ref($fields) eq "ARRAY");
-	
+
 	return "query missing" if (!$wql);
 
-	my %raw = $self->_run_query(query => $wql);
+	my %raw = $self->_run_query(query => $wql, timeout => $self->{timeout});
 	return "gettable failed: $raw{error}" if (!$raw{ok});
 
 	my (%goods,%meta);
@@ -123,7 +124,7 @@ sub gettable
 		my %seen;
 		for my $thisrow (@$rows)
 		{
-			if (!defined($thisrow->{$indexfield}) 
+			if (!defined($thisrow->{$indexfield})
 					or $seen{$thisrow->{$indexfield}}++)
 			{
 				undef $indexfield;
@@ -132,7 +133,7 @@ sub gettable
 		}
 	}
 	$meta{index} = $indexfield;
-	
+
 	for my $i (0..$#{$rows})
 	{
 		my $target = $indexfield? $rows->[$i]->{$indexfield} : $i;
@@ -150,13 +151,14 @@ sub gettable
 }
 
 # internal work horse
-# args: query
+# args: query (required), timeout (optional)
 # returns: hash (not ref), may have error
 sub _run_query
 {
 	my ($self,%args) = @_;
 	my $query = $args{query};
 	return ( error => "query missing" ) if (!$query);
+	my $timeout = $args{timeout};
 
 	# prep tempfile for wmic's stderr
 	my ($tfh, $tfn) = File::Temp::tempfile("/tmp/wmic.XXXXXXX");
@@ -164,7 +166,7 @@ sub _run_query
 	my $delim = join('', map { ('a'..'z')[rand 26] } (0..9));
 	my (@rawdata, $exitcode, %result);
 
-	# fork and pipe		
+	# fork and pipe
 	my $pid = open(WMIC, "-|");
 	if (!defined $pid)
 	{
@@ -172,23 +174,40 @@ sub _run_query
 	}
 	elsif ($pid)
 	{
-		# parent
-		close $tfh;									# not ours to use
-		@rawdata = <WMIC>;					# read the goodies from the child
-		close(WMIC);
-		$exitcode = $?;
+		# parent: save and restore any previously running alarm,
+		# but don't bother subtracting time spent here
+		my $remaining = alarm(0);
+		eval
+		{
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm($timeout) if ($timeout); # setup execution timeout
+
+			close $tfh;									# not ours to use
+			@rawdata = <WMIC>;					# read the goodies from the child
+			close(WMIC);
+			$exitcode = $?;
+			alarm(0);
+		};
+		alarm($remaining) if ($remaining);
+		if ($@ and $@ eq "alarm\n")
+		{
+			# don't want the wmic process to hang around, we stopped consuming its output
+			# and it can't do anything useful anymore
+			kill("SIGKILL",$pid);
+			return (error => "timeout after $timeout seconds");
+		}
 	}
 	else
 	{
 		# child
 		open(STDIN, "<", "/dev/null");
 		open(STDERR, ">&", $tfh);		# stderr to go there, please
-		
-		my @cmdargs = ("wmic", 
-									 "--delimiter=$delim", 
+
+		my @cmdargs = ("wmic",
+									 "--delimiter=$delim",
 									 "--user=".$self->{username},
 									 ($self->{password}? ("--password=".$self->{password}): "--no-pass"),
-									 "//".$self->{host}, 
+									 "//".$self->{host},
 									 $query);
 		exec(@cmdargs);
 		die "exec failed: $!\n";
@@ -235,10 +254,10 @@ sub _run_query
 					return (error => "response contains data without classname!") if (!$classname);
 					return (error => "response data doesn't contain correct number of columns!")
 							if (@columns != @fieldnames);
-			
-					# the only transformation we perform is replacing the common '(null)' value with undef.		
-					my %thisrow = (map { $fieldnames[$_] => defined($columns[$_]) 
-																	 && $columns[$_] ne '(null)'? $columns[$_] : undef  } 
+
+					# the only transformation we perform is replacing the common '(null)' value with undef.
+					my %thisrow = (map { $fieldnames[$_] => defined($columns[$_])
+																	 && $columns[$_] ne '(null)'? $columns[$_] : undef  }
 												 (0..$#fieldnames));
 					$nicedata{$classname} ||= [];
 					push @{$nicedata{$classname}}, \%thisrow;
@@ -249,11 +268,8 @@ sub _run_query
 		$result{data} = \%nicedata;
 	}
 	unlink $tfn;
-	
+
 	return %result;
 }
 
-1;	
-
-
-
+1;
