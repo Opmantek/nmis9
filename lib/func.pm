@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.5.1";
+our $VERSION = "1.5.2";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1149,15 +1149,34 @@ sub readFiletoHash {
 			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
 			local $/ = undef;
 			my $data = <$handle>;
-			if ( $useJson ) {
-				my $hashref;
-				eval { $hashref = decode_json($data); } ;
-				if ( $@ ) {
+			if ( $useJson ) 
+			{
+				# be liberal in what we accept: latin1 isn't an allowed encoding for json, 
+				# but fall back to that before giving up
+				my $hashref = eval { decode_json($data); };
+				my $gotcha = $@;
+
+				#  utf8 failed but latin1 worked?
+				if ($gotcha)
+				{
+					$hashref = eval { JSON::XS->new->latin1->decode($data); };
+					if (!$@)
+					{
+						$gotcha =~ s!at \S+ line \d+,.+$!!;
+						logMsg("WARNING file $file contains json with invalid encoding: $gotcha");
+						info("WARNING file $file contains json with invalid encoding: $gotcha");
+					}
+				}
+				
+				if ($@)
+				{
 					logMsg("ERROR convert $file to hash table, $@");
 					info("ERROR convert $file to hash table, $@");
 				}
+
+				$hashref = undef if (ref($hashref) ne "HASH");
 				return ($hashref,$handle) if ($lock);
-				# else
+
 				close $handle;
 				return $hashref;
 			}
