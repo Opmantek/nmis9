@@ -3299,10 +3299,10 @@ sub nodeAdminSummary {
 					my $community = "OK";
 					my $commClass = "info Plain";
 
-					my $lastCollectPoll = returnDateStamp($NI->{system}{lastCollectPoll});
+					my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 					my $lastCollectClass = "info Plain";
-
-					my $lastUpdatePoll = returnDateStamp($NI->{system}{lastUpdatePoll});
+	
+					my $lastUpdatePoll = defined $NI->{system}{lastUpdatePoll} ? returnDateStamp($NI->{system}{lastUpdatePoll}) : "N/A";
 					my $lastUpdateClass = "info Plain";
 
 					my $pingable = "unknown";
@@ -3319,7 +3319,10 @@ sub nodeAdminSummary {
 					}
 					else {
 						$actClass = "info Plain";
-						if ( not defined $NI->{system}{lastCollectPoll} ) {
+						if ( $LNT->{$node}{active} eq "false" ) {
+							$lastCollectPoll = "N/A";
+						}	
+						elsif ( not defined $NI->{system}{lastCollectPoll} ) {
 							$lastCollectPoll = "unknown";
 							$lastCollectClass = "info Plain Minor";
 							$exception = 1;
@@ -3331,7 +3334,10 @@ sub nodeAdminSummary {
 							push(@issueList,"Last collect poll was over 5 minutes ago");
 						}
 
-						if ( not defined $NI->{system}{lastUpdatePoll} ) {
+						if ( $LNT->{$node}{active} eq "false" ) {
+							$lastUpdatePoll = "N/A";
+						}	
+						elsif ( not defined $NI->{system}{lastUpdatePoll} ) {
 							$lastUpdatePoll = "unknown";
 							$lastUpdateClass = "info Plain Minor";
 							$exception = 1;
