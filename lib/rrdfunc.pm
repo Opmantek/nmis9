@@ -416,7 +416,9 @@ sub getFileName {
 	if ($S->{mdl}{database}{type}{$type}) {
 		my $string = $S->{mdl}{database}{type}{$type};
 		$string =~ s/\$node\b/\$host/g if getbool($nmis4);
-		if ($dir = $S->parseString(string=>$string,type=>$type,index=>$index,item=>$item)) {
+		# no CVARs as no section given
+		if ($dir = $S->parseString(string=>$string, type=>$type, 
+															 index=>$index,item=>$item)) {
 			#		
 			$dir = $C->{database_root}.$dir; # full specification
 			dbg("filename of type=$type is $dir");
@@ -637,7 +639,8 @@ sub optionsRRD {
 		{
 			($source,$range,$heartbeat) = split (/\,/,$data->{$id}{option});
 
-			$range = $S->parseString(string=>$range,sys=>$S,type=>$type,index=>$index) if $S ne "";
+			# no CVARs as no section given
+			$range = $S->parseString(string=>$range, type=>$type, index=>$index) if $S ne "";
 			$source = uc $source;
 		}
 		$source ||= "GAUGE";

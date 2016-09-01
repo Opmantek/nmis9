@@ -626,7 +626,8 @@ sub checkControl {
 	my ($sect,$rrd,$tp) = split/,/,$hash;
 	if ($S->{name} ne "" and $sect ne "" and $tp ne "") { 
 		return ('info','cannot check because it is index dependent',' (result=unknown)') if ( getbool($M->{$sect}{$rrd}{$tp}{indexed}) and $string =~ /\$i/);
-		my $result = $S->parseString(string=>"($string) ? 1:0",sys=>$S,type=>$tp);
+		# no CVARs as no section given
+		my $result = $S->parseString(string=>"($string) ? 1:0", type=>$tp);
 		return ('info','',' (<b>result=true</b>)') if $result eq "1";
 		return ('info','',' (<b>result=false</b>)') if $result eq "0";
 		$S->{errorfound} = 1;

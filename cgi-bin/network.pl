@@ -2735,7 +2735,7 @@ sub viewSystemHealth {
 
 	foreach my $index (sort {$a <=> $b} keys %{$NI->{$section}} ) {
 		if( exists( $M->{systemHealth}{rrd}{$section}{control} ) &&
-				$S->parseString(string=>"($M->{systemHealth}{rrd}{$section}{control}) ? 1:0",sys=>$S,index=>$index,sect=>$section) ne "1") {
+				!$S->parseString(string=>"($M->{systemHealth}{rrd}{$section}{control}) ? 1:0", index=>$index, sect=>$section)) {
 			next;
 		}
 

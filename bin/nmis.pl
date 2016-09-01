@@ -5150,7 +5150,8 @@ sub runAlerts {
 			foreach my $index ( keys %{$NI->{$sect}} ) {
 				foreach my $alrt ( keys %{$CA->{$sect}} ) {
 					if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {
-						my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",sys=>$S,index=>$index,type=>$sect,sect=>$sect);
+						my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",
+																								 index=>$index, type=>$sect, sect=>$sect);
 						dbg("control_result sect=$sect index=$index control_result=$control_result");
 						next if not $control_result;
 					}
@@ -5288,13 +5289,12 @@ sub runCheckValues {
 			my $control = $M->{system}{sys}{$sect}{control}; 	# check if skipped by control
 			if ($control ne "") {
 				dbg("control=$control found for section=$sect",2);
-				if ($S->parseString(string=>"($control) ? 1:0", sect => $sect) ne "1") {
+				if (!$S->parseString(string=>"($control) ? 1:0", sect => $sect))
+				{
 					dbg("threshold of section $sect skipped by control=$control");
 					next;
 				}
-				#								}
 				for my $attr (keys %{$M->{system}{sys}{$sect}{snmp}} ) {
-
 					if (exists $M->{system}{sys}{$sect}{snmp}{$attr}{check}) {
 					# select the method we will run
 						my $check = $M->{system}{sys}{$sect}{snmp}{$attr}{check};
@@ -7992,9 +7992,11 @@ sub doSummaryBuild {
 	return \%stats; # input for threshold process
 }
 
-#============================================================================
-#
-sub doThreshold {
+
+# figures out which threshold alerts need to be run
+# for one (or all) nodes, based on model
+sub doThreshold
+{
 	my %args = @_;
 	my $name = $args{name};
 	my $sts = $args{table}; # pointer to data build by doSummaryBuild
@@ -8010,164 +8012,191 @@ sub doThreshold {
 
 	my $pollTimer = NMIS::Timing->new;
 
-	foreach my $nd (sort keys %{$NT}) {
+	foreach my $nd (sort keys %{$NT})
+	{
 		next if $node ne "" and $node ne lc($nd); # check for single node thresholds
+
 		### 2012-09-03 keiths, changing as pingonly nodes not being thresholded, found by Lenir Santiago
 		#if ($NT->{$nd}{active} eq 'true' and $NT->{$nd}{collect} eq 'true' and $NT->{$nd}{threshold} eq 'true') {
-		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{threshold}) ) {
-			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node - BUT NOT its nodes.nmis config!
-				my $NI = $S->ndinfo; # pointer to node info table
-				my $M  = $S->mdl;	# pointer to Model table
-				my $IF = $S->ifinfo;
+		next if (!getbool($NT->{$nd}{active}) or !getbool($NT->{$nd}{threshold}));
 
+		# get all info of node - BUT NOT its nodes.nmis config!
+		next if (!($S->init(name=>$nd, snmp=>'false')));
 
-				# skip if node down
-				if ( getbool($NI->{system}{nodedown}) ) {
-					info("Node down, skipping thresholding for $S->{name}");
-					next;
+		my $NI = $S->ndinfo; # pointer to node info table
+		my $M  = $S->mdl;	# pointer to Model table
+		my $IF = $S->ifinfo;
+
+		# skip if node down
+		if ( getbool($NI->{system}{nodedown}) )
+		{
+			info("Node down, skipping thresholding for $S->{name}");
+			next;
+		}
+		info("Starting Thresholding node=$S->{name}");
+
+		# first the standard thresholds
+		my $thrname = 'response,reachable,available';
+		runThrHld(sys=>$S,table=>$sts,type=>'health',thrname=>$thrname);
+
+		# search for threshold names in Model of this node
+		foreach my $s (keys %{$M}) # section name
+		{
+			# thresholds live ONLY under rrd, other 'types of store' don't interest us here
+			my $ts = 'rrd';
+			foreach my $type (keys %{$M->{$s}{$ts}}) # name/type of subsection
+			{
+				my $thissection = $M->{$s}->{$ts}->{$type};
+				dbg("section $s, type $type ". ($thissection->{threshold}? "has a": "has no")." threshold");
+				next if (!$thissection->{threshold}); # nothing to do
+
+				# attention: control expressions for indexed section must be run per instance!
+				my $control = $thissection->{control};
+				if ($control and !getbool($thissection->{indexed}) )
+				{
+					dbg("control found:$control for section=$s type=$type, non-indexed", 1);
+					if (!$S->parseString(string=>"($control) ? 1:0", sect => $type))
+					{
+						dbg("threshold of type $type skipped by control=$control");
+						next;
+					}
 				}
 
-				info("Starting Thresholding node=$S->{name}");
+				$thrname = $thissection->{threshold};	# get commasep string of threshold name(s)
+				dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
 
-				# first the standard thresholds
-				my $thrname = 'response,reachable,available';
-				runThrHld(sys=>$S,table=>$sts,type=>'health',thrname=>$thrname);
+				if (!getbool($thissection->{indexed}))	# if indexed then all instances must be checked individually
+				{
+					runThrHld(sys=>$S, table=>$sts, type=>$type, thrname=>$thrname); # single
+				}
+				else
+				{
+					my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
+					dbg("threshold instances=".(join(", ",@instances)||"none"));
 
-				# search for threshold names in Model of this node
-				foreach my $s (keys %{$M}) { # section name
-					foreach my $ts (keys %{$M->{$s}}) { # type of store
-						if ($ts eq 'rrd') { 									# thresholds only in RRD subsection
-							foreach my $type (keys %{$M->{$s}{$ts}}) { 			# name/type of subsection
-								my $control = $M->{$s}{$ts}{$type}{control}; 	# check if skipped by control
-								### control was skipping indexed controls, which are already handled by graphtype
-								if ($control ne "" and getbool($M->{$s}{$ts}{$type}{indexed}) ) {
-									dbg("control found:$control for s=$s ts=$ts type=$type",1);
-									if ($S->parseString(string=>"($control) ? 1:0", sect => $ts, index => ) ne "1") {
-										dbg("threshold of type $type skipped by control=$control");
-										next;
-									}
+					for my $index (@instances)
+					{
+						# control must be checked individually, too!
+						if ($control)
+						{
+							dbg("control found:$control for s=$s type=$type, index=$index", 1);
+							if (!$S->parseString(string=>"($control) ? 1:0", sect => $type, index => $index))
+							{
+								dbg("threshold of type $type, index $index skipped by control=$control");
+								next;
+							}
+						}
+
+						# thresholds can be selectively disabled for individual interfaces
+						if ( $type =~ /interface|pkts|pkts_hc/ )
+						{
+							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo
+							if (ref($NI->{"interface"}) eq "HASH" and ref( $NI->{"interface"}{$index}) eq "HASH"
+									and exists($NI->{"interface"}{$index}{threshold}))
+							{
+								if (getbool($NI->{"interface"}{$index}{threshold}))
+								{
+									runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 								}
-								if ($M->{$s}{$ts}{$type}{threshold} ne "") {
-									$thrname = $M->{$s}{$ts}{$type}{threshold};	# get string of threshold names
-									dbg("threshold=$thrname found in type=$type s=$s ts=$ts indexed=$M->{$s}{$ts}{$type}{indexed}");
-									# thresholds found in this section
-									if ( getbool($M->{$s}{$ts}{$type}{indexed}) ) {	# if indexed then all checked
-
-										my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
-										dbg("threshold instances=@instances");
-										for my $index (@instances) {
-											# thresholds can be selectively disabled for individual interfaces
-											if ( $type =~ /interface|pkts|pkts_hc/ ) {
-												if (defined $NI->{$type} and defined $NI->{$type}{$index}
-														and defined $NI->{$type}{$index}{threshold}
-														and getbool($NI->{$type}{$index}{threshold},"invert"))
-												{
-														dbg("skipping disabled threshold type $type for index $index");
-														next;
-												}
-												# verify that there is at least valid interface record
-												if ( defined $NI->{$type}
-													and defined $NI->{$type}{$index}
-													and defined $NI->{$type}{$index}{threshold}
-													and $NI->{$type}{$index}{threshold} eq "true"
-												) {
-													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
-												}
-											}
-											elsif ( $type =~ /cbqos/
-												and defined $NI->{'interface'}
-												and defined $NI->{'interface'}{$index}
-												and defined $NI->{'interface'}{$index}{threshold}
-												and $NI->{'interface'}{$index}{threshold} eq "true"
-											) {
-												my ($cbqos,$direction) = split(/\-/,$type);
-												dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
-												foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} ) {
-													dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");
-													runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
-												}
-											}
-											else {
-												runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
-											}
-										}
-									} else {
-										runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname); # single
-									}
+								else
+								{
+									dbg("skipping disabled threshold type $type for index $index");
+									next;
 								}
 							}
 						}
-					}
-				}
-
-				## process each status and have it decay the overall node status......
-	      #"High TCP Connection Count--tcpCurrEstab" : {
-	      #   "status" : "ok",
-	      #   "value" : "1",
-	      #   "event" : "High TCP Connection Count",
-	      #   "element" : "tcpCurrEstab",
-	      #   "index" : null,
-	      #   "level" : "Normal",
-	      #   "type" : "test",
-	      #   "updated" : 1423619108,
-	      #   "method" : "Alert",
-	      #   "property" : "$r > 250"
-	      #},
-				my $count = 0;
-				my $countOk = 0;
-				foreach my $statusKey (sort keys %{$S->{info}{status}}) {
-					my $eventKey = $S->{info}{status}{$statusKey}{event};
-					$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
-
-					# event control is as configured or all true.
-					my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
-
-					# if this is an alert and it is older than 1 full poll cycle, delete it from status.
-					if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
-						delete $S->{info}{status}{$statusKey};
-					}
-					# in case of Status being off for this event, we don't have to include it in the calculations
-					elsif (not getbool($thisevent_control->{Status}) ) {
-						dbg("Status Summary Ignoring: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
-						$S->{info}{status}{$statusKey}{status} = "ignored";
-						++$count;
-						++$countOk;
-					}
-					else {
-						++$count;
-						if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
-							++$countOk;
+						elsif ( $type =~ /cbqos/
+										and defined $NI->{'interface'}
+										and defined $NI->{'interface'}{$index}
+										and defined $NI->{'interface'}{$index}{threshold}
+										and $NI->{'interface'}{$index}{threshold} eq "true"
+								)
+						{
+							my ($cbqos,$direction) = split(/\-/,$type);
+							dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
+							foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} )
+							{
+								dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");
+								runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index,item=>$NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},class=>$class);
+							}
+						}
+						else
+						{
+							runThrHld(sys=>$S,table=>$sts,type=>$type,thrname=>$thrname,index=>$index);
 						}
 					}
 				}
-				if ( $count and $countOk ) {
-					my $perOk = sprintf("%.2f",$countOk/$count * 100);
-					info("Status Summary = $perOk, $count, $countOk\n");
-					$NI->{system}{status_summary} = $perOk;
-					$NI->{system}{status_updated} = time();
-
-					# cache the current nodestatus for use in the dash
-					my $nodestatus = nodeStatus(NI => $NI);
-					if ( not $nodestatus ) {
-						$NI->{system}{nodestatus} = "unreachable";
-					}
-					elsif ( $nodestatus == -1 ) {
-						$NI->{system}{nodestatus} = "degraded";
-					}
-					else {
-						$NI->{system}{nodestatus} = "reachable";
-					}
-				}
-
-				#print Dumper $S;
-				# Save the new status results
-				$S->writeNodeInfo();
-
 			}
 		}
+
+		## process each status and have it decay the overall node status......
+		#"High TCP Connection Count--tcpCurrEstab" : {
+		#   "status" : "ok",
+		#   "value" : "1",
+		#   "event" : "High TCP Connection Count",
+		#   "element" : "tcpCurrEstab",
+		#   "index" : null,
+		#   "level" : "Normal",
+		#   "type" : "test",
+		#   "updated" : 1423619108,
+		#   "method" : "Alert",
+		#   "property" : "$r > 250"
+		#},
+		my $count = 0;
+		my $countOk = 0;
+		foreach my $statusKey (sort keys %{$S->{info}{status}})
+		{
+			my $eventKey = $S->{info}{status}{$statusKey}{event};
+			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
+
+			# event control is as configured or all true.
+			my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
+
+			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
+			if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
+				delete $S->{info}{status}{$statusKey};
+			}
+			# in case of Status being off for this event, we don't have to include it in the calculations
+			elsif (not getbool($thisevent_control->{Status}) ) {
+				dbg("Status Summary Ignoring: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",1);
+				$S->{info}{status}{$statusKey}{status} = "ignored";
+				++$count;
+				++$countOk;
+			}
+			else {
+				++$count;
+				if ( $S->{info}{status}{$statusKey}{status} eq "ok" ) {
+					++$countOk;
+				}
+			}
+		}
+		if ( $count and $countOk ) {
+			my $perOk = sprintf("%.2f",$countOk/$count * 100);
+			info("Status Summary = $perOk, $count, $countOk\n");
+			$NI->{system}{status_summary} = $perOk;
+			$NI->{system}{status_updated} = time();
+
+			# cache the current nodestatus for use in the dash
+			my $nodestatus = nodeStatus(NI => $NI);
+			if ( not $nodestatus ) {
+				$NI->{system}{nodestatus} = "unreachable";
+			}
+			elsif ( $nodestatus == -1 ) {
+				$NI->{system}{nodestatus} = "degraded";
+			}
+			else {
+				$NI->{system}{nodestatus} = "reachable";
+			}
+		}
+
+		#print Dumper $S;
+		# Save the new status results
+		$S->writeNodeInfo();
 	}
+
 	dbg("Finished");
-	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}))
+	{
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
 	}
