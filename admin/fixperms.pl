@@ -30,7 +30,6 @@
 #
 # *****************************************************************************
 
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -45,6 +44,10 @@ my %nvp = getArguements(@ARGV);
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 
+# if fixperms continues with a blank config it'll totally wreck the box
+# as it'll rework everything under "/"!
+die "$0 cannot operate without configuration!\n" if (ref($C) ne 'HASH');
+
 print "This script will fix the permissions for NMIS based on the configuration $C->{configfile}\n";
 print "The directory to be processed is: $C->{'<nmis_base>'}\n";
 print "The user will be set to: $C->{nmis_user}\n";
@@ -54,18 +57,15 @@ if ( not $< == 0) { # NOT root
 	print "\nWARNING: You are NOT the ROOT user, so this will likely not work well, but we will do our best\n\n";
 }
 else {
-	my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_base>'}`;
-	print $output;
+	system("chown","-R","$C->{nmis_user}:$C->{nmis_group}",$C->{'<nmis_base>'});
+	system("chmod","-R","g+rw", $C->{'<nmis_base>'});
 
-	my $output = `chmod -R g+rw $C->{'<nmis_base>'}`;
-	print $output;
+	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} ) 
+	{
+		system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}", 
+					 $C->{'<nmis_data>'});
 
-	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} ) {
-		my $output = `chown -R $C->{nmis_user}:$C->{nmis_group} $C->{'<nmis_data>'}`;
-		print $output;
-
-		my $output = `chmod -R g+rw $C->{'<nmis_data>'}`;
-		print $output;
+		system("chmod","-R","g+rw", $C->{'<nmis_data>'});
 	}
 }
 
