@@ -41,6 +41,7 @@ use Fcntl qw(:DEFAULT :flock);
 use File::Copy;
 use File::Find;
 use File::Basename;
+use File::Path;
 use Cwd;
 use POSIX qw(:sys_wait_h);
 use version 0.77;
@@ -155,7 +156,6 @@ https://community.opmantek.com/x/Dgh4
 for further info.\n\n");
 	&input_ok;
 }
-
 
 logInstall("Installation source is $src");
 
@@ -656,14 +656,16 @@ If you say No here, the existing installation will be REMOVED and OVERWRITTEN!\n
 			&& input_yn("\nPlease confirm that you want to REMOVE the existing installation:"))
 	{
 		rename($site,"$site.unwanted") or die "Cannot rename $site to $site.unwanted: $!\n";
+		$installLog = "$site.unwanted/install.log";
+		$mustmovelog = 1;
 	}
 }
 
 my $isnewinstall;
-if ( not -d $site )
+if (!-d $site )
 {
 	$isnewinstall=1;
-	mkdir($site,0755) or die "cannot mkdir $site: $!\n";
+	safemkdir($site);
 }
 
 # now switch to the install.log in the final location
@@ -674,20 +676,44 @@ if ($mustmovelog)
 	$installLog = $newlog;
 }
 
-# before copying anything, lock nmis...
+# before copying anything, kill fpingd and lock nmis (fpingd doesn't even start if locked out)
+execPrint("$site/bin/fpingd.pl kill=true") if (-x "$site/bin/fpingd.pl");
 open(F,">$site/conf/NMIS_IS_LOCKED");
 print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
 
-# ...and kill any currently running fpingd
-execPrint("$site/bin/fpingd.pl kill=true") if (-x "$site/bin/fpingd.pl");
 
 printBanner("Copying NMIS files...");
 echolog("Copying source files from $src to $site...\n");
 
-# fixme: this fails benignly but noisyly if there are
-# (convenience) symlinks in the nmis dir, e.g. var or database
-execPrint("cp -r $src/* $site");
+my @candidates;
+find(sub
+		 {
+			 my ($name,$dir,$fn) = ($_, $File::Find::dir, $File::Find::name);
+			 push @candidates, [$dir] if (-d $fn);
+			 push @candidates, [$dir, $name] if (-f $fn); # source contains no symlinks
+		 }, $src);
+
+for (@candidates)
+{
+	my ($sourcedir,$name) = @$_;
+	my $sourcefile = "$sourcedir/$name";
+
+	(my $targetdir = $sourcedir) =~ s!^$src!!;
+	$targetdir = $site."/".$targetdir;
+	safemkdir($targetdir) if (!-d $targetdir);
+
+	# just make the dir
+	if (!defined $name)
+	{
+		safemkdir($targetdir) if (!-d $targetdir);
+	}
+	else
+	{
+		my $targetfile = Cwd::abs_path($targetdir."/".$name);
+		safecopy($sourcefile, $targetfile);
+	}
+}
 
 # catch missing nmis user, regardless of upgrade/new install
 if (!getpwnam("nmis"))
@@ -712,11 +738,16 @@ if (!getpwnam("nmis"))
 
 if ($isnewinstall)
 {
-		printBanner("Installing default config files...");
-		execPrint("cp -a $site/install/* $site/conf/");
-		execPrint("cp -a $site/models-install/* $site/models/");
-		# this test plugin shouldn't be activated automatically
-		unlink("$site/conf/plugins/TestPlugin.pm") if (-f "$site/conf/plugins/TestPlugin.pm");
+	printBanner("Installing default config files...");
+	safemkdir("$site/conf") if (!-d "$site/conf");
+	safemkdir("$site/models") if (!-d "$site/models");
+
+	# -n(oclobber) should not be required as conf site/conf/ and site/models/ should be empty
+	# exexprint returns exit code, ie. 0 if ok
+	die "copying of default config failed!\n" if (execPrint("cp -an $site/install/* $site/conf/"));
+	die "copying of default models failed!\n" if (execPrint("cp -an $site/models-install/* $site/models/"));
+	# this test plugin shouldn't be activated automatically
+	unlink("$site/conf/plugins/TestPlugin.pm") if (-f "$site/conf/plugins/TestPlugin.pm");
 }
 else
 {
@@ -727,39 +758,33 @@ else
 
 	if (@candidates)
 	{
-		if (!-d "$site/conf/plugins") {
-			mkdir("$site/conf/plugins",0755) or die "cannot mkdir $site/conf/plugins: $!\n";
-		}
+		safemkdir("$site/conf/plugins") if (!-d "$site/conf/plugins");
 		printBanner("Updating plugins");
 
 		for my $maybe (@candidates)
 		{
 			next if ($maybe eq "TestPlugin.pm"); # this example plugin shouldn't be auto-activated
-			my $docopy;
-			if (-f "$site/conf/plugins/$maybe")
+			my $docopy = 0;
+			if (-e "$site/conf/plugins/$maybe")
 			{
 				my $havechange = system("diff -q $site/install/plugins/$maybe $site/conf/plugins/$maybe >/dev/null 2>&1") >> 8;
-				if ($havechange and input_yn("OK to replace changed plugin $maybe?"))
-				{
-					$docopy=1;
-				}
+				$docopy = ($havechange and input_yn("OK to replace changed plugin $maybe?"));
 			}
-			else
+			if ($docopy)
 			{
-				$docopy =1;
+				safecopy("$site/install/plugins/$maybe","$site/conf/plugins/$maybe");
 			}
-			execPrint("cp $site/install/plugins/$maybe $site/conf/plugins/$maybe")
-					if ($docopy);
 		}
 	}
 
 	printBanner("Copying new and updated NMIS config files");
-	for my $cff ("BusinessServices.nmis","ServiceStatus.nmis",
+	for my $cff ("Config.nmis", "BusinessServices.nmis","ServiceStatus.nmis",
 							 "Customers.nmis", "Events.nmis")
 	{
-		if (-f "$site/install/$cff" && !-f "$site/conf/$cff")
+		# copy if missing - note: doesn't cover syntactically broken, though
+		if (-f "$site/install/$cff" && !-e "$site/conf/$cff")
 		{
-			execPrint("cp -a $site/install/$cff $site/conf/$cff");
+			safecopy("$site/install/$cff","$site/conf/$cff");
 		}
 	}
 
@@ -916,7 +941,7 @@ https://community.opmantek.com/x/-wd4\n";
 			print "The installer has detected that your NMIS installation is still using
 legacy '.nmis' database files. We recommend that you use the
 db conversion tool to migrate your NMIS to JSON.\n\n";
-			
+
 			if (input_yn("Do you want to perform the JSON migration now?"))
 			{
 				execPrint("$site/admin/convert_nmis_db.pl simulate=false info=1");
@@ -934,7 +959,7 @@ switch to JSON. You can find this tool in $site/admin/convert_nmis_db.pl.\n";
 		{
 			echolog("JSON migration not necessary.");
 		}
-		
+
 		printBanner("Performing RRD Tuning");
 		print "Please be patient, this step can take a while...\n";
 
@@ -1083,7 +1108,7 @@ no RRD migration required.");
 
 
 
-	
+
 }
 
 echolog("Ensuring correct file permissions...");
@@ -1198,7 +1223,7 @@ if ($lrver =~ /^logrotate (\d+\.\d+\.\d+)/m)
 	{
 		if (input_yn("OK to install updated log rotation configuration file\n\t$lrfile in /etc/logrotate.d?"))
 		{
-			execPrint("cp $lrfile $lrtarget");
+			safecopy($lrfile,$lrtarget);
 		}
 		else
 		{
@@ -1222,8 +1247,7 @@ that you should use as the basis for your setup.\n";
 
 printBanner("NMIS Cron Setup");
 
-(-d "$site/install/cron.d") or mkdir("$site/install/cron.d", 0755)
-		or die "cannot mkdir $site/install/cron.d/: $!\n";
+safemkdir("$site/install/cron.d") if (!-d "$site/install/cron.d");
 my $systemcronfile = "/etc/cron.d/nmis";
 my $newcronfile = "$site/install/cron.d/nmis";
 my $showreminder = 1;
@@ -1735,4 +1759,66 @@ sub enable_custom_repo
 	{
 		die "Cannot enable unknown custom repository \"$reponame\"!\n";
 	}
+}
+
+# copy file from a to b, but only if the target is not a symlink
+# if symlink, warn the user about it and request confirmation (default action: leave unchanged)
+# args: source, destination
+# returns: 1 if ok, dies on errors
+sub safecopy
+{
+	my ($source, $destination) = @_;
+	die "safecopy: invalid args, $source is not a file!\n" if (!-f $source);
+	die "safecopy: invalid args, $destination missing or a dir!\n" if (!$destination or -d $destination);
+
+	if (-l $destination )
+	{
+		my $actualtarget = readlink($destination);
+		echolog("Warning: $destination is a symbolic link pointing to $actualtarget!");
+		print "\n";
+
+		# default should be the safe behaviour, i.e. don't clobber the target
+		if (input_yn("OK to leave the symbolic link $destination unchanged?"))
+		{
+			echolog("NOT overwriting $destination.\nThis may require manual adjustment post-install.");
+			return 1;
+		}
+		else
+		{
+			echolog("Overwriting $destination (= $actualtarget) as requested.");
+		}
+	}
+
+	logInstall("copying $source to $destination");
+	File::Copy::cp($source,$destination) or die "Failed to copy $source to $destination: $!\n";
+	return 1;
+}
+
+# creates a whole directory hierarchy like mkdir -p
+# args: dir name
+# returns: 1 if ok, dies on failure
+sub safemkdir
+{
+	my ($dirname) = @_;
+	die "safemkdir: invalid args, dirname missing!\n" if (!$dirname);
+
+	return 1 if (-d $dirname);
+	logInstall("making directory $dirname");
+	# ensure we don't create unworkable dirs and files, if the parent shell
+	# has a super-restrictive umask: file::path perms are subject to umask!
+	my $prevmask = umask(0022);
+	my $error;
+	File::Path::make_path($dirname, { error => \$error,
+																		mode =>  0755 } ); # umask is applied to this :-/
+	if (ref($error) eq "ARRAY" and @$error)
+	{
+		my @errs;
+		for my $issue (@$error)
+		{
+			push @errs, join(": ", each %$issue);
+		}
+		die "Could not create directory $dirname: ".join(", ",@errs)."\n";
+	}
+	umask($prevmask);
+	return 1;
 }

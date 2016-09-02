@@ -72,6 +72,7 @@ my %nvp = getArguements(@ARGV);
 # load configuration table, memorize startup time
 my $starttime = Time::HiRes::time;
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
+die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
 # this is used by rrdfunc::createRRD(), so needs to be scoped suitably.
@@ -264,7 +265,6 @@ sub	runThreads
 		$NT = loadLocalNodeTable();
 		dbg("table Local Node reloaded after uuid updates",2);
 	}
-
 	my $C = loadConfTable();		# config table from cache
 
 	# check if the fping results look sensible
