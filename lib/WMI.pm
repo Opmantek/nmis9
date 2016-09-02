@@ -173,6 +173,7 @@ sub _run_query
 	my $pid = open(WMIC, "-|");
 	if (!defined $pid)
 	{
+		unlink($tfn);
 		return (error => "cannot fork to run wmic: $!");
 	}
 	elsif ($pid)
@@ -197,6 +198,7 @@ sub _run_query
 			# don't want the wmic process to hang around, we stopped consuming its output
 			# and it can't do anything useful anymore
 			kill("SIGKILL",$pid);
+			unlink($tfn);
 			return (error => "timeout after $timeout seconds");
 		}
 	}
