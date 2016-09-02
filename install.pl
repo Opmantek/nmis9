@@ -964,6 +964,30 @@ to ensure NMIS performs correctly.");
 	}
 }
 
+# check that the wmic we've shipped actually works on this platform
+my $version = `$site/bin/wmic -V 2>&1`;
+my $exit = $?;
+if ($exit)
+{
+	printBanner("Precompiled WMIC failed to run!");
+	logInstall("Output of wmic test was: $version");
+
+	print qq|NMIS ships with a precompiled WMI client ($site/bin/wmic),
+but for some reason or another the program failed to execute on
+your system. This may be caused by shared library incompatibilities,
+and the install.log may contain further clues as to what went wrong.
+
+If you want NMIS to collect data from WMI-based nodes you will
+have to download wmic from http://dl-nmis.opmantek.com/wmic-omk.tgz,
+then compile and install it by hand. The Opmantek Wiki at
+https://community.opmantek.com/x/VQJFAQ has more information
+on this procedure.
+
+If you do not plan to use WMI-based models you can safely ignore
+this issue.\n\n|;
+	&input_ok;
+}
+
 ###************************************************************************###
 printBanner("Cache some fonts...");
 execPrint("fc-cache -f -v");

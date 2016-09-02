@@ -217,7 +217,8 @@ sub init
 	{
 		my $maybe = WMI->new(host => $thisnodeconfig->{host},
 												 username => $thisnodeconfig->{wmiusername},
-												 password => $thisnodeconfig->{wmipassword});
+												 password => $thisnodeconfig->{wmipassword},
+												 program => $C->{"<nmis_bin>"}."/wmic" );
 		if (ref($maybe))
 		{
 			$self->{wmi} = $maybe;

@@ -37,7 +37,9 @@ use File::Temp;
 
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
 #
-# args: host, username, password, timeout (password and timeout are optional)
+# args: host, username, (required), password, timeout, program (optional),
+# program: full path to wmic, if not given wmic is expected to be in the PATH
+#
 # returns: wmi object, or error message
 sub new
 {
@@ -49,6 +51,7 @@ sub new
 			password => $args{password},
 			host => $args{host},
 			timeout => $args{timeout},
+			program => $args{program} || "wmic",
 		},
 		$class);
 
@@ -203,7 +206,7 @@ sub _run_query
 		open(STDIN, "<", "/dev/null");
 		open(STDERR, ">&", $tfh);		# stderr to go there, please
 
-		my @cmdargs = ("wmic",
+		my @cmdargs = ($self->{program},
 									 "--delimiter=$delim",
 									 "--user=".$self->{username},
 									 ($self->{password}? ("--password=".$self->{password}): "--no-pass"),
