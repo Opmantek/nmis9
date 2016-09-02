@@ -93,7 +93,7 @@ nodeAdminReport(xls_file_name => $xlsPath);
 if ( defined $arg{email} and $arg{email} ne "" ) {
 	my $from_address = $C->{mail_from_reports} || $C->{mail_from};
 
-	emailSummary(subject => "Node Validity Check Results and Spreadsheet", C => $C, email => $arg{email}, summary => \@SUMMARY, from_address => $from_address, file_name => $xlsFile, file_path_name => $xlsPath);
+	emailSummary(subject => "$C->{server_name} :: Node Validity Check Results and Spreadsheet", C => $C, email => $arg{email}, summary => \@SUMMARY, from_address => $from_address, file_name => $xlsFile, file_path_name => $xlsPath);
 }
 
 exit 0;
@@ -223,8 +223,9 @@ sub processNodes {
 	printSum("\n");
 
 	if ( not $simulate ) {
-		my $backupFile = $nodesFile . time();
+		my $backupFile = $nodesFile .".". time();
 		my $backup = backupFile(file => $nodesFile, backup => $backupFile);
+		setFileProt($backupFile);
 		if ( $backup ) {
 			printSum("$nodesFile backup'ed up to $backupFile");
 			writeHashtoFile(file => $nodesFile, data => $LNT);
@@ -242,19 +243,6 @@ sub printSum {
 	push(@SUMMARY,$message);
 }
 
-
-
-#	my $desired = $args{desired} || $C->{'os_username'} || "nmis";
-
-
-
-
-
-#sub makeReport {
-#
-#	end_xlsx(xls => $xls);
-#}	
-#
 sub nodeAdminReport {
 	my %args = @_;
 	
@@ -489,6 +477,8 @@ sub nodeAdminReport {
 			}
 		}
 	}
+	end_xlsx(xls => $xls);
+	setFileProt($xlsPath);
 
 
 }  # end sub nodeAdminSummary
