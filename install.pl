@@ -221,7 +221,8 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
+libexcel-writer-xlsx-perl));
 
 	my @rhpackages = (qw(perl-core cpan autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -986,6 +987,11 @@ on this procedure.
 If you do not plan to use WMI-based models you can safely ignore
 this issue.\n\n|;
 	&input_ok;
+}
+else
+{
+	printBanner("Checked precompiled WMIC");
+	echolog("Precompiled WMIC ran ok, reported version: $version");
 }
 
 ###************************************************************************###
