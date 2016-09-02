@@ -1813,7 +1813,7 @@ sub getIntfInfo {
 				}
 				else {
 					$IF = $S->ifinfo; # renew pointer
-					logMsg("INFO ($S->{name}) Joeps an empty field of index=$index admin=$IF->{$index}{ifAdminStatus}") if $IF->{$index}{ifAdminStatus} eq "";
+					logMsg("INFO ($S->{name}) ifadminstatus is empty for index=$index") if $IF->{$index}{ifAdminStatus} eq "";
 					info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
 					push(@ifIndexNumManage,$index);
 				}
@@ -2676,8 +2676,11 @@ sub getEnvData {
 }
 #=========================================================================================
 
-# retrieve system health data from snmp, done during update
-sub getSystemHealthInfo {
+# retrieve system health index data from snmp, done during update
+# args: sys (object)
+# returns: 1 if all present sections worked, 0 otherwise
+sub getSystemHealthInfo
+{
 	my %args = @_;
 	my $S = $args{sys}; # object
 
@@ -2694,76 +2697,153 @@ sub getSystemHealthInfo {
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{systemHealth} eq '') {
-		dbg("No class 'systemHealth' declared in Model");
+	if (ref($M->{systemHealth}) ne "HASH")
+	{
+		dbg("No class 'systemHealth' declared in Model.");
+		return 0;
 	}
-	else {
-		my @healthSections = split(",",$C->{model_health_sections});
-		if ( exists $M->{systemHealth}{sections} and $M->{systemHealth}{sections} ne "" ) {
-			@healthSections = split(",",$M->{systemHealth}{sections});
+
+	# get the default (sub)sections from config, model can override
+	my @healthSections = split(",",
+														 (defined($M->{systemHealth}{sections})?
+															$M->{systemHealth}{sections}
+															: $C->{model_health_sections}) );
+	for my $section (@healthSections)
+	{
+		delete $NI->{$section};
+		next if (!exists($M->{systemHealth}->{sys}->{$section})); # if the config provides list but the model doesn't
+
+		my $thissection = $M->{systemHealth}->{sys}->{$section};
+
+		# all systemhealth sections must be indexed by something
+		# this holds the name, snmp or wmi
+		my $index_var;
+		# or if you want to use a raw oid instead: use 'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
+		my $index_snmp;
+		# and for obscure SNMP Indexes a more generous snmp index regex can be given:
+		# in the systemHealth section of the model 'index_regex' => '\.(\d+\.\d+\.\d+)$',
+		# attention: FIRST capture group must return the index part
+		my $index_regex = '\.(\d+)$';
+
+		$index_var = $index_snmp = $thissection->{indexed};
+		$index_regex = $thissection->{index_regex} if ( exists($thissection->{index_regex}) );
+		$index_snmp = $thissection->{index_oid} if( exists($thissection->{index_oid}) );
+
+		if (!defined($index_var) or $index_var eq '')
+		{
+			dbg("No index var found for $section, skipping");
+			next;
 		}
-		for my $section (@healthSections) {
-			delete $NI->{$section};
-			# get Index table
-			my $index_var = '';
 
-			### 2013-10-11 keiths, adding support for obscure SNMP Indexes....
-			# in the systemHealth section of the model 'index_regex' => '\.(\d+\.\d+\.\d+)$',
-			my $index_regex = '\.(\d+)$';
+		# determine if this is an snmp- OR wmi-backed systemhealth section - combination cannot work (one index)
+		if (exists($thissection->{wmi}))
+		{
+			info("systemhealth: section=$section, source WMI, index_var=$index_var");
 
-			### 2013-10-14 keiths, adding support for using OID for index_var....
-			# in the systemHealth section of the model 'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
-			my $index_snmp = undef;
+			my $wmiaccessor = $S->wmi;
+			if (!$wmiaccessor)
+			{
+				info("skipping section $section: source WMI but node $S->{name} not configured for WMI");
+				next;
+			}
+			# model broken if it says 'indexed by X' but doesn't have a query section for 'X'
+			if (!exists($thissection->{wmi}->{$index_var}))
+			{
+				logMsg("ERROR: Model section $section is missing declaration for index_var $index_var!");
+				next;
+			}
 
-			if( exists($M->{systemHealth}{sys}{$section}) ) {
-				$index_var = $M->{systemHealth}{sys}{$section}{indexed};
-				$index_snmp = $M->{systemHealth}{sys}{$section}{indexed};
-				if( exists($M->{systemHealth}{sys}{$section}{index_regex}) ) {
-					$index_regex = $M->{systemHealth}{sys}{$section}{index_regex};
+			my $wmisection = $thissection->{wmi};					# the whole section, might contain more than just the index
+			my $indexsection = $wmisection->{$index_var}; # the subsection for the index var
+
+			# query can come from -common- or from the index var's own section
+			my $query = (exists($indexsection->{query})? $indexsection->{query}
+									 : (ref($wmisection->{"-common-"}) eq "HASH"
+											&& exists($wmisection->{"-common-"}->{query}))?
+									 $wmisection->{"-common-"}->{query} : undef);
+			if (!$query or !$indexsection->{field})
+			{
+				logMsg("ERROR: Model section $section is missing query or field for WMI variable  $index_var!");
+				next;
+			}
+			# wmi gettable could give us both the indices and the data, but here we want only the different index values
+			my ($error, $fields, $meta) = $wmiaccessor->gettable(wql => $query,
+																													 index => $index_var,
+																													 fields => [$index_var]);
+
+			if ($error)
+			{
+				logMsg("ERROR ($S->{name}) failed to get index table for systemHealth $section: $error");
+				# fixme need a wmidown...
+				# snmpNodeDown(sys=>$S);
+				next;
+			}
+			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
+			for my $indexvalue (keys %$fields)
+			{
+				dbg("section=$section index=$index_var, found value=$indexvalue");
+
+				# save the seen index value
+				$NI->{$section}->{$indexvalue}->{$index_var} = $indexvalue;
+
+				# then get all data for this indexvalue
+				if ($S->loadInfo(class=>'systemHealth', section=>$section, index=>$indexvalue,
+												 table=>$section, model=>$model))
+				{
+					info("section=$section index=$indexvalue read and stored");
 				}
-				if( exists($M->{systemHealth}{sys}{$section}{index_oid}) ) {
-					$index_snmp = $M->{systemHealth}{sys}{$section}{index_oid};
+				else
+				{
+					logMsg("ERROR ($S->{name}) failed to get table for systemHealth $section!");
+					# fixme need a wmidown...
+					# snmpNodeDown(sys=>$S);
+					next;
 				}
 			}
-			if ($index_var ne '') {
-				info("systemHealth: index_var=$index_var, index_snmp=$index_snmp");
-				my %healthIndexNum;
-				my $healthIndexTable;
-				if ($healthIndexTable = $SNMP->gettable($index_snmp,$max_repetitions)) {
-					# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
-					foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable})) {
-						my $index = $oid;
-						if ( $oid =~ /$index_regex/ ) {
-							$index = $1;
-						}
-						$healthIndexNum{$index}=$index;
-						# check for online of sensor, value 1 is online
-						dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
-						$S->{info}{$section}{$index}{$index_var} = $healthIndexTable->{$oid};
+		}
+		else
+		{
+			info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
+			my (%healthIndexNum, $healthIndexTable);
+
+			if ($healthIndexTable = $SNMP->gettable($index_snmp,$max_repetitions))
+			{
+				# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
+				foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable}))
+				{
+					my $index = $oid;
+					if ( $oid =~ /$index_regex/ ) {
+						$index = $1;
 					}
+					$healthIndexNum{$index}=$index;
+					dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
+
+					$NI->{$section}->{$index}->{$index_var} = $healthIndexTable->{$oid};
+				}
+			}
+			else
+			{
+				if ( $SNMP->{error} =~ /is empty or does not exist/ )
+				{
+					info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
+					#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");
+				}
+				# failed by snmp
+				else
+				{
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
+					snmpNodeDown(sys=>$S);
+				}
+			}
+			# Loop to get information, will be stored in {info}{$section} table
+			foreach my $index (sort keys %healthIndexNum)
+			{
+				if ($S->loadInfo(class=>'systemHealth', section=>$section,index=>$index,table=>$section,model=>$model)) {
+					info("section=$section index=$index read and stored");
 				} else {
-					if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-						info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
-						#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");
-					}
 					# failed by snmp
-					else {
-						logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
-						snmpNodeDown(sys=>$S);
-					}
+					snmpNodeDown(sys=>$S);
 				}
-				# Loop to get information, will be stored in {info}{$section} table
-				foreach my $index (sort keys %healthIndexNum) {
-					if ($S->loadInfo(class=>'systemHealth',section=>$section,index=>$index,table=>$section,model=>$model)) {
-						info("section=$section index=$index read and stored");
-					} else {
-						# failed by snmp
-						snmpNodeDown(sys=>$S);
-					}
-				}
-			}
-			else {
-				dbg("No indexvar found in $section");
 			}
 		}
 	}
@@ -2772,12 +2852,15 @@ sub getSystemHealthInfo {
 }
 #=========================================================================================
 
-sub getSystemHealthData {
+# retrieves system health rrd data, and updates relevant rrd database files
+# args: sys (object)
+# returns: 1 if all ok, 0 otherwise
+sub getSystemHealthData
+{
 	my %args = @_;
 	my $S = $args{sys}; # object
 
 	my $NI = $S->ndinfo; # node info table
-	my $SNMP = $S->snmp;
 	my $V =  $S->view;
 	my $M = $S->mdl;	# node model table
 
@@ -2786,59 +2869,61 @@ sub getSystemHealthData {
 	info("Starting");
 	info("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{systemHealth} eq '') {
+	if (!exists($M->{systemHealth}))
+	{
 		dbg("No class 'systemHealth' declared in Model");
+		return 1;	# nothing there means all ok
 	}
-	else {
-		my @healthSections = split(",",$C->{model_health_sections});
-		if ( exists $M->{systemHealth}{sections} and $M->{systemHealth}{sections} ne "" ) {
-			@healthSections = split(",",$M->{systemHealth}{sections});
-		}
-		for my $section (@healthSections) {
-			if( exists($S->{info}{$section}) ) {
-				for my $index (sort keys %{$S->{info}{$section}}) {
-					my $rrdData;
-					if (($rrdData = $S->getData(class=>'systemHealth',section=>$section,index=>$index,model=>$model))) {
-						if ( $rrdData->{error} eq "" ) {
-							foreach my $sect (keys %{$rrdData}) {
-								my $D = $rrdData->{$sect}{$index};
 
-								# update retrieved values in node info, too, not just the rrd database
-								for my $item (keys %$D)
-								{
-										dbg("updating node info $section $index $item: old ".$S->{info}{$section}{$index}{$item}
-												." new $D->{$item}{value}");
-										$S->{info}{$section}{$index}{$item}=$D->{$item}{value};
-								}
+	# config sets default sections, model overrides
+	my @healthSections = split(",",
+														 defined($M->{systemHealth}{sections})?
+														 $M->{systemHealth}{sections}
+														 : $C->{model_health_sections});
 
-								# RRD Database update and remember filename
-								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
-							}
-						}
-						elsif ($rrdData->{skipped})
-						{
-								dbg("($NI->{system}{name}) skipped data collection");
-						}
-						else {
-								dbg("ERROR ($NI->{system}{name}) on getSystemHealthData, $rrdData->{error}");
-						}
+	for my $section (@healthSections)
+	{
+		# node doesn't have info for this section, so no indices so no fetch,
+		# may be no update yet or unsupported section for this model anyway
+		next if (!exists($NI->{$section}));
+
+		# that's instance index value
+		for my $index (sort keys %{$NI->{$section}})
+		{
+			my $rrdData = $S->getData(class=>'systemHealth', section=>$section, index=>$index, debug=>$model);
+
+			if ($rrdData)
+			{
+				foreach my $sect (keys %{$rrdData})
+				{
+					my $D = $rrdData->{$sect}->{$index};
+
+					# update retrieved values in node info, too, not just the rrd database
+					for my $item (keys %$D)
+					{
+						dbg("updating node info $section $index $item: old ".$NI->{$section}{$index}{$item}
+								." new $D->{$item}{value}");
+						$NI->{$section}{$index}{$item}=$D->{$item}{value};
 					}
-					else {
-						logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, SNMP problem");
-						# failed by snmp
-						snmpNodeDown(sys=>$S);
-						dbg("ERROR, getting data");
-						return 0;
-					}
+
+					# RRD Database update and remember filename
+					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
 				}
 			}
-
+			else
+			{
+				# fixme  error handling here or in getdata??
+				# 						snmpNodeDown(sys=>$S);
+				#
+				dbg("ERROR, getting data");
+				return 0;
+			}
 		}
 	}
 	info("Finished");
 	return 1;
 }
-#=========================================================================================
+
 
 # updates the node info and node view structures with all kinds of stuff
 # returns: 1 if node is up, and all ops worked; 0 if node is down/to be skipped etc.
@@ -5872,11 +5957,9 @@ sub getIntfAllInfo {
 
 #=========================================================================================
 
-### create hash  write to /var for speeding up
-### Cologne 2005
-###
-sub getNodeAllInfo {
-
+### create very rough outline hash of node information for caching
+sub getNodeAllInfo
+{
 	my %Info;
 
 	dbg("Starting");
@@ -5885,10 +5968,12 @@ sub getNodeAllInfo {
 	my $NT = loadLocalNodeTable();
 
 	# Write a node entry for each  node
-	foreach my $node (sort keys %{$NT}) {
-		if ( getbool($NT->{$node}{active}) ) {
+	foreach my $node (sort keys %{$NT})
+	{
+		if ( getbool($NT->{$node}{active}) )
+		{
 			my $nodeInfo = loadNodeInfoTable($node);
-			# using this info
+
 			$Info{$node}{nodeVendor} = $nodeInfo->{system}{nodeVendor};
 			$Info{$node}{nodeModel} = $nodeInfo->{system}{nodeModel};
 			$Info{$node}{nodeType} = $nodeInfo->{system}{nodeType};
