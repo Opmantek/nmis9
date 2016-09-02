@@ -35,7 +35,7 @@
 #
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "1.3.0";
+our $VERSION = "1.4.0";
 
 use strict;
 use File::Copy;
@@ -283,7 +283,10 @@ if (keys %todos and !$simulate)
 			unlink($part) if (-d $part);
 		}
 	}
+}
 
+if (!$simulate)
+{
 	print STDERR "Merging current Common-database with new data\n";
 	# finally merge old common-database and the new one's type areas,
 	# save the old common-database.nmis away and replace it with the new one
@@ -298,10 +301,10 @@ if (keys %todos and !$simulate)
 	# save the rollback file anyway
 	&saverollback;
 	print STDERR "Saving rollback information in $rollbackf\n";
-}
 
-# finally unlock nmis (unconditionally)
-unlink($lockoutfile) if (!$simulate);
+	# finally unlock nmis (unconditionally)
+	unlink($lockoutfile);
+}
 
 if ($simulate)
 {

@@ -507,7 +507,7 @@ at least on linux 100% used is common with lots of buffers/cache',
     },
     'rrd' => {
       'diskIOTable' => {
-        'control' => 'CVAR=diskIODevice;$CVAR =~ /sda|sr|disk|xvda|dm\\-/',
+        'control' => 'CVAR=diskIODevice;$CVAR =~ /^(sd|sr|disk|xvd|dm-)/',
         'graphtype' => 'diskio-rw,diskio-rwbytes',
         'indexed' => 'true',
         'snmp' => {

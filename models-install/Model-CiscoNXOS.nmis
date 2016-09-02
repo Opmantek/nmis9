@@ -115,9 +115,9 @@
             'option' => 'counter,0:U'
           },
           'RouteNumber' => {
-            'oid' => 'inetCidrRouteNumber'
+            'oid' => 'inetCidrRouteNumber',
   					'replace' => {
-  						'335544320' => '0'
+  						'335544320' => '0',
   					},            
           }
   			},

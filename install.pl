@@ -221,7 +221,8 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
+libexcel-writer-xlsx-perl));
 
 	my @rhpackages = (qw(perl-core cpan autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -964,9 +965,53 @@ to ensure NMIS performs correctly.");
 	}
 }
 
+# check that the wmic we've shipped actually works on this platform
+my $version = `$site/bin/wmic -V 2>&1`;
+my $exit = $?;
+if ($exit)
+{
+	printBanner("Precompiled WMIC failed to run!");
+	logInstall("Output of wmic test was: $version");
+
+	print qq|NMIS ships with a precompiled WMI client ($site/bin/wmic),
+but for some reason or another the program failed to execute on
+your system. This may be caused by shared library incompatibilities,
+and the install.log may contain further clues as to what went wrong.
+
+If you want NMIS to collect data from WMI-based nodes you will
+have to download wmic from http://dl-nmis.opmantek.com/wmic-omk.tgz,
+then compile and install it by hand. The Opmantek Wiki at
+https://community.opmantek.com/x/VQJFAQ has more information
+on this procedure.
+
+If you do not plan to use WMI-based models you can safely ignore
+this issue.\n\n|;
+	&input_ok;
+}
+else
+{
+	printBanner("Checked precompiled WMIC");
+	echolog("Precompiled WMIC ran ok, reported version: $version");
+}
+
 ###************************************************************************###
 printBanner("Cache some fonts...");
 execPrint("fc-cache -f -v");
+
+# fix the 8.5.12G common-database gotcha first
+if (open(F, "$site/models/Common-database.nmis"))
+{
+	my @current = <F>;
+	close F;
+	if (2 == grep(/'ospfNbr'/, @current))
+	{
+		echolog("Fixing duplicate Common-database entries for ospfNbr");
+		# don't want any quoting issues which execPrint or execLog would introduce
+		system("$site/admin/patch_config.pl","-b",
+					 "$site/models/Common-database.nmis",
+					 '/database/type/ospfNbr=/nodes/$node/health/ospfNbr-$index.rrd');
+	}
+}
 
 # check if the common-databases differ, and if so offer to run migrate_rrd_locations.pl
 if (!$isnewinstall)
@@ -1473,8 +1518,7 @@ NMIS AAA system.
 
 The modules SNMP_util and SNMP_Session are also optional (needed only for
 the ipsla subsystem) and can be installed either with
-'yum install perl-SNMP_Session' or from the provided tar file in
-install/SNMP_Session-1.12.tar.gz.
+'yum install perl-SNMP_Session' or 'apt-get install libsnmp-session-perl'.
 
 The modules Digest::HMAC and Crypt::DES are required if any of your
 devices use SNMP Version 3.\n\n|;

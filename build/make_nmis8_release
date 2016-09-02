@@ -69,7 +69,7 @@ mv $TARGETDIR/cgi-bin/connect.pl $TARGETDIR/cgi-bin/cplancgi.pl $TARGETDIR/cgi-b
 	 $TARGETDIR/cgi-bin/tenants.pl $TARGETDIR/cgi-bin/opsla.pl $NONFREE/cgi-bin
 
 mv $TARGETDIR/bin/opslad.pl $TARGETDIR/bin/cplan.pl $NONFREE/bin
-mv $TARGETDIR/lib/NMIS/IPSLA.pm $NONFREE/lib/NMIS
+mv $TARGETDIR/lib/NMIS/IPSLA.pm $TARGETDIR/lib/NMIS/Integration.pm $NONFREE/lib/NMIS/
 mv $TARGETDIR/admin/opsla* $TARGETDIR/admin/find_ipsla_nodes.pl $TARGETDIR/admin/oss_export_* $NONFREE/admin
 
 # must ditch the git files before making self-extracting installer

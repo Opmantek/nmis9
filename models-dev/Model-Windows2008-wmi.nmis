@@ -1,0 +1,630 @@
+#
+## $Id: Model-Windows2008.nmis,v 8.5 2012/04/28 00:59:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'alerts' => {
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '70',
+        	'Warning' => '75',
+        	'Minor' => '80',
+        	'Major' => '95',
+        	'Critical' => '98',
+        	'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '85',
+        	'Warning' => '0',
+        	'Minor' => '0',
+        	'Major' => '90',
+        	'Critical' => '95',
+        	'Fatal' => '98',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodeType' => 'server',
+    'nodeModel' => 'Windows2008',
+
+		
+    'rrd' => {
+
+      'hrwin' => {
+        'graphtype' => 'hrwinusers,hrwinproc',
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers',
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses',
+					},
+        },
+
+				'wmi' => {
+					'procidle' =>{
+						# want the combined row for all processors only
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentIdleTime',
+						option => 'gauge,0:U',
+					},
+
+					proctime => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentProcessorTime',
+						option => "nosave",
+					},
+					
+					usertime => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentUserTime',
+						option => "nosave",
+						calculate => 'CVAR1=intspersec; CVAR2=proctime; return $r+$CVAR1+$CVAR2;',
+					},
+
+					intspersec => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'InterruptsPersec',
+						option => "nosave",
+					},
+				},
+      },
+			
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'snmp' => {
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
+          },
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
+          },
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
+          }
+        },
+      },
+			
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+
+		
+    'sys' => {
+      'alerts' => {
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 250',
+              'event' => 'High TCP Connection Count',
+							'unit' => 'connections',
+              'level' => 'Warning'
+            }
+          }
+        }
+      },
+
+			
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime'
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime'
+          }
+        }
+      },
+			
+      'extra' => 
+			{
+				'wmi' => 
+				{
+					# if we want to get multiple things from a single query
+					# actually not even required: the code runs every query it sees just once
+					"-common-" => { 
+						query => 'select * from win32_pagefileusage' 
+					},
+
+								# this one i only want to collect, but not save
+								intspersec => {
+									query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+									field => 'InterruptsPersec',
+									option => "nosave",
+									
+					},
+
+
+					'swapname' => {
+						title => "swap file",
+						field => 'Name',
+#						calculate => 'CVAR1=intspersec; return $r." ".$CVAR1;',
+					},
+					
+					'totalswap' => {
+						title => "total swap in bytes",
+						# not necessary if there is a query in -common-
+						# query => 'select allocatedbasesize from Win32_pagefileusage',
+						field => 'AllocatedBaseSize',
+						calculate => 'return $r*(1<<20);',
+					},
+					
+					'usedswap' => {
+						title => "used swap in bytes",
+						# again, not necessary if there is a query in -common-
+						# query => 'select currentusage from win32_pagefileusage',
+						field => 'CurrentUsage',
+						calculate => 'return $r*(1<<20);',
+					},
+
+					# example for pulling stuff from an UNSHARED SEPARATE query
+					'bios' => {
+						title  => "bios name",
+						query => 'select name from win32_bios',
+						field => "Name",
+						calculate => '$r =~ s/\s*$//; return $r;',
+					},
+				},
+						
+				
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers.0',
+            'title' => 'Users'
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses.0',
+            'title' => 'Processes'
+          },
+          'hrMemorySize' => {
+            'oid' => 'hrMemorySize.0',
+            'title' => 'Memory'
+          },
+        }
+      },
+
+
+			
+    },
+    'nodeVendor' => 'Microsoft'
+  },
+  'interface' => {
+    'rrd' => {
+      'interface' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifName'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          }
+        },
+        'indexed' => 'true',
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      }
+    },
+
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifName',
+            'title' => 'Name'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'Hardware' => {
+            'oid' => 'ifDescr',
+            'title' => 'Hardware'
+          },
+
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          }
+        }
+      }
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'loopback|QoS Packet Scheduler|WAN Miniport|LightWeight Filter|ISATAP|Teredo Tunneling|Apple Mobile Device Ethernet',
+      'noDescription' => 'false',
+      'Description' => '^#',
+      'ifType' => 'softwareloopback|ppp'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	  }
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed',
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      },
+    },
+    'nocollect' => {
+      'Description' => ''
+    }
+  },
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrsmpcpu',
+        'threshold' => 'hrsmpcpu',
+       }
+     }
+  },
+  'device' => {
+    'sys' => {
+      'device' => {
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        },
+        'indexed' => 'true'
+      }
+    }
+  },
+	systemHealth => 
+	{
+		'sections' => 'diskIOTable',
+		'sys' => 
+		{
+      'diskIOTable' => 
+			{        
+        'indexed' => 'Name',
+				wmi => 
+				{
+					'Name' => 
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'Name',
+						title => 'name of the disk device',
+					},
+					'Description' =>
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'Description',
+						title => 'optional description of the disk device',
+					},
+					'FreeSpace' =>
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'FreeMegabytes',
+						title => 'free space in bytes of the disk device',
+						calculate => 'return $r * (1<<20);',
+					},
+				},
+			},
+		},
+		'rrd' =>
+		{
+			'diskIOTable' => 
+			{        
+        'indexed' => 'Name', # for wmi the index field name MUST be given and the same as in the sys section
+				wmi =>
+				{
+					'DiskIOReadB' =>
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'DiskReadBytesPersec',
+						title => 'Read Bytes/sec',
+						option => 'gauge:0,U',
+					},
+					'DiskIOWriteB' =>
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'DiskWriteBytesPersec',
+						title => 'Write Bytes/sec',
+						option => 'gauge:0,U',
+					},
+					'DiskIOB' =>
+					{
+						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
+						field => 'DiskBytesPersec',
+						title => 'Combined Read and Write Bytes/sec',
+						option => 'gauge:0,U',
+					},
+				},
+			},
+		},
+	},
+);

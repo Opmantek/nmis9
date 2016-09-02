@@ -1,9 +1,10 @@
 #!/usr/bin/perl
-# Auto configure to the <nmis-base>/lib
+# fixme: this thing should be changed over to use test::more and test::deep.
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+
 use strict;
 use func;
 use NMIS;
@@ -58,3 +59,14 @@ my $statval = getRRDStats(sys => $S, graphtype => "cpu",
 													hour_from => 19,
 													hour_to => 4);
 print Dumper($statval);
+
+
+# load a json file, invalid encoding
+my $hash = func::readFiletoHash(file => "testdata/latin1.json", json => 1);
+print Dumper($hash);
+
+# and again, but with correct utf8 encoding
+$hash = func::readFiletoHash(file => "testdata/utf8.json", json => 1);
+print Dumper($hash);
+
+
