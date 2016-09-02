@@ -1503,8 +1503,7 @@ NMIS AAA system.
 
 The modules SNMP_util and SNMP_Session are also optional (needed only for
 the ipsla subsystem) and can be installed either with
-'yum install perl-SNMP_Session' or from the provided tar file in
-install/SNMP_Session-1.12.tar.gz.
+'yum install perl-SNMP_Session' or 'apt-get install libsnmp-session-perl'.
 
 The modules Digest::HMAC and Crypt::DES are required if any of your
 devices use SNMP Version 3.\n\n|;
