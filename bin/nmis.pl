@@ -4511,7 +4511,7 @@ sub runServices
 		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
 
 		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
-		my @snmpvars = qw( hrSWRunName hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
 		foreach my $var ( @snmpvars ) {
 			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions)) {
@@ -4537,6 +4537,8 @@ sub runServices
 			# key services by name_pid
 			$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
 			$services{$key}{hrSWRunName} = $key;
+			$services{$key}{hrSWRunPath} = $snmpTable{hrSWRunPath}{$_};
+			$services{$key}{hrSWRunParameters} = $snmpTable{hrSWRunParameters}{$_};
 			$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
 			$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
 			$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
@@ -4695,10 +4697,12 @@ sub runServices
 								and !getbool($NI->{system}{nodedown}) ) )
 			{
 				my $wantedprocname = $ST->{$service}{Service_Name};
+				# KS now supporting looking at the hrSWRunParameters or hrSWRunPath for extra matching to support stupid Java and others.
+				my $additionalcheck = $ST->{$service}{Service_Additional};
 
-				if (!$wantedprocname) {
+				if (!$wantedprocname and !$additionalcheck) {
 					dbg("ERROR, service_name is empty");
-					logMsg("ERROR, ($NI->{system}{name}) service=$service service_name is empty");
+					logMsg("ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Additional are empty");
 					next;
 				}
 
@@ -4712,6 +4716,17 @@ sub runServices
 
 				# services list is keyed by name:pid
 				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
+				
+				# KS don't have a hit from there, so see if there is an additional check to perform
+				if ( !@matchingpids and $additionalcheck ) {
+					foreach my $serv ( keys %services ) {
+						my $additional = $services{$serv}{hrSWRunParameters} || $services{$serv}{hrSWRunPath};
+						if ( $additional =~ /$additionalcheck/ ) {
+							push(@matchingpids,$serv);
+						}
+					}
+				}
+				
 				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids);
 
 				dbg("runServices: found ".scalar(@matchingpids)." total and "

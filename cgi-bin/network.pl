@@ -2467,7 +2467,7 @@ sub viewServiceList {
 		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
 	}
 
-	print Tr(th({class=>'title',colspan=>'6'},"List of Services on node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>'7'},"List of Services on node $NI->{system}{name}"));
 
     #'AppleMobileDeviceService.exe:1756' => {
     #  'hrSWRunStatus' => 'running',
@@ -2481,6 +2481,7 @@ uri_escape($node);
 	if (defined $NI->{services}) {
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=Service",class=>"wht"},"Service")),
+			td({class=>'header'},"Additional"),
 			td({class=>'header'},"Type"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"PID"),
@@ -2495,9 +2496,11 @@ uri_escape($node);
 
 			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
 			my $cpusecs = $NI->{services}{$service}{hrSWRunPerfCPU} / 100;
+			my $additional = $NI->{services}{$service}{hrSWRunParameters} || $NI->{services}{$service}{hrSWRunPath};
 
 			print Tr(
 				td({class=>'info Plain'},$prog),
+				td({class=>'info Plain'},$additional),
 				td({class=>'info Plain'},$NI->{services}{$service}{hrSWRunType}),
 				td({class=>'info Plain',style=>"background-color:".$color},$NI->{services}{$service}{hrSWRunStatus}),
 				td({class=>'info Plain'},$pid),
