@@ -998,6 +998,21 @@ else
 printBanner("Cache some fonts...");
 execPrint("fc-cache -f -v");
 
+# fix the 8.5.12G common-database gotcha first
+if (open(F, "$site/models/Common-database.nmis"))
+{
+	my @current = <F>;
+	close F;
+	if (2 == grep(/'ospfNbr'/, @current))
+	{
+		echolog("Fixing duplicate Common-database entries for ospfNbr");
+		# don't want any quoting issues which execPrint or execLog would introduce
+		system("$site/admin/patch_config.pl","-b",
+					 "$site/models/Common-database.nmis",
+					 '/database/type/ospfNbr=/nodes/$node/health/ospfNbr-$index.rrd');
+	}
+}
+
 # check if the common-databases differ, and if so offer to run migrate_rrd_locations.pl
 if (!$isnewinstall)
 {
