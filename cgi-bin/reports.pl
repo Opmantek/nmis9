@@ -1,31 +1,31 @@
 #!/usr/bin/perl
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 #
 # commmand line
@@ -35,13 +35,13 @@
 # reports.pl report=health start=time end=time outfile=file
 #
 # available report type:
-# report=health 	
-# report=avail		
-# report=top10 		
+# report=health
+# report=avail
+# report=top10
 # report=outage		level=node|interface
 # report=port 		# current port count summaries
 # report=counts 	# current port count with per device summaries
-# report=response	
+# report=response
 # report=nodedetails
 #
 # example cron jobs for all stored report types
@@ -72,7 +72,7 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "/usr/local/rrdtool/lib/perl"; 
+use lib "/usr/local/rrdtool/lib/perl";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
@@ -95,7 +95,8 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
-#=======================
+my $C;
+if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # select function
 # if no options, assume called from web interface ....
@@ -110,20 +111,17 @@ if ( $#ARGV > 0 ) {
 	$Q->{conf} = $nvp{conf};
 	$Q->{time_start} = returnDateStamp($nvp{start}); # start time in epoch seconds
 	$Q->{time_end} = returnDateStamp($nvp{end});
-	if ( $nvp{outfile} ) 
+	if ( $nvp{outfile} )
 	{
 		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}: $!\n";
+		setFileProt(file => $nvp{outfile});
 	}
 	$Q->{print} = 1;
 }
 
-my $C;
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-
 # this cgi script defaults to widget mode ON
-my $wantwidget = (!getbool($Q->{widget},"invert")); 
+my $wantwidget = (!getbool($Q->{widget},"invert"));
 my $widget = $wantwidget ? "true" : "false";
-
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
@@ -164,7 +162,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 } elsif ($Q->{act} eq 'report_stored_outage') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_file') {		fileReport();
 } elsif ($Q->{act} eq 'report_csv_nodedetails') {	nodedetailsReport();
-} else { 
+} else {
 	if (not $Q->{print})
 	{
 		print header($headeropts);
@@ -175,7 +173,9 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 	print "Request not found\n";
 	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
-	
+
+
+
 exit 0;
 
 #===============================================================================
@@ -206,12 +206,12 @@ sub healthReport {
 
 	my $datestamp_start = returnDateStamp($start);
 	my $datestamp_end = returnDateStamp($end);
-		
+
 	my $header = "Summary Health Metrics from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (sort keys %{$NT}) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 			## AS 16 Mar 02, implementing David Gay's requirement for deactiving
 		# a node, ie keep a node in nodes.csv but no collection done.
 		if ( getbool($NT->{$reportnode}{active}) ) {
@@ -221,20 +221,20 @@ sub healthReport {
 			my $h;
 			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
 	   			%reportTable = (%reportTable,%{$h});
-	
+
 				$reportTable{$reportnode}{node} = $NT->{$reportnode}{name};
-	
+
 				$reportTable{$reportnode}{reachable} = 0 if $reportTable{$reportnode}{reachable} eq "NaN";
 				$reportTable{$reportnode}{available} = 0 if $reportTable{$reportnode}{available} eq "NaN";
 				$reportTable{$reportnode}{health} = 0 if $reportTable{$reportnode}{health} eq "NaN";
 				$reportTable{$reportnode}{response} = 0 if $reportTable{$reportnode}{response} eq "NaN";
 				$reportTable{$reportnode}{loss} = 0 if $reportTable{$reportnode}{loss} eq "NaN";
-	
+
 				$reportTable{$reportnode}{net} = $NT->{$reportnode}{netType};
 				$reportTable{$reportnode}{role} = $NT->{$reportnode}{roleType};
 				$reportTable{$reportnode}{devicetype} = $NI->{system}{nodeType};
 				$reportTable{$reportnode}{group} = $NT->{$reportnode}{group};
-	
+
 				# Calculate the summaries!!!!
 				$summaryhash = "-$reportTable{$reportnode}{net}-$reportTable{$reportnode}{role}";
 				$summaryTable{$summaryhash}{net} = $reportTable{$reportnode}{net};
@@ -274,7 +274,7 @@ sub healthReport {
 	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "report_dynamic_health")
-			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 	print start_table;
 
@@ -339,7 +339,7 @@ sub healthReport {
 	foreach my $group ( sort keys %{$GT}) {
 		print Tr(th({class=>'title',align=>'center',colspan=>'10'},'Group&nbsp;',
 								($wantwidget? $group : a({name=>"$group", href=>"#top"},$group)))
-				); 
+				);
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=node"},'Node')),
 			td({class=>'header'},'Device Type'),
@@ -404,12 +404,12 @@ sub availReport {
 	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "report_dynamic_avail")
-			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 
 	print start_table;
 
-	my ($time_elements,$start,$end) = getPeriod(); 
+	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
 		print Tr(td({class=>'error'},'Illegal time values'));
 		return;
@@ -417,12 +417,12 @@ sub availReport {
 
 	my $datestamp_start = returnDateStamp($start);
 	my $datestamp_end = returnDateStamp($end);
-		
+
 	my $header = "Availability Metric from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
 		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
@@ -467,7 +467,7 @@ sub availReport {
 		);
 
 	foreach my $reportnode (sortall(\%reportTable,$Q->{sort},$sortdir)) {
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		print Tr(
 			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
@@ -514,7 +514,7 @@ sub portReport{
 
 	# Get each of the interface info in a HASH for playing with
 	foreach my $intHash (keys %interfaceInfo) {
-		if (defined $AU) {next unless $AU->InGroup($NT->{$interfaceInfo{$intHash}{node}}{group})}; 
+		if (defined $AU) {next unless $AU->InGroup($NT->{$interfaceInfo{$intHash}{node}}{group})};
 		++$portCount{Total}{totalportcount};
 		if ( getbool($interfaceInfo{$intHash}{real})  ) {
 			++$portCount{Total}{realportcount};
@@ -535,10 +535,10 @@ sub portReport{
 					}
 				}
 			}
-				
+
 #			++$portCount{Total}{"speed-$interfaceInfo{$intHash}{ifSpeed}"};
 #			++$portCount{Total}{"duplex-$interfaceInfo{$intHash}{portDuplex}"};
-			++$portCount{Total}{'collect'} 
+			++$portCount{Total}{'collect'}
 			if (getbool($interfaceInfo{$intHash}{collect}));
 		}
 	}
@@ -564,83 +564,82 @@ sub portReport{
 		td({class=>'info Plain'},'&nbsp;'));
 
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'admin-up'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}?
+			sprintf("%.0f",$portCount{$intHash}{'admin-up'} / $portCount{$intHash}{realportcount} * 100)
+			: "N/A";
 	print Tr(
 		td({class=>'info Plain'},"Admin Up Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'admin-up'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'admin-down'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}?
+			sprintf("%.0f",$portCount{$intHash}{'admin-down'} / $portCount{$intHash}{realportcount} * 100)
+			: "N/A";
 	print Tr(
 		td({class=>'info Plain'},"Admin Down Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'admin-down'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'oper-ok'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}?
+			sprintf("%.0f",$portCount{$intHash}{'oper-ok'} / $portCount{$intHash}{realportcount} * 100)
+			: "N/A";
+
 	$color = colorPort($percentage);
 	print Tr(
 		td({class=>'info Plain'},"Oper Up Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'oper-ok'}),
 		td({class=>'info Plain',style=>getBGColor($color),align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'oper-other'} / $portCount{$intHash}{realportcount} * 100);
+
+$percentage = $portCount{$intHash}{realportcount}?
+		sprintf("%.0f",$portCount{$intHash}{'oper-other'} / $portCount{$intHash}{realportcount} * 100)
+		: "N/A";
 	print Tr(
 		td({class=>'info Plain'},"Oper Down Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'oper-other'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'oper-minorFault'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'oper-minorFault'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	if ( $portCount{$intHash}{'oper-minorFault'} > 0 ) { $color = "#FFFF00"; } else { $color = "#00FF00"; }
 	print Tr(
 		td({class=>'info Plain'},"Oper Minor Fault Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'oper-minorFault'}),
 		td({class=>'info Plain',style=>getBGColor($color),align=>'right'},"$percentage%"));
 
-#	$percentage = sprintf("%.0f",$portCount{$intHash}{'duplex-full'} / $portCount{$intHash}{realportcount} * 100);
-#	print Tr(
-#		td({class=>'info Plain'},"Full Duplex Port Count"),
-#		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'duplex-full'}),
-#		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-#	$percentage = sprintf("%.0f",$portCount{$intHash}{'duplex-half'} / $portCount{$intHash}{realportcount} * 100);
-#	print Tr(
-#		td({class=>'info Plain'},"Half Duplex Port Count"),
-#		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'duplex-half'}),
-#		td({class=>'info Plain',align=>'right'},"$percentage%"));
-
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'speed-9999999'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-9999999'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	print Tr(
 		td({class=>'info Plain'},"< 10 megabit Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'speed-9999999'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'speed-10000000'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-10000000'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	print Tr(
 		td({class=>'info Plain'},"10 megabit Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'speed-10000000'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'speed-100000000'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-100000000'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	print Tr(
 		td({class=>'info Plain'},"100 megabit Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'speed-100000000'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'speed-1000000000'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-1000000000'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	print Tr(
 		td({class=>'info Plain'},"1 gigabit Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'speed-1000000000'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'speed-10000000000'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-10000000000'} / $portCount{$intHash}{realportcount} * 100) :  "N/A";
 	print Tr(
 		td({class=>'info Plain'},"10 gigabit Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'speed-10000000000'}),
 		td({class=>'info Plain',align=>'right'},"$percentage%"));
 
-	$percentage = sprintf("%.0f",$portCount{$intHash}{'collect'} / $portCount{$intHash}{realportcount} * 100);
+	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'collect'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
 	print Tr(
 		td({class=>'info Plain'},"Collect Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'collect'}),
@@ -685,7 +684,7 @@ sub responseReport {
 	my $header = "Reponse Time Summary from $datestamp_start to $datestamp_end";
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
@@ -742,9 +741,9 @@ sub responseReport {
 		);
 
 
-	# drop the NaN's like this: @sorted = sort { $a <=> $b } grep { $_ == $_ } @unsorted 
+	# drop the NaN's like this: @sorted = sort { $a <=> $b } grep { $_ == $_ } @unsorted
 	foreach my $reportnode ( sortall(\%reportTable,$Q->{sort},$sortdir)) {
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		my $color = colorResponseTime($reportTable{$reportnode}{response});
 		print Tr(
 			td({class=>'info Plain'},
@@ -765,7 +764,7 @@ sub responseReport {
 
 
 # create report of poll and update times
-sub timesReport 
+sub timesReport
 {
 	my $debug = getbool($Q->{debug});
 	if (not $Q->{print} && !$debug)
@@ -780,7 +779,7 @@ sub timesReport
 		print Tr(td({class=>'error'},'Illegal time values'));
 		return;
 	}
-	
+
 	my $datestamp_start = returnDateStamp($start);
 	my $datestamp_end = returnDateStamp($end);
 	my $header = "Collect and Update Time Summary from $datestamp_start to $datestamp_end";
@@ -788,11 +787,11 @@ sub timesReport
 	my @report;
 
 	my $NT = loadNodeTable();
-	foreach my $reportnode (keys %{$NT}) 
+	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 
-		if ( getbool($NT->{$reportnode}->{active}) ) 
+		if ( getbool($NT->{$reportnode}->{active}) )
 		{
 			my $S = Sys->new;
 			$S->init(name => $reportnode, snmp=>'false');
@@ -807,7 +806,7 @@ sub timesReport
 			if (-f (my $rrdfilename = $S->getDBName(type => "health")))
 			{
 				my $stats = getRRDStats(sys => $S, graphtype => "health",
-																index => undef, item => undef, 
+																index => undef, item => undef,
 																start => $start,  end => $end);
 
 				for my $thing (qw(polltime updatetime))
@@ -841,7 +840,7 @@ sub timesReport
 			. hidden(-override => 1, -name => "act", -value => "report_dynamic_times")
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
-	
+
 	print start_table, Tr(th({class=>'title',colspan=>'3'},$header));
 
 	print $time_elements if not $Q->{print} ; # time set
@@ -851,7 +850,7 @@ sub timesReport
 
 	my $sortcrit = $Q->{sort} || 'node';
 	my $sortdir = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd';
-	
+
 	my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=report_dynamic_times&sortdir=$sortdir"
 			."&time_start=$datestamp_start&time_end=$datestamp_end&period=$Q->{period}&widget=$widget";
 
@@ -866,7 +865,7 @@ sub timesReport
 
 	my $graphlinkbase = "$C->{'<cgi_url_base>'}/node.pl?conf=$Q->{conf}&act=network_graph_view&graphtype=polltime&start=$start&end=$end";
 	for my $sorted (sort { my ($first,$second) = $sortdir eq 'rev'? ($b,$a): ($a,$b);
-												 $sortcrit eq "node"? $first->{$sortcrit} cmp $second->{$sortcrit} 
+												 $sortcrit eq "node"? $first->{$sortcrit} cmp $second->{$sortcrit}
 												 : $first->{$sortcrit} <=> $second->{$sortcrit}; } @report)
 	{
 		my ($node,$poll,$update,$pollcolor,$updatecolor) = @{$sorted}{"node","polltime","updatetime",
@@ -884,14 +883,14 @@ sub timesReport
 
 			td({class=>'info Plain', style=> getBGColor($pollcolor)},
 				 a({target => "Graph-$node",
-						class => "islink", 
-						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+						class => "islink",
+						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
 					 $poll)),
 
 			td({class=>'info Plain', style => getBGColor($updatecolor)},
 				 a({target => "Graph-$node",
-						class => "islink", 
-						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"}, 
+						class => "islink",
+						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
 					 $update)),
 				);
 	}
@@ -901,7 +900,7 @@ sub timesReport
 
 	# fixme
 	#	purge_files('times') if $Q->{print};
-	
+
 	pageEnd if (not $Q->{print} and not $wantwidget);
 	return;
 }
@@ -943,20 +942,20 @@ sub top10Report {
 	# Get each of the nodes info in a HASH for playing with
 	my %cpuTable;
 	foreach my $reportnode ( keys %{$NT} ) {
-		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		if ( getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			# reachable, available, health, response
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) 
+			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)))
 			{
 				%reportTable = (%reportTable,%{$h});
 				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 				if (getbool($NI->{system}{collect}))
 				{
 					# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-					if (($h = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode))) 
+					if (($h = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)))
 					{
 						%cpuTable = (%cpuTable,%{$h});
 						$reportTable{$reportnode}{nodeType} = $NI->{nodeType} ;
@@ -983,7 +982,7 @@ sub top10Report {
 
 	foreach my $int (sortall(\%interfaceInfo,'node','fwd') ) {
 		if ( getbool($interfaceInfo{$int}{collect}) ) {
-			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) }; 
+			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) };
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = convertIfName($interfaceInfo{$int}{ifDescr});
 			my $intf = $interfaceInfo{$int}{ifIndex};
@@ -992,7 +991,7 @@ sub top10Report {
 			if ( getbool($interfaceInfo{$int}{collect})
 				and $interfaceInfo{$int}{ifAdminStatus} eq "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
-				and $interfaceInfo{$int}{ifOperStatus} ne "ok"			
+				and $interfaceInfo{$int}{ifOperStatus} ne "ok"
 				and $interfaceInfo{$int}{ifOperStatus} ne "dormant"
 			) {
 				$downTable{$int}{node} = $interfaceInfo{$int}{node} ;
@@ -1006,7 +1005,7 @@ sub top10Report {
 				$NI = $S->ndinfo;
 				$prev_node = $interfaceInfo{$int}{node};
 			}
-	
+
 			# Availability, inputBits, outputBits
 			my $hash = getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
 			foreach my $k (keys %{$hash->{$intf}}) {
@@ -1017,7 +1016,7 @@ sub top10Report {
 			$linkTable{$int}{node} = $interfaceInfo{$int}{node} ;
 			$linkTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
 			$linkTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
-	
+
 			$linkTable{$int}{totalBits} = ($linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2 ;
 			# only report these if pkts rrd available to us.
 			my $got_pkts = 0;
@@ -1043,11 +1042,11 @@ sub top10Report {
 					$pktsTable{$int}{$k} =~ s/NaN/0/ ;
 					$pktsTable{$int}{$k} ||= 0 ;
 				}
-	
+
 				$pktsTable{$int}{node} = $interfaceInfo{$int}{node} ;
 				$pktsTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
 				$pktsTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
-				$pktsTable{$int}{totalDiscardsErrors} = ($pktsTable{$int}{ifInDiscards} + $pktsTable{$int}{ifOutDiscards} 
+				$pktsTable{$int}{totalDiscardsErrors} = ($pktsTable{$int}{ifInDiscards} + $pktsTable{$int}{ifOutDiscards}
 					+ $pktsTable{$int}{ifInErrors} + $pktsTable{$int}{ifOutErrors} ) / 4 ;
 			}
 			# now for the PVC stats !
@@ -1089,7 +1088,7 @@ sub top10Report {
 	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "report_dynamic_top10")
-			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 
 
@@ -1118,7 +1117,7 @@ sub top10Report {
 
 	my $i=10;
 	for my $reportnode ( sortall(\%reportTable,'response','rev')) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$reportTable{$reportnode}{response} =~ /(^\d+)/;
 		my $bar = $1 / 2;
 		print Tr(
@@ -1142,7 +1141,7 @@ sub top10Report {
 
 	$i=10;
 	for my $reportnode ( sortall(\%reportTable,'loss','rev')) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		last if $reportTable{$reportnode}{loss} == 0;	# early exit if rest are zero.
 		$reportTable{$reportnode}{loss} =~ /(^\d+)/;
 		print Tr(
@@ -1168,7 +1167,7 @@ sub top10Report {
 
 	$i=10;
 	for my $reportnode ( sortall(\%cpuTable,'avgBusy5min','rev')) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1193,7 +1192,7 @@ sub top10Report {
 
 	$i=10;
 	for my $reportnode ( sortall(\%cpuTable,'ProcMemUsed','rev')) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{ProcMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1218,7 +1217,7 @@ sub top10Report {
 
 	$i=10;
 	for my $reportnode ( sortall(\%cpuTable,'IOMemUsed','rev')) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1245,7 +1244,7 @@ sub top10Report {
 	$i=10;
 	for my $reportlink ( sortall(\%linkTable,'totalUtil','rev')) {
 		last if $linkTable{$reportlink}{inputUtil} and $linkTable{$reportlink}{outputUtil} == 0;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$linkTable{$reportlink}{node}}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$linkTable{$reportlink}{node}}{group}) };
 		my $reportnode = $linkTable{$reportlink}{node} ;
 		$linkTable{$reportlink}{inputUtil} =~ /(^\d+)/;
 		my $input = $1;
@@ -1278,9 +1277,9 @@ sub top10Report {
 
 	$i=10;
 	for my $reportlink ( sortall(\%linkTable,'totalBits','rev')) {
-		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0; 
+		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0;
 		my $reportnode = $linkTable{$reportlink}{node} ;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$linkTable{$reportlink}{Description} = '' if $linkTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1308,7 +1307,7 @@ sub top10Report {
 	for my $reportlink ( sortall(\%pvcTable,'totalECNS','rev')) {
 		last if $pvcTable{$reportlink}{totalECNS} == 0;	# early exit if rest are zero.
 		my $reportnode = $pvcTable{$reportlink}{node} ;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1338,7 +1337,7 @@ sub top10Report {
 	for my $reportlink ( sortall(\%pktsTable,'totalDiscardsErrors','rev')) {
 		last if $pktsTable{$reportlink}{totalDiscardsErrors} == 0;	# early exit if rest are zero.
 		my $reportnode = $pktsTable{$reportlink}{node} ;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$pktsTable{$reportlink}{Description} = '' if $pktsTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1365,7 +1364,7 @@ sub top10Report {
 	$i=10;
 	for my $reportlink ( sortall(\%downTable,'ifLastChange','rev')) {
 		my $reportnode = $downTable{$reportlink}{node} ;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) }; 
+		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$downTable{$reportlink}{Description} = '' if $downTable{$reportlink}{Description} =~ /nosuch/i ;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
@@ -1424,7 +1423,7 @@ sub outageReport {
 	print start_form(-id=>"nmis", -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "report_dynamic_outage")
-			. hidden(-override => 1, -name => "widget", -value => $widget) 
+			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 
 
@@ -1439,20 +1438,20 @@ sub outageReport {
 
 	$Q->{sort} = 'time' if $Q->{sort} eq '';
 	$Q->{sortdir} = ($Q->{sortdir} eq 'fwd') ? 'rev' : 'fwd'; # toggle
-	
-		
+
+
 	# set the length if wanted...
 	my $count;
-		
+
 	my %eventfile;
 	my $dir = $C->{'<nmis_logs>'};
 	# create a list of logfiles...
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;
-		
+
 	if ($Q->{debug}) { print "Found $#dirlist entries\n"; }
-		
+
 	foreach my $dir (@dirlist) {
 		# grab file names that match the desired report type.
 		# add back directory
@@ -1479,7 +1478,7 @@ sub outageReport {
 					$logreport{$i}{time} = $time;
 					$logreport{$i}{node} = $node;
 					$logreport{$i}{outype} = "Node Outage";
-	
+
 					# 'Time=00:00:34 change=512'
 					if ($details =~ m/.*Time=(\d+:\d+:\d+)/i) {
 						$logreport{$i}{outime} = $1;
@@ -1494,7 +1493,7 @@ sub outageReport {
 					$logreport{$i}{time} = $time;
 					$logreport{$i}{node} = $node;
 					$logreport{$i}{outype} = "Interface Outage";
-	
+
 					# 'Time=00:00:04 change=512'
 					$logreport{$i}{element} = $element;
 					if ($details =~ m/.*Time=(\d+:\d+:\d+)/i) {
@@ -1512,7 +1511,7 @@ sub outageReport {
 		}
 		close DATA;
 	} # end of file list
-		
+
 	# if debug, print all
 	#if ( $Q->{debug} eq "true" ) {
 	#	print Dumper(\%logreport);
@@ -1541,7 +1540,7 @@ sub outageReport {
 		for my $index ( sortall(\%logreport,$Q->{sort},$Q->{sortdir})) {
 			my $color = colorTime($logreport{$index}{outime});
 			my $reportnode = $logreport{$index}{node} ;
-			if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})}; 
+			if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
 			print Tr(
 				td({class=>'info Plain',style=>getBGColor($color)},returnDateStamp($logreport{$index}{time})),
 				td({class=>'info Plain',style=>getBGColor($color)},
@@ -1575,8 +1574,8 @@ sub outageReport {
 
 sub nodedetailsReport {
 
-	if (not $AU->CheckAccess('rpt_dynamic','check')) 
-	{ 
+	if (not $AU->CheckAccess('rpt_dynamic','check'))
+	{
 		print header($headeropts);
 		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 		$AU->CheckAccess('rpt_nodedetails');
@@ -1599,7 +1598,7 @@ sub nodedetailsReport {
 	println( 'Name','Type','Location','System Uptime','Node Vendor','NodeModel', 'SystemName','S/N','Chassis','ProcMem','Version');
 
 	foreach my $group (sort keys %{$GT}) {
-		if (defined $AU) { next unless $AU->InGroup($group) }; 
+		if (defined $AU) { next unless $AU->InGroup($group) };
 		foreach my $node (sort keys %{$NT}) {
 			if ( $NT->{$node}{group} eq "$group" ) {
 
@@ -1607,7 +1606,7 @@ sub nodedetailsReport {
 				my $S = Sys::->new; # get system object
 				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 				my $NI = $S->ndinfo;
-	
+
 				undef @line;
 
 				push( @line, $NI->{system}{name});
@@ -1620,7 +1619,7 @@ sub nodedetailsReport {
 				push( @line, $NI->{system}{serialNum});
 				push( @line, $NI->{system}{chassisVer});
 				push( @line, $NI->{system}{processorRam});
-				
+
 				my $detailvar = $NI->{system}{sysDescr};
 				$detailvar =~ s/^.*WS/WS/g;
 				$detailvar =~ s/Cisco Catalyst Operating System Software/CatOS/g;
@@ -1632,7 +1631,7 @@ sub nodedetailsReport {
 				$detailvar =~ s/built by.*$//;
 				# maybe a windows box ?
 				$detailvar =~ s/^.*Windows/Windows/;
-				
+
 				push( @line, $detailvar);
 				println( @line );
 			}
@@ -1646,7 +1645,7 @@ sub nodedetailsReport {
 	    for (@parms) { s/,/_/g }
 	    print @parms;
 	}
-}	
+}
 
 #===============
 
@@ -1685,7 +1684,7 @@ sub storedReport {
 				$index = $2."-".$1."-01-month";
 			}
 			$reportTable{$index}{dir} = $dir;
-					
+
 			# formulate a tidy report name
 			$dir =~ s/\.html//;
 			if ( $dir =~ m/month-(\d\d)-(\d\d\d\d)/ ) {		# month-01-2006.html
@@ -1715,7 +1714,7 @@ sub storedReport {
 	$header = 'Port Counts' if $func eq 'port';
 
 	$header .= ' Stored Reports';
-			
+
 	print Tr(th({class=>'title',colspan=>'3'},$header));
 
 	foreach $index (reverse sort keys %reportTable ) {
@@ -1774,7 +1773,7 @@ sub purge_files {
 				$index = $2."-".$1."-01-month";
 			}
 			$reportTable{$index}{dir} = $dir;
-					
+
 			# formulate a tidy report name
 			$dir =~ s/\.html//;
 			if ( $dir =~ m/month-(\d\d)-(\d\d\d\d)/ ) {		# month-01-2006.html
@@ -1794,18 +1793,18 @@ sub purge_files {
 		}
 	}
 
-	my $d_cnt=0; 
-	my $w_cnt=0; 
+	my $d_cnt=0;
+	my $w_cnt=0;
 	my $m_cnt=0;
 
 	foreach $index (reverse sort keys %reportTable ) {
 		if ($reportTable{$index}{link} =~ /^daily/) {
 			if ($d_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
 		}
-		elsif ($reportTable{$index}{link} =~ /^weekly/) { 
+		elsif ($reportTable{$index}{link} =~ /^weekly/) {
 			if ($w_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
 		}
-		elsif ($reportTable{$index}{link} =~ /^monthly/) { 
+		elsif ($reportTable{$index}{link} =~ /^monthly/) {
 			if ($m_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
 		}
 	}
@@ -1875,11 +1874,11 @@ sub getPeriod {
 				'&nbsp;End&nbsp;',
 				textfield(-name=>"time_end",size=>'23',value=>$datestamp_end,override=>'1'),
 				'&nbsp;',
-				button(-name=>"button", 
+				button(-name=>"button",
 							 onclick => ($wantwidget? "get('nmis');" : "submit()" ),
 							 -value=>"Go")));
 
-	return $elements,$start,$end;	
+	return $elements,$start,$end;
 }
 
 sub getLevel {
