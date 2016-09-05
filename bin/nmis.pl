@@ -7716,27 +7716,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # purge old files every few days
 2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
 ########################################
-# Run the Reports Weekly Monthly Daily
-# daily
-0 0 * * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day health
-10 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day top10
-30 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day outage
-40 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day response
-45 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day avail
-50 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day port
-# weekly
-0 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week health
-10 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week top10
-30 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week outage
-40 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week response
-50 1 * * 0 $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week avail
-# monthly
-0 2 1 * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month health
-10 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month top10
-30 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month outage
-40 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month response
-50 2 1 * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month avail
-###########################################
+# Save the Reports, Daily Monthly Weekly
+9 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day all
+9 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week all
+9 2 1 * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month all
 |;
 }
 

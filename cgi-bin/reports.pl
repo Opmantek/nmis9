@@ -24,8 +24,8 @@
 #  www.opmantek.com or email contact@opmantek.com
 #
 #  User group details:
-#  http://support.opmantek.com/users/
-#
+#  http://support.opmantek.com/useours/
+#rep
 # *****************************************************************************
 #
 # commmand line
@@ -98,8 +98,8 @@ my $Q = $q->Vars; # values in hash
 my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# select function
 # if no options, assume called from web interface ....
+my $outputfile;
 if ( $#ARGV > 0 ) {
 	my %nvp = getArguements(@ARGV);
 
@@ -111,10 +111,9 @@ if ( $#ARGV > 0 ) {
 	$Q->{conf} = $nvp{conf};
 	$Q->{time_start} = returnDateStamp($nvp{start}); # start time in epoch seconds
 	$Q->{time_end} = returnDateStamp($nvp{end});
-	if ( $nvp{outfile} )
+	if ( $outputfile = $nvp{outfile} )
 	{
 		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}: $!\n";
-		setFileProt(file => $nvp{outfile});
 	}
 	$Q->{print} = 1;
 }
@@ -160,6 +159,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 } elsif ($Q->{act} eq 'report_stored_port') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_top10') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_outage') {		storedReport();
+} elsif ($Q->{act} eq 'report_stored_times') {		storedReport();
 } elsif ($Q->{act} eq 'report_stored_file') {		fileReport();
 } elsif ($Q->{act} eq 'report_csv_nodedetails') {	nodedetailsReport();
 } else {
@@ -174,8 +174,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
 
-
-
+setFileProtDiag(file => $outputfile) if ($outputfile);
 exit 0;
 
 #===============================================================================
@@ -1822,7 +1821,7 @@ sub fileReport {
 	if (sysopen(HTML, "$C->{report_root}/$Q->{file}", O_RDONLY)) {
 		while (<HTML>){
 			my $line = $_;
-			$line =~ s/<a.*>(.*)(<\/a>)/$1/; # remove anchors
+			$line =~ s/<a[^>]*>(.*?)<\/a>/$1/g; # remove links
 			print $line;
 		}
 		print pageEnd if (not $Q->{print} and not $wantwidget);
