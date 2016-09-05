@@ -897,8 +897,7 @@ sub timesReport
 
 	print end_form if not $Q->{print};
 
-	# fixme
-	#	purge_files('times') if $Q->{print};
+	purge_files('times') if $Q->{print};
 
 	pageEnd if (not $Q->{print} and not $wantwidget);
 	return;
