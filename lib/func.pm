@@ -233,7 +233,7 @@ sub stripSpaces
 {
 	my $str = shift;
 	return undef if (!defined $str);
-	
+
 	$str =~ s/^\s+//;
 	$str =~ s/\s+$//;
 	return $str;
@@ -1149,9 +1149,9 @@ sub readFiletoHash {
 			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
 			local $/ = undef;
 			my $data = <$handle>;
-			if ( $useJson ) 
+			if ( $useJson )
 			{
-				# be liberal in what we accept: latin1 isn't an allowed encoding for json, 
+				# be liberal in what we accept: latin1 isn't an allowed encoding for json,
 				# but fall back to that before giving up
 				my $hashref = eval { decode_json($data); };
 				my $gotcha = $@;
@@ -1167,7 +1167,7 @@ sub readFiletoHash {
 						info("WARNING file $file contains json with invalid encoding: $gotcha");
 					}
 				}
-				
+
 				if ($@)
 				{
 					logMsg("ERROR convert $file to hash table, $@");
@@ -1245,14 +1245,20 @@ sub getDebug
 }
 
 # debug info with (class::)method names and line number
-sub dbg {
+# args: message, level (default 1), upcall (only relevant if level is 1)
+sub dbg
+{
 	my $msg = shift;
 	my $level = shift || 1;
 	my $upCall = shift || undef;
+
 	my $string;
 	my $caller;
-	if ($C_cache->{debug} >= $level or $level == 0) {
-		if ($level == 1) {
+
+	if ($C_cache->{debug} >= $level or $level == 0)
+	{
+		if ($level == 1)
+		{
 			if ( defined $upCall ) {
 				$string = $upCall;
 			}
@@ -1260,12 +1266,18 @@ sub dbg {
 				($string = (caller(1))[3]) =~ s/\w+:://;
 			}
 			$string .= ",";
-		} else {
-			if ((my $caller = (caller(1))[3]) =~ s/main:://) {
+		}
+		else
+		{
+			if ((my $caller = (caller(1))[3]) =~ s/main:://)
+			{
 				my $ln = (caller(0))[2];
-				print returnTime." $caller#$ln, $msg\n";
-			} else {
-				for my $i (1..10) {
+				$string = "$caller#$ln,";
+			}
+			else
+			{
+				for my $i (1..10)
+				{
 					my ($caller) = (caller($i))[3];
 					my ($ln) = (caller($i-1))[2];
 					$string = "$caller#$ln->".$string;

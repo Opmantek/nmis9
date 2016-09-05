@@ -684,11 +684,29 @@ sub getValues
 				next if (!exists $thisitem->{oid});
 
 				dbg("oid for section $sectionname, item $itemname primed for loading", 3);
+
 				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
-				$todos{$itemname} = { oid => $thisitem->{oid} . $suffix,
-															section => $sectionname,
-															item => $itemname, # fixme might not be required
-															details => $thisitem };
+				# HOWEVER, the same thing is often saved in multiple sections!
+				if ($todos{$itemname})
+				{
+					if ($todos{$itemname}->{oid} ne  $thisitem->{oid}.$suffix)
+					{
+					  $status{error} = "ERROR ($self->{name}) model error, $itemname has multiple clashing oids!";
+						logMsg($status{error});
+						next;
+					}
+					push @{$todos{$itemname}->{section}}, $sectionname;
+					push @{$todos{$itemname}->{details}}, $thisitem;
+
+					dbg("item $itemname present in multiple sections: ".join(", ", @{$todos{$itemname}->{section}}),3);
+				}
+				else
+				{
+					$todos{$itemname} = { oid => $thisitem->{oid} . $suffix,
+																section => [$sectionname],
+																item => $itemname, # fixme might not be required
+																details => [$thisitem] };
+				}
 			}
 		}
 		# now look for wmi-sourced stuff - iff wmi is ok for this node
@@ -711,11 +729,31 @@ sub getValues
 				# fixme: do wmi queries have to be rewritten/expanded with node properties?
 
 				# for wmi we'd like to perform a query just ONCE for all involved items
-				$todos{$itemname} = { query =>  $query,
-															section => $sectionname,
-															item => $itemname, # fixme might not be required
-															details => $thisitem, # crucial: contains the field(name)
-															indexed => $thissection->{indexed} }; # crucial for controlling  gettable
+				# but again the sme thing may need saving in more than one section
+				if ($todos{$itemname})
+				{
+					if ($todos{$itemname}->{query} ne $query
+							or $todos{$itemname}->{details}->{field} ne $thisitem->{field}
+							or $todos{$itemname}->{indexed} ne $thissection->{indexed})
+					{
+					  $status{error} = "ERROR ($self->{name}) model error, $itemname has multiple clashing queries/fields!";
+						logMsg($status{error});
+						next;
+					}
+
+					push @{$todos{$itemname}->{section}}, $sectionname;
+					push @{$todos{$itemname}->{details}}, $thisitem;
+
+					dbg("item $itemname present in multiple sections: ".join(", ", @{$todos{$itemname}->{section}}),3);
+				}
+				else
+				{
+					$todos{$itemname} = { query =>  $query,
+																section => [$sectionname],
+																item => $itemname, # fixme might not be required
+																details => [$thisitem], # crucial: contains the field(name)
+																indexed => $thissection->{indexed} }; # crucial for controlling  gettable
+				}
 			}
 		}
 	}
@@ -778,9 +816,10 @@ sub getValues
 				}
 			}
 			# get the field name from the model entry
+			# note: field name is enforced same across all target sections so we use the first one
 			$todos{$itemname}->{rawvalue} = (defined $index?
 																			 $seen{$query}->{$index}
-																			 : $seen{$query})->{ $todos{$itemname}->{details}->{field} };
+																			 : $seen{$query})->{ $todos{$itemname}->{details}->[0]->{field} };
 			$todos{$itemname}->{done} = 1;
 		}
 	}
@@ -792,104 +831,112 @@ sub getValues
 
 		my $value = $thing->{rawvalue};
 
-		# massaging: calculate and replace really should not be combined,
-		# but if you do nmis won't complain. calculate is done FIRST, however.
-		if (exists($thing->{details}->{calculate}) && (my $calc = $thing->{details}->{calculate}))
+		# where does it go? remember, multiple sections possible - potentially with DIFFERENT calculate, replace etc...
+		for my $sectionidx (0..$#{$thing->{section}})
 		{
-			# calculate understands as placeholders: $r for the current oid/thing,
-			# and "CVAR[n]=oidname;" stanzas, with n in 0..9
-			# all CVARn initialisations need to come before use,
+			# (section and details are multiples, item, indexing, field(name) etc MUST be identical
+			my ($gothere,$sectiondetails) = ($thing->{section}->[$sectionidx],
+																			 $thing->{details}->[$sectionidx]);
+
+			# massaging: calculate and replace really should not be combined in a model,
+			# but if you do nmis won't complain. calculate is done FIRST, however.
+			if (exists($sectiondetails->{calculate}) && (my $calc = $sectiondetails->{calculate}))
+			{
+				# calculate understands as placeholders: $r for the current oid/thing,
+				# and "CVAR[n]=oidname;" stanzas, with n in 0..9
+				# all CVARn initialisations need to come before use,
 			# and the RAW ds/oid values are substituted, not post-calc/replace/whatever!
 
-			my (@CVAR, $rebuiltcalc, $consumeme);
-			$consumeme=$calc;
-			# rip apart calc, rebuild it with var substitutions
-			while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
-			{
-				$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
-				my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
+				my (@CVAR, $rebuiltcalc, $consumeme);
+				$consumeme=$calc;
+				# rip apart calc, rebuild it with var substitutions
+				while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
+				{
+					$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
+					my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
 
-				if (defined $varnum) # cvar declaration
-				{
-					# decl holds item name
-					logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"")
-							if (!exists $todos{$decl});
-					$CVAR[$varnum] = $todos{$decl}->{rawvalue};
-				}
-				elsif (defined $varuse) # cvar use
-				{
-					logMsg("ERROR: CVAR$varuse used but not defined in calc \"$calc\"")
-							if (!exists $CVAR[$varuse]);
+					if (defined $varnum) # cvar declaration
+					{
+						# decl holds item name
+						logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"")
+								if (!exists $todos{$decl});
+						$CVAR[$varnum] = $todos{$decl}->{rawvalue};
+					}
+					elsif (defined $varuse) # cvar use
+					{
+						logMsg("ERROR: CVAR$varuse used but not defined in calc \"$calc\"")
+								if (!exists $CVAR[$varuse]);
 
-					$rebuiltcalc .= $CVAR[$varuse]; # sub in the actual value
+						$rebuiltcalc .= $CVAR[$varuse]; # sub in the actual value
+					}
+					else 						# shouldn't be reached, ever
+					{
+						logMsg("ERROR: CVAR parsing failure for \"$calc\"");
+						$rebuiltcalc=$consumeme='';
+						last;
+					}
 				}
-				else 						# shouldn't be reached, ever
-				{
-					logMsg("ERROR: CVAR parsing failure for \"$calc\"");
-					$rebuiltcalc=$consumeme='';
-					last;
-				}
+				$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
+				dbg("calc translated \"$calc\" into \"$rebuiltcalc\"",3);
+				$calc = $rebuiltcalc;
+
+				my $r = $value;						# ensure backwards compat naming
+				$r = eval $calc;
+				logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@") if $@;
+
+				$value = $r;
 			}
-			$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
-			dbg("calc translated \"$calc\" into \"$rebuiltcalc\"",3);
-			$calc = $rebuiltcalc;
-
-			my $r = $value;						# ensure backwards compat naming
-			$r = eval $calc;
-			logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@") if $@;
-
-			$value = $r;
-		}
-		# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
-		if (ref($thing->{details}->{replace}) eq "HASH")
-		{
-			my $reptable = $thing->{details}->{replace};
-
-			$value = (exists($reptable->{$value})? $reptable->{$value}
-								: exists($reptable->{unknown})? $reptable->{unknown} : $value);
-		}
-
-		# specific formatting requested?
-		if (exists($thing->{details}->{format}) && (my $wantedformat = $thing->{details}->{format}))
-		{
-			$value = sprintf($wantedformat, $value);
-		}
-
-		# don't trust snmp or wmi data; neuter any html.
-		$value =~ s{&}{&amp;}gso;
-		$value =~ s{<}{&lt;}gso;
-		$value =~ s{>}{&gt;}gso;
-
-		# result ready, park it in the data structure IFF desired
-		# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
-		# nosave also implies no alerts for this thing.
-		if (exists($thing->{details}->{option}) && $thing->{details}->{option} eq "nosave")
-		{
-			dbg("item $thing->{item} is marked as nosave, not saving", 3);
-		}
-		else
-		{
-			my $target = (defined $index? $data{ $thing->{section} }->{$index}->{$thing->{item}}
-										: $data{ $thing->{section} }->{$thing->{item}} ) ||= {};
-			$target->{value} = $value;
-			# rrd options from the model
-			$target->{option} = $thing->{details}->{option} if (exists $thing->{details}->{option});
-			# as well as a title
-			$target->{title} = $thing->{details}->{title} if (exists $thing->{details}->{title});
-
-			if ( exists($thing->{details}->{alert}) && $thing->{details}->{alert}->{test} )
+			# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
+			if (ref($sectiondetails->{replace}) eq "HASH")
 			{
-				my $test = $thing->{details}->{alert}->{test};
+				my $reptable = $sectiondetails->{replace};
 
-				my $r = $value;						# backwards-compat
-				my $test_result = eval $test;
-				logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item}, $@") if $@;
+				$value = (exists($reptable->{$value})? $reptable->{$value}
+									: exists($reptable->{unknown})? $reptable->{unknown} : $value);
+			}
 
-				push @{$self->{alerts}}, 	{ name => $self->{name},
-																		type => "test",
-																		ds => $thing->{item},
-																		value => $value,
-																		test_result => $test_result, };
+			# specific formatting requested?
+			if (exists($sectiondetails->{format}) && (my $wantedformat = $sectiondetails->{format}))
+			{
+				$value = sprintf($wantedformat, $value);
+			}
+
+			# don't trust snmp or wmi data; neuter any html.
+			$value =~ s{&}{&amp;}gso;
+			$value =~ s{<}{&lt;}gso;
+			$value =~ s{>}{&gt;}gso;
+
+			# result ready, park it in the data structure IFF desired
+			# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
+			# nosave also implies no alerts for this thing.
+			if (exists($sectiondetails->{option}) && $sectiondetails->{option} eq "nosave")
+			{
+				dbg("item $thing->{item} is marked as nosave, not saving in $gothere", 3);
+			}
+			else
+			{
+				my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
+											: $data{ $gothere }->{ $thing->{item} } ) ||= {};
+				$target->{value} = $value;
+				# rrd options from the model
+				$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
+				# as well as a title
+				$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
+
+				if ( exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+				{
+					my $test = $sectiondetails->{alert}->{test};
+
+					my $r = $value;						# backwards-compat
+					my $test_result = eval $test;
+					logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere, $@") if $@;
+
+					push @{$self->{alerts}}, 	{ name => $self->{name},
+																			type => "test",
+																			ds => $thing->{item},
+																			value => $value,
+																			test_result => $test_result, };
+				}
 			}
 		}
 	}

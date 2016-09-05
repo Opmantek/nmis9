@@ -4801,7 +4801,7 @@ sub runServices
 
 				# services list is keyed by name:pid
 				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
-				
+
 				# KS don't have a hit from there, so see if there is an additional check to perform
 				if ( !@matchingpids and $additionalcheck ) {
 					foreach my $serv ( keys %services ) {
@@ -4811,7 +4811,7 @@ sub runServices
 						}
 					}
 				}
-				
+
 				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids);
 
 				dbg("runServices: found ".scalar(@matchingpids)." total and "
