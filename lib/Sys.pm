@@ -425,7 +425,7 @@ sub loadInfo
 	if (!$status->{error})
 	{
 		dbg("MODEL loadInfo $self->{name} class=$class:") if $wantdebug;
-		my $target = $self->{info}->{$table};
+		my $target = $self->{info}->{$table} ||= {};
 
 		foreach my $sect (keys %{$result})
 		{
