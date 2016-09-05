@@ -3335,76 +3335,71 @@ sub getIntfData {
 				dbg("collect interface index=$index");
 
 				my $rrdData;
-				if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) {
+				if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) 
+				{
 					processAlerts( S => $S );
-					if ( $rrdData->{error} eq "" ) {
-						foreach my $sect (keys %{$rrdData}) {
+					
+					if ( $rrdData->{error} eq "" ) 
+					{
+						foreach my $sect (keys %{$rrdData}) 
+						{
 							my $D = $rrdData->{$sect}{$index};
 
 							# if HC exists then copy values
-							if (exists $D->{ifHCInOctets}) {
-								dbg("process HC counters");
-								#copy HC counters if exists
-								if ($D->{ifHCInOctets}{value} =~ /\d+/) {
-									$D->{ifInOctets}{value} = $D->{ifHCInOctets}{value};
-									$D->{ifInOctets}{option} = $D->{ifHCInOctets}{option};
+							if (exists $D->{ifHCInOctets}) 
+							{
+								dbg("processing HC counters");
+								for (["ifHCInOctets","ifInOctets"],
+										 ["ifHCOutOctets","ifOutOctets"])
+								{
+									my ($source,$dest) = @$_;
+									
+									if ($D->{$source}->{value} =~ /^\d+$/)
+									{
+										$D->{$dest}->{value} = $D->{$source}->{value};
+										$D->{$dest}->{option} = $D->{$source}->{option};
+									}
+									delete $D->{$source};
 								}
-								delete $D->{ifHCInOctets};
-								if ($D->{ifHCOutOctets}{value} =~ /\d+/) {
-									$D->{ifOutOctets}{value} = $D->{ifHCOutOctets}{value};
-									$D->{ifOutOctets}{option} = $D->{ifHCOutOctets}{option};
+							}
+							
+							# ...and copy these over as well
+							if ($sect eq 'pkts' or $sect eq 'pkts_hc') 
+							{
+								my $debugdone = 0;
+
+								for (["ifHCInUcastPkts","ifInUcastPkts"],
+										 ["ifHCOutUcastPkts","ifOutUcastPkts"],
+										 ["ifHCInMcastPkts","ifInMcastPkts"],
+										 ["ifHCOutMcastPkts","ifOutMcastPkts"],
+										 ["ifHCInBcastPkts","ifInBcastPkts"],
+										 ["ifHCOutBcastPkts","ifOutBcastPkts"],)
+								{
+									my ($source,$dest) = @$_;
+
+									if ($D->{$source}->{value} =~ /^\d+$/)
+									{
+										dbg("process HC counters of $sect") if (!$debugdone++);
+										$D->{$dest}->{value} = $D->{$source}->{value};
+										$D->{$dest}->{option} = $D->{$source}->{option};
+									}
+									delete $D->{$source};
 								}
-								delete $D->{ifHCOutOctets};
 							}
 
-							### 2012-08-14 keiths, added additional HC mappings
-							if ($sect eq 'pkts' or $sect eq 'pkts_hc') {
-								dbg("process HC counters of $sect");
-								if ($D->{ifHCInUcastPkts}{value} =~ /\d+/) {
-									$D->{ifInUcastPkts}{value} = $D->{ifHCInUcastPkts}{value};
-									$D->{ifInUcastPkts}{option} = $D->{ifHCInUcastPkts}{option};
-								}
-								delete $D->{ifHCInUcastPkts};
-								if ($D->{ifHCOutUcastPkts}{value} =~ /\d+/) {
-									$D->{ifOutUcastPkts}{value} = $D->{ifHCOutUcastPkts}{value};
-									$D->{ifOutUcastPkts}{option} = $D->{ifHCOutUcastPkts}{option};
-								}
-								delete $D->{ifHCOutUcastPkts};
-
-								if ($D->{ifHCInMcastPkts}{value} =~ /\d+/) {
-									$D->{ifInMcastPkts}{value} = $D->{ifHCInMcastPkts}{value};
-									$D->{ifInMcastPkts}{option} = $D->{ifHCInMcastPkts}{option};
-								}
-								delete $D->{ifHCInMcastPkts};
-								if ($D->{ifHCOutMcastPkts}{value} =~ /\d+/) {
-									$D->{ifOutMcastPkts}{value} = $D->{ifHCOutMcastPkts}{value};
-									$D->{ifOutMcastPkts}{option} = $D->{ifHCOutMcastPkts}{option};
-								}
-								delete $D->{ifHCOutMcastPkts};
-
-								if ($D->{ifHCInBcastPkts}{value} =~ /\d+/) {
-									$D->{ifInBcastPkts}{value} = $D->{ifHCInBcastPkts}{value};
-									$D->{ifInBcastPkts}{option} = $D->{ifHCInBcastPkts}{option};
-								}
-								delete $D->{ifHCInBcastPkts};
-								if ($D->{ifHCOutBcastPkts}{value} =~ /\d+/) {
-									$D->{ifOutBcastPkts}{value} = $D->{ifHCOutBcastPkts}{value};
-									$D->{ifOutBcastPkts}{option} = $D->{ifHCOutBcastPkts}{option};
-								}
-								delete $D->{ifHCOutBcastPkts};
-
-							}
-
-							if ($sect eq 'interface') {
+							if ($sect eq 'interface') 
+							{
 								$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
 								# Cache any data for use later.
 								$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
 								$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
 
-								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) {
+								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) 
+								{
 									if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-										and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus})
-									) {
+											 and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus})
+											) 
+									{
 										### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
 										# interface now up or down, check and set or clear outstanding event.
 										dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
