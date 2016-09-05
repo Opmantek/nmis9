@@ -911,10 +911,12 @@ sub doServices
 
 	my $S = Sys->new;
 	$S->init(name => $name);
+	$S->readNodeView;							# init does not load the node view, but runservices updates view data!
+
 	runServices(sys=>$S, snmp => 'false');
 
 	# we also have to update the node info file, or newly added service status info will be lost/missed...
-	# same for node view
+	# same argument for node view
 	$S->writeNodeInfo;
 	$S->writeNodeView;
 
@@ -950,10 +952,8 @@ sub doCollect {
 	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
 
 	my $S = Sys->new; # create system object
-	### 2013-02-25 keiths, fixing down node refreshing......
-	#if (! $S->init(name=>$name) || $S->{info}{system}{nodedown} eq 'true') {
-	#dbg("no info available of node $name or node was down, nodedown=$S->{info}{system}{nodedown}, refresh it");
-	if (! $S->init(name=>$name) ) {
+	if (! $S->init(name=>$name) )
+	{
 		info("no info available of node $name, refresh it");
 		doUpdate(name=>$name);
 		info("Finished");
@@ -965,21 +965,23 @@ sub doCollect {
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
+	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
 
-	### 2014-12-16 keiths, run an update if no update poll has been run.
-	if ( not exists $NI->{system}{lastUpdatePoll} or (exists $NI->{system}{lastUpdatePoll} and not $NI->{system}{lastUpdatePoll}) ) {
+	# run an update if no update poll time is known
+	if ( !exists($NI->{system}{lastUpdatePoll}) or !$NI->{system}{lastUpdatePoll})
+	{
 		info("no cached node data available, running an update now");
 		doUpdate(name=>$name);
 		info("update done, continue with collect");
 	}
 
 	$S->{docollect} = 'true'; # flag what is running
-	$S->readNodeView; # from prev. run
-	# print what we are
+
 	info("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
 	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
 
-	if (runPing(sys=>$S)) {
+	if (runPing(sys=>$S))
+	{
 		if ($S->open(timeout => $C->{snmp_timeout},
 								 retries => $C->{snmp_retries},
 								 max_msg_size => $C->{snmp_max_msg_size}))
@@ -6104,7 +6106,8 @@ sub nmisMaster {
 #=========================================================================================
 
 # preload all summary stats - for metric update and dashboard display.
-sub nmisSummary {
+sub nmisSummary
+{
 	my %args = @_;
 
 	my $pollTimer = NMIS::Timing->new;
@@ -6113,14 +6116,17 @@ sub nmisSummary {
 	func::update_operations_stamp(type => "summary", start => $starttime, stop => undef)
 			if ($type eq "summary");	# not if part of collect
 
-	my $S = Sys::->new;
+	my $S = Sys->new;
 
 	### 2014-08-28 keiths, configurable metric periods
-	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
-	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ?
+			$C->{'metric_comparison_first_period'} : "-8 hours";
+	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ?
+			$C->{'metric_comparison_second_period'} : "-16 hours";
 
 	summaryCache(sys=>$S,file=>'nmis-summary8h',start=>$metricsFirstPeriod,end=>time() );
-	my $k = summaryCache(sys=>$S,file=>'nmis-summary16h', start=>$metricsSecondPeriod, end=>$metricsFirstPeriod );
+	my $k = summaryCache(sys=>$S,file=>'nmis-summary16h',
+											 start=>$metricsSecondPeriod, end=>$metricsFirstPeriod );
 
 	my $NS = getNodeSummary(C => $C);
 	my $file = "nmis-nodesum";
@@ -6133,46 +6139,47 @@ sub nmisSummary {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
 	}
+}
 
-	sub summaryCache {
-		my %args = @_;
-		my $S = $args{sys};
-		my $file = $args{file};
-		my $start = $args{start};
-		my $end = $args{end};
-		my %summaryHash = ();
-		my $NT = loadLocalNodeTable();
-		my $NI;
+sub summaryCache
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $file = $args{file};
+	my $start = $args{start};
+	my $end = $args{end};
+	my %summaryHash = ();
+	my $NT = loadLocalNodeTable();
+	my $NI;
 
-		foreach my $node ( keys %{$NT}) {
-			if ( getbool($NT->{$node}{active}) ) {
-				$S->init(name=>$node,snmp=>'false');
-				$NI = $S->ndinfo;
-				#
-				$summaryHash{$node}{reachable} = 'NaN';
-				$summaryHash{$node}{response} = 'NaN';
-				$summaryHash{$node}{loss} = 'NaN';
-				$summaryHash{$node}{health} = 'NaN';
-				$summaryHash{$node}{available} = 'NaN';
-				$summaryHash{$node}{intfCollect} = 0;
-				$summaryHash{$node}{intfColUp} = 0;
-				my $stats;
-				if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$node))) {
-					%summaryHash = (%summaryHash,%{$stats});
-				}
-				if ( getbool($NI->{system}{nodedown}) ) {
-					$summaryHash{$node}{nodedown} = 'true';
-				}
-				else {
-					$summaryHash{$node}{nodedown} = 'false';
-				}
+	foreach my $node ( keys %{$NT}) {
+		if ( getbool($NT->{$node}{active}) ) {
+			$S->init(name=>$node,snmp=>'false');
+			$NI = $S->ndinfo;
+			#
+			$summaryHash{$node}{reachable} = 'NaN';
+			$summaryHash{$node}{response} = 'NaN';
+			$summaryHash{$node}{loss} = 'NaN';
+			$summaryHash{$node}{health} = 'NaN';
+			$summaryHash{$node}{available} = 'NaN';
+			$summaryHash{$node}{intfCollect} = 0;
+			$summaryHash{$node}{intfColUp} = 0;
+			my $stats;
+			if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$node))) {
+				%summaryHash = (%summaryHash,%{$stats});
+			}
+			if ( getbool($NI->{system}{nodedown}) ) {
+				$summaryHash{$node}{nodedown} = 'true';
+			}
+			else {
+				$summaryHash{$node}{nodedown} = 'false';
 			}
 		}
-
-		writeTable(dir=>'var',name=>$file,data=>\%summaryHash );
-
-		return (scalar keys %summaryHash);
 	}
+
+	writeTable(dir=>'var',name=>$file,data=>\%summaryHash );
+
+	return (scalar keys %summaryHash);
 }
 
 #=========================================================================================
@@ -6534,7 +6541,7 @@ LABEL_ESC:
 				 and $thisevent->{event} !~ /proactive/i )
 		{
 			### load the interface information and check the collect status.
-			my $S = Sys::->new; # node object
+			my $S = Sys->new; # node object
 			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
 				my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 				if ( !getbool($IFD->{$thisevent->{element}}{collect}) )
@@ -6828,7 +6835,7 @@ LABEL_ESC:
 											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
 											if ( $thisevent->{event} =~ /Interface/ ) {
 												my $ifIndex = undef;
-												my $S = Sys::->new; # node object
+												my $S = Sys->new; # node object
 												if (($S->init(name=>$thisevent->{node},snmp=>'false'))) { # get all info of node
 													my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 													if ( getbool($IFD->{$thisevent->{element}}{collect}) ) {
@@ -7982,7 +7989,7 @@ sub doSummaryBuild {
 
 	dbg("Start of Summary Build");
 
-	my $S = Sys::->new; # node object
+	my $S = Sys->new; # node object
 	my $NT = loadLocalNodeTable();
 	my $NI;
 	my $IF;
@@ -8108,7 +8115,7 @@ sub doThreshold
 	my $NT = loadLocalNodeTable();
 	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
 
-	my $S = Sys::->new; # create system object
+	my $S = Sys->new; # create system object
 
 	my $pollTimer = NMIS::Timing->new;
 

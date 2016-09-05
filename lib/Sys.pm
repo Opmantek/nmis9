@@ -1561,11 +1561,24 @@ sub writeNodeInfo {
 	writeTable(dir=>'var',name=>$name,data=>$self->{info}); # write node info
 }
 
-sub writeNodeView {
-	my $self = shift;
-	my $name = "$self->{node}-view";
-	#2011-11-14 Integrating changes from Till Dierkesmann
-	writeTable(dir=>'var',name=>$name,data=>$self->{view}); # write view info
+# write out the node view information IFF the object has any, or if arg force is given
+# args: force, default 0
+# returns: nothing
+sub writeNodeView 
+{
+	my ($self, %args) = @_;
+
+	if ((ref($self->{view}) eq "HASH" and keys %{$self->{view}}) 
+			or getbool($args{force}))
+	{
+		writeTable(dir=>'var',
+							 name=> "$self->{node}-view", 
+							 data=>$self->{view}); # write view info
+	}
+	else
+	{
+		dbg("not overwriting view file for $self->{node}: no view data present!");
+	}
 }
 
 sub readNodeView {
