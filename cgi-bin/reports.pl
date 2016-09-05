@@ -1738,6 +1738,7 @@ sub purge_files
 	my %matches;
 	foreach my $maybe (@dirlist)
 	{
+		next if (!-f "$C->{report_root}/$maybe"); # ignore symlinks and other nonregular files
 		# grab file names that match the desired report type, add creation time for sorting
 		if ( $maybe =~ /^$reporttype-(day|week|month)-.*\.html$/ )
 		{
