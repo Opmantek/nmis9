@@ -40,36 +40,10 @@
 # report=top10
 # report=outage		level=node|interface
 # report=port 		# current port count summaries
-# report=counts 	# current port count with per device summaries
 # report=response
-# report=nodedetails
+# report=times
+# report=nodedetails (only from the gui)
 #
-# example cron jobs for all stored report types
-# edit mypath to suit your installation
-########################################
-# Run the Reports Weekly Monthly Daily
-#
-# daily
-# 0 0 * * * /mypath/run-reports.pl day health
-# 0 0 * * * /mypath/run-reports.pl day top10
-# 0 0 * * * /mypath/run-reports.pl day outage
-# 0 0 * * * /mypath/run-reports.pl day response
-# 0 0 * * * /mypath/run-reports.pl day avail
-# 0 0 * * * /mypath/run-reports.pl day port
-# weekly
-# 0 0 * * 0 /mypath/run-reports.pl week health
-# 0 0 * * 0 /mypath/run-reports.pl week top10
-# 0 0 * * 0 /mypath/run-reports.pl week outage
-# 0 0 * * 0 /mypath/run-reports.pl week response
-# 0 0 * * 0 /mypath/run-reports.pl week avail
-# monthly
-# 0 0 1 * * /mypath/run-reports.pl month health
-# 0 0 1 * * /mypath/run-reports.pl month top10
-# 0 0 1 * * /mypath/run-reports.pl month outage
-# 0 0 1 * * /mypath/run-reports.pl month response
-# 0 0 1 * * /mypath/run-reports.pl month avail
-###########################################
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "/usr/local/rrdtool/lib/perl";
@@ -82,12 +56,8 @@ use csv;
 use NMIS;
 use func;
 use Sys;
-use rrdfunc;
 
 use Data::Dumper;
-Data::Dumper->import();
-$Data::Dumper::Indent = 1;
-
 use URI::Escape;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -375,6 +345,7 @@ sub healthReport {
 	print end_form if not $Q->{print};
 
 	print pageEnd if (not $Q->{print} and not $wantwidget);
+	purge_files('health') if $Q->{print};
 }
 
 #===============
@@ -485,7 +456,8 @@ sub availReport {
 
 #===============
 
-sub portReport{
+sub portReport
+{
 
 	my $header;
 	my %portCount;
@@ -653,7 +625,8 @@ $percentage = $portCount{$intHash}{realportcount}?
 
 #===============
 
-sub responseReport {
+sub responseReport
+{
 
 	my %reportTable;
 
@@ -906,8 +879,8 @@ sub timesReport
 
 #===============
 
-sub top10Report {
-
+sub top10Report
+{
 	my %reportTable;
 
 	#start of page
@@ -1384,7 +1357,8 @@ sub top10Report {
 
 #===============
 
-sub outageReport {
+sub outageReport
+{
 
 	#start of page
 	if (not $Q->{print})
@@ -1743,67 +1717,45 @@ sub storedReport {
 	}
 }
 
-#===============
-
-sub purge_files {
-	my $func = shift;
-
-	return if $C->{report_files_max} eq '' or $C->{report_files_max} < 10; # lower limit
+# removes old stored report files, iff configuration report_files_max is set
+# report_files_max is interpreted per report and period type
+# args: report type
+# returns: nothing
+sub purge_files
+{
+	my $reporttype = shift;
+	return if ($reporttype !~ /^(times|health|top10|outage|response|avail|port)$/);
 
 	my $files_max = $C->{report_files_max};
-	my %reportTable;
+	return if (!defined $files_max or $files_max < 10); # lower limit
 
-	my ( $index, $type);
 	opendir (DIR, "$C->{report_root}");
 	my @dirlist = readdir DIR;
 	closedir DIR;
 
-	foreach my $dir (@dirlist) {
-
-		# grab file names that match the desired report type.
-		# index by date to allow sorting
-		if ( $dir =~ /^$func/ ) {
-
-			if ( $dir =~ m/(\w+)-(\d\d)-(\d\d)-(\d\d\d\d)/ ) {	# capture the date xx-xx-xxxx
-				$index = $4."-".$3."-".$2."-".$1;
-			}
-			elsif ( $dir =~ m/month-(\d\d)-(\d\d\d\d)/ ) {	# capture the date month-xx-xxxx
-				$index = $2."-".$1."-01-month";
-			}
-			$reportTable{$index}{dir} = $dir;
-
-			# formulate a tidy report name
-			$dir =~ s/\.html//;
-			if ( $dir =~ m/month-(\d\d)-(\d\d\d\d)/ ) {		# month-01-2006.html
-				$reportTable{$index}{link} = 'monthly '.convertMonth($1) . " $2";
-			}
-			elsif ( $dir =~ m/(day|week|month)-(\d\d)-(\d\d)-(\d\d\d\d)-(\w+)/ ) {		# day|week-01-01-2006-Sun.html
-				$reportTable{$index}{link} = "${1}ly ".$5 . " $2 " . convertMonth($3) . " $4";
-				$reportTable{$index}{link} =~ s/dayly/daily/;
-			}
-			elsif ( $dir =~ m/(\w+)-(\w+)-(\d\d)-(\d\d)-(\d\d\d\d)-(\w+)/ ) { 	# <type>-day|week|month-01-01-2006-Mon.html
-				$reportTable{$index}{link} = "${2}ly ".$6 . " $3 " . convertMonth($4) . " $5";
-
-			}
-			else {
-				$reportTable{$index}{link} = 'error - filename not recogonised';
-			}
+	# period -> filename -> creation time
+	my %matches;
+	foreach my $maybe (@dirlist)
+	{
+		# grab file names that match the desired report type, add creation time for sorting
+		if ( $maybe =~ /^$reporttype-(day|week|month)-.*\.html$/ )
+		{
+			my $period = $1;
+			my $created = (stat("$C->{report_root}/$maybe"))[9];
+			$matches{$period}->{$maybe} = $created;
 		}
 	}
 
-	my $d_cnt=0;
-	my $w_cnt=0;
-	my $m_cnt=0;
-
-	foreach $index (reverse sort keys %reportTable ) {
-		if ($reportTable{$index}{link} =~ /^daily/) {
-			if ($d_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
-		}
-		elsif ($reportTable{$index}{link} =~ /^weekly/) {
-			if ($w_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
-		}
-		elsif ($reportTable{$index}{link} =~ /^monthly/) {
-			if ($m_cnt++ >= $files_max) { unlink  "$C->{report_root}/$reportTable{$index}{dir}"; }
+	for my $period (qw(day week month))
+	{
+		if (keys %{$matches{$period}} > $files_max)
+		{
+			my @allofthem = sort { $matches{$period}->{$b} <=> $matches{$period}->{$a} } keys %{$matches{$period}};
+			for my $moriturus (@allofthem[$files_max..$#allofthem])
+			{
+#				print "will remove $moriturus\n";
+				unlink("$C->{report_root}/$moriturus");
+			}
 		}
 	}
 }

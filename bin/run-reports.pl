@@ -65,6 +65,8 @@ my $reportdir = $C->{report_root};
 my ($start, $end, $outfile);
 my $time = time();
 
+# attention: the file naming logic here must match purge_files() in cgi-bin/reports.pl,
+# or unwanted ancient reports will be left behind!
 if ($date eq 'day') 
 {
 	my ($s,$m,$h) = (localtime($time))[0..2];
