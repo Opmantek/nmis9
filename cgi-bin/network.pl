@@ -1539,12 +1539,11 @@ EO_HTML
 			my @out;
 			foreach my $k (@items){
 				# the default title is the key name.
-				my $title = $k;
-				#Can I get a better title?
-				if ( defined $V->{system}{"${k}_title"} or $S->getTitle(attr=>$k,section=>'system') ) {
-					$title = $V->{system}{"${k}_title"} || $S->getTitle(attr=>$k,section=>'system');
-				}
-
+				# but can I get a better title?
+				my $title = ( defined($V->{system}->{"${k}_title"}) ?
+											$V->{system}{"${k}_title"} 
+											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
+				
 				# print STDERR "DEBUG: k=$k, title=$title\n";
 
 				if ($title ne '') {

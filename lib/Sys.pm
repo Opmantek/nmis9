@@ -1202,19 +1202,29 @@ sub mergeHash {
 #===================================================================
 
 # search in Model for Title based on attribute name
-sub getTitle {
-	my $self = shift;
-	my %args = @_;
+# attention: searches ONLY the sys areas, NOT rrd!
+# args: self, attr (required), section (optional)
+# returns: title string or undef
+sub getTitle
+{
+	my ($self, %args) = @_;
 	my $attr = $args{attr};
-	my $class = $args{section}; # optional
+	my $section = $args{section};
 
-	for my $cls (keys %{$self->{mdl}}) {
-		next if $class ne "" and $class ne $cls;
-		for my $sect (keys %{$self->{mdl}{$cls}{sys}}) {
-			for my $at (keys %{$self->{mdl}{$cls}{sys}{$sect}{snmp}}) {
-				if ($attr eq $at and $self->{mdl}{$cls}{sys}{$sect}{snmp}{$at}{title} ne "") {
-					return $self->{mdl}{$cls}{sys}{$sect}{snmp}{$at}{title};
-				}
+	for my $class (keys %{$self->{mdl}})
+	{
+		next if (defined($section) and $class ne $section);
+		my $thisclass = $self->{mdl}->{$class};
+		for my $sectionname (keys %{$thisclass->{sys}})
+		{
+			my $thissection = $thisclass->{sys}->{$sectionname};
+			# check both wmi and snmp sections
+			for my $maybe (qw(snmp wmi))
+			{
+				return $thissection->{$maybe}->{$attr}->{title}
+				if (ref($thissection->{$maybe}) eq "HASH"
+						and ref($thissection->{$maybe}->{$attr}) eq "HASH"
+						and exists($thissection->{$maybe}->{$attr}->{title}));
 			}
 		}
 	}
@@ -1564,15 +1574,15 @@ sub writeNodeInfo {
 # write out the node view information IFF the object has any, or if arg force is given
 # args: force, default 0
 # returns: nothing
-sub writeNodeView 
+sub writeNodeView
 {
 	my ($self, %args) = @_;
 
-	if ((ref($self->{view}) eq "HASH" and keys %{$self->{view}}) 
+	if ((ref($self->{view}) eq "HASH" and keys %{$self->{view}})
 			or getbool($args{force}))
 	{
 		writeTable(dir=>'var',
-							 name=> "$self->{node}-view", 
+							 name=> "$self->{node}-view",
 							 data=>$self->{view}); # write view info
 	}
 	else
