@@ -2997,7 +2997,10 @@ sub getSystemHealthData
 	{
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
-		next if (!exists($NI->{$section}));
+		# OR only sys section but no rrd (e.g. addresstable)
+		next if (!exists($NI->{$section})
+						 or !exists($M->{systemHealth}->{rrd})
+						 or ref($M->{systemHealth}->{rrd}->{$section}) ne "HASH");
 
 		# that's instance index value
 		for my $index (sort keys %{$NI->{$section}})
