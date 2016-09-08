@@ -1895,12 +1895,12 @@ sub getIntfInfo
 			else
 			{
 				if ( $SNMP->error =~ /is empty or does not exist/ ) {
-					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->error");
+					info("SNMP Object Not Present ($S->{name}) on get interface index table: ".$SNMP->error);
 				}
 				# snmp failed
 				else
 				{
-					logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->error");
+					logMsg("ERROR ($S->{name}) on get interface index table: ".$SNMP->error);
 					RaiseNodeDown(sys=>$S, type => "snmp", details => $SNMP->error);
 				}
 
@@ -2675,12 +2675,12 @@ sub getEnvInfo
 		}
 		elsif ($SNMP->error =~ /is empty or does not exist/)
 		{
-			info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->error");
+			info("SNMP Object Not Present ($S->{name}) on get environment index table: ".$SNMP->error);
 		}
 		else
 		{
 			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
-			RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment index table: $SNMP->error");
+			RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
 		}
 
 		# fixme: this loadinfo run is only required for snmp
@@ -2936,12 +2936,12 @@ sub getSystemHealthInfo
 			{
 				if ( $SNMP->error =~ /is empty or does not exist/ )
 				{
-					info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->error");
+					info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: ".$SNMP->error);
 				}
 				else
 				{
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
-					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: $SNMP->error");
+					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
 				}
 			}
 			# Loop to get information, will be stored in {info}{$section} table
@@ -4894,7 +4894,7 @@ sub runServices
 			else
 			{
 				logMsg("$node SNMP Down while collecting SNMP Service Data");
-				RaiseNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: $SNMP->error");
+				RaiseNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
 				last;
 			}
 		}
