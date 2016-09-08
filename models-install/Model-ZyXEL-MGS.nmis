@@ -301,11 +301,11 @@
               '6' => 'notPresent',
               '7' => 'lowerLayerDown'
             },
-            'title' => ' Admin Status'
+            'title' => 'Admin Status'
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => ' Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -313,7 +313,7 @@
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
-            'title' => ' Last Change'
+            'title' => 'Last Change'
           },
           'ifOperStatus' => {
             'oid' => 'ifOperStatus',
@@ -326,15 +326,15 @@
               '6' => 'notPresent',
               '7' => 'lowerLayerDown'
             },
-            'title' => ' Oper Status'
+            'title' => 'Oper Status'
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
-            'title' => ' Bandwidth'
+            'title' => 'Bandwidth'
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => ' Type'
+            'title' => 'Type (ifType)'
           }
         }
       }

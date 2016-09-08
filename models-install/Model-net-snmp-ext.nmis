@@ -544,12 +544,12 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name',
+            'title' => 'Name (ifName/ifDescr)',
 						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ', 
 			    },
 					'Hardware' => {
             'oid' => 'ifDescr',
-            'title' => 'Hardware',
+            'title' => 'Hardware (ifDescr)',
           },
 
           'ifSpeed' => {
@@ -575,11 +575,11 @@
           },
           'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -610,10 +610,10 @@
             'oid' => 'ifName',
 						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ', 
 			    },
-					# not wanted in this section but needed or the fallback for ifdescr/ifname won't work
 					'Hardware' => {
             'oid' => 'ifDescr',
             'title' => 'Hardware',
+						'option' => 'nosave',
           },
 
           'ifInOctets' => {

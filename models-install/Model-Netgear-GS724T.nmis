@@ -189,7 +189,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -215,7 +215,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifDescr)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -231,7 +231,7 @@
   				},
   				'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'vlanPortVlan' => {
             'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',

@@ -310,7 +310,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -340,7 +340,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         },
         'indexed' => 'true'
@@ -351,7 +351,8 @@
             'oid' => 'enterprises.9.2.2.1.1.28'
           },
           'Description' => {
-            'oid' => 'ifAlias'
+            'oid' => 'ifAlias',
+						'title' => 'Description (ifAlias)',
           }
         },
         'indexed' => 'true'

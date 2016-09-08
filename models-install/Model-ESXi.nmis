@@ -297,12 +297,12 @@
           },
 					'ifDescr' => {
 						'oid' => 'ifName',
-            'title' => 'Name',
+            'title' => 'Name (ifName)',
 					},
 					
 					'Hardware' => {
 						'oid' => 'ifDescr',
-            'title' => 'Hardware',
+            'title' => 'Hardware (ifDescr)',
           },
 
 					'ifPhysAddress' => {
@@ -329,7 +329,7 @@
           },
           'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -337,7 +337,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       },
