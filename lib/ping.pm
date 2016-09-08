@@ -29,7 +29,7 @@
 #
 # *****************************************************************************
 package ping;
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 use POSIX ':signal_h';
@@ -54,14 +54,13 @@ sub ext_ping
 
 	my $C = loadConfTable(); # load config from cache
 
-    $timeout ||= 3;
-    $count ||= 3;
-    $length ||= 56;
+	$timeout ||= 3;
+	$count ||= 3;
+	$length ||= 56;
 
-	# List of known ping programs
+	# List of known ping programs, key is lc(os)
 	%ping = (
-	    ### KS 2 Jan 03 - Windows supports timeout.
-		'MSWin32' =>	"ping -l $length -n $count -w $timeout $host",
+		'mswin32' =>	"ping -l $length -n $count -w $timeout $host",
 		'aix'	=>	"/etc/ping $host $length $count",
 		'bsdos'	=>	"/bin/ping -s $length -c $count $host",
 		'darwin' =>	"/sbin/ping -s $length -c $count $host",
@@ -73,19 +72,20 @@ sub ext_ping
 		'netbsd' =>	"/sbin/ping -s $length -c $count $host",
 		'openbsd' =>	"/sbin/ping -s $length -c $count $host",
 		'os2' =>	"ping $host $length $count",
-		'OS/2' =>	"ping $host $length $count",
+		'os/2' =>	"ping $host $length $count",
 		'dec_osf'=>	"/sbin/ping -s $length -c $count $host",
 		'solaris' =>	"/usr/sbin/ping -s $host $length $count",
 		'sunos'	=>	"/usr/etc/ping -s $host $length $count",
-		);
+			);
 
-	# set kernel name
-	my $kernel = defined $C->{kernel} ? $C->{kernel} : $^O ;
+	# get kernel name for finding the appropriate ping cmd
+	my $kernel = lc($C->{os_kernelname} || $^O);
 
-	unless (defined($ping{$kernel})) {
+	unless (defined($ping{$kernel}))
+	{
 		logMsg("FATAL: Not yet configured for >$kernel<");
-		exit(1);
-		}
+		exit(1);										# fixme: should this really kill nmis?
+	}
 
 	# windows 95/98 does not support stderr redirection...
 	# also OS/2 users reported problems with stderr redirection...
@@ -94,7 +94,7 @@ sub ext_ping
 	# initialize return values
 	$pt{loss} = 100;
 	$pt{min} = $pt{avg} = $pt{max} = undef;
-	dbg("ext_ping: $ping{$^O}",4);
+	dbg("ext_ping: $ping{$kernel}",4);
 
 	# save and restore any previously set alarm,
 	# but don't bother subtracting the time spent here

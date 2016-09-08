@@ -36,7 +36,7 @@ use File::Path;
 use File::stat;
 use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
-use Time::Local;		 # fixme: actuall NOT used by func
+use Time::Local;		 # not used by func, but wanted for the wmi model stuff
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
@@ -120,7 +120,6 @@ use Exporter;
 		loadConfTable
 		readConfData
 		writeConfData
-		getKernelName
 		createDir
 
 		checkDir
@@ -1862,22 +1861,6 @@ sub writeConfData {
 	}
 }
 
-sub getKernelName {
-
-	my $C = loadConfTable();
-
-	# Find the kernel name
-	my $kernel;
-	if (defined $C->{os_kernelname}) {
-		$kernel = $C->{os_kernelname};
-	} elsif ( $^O !~ /linux/i) {
-		$kernel = $^O;
-	} else {
-		$kernel = `uname -s`;
-	}
-	chomp $kernel; $kernel = lc $kernel;
-	return $kernel;
-}
 
 # creates the dir in question, and all missing intermediate
 # directories in the path.

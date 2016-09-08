@@ -2,31 +2,31 @@
 ## $Id: Model.nmis,v 8.13 2012/12/03 07:47:26 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
@@ -59,23 +59,23 @@
     'Microsoft' => {
       'order' => {
         '10' => {
-          'Windows2003' => 'Windows Version 5.2'
+          'Windows2003' => 'Windows Version 5\.2'
         },
         '15' => {
-          'Windows2008' => 'Windows Version 6.0'
+          'Windows2008' => 'Windows Version 6\.0'
         },
         '20' => {
-          'Windows2008' => 'Windows Version 6.1'
+          'Windows2008' => 'Windows Version 6\.1'
         },
         '25' => {
-          'Windows2012' => 'Windows Version 6.2'
+          'Windows2012' => 'Windows Version 6\.2'
         },
         '30' => {
-          'Windows2012' => 'Windows Version 6.3'
+          'Windows2012' => 'Windows Version 6\.3'
         },
         '40' => {
-          'Windows2000' => 'Windows 2000 Version 5.0'
-        }
+          'Windows2000' => 'Windows (2000 )?Version 5\.0',
+		    }
       }
     },
     '3COM Enterprise' => {
@@ -262,7 +262,7 @@
         }
       }
     },
-    
+
     'Extreme Networks' => {
       'order' => {
         '10' => {
@@ -341,7 +341,7 @@
           'PaloAltoNetworks' => 'Palo Alto Networks'
         }
       }
-    },    
+    },
     'ZyXEL Communications Corp.' => {
       'order' => {
         '10' => {
@@ -355,7 +355,7 @@
         },
         '40' => {
           'Default-HC' => 'ES-2108-G'
-        }      
+        }
       }
     },
     'Rapid City Communication' => {
@@ -379,7 +379,7 @@
         },
         '99' => {
           'Default-HC' => '.'
-        }      
+        }
       }
     },
     'Netgear' => {
@@ -530,39 +530,74 @@
           'Default-HC' => '.'
         }
       }
-    },    
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
     'nodeType' => 'generic',
+
     'sys' => {
-      'standard' => {
-        'snmp' => {
+			# contents of this section are required for automatic model determination
+      'standard' =>
+			{
+        'snmp' =>
+				{
           'sysLocation' => {
-            'oid' => 'sysLocation'
+            'oid' => 'sysLocation',
           },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
+					'sysObjectID' => {
+            'oid' => 'sysObjectID',
           },
           'sysDescr' => {
-            'oid' => 'sysDescr'
+            'oid' => 'sysDescr',
           },
           'ifNumber' => {
-            'oid' => 'ifNumber'
+            'oid' => 'ifNumber',
           },
           'sysUpTime' => {
-            'oid' => 'sysUpTime'
+            'oid' => 'sysUpTime',
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
           },
           'sysContact' => {
-            'oid' => 'sysContact'
+            'oid' => 'sysContact',
           }
-        }
-      }
-    }
+        },
+
+				'wmi' =>
+				{
+					'winbuild' => {
+						query => "select * from win32_operatingsystem",
+						field => "BuildNumber",
+					},
+					'winosname' => {
+						query => "select * from win32_operatingsystem",
+						field => "Caption",	# note: field Name is similar but gunk-infested
+					},
+					'winversion' => {
+						query => "select * from win32_operatingsystem",
+						field => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
+					},
+					'winsysname' => {
+						query => "select * from win32_operatingsystem",
+						field => "CSName",
+					},
+					'wintime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
+					},
+					'winboottime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LastBootUpTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
+					}
+				},
+      },
+    },
   },
+
   'heading' => {
     'graphtype' => {
       'nmis' => 'NMIS collect runtime',

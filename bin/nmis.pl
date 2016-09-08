@@ -54,7 +54,7 @@ use NMIS::Connect;
 use NMIS::Timing;
 use NMIS::UUID;
 use csv;
-use rrdfunc; 			# createRRD, updateRRD etc.
+use rrdfunc; 			# main entry point is updateRRD
 use func;
 use ip;
 use sapi;
@@ -303,22 +303,7 @@ sub	runThreads
 		}
 	}
 
-	# Find kernel name
-	my $kernel;
-	if (defined $C->{os_kernelname} and $C->{os_kernelname} ne "") {
-		$kernel = $C->{os_kernelname};
-	} elsif ($^O !~ /linux/i) {
-		$kernel = $^O;
-	} else {
-		chomp($kernel = lc `uname -s`);
-	}
-	$C->{kernel} = $kernel; # global
-	dbg("Kernel name of NMIS server is $kernel");
-
 	runDaemons(); # start daemon processes
-
-
-	#==============================================
 
 	### test if we are still running, or zombied, and cron will email somebody if we are
 	### collects should not run past 5mins - if they do we have a problem
@@ -528,6 +513,7 @@ sub	runThreads
 	{
 		$S = Sys->new; # object nmis-system
 		$S->init();
+
 		my $NI = $S->ndinfo;
 		delete $NI->{database};	 # remove pre-8.5.0 key as it's not used anymore
 
@@ -580,8 +566,13 @@ sub	runThreads
 		$D->{max_procs} = { option => "gauge,0:U",
 												value => $maxprocs };
 
-		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis"))) {
+		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis")))
+		{
 			$NI->{graphtype}{nmis} = 'nmis';
+		}
+		else
+		{
+			logMsg("ERROR updateRRD failed: ".getRRDerror);
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
 	}
@@ -679,10 +670,16 @@ sub catch_zap
 
 #====================================================================================
 
+# perform update operation for ONE node
+# args: name, required
+# returns: nothing
+#
+# note: update must not (and does not) skip nodes with collect=false; function is not run if active=false.
 sub doUpdate
 {
 	my %args = @_;
 	my $name = $args{name};
+
 	my $C = loadConfTable();
 
 	my $updatetimer = NMIS::Timing->new;
@@ -691,7 +688,8 @@ sub doUpdate
 	dbg("Starting update, node $name");
 
 	# Check for existing update LOCK
-	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) )
+	{
 		print STDERR "Error: update lock exists for $name which has not finished!\n";
 		logMsg("WARNING update lock exists for $name which has not finished!");
 		return;
@@ -703,72 +701,83 @@ sub doUpdate
 	$0 = "nmis-".$C->{conf}."-update-$name" if (!$C->{debug});
 
 	my $S = Sys->new; # create system object
-	# loads old node info (unless force is active), and the DEFAULT(!) model (always),
-	# and primes the sys object for snmp ops
-	$S->init(name=>$name, update=>'true', force => $nvp{force});
+	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
+	# and primes the sys object for snmp/wmi ops
 
-	# uses the node config loaded by init, and updates the node info table
-	# (model and nodetype only if missing)
+	if (!$S->init(name=>$name, update=>'true', force => $nvp{force}))
+	{
+		logMsg("ERROR ($name) init failed: ".$S->status->{error}); # fixme: why isn't this terminal?
+	}
+	dbg("node=$name ".join(" ",
+												 (map { "$_=".$S->ndinfo->{system}->{$_} }
+													(qw(group nodeType nodedown snmpdown wmidown))),
+												 (map { "$_=".$S->status->{$_} }
+													(qw(snmp_enabled wmi_enabled))) ));
+
+	# this uses the node config loaded by init, and updates the node info table
+	# (model and nodetype set only if missing)
 	$S->copyModelCfgInfo(type=>'all');
 
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
-	$S->{doupdate} = 'true'; # flag what is running
 
 	if (!getbool($nvp{force}))
 	{
 		$S->readNodeView; # from prev. run, but only if force isn't active
 	}
 
-	# if reachable then we can update the model and get rid of the default we got from init above
-	if (runPing(sys=>$S)) {
-		if ($S->open(timeout => $C->{snmp_timeout},
-								 retries => $C->{snmp_retries},
-								 max_msg_size => $C->{snmp_max_msg_size}))
-		{
-			if (getNodeInfo(sys=>$S)) {
-				# fgetnodeinfo has deleted the interface info, need to rebuild from scratch
-				if ( getbool($NC->{node}{collect}) ) {
-					if (getIntfInfo(sys=>$S)) {
-						#print Dumper($S)."\n";
-						# print what we are
-						dbg("node=$S->{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
-						dbg("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
+	# prime default values, overridden if we can find anything better
+	$NI->{system}{nodeModel} ||= 'Generic';
+	$NI->{system}{nodeType} ||= 'generic';
 
-						### 2012-12-03 keiths, adding some model testing and debugging options.
-						if ( $model ) {
-							print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
-							print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
-							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
-						}
-						getSystemHealthInfo(sys=>$S) if defined $S->{mdl}{systemHealth};
-						getEnvInfo(sys=>$S);
-						getCBQoS(sys=>$S); # do walk
-						getCalls(sys=>$S); # do walk
-					}
-				} else {
-					dbg("no node info collected");
-				}
-			}
-			else {
-				### 2012-10-24 keiths, fixing nodes loosing config when down during an update
-				$NI->{system}{nodeModel} = 'Generic' if $NI->{system}{nodeModel} eq "";	# nmisdev Dec2010 first time model seen, collect, but no snmp answer
-				$NI->{system}{nodeType} = 'generic' if $NI->{system}{nodeType} eq "";
-			}
-			$S->close; # close snmp session
-			### 2014-12-16 keiths, when did the update poll last complete properly.
-			$NI->{system}{lastUpdatePoll} = time();
-		}
-		else
+	# if reachable then we can update the model and get rid of the default we got from init above
+	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
+	if (runPing(sys=>$S))
+	{
+		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
+		$S->open(timeout => $C->{snmp_timeout},
+						 retries => $C->{snmp_retries},
+						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+		# failed already?
+		if ($S->status->{snmp_error})
 		{
-			logMsg("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
-			info("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
+			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			$S->disable_source("snmp");
 		}
-	}
-	else
-	{		# no ping, no snmp, no type
-		$NI->{system}{nodeModel} ||= 'Generic';
-		$NI->{system}{nodeType} ||= 'generic';
+
+		# this will try all enabled sources, 0 only if none worked
+		# it also disables sys sources that don't work!
+		if (getNodeInfo(sys=>$S))
+		{
+			# getnodeinfo has deleted the interface info, need to rebuild from scratch
+			if ( getbool($NC->{node}{collect}) )
+			{
+				if (getIntfInfo(sys=>$S)) {
+					dbg("node=$S->{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
+					dbg("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
+
+					if ( $model )
+					{
+						print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
+						print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
+						print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
+					}
+				}
+				# fixme: why no error handling for getintfinfo?
+
+				getSystemHealthInfo(sys=>$S) if defined $S->{mdl}{systemHealth};
+				getEnvInfo(sys=>$S);
+				getCBQoS(sys=>$S);
+				getCalls(sys=>$S);
+
+			}
+			else
+			{
+				dbg("node is set to collect=false, not collecting any info");
+			}
+		}
+		$S->close; # close snmp session if one is open
+		$NI->{system}{lastUpdatePoll} = time();
 	}
 
 	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
@@ -820,7 +829,10 @@ sub doUpdate
 	}
 	$reachdata->{polltime} = { value => $prevval, option => "gauge,0:U," };
 
-	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
+	{
+		logMsg("ERROR updateRRD failed: ".getRRDerror);
+	}
 	$S->close;
 
 	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
@@ -911,6 +923,8 @@ sub doServices
 
 	my $S = Sys->new;
 	$S->init(name => $name);
+	dbg("node=$name ".join(" ", map { "$_=".$S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown))));
+
 	$S->readNodeView;							# init does not load the node view, but runservices updates view data!
 
 	runServices(sys=>$S, snmp => 'false');
@@ -923,7 +937,8 @@ sub doServices
 	return;
 }
 
-sub doCollect {
+sub doCollect
+{
 	my %args = @_;
 	my $name = $args{name};
 
@@ -932,15 +947,14 @@ sub doCollect {
 	info("================================");
 	info("Starting collect, node $name");
 
-	#Check for update LOCK
+	# Check for both update and collect LOCKs
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: running collect but update lock exists for $name which has not finished!\n";
 		logMsg("WARNING running collecct but update lock exists for $name which has not finished!");
 		return;
 	}
-
-	#Check for collect LOCK
-	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) ) {
+	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) )
+	{
 		print STDERR "Error: collect lock exists for $name which has not finished!\n";
 		logMsg("WARNING collect lock exists for $name which has not finished!");
 		return;
@@ -952,13 +966,16 @@ sub doCollect {
 	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
 
 	my $S = Sys->new; # create system object
-	if (! $S->init(name=>$name) )
+	if (! $S->init(name=>$name) )	# init will usually load node info data, model etc, returns 1 if _all_ is ok
 	{
-		info("no info available of node $name, refresh it");
+		dbg("Sys init for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error))));
+
+		info("no info available of node $name, switching to update operation instead");
 		doUpdate(name=>$name);
-		info("Finished");
-		return; # next run to collect
+		info("Finished update instead of collect");
+		return; # collect has to wait until a next run
 	}
+	dbg("node=$name ".join(" ", map { "$_=".$S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown))));
 
 	# update node info data, merge in the node's configuration (which was loaded by sys' init)
 	$S->copyModelCfgInfo(type => 'all');
@@ -975,83 +992,91 @@ sub doCollect {
 		info("update done, continue with collect");
 	}
 
-	$S->{docollect} = 'true'; # flag what is running
-
 	info("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
 	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
 
-	if (runPing(sys=>$S))
+	# are we meant to and able to talk to the node?
+	if (runPing(sys=>$S) && getbool($NC->{node}{collect}))
 	{
-		if ($S->open(timeout => $C->{snmp_timeout},
-								 retries => $C->{snmp_retries},
-								 max_msg_size => $C->{snmp_max_msg_size}))
+		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
+		$S->open(timeout => $C->{snmp_timeout},
+						 retries => $C->{snmp_retries},
+						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+		# failed already?
+		if ($S->status->{snmp_error})
 		{
-			# oke, node reachable
-			if ( getbool($NC->{node}{collect}) ) {
-				if (updateNodeInfo(sys=>$S)) {
-					# snmp oke
-					if ( $C->{snmp_stop_polling_on_error} eq "" ) {
-						$C->{snmp_stop_polling_on_error} = "false";
-					}
-					### 2012-03-28 keiths, improving handling of transient SNMP sessions on bad links
-					if ( getbool($C->{snmp_stop_polling_on_error}) and getbool($NI->{system}{snmpdown}) ) {
-						logMsg("SNMP Polling stopped for $NI->{system}{name} because SNMP had errors, snmpdown=$NI->{system}{snmpdown} snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error}");
-					}
-					else
-					{
-						### 2012-12-03 keiths, adding some model testing and debugging options.
-						if ( $model or $C->{info}) {
-							print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
-							print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
-							print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
-						}
+			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			$S->disable_source("snmp");
+		}
 
-						# get node data and store in rrd
-						getNodeData(sys=>$S);
+		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
+		my $updatewasok = updateNodeInfo(sys=>$S);
+		my $curstate = $S->status;	# updatenodeinfo does NOT disable faulty sources!
 
-						# get intf data and store in rrd
-						getIntfData(sys=>$S) if defined $S->{info}{interface};
+		# was snmp ok? should we bail out? note that this is interpreted to apply to ALL sources being down simultaneously,
+		# NOT just snmp. otherwise a wmi-only node would never be polled.
+		# fixme: likely needs companion wmi_stop_polling_on_error, and both criteria would need to be satisfied for stopping
+		if ( getbool($C->{snmp_stop_polling_on_error})
+				 and getbool($NI->{system}{snmpdown})
+				 and getbool($NI->{system}{wmidown}) )
+		{
+			logMsg("Polling stopped for $NI->{system}{name} because SNMP and WMI had errors, snmpdown=$NI->{system}{snmpdown} wmidown=$NI->{system}{wmidown}");
+		}
+		elsif ($updatewasok)				# at least some info was retrieved by wmi or snmp
+		{
+			if ( $model or $C->{info})
+			{
+				print "MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
+				print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
+				print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
+			}
 
-						getSystemHealthData(sys=>$S);
-
-						getEnvData(sys=>$S);
-
-						getCBQoS(sys=>$S);
-
-						getCalls(sys=>$S);
-
-						getPVC(sys=>$S);
-
-						### server collection
-						runServer(sys=>$S);
-
-						# Custom Alerts
-						runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
-
-						### 2014-12-16 keiths, when did the collect poll last complete properly.
-						$NI->{system}{lastCollectPoll} = time();
-					}
+			# at this point we need to tell sys that dead sources are to be ignored
+			for my $source (qw(snmp wmi))
+			{
+				if ($curstate->{"${source}_error"})
+				{
+					$S->disable_source($source);
 				}
 			}
+
+			# fixme: why no error handling for any of these?
+
+			# get node data and store in rrd
+			getNodeData(sys=>$S);
+			# get intf data and store in rrd
+			getIntfData(sys=>$S) if defined $S->{info}{interface};
+			getSystemHealthData(sys=>$S);
+			getEnvData(sys=>$S);
+			getCBQoS(sys=>$S);
+			getCalls(sys=>$S);
+			getPVC(sys=>$S);
+
+			runServer(sys=>$S);
+			# Custom Alerts
+			runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
+
+			# remember when the collect poll last completed successfully
+			$NI->{system}{lastCollectPoll} = time();
 		}
 		else
 		{
-			logMsg("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
-			info("Error: failed to open SNMP session to $name: ".$S->getSnmpError);
+			my $msg = "updateNodeInfo for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error)));
+			logMsg("ERROR $msg");
+			info("Error: $msg");
 		}
 	}
 
-	### 2012-09-11 keiths, running services even if node down.
-	# Need to poll services even if no ping!
-	# run service avail even if no collect
-	runServices(sys=>$S, snmp => 'true');
+	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
+	# but try snmp services only if snmp is actually ok
+	runServices(sys=>$S, snmp => getbool($NI->{system}->{snmpdown})? 'false':'true' );
 
 	runCheckValues(sys=>$S);
 	# don't let runreach perform the rrd update, we want to add the polltime to it!
 	my $reachdata = runReach(sys=>$S, delayupdate => 1);
 
 	$S->writeNodeView;
-	$S->writeNodeInfo; # save node info in file var/$NI->{name}-node.xxxx
+	$S->writeNodeInfo;
 
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin (@active_plugins)
@@ -1093,7 +1118,10 @@ sub doCollect {
 	}
 	$reachdata->{updatetime} = { value => $prevval, option => "gauge,0:U,".(86400*3) };
 
-	updateRRD(sys=>$S, data=> $reachdata, type=>"health");
+	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
+	{
+		logMsg("ERROR updateRRD failed: ".getRRDerror);
+	}
 	$S->close;
 
 	releasePollLock(handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name);
@@ -1104,73 +1132,53 @@ sub doCollect {
 	}
 	info("Finished");
 	return;
-} # end doCollect
+}
 
-#=========================================================================================
-
-#
 # normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
 # if node info missing then ping.pm is used
-#
-sub runPing {
+# returns: 1 if pingable, 0 otherwise
+sub runPing
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;	# node info
 	my $V =  $S->view;		# web view
 	my $RI = $S->reach;		# reach table
-	my $M = $S->mdl;		# model table
 	my $NC = $S->ndcfg;		# node config
-	my ($ping_min,$ping_avg,$ping_max,$ping_loss,$pingresult);
-	my $exit = 0; # preset failure
-	my $PT;
 
-	$S->{snmpdown_org} = $NI->{system}{snmpdown}; # remember state for log filter in getNodeInfo
+	my ($ping_min,$ping_avg,$ping_max,$ping_loss,$pingresult);
+
+	# setup log filter for getNodeInfo() - fixme why is that done here?
+	$S->snmp->logFilterOut(qr/no response from/)
+			if ($S->snmp && getbool($NI->{system}{snmpdown}));
 
 	# preset view of node status
 	$V->{system}{status_value} = 'unknown';
 	$V->{system}{status_title} = 'Node Status';
 	$V->{system}{status_color} = '#0F0';
 
-	if (getbool($NC->{node}{ping})) {
-		# use fastping info if available
-		if (getbool($C->{daemon_fping_active})) {
-			$PT = loadTable(dir=>'var',name=>'nmis-fping'); # load ping results (from cache) from daemon fpingd
-		}
-		if (getbool($C->{daemon_fping_active}) and exists $PT->{$NC->{node}{name}}{loss}) {
+	if (getbool($NC->{node}{ping}))
+	{
+		my $PT;
+		# use fastping info if its meant to be available, and actually is
+		if ( getbool($C->{daemon_fping_active})
+				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping'))
+				 && exists($PT->{$NC->{node}{name}}{loss}) )
+		{
 			# copy values
 			$ping_avg = $PT->{$NC->{node}{name}}{avg};
 			$ping_loss = $PT->{$NC->{node}{name}}{loss};
+			$pingresult = ($ping_loss < 100)? 100 : 0;
 			info("INFO ($S->{name}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
-			#
-			# notify and checkevent are handled by fpingd
-			if ($ping_loss < 100) {
-				# up
-
-				### ks 2015-08-13, are the nodedown status and event db out of sync?
-				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") ) {
-					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
-				}
-
-				$RI->{pingavg} = $ping_avg; # results for sub runReach
-				$RI->{pingresult} = 100;
-				$RI->{pingloss} = $ping_loss;
-				$exit = 1;	# ok
-				# info for web page
-				$V->{system}{lastUpdate_value} = returnDateStamp();
-				$V->{system}{lastUpdate_title} = 'Last Update';
-				$NI->{system}{lastUpdateSec} = time();
-			} else {
-				# down
-				$RI->{pingloss} = $ping_loss;
-				$RI->{pingresult} = 0;
-			}
-		} else {
+		}
+		else
+		{
 			# fallback to OLD system
-			logMsg("INFO ($S->{name}) standard ping system using, no ping info of daemon fpingd")
+			logMsg("INFO ($S->{name}) using standard ping system, no ping info of daemon fpingd")
 					if (getbool($C->{daemon_fping_active})
 							and !getbool($C->{daemon_fping_failed})
-							and !getbool($S->{doupdate}));
+							and !getbool($S->{update})); # fixme: unclean access to internal property
+
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
 			my $timeout = $C->{ping_timeout} ? $C->{ping_timeout} : 300 ;
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
@@ -1178,71 +1186,104 @@ sub runPing {
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
-			if ( $< and getKernelName() !~ /linux/i ) { # not root and update, assume called from www interface
+			# fixme: invalid condition, root is generally NOT required for ping anymore!
+			if ($<)
+			{
+				# not root and update, assume called from www interface
 				$pingresult = 100;
-				dbg("SKIPPING Pinging as we are NOT running with root priviliges");
-			} else {
+				dbg("SKIPPING Pinging as we are NOT running with root privileges");
+			}
+			else
+			{
 				( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
 				$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
 			}
+		}
+		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
-			if ( $pingresult != 100 ) {
-				# Node is down
-				$RI->{pingloss} = 100;
-				$RI->{pingresult} = $pingresult;
-				info("Pinging Failed $S->{name} is NOT REACHABLE");
+		# in the fpingd case all up/down events are handled by it
+		if (!getbool($C->{daemon_fping_active}))
+		{
+			if ($pingresult)
+			{
+				# up
+				# are the nodedown status and event db out of sync?
+				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") )
+				{
+					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
+				}
+				else
+				{
+					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
+					# frontend nodeStatus() takes proper care of.
+					info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+				}
+			}
+			else
+			{
+				# down - log if not already down
 				logMsg("ERROR ($S->{name}) ping failed") if (!getbool($NI->{system}{nodedown}));
-
-				notify(sys=>$S,event=>"Node Down",element=>"",details=>"Ping failed",
+				notify(sys=>$S, event=>"Node Down",element=>"",details=>"Ping failed",
 							 context => { type => "node" } );
-			} else {
-				# Node is UP!
-				$RI->{pingavg} = $ping_avg; # results for sub runReach
-				$RI->{pingresult} = $pingresult;
-				$RI->{pingloss} = $ping_loss;
-				info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
-
-				# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
-				# frontend nodeStatus() takes proper care of.
-				checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-
-				$exit = 1;
-				# info for web page
-				$V->{system}{lastUpdate_value} = returnDateStamp();
-				$V->{system}{lastUpdate_title} = 'Last Update';
-				$NI->{system}{lastUpdateSec} = time();
 			}
 		}
-	} else {
+
+		$RI->{pingavg} = $ping_avg; # results for sub runReach
+		$RI->{pingresult} = $pingresult;
+		$RI->{pingloss} = $ping_loss;
+
+		# info for web page
+		$V->{system}{lastUpdate_value} = returnDateStamp();
+		$V->{system}{lastUpdate_title} = 'Last Update';
+		$NI->{system}{lastUpdateSec} = time();
+	}
+	else
+	{
 		info("$S->{name} ping not requested");
-		$RI->{pingresult} = 100; # results for sub runReach
+		$RI->{pingresult} = $pingresult = 100; # results for sub runReach
 		$RI->{pingavg} = 0;
 		$RI->{pingloss} = 0;
-		$exit = 1;
 	}
-	if ($exit) {
+
+	if ($pingresult)
+	{
 		$V->{system}{status_value} = 'reachable' if (getbool($NC->{node}{ping}));
 		$V->{system}{status_color} = '#0F0';
 		$NI->{system}{nodedown} =  'false';
-	} else {
+	}
+	else
+	{
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
 		$NI->{system}{nodedown} = 'true';
-		# workaround for opCharts not using right data.
+
+		# workaround for opCharts not using right data
 		$NI->{system}{nodestatus} = 'unreachable';
 	}
 
-	info("Finished with exit=$exit, nodedown=$NI->{system}{nodedown} nodestatus=$NI->{system}{nodestatus}");
-	return $exit;
-} # end runPing
+	info("Finished with exit=".($pingresult?1:0)
+			 .", nodedown=$NI->{system}{nodedown} nodestatus=$NI->{system}{nodestatus}");
+	return ($pingresult?1:0);
+}
 
-#=========================================================================================
+
+# gets node info by snmp/wmi, determines node's model if it can
+# this is only run during update type ops (or if we switch to that type on the go)
 #
-# get node info by snmp, define Model of node
+# args: sys
+# returns: 1 if _something_ worked, 0 if all a/v collection mechanisms failed
+#
 # attention: this deletes the interface info if other steps successful
-sub getNodeInfo {
+# attention: this function disables all sys' sources that indicate any errors on loadnodeinfo()!
+#
+# fixme: this thing is an utter mess logic-wise and urgently needs a rewrite
+sub getNodeInfo
+{
 	my %args = @_;
-	my $S = $args{sys}; 	# node object
+
+	my $S = $args{sys};
 	my $NI = $S->ndinfo;	# node info table
 	my $RI = $S->reach;	# reach table
 	my $V =  $S->view;	# web view
@@ -1251,30 +1292,51 @@ sub getNodeInfo {
 	my $SNMP = $S->snmp;	# snmp object
 	my $C = loadConfTable();	# system config
 
-	my $exit = 0; # preset failure
-	$RI->{snmpresult} = 0; # preset failure
+	my $exit = 0; # assume failure by default
+	$RI->{snmpresult} = $RI->{wmiresult} = 0;
 
 	info("Starting");
 
-	# cleanups
-	if (getbool($S->{doupdate}) and !getbool($NC->{node}{collect}))  # rebuild small
+	# fixme: unclean access to internal property,
+	# fixme also fails if we've switched to updating this node on the go!
+	if (getbool($S->{update})
+			and !getbool($NC->{node}{collect}))  # rebuild
 	{
 		delete $V->{interface};
 		delete $NI->{graphtype};
 	}
 
-	if (getbool($NC->{node}{collect})) {
+	my $oldstate = $S->status;		# what did we start with for snmp_enabled, wmi_enabled?
+	my $curstate;
+	# if collect is off, only nodeconf overrides are loaded
+	if (getbool($NC->{node}{collect}))
+	{
+		# get basic node info by snmp or wmi: sysDescr, sysObjectID, sysUpTime etc. and store in $NI table
 
-		# if node already down then no snmp logging of node down
-		$SNMP->logFilterOut("no response from") if (getbool($S->{snmpdown_org}));
+		# this is normally with the DEFAULT model from Model.nmis
+		# fixme: not true if switched to update op on the go!
+		my $firstloadok = $S->loadNodeInfo();
 
-		# get node info by snmp: sysDescr, sysObjectID, sysUpTime etc. and store in $NI table
-		if ($S->loadNodeInfo(config=>$C)) {
+		# source that hasn't worked? disable immediately
+		$curstate = $S->status;
+		for my $source (qw(snmp wmi))
+		{
+			if ($curstate->{"${source}_error"})
+			{
+				$S->disable_source($source);
+				# copy over the error so that we can figure out that this source is indeed down,
+				# not just disabled from the get-go
+				$oldstate->{"${source}_error"} =	$curstate->{"${source}_error"};
+			}
+		}
 
-			my $enterpriseTable = loadEnterpriseTable(); # table is already cached
+		if ($firstloadok)
+		{
 
-			# Only continue processing if at least a couple of entries are valid.
-			if ($NI->{system}{sysDescr} ne "" and $NI->{system}{sysObjectID} ne "" ) {
+			# snmp: continue processing if at least a couple of entries are valid.
+			if ($NI->{system}{sysDescr} and $NI->{system}{sysObjectID})
+			{
+				my $enterpriseTable = loadEnterpriseTable(); # table is already cached
 
 				# if the vendors product oid file is loaded, this will give product name.
 				$NI->{system}{sysObjectName} = oid2name($NI->{system}{sysObjectID});
@@ -1285,20 +1347,49 @@ sub getNodeInfo {
 				# Decide on vendor name.
 				my @x = split(/\./,$NI->{system}{sysObjectID});
 				my $i = $x[6];
-				if ( $enterpriseTable->{$i}{Enterprise} ne "" ) {
-					$NI->{system}{nodeVendor} = $enterpriseTable->{$i}{Enterprise};
-				} else { $NI->{system}{nodeVendor} =  "Universal"; }
-				dbg("oid index $i, Vendor is $NI->{system}{nodeVendor}");
 
-				if ($NC->{node}{model} eq 'automatic' || $NC->{node}{model} eq "") {
-					# get nodeModel based on nodeVendor and sysDescr
+				if ( $enterpriseTable->{$i}{Enterprise} ne "" )
+				{
+					$NI->{system}{nodeVendor} = $enterpriseTable->{$i}{Enterprise};
+				}
+				else
+				{
+					$NI->{system}{nodeVendor} =  "Universal";
+				}
+				dbg("oid index $i, Vendor is $NI->{system}{nodeVendor}");
+			}
+			# iff snmp is a dud, look at some wmi properties
+			elsif ($NI->{system}->{winbuild} && $NI->{system}->{winosname} && $NI->{system}->{winversion})
+			{
+				info("winosname=$NI->{system}->{winosname} winversion=$NI->{system}->{winversion}");
+				# synthesize something compatible with what win boxes spit out via snmp:
+				# i'm too lazy to also wmi-poll Manufacturer and strip off the 'corporation'
+				$NI->{system}->{nodeVendor} = "Microsoft";
+
+				# the winosname is not the same/enough
+				$NI->{system}->{sysDescr} =  $NI->{system}->{winosname}." Windows Version ".$NI->{system}->{winversion};
+				$NI->{system}->{sysName} = $NI->{system}->{winsysname};
+			}
+
+			# but if neither worked, do not continue processing anything model-related!
+			if ($NI->{system}{sysDescr} or !$NI->{system}->{nodeVendor})
+			{
+				# fixme: the auto-model decision should be made FIRST, before doing any loadinfo(),
+				# this function's logic needs a complete rewrite
+				if ($NC->{node}{model} eq 'automatic' || $NC->{node}{model} eq "")
+				{
+					# get nodeModel based on nodeVendor and sysDescr (real or synthetic)
 					$NI->{system}{nodeModel} = $S->selectNodeModel(); # select and save name in node info table
-					info("selectNodeModel result model=$NI->{system}{nodeModel}");
-					$NI->{system}{nodeModel} = 'Default' if $NI->{system}{nodeModel} eq "";
-				} else {
+					info("selectNodeModel returned model=$NI->{system}{nodeModel}");
+
+					$NI->{system}{nodeModel} ||= 'Default'; # fixme why default and not generic?
+				}
+				else
+				{
 					$NI->{system}{nodeModel} = $NC->{node}{model};
 					info("node model=$NI->{system}{nodeModel} set by node config");
 				}
+
 				dbg("about to loadModel model=$NI->{system}{nodeModel}");
 				$S->loadModel(model=>"Model-$NI->{system}{nodeModel}");
 
@@ -1306,10 +1397,9 @@ sub getNodeInfo {
 				# so we'll force-overwrite those values
 				$S->copyModelCfgInfo(type=>'overwrite');
 
-				###
-				delete $V->{system} if getbool($S->{doupdate}); # rebuild
-
 				# add web page info
+				delete $V->{system} if getbool($S->{update}); # rebuild; fixme unclean access to internal property
+
 				$V->{system}{status_value} = 'reachable';
 				$V->{system}{status_title} = 'Node Status';
 				$V->{system}{status_color} = '#0F0';
@@ -1337,17 +1427,29 @@ sub getNodeInfo {
 				my @viewNodeFields = split(",",$C->{network_viewNode_field_list});
 				foreach my $field (@viewNodeFields) {
 					if ( defined $NI->{system}{$field}
-						and ( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} )
-					) {
+							 and ( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} )
+							) {
 						$V->{system}{"${field}_title"} = $field;
 						$V->{system}{"${field}_value"} = $NI->{system}{$field};
 					}
 				}
 
-				# update node info table with this new model
-				if ($S->loadNodeInfo(config=>$C)) {
+				# update node info table a second time, but now with the actually desired model
+				# fixme: see logic problem above, should not have to do both
+				my $secondloadok = $S->loadNodeInfo();
 
-					$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec} = (int($NI->{system}{sysUpTime}/100)));
+				# source that hasn't worked? disable immediately
+				$curstate = $S->status;
+				for my $source (qw(snmp wmi))
+				{
+					$S->disable_source($source) if ($curstate->{"${source}_error"});
+				}
+
+				if ($secondloadok)
+				{
+					# sysuptime is only a/v if snmp, with wmi we have synthesize it as wintime-winboottime
+					# it's also mangled on the go
+					makesysuptime($S);
 					$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
 
 					$NI->{system}{server} = $C->{server_name};
@@ -1361,19 +1463,26 @@ sub getNodeInfo {
 					# PIX failover test
 					checkPIX(sys=>$S);
 
-					$RI->{snmpresult} = 100; # ok
-
 					$exit = 1; # done
-				} else { logMsg("INFO loadNodeInfo failed"); }
+				}
+				else
+				{
+					logMsg("ERROR loadNodeInfo with specific model failed!");
+				}
 			}
-			else {
-				info("ERROR values of sysDescr and/or sysObjectID are empty");
+			else
+			{
+				info("ERROR could retrieve sysDescr or winosname, cannot determine model!");
 			}
-		} else {
-			#  # load this model prev found
-			$S->loadModel(model=>"Model-$NI->{system}{nodeModel}") if $NI->{system}{nodeModel} ne '';
 		}
-	} else {
+		else # fixme unclear why this reaction to failed getnodeinfo?
+		{
+			# load the model prev found
+			$S->loadModel(model=>"Model-$NI->{system}{nodeModel}") if ($NI->{system}{nodeModel} ne '');
+		}
+	}
+	else
+	{
 		dbg("node $S->{name} is marked collect is 'false'");
 		$exit = 1; # done
 	}
@@ -1411,14 +1520,34 @@ sub getNodeInfo {
 	{
 		delete $NI->{nodeconf}->{nodeType};
 	}
-	#####################
 
-	# process status
+	# process the overall results, set node states etc.
+	for my $source (qw(snmp wmi))
+	{
+		# $curstate should be state as of last loadinfo() op
+
+		# we can call a source ok iff we started with it enabled, still enabled,
+		# and the (second) loadnodeinfo didn't turn up any trouble for this source
+		if ($oldstate->{"${source}_enabled"}
+				&& $curstate->{"${source}_enabled"}
+				&& !$curstate->{"${source}_error"})
+		{
+			$RI->{"${source}result"} = 100;
+			my $sourcename = uc($source);
+			checkEvent(sys=>$S, event=>"$sourcename Down", level=>"Normal", element=>"", details=>"$sourcename ok");
+		}
+		# or fire down event if it was enabled but didn't work
+		# ie. if it's no longer enabled and has an error saved in oldstate or a new one
+		elsif ($oldstate->{"${source}_enabled"}
+					 && !$curstate->{"${source}_enabled"}
+					 && ($oldstate->{"${source}_error"} || $curstate->{"${source}_error"}))
+		{
+			RaiseNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"} );
+		}
+	}
+
 	if ($exit)
 	{
-		### 2012-03-28 keiths, changing to reflect correct event type.
-		checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"SNMP error");
-
 		# add web page info
 		$V->{system}{timezone_value} = $NI->{system}{timezone};
 		$V->{system}{timezone_title} = 'Time Zone';
@@ -1448,9 +1577,6 @@ sub getNodeInfo {
 	}
 	else
 	{
-		# failed by snmp
-		$exit = snmpNodeDown(sys=>$S);
-
 		# node status info web page
 		$V->{system}{status_title} = 'Node Status';
 		if ( getbool($NC->{node}{ping}) ) {
@@ -1462,15 +1588,14 @@ sub getNodeInfo {
 		}
 	}
 
-	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
+	info("Finished with exit=$exit "
+			 . join(" ", map { "$_=".$S->ndinfo->{system}->{$_} } (qw(nodedown snmpdown wmidown))));
 
-	info("Finished with exit=$exit nodedown=$NI->{system}{nodedown}");
 	return $exit;
-} # end getNodeInfo
+}
 
-#=========================================================================================
-
-sub getDNSloc {
+sub getDNSloc
+{
 	my %args = @_;
 	my $S = $args{sys}; # node object
 	my $NI = $S->ndinfo; # node info
@@ -1520,12 +1645,13 @@ sub getDNSloc {
 	} # end sysLoc
 	dbg("Finished");
 	return 1;
-} # end getDNSloc
+}
 
 
-#=========================================================================================
-
-sub checkPower {
+# verifies a cisco ciscoEnvMonSupplyState-style power status,
+# raises/clears event if required, updates view a little
+sub checkPower
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -1540,34 +1666,38 @@ sub checkPower {
 	delete $V->{system}{"${attr}_value"};
 
 	info("Power check attribute=$attr value=$NI->{system}{$attr}");
-	if ($NI->{system}{$attr} ne '') {
-		if ($NI->{system}{$attr} !~ /noSuch/) {
-			$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
-			if ( $NI->{system}{$attr} =~ /normal|unknown|notPresent/ ) {
-				checkEvent(sys=>$S,
-									 event=>"RPS Fail",
-									 level=>"Normal",
-									 element=>$attr,
-									 details=>"RPS failed");
-				$V->{system}{"${attr}_color"} = '#0F0';
-			} else {
-				notify(sys=>$S,
-							 event=>"RPS Fail",
-							 element=>$attr,
-							 details=>"RPS failed",
-							 context => { type => "rps" } );
-				$V->{system}{"${attr}_color"} = 'red';
-			}
+	if ($NI->{system}{$attr} ne '' and $NI->{system}{$attr} !~ /noSuch/)
+	{
+		$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
+
+		if ( $NI->{system}{$attr} =~ /normal|unknown|notPresent/ )
+		{
+			checkEvent(sys=>$S,
+								 event=>"RPS Fail",
+								 level=>"Normal",
+								 element=>$attr,
+								 details=>"RPS failed");
+			$V->{system}{"${attr}_color"} = '#0F0';
+		}
+		else
+		{
+			notify(sys=>$S,
+						 event=>"RPS Fail",
+						 element=>$attr,
+						 details=>"RPS failed",
+						 context => { type => "rps" } );
+			$V->{system}{"${attr}_color"} = 'red';
 		}
 	}
 
 	info("Finished");
 	return;
+}
 
-} # end checkPower
-
-#=========================================================================================
-sub checkNodeConfiguration {
+# try to figure out if the config of a device has been saved or not,
+# send node config change event if one detected, update the view a little
+sub checkNodeConfiguration
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -1577,18 +1707,25 @@ sub checkNodeConfiguration {
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
 	# create previous values if they don't exist
-	for my $attr (@updatePrevValues) {
-		if (defined $NI->{system}{$attr} ne '' && $NI->{system}{$attr} ne '' && !defined($NI->{system}{"${attr}_prev"}) ) {
+	for my $attr (@updatePrevValues)
+	{
+		if (defined($NI->{system}{$attr})
+				&& $NI->{system}{$attr} ne ''
+				&& !defined($NI->{system}{"${attr}_prev"}) )
+		{
 			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
 		}
 	}
 
 	my $configLastChanged = $NI->{system}{configLastChanged} if defined $NI->{system}{configLastChanged};
 	my $configLastViewed = $NI->{system}{configLastSaved} if defined $NI->{system}{configLastSaved};
-	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged} if defined $NI->{system}{bootConfigLastChanged};
-	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev} if defined $NI->{system}{configLastChanged_prev};
+	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged}
+	if defined $NI->{system}{bootConfigLastChanged};
+	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev}
+	if defined $NI->{system}{configLastChanged_prev};
 
-	if ( defined $configLastViewed && defined $bootConfigLastChanged ) {
+	if ( defined $configLastViewed && defined $bootConfigLastChanged )
+	{
 		info("checkNodeConfiguration configLastChanged=$configLastChanged, configLastViewed=$configLastViewed, bootConfigLastChanged=$bootConfigLastChanged, configLastChanged_prev=$configLastChanged_prev");
 	}
 	else {
@@ -1604,7 +1741,8 @@ sub checkNodeConfiguration {
 	if( defined $configLastChanged && defined $bootConfigLastChanged ) {
 		$V->{system}{configurationState_title} = 'Configuration State';
 
-		### when the router reboots bootConfigLastChanged = 0 and configLastChanged is about 2 seconds, which are the changes made by booting.
+		### when the router reboots bootConfigLastChanged = 0 and configLastChanged
+		# is about 2 seconds, which are the changes made by booting.
 		if( $configLastChanged > $bootConfigLastChanged and $configLastChanged > 5000 ) {
 			$V->{system}{"configurationState_value"} = "Config Not Saved in NVRAM";
 			$V->{system}{"configurationState_color"} = "#FFDD00";	#warning
@@ -1646,19 +1784,27 @@ sub checkNodeConfiguration {
 	info("Finished");
 	return;
 
-} # end checkNodeConfiguration
+}
 
-#=========================================================================================
-
-
-# Create the Interface configuration from SNMP Stuff!!!!!
+# Create the Interface configuration from SNMP Stuff
 # except on collect it is always called with a blank interface info
-sub getIntfInfo {
+#
+# fixme: this function works ONLY if snmp is enabled for the node!
+#
+# returns: 1 if happy, 0 otherwise
+sub getIntfInfo
+{
 	my %args = @_;
 	my $S = $args{sys}; # object
 	my $intf_one = $args{index}; # index for single interface update
-
 	my $NI = $S->ndinfo; # node info table
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getIntfInfo for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 0;										# no interfaces collected, treat this as error
+	}
+
 	my $V =  $S->view;
 	my $M = $S->mdl;	# node model table
 	my $SNMP = $S->snmp;
@@ -1680,15 +1826,17 @@ sub getIntfInfo {
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
-	if ( defined $S->{mdl}{interface}{sys}{standard} and $NI->{system}{ifNumber} <= $interface_max_number ) {
+	# fixme: hardcoded section name 'standard'
+	if ( defined $S->{mdl}{interface}{sys}{standard}
+			 and $NI->{system}{ifNumber} <= $interface_max_number )
+	{
 		# Check if the ifTableLastChange has changed.  If it has not changed, the
 		# interface table has had no interfaces added or removed, no need to go any further.
-		### does this need to be defined per model?
-		if (
-			not $singleInterface
-			and getbool($S->{mdl}{custom}{interface}{ifTableLastChange})
-			and my $result = $SNMP->get("ifTableLastChange.0")
-		) {
+		if (not $singleInterface
+				and getbool($S->{mdl}{custom}{interface}{ifTableLastChange})
+				and my $result = $SNMP->get("ifTableLastChange.0")
+				)
+		{
 			$result = $result->{"1.3.6.1.2.1.31.1.5.0"};
 			if ( defined $result and not defined $NI->{system}{ifTableLastChange} ) {
 				info("$NI->{system}{name} using ifTableLastChange for interface updates");
@@ -1710,9 +1858,10 @@ sub getIntfInfo {
 		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
 		# lets delete what we have in memory and start from scratch.
-		# BUT only if this is for all interfaces.........
-		if ( not $singleInterface ) {
-			delete $NI->{interface}; # reset intf info
+		# BUT only if this is for all interfaces
+		if ( not $singleInterface )
+		{
+			delete $NI->{interface};
 		}
 
 		# load interface types (IANA). number => name
@@ -1730,23 +1879,29 @@ sub getIntfInfo {
 		if ( $singleInterface ) {
 			push(@ifIndexNum,$intf_one);
 		}
-		else {
-			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions))) {
-				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable})) {
+		else
+		{
+			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions)))
+			{
+				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable}))
+				{
 					# to handle stupid devices with ifIndexes which are 64 bit integers
 					if ( $ifIndexTable->{$oid} < 0 ) {
 						$ifIndexTable->{$oid} = unpack("I", pack("i", $ifIndexTable->{$oid}));
 					}
 					push @ifIndexNum,$ifIndexTable->{$oid};
 				}
-			} else {
-				if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->{error}");
+			}
+			else
+			{
+				if ( $SNMP->error =~ /is empty or does not exist/ ) {
+					info("SNMP Object Not Present ($S->{name}) on get interface index table: $SNMP->error");
 				}
-				# failed by snmp
-				else {
-					logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->{error}");
-					snmpNodeDown(sys=>$S);
+				# snmp failed
+				else
+				{
+					logMsg("ERROR ($S->{name}) on get interface index table: $SNMP->error");
+					RaiseNodeDown(sys=>$S, type => "snmp", details => $SNMP->error);
 				}
 
 				info("Finished");
@@ -1779,7 +1934,8 @@ sub getIntfInfo {
 		my @ifIndexNumManage;
 		foreach my $index (@ifIndexNum) {
 			next if ($singleInterface and $intf_one ne $index); # only one interface
-			if ($S->loadInfo(class=>'interface',index=>$index,model=>$model))
+
+			if ($S->loadInfo(class=>'interface', index=>$index,model=>$model))
 			{
 				# note: nodeconf overrides are NOT applied at this point!
 				checkIntfInfo(sys=>$S, index=>$index, iftype=>$IFT);
@@ -1819,11 +1975,15 @@ sub getIntfInfo {
 					info("ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}");
 					push(@ifIndexNumManage,$index);
 				}
-			} else {
-				# failed by snmp
-				snmpNodeDown(sys=>$S);
-				if ( getbool($C->{snmp_stop_polling_on_error}) ) {
-					info("Finished");
+			}
+			else
+			{
+				# snmp failed
+				RaiseNodeDown(sys=>$S, type => "snmp", details => $S->status->{snmp_error} );
+
+				if ( getbool($C->{snmp_stop_polling_on_error}) )
+				{
+					info("Finished (stop polling on error)");
 					return 0;
 				}
 			}
@@ -2003,7 +2163,7 @@ sub getIntfInfo {
 			my $ifDescr = $thisintf->{ifDescr};
 			$intfTotal++;
 			# count total number of real interfaces
-			if ($thisintf->{ifType} !~ /$qr_no_collect_ifType_gen/ and $thisintf->{ifType} !~ /$qr_no_collect_ifDescr_gen/) {
+			if ($thisintf->{ifType} !~ /$qr_no_collect_ifType_gen/ and $thisintf->{ifDescr} !~ /$qr_no_collect_ifDescr_gen/) {
 				$thisintf->{real} = 'true';
 			}
 
@@ -2280,10 +2440,12 @@ sub getIntfInfo {
 
 		info("Finished");
 	}
-	elsif ( $NI->{system}{ifNumber} > $interface_max_number ) {
+	elsif ( $NI->{system}{ifNumber} > $interface_max_number )
+	{
 		info("Skipping, interface count $NI->{system}{ifNumber} exceeds configured maximum $interface_max_number");
 	}
-	else {
+	else
+	{
 		info("Skipping, interfaces not defined in Model");
 	}
 	return 1;
@@ -2341,16 +2503,24 @@ sub checkIntfInfo
 
 } # end checkIntfInfo
 
-#=========================================================================================
 
-sub checkPIX {
+# fixme: this function does not work for wmi-only nodes
+sub checkPIX
+{
 	my %args = @_;
 	my $S = $args{sys};
-
 	my $NI = $S->ndinfo;
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing PIX Failover check for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $V =  $S->view;
 	my $SNMP = $S->snmp;
 	my $result;
+
 	dbg("Starting");
 
 	# PIX failover test
@@ -2384,9 +2554,13 @@ sub checkPIX {
 				elsif ( $result->{'cfwHardwareStatusValue.7'} == 10 ) { $result->{'cfwHardwareStatusValue.7'} = "Standby"; }
 				else { $result->{'cfwHardwareStatusValue.7'} = "Unknown"; }
 
-				if (getbool($S->{docollect})) {
-					if ( $result->{'cfwHardwareStatusValue.6'} ne $NI->{system}{pixPrimary} or $result->{'cfwHardwareStatusValue.7'} ne $NI->{system}{pixSecondary} )
-						{
+				# fixme unclean access to internal structure
+				# fixme also fails if we've switched to updating this node on the go!
+				if (!getbool($S->{update}))
+				{
+					if ( $result->{'cfwHardwareStatusValue.6'} ne
+							 $NI->{system}{pixPrimary} or $result->{'cfwHardwareStatusValue.7'} ne $NI->{system}{pixSecondary} )
+					{
 						dbg("PIX failover occurred");
 						# As this is not stateful, alarm not sent to state table in sub eventAdd
 						notify(sys=>$S,
@@ -2415,16 +2589,22 @@ sub checkPIX {
 	}
 	dbg("Finished");
 	return 1;
-} # end checkPIX
+}
 
-#=========================================================================================
-
+# fixme: this function does not work for wmi-only nodes, or environment sections that use wmi
 #
-sub getEnvInfo {
+sub getEnvInfo
+{
 	my %args = @_;
 	my $S = $args{sys}; # object
-
 	my $NI = $S->ndinfo; # node info table
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getEnvInfo for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $V =  $S->view;
 	my $SNMP = $S->snmp;
 	my $M = $S->mdl;	# node model table
@@ -2437,137 +2617,98 @@ sub getEnvInfo {
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{environment} eq '') {
+	if (!exists($M->{environment}))
+	{
 		dbg("No class 'environment' declared in Model");
+		return 1;
 	}
-	else {
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i ) {
-			for my $section ('akcp_temp','akcp_hum') {
-				delete $NI->{$section};
-				# get Index table
-				my $index_var = $M->{environment}{sys}{$section}{indexed};
-				if ($index_var ne '') {
-					my %envIndexNum;
-					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
-						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
-							$oid =~ /\.(\d+)$/;
-							my $index= $oid;
-							# check for online of sensor, value 1 is online
-							if ($oid =~ /\.1\.5.\d+$/ and $envIndexTable->{$oid} == 1) {
-								dbg("sensor section=$section index=$index is online");
-								$envIndexNum{$index}=$index;
-							}
-						}
-					} else {
-						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");
-						}
-						# failed by snmp
-						else {
-							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
-							snmpNodeDown(sys=>$S);
-						}
-					}
-					# Loop to get information, will be stored in {info}{$section} table
-					foreach my $index (sort keys %envIndexNum) {
-						if ($S->loadInfo(class=>'environment',section=>$section,index=>$index,table=>$section,model=>$model)) {
-							dbg("sensor section=$section index=$index read and stored");
-						} else {
-							# failed by snmp
-							snmpNodeDown(sys=>$S);
-						}
-					}
+
+	# fixme hardcoded model names are bad
+	my @wantsections = ('env_temp');
+
+	if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i )
+	{
+		@wantsections = ('akcp_temp','akcp_hum');
+	}
+	elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i )
+	{
+		@wantsections = ('cssgroup','csscontent');
+	}
+
+
+	for my $section (@wantsections)
+	{
+		next if (!exists($M->{environment}{sys}{$section}));
+		next if (!defined($M->{environment}->{sys}->{$section}->{snmp})); # wmi doesn't work yet
+
+		delete $NI->{$section};
+		# get Index table
+		my $index_var = $M->{environment}{sys}{$section}{indexed};
+
+		my (%envIndexNum, $envIndexTable);
+		if ($envIndexTable = $SNMP->gettable($index_var, $max_repetitions))
+		{
+			foreach my $oid ( oid_lex_sort(keys %{$envIndexTable}))
+			{
+				my $index = $oid;
+				if($section =~ /^akcp_(temp|hum)$/)
+				{
+					# check for sensor online, value 1 is online, add only online sensors
+					next if ($oid !~ /\.1\.5.\d+$/ or !$envIndexTable->{$oid});
+
+					dbg("sensor section=$section index=$index is online");
 				}
+				elsif ($section eq "cssgroup")
+				{
+					$oid =~ s/1\.3\.6\.1\.4\.1\.9\.9\.368\.1\.17\.2\.1\.2\.//g;
+				}
+				elsif ($section eq "csscontent")
+				{
+					$oid =~ s/1\.3\.6\.1\.4\.1\.9\.9\.368\.1\.16\.4\.1\.3\.//g;
+				}
+				elsif ( $oid =~ /\.(\d+)$/ )
+				{
+					$index = $1;
+				}
+				$envIndexNum{$index}=$index;
 			}
 		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i ) {
-			for my $section ('cssgroup','csscontent') {
-				delete $NI->{$section};
-				# get Index table
-				my $index_var = $M->{environment}{sys}{$section}{indexed};
-				if ($index_var ne '') {
-					my %envIndexNum;
-					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
-						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
-							if ($section eq "cssgroup") {
-								$oid =~ s/1.3.6.1.4.1.9.9.368.1.17.2.1.2.//g;
-							} elsif ($section eq  "csscontent") {
-								$oid =~ s/1.3.6.1.4.1.9.9.368.1.16.4.1.3.//g;
-							} else {
-								$oid =~ /\.(\d+)$/;
-							}
-							my $index= $oid;
-							$envIndexNum{$index}=$index;
-						}
-					} else {
-						logMsg("ERROR ($S->{name}) on get environment $section index table");
-					}
-					# Loop to get information, will be stored in {info}{$section} table
-					foreach my $index (sort keys %envIndexNum) {
-						if ($S->loadInfo(class=>'environment',section=>$section,index=>$index,table=>$section,model=>$model)) {
-							dbg("sensor section=$section index=$index read and stored");
-						}
-					}
-				}
-			}
+		elsif ($SNMP->error =~ /is empty or does not exist/)
+		{
+			info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->error");
 		}
-		###2012-12-13 keiths, adding generic Environment support
-		else {
-			for my $section ('env_temp') {
-				delete $NI->{$section};
-				# get Index table
-				my $index_var = $M->{environment}{sys}{$section}{indexed};
-				if ($index_var ne '') {
-					my %envIndexNum;
-					my $envIndexTable;
-					if (($envIndexTable = $SNMP->gettable($index_var,$max_repetitions))) {
-						foreach my $oid ( oid_lex_sort(keys %{$envIndexTable})) {
-							my $index = $oid;
-							if ( $oid =~ /\.(\d+)$/ ) {
-								$index = $1;
-							}
-							$envIndexNum{$index}=$index;
-							# check for online of sensor, value 1 is online
-							dbg("environment section=$section index=$index is found");
-						}
-					} else {
-						if ( $SNMP->{error} =~ /is empty or does not exist/ ) {
-							info("SNMP Object Not Present ($S->{name}) on get environment index table: $SNMP->{error}");
-						}
-						# failed by snmp
-						else {
-							logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->{error}");
-							snmpNodeDown(sys=>$S);
-						}
-					}
-					# Loop to get information, will be stored in {info}{$section} table
-					foreach my $index (sort keys %envIndexNum) {
-						if ($S->loadInfo(class=>'environment',section=>$section,index=>$index,table=>$section,model=>$model)) {
-							dbg("environment section=$section index=$index read and stored");
-						} else {
-							# failed by snmp
-							snmpNodeDown(sys=>$S);
-						}
-					}
-				}
+		else
+		{
+			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
+			RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment index table: $SNMP->error");
+		}
+
+		# fixme: this loadinfo run is only required for snmp
+		# Loop to get information, will be stored in {info}{$section} table
+		foreach my $index (sort keys %envIndexNum)
+		{
+			if ($S->loadInfo(class=>'environment', section=>$section, index=>$index, table=>$section, model=>$model))
+			{
+				dbg("sensor section=$section index=$index read and stored");
+			}
+			else
+			{
+				my $error = $S->status->{snmp_error};
+				RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment table index $index");
 			}
 		}
 	}
+
 	dbg("Finished");
 	return 1;
 }
-#=========================================================================================
-#
-sub getEnvData {
+
+sub getEnvData
+{
 	my %args = @_;
 	my $S = $args{sys}; # object
 
 	my $NI = $S->ndinfo; # node info table
-	my $SNMP = $S->snmp;
 	my $V =  $S->view;
 	my $M = $S->mdl;	# node model table
 
@@ -2576,111 +2717,72 @@ sub getEnvData {
 	dbg("Starting");
 	dbg("Get Environment Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	if ($M->{environment} eq '') {
+	if (ref($M->{environment}) ne "HASH" or !keys %{$M->{environment}})
+	{
 		dbg("No class 'environment' declared in Model");
+		return 1;										# done
 	}
-	else {
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i ) {
-			for my $section ('akcp_temp','akcp_hum') {
-				for my $index (sort keys %{$S->{info}{$section}}) {
-					my $rrdData;
-					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
-						processAlerts( S => $S );
-						if ( $rrdData->{error} eq "" ) {
-							foreach my $sect (keys %{$rrdData}) {
-								my $D = $rrdData->{$sect}{$index};
 
-								# RRD Database update and remember filename
-								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
-							}
-						}
-						else {
-							### 2012-03-29 keiths, SNMP is OK, some other error happened.
-							dbg("ERROR ($NI->{system}{name}) on getEnvData, $rrdData->{error}");
-						}
-					}
-					### 2012-03-28 keiths, handling SNMP Down during poll cycles.
-					else {
-						logMsg("ERROR ($NI->{system}{name}) on getEnvData, SNMP problem");
-						# failed by snmp
-						snmpNodeDown(sys=>$S);
-						dbg("ERROR, getting data");
-						return 0;
+	# fixme hardcoded model names are bad
+	my @wantsections = ('env_temp');
+
+	if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i )
+	{
+		@wantsections = ('akcp_temp','akcp_hum');
+	}
+	elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i )
+	{
+		@wantsections = ('cssgroup','csscontent');
+	}
+
+	for my $section (@wantsections)
+	{
+		next if (!exists($S->{info}->{$section})); # no list of indices, nothing to do
+
+		for my $index (sort keys %{$S->{info}{$section}})
+		{
+			my $rrdData = $S->getData(class=>'environment',
+																section=>$section,
+																index=>$index, model=>$model);
+			my $howdiditgo = $S->status;
+			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+			# were there any errors?
+			if (!$anyerror)
+			{
+				processAlerts( S => $S );
+
+				foreach my $sect (keys %{$rrdData})
+				{
+					my $D = $rrdData->{$sect}{$index};
+
+					# RRD Database update and remember filename
+					my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
+					if (!$db)
+					{
+						logMsg("ERROR updateRRD failed: ".getRRDerror);
 					}
 				}
 			}
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i ) {
-			for my $section ('cssgroup','csscontent') {
-				for my $index (sort keys %{$S->{info}{$section}}) {
-					my $rrdData;
-					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
-						processAlerts( S => $S );
-						if ( $rrdData->{error} eq "" ) {
-							foreach my $sect (keys %{$rrdData}) {
-								my $D = $rrdData->{$sect}{$index};
+			else
+			{
+				logMsg("ERROR ($NI->{system}{name}) on getEnvData, $anyerror");
+				RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+				RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
-
-								# RRD Database update and remember filename
-								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
-							}
-						}
-						else {
-							### 2012-03-29 keiths, SNMP is OK, some other error happened.
-							dbg("ERROR ($NI->{system}{name}) on getEnvData, $rrdData->{error}");
-						}
-					}
-					### 2012-03-28 keiths, handling SNMP Down during poll cycles.
-					else {
-						logMsg("ERROR ($NI->{system}{name}) on getEnvData, SNMP problem");
-						# failed by snmp
-						snmpNodeDown(sys=>$S);
-						dbg("ERROR, getting data");
-						return 0;
-					}
-				}
-			}
-		}
-		###2012-12-13 keiths, adding generic Environment support
-		else {
-			for my $section ('env_temp') {
-				for my $index (sort keys %{$S->{info}{$section}}) {
-					my $rrdData;
-					if (($rrdData = $S->getData(class=>'environment',section=>$section,index=>$index,model=>$model))) {
-						processAlerts( S => $S );
-						if ( $rrdData->{error} eq "" ) {
-							foreach my $sect (keys %{$rrdData}) {
-								my $D = $rrdData->{$sect}{$index};
-
-								# RRD Database update and remember filename
-								my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
-							}
-						}
-						else {
-							dbg("ERROR ($NI->{system}{name}) on getEnvData, $rrdData->{error}");
-						}
-					}
-					else {
-						logMsg("ERROR ($NI->{system}{name}) on getEnvData, SNMP problem");
-						# failed by snmp
-						snmpNodeDown(sys=>$S);
-						dbg("ERROR, getting data");
-						return 0;
-					}
-				}
+				return 0;
 			}
 		}
 	}
 	dbg("Finished");
 	return 1;
 }
-#=========================================================================================
+
 
 # retrieve system health index data from snmp, done during update
 # args: sys (object)
 # returns: 1 if all present sections worked, 0 otherwise
+# note: raises xyz down events if snmp or wmi are down
 sub getSystemHealthInfo
 {
 	my %args = @_;
@@ -2737,7 +2839,15 @@ sub getSystemHealthInfo
 			next;
 		}
 
-		# determine if this is an snmp- OR wmi-backed systemhealth section - combination cannot work (one index)
+		# determine if this is an snmp- OR wmi-backed systemhealth section
+		# combination of both cannot work, as there is only one index
+		if (exists($thissection->{wmi}) and exists($thissection->{snmp}))
+		{
+			logMsg("ERROR, systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
+			info("ERROR, systemhealth: section=$section cannot have both sources WMI and SNMP enabled!");
+			next;											# fixme: or is this completely terminal for this model?
+		}
+
 		if (exists($thissection->{wmi}))
 		{
 			info("systemhealth: section=$section, source WMI, index_var=$index_var");
@@ -2776,8 +2886,7 @@ sub getSystemHealthInfo
 			if ($error)
 			{
 				logMsg("ERROR ($S->{name}) failed to get index table for systemHealth $section: $error");
-				# fixme need a wmidown...
-				# snmpNodeDown(sys=>$S);
+				RaiseNodeDown(sys => $S, type => "wmi", details => "failed to get index table for systemHealth $section: $error");
 				next;
 			}
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
@@ -2796,9 +2905,9 @@ sub getSystemHealthInfo
 				}
 				else
 				{
-					logMsg("ERROR ($S->{name}) failed to get table for systemHealth $section!");
-					# fixme need a wmidown...
-					# snmpNodeDown(sys=>$S);
+					my $error = $S->status->{wmi_error};
+					logMsg("ERROR ($S->{name}) failed to get table for systemHealth $section: $error");
+					RaiseNodeDown(sys => $S, type => "wmi", details => "failed to get table for systemHealth $section: $error");
 					next;
 				}
 			}
@@ -2825,16 +2934,14 @@ sub getSystemHealthInfo
 			}
 			else
 			{
-				if ( $SNMP->{error} =~ /is empty or does not exist/ )
+				if ( $SNMP->error =~ /is empty or does not exist/ )
 				{
-					info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
-					#logMsg("SNMP Object Not Present, $S->{name}, $M->{system}{nodeModel}, systemHealth $section: $SNMP->{error}");
+					info("SNMP Object Not Present ($S->{name}) on get systemHealth $section index table: $SNMP->error");
 				}
-				# failed by snmp
 				else
 				{
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->{error}");
-					snmpNodeDown(sys=>$S);
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
+					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: $SNMP->error");
 				}
 			}
 			# Loop to get information, will be stored in {info}{$section} table
@@ -2842,9 +2949,12 @@ sub getSystemHealthInfo
 			{
 				if ($S->loadInfo(class=>'systemHealth', section=>$section,index=>$index,table=>$section,model=>$model)) {
 					info("section=$section index=$index read and stored");
-				} else {
-					# failed by snmp
-					snmpNodeDown(sys=>$S);
+				}
+				else
+				{
+					my $error = $S->status->{snmp_error};
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index $index: $error");
+					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index $index: $error");
 				}
 			}
 		}
@@ -2852,7 +2962,7 @@ sub getSystemHealthInfo
 	info("Finished");
 	return 1;
 }
-#=========================================================================================
+
 
 # retrieves system health rrd data, and updates relevant rrd database files
 # args: sys (object)
@@ -2893,8 +3003,11 @@ sub getSystemHealthData
 		for my $index (sort keys %{$NI->{$section}})
 		{
 			my $rrdData = $S->getData(class=>'systemHealth', section=>$section, index=>$index, debug=>$model);
+			my $howdiditgo = $S->status;
+			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
-			if ($rrdData)
+			# were there any errors?
+			if (!$anyerror)
 			{
 				foreach my $sect (keys %{$rrdData})
 				{
@@ -2910,14 +3023,18 @@ sub getSystemHealthData
 
 					# RRD Database update and remember filename
 					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
+					if (!$db)
+					{
+						logMsg("ERROR updateRRD failed: ".getRRDerror);
+					}
 				}
 			}
 			else
 			{
-				# fixme  error handling here or in getdata??
-				# 						snmpNodeDown(sys=>$S);
-				#
-				dbg("ERROR, getting data");
+				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $anyerror");
+				RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+				RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+
 				return 0;
 			}
 		}
@@ -2928,8 +3045,12 @@ sub getSystemHealthData
 
 
 # updates the node info and node view structures with all kinds of stuff
-# returns: 1 if node is up, and all ops worked; 0 if node is down/to be skipped etc.
-sub updateNodeInfo {
+# this is run ONLY for collect type ops (and if runping succeeded, and if the node is marked for collect)
+# fixme: what good is this as a function? details are lost, exit 1/0 is not really enough
+#
+# returns: 1 if node is up, and at least one source worked for retrieval; 0 if node is down/to be skipped etc.
+sub updateNodeInfo
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -2950,9 +3071,38 @@ sub updateNodeInfo {
 	my $sysUpTimeSec = $NI->{system}{sysUpTimeSec};
 	my $sysUpTime = $NI->{system}{sysUpTime};
 
-	if (($S->loadInfo(class=>'system',model=>$model))) {
-		# do some checks
-		if ($sysObjectID ne $NI->{system}{sysObjectID}) {
+	# this returns 0 iff none of the possible/configured sources worked, sets details
+	my $loadsuccess = $S->loadInfo(class=>'system', model=>$model);
+
+	# handle dead sources, raise appropriate events
+	my $curstate = $S->status;
+	for my $source (qw(snmp wmi))
+	{
+		# ok if enabled and no errors
+		if ($curstate->{"${source}_enabled"} && !$curstate->{"${source}_error"})
+		{
+			my $sourcename = uc($source);
+			checkEvent(sys=>$S, event=>"$sourcename Down", level=>"Normal", element=>"", details=>"$sourcename ok");
+			$RI->{"${source}result"} = 100;
+		}
+		# not ok if enabled and error
+		elsif ($curstate->{"${source}_enabled"} && $curstate->{"${source}_error"})
+		{
+			RaiseNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
+			$RI->{"${source}result"} = 0;
+		}
+		# don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
+	}
+
+	if ($loadsuccess)
+	{
+		# do some checks, and perform only an update-type op if they don't work out
+		# however, ensure this is not attempted if snmp wasn't configured or didn't work anyway
+		if ($S->status->{snmp_enabled}
+				&& !$S->status->{snmp_error}
+				&& $sysObjectID ne $NI->{system}{sysObjectID})
+		{
+			# fixme: who not a complete doUpdate?
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
 			$exit = getNodeInfo(sys=>$S);
 			info("Finished with exit=$exit");
@@ -2962,14 +3112,11 @@ sub updateNodeInfo {
 
 		# a new control to minimise when interfaces are added,
 		# if disabled {custom}{interface}{ifNumber} eq "false" then don't run getIntfInfo when intf changes
-		my $doIfNumberCheck = 1;
-		if ( defined $S->{mdl}{custom}{interface}{ifNumber}
-				and not getbool($S->{mdl}{custom}{interface}{ifNumber})
-		) {
-			$doIfNumberCheck = 0;
-		}
+		my $doIfNumberCheck = ( exists($S->{mdl}->{custom}) && exists($S->{mdl}->{custom}->{interface}) # do not autovivify
+														&& !getbool($S->{mdl}->{custom}->{interface}->{ifNumber}));
 
-		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber}) {
+		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber})
+		{
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
 		}
@@ -2979,13 +3126,12 @@ sub updateNodeInfo {
 			info("INFO ($NI->{system}{name}) has $ifNumber interfaces, no interface data will be collected, to collect interface data increase the configured interface_max_number $interface_max_number, we recommend to test thoroughly");
 		}
 
-		# Read the uptime from the node info file from the last time it was polled
-		$NI->{system}{sysUpTimeSec} = int($NI->{system}{sysUpTime}/100); # seconds
-		$NI->{system}{sysUpTime} = convUpTime($NI->{system}{sysUpTimeSec});
+		# make a sysuptime from the newly loaded data for testing
+		makesysuptime($S);
 
-		### 2014-01-08 keiths, adding update from Scott Cubic
-		if ( defined $NI->{system}{snmpUpTime} ) {
-			# SRC - add processing for SNMP Uptime- handle just like sysUpTime
+		if ( defined $NI->{system}{snmpUpTime} )
+		{
+			# add processing for SNMP Uptime- handle just like sysUpTime
 			$NI->{system}{snmpUpTimeSec} = int($NI->{system}{snmpUpTime}/100);
 			$NI->{system}{snmpUpTime} = convUpTime($NI->{system}{snmpUpTimeSec});
 			$V->{system}{snmpUpTime_value} = $NI->{system}{snmpUpTime};
@@ -2993,7 +3139,8 @@ sub updateNodeInfo {
 		}
 
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
-		if ($sysUpTimeSec > $NI->{system}{sysUpTimeSec} and $NI->{system}{sysUpTimeSec} ne '') {
+		if ($NI->{system}->{sysUpTimeSec} && $sysUpTimeSec > $NI->{system}{sysUpTimeSec})
+		{
 			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
 			notify(sys=>$S, event=>"Node Reset",
 						 element=>"",
@@ -3011,7 +3158,6 @@ sub updateNodeInfo {
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
 		$NI->{system}{lastUpdateSec} = time();
-
 
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
@@ -3043,64 +3189,64 @@ sub updateNodeInfo {
 			delete $NI->{nodeconf}->{nodeType};
 		}
 
-		# ok we are running snmp
-		checkEvent(sys=>$S,event=>'SNMP Down',level=>"Normal",element=>'',details=>"SNMP error");
-
 		checkPIX(sys=>$S); # check firewall if needed
-
 		delete $NI->{database};	 # no longer used at all
-		$RI->{snmpresult} = 100; # oke, health info
 
-		# view on page
-		$V->{system}{status_value} = 'reachable';
+		$V->{system}{status_value} = 'reachable'; # sort-of, at least one source worked
 		$V->{system}{status_color} = '#0F0';
 
-		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{nodeConfiguration};
+		# conditional on model section to ensure backwards compatibility with different Juniper values.
+		checkNodeConfiguration(sys=>$S) if (exists($M->{system}{sys}{nodeConfiguration})
+																				or exists($M->{system}{sys}{juniperConfiguration}));
+	}
+	else
+	{
+		$exit = 0;
 
-		### conditional on model section to ensure backwards compatibility with different Juniper values.
-		checkNodeConfiguration(sys=>$S) if exists $M->{system}{sys}{juniperConfiguration};
-
-	} else {
-		$exit = snmpNodeDown(sys=>$S);
-		# view on page
-		if ( getbool($NC->{node}{ping}) ) {
-			# ping was ok but snmp not
+		if ( getbool($NC->{node}{ping}) )
+		{
+			# ping was ok but wmi and snmp were not
 			$V->{system}{status_value} = 'degraded';
 			$V->{system}{status_color} = '#FFFF00';
-		} else {
-			# ping was disabled
+		}
+		else
+		{
+			# ping was disabled, so sources wmi/snmp are the only thing that tells us about reachability
+			# note: ping disabled != runping failed
 			$V->{system}{status_value} = 'unreachable';
 			$V->{system}{status_color} = 'red';
 		}
-		$RI->{snmpresult} = 0;
 	}
 
-	$NI->{system}{snmpdown} = $exit ? 'false' : 'true';
-
-	### 2012-12-03 keiths, adding some model testing and debugging options.
-	if ( $model ) {
+	# some model testing and debugging options.
+	if ( $model )
+	{
 		print "MODEL $S->{name}: nodedown=$NI->{system}{nodedown} sysUpTime=$NI->{system}{sysUpTime} sysObjectID=$NI->{system}{sysObjectID}\n";
 	}
 
 	info("Finished with exit=$exit");
 	return $exit;
-} # end updateNodeInfo
+}
 
-sub processAlerts {
+# goes through the list of 'parked' alerts in sys, and creates up or down events where applicable
+# sys::getvalues() populates the parked alerts section, this consumes them (but writes back
+# into sys' info->status)
+sub processAlerts
+{
 	my %args = @_;
 	my $S = $args{S};
 	my $alerts = $S->{alerts};
+	my $info = $S->ndinfo;
 
 	foreach my $alert (@{$alerts})
 	{
-		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
+		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evalu
+ated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
+
 		dbg("Processing alert ".Dumper($alert),4);
 
-		my $tresult = "Normal";
-		$tresult = $alert->{level} if $alert->{test_result};
-
-		my $statusResult = "ok";
-		$statusResult = "error" if $tresult ne "Normal";
+		my $tresult = $alert->{test_result}? $alert->{level} : "Normal";
+		my $statusResult = $tresult eq "Normal"? "ok" : "error";
 
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
 		if( $alert->{test_result} )
@@ -3111,7 +3257,7 @@ sub processAlerts {
 						 element=>$alert->{ds}, # vital part of context, too
 						 details=>$details,
 						 context => { type => "alert",
-													source => "snmp", # fixme: needs extension for wmi
+													source => $alert->{source},
 													section => $alert->{section},
 													name => $alert->{alert},
 													index => $alert->{index},
@@ -3125,7 +3271,8 @@ sub processAlerts {
 
 		### save the Alert result into the Status thingy
 		my $statusKey = "$alert->{event}--$alert->{ds}";
-		$S->{info}{status}{$statusKey} = {
+		$info->{status}->{$statusKey} =
+		{
 			method => "Alert",
 			type => $alert->{type},
 			property => $alert->{test},
@@ -3137,7 +3284,6 @@ sub processAlerts {
 			value => $alert->{value},
 			updated => time()
 		}
-
 	}
 }
 
@@ -3145,53 +3291,56 @@ sub processAlerts {
 
 # get node values by snmp and store in RRD and some values in reach table
 #
-sub getNodeData {
+sub getNodeData
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
 
-	my $rrdData;
-
 	info("Starting Node get data, node $S->{name}");
 
-	if (($rrdData = $S->getData(class=>'system', model => $model))) {
+	my $rrdData = $S->getData(class=>'system', model => $model);
+	my $howdiditgo = $S->status;
+	my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+	if (!$anyerror)
+	{
 		processAlerts( S => $S );
-		if ( $rrdData->{error} eq "" ) {
-			foreach my $sect (keys %{$rrdData}) {
-				my $D = $rrdData->{$sect};
+		foreach my $sect (keys %{$rrdData})
+		{
+			my $D = $rrdData->{$sect};
+			checkNodeHealth(sys=>$S,data=>$D) if $sect eq "nodehealth";
 
-				checkNodeHealth(sys=>$S,data=>$D) if $sect eq "nodehealth";
-
-				foreach my $ds (keys %{$D}) {
-					dbg("rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
-				}
-				my $db = updateRRD(sys=>$S,data=>$D,type=>$sect);
+			foreach my $ds (keys %{$D})
+			{
+				dbg("rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
+			}
+			my $db = updateRRD(sys=>$S,data=>$D,type=>$sect);
+			if (!$db)
+			{
+					logMsg("ERROR updateRRD failed: ".getRRDerror);
 			}
 		}
-		else {
-			### 2012-03-29 keiths, SNMP is OK, some other error happened.
-			dbg("ERROR ($NI->{system}{name}) on getNodeData, $rrdData->{error}");
-		}
 	}
-	### 2012-03-28 keiths, handling SNMP Down during poll cycles.
-	else {
-		logMsg("ERROR ($NI->{system}{name}) on getNodeData, SNMP problem");
-		# failed by snmp
-		snmpNodeDown(sys=>$S);
-		dbg("ERROR, getting data");
+	else
+	{
+		logMsg("ERROR ($NI->{system}{name}) on getNodeData, $anyerror");
+		RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+		RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 		return 0;
 	}
 
 	info("Finished");
 	return 1;
-} # end getNodeData
+}
 
 
 #=========================================================================================
 
 # copy/modify some health values collected by getNodeData
 # nmisdev 13Oct2012 - check if hash key is present before testing value, else key will 'auto vivify', and cause DS errors
-sub checkNodeHealth {
+sub checkNodeHealth
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $D = $args{data};
@@ -3220,10 +3369,19 @@ sub checkNodeHealth {
 
 #=========================================================================================
 
-sub getIntfData {
+# fixme: this function currently does not work for wmi-only nodes!
+sub getIntfData
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo; # node info
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getIntfData for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $V =  $S->view;
 	my $IF = $S->ifinfo; # interface info
 	my $RI = $S->reach;
@@ -3248,26 +3406,27 @@ sub getIntfData {
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
 
-	# check first if admin status of interfaces changed
-	# so this is checking all the interfaces and seeing if there is a change.
-	# to stop the node being checked for ifAdminStatus, e.g. HIGH INTERFACE COUNT, add this
-	#  'custom' => {
-  #    'interface' => {
-  #      'ifAdminStatus' => 'false',
-  #    }
-  #  },
-	if ( not defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-			 or ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-						and !getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert")) ) {
+
+	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
+	if ( ref($S->{mdl}->{custom}) ne "HASH" # don't autovivify
+			 or ref($S->{mdl}{custom}->{interface}) ne "HASH"
+			 or !getbool($S->{mdl}->{custom}->{interface}->{ifAdminStatus},"invert"))
+	{
+		# fixme: this cannot work for non-snmp nodes
 		info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
-		my $ifAdminTable;
-		my $ifOperTable;
-		if ( ($ifAdminTable = $SNMP->getindex('ifAdminStatus',$max_repetitions)) ) {
+
+		my ($ifAdminTable, $ifOperTable);
+
+		if ( ($ifAdminTable = $SNMP->getindex('ifAdminStatus',$max_repetitions)) )
+		{
 			$ifOperTable = $SNMP->getindex('ifOperStatus',$max_repetitions);
-			for my $index (keys %{$ifAdminTable}) {
+			for my $index (keys %{$ifAdminTable})
+			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
+
 				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
-					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') ) {
+					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') )
+				{
 					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 				}
@@ -3282,41 +3441,40 @@ sub getIntfData {
 	# if an interface is added this will find it to.
 	# if it changes admin or oper state it will find it.
 	# this can be enabled on a model by model basis is false by default.
-	# Handy for HIGH INTERFACE COUNT.
-	#  'custom' => {
-  #    'interface' => {
-  #      'ifLastChange' => 'true',
-  #      'ifNumber' => 'false',
-  #    }
-  #  },
-	if ( defined $S->{mdl}{custom}{interface}{ifLastChange}
-		and getbool($S->{mdl}{custom}{interface}{ifLastChange})
-	) {
+	if (  ref($S->{mdl}{custom}) eq "HASH"
+				and ref($S->{mdl}{custom}{interface}) eq "HASH"
+				and getbool($S->{mdl}{custom}{interface}{ifLastChange}) )
+	{
+		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
 		my $ifLastChangeTable;
-		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions)) {
-			for my $index (sort {$a <=> $b} (keys %{$ifLastChangeTable})) {
-				logMsg("INFO ($S->{name}) entry ifLastChange for index=$index not found in interface table") if not exists $IF->{$index}{ifLastChange};
+		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions))
+		{
+			for my $index (sort {$a <=> $b} (keys %{$ifLastChangeTable}))
+			{
+				logMsg("INFO ($S->{name}) entry ifLastChange for index=$index not found in interface table")
+						if not exists $IF->{$index}{ifLastChange};
 				my $ifLastChangeSec = int($ifLastChangeTable->{$index}/100);
 				if ( not exists $IF->{$index} ) {
 					# updateNodeInfo should have already run a getIntfInfo unless {custom}{interface}{ifNumber} set to false
 					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 					getIntfInfo(sys=>$S,index=>$index); # add this interface
 				}
-				elsif (
-					$ifLastChangeSec != $IF->{$index}{ifLastChangeSec}
-				) {
+				elsif ($ifLastChangeSec != $IF->{$index}{ifLastChangeSec})
+				{
 					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}");
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
 				}
-				else {
+				else
+				{
 					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 				}
 			}
 		}
 		# check for deleted interfaces
-		foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
+		foreach my $index ( sort {$a <=> $b} keys %{$IF} )
+		{
 			if ( not exists $ifLastChangeTable->{$index} ) {
 				info("$IF->{$index}{ifDescr}: Interface Removed ifIndex=$index");
 				delete $IF->{$index};
@@ -3324,245 +3482,251 @@ sub getIntfData {
 		}
 	}
 
-	# Start a loop which go through the interface table
 	info("Processing Interface Table");
-	foreach my $index ( sort {$a <=> $b} keys %{$IF} ) {
-		if ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
-			info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
+	foreach my $index ( sort {$a <=> $b} keys %{$IF} )
+	{
+		# only collect on interfaces that are defined, with collection turned on globally,
+		# also don't bother with ones without ifdescr
+		if (!getbool($IF->{$index}->{collect})
+				or !defined($IF->{$index}->{ifDescr})
+				or $IF->{$index}->{ifDescr} eq "")
+		{
+			dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}");
+			next;
+		}
 
-			# only collect on interfaces that are defined, with collection turned on globally
-			if ( getbool($IF->{$index}{collect}) ) {
-				dbg("collect interface index=$index");
+		info("$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}");
 
-				my $rrdData;
-				if (($rrdData = $S->getData(class=>'interface',index=>$index,model=>$model))) 
+		dbg("collect interface index=$index");
+
+		my $rrdData = $S->getData(class=>'interface',index=>$index, model=>$model);
+		my $howdiditgo = $S->status;
+		my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+		# were there any errors?
+		if (!$anyerror)
+		{
+			processAlerts( S => $S );
+
+			foreach my $sect (keys %{$rrdData})
+			{
+				my $D = $rrdData->{$sect}{$index};
+
+				# if HC exists then copy values
+				if (exists $D->{ifHCInOctets})
 				{
-					processAlerts( S => $S );
-					
-					if ( $rrdData->{error} eq "" ) 
+					dbg("processing HC counters");
+					for (["ifHCInOctets","ifInOctets"],
+							 ["ifHCOutOctets","ifOutOctets"])
 					{
-						foreach my $sect (keys %{$rrdData}) 
+						my ($source,$dest) = @$_;
+
+						if ($D->{$source}->{value} =~ /^\d+$/)
 						{
-							my $D = $rrdData->{$sect}{$index};
-
-							# if HC exists then copy values
-							if (exists $D->{ifHCInOctets}) 
-							{
-								dbg("processing HC counters");
-								for (["ifHCInOctets","ifInOctets"],
-										 ["ifHCOutOctets","ifOutOctets"])
-								{
-									my ($source,$dest) = @$_;
-									
-									if ($D->{$source}->{value} =~ /^\d+$/)
-									{
-										$D->{$dest}->{value} = $D->{$source}->{value};
-										$D->{$dest}->{option} = $D->{$source}->{option};
-									}
-									delete $D->{$source};
-								}
-							}
-							
-							# ...and copy these over as well
-							if ($sect eq 'pkts' or $sect eq 'pkts_hc') 
-							{
-								my $debugdone = 0;
-
-								for (["ifHCInUcastPkts","ifInUcastPkts"],
-										 ["ifHCOutUcastPkts","ifOutUcastPkts"],
-										 ["ifHCInMcastPkts","ifInMcastPkts"],
-										 ["ifHCOutMcastPkts","ifOutMcastPkts"],
-										 ["ifHCInBcastPkts","ifInBcastPkts"],
-										 ["ifHCOutBcastPkts","ifOutBcastPkts"],)
-								{
-									my ($source,$dest) = @$_;
-
-									if ($D->{$source}->{value} =~ /^\d+$/)
-									{
-										dbg("process HC counters of $sect") if (!$debugdone++);
-										$D->{$dest}->{value} = $D->{$source}->{value};
-										$D->{$dest}->{option} = $D->{$source}->{option};
-									}
-									delete $D->{$source};
-								}
-							}
-
-							if ($sect eq 'interface') 
-							{
-								$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
-								# Cache any data for use later.
-								$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
-								$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
-
-								if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" ) 
-								{
-									if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-											 and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus})
-											) 
-									{
-										### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
-										# interface now up or down, check and set or clear outstanding event.
-										dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
-										$IF->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
-										$IF->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
-
-										if ( getbool($IF->{$index}{collect} )
-												and $IF->{$index}{ifAdminStatus} =~ /up|ok/
-												and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/
-										) {
-											if (getbool($IF->{$index}{event})) {
-												notify(sys=>$S,event=>"Interface Down",
-															 element=>$IF->{$index}{ifDescr},
-															 details=>$IF->{$index}{Description},
-															 context => { type => "interface" } );
-											}
-										} else {
-											checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
-										}
-									}
-									else {
-										dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
-										if ($D->{ifOperStatus}{value} eq 'down') {
-											if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
-												# going down
-												getIntfInfo(sys=>$S,index=>$index); # update this interface
-											}
-										}
-										# must be up
-										else {
-											# Check if the status changed
-											if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
-												# going up
-												getIntfInfo(sys=>$S,index=>$index); # update this interface
-											}
-										}
-									}
-
-									# If new ifDescr is different from old ifDescr rebuild interface info table
-									# check if nodeConf modified this inteface
-									my $node = $NI->{system}{name};
-									my $ifDescr = $IF->{$index}{ifDescr};
-
-									# nodeconf override for the ifDescr?
-									my $have_overridden_ifdescr = 1
-											if (ref($override->{$ifDescr}) eq "HASH"
-													and $override->{$ifDescr}->{ifDescr});
-
-
-									if (!$have_overridden_ifdescr
-											and $D->{ifDescr}{value} ne ''
-											and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
-										# Reload the interface config won't get that one right but should get the next one right
-										logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table");
-										getIntfInfo(sys=>$S,index=>$index); # update this interface
-									}
-
-									delete $D->{ifDescr}; # dont store in rrd
-									delete $D->{ifAdminStatus};
-
-									if (exists $D->{ifLastChange}{value}){
-										# convert time integer to time string
-										$V->{interface}{"${index}_ifLastChange_value"} =
-											$IF->{$index}{ifLastChange} =
-												convUpTime($IF->{$index}{ifLastChangeSec} = int($D->{ifLastChange}{value}/100));
-										dbg("last change time=$IF->{$index}{ifLastChange}, timesec=$IF->{$index}{ifLastChangeSec}");
-									}
-									delete $D->{ifLastChange};
-
-									my $operStatus;
-									# Calculate Operational Status
-									$operStatus =  ($D->{ifOperStatus}{value} =~ /up|ok|dormant/ ) ? 100 : 0;
-									$D->{ifOperStatus}{value} = $operStatus; # store real value in rrd
-
-									# While updating start calculating the total availability of the node, depends on events set
-									my $opstatus = getbool($IF->{$index}{event}) ? $operStatus : 100;
-									$RI->{operStatus} = $RI->{operStatus} + $opstatus;
-									$RI->{operCount} = $RI->{operCount} + 1;
-
-									# count total number of collected interfaces up ( if events are set on)
-									$RI->{intfColUp} += $operStatus/100
-											if getbool($IF->{$index}{event});
-								} else{
-									logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
-								}
-							}
-
-							if ($C->{debug}) {
-								foreach my $ds (keys %{$D}) {
-									dbg("rrdData section $sect, ds $ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
-								}
-							}
-
-							# RRD Database update and remember filename
-							info("updateRRD type$sect index=$index",2);
-							my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
+							$D->{$dest}->{value} = $D->{$source}->{value};
+							$D->{$dest}->{option} = $D->{$source}->{option};
 						}
-						# calculate summary statistics of this interface only if intf up
-						my $period = $C->{interface_util_period} || "-6 hours"; # bsts plus backwards compat
-						my $util = getSummaryStats(sys=>$S,type=>"interface",start=> $period, end=>time,index=>$index);
-						$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
-						$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
-						$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
-						$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
-
-						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
-								 and getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert") ) {
-							dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
-							$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
-							$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
-							$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
-							$V->{interface}{"${index}_ifOperStatus_value"} = $IFCACHE->{$index}{ifOperStatus};
-						}
-
-						### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
-						### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-						if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
-							checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
-						}
-					}
-					else {
-						### 2012-03-29 keiths, SNMP is OK, some other error happened.
-						dbg("ERROR ($NI->{system}{name}) on getIntfData, $rrdData->{error}");
-					}
-
-				} else {
-					dbg("ERROR ($S->{name}) on getting data of interface=$index");
-					$V->{interface}{"${index}_operAvail_value"} = 'N/A';
-					$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
-					# interface problems but no usable data, don't make an event
-					if (getbool($IF->{$index}{event})) {
-						logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
+						delete $D->{$source};
 					}
 				}
 
-				# header info of web page
-				$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
-				$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs'; # backwards compat
-
-				# check escalation if event is on
-				if (getbool($IF->{$index}{event}))
+				# ...and copy these over as well
+				if ($sect eq 'pkts' or $sect eq 'pkts_hc')
 				{
-					my $escalate = 'none';
-					if (my $event_exist = eventExist($S->{node}, "Interface Down", $IF->{$index}{ifDescr}))
+					my $debugdone = 0;
+
+					for (["ifHCInUcastPkts","ifInUcastPkts"],
+							 ["ifHCOutUcastPkts","ifOutUcastPkts"],
+							 ["ifHCInMcastPkts","ifInMcastPkts"],
+							 ["ifHCOutMcastPkts","ifOutMcastPkts"],
+							 ["ifHCInBcastPkts","ifInBcastPkts"],
+							 ["ifHCOutBcastPkts","ifOutBcastPkts"],)
 					{
-						my $erec = eventLoad(filename => $event_exist);
-						$escalate = $erec->{escalate} if ($erec and defined($erec->{escalate}));
+						my ($source,$dest) = @$_;
+
+						if ($D->{$source}->{value} =~ /^\d+$/)
+						{
+							dbg("process HC counters of $sect") if (!$debugdone++);
+							$D->{$dest}->{value} = $D->{$source}->{value};
+							$D->{$dest}->{option} = $D->{$source}->{option};
+						}
+						delete $D->{$source};
 					}
-					$V->{interface}{"${index}_escalate_title"} = 'Esc.';
-					$V->{interface}{"${index}_escalate_value"} = $escalate;
 				}
 
-			} else {
-				dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}");
+				if ($sect eq 'interface')
+				{
+					$D->{ifDescr}{value} = rmBadChars($D->{ifDescr}{value});
+					# Cache any data for use later.
+					$IFCACHE->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
+					$IFCACHE->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
+
+					if ( $D->{ifInOctets}{value} ne "" and $D->{ifOutOctets}{value} ne "" )
+					{
+						if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
+								 and not getbool($S->{mdl}{custom}{interface}{ifAdminStatus}) )
+						{
+							### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
+							# interface now up or down, check and set or clear outstanding event.
+							dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+							$IF->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
+							$IF->{$index}{ifOperStatus} = $D->{ifOperStatus}{value};
+
+							if ( getbool($IF->{$index}{collect} )
+									 and $IF->{$index}{ifAdminStatus} =~ /up|ok/
+									 and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/
+									) {
+								if (getbool($IF->{$index}{event})) {
+									notify(sys=>$S,event=>"Interface Down",
+												 element=>$IF->{$index}{ifDescr},
+												 details=>$IF->{$index}{Description},
+												 context => { type => "interface" } );
+								}
+							} else {
+								checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
+							}
+						}
+						else
+						{
+							dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}");
+							if ($D->{ifOperStatus}{value} eq 'down') {
+								if ($IF->{$index}{ifOperStatus} =~ /up|ok/) {
+									# going down
+									getIntfInfo(sys=>$S,index=>$index); # update this interface
+								}
+							}
+							# must be up
+							else
+							{
+								# Check if the status changed
+								if ($IF->{$index}{ifOperStatus} !~ /up|ok|dormant/) {
+									# going up
+									getIntfInfo(sys=>$S,index=>$index); # update this interface
+								}
+							}
+						}
+
+						# If new ifDescr is different from old ifDescr rebuild interface info table
+						# check if nodeConf modified this inteface
+						my $node = $NI->{system}{name};
+						my $ifDescr = $IF->{$index}{ifDescr};
+
+						# nodeconf override for the ifDescr?
+						my $have_overridden_ifdescr = 1
+								if (ref($override->{$ifDescr}) eq "HASH"
+										and $override->{$ifDescr}->{ifDescr});
+
+
+						if (!$have_overridden_ifdescr
+								and $D->{ifDescr}{value} ne ''
+								and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} ) {
+							# Reload the interface config won't get that one right but should get the next one right
+							logMsg("INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table");
+							getIntfInfo(sys=>$S,index=>$index); # update this interface
+						}
+
+						delete $D->{ifDescr}; # dont store in rrd
+						delete $D->{ifAdminStatus};
+
+						if (exists $D->{ifLastChange}{value}){
+							# convert time integer to time string
+							$V->{interface}{"${index}_ifLastChange_value"} =
+									$IF->{$index}{ifLastChange} =
+									convUpTime($IF->{$index}{ifLastChangeSec} = int($D->{ifLastChange}{value}/100));
+							dbg("last change time=$IF->{$index}{ifLastChange}, timesec=$IF->{$index}{ifLastChangeSec}");
+						}
+						delete $D->{ifLastChange};
+
+						my $operStatus;
+						# Calculate Operational Status
+						$operStatus =  ($D->{ifOperStatus}{value} =~ /up|ok|dormant/ ) ? 100 : 0;
+						$D->{ifOperStatus}{value} = $operStatus; # store real value in rrd
+
+						# While updating start calculating the total availability of the node, depends on events set
+						my $opstatus = getbool($IF->{$index}{event}) ? $operStatus : 100;
+						$RI->{operStatus} = $RI->{operStatus} + $opstatus;
+						$RI->{operCount} = $RI->{operCount} + 1;
+
+						# count total number of collected interfaces up ( if events are set on)
+						$RI->{intfColUp} += $operStatus/100
+								if getbool($IF->{$index}{event});
+					} else{
+						logMsg("ERROR ($S->{name}) ifIndex=$index, no values for ifInOctets and ifOutOctets received");
+					}
+				}
+
+				if ($C->{debug}) {
+					foreach my $ds (keys %{$D}) {
+						dbg("rrdData section $sect, ds $ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}",2);
+					}
+				}
+
+				# RRD Database update and remember filename
+				info("updateRRD type$sect index=$index",2);
+				my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
+				if (!$db)
+				{
+					logMsg("ERROR updateRRD failed: ".getRRDerror);
+				}
+			}
+
+			# calculate summary statistics of this interface only if intf up
+			my $period = $C->{interface_util_period} || "-6 hours"; # bsts plus backwards compat
+			my $util = getSummaryStats(sys=>$S,type=>"interface",start=> $period, end=>time,index=>$index);
+			$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
+			$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
+			$V->{interface}{"${index}_operAvail_color"} = colorHighGood($util->{$index}{availability});
+			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood($util->{$index}{totalUtil});
+
+			if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
+					 and getbool($S->{mdl}{custom}{interface}{ifAdminStatus},"invert") ) {
+				dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}");
+				$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+				$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(collect => $IF->{$index}{collect}, ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus}, ifOperStatus => $IFCACHE->{$index}{ifOperStatus});
+				$V->{interface}{"${index}_ifAdminStatus_value"} = $IFCACHE->{$index}{ifAdminStatus};
+				$V->{interface}{"${index}_ifOperStatus_value"} = $IFCACHE->{$index}{ifOperStatus};
+			}
+
+			### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
+			### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
+			if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
+				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 		}
-	} # FOR LOOP
+		else
+		{
+			logMsg("ERROR ($NI->{system}{name}) on getIntfData of interface=$index, $anyerror");
 
+			$V->{interface}{"${index}_operAvail_value"} = 'N/A';
+			$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
+			# interface problems but no usable data, don't make an event
+			if (getbool($IF->{$index}{event}))
+			{
+				logMsg("ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}");
+			}
+		}
+
+		# header info of web page
+		$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';
+		$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs'; # backwards compat
+
+		# check escalation if event is on
+		if (getbool($IF->{$index}{event}))
+		{
+			my $escalate = 'none';
+			if (my $event_exist = eventExist($S->{node}, "Interface Down", $IF->{$index}{ifDescr}))
+			{
+				my $erec = eventLoad(filename => $event_exist);
+				$escalate = $erec->{escalate} if ($erec and defined($erec->{escalate}));
+			}
+			$V->{interface}{"${index}_escalate_title"} = 'Esc.';
+			$V->{interface}{"${index}_escalate_value"} = $escalate;
+		}
+
+	}
 	info("Finished");
-} # getIntfData
+}
 
-
-#=========================================================================================
 
 ### Class Based Qos handling
 sub getCBQoS
@@ -3581,9 +3745,11 @@ sub getCBQoS
 	info("Starting for node $S->{name}");
 
 	## oke,lets go
-	if (getbool($S->{doupdate})) {
+	if (getbool($S->{update})) 		# fixme unclean access to internal property
+	{
 		getCBQoSwalk(sys=>$S); 	# get indexes
-	} elsif (!getCBQoSdata(sys=>$S)) {
+	} elsif (!getCBQoSdata(sys=>$S))
+	{
 		getCBQoSwalk(sys=>$S); 	# get indexes
 		getCBQoSdata(sys=>$S); 	# get data
 	}
@@ -3593,81 +3759,92 @@ sub getCBQoS
 	return 1;
 }
 
-#===
+# note that while this function could work with wmi,
+# the priming/update function getCBQoSwalk doesn't.
 sub getCBQoSdata
 {
-		my %args = @_;
-		my $S = $args{sys};
-		my $NI = $S->ndinfo;
-		my $IF = $S->ifinfo;
-		my $SNMP = $S->snmp;
-		my $CBQOS = $S->cbinfo;
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
+	my $CBQOS = $S->cbinfo;
 
-		my %qosIntfTable;
-		my @arrOID;
-		my %cbQosTable;
-		if (scalar keys %{$CBQOS}) {
-			# oke, we have get now the PolicyIndex and ObjectsIndex directly
-			foreach my $intf (keys %{$CBQOS}) {
-				my $CB = $CBQOS->{$intf};
-				foreach my $direction ("in","out") {
-					if (exists $CB->{$direction}{'PolicyMap'}{'Name'}) {
-						# check if Policymap name contains no collect info
-						if ($CB->{$direction}{'PolicyMap'}{'Name'} =~ /$S->{mdl}{system}{cbqos}{nocollect}/i) {
-							dbg("no collect for interface $intf $direction ($CB->{$direction}{'Interface'}{'Descr'}) by control ($S->{mdl}{system}{cbqos}{nocollect}) at Policymap $CB->{$direction}{'PolicyMap'}{'Name'}");
-						} else {
-							my $PIndex = $CB->{$direction}{'PolicyMap'}{'Index'};
-							foreach my $key (keys %{$CB->{$direction}{'ClassMap'}}) {
-								my $CMName = $CB->{$direction}{'ClassMap'}{$key}{'Name'};
-								my $OIndex = $CB->{$direction}{'ClassMap'}{$key}{'Index'};
-								info("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
+	my %qosIntfTable;
+	my @arrOID;
+	my %cbQosTable;
 
-								# get the number of bytes/packets transfered and dropped
-								my $port = "$PIndex.$OIndex";
-								my $rrdData;
-								if (($rrdData = $S->getData(class=>"cbqos-$direction", index=>$intf, port=>$port,model=>$model))) {
-									processAlerts( S => $S );
-									if ( $rrdData->{error} eq "" ) {
-										my $D = $rrdData->{"cbqos-$direction"}{$intf};
+	return 1 if (!scalar keys %{$CBQOS}); # nothing to be done
 
-										if ($D->{'PrePolicyByte'} eq "noSuchInstance") {
-											dbg("mismatch of indexes, run walk");
-											return undef;
-										}
-										# oke, store the data
-										dbg("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
-										dbg("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
-										dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
-										#
-										# update RRD
-										my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName);
-									}
-									else {
-										### 2012-03-29 keiths, SNMP is OK, some other error happened.
-										dbg("ERROR ($NI->{system}{name}) on getCBQoSdata, $rrdData->{error}");
-									}
-								}
-								### 2012-03-28 keiths, handling SNMP Down during poll cycles.
-								else {
-									logMsg("ERROR ($NI->{system}{name}) on getCBQoSdata, SNMP problem");
-									# failed by snmp
-									snmpNodeDown(sys=>$S);
-									dbg("ERROR, getting data");
-									return 0;
-								}
-							}
-						}
+	# oke, we have get now the PolicyIndex and ObjectsIndex directly
+	foreach my $intf (keys %{$CBQOS})
+	{
+		my $CB = $CBQOS->{$intf};
+		foreach my $direction ("in","out")
+		{
+			next if (!exists $CB->{$direction}{'PolicyMap'}{'Name'});
+
+			# check if Policymap name contains no collect info
+			if ($CB->{$direction}{'PolicyMap'}{'Name'} =~ /$S->{mdl}{system}{cbqos}{nocollect}/i)
+			{
+				dbg("no collect for interface $intf $direction ($CB->{$direction}{'Interface'}{'Descr'}) by control ($S->{mdl}{system}{cbqos}{nocollect}) at Policymap $CB->{$direction}{'PolicyMap'}{'Name'}");
+				next;
+			}
+
+			my $PIndex = $CB->{$direction}{'PolicyMap'}{'Index'};
+			foreach my $key (keys %{$CB->{$direction}{'ClassMap'}})
+			{
+				my $CMName = $CB->{$direction}{'ClassMap'}{$key}{'Name'};
+				my $OIndex = $CB->{$direction}{'ClassMap'}{$key}{'Index'};
+				info("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
+
+				# get the number of bytes/packets transfered and dropped
+				my $port = "$PIndex.$OIndex";
+
+				my $rrdData = $S->getData(class=>"cbqos-$direction", index=>$intf, port=>$port,model=>$model);
+				my $howdiditgo = $S->status;
+				my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+				# were there any errors?
+				if (!$anyerror)
+				{
+					processAlerts( S => $S );
+					my $D = $rrdData->{"cbqos-$direction"}{$intf};
+
+					if ($D->{'PrePolicyByte'} eq "noSuchInstance")
+					{
+						logMsg("ERROR mismatch of indexes in getCBQoSdata, run walk");
+						return undef;
+					}
+
+					# oke, store the data
+					dbg("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
+					dbg("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
+					dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
+					#
+					# update RRD
+					my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName);
+					if (!$db)
+					{
+						logMsg("ERROR updateRRD failed: ".getRRDerror);
 					}
 				}
+				else
+				{
+					logMsg("ERROR ($NI->{system}{name}) on getCBQoSdata, $anyerror");
+					RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+					RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+
+					return 0;
+				}
 			}
-		} else {
-			return;
 		}
+	}
 	return 1;
 }
 
-# collect cbqos data from snmp, for update operation
+# collect cbqos overview data from snmp, for update operation
 # this is expected to run AFTER getintfinfo (because that's where overrides are transferred into NI)
+# fixme: this function does not work for wmi-only nodes
 # args: sys
 # returns: 1 if ok
 sub getCBQoSwalk
@@ -3675,6 +3852,13 @@ sub getCBQoSwalk
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getCBQoSwalk for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $IF = $S->ifinfo;
 	my $NC = $S->ndcfg;
 	my $SNMP = $S->snmp;
@@ -3967,7 +4151,8 @@ sub getCBQoSwalk
 
 #=========================================================================================
 
-sub getCalls {
+sub getCalls
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -3982,179 +4167,198 @@ sub getCalls {
 	dbg("Starting Calls for node $NI->{system}{name}");
 
 	## oke,lets go
-	if (getbool($S->{doupdate})) {
+	if (getbool($S->{update})) 		# fixme unclean access to internal property
+	{
 		getCallswalk(sys=>$S); # get indexes
-	} elsif (!getCallsdata(sys=>$S)) {
+	}
+	elsif (!getCallsdata(sys=>$S))
+	{
 		getCallswalk(sys=>$S); # get indexes
 		getCallsdata(sys=>$S); # get data
 	}
 	dbg("Finished");
 
 	return;
+}
 
-#===
-	sub getCallsdata {
-		my %args = @_;
-		my $S = $args{sys};
-		my $NI = $S->ndinfo;
-		my $IF = $S->ifinfo;
-		my $CALLS = $S->callsinfo;
+sub getCallsdata
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
+	my $CALLS = $S->callsinfo;
 
-		my %totalsTable;
-		my $rrdData;
+	my %totalsTable;
+	return 1 if (!keys %{$CALLS});
 
-		# get the old index values
-		# the layout of the record is: channel intf intfDescr intfindex parentintfDescr parentintfindex port slot
-		if (scalar keys %{$CALLS}) {
-			BLOCK1:
-			foreach my $index (keys %{$CALLS}) {
-				my $port = $CALLS->{$index}{intfoid};
-				if ($rrdData = $S->getData(class=>'calls',index=>$CALLS->{$index}{parentintfIndex},port=>$port,model=>$model)) {
-					processAlerts( S => $S );
-					if ( $rrdData->{error} eq "" ) {
-						my $parentIndex = $CALLS->{$index}{parentintfIndex};
-						my $D = $rrdData->{calls}{$parentIndex};
-						# check indexen
-						if ($D->{'cpmDS0CallType'}{value} eq "noSuchInstance") {
-							dbg("invalid index, run walk");
-							return; # no
-						}
-						#
-						if ( $D->{'cpmCallCount'}{value} eq "" ) { $D->{'cpmCallCount'}{value} = 0 ;}
-						# calculate totals for physical interfaces and dump them into totalsTable hash
-						if ( $D->{'cpmDS0CallType'}{value} != "" ) {
-		#					$D->{'cpmAvailableCallCount'}{value} = 1;	# calculate individual available DS0 ports no matter what their current state
-							$totalsTable{$parentIndex}{'TotalDS0'} += 1 ;	# calculate total available DS0 ports no matter what their current state
-						}
-						$totalsTable{$parentIndex}{'TotalCallCount'} += $D->{'cpmCallCount'}{value};
-						$totalsTable{$parentIndex}{'parentintfIndex'} = $parentIndex;
-						$totalsTable{$parentIndex}{'parentintfDescr'} = $CALLS->{$index}{'parentintfDescr'};
-						# populate totals for DS0 call types
-						# total idle ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "1" ) {
-							$totalsTable{$parentIndex}{'totalIdle'} += 1 ;
-						}
-						# total unknown ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "2" ) {
-								$totalsTable{$parentIndex}{'totalUnknown'} += 1;
-						}
-						# total analog ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "3" ) {
-							$totalsTable{$parentIndex}{'totalAnalog'} += 1 ;
-						}
-						# total digital ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "4" ) {
-							$totalsTable{$parentIndex}{'totalDigital'} += 1 ;
-						}
-						# total v110 ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "5" ) {
-							$totalsTable{$parentIndex}{'totalV110'} += 1 ;
-						}
-						# total v120 ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "6" ) {
-							$totalsTable{$parentIndex}{'totalV120'} += 1 ;
-						}
-						# total voice ports
-						if ( $D->{'cpmDS0CallType'}{value} eq "7" ) {
-							$totalsTable{$parentIndex}{'totalVoice'} += 1 ;
-						}
-						if ( $D->{'cpmAvailableCallCount'}{value} eq "" ) { $D->{'cpmAvailableCallCount'} = 0 ;}
-						if ( $D->{'cpmCallCount'} eq "" ) { $D->{'cpmCallCount'} = 0 ;}
-					}
-					else {
-						### 2012-03-29 keiths, SNMP is OK, some other error happened.
-						dbg("ERROR ($NI->{system}{name}) on getCallsdata, $rrdData->{error}");
-					}
-				}
-				### 2012-03-28 keiths, handling SNMP Down during poll cycles.
-				else {
-					logMsg("ERROR ($NI->{system}{name}) on getCallsdata, SNMP problem");
-					# failed by snmp
-					snmpNodeDown(sys=>$S);
-					dbg("ERROR, getting data");
-					return 0;
-				}
+	# get the old index values
+	# the layout of the record is: channel intf intfDescr intfindex parentintfDescr parentintfindex port slot
+	foreach my $index (keys %{$CALLS})
+	{
+		my $port = $CALLS->{$index}{intfoid};
+
+		my $rrdData = $S->getData(class=>'calls',index=>$CALLS->{$index}{parentintfIndex},port=>$port,model=>$model);
+		my $howdiditgo = $S->status;
+		my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+
+		# were there any errors?
+		if (!$anyerror)
+		{
+			processAlerts( S => $S );
+
+			my $parentIndex = $CALLS->{$index}{parentintfIndex};
+			my $D = $rrdData->{calls}{$parentIndex};
+			# check indexes
+			if ($D->{'cpmDS0CallType'}{value} eq "noSuchInstance") {
+				logMsg("invalid index in getCallsdata, run walk");
+				return 0;
 			}
-			#
-			# Second loop to populate RRD tables for totals
-			BLOCK2:
-			foreach my $intfindex (keys %totalsTable) {
 
-				dbg("Total intf $intfindex, PortName $totalsTable{$intfindex}{'parentintfDescr'}");
-				if ( $totalsTable{'TotalCallCount'} eq "" ) { $totalsTable{'TotalCallCount'} = 0 ;}
-
-				dbg("Total idle DS0 ports  $totalsTable{$intfindex}{'totalIdle'}");
-				dbg("Total unknown DS0 ports  $totalsTable{$intfindex}{'totalUnknown'}");
-				dbg("Total analog DS0 ports  $totalsTable{$intfindex}{'totalAnalog'}");
-				dbg("Total digital DS0 ports  $totalsTable{$intfindex}{'totalDigital'}");
-				dbg("Total v110 DS0 ports  $totalsTable{$intfindex}{'totalV110'}");
-				dbg("Total v120 DS0 ports  $totalsTable{$intfindex}{'totalV120'}");
-				dbg("Total voice DS0 ports  $totalsTable{$intfindex}{'totalVoice'}");
-				dbg("Total DS0 ports available  $totalsTable{$intfindex}{'TotalDS0'}");
-				dbg("Total DS0 calls  $totalsTable{$intfindex}{'TotalCallCount'}");
-				my %snmpVal;
-				$snmpVal{'totalIdle'}{value} = $totalsTable{$intfindex}{'totalIdle'};
-				$snmpVal{'totalUnknown'}{value} = $totalsTable{$intfindex}{'totalUnknown'};
-				$snmpVal{'totalAnalog'}{value} = $totalsTable{$intfindex}{'totalAnalog'};
-				$snmpVal{'totalDigital'}{value} = $totalsTable{$intfindex}{'totalDigital'};
-				$snmpVal{'totalV110'}{value} = $totalsTable{$intfindex}{'totalV110'};
-				$snmpVal{'totalV120'}{value} = $totalsTable{$intfindex}{'totalV120'};
-				$snmpVal{'totalVoice'}{value} = $totalsTable{$intfindex}{'totalVoice'};
-				$snmpVal{'AvailableCallCount'}{value} = $totalsTable{$intfindex}{'TotalDS0'};
-				$snmpVal{'CallCount'}{value} = $totalsTable{$intfindex}{'TotalCallCount'};
-
-				#
-				# Store data
-				my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex);
+			if ( $D->{'cpmCallCount'}{value} eq "" ) { $D->{'cpmCallCount'}{value} = 0 ;}
+			# calculate totals for physical interfaces and dump them into totalsTable hash
+			if ( $D->{'cpmDS0CallType'}{value} != "" )
+			{
+				#	$D->{'cpmAvailableCallCount'}{value} = 1;	# calculate individual available DS0 ports no matter what their current state
+				$totalsTable{$parentIndex}{'TotalDS0'} += 1 ;	# calculate total available DS0 ports no matter what their current state
 			}
-		return 1;
+			$totalsTable{$parentIndex}{'TotalCallCount'} += $D->{'cpmCallCount'}{value};
+			$totalsTable{$parentIndex}{'parentintfIndex'} = $parentIndex;
+			$totalsTable{$parentIndex}{'parentintfDescr'} = $CALLS->{$index}{'parentintfDescr'};
+			# populate totals for DS0 call types
+			# total idle ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "1" ) {
+				$totalsTable{$parentIndex}{'totalIdle'} += 1 ;
+			}
+			# total unknown ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "2" ) {
+				$totalsTable{$parentIndex}{'totalUnknown'} += 1;
+			}
+			# total analog ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "3" ) {
+				$totalsTable{$parentIndex}{'totalAnalog'} += 1 ;
+			}
+			# total digital ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "4" ) {
+				$totalsTable{$parentIndex}{'totalDigital'} += 1 ;
+			}
+			# total v110 ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "5" ) {
+				$totalsTable{$parentIndex}{'totalV110'} += 1 ;
+			}
+			# total v120 ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "6" ) {
+				$totalsTable{$parentIndex}{'totalV120'} += 1 ;
+			}
+			# total voice ports
+			if ( $D->{'cpmDS0CallType'}{value} eq "7" ) {
+				$totalsTable{$parentIndex}{'totalVoice'} += 1 ;
+			}
+			if ( $D->{'cpmAvailableCallCount'}{value} eq "" ) { $D->{'cpmAvailableCallCount'} = 0 ;}
+			if ( $D->{'cpmCallCount'} eq "" ) { $D->{'cpmCallCount'} = 0 ;}
+		}
+		else
+		{
+			logMsg("ERROR ($NI->{system}{name}) on getCallsdata, $anyerror");
+			RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+			RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+
+			return 0;
 		}
 	}
 
-#====
-	sub getCallswalk {
-		my %args = @_;
-		my $S = $args{sys};
-		my $NI = $S->ndinfo;
-		my $IF = $S->ifinfo;
-		my $SNMP = $S->snmp;
+	#
+	# Second loop to populate RRD tables for totals
+	foreach my $intfindex (keys %totalsTable)
+	{
+		dbg("Total intf $intfindex, PortName $totalsTable{$intfindex}{'parentintfDescr'}");
+		if ( $totalsTable{'TotalCallCount'} eq "" ) { $totalsTable{'TotalCallCount'} = 0 ;}
 
+		dbg("Total idle DS0 ports  $totalsTable{$intfindex}{'totalIdle'}");
+		dbg("Total unknown DS0 ports  $totalsTable{$intfindex}{'totalUnknown'}");
+		dbg("Total analog DS0 ports  $totalsTable{$intfindex}{'totalAnalog'}");
+		dbg("Total digital DS0 ports  $totalsTable{$intfindex}{'totalDigital'}");
+		dbg("Total v110 DS0 ports  $totalsTable{$intfindex}{'totalV110'}");
+		dbg("Total v120 DS0 ports  $totalsTable{$intfindex}{'totalV120'}");
+		dbg("Total voice DS0 ports  $totalsTable{$intfindex}{'totalVoice'}");
+		dbg("Total DS0 ports available  $totalsTable{$intfindex}{'TotalDS0'}");
+		dbg("Total DS0 calls  $totalsTable{$intfindex}{'TotalCallCount'}");
+		my %snmpVal;
+		$snmpVal{'totalIdle'}{value} = $totalsTable{$intfindex}{'totalIdle'};
+		$snmpVal{'totalUnknown'}{value} = $totalsTable{$intfindex}{'totalUnknown'};
+		$snmpVal{'totalAnalog'}{value} = $totalsTable{$intfindex}{'totalAnalog'};
+		$snmpVal{'totalDigital'}{value} = $totalsTable{$intfindex}{'totalDigital'};
+		$snmpVal{'totalV110'}{value} = $totalsTable{$intfindex}{'totalV110'};
+		$snmpVal{'totalV120'}{value} = $totalsTable{$intfindex}{'totalV120'};
+		$snmpVal{'totalVoice'}{value} = $totalsTable{$intfindex}{'totalVoice'};
+		$snmpVal{'AvailableCallCount'}{value} = $totalsTable{$intfindex}{'TotalDS0'};
+		$snmpVal{'CallCount'}{value} = $totalsTable{$intfindex}{'TotalCallCount'};
 
-		my %seen;
-		my %callsTable;
-		my %mappingTable;
-		my ($intfindex,$parentintfIndex);
-
-		# the default-default is no value whatsoever, for letting the snmp module do its thing
-		my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
-		dbg("Starting Calls ports collection");
-
-		# double check if any call interfaces on this node.
-		# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
-		# only collect on interfaces that are defined and that are Admin UP
-		foreach ( keys %{$IF} ) {
-			if ( $IF->{$_}{ifAdminStatus} eq "up"	) {
-				$seen{$_} = $_;
-			}
+		#
+		# Store data
+		my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex);
+		if (!$db)
+		{
+			logMsg("ERROR updateRRD failed: ".getRRDerror);
 		}
-		if ( ! %seen ) {	# empty hash
-			dbg("$NI->{system}{name} does not have any call ports or no collect or port down - Call ports collection aborted");
-			return;
+	}
+	return 1;
+}
+
+# figure out the calls indices etc
+# fixme: this function does not work for wmi-only nodes
+# returns: 1 if ok, 0 otherwise
+sub getCallswalk
+{
+	my %args = @_;
+	my $S = $args{sys};
+	my $NI = $S->ndinfo;
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getCallswalk for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
+	my $IF = $S->ifinfo;
+	my $SNMP = $S->snmp;
+
+	my (%seen, %callsTable, %mappingTable, $intfindex,$parentintfIndex,
+			$IntfIndexTable, $IntfStatusTable);
+
+	# the default-default is no value whatsoever, for letting the snmp module do its thing
+	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
+
+	dbg("Starting Calls ports collection");
+
+	# double check if any call interfaces on this node.
+	# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
+	# only collect on interfaces that are defined and that are Admin UP
+	foreach ( keys %{$IF} )
+	{
+		if ( $IF->{$_}{ifAdminStatus} eq "up"	)
+		{
+			$seen{$_} = $_;
 		}
+	}
+	if ( ! %seen )
+	{
+		dbg("$NI->{system}{name} does not have any call ports or no collect or port down - Call ports collection aborted");
+		return;											# fixme: is that an error or not? i think not, so return 1
+	}
 
-		# should now be good to go....
-		# only use the Cisco private mib for cisco routers
+	# should now be good to go....
+	# only use the Cisco private mib for cisco routers
 
-		# add in the walk root for the cisco interface table entry for port to intf mapping
-		add_mapping("1.3.6.1.4.1.9.10.19.1.5.2.1.8","cpmDS0InterfaceIndex","");
-		add_mapping("1.3.6.1.2.1.31.1.2.1.3","ifStackStatus","");
+	# add in the walk root for the cisco interface table entry for port to intf mapping
+	add_mapping("1.3.6.1.4.1.9.10.19.1.5.2.1.8","cpmDS0InterfaceIndex","");
+	add_mapping("1.3.6.1.2.1.31.1.2.1.3","ifStackStatus","");
 
-		# getindex the cpmDS0InterfaceIndex oid to populate $callsTable hash with such as interface indexes, ports, slots
-		my $IntfIndexTable;
-		my $IntfStatusTable;
-		if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex",$max_repetitions)) {
-			foreach my $index (keys %{$IntfIndexTable}) {
+	# getindex the cpmDS0InterfaceIndex oid to populate $callsTable hash with such as interface indexes, ports, slots
+	if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex",$max_repetitions))
+	{
+		foreach my $index (keys %{$IntfIndexTable})
+		{
 				$intfindex = $IntfIndexTable->{$index};
 				my ($slot,$port,$channel) = split /\./,$index,3;
 				$callsTable{$intfindex}{'intfoid'} = $index;
@@ -4163,63 +4367,89 @@ sub getCalls {
 				$callsTable{$intfindex}{'port'} = $port;
 				$callsTable{$intfindex}{'channel'} = $channel;
 			}
-			if ($IntfStatusTable = $SNMP->getindex("ifStackStatus",$max_repetitions)) {
-				foreach my $index (keys %{$IntfStatusTable}) {
-					($intfindex,$parentintfIndex) = split /\./,$index,2;
-					$mappingTable{$intfindex}{'parentintfIndex'} = $parentintfIndex;
-				}
-				# traverse the callsTable and mappingTable hashes to match call ports with their physical parent ports
-				foreach my $callsintf (sort keys %callsTable ) {
-					foreach my $mapintf (sort keys %mappingTable ) {
-						if ( $callsintf == $mapintf ) {
+		if ($IntfStatusTable = $SNMP->getindex("ifStackStatus",$max_repetitions))
+		{
+			foreach my $index (keys %{$IntfStatusTable})
+			{
+				($intfindex,$parentintfIndex) = split /\./,$index,2;
+				$mappingTable{$intfindex}{'parentintfIndex'} = $parentintfIndex;
+			}
+
+			# traverse the callsTable and mappingTable hashes to match call ports with their physical parent ports
+			foreach my $callsintf (sort keys %callsTable )
+			{
+				foreach my $mapintf (sort keys %mappingTable )
+				{
+					if ( $callsintf == $mapintf )
+					{
 						dbg("parent interface $mappingTable{$mapintf}{'parentintfIndex'} found for interface $callsintf",2);
 						# if parent interface has been reached stop
-							if ( $mappingTable{$mappingTable{$mapintf}{'parentintfIndex'}}{'parentintfIndex'} eq "0" ) {
-								$callsTable{$callsintf}{'parentintfIndex'} = $mappingTable{$mapintf}{'parentintfIndex'};
-							} # endif
-							# assume only one level of nesting in physical interfaces
-							# (may need to increase for larger Cisco chassis)
-							else {
-								$callsTable{$callsintf}{'parentintfIndex'} = $mappingTable{$mappingTable{$mapintf}{'parentintfIndex'}}{'parentintfIndex'};
-							} #end else
-						} #end if
-					} #end foreach
-					# check if parent interface is also up
-					if ( $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifAdminStatus} ne "up" ) {
-					##	print returnTime." Calls: parent interface $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifDescr} is not up\n" if $debug;
-						delete $callsTable{$callsintf} ;
+						if ( $mappingTable{$mappingTable{$mapintf}{'parentintfIndex'}}{'parentintfIndex'} eq "0" )
+						{
+							$callsTable{$callsintf}{'parentintfIndex'} = $mappingTable{$mapintf}{'parentintfIndex'};
+						}
+						# assume only one level of nesting in physical interfaces
+						# (may need to increase for larger Cisco chassis)
+						else
+						{
+							$callsTable{$callsintf}{'parentintfIndex'} = $mappingTable{$mappingTable{$mapintf}{'parentintfIndex'}}{'parentintfIndex'};
+						}
 					}
-				} #end foreach
-				# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
-				my $InstalledVoice;
-				foreach my $callsintf ( keys %callsTable ) {
-					(      $callsTable{$callsintf}{'intfDescr'},
-														$callsTable{$callsintf}{'parentintfDescr'},
-									) = $SNMP->getarray(
-													'ifDescr'.".$callsTable{$callsintf}{'intfindex'}",
-													'ifDescr'.".$callsTable{$callsintf}{'parentintfIndex'}",
-									);
-					$InstalledVoice++;
-				} #end foreach
-
-				# create $nodes-calls.xxxx file which contains interface mapping and descirption data
-				delete $S->{info}{calls};
-				if ( %callsTable) {
-					# callsTable has some values, so write it out
-					$S->{info}{calls} = \%callsTable;
-					$NI->{system}{InstalledVoice} = "$InstalledVoice";
 				}
+
+				# check if parent interface is also up
+				if ( $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifAdminStatus} ne "up" )
+				{
+					##	print returnTime." Calls: parent interface $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifDescr} is not up\n" if $debug;
+					delete $callsTable{$callsintf} ;
+				}
+			}
+			# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
+			my $InstalledVoice;
+			foreach my $callsintf ( keys %callsTable )
+			{
+				($callsTable{$callsintf}{'intfDescr'},
+				 $callsTable{$callsintf}{'parentintfDescr'}) = $SNMP->getarray(
+					'ifDescr'.".$callsTable{$callsintf}{'intfindex'}",
+					'ifDescr'.".$callsTable{$callsintf}{'parentintfIndex'}",
+						 );
+				$InstalledVoice++;
+			}
+
+			# create $nodes-calls.xxxx file which contains interface mapping and descirption data
+			delete $S->{info}{calls};
+			if ( %callsTable)
+			{
+				# callsTable has some values, so write it out
+				$S->{info}{calls} = \%callsTable;
+				$NI->{system}{InstalledVoice} = "$InstalledVoice";
 			}
 		}
 	}
-} # end getCalls
+	return 1;
+}
 
-#=========================================================================================
 
-sub getPVC {
+# figure out frame relay interfaces, perform collection of pvc information
+# note that this does everything from start to finish, there's no separate
+# index getter function for type update ops.
+#
+# fixme: this function does not work for wmi-only nodes
+#
+# returns: 1 if ok, 0 otherwise
+sub getPVC
+{
 	my %args = @_;
+
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing getPVC for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $IF = $S->ifinfo;
 	my $SNMP = $S->snmp;
 	my $PVC = $S->pvcinfo;
@@ -4243,17 +4473,19 @@ sub getPVC {
 	# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
 	# only collect on interfaces that are defined, with collection turned on globally
 	# and for that interface and that are Admin UP
-	foreach ( keys %{$IF} ) {
+	foreach ( keys %{$IF} )
+	{
 		if ( $IF->{$_}{ifType} =~ /framerelay/i
-			and $IF->{$_}{ifAdminStatus} eq "up" and
-			getbool($IF->{$_}{collect})
-		) {
+				 and $IF->{$_}{ifAdminStatus} eq "up" and
+				 getbool($IF->{$_}{collect})
+				)
+		{
 			$seen{$_} = $_;
 		}
 	}
 	if ( ! %seen ) {	# nothing to do
 		dbg("$NI->{system}{name} does not have any frame ports or no collect or port down");
-		return;
+		return;											# fixme error or not? i think not, return 1 instead
 	}
 
 	my $cnt = keys %seen;
@@ -4267,8 +4499,10 @@ sub getPVC {
 
 	my $frCircEntryTable;
 	my $cfrExtCircIfNameTable;
-	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry',$max_repetitions)) {
-		foreach my $index (keys %{$frCircEntryTable}) {
+	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry',$max_repetitions))
+	{
+		foreach my $index (keys %{$frCircEntryTable})
+		{
 			my ($oid,$port,$pvc) = split /\./,$index,3;
 			my $textoid = oid2name("1.3.6.1.2.1.10.32.2.1.$oid");
 			$pvcStats{$port}{$pvc}{$textoid} = $frCircEntryTable->{$index};
@@ -4276,8 +4510,11 @@ sub getPVC {
 				$snmpTable{$port}{$pvc}{$textoid}{value} = $frCircEntryTable->{$index};
 			}
 		}
-		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ ) {
-			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName',$max_repetitions)) {
+		# fixme hardcoded model name is bad
+		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ )
+		{
+			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName',$max_repetitions))
+			{
 				foreach my $index (keys %{$cfrExtCircIfNameTable}) {
 					my ($port,$pvc) = split /\./,$index;
 					$pvcStats{$port}{$pvc}{'cfrExtCircuitIfName'} = $cfrExtCircIfNameTable->{$index};
@@ -4287,15 +4524,16 @@ sub getPVC {
 
 		# we now have a hash of port:pvc:mibname=value - or an empty hash if no reply....
 		# put away to a rrd.
-		foreach $port ( keys %pvcStats ) {
-
+		foreach $port ( keys %pvcStats )
+		{
 			# check if parent port was seen before and OK to collect on.
 			if ( !exists $seen{$port} ) {
 				dbg("snmp frame port $port is not collected or down - skipping");
 				next;
 			}
 
-			foreach $pvc ( keys %{$pvcStats{$port}} ) {
+			foreach $pvc ( keys %{$pvcStats{$port}} )
+			{
 				# massage some values
 				# frCircuitState = 2 for active
 				# could set an alarm here on PVC down ??
@@ -4314,16 +4552,24 @@ sub getPVC {
 				$snmpTable{$port}{$pvc}{SentOctets}{option} = "counter,0:U";
 				$snmpTable{$port}{$pvc}{State}{option} = "gauge,0:U";
 				my $key = "${port}-${pvc}";
-				if ((my $db = updateRRD(data=>\%{$snmpTable{$port}{$pvc}},sys=>$S,type=>"pvc",item=>$key)) ne "") {
+				if ((my $db = updateRRD(data=>\%{$snmpTable{$port}{$pvc}},sys=>$S,type=>"pvc",item=>$key)) ne "")
+				{
 					$NI->{graphtype}{$key}{pvc} = 'pvc';
+				}
+				else
+				{
+					logMsg("ERROR updateRRD failed: ".getRRDerror);
 				}
 			}
 		}
 
-		# save a list of PVC numbers to an interface style dat file, with ifindex mappings, so we can use this to read and graph the rrd via the web ui.
+		# save a list of PVC numbers to an interface style file, with ifindex mappings, so we
+		# can use this to read and graph the rrd via the web ui.
 		# save the cisco interface ifDescr if we have it.
-		foreach $port ( keys %pvcStats ) {
-			foreach $pvc (keys %{$pvcStats{$port}}) {
+		foreach $port ( keys %pvcStats )
+		{
+			foreach $pvc (keys %{$pvcStats{$port}})
+			{
 				my $key = "${port}-${pvc}";
 				$pvcTable{$key}{subifDescr} = rmBadChars($pvcStats{$port}{$pvc}{cfrExtCircuitIfName});		# if not cisco, will not exist.
 				$pvcTable{$key}{pvc} = $pvc;
@@ -4335,7 +4581,8 @@ sub getPVC {
 				$pvcTable{$key}{subifIndex} = $pvcStats{$port}{$pvc}{frCircuitLogicalIfIndex}; # non-cisco may support this - to be verified.
 			}
 		}
-		if ( %pvcTable) {
+		if ( %pvcTable)
+		{
 			# pvcTable has some values, so write it out
 			$S->{info}{pvc} = \%pvcTable;
 			dbg("pvc values stored");
@@ -4345,22 +4592,26 @@ sub getPVC {
 	}
 
 	dbg("Finished");
-} # end getPVC
+}
 
 
-#=========================================================================================
-
-sub runServer {
+# fixme: this function does not work for wmi-only nodes
+sub runServer
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+
+	if (!$S->status->{snmp_enabled})
+	{
+		info("Not performing server collection for $NI->{system}->{name}: SNMP not enabled for this node");
+		return 1;
+	}
+
 	my $M = $S->mdl;
 	my $SNMP = $S->snmp;
 
-	my $result;
-	my %Val;
-	my %ValMeM;
-	my $hrCpuLoad;
+	my ($result, %Val, %ValMeM, $hrCpuLoad);
 
 	# the default-default is no value whatsoever, for letting the snmp module do its thing
 	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
@@ -4369,7 +4620,8 @@ sub runServer {
 
 	# get cpu info
 	delete $NI->{device};
-	if ($M->{device} ne '') {
+	if (ref($M->{device}) eq "HASH" && keys %{$M->{device}})
+	{
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex',$max_repetitions);
 		$S->loadInfo(class=>'device',model=>$model); # get cpu load without index
 		foreach my $index (keys %{$deviceIndex}) {
@@ -4387,10 +4639,17 @@ sub runServer {
 					info("cpu Load=$NI->{device}{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
 					$Val{hrCpuLoad}{value} = $NI->{device}{$index}{hrCpuLoad} || 0;
-					if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrsmpcpu",index=>$index))) {
+					if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrsmpcpu",index=>$index)))
+					{
 						$NI->{graphtype}{$index}{hrsmpcpu} = "hrsmpcpu";
 					}
-				} else {
+					else
+					{
+						logMsg("ERROR updateRRD failed: ".getRRDerror);
+					}
+				}
+				else
+				{
 					delete $NI->{device}{$index};
 				}
 			}
@@ -4442,6 +4701,11 @@ sub runServer {
 							$D->{hrStorageGraph} = "hrdisk";
 							$disk_cnt++;
 						}
+						else
+						{
+							logMsg("ERROR updateRRD failed: ".getRRDerror);
+						}
+
 						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
 							# only get this snmp once if we need to, and created an named index.
 							if ( not defined $fileSystemTable ) {
@@ -4473,6 +4737,10 @@ sub runServer {
 							$D->{hrStorageType} = 'Memory';
 							$D->{hrStorageGraph} = "hrmem";
 						}
+						else
+						{
+							logMsg("ERROR updateRRD failed: ".getRRDerror);
+						}
 					}
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.3') { # VirtualMemory
@@ -4496,6 +4764,10 @@ sub runServer {
 							$D->{hrStorageType} = $D->{hrStorageDescr}; # i.e. virtual memory or swap space
 							$D->{hrStorageGraph} = $typename;
 						}
+						else
+						{
+							logMsg("ERROR updateRRD failed: ".getRRDerror);
+						}
 					}
 					# also collect mem buffers and cached mem if present
 					# these are marked as storagetype hrStorageOther but the descr is usable
@@ -4517,7 +4789,13 @@ sub runServer {
 									$D->{hrStorageType} = 'Other Memory';
 									$D->{hrStorageGraph} = $typename;
 							}
-					} else {
+							else
+							{
+								logMsg("ERROR updateRRD failed: ".getRRDerror);
+							}
+					}
+					else
+					{
 						delete $NI->{storage}{$index};
 					}
 				}
@@ -4547,7 +4825,9 @@ sub runServer {
 
 # this function runs all services that are directly associated with a given node
 # args: live sys object for the node in question, and optional snmp (true/false) arg
+#
 # attention: when run with snmp false then snmp-based services are NOT checked!
+# fixme: this function does not support service definitions from wmi!
 sub runServices
 {
 	my %args = @_;
@@ -4557,7 +4837,8 @@ sub runServices
 	my $C = loadConfTable();
 	my $NT = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
-	my $snmp_allowed = getbool($args{snmp});
+	# don't attempt anything silly if this is a wmi-only node
+	my $snmp_allowed = getbool($args{snmp}) && $S->status->{snmp_enabled};
 
 	my $node = $NI->{system}{name};
 
@@ -4586,7 +4867,8 @@ sub runServices
 	if ($snmp_allowed
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
-			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service", split(/,/, $NT->{$NI->{system}{name}}->{services})) )
+			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service",
+							 split(/,/, $NT->{$NI->{system}{name}}->{services})) )
 	{
 		info("node has SNMP services to check");
 
@@ -4595,8 +4877,10 @@ sub runServices
 		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
 		my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
-		foreach my $var ( @snmpvars ) {
-			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions)) {
+		foreach my $var ( @snmpvars )
+		{
+			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
+			{
 				foreach my $inst (keys %{$hrIndextable}) {
 					my $value = $hrIndextable->{$inst};
 					my $textoid = oid2name(name2oid($var).".".$inst);
@@ -4607,15 +4891,17 @@ sub runServices
 				}
 			}
 			# SNMP failed, so mark SNMP down so code below handles results properly
-			else {
+			else
+			{
 				logMsg("$node SNMP Down while collecting SNMP Service Data");
-				snmpNodeDown(sys=>$S);
+				RaiseNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: $SNMP->error");
 				last;
 			}
 		}
 
 		# prepare service list for all observed services
-		foreach (sort keys %{$snmpTable{hrSWRunName}} ) {
+		foreach (sort keys %{$snmpTable{hrSWRunName}} )
+		{
 			# key services by name_pid
 			$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
 			$services{$key}{hrSWRunName} = $key;
@@ -5192,6 +5478,10 @@ sub runServices
 				}
 			}
 		}
+		else
+		{
+			logMsg("ERROR updateRRD failed: ".getRRDerror);
+		}
 
 		# now update the per-service status file
 		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
@@ -5227,7 +5517,8 @@ sub runServices
 
 
 # fixme: the CVARn evaluation function should be integrated into and handled by sys::parseString
-sub runAlerts {
+sub runAlerts
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -5372,62 +5663,91 @@ sub runAlerts {
 	info("Finished");
 } # end runAlerts
 
-#=========================================================================================
 
-sub runCheckValues {
+
+# check model sections (but only under sys!), look for 'check' properties,
+# and if a known check type is seen, run the appropriate function
+# args: sys
+# returns: nothing
+sub runCheckValues
+{
 	my %args = @_;
-	my $S = $args{sys};	# system object
+	my $S = $args{sys};
 	my $NI = $S->ndinfo;
-	my $M = $S->mdl;	# Model table of node
+	my $M = $S->mdl;
+
 	my $C = loadConfTable();
 
-	if ( !getbool($NI->{system}{nodedown}) and !getbool($NI->{system}{snmpdown}) ) {
-		for my $sect ( keys %{$M->{system}{sys}} ) {
-			my $control = $M->{system}{sys}{$sect}{control}; 	# check if skipped by control
-			if ($control ne "") {
-				dbg("control=$control found for section=$sect",2);
-				if (!$S->parseString(string=>"($control) ? 1:0", sect => $sect))
+	if (getbool($NI->{system}{nodedown})) #  don't bother with dead nodes
+#			 and !getbool($NI->{system}{snmpdown}) # snmp not dead
+#			 and $S->status->{snmp_enabled} )			 # snmp still known to be enabled
+	{
+		dbg("Node $S->{name} is down, not looking for check values");
+		return;
+	}
+
+	for my $sect (keys %{$M->{system}->{sys}})
+	{
+		if (my $control = $M->{system}{sys}{$sect}{control}) 	# check if skipped by control
+		{
+			dbg("control=$control found for section=$sect",2);
+			if (!$S->parseString(string=>"($control) ? 1:0", sect => $sect))
+			{
+				dbg("checkvalues of section $sect skipped by control=$control");
+				next;
+			}
+			my $thissection = $M->{system}->{sys}->{$sect};
+
+			for my $source (qw(wmi snmp))
+			{
+				next if (ref($thissection->{$source}) ne "HASH");
+
+				for my $attr (keys %{$thissection->{$source}} )
 				{
-					dbg("threshold of section $sect skipped by control=$control");
-					next;
-				}
-				for my $attr (keys %{$M->{system}{sys}{$sect}{snmp}} ) {
-					if (exists $M->{system}{sys}{$sect}{snmp}{$attr}{check}) {
-					# select the method we will run
-						my $check = $M->{system}{sys}{$sect}{snmp}{$attr}{check};
-						if ($check eq 'checkPower') {
-							checkPower(sys=>$S,attr=>$attr);
-						# }
-						# elsif ($check eq 'checkNodeConfiguration') {
-						# 	checkNodeConfiguration(sys=>$S,attr=>$attr);
-						} else {
-							logMsg("ERROR ($S->{name}) unknown method=$check in Model=$NI->{system}{nodeModel}");
+					my $thisattr = $thissection->{$source}->{$attr};
+					if (my $checktype = $thisattr->{check})
+					{
+						if ($checktype eq 'checkPower')
+						{
+							checkPower(sys=>$S, attr=>$attr);
+						}
+						else
+						{
+							logMsg("ERROR ($S->{name}) unknown check method=$checktype in section $sect, source $source");
 						}
 					}
 				}
 			}
 		}
 	}
-
-END_runCheckValues:
 	dbg("Finished");
-} # end runCheckValues
+}
 
-#=========================================================================================
-#
-# send event of node down by snmp
-#
-sub snmpNodeDown {
+# create event: node has <something> down
+# currently understands snmp, wmi;
+# also updates <something>down flag in node info
+# args: sys, type (both required), details (optional)
+# returns: nothing
+sub RaiseNodeDown
+{
 	my %args = @_;
-	my $S = $args{sys};
-	my $NI = $S->ndinfo;	# node info
-	# failed by snmp
-	notify(sys=>$S, event=>"SNMP Down",
+
+	my ($S,$typeofdown,$details) = @args{"sys","type","details"};
+	return if (ref($S) ne "Sys" or $typeofdown !~ /^(snmp|wmi)$/);
+
+	my $name = uc($typeofdown);
+	$details ||= "$name error";
+
+	notify(sys=>$S,
+				 event=>"$name Down",
 				 element=>'',
-				 details=>"SNMP error",
+				 details=> $details,
 				 context =>  { type => "node" } );
-	$NI->{system}{snmpdown} = 'true';
-	return 0;
+
+	my $NI = $S->ndinfo;
+	$NI->{system}{"${typeofdown}down"} = 'true';
+
+	return;
 }
 
 
@@ -5876,6 +6196,10 @@ sub runReach
 	if (!$donotupdaterrd)
 	{
 		my $db = updateRRD(sys=>$S, data=>\%reachVal, type=>"health"); # database name is normally 'reach'
+		if (!$db)
+		{
+			logMsg("ERROR updateRRD failed: ".getRRDerror);
+		}
 	}
 	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
 		$NI->{graphtype}{health} = "health-ping,response";
@@ -5893,7 +6217,8 @@ sub runReach
 
 #=========================================================================================
 
-sub getIntfAllInfo {
+sub getIntfAllInfo
+{
 	my $index;
 	my $tmpDesc;
 	my $intHash;
@@ -6000,7 +6325,8 @@ sub getNodeAllInfo
 
 # fixme: deprecated, will be removed once the last customers who're using models
 # with this feature have upgraded to 8.5.6.
-sub runCustomPlugins {
+sub runCustomPlugins
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $node = $args{node};
@@ -6025,7 +6351,8 @@ sub runCustomPlugins {
 
 #=========================================================================================
 
-sub weightResponseTime {
+sub weightResponseTime
+{
 	my $rt = shift;
 	my $responseWeight = 0;
 
@@ -6059,7 +6386,8 @@ sub weightResponseTime {
 #=========================================================================================
 
 ### 2011-12-29 keiths, centralising the copy of the remote files from slaves, so others can just load them.
-sub nmisMaster {
+sub nmisMaster
+{
 	my %args = @_;
 
 	$C->{master_sleep} = 15 if $C->{master_sleep} eq "";
@@ -6147,11 +6475,13 @@ sub summaryCache
 	my $NT = loadLocalNodeTable();
 	my $NI;
 
-	foreach my $node ( keys %{$NT}) {
-		if ( getbool($NT->{$node}{active}) ) {
+	foreach my $node ( keys %{$NT})
+	{
+		if ( getbool($NT->{$node}{active}) )
+		{
 			$S->init(name=>$node,snmp=>'false');
 			$NI = $S->ndinfo;
-			#
+
 			$summaryHash{$node}{reachable} = 'NaN';
 			$summaryHash{$node}{response} = 'NaN';
 			$summaryHash{$node}{loss} = 'NaN';
@@ -6160,7 +6490,8 @@ sub summaryCache
 			$summaryHash{$node}{intfCollect} = 0;
 			$summaryHash{$node}{intfColUp} = 0;
 			my $stats;
-			if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$node))) {
+			if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$node)))
+			{
 				%summaryHash = (%summaryHash,%{$stats});
 			}
 			if ( getbool($NI->{system}{nodedown}) ) {
@@ -6188,7 +6519,8 @@ sub summaryCache
 ### 11-Nov-11, keiths, update to this, changed the escalation so that through policy you can
 ### wait for 5 mins or just notify now, so Ecalation0 is 0 seconds, Escalation1 is 300 seconds
 ### then in Ecalations.xxxx, core devices might notify at Escalation0 while others at Escalation1
-sub runEscalate {
+sub runEscalate
+{
 	my %args = @_;
 
 	my $pollTimer = NMIS::Timing->new;
@@ -6537,7 +6869,7 @@ LABEL_ESC:
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys->new; # node object
-			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
+			if (($S->init(name=>$nd, snmp=>'false'))) { # get cached info of node only
 				my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 				if ( !getbool($IFD->{$thisevent->{element}}{collect}) )
 				{
@@ -6831,7 +7163,7 @@ LABEL_ESC:
 											if ( $thisevent->{event} =~ /Interface/ ) {
 												my $ifIndex = undef;
 												my $S = Sys->new; # node object
-												if (($S->init(name=>$thisevent->{node},snmp=>'false'))) { # get all info of node
+												if (($S->init(name=>$thisevent->{node},snmp=>'false'))) { # get cached info of node only
 													my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
 													if ( getbool($IFD->{$thisevent->{element}}{collect}) ) {
 														$ifIndex = $IFD->{$thisevent->{element}}{ifIndex};
@@ -7045,7 +7377,8 @@ LABEL_ESC:
 #			priority
 # Cologne.
 
-sub sendMSG {
+sub sendMSG
+{
 	my %args = @_;
 	my $msgTable = $args{data};
 	my $C = loadConfTable(); # get ref
@@ -7218,7 +7551,8 @@ sub sendMSG {
 #=========================================================================================
 
 ### Adding overall network metrics collection and updates
-sub runMetrics {
+sub runMetrics
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -7261,6 +7595,10 @@ sub runMetrics {
 	dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
 
 	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
+	if (!$db)
+	{
+		logMsg("ERROR updateRRD failed: ".getRRDerror);
+	}
 
 	foreach $group (sort keys %{$GT}) {
 		$groupSummary = getGroupSummary(group=>$group);
@@ -7278,6 +7616,10 @@ sub runMetrics {
 		dbg("Doing group=$group Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}");
 		#
 		$db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group);
+		if (!$db)
+		{
+			logMsg("ERROR updateRRD failed: ".getRRDerror);
+		}
 	}
 	dbg("Finished");
 
@@ -7288,7 +7630,8 @@ sub runMetrics {
 
 #=========================================================================================
 
-sub runLinks {
+sub runLinks
+{
 	my %subnets;
 	my $links;
 	my $C = loadConfTable();
@@ -7445,7 +7788,8 @@ sub runLinks {
 #=========================================================================================
 
 # starts up fpingd and/or opslad
-sub runDaemons {
+sub runDaemons
+{
 
 	my $C = loadConfTable();
 
@@ -7489,7 +7833,8 @@ sub runDaemons {
 
 #=========================================================================================
 
-sub checkConfig {
+sub checkConfig
+{
 	my %args = @_;
 	my $change = $args{change};
 	my $audit = $args{audit};
@@ -7792,7 +8137,8 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 
 }
 
-sub printApache {
+sub printApache
+{
 
 	my $C = loadConfTable();
 
@@ -7936,7 +8282,8 @@ command line options are:
 
 #=========================================================================================
 
-sub runThreshold {
+sub runThreshold
+{
 	my $node = shift;
 
 	# check global_threshold not explicitely set to false
@@ -7961,7 +8308,8 @@ sub runThreshold {
 #
 # Build first Summary table of all nodes, we need this info for Threshold too
 #
-sub doSummaryBuild {
+sub doSummaryBuild
+{
 	my %args = @_;
 	my $node = $args{name};
 
@@ -7979,7 +8327,7 @@ sub doSummaryBuild {
 	foreach my $nd (sort keys %{$NT}) {
 		next if $node ne "" and $node ne $nd;
 		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{collect})) {
-			if (($S->init(name=>$nd,snmp=>'false'))) { # get all info of node
+			if (($S->init(name=>$nd,snmp=>'false'))) { # get cached info of node only
 				$M = $S->mdl; # model ref
 				$NI = $S->ndinfo; # node info
 				$IF = $S->ifinfo; # interface info
@@ -8105,7 +8453,7 @@ sub doThreshold
 		#if ($NT->{$nd}{active} eq 'true' and $NT->{$nd}{collect} eq 'true' and $NT->{$nd}{threshold} eq 'true') {
 		next if (!getbool($NT->{$nd}{active}) or !getbool($NT->{$nd}{threshold}));
 
-		# get all info of node - BUT NOT its nodes.nmis config!
+		# get all cached info of node - does NOT include its nodes.nmis config!
 		next if (!($S->init(name=>$nd, snmp=>'false')));
 
 		my $NI = $S->ndinfo; # pointer to node info table
@@ -8424,7 +8772,8 @@ sub runThrHld
 
 }
 
-sub getThresholdLevel {
+sub getThresholdLevel
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
@@ -8584,7 +8933,8 @@ sub thresholdProcess
 	}
 }
 
-sub printRunTime {
+sub printRunTime
+{
 	my $endTime = sprintf("%.2f", Time::HiRes::time() - $starttime);
 	info("End of $0, type=$type ran for $endTime seconds.\n");
 }
@@ -8760,6 +9110,37 @@ sub purge_files
 	info("Purging complete");
 	return undef;
 }
+
+# sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
+# in nonreversible format on the go,
+# it's also used by and scribbled over in various places, and needs synthesizing
+# from two separate properties in case of a wmi-only node.
+#
+# this helper takes in a sys object and attempts to make sysUpTime and sysUpTimeSec
+# from whatever sys' nodeinfo structure contains.
+sub makesysuptime
+{
+	my ($sys) = @_;
+	my $info = $sys->ndinfo->{system};
+
+	return if (ref($info) ne "HASH" or !keys %$info);
+
+	# if this is wmi, we need to make a sysuptime first. these are seconds
+	if ($info->{wintime} && $info->{winboottime})
+	{
+		$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
+	}
+
+	# pre-mangling it's a number, maybe fractional, in 1/100s ticks
+	# post-manging it is text, and we can't do a damn thing anymore
+	if (defined($info->{sysUpTime}) && $info->{sysUpTime} =~ /^\d+(\.\d*)?$/)
+	{
+		$info->{sysUpTimeSec} = int($info->{sysUpTime}/100); # save away
+		$info->{sysUptime} = func::convUpTime($info->{sysUpTimeSec}); # seconds into text
+	}
+	return;
+}
+
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
