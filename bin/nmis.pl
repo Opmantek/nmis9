@@ -9155,7 +9155,7 @@ sub makesysuptime
 	if (defined($info->{sysUpTime}) && $info->{sysUpTime} =~ /^\d+(\.\d*)?$/)
 	{
 		$info->{sysUpTimeSec} = int($info->{sysUpTime}/100); # save away
-		$info->{sysUptime} = func::convUpTime($info->{sysUpTimeSec}); # seconds into text
+		$info->{sysUpTime} = func::convUpTime($info->{sysUpTimeSec}); # seconds into text
 	}
 	return;
 }
