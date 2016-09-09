@@ -1218,15 +1218,14 @@ sub runPing
 					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
 					# frontend nodeStatus() takes proper care of.
 					info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
-					checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
+					HandleNodeDown(sys => $S, type => "node", up => 1, details=>"Ping avg=$ping_avg loss=$ping_loss%");
 				}
 			}
 			else
 			{
 				# down - log if not already down
 				logMsg("ERROR ($S->{name}) ping failed") if (!getbool($NI->{system}{nodedown}));
-				notify(sys=>$S, event=>"Node Down",element=>"",details=>"Ping failed",
-							 context => { type => "node" } );
+				HandleNodeDown(sys => $S, type => "node", details => "Ping failed");
 			}
 		}
 
@@ -1534,7 +1533,8 @@ sub getNodeInfo
 		{
 			$RI->{"${source}result"} = 100;
 			my $sourcename = uc($source);
-			checkEvent(sys=>$S, event=>"$sourcename Down", level=>"Normal", element=>"", details=>"$sourcename ok");
+			# happy, clear previous source down flag and event (if any)
+			HandleNodeDown(sys => $S, type => $source, up => 1, details => "$sourcename ok");
 		}
 		# or fire down event if it was enabled but didn't work
 		# ie. if it's no longer enabled and has an error saved in oldstate or a new one
@@ -1542,7 +1542,8 @@ sub getNodeInfo
 					 && !$curstate->{"${source}_enabled"}
 					 && ($oldstate->{"${source}_error"} || $curstate->{"${source}_error"}))
 		{
-			RaiseNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"} );
+			HandleNodeDown(sys=>$S, type => $source,
+										 details => $curstate->{"${source}_error"} || $oldstate->{"${source}_error"} );
 		}
 	}
 
@@ -1901,7 +1902,7 @@ sub getIntfInfo
 				else
 				{
 					logMsg("ERROR ($S->{name}) on get interface index table: ".$SNMP->error);
-					RaiseNodeDown(sys=>$S, type => "snmp", details => $SNMP->error);
+					HandleNodeDown(sys=>$S, type => "snmp", details => $SNMP->error);
 				}
 
 				info("Finished");
@@ -1979,7 +1980,7 @@ sub getIntfInfo
 			else
 			{
 				# snmp failed
-				RaiseNodeDown(sys=>$S, type => "snmp", details => $S->status->{snmp_error} );
+				HandleNodeDown(sys=>$S, type => "snmp", details => $S->status->{snmp_error} );
 
 				if ( getbool($C->{snmp_stop_polling_on_error}) )
 				{
@@ -2680,7 +2681,7 @@ sub getEnvInfo
 		else
 		{
 			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
-			RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
+			HandleNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
 		}
 
 		# fixme: this loadinfo run is only required for snmp
@@ -2694,7 +2695,7 @@ sub getEnvInfo
 			else
 			{
 				my $error = $S->status->{snmp_error};
-				RaiseNodeDown(sys=>$S, type => "snmp", details => "get environment table index $index");
+				HandleNodeDown(sys=>$S, type => "snmp", details => "get environment table index $index");
 			}
 		}
 	}
@@ -2767,8 +2768,8 @@ sub getEnvData
 			else
 			{
 				logMsg("ERROR ($NI->{system}{name}) on getEnvData, $anyerror");
-				RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
-				RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+				HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+				HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
 				return 0;
 			}
@@ -2886,7 +2887,7 @@ sub getSystemHealthInfo
 			if ($error)
 			{
 				logMsg("ERROR ($S->{name}) failed to get index table for systemHealth $section: $error");
-				RaiseNodeDown(sys => $S, type => "wmi", details => "failed to get index table for systemHealth $section: $error");
+				HandleNodeDown(sys => $S, type => "wmi", details => "failed to get index table for systemHealth $section: $error");
 				next;
 			}
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
@@ -2907,7 +2908,7 @@ sub getSystemHealthInfo
 				{
 					my $error = $S->status->{wmi_error};
 					logMsg("ERROR ($S->{name}) failed to get table for systemHealth $section: $error");
-					RaiseNodeDown(sys => $S, type => "wmi", details => "failed to get table for systemHealth $section: $error");
+					HandleNodeDown(sys => $S, type => "wmi", details => "failed to get table for systemHealth $section: $error");
 					next;
 				}
 			}
@@ -2941,7 +2942,7 @@ sub getSystemHealthInfo
 				else
 				{
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
-					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
+					HandleNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
 				}
 			}
 			# Loop to get information, will be stored in {info}{$section} table
@@ -2954,7 +2955,7 @@ sub getSystemHealthInfo
 				{
 					my $error = $S->status->{snmp_error};
 					logMsg("ERROR ($S->{name}) on get systemHealth $section index $index: $error");
-					RaiseNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index $index: $error");
+					HandleNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index $index: $error");
 				}
 			}
 		}
@@ -3035,8 +3036,8 @@ sub getSystemHealthData
 			else
 			{
 				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $anyerror");
-				RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
-				RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+				HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+				HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
 				return 0;
 			}
@@ -3085,13 +3086,13 @@ sub updateNodeInfo
 		if ($curstate->{"${source}_enabled"} && !$curstate->{"${source}_error"})
 		{
 			my $sourcename = uc($source);
-			checkEvent(sys=>$S, event=>"$sourcename Down", level=>"Normal", element=>"", details=>"$sourcename ok");
 			$RI->{"${source}result"} = 100;
+			HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
 		}
 		# not ok if enabled and error
 		elsif ($curstate->{"${source}_enabled"} && $curstate->{"${source}_error"})
 		{
-			RaiseNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
+			HandleNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
 			$RI->{"${source}result"} = 0;
 		}
 		# don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
@@ -3328,8 +3329,8 @@ sub getNodeData
 	else
 	{
 		logMsg("ERROR ($NI->{system}{name}) on getNodeData, $anyerror");
-		RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
-		RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+		HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+		HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 		return 0;
 	}
 
@@ -3834,8 +3835,8 @@ sub getCBQoSdata
 				else
 				{
 					logMsg("ERROR ($NI->{system}{name}) on getCBQoSdata, $anyerror");
-					RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
-					RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+					HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+					HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
 					return 0;
 				}
@@ -3883,7 +3884,7 @@ sub getCBQoSwalk
 	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions))
 	{
 		foreach my $PIndex (keys %{$ifIndexTable}) {
-			my $intf = $ifIndexTable->{$PIndex}; # the interface number from de snmp qos table
+			my $intf = $ifIndexTable->{$PIndex}; # the interface number from the snmp qos table
 			info("CBQoS, scan interface $intf");
 			# is this an active interface
 			if ( exists $IF->{$intf}) {
@@ -4263,8 +4264,8 @@ sub getCallsdata
 		else
 		{
 			logMsg("ERROR ($NI->{system}{name}) on getCallsdata, $anyerror");
-			RaiseNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
-			RaiseNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
+			HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
+			HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
 			return 0;
 		}
@@ -4897,7 +4898,7 @@ sub runServices
 			else
 			{
 				logMsg("$node SNMP Down while collecting SNMP Service Data");
-				RaiseNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
 				last;
 			}
 		}
@@ -5726,29 +5727,39 @@ sub runCheckValues
 	dbg("Finished");
 }
 
-# create event: node has <something> down
-# currently understands snmp, wmi;
+# create event: node has <something> down, or clear said event (and state)
+# args: sys, type (both required), details (optional),
+# up (optional, set to clear event, default is create)
+#
+# currently understands snmp, wmi, node (=the whole node)
 # also updates <something>down flag in node info
-# args: sys, type (both required), details (optional)
+#
 # returns: nothing
-sub RaiseNodeDown
+sub HandleNodeDown
 {
 	my %args = @_;
 
-	my ($S,$typeofdown,$details) = @args{"sys","type","details"};
-	return if (ref($S) ne "Sys" or $typeofdown !~ /^(snmp|wmi)$/);
+	my ($S, $typeofdown, $details, $goingup) = @args{"sys","type","details","up"};
+	return if (ref($S) ne "Sys" or $typeofdown !~ /^(snmp|wmi|node)$/);
 
-	my $name = uc($typeofdown);
-	$details ||= "$name error";
+	$goingup = getbool($goingup);
 
-	notify(sys=>$S,
-				 event=>"$name Down",
-				 element=>'',
-				 details=> $details,
-				 context =>  { type => "node" } );
+	my %eventnames = ( 'snmp' => "SNMP Down",
+										 'wmi' => "WMI Down",
+										 'node' => "Node Down" );
+	my $eventname = $eventnames{$typeofdown};
+	$details ||= "$typeofdown error";
+
+	my $eventfunc = ($goingup? "checkEvent":"notify");
+	&$eventfunc(sys => $S,
+							event => $eventname,
+							element => '',
+							details => $details,
+							level => ($goingup? 'Normal': undef),
+							context =>  { type => "node" } );
 
 	my $NI = $S->ndinfo;
-	$NI->{system}{"${typeofdown}down"} = 'true';
+	$NI->{system}{"${typeofdown}down"} = $goingup?'false':'true';
 
 	return;
 }
