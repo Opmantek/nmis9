@@ -17,6 +17,24 @@ use Data::Dumper;
 my %nvp = getArguements(@ARGV);
 my $C = loadConfTable(debug => $nvp{debug}, info=> $nvp{info});
 
+print "testing sort with func::alpha...\n";
+# fwd, ie. expect 1 if left side is greater
+for ([0+"nan", 47, 1],					# nan greater than any X
+		 [0+"nan", 1+"nan", 0],			# same
+		 [3456, 0+"nan", -1],				# any X less than nan
+		 ['123.45.40.100','123.044.40.139', 1] ,
+		 [ 'ticket4', 'ticket20', -1],
+		 ['dodgy12/5/9', 'dodgy3/78/9plusgunk', 1],
+		 ['x45junk', 'junk456', 1],
+		 )
+		
+		
+{
+	my ($first, $second, $expected) = @{$_};
+	my $res = func::alpha('fwd',$first, $second);
+	die("func::alpha failed: $first cmp $second, expected $expected but got $res\n") if ($res != $expected);
+}
+
 info("a message at level undef");
 for my $x (0..5)
 {

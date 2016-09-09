@@ -1,31 +1,31 @@
 #!/usr/bin/perl
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
@@ -73,15 +73,15 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 #======================================================================
 
 # select function
-if ($Q->{act} eq 'config_nodeconf_view') {			
+if ($Q->{act} eq 'config_nodeconf_view') {
 	displayNodemenu();
-} 
-elsif ($Q->{act} eq 'config_nodeconf_update') {	
+}
+elsif ($Q->{act} eq 'config_nodeconf_update') {
 	if (updateNodeConf()){ displayNodemenu(); }
-} 
+}
 else {
 	displayNodemenu();
-	#notfound(); 
+	#notfound();
 }
 
 sub notfound {
@@ -94,7 +94,7 @@ exit;
 
 #==================================================================
 #
-# display 
+# display
 #
 sub displayNodemenu{
 
@@ -110,7 +110,7 @@ sub displayNodemenu{
 	print start_table,start_Tr,start_td;
 
 	# start of form
-	my $thisurl = url(-absolute => 1)."?"; 
+	my $thisurl = url(-absolute => 1)."?";
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmis1", -href => $thisurl);
@@ -121,7 +121,7 @@ sub displayNodemenu{
 	print start_table() ; # first table level
 
 	# row with Node selection
-	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group}) 
+	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group})
 														 and getbool($NT->{$_}{active}) } sort keys %{$NT});
 	print start_Tr;
 	print td({class=>"header"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
@@ -155,7 +155,7 @@ sub displayNodemenu{
 
 
 # show the config form for a single given node
-sub displayNodeConf 
+sub displayNodeConf
 {
 	my %args = @_;
 	my $node = $args{node};
@@ -200,16 +200,16 @@ sub displayNodeConf
 	print Tr(td({class=>'header'},'<b>Node</b>'),td({class=>'header'},"&nbsp;"),
 			td({class=>'header'},"&nbsp;"),td({-align=>'center'},
 				eval {
-					if ($AU->CheckAccess("Table_nodeConf_rw","check")) 
+					if ($AU->CheckAccess("Table_nodeConf_rw","check"))
 					{
 
 							# in case of store config non-widgetted we only need to
 							# submit the form
 							# (and ensure the doupdate hidden field is off, if we're
 							# coming back to this page!)
-							return button(-name=>'button', 
+							return button(-name=>'button',
 														onClick => ($wantwidget? "javascript:get('nmis');"
-																				: '$("#doupdate").val(""); submit()'), 
+																				: '$("#doupdate").val(""); submit()'),
 														-value=>'Store'),
 
 							# but to emulate the update=true get() call, we need to set
@@ -256,37 +256,42 @@ sub displayNodeConf
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
-	if ( getbool($NI->{system}{collect}) ) 
+	if ( getbool($NI->{system}{collect}) )
 	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
-		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd') ) 
+		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd'))
 		{
-			next if (!exists $IF->{$intf}{ifDescr} or $IF->{$intf}{ifDescr} eq "" );
+			next if (ref($IF->{$intf}) ne "HASH"
+							 or !defined($IF->{$intf}->{ifDescr})
+							 or $IF->{$intf}->{ifDescr} eq ''); # exists but empty text should no longer happen
 
 			my $intfstatus = $IF->{$intf};
-			my ($description, $speed,$speedIn,$speedOut, $collect,$event,$threshold,$size, $setlimits);
-				
+			my ($description, $displayname, $speed, $speedIn, $speedOut,
+					$collect, $event, $threshold,$size, $setlimits);
+
 			my $ifDescr = $intfstatus->{ifDescr};
 			my $thisintfover = ref($override->{$ifDescr}) eq "HASH"? $override->{$ifDescr} : {};
-	
+
 			# check if interfaces are changed - fixme what does that mean?
-			if ($thisintfover->{ifDescr} and $ifDescr ne $thisintfover->{ifDescr}) 
+			if ($thisintfover->{ifDescr}
+					and $ifDescr ne $thisintfover->{ifDescr})
 			{
 				# fixme undef better?
-				$collect = $event = $threshold = $description = $speed = undef;
+				$collect = $event = $threshold = $description = $displayname = $speed = undef;
 			}
-			else 
+			else
 			{
 				if ( !$thisintfover->{ifSpeedIn} and $thisintfover->{ifSpeed} )
 				{
 					$thisintfover->{ifSpeedIn} = $thisintfover->{ifSpeed};
 				}
-				if (!$thisintfover->{ifSpeedOut} and $thisintfover->{ifSpeed}) 
+				if (!$thisintfover->{ifSpeedOut} and $thisintfover->{ifSpeed})
 				{
 					$thisintfover->{ifSpeedOut} = $thisintfover->{ifSpeed};
 				}
-			
+
 				$description = $thisintfover->{Description};
+				$displayname = $thisintfover->{displayname};
 				$speed = $thisintfover->{ifSpeed};
 				$speedIn = $thisintfover->{ifSpeedIn};
 				$speedOut = $thisintfover->{ifSpeedOut};
@@ -296,8 +301,8 @@ sub displayNodeConf
 				$setlimits = $thisintfover->{setlimits};
 			}
 			$setlimits = "normal" if (!$setlimits or $setlimits !~ /^(normal|strict|off)$/);
-	
-			my $NCT_Description = exists $intfstatus->{nc_Description} ? 
+
+			my $NCT_Description = exists $intfstatus->{nc_Description} ?
 					$intfstatus->{nc_Description} : $intfstatus->{Description};
 
 			print Tr,
@@ -307,18 +312,25 @@ sub displayNodeConf
 																		-style => 'width: 95%',
 																		-override=>1,
 																		-value=>$description));
-				
+
+			print Tr, td({class=>'header'}),
+			td({class=>'header'},"Display Name"),td({class=>'header3'}, $displayname),
+			td({class=>"Plain"},textfield(-name=>"displayname_${intf}",
+																		-style => 'width: 95%',
+																		-override=>1,
+																		-value => $displayname));
+
 			my $NCT_ifSpeed = $intfstatus->{nc_ifSpeed} || $intfstatus->{ifSpeed};
 			#print Tr,td({class=>'header'}),
 			#	td({class=>'header'},"Speed"),td({class=>'header3'},$NCT_ifSpeed),
 			#	td({class=>"Plain"},textfield(-name=>"speed_${intf}",-override=>1,-value=>$speed));
-			
+
 			my $NCT_ifSpeedIn = $intfstatus->{nc_ifSpeedIn} || $intfstatus->{ifSpeedIn};
 			$NCT_ifSpeedIn = $NCT_ifSpeed if not $NCT_ifSpeedIn;
 			print Tr,td({class=>'header'}),
 			td({class=>'header'},"Speed In"),td({class=>'header3'},$NCT_ifSpeedIn),
 			td({class=>"Plain"},textfield(-name=>"speedIn_${intf}",-override=>1,-value=>$speedIn));
-	
+
 			my $NCT_ifSpeedOut = $intfstatus->{nc_ifSpeedOut} || $intfstatus->{ifSpeedOut};
 			$NCT_ifSpeedOut = $NCT_ifSpeed if not $NCT_ifSpeedOut;
 			print Tr,td({class=>'header'}),
@@ -333,7 +345,7 @@ sub displayNodeConf
 																								 'strict',
 																								 'off'],
 																			 -default=>$setlimits, ));
-						
+
 			my $NCT_collect = $intfstatus->{nc_collect} || $intfstatus->{collect};
 			print Tr,td({class=>'header'}),
 			td({class=>'header'},"Collect"),td({class=>'header3'},$NCT_collect),
@@ -344,9 +356,9 @@ sub displayNodeConf
 																			-default=>$collect,-labels=>\%rglabels));
 
 
-			
-			if ( getbool($collect) or (!getbool($collect,"invert") 
-																 and getbool($NCT_collect)) ) 
+
+			if ( getbool($collect) or (!getbool($collect,"invert")
+																 and getbool($NCT_collect)) )
 			{
 				my $NCT_event = $intfstatus->{nc_event} || $intfstatus->{event};
 				print Tr,td({class=>'header'}),
@@ -360,8 +372,8 @@ sub displayNodeConf
 				print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
 			}
 
-			if (getbool($NI->{system}{threshold}) 
-					and (getbool($collect) or (!getbool($collect,"invert") 
+			if (getbool($NI->{system}{threshold})
+					and (getbool($collect) or (!getbool($collect,"invert")
 																		 and getbool($NCT_collect)) )) {
 				my $NCT_threshold = $intfstatus->{nc_threshold} || $intfstatus->{threshold};
 				print Tr,td({class=>'header'}),
@@ -376,10 +388,10 @@ sub displayNodeConf
 				print hidden(-name=>"threshold_${intf}", -default=>'unchanged',-override=>'1');
 			}
 
-			
+
 		}
 	}
-	else 
+	else
 	{
 		print Tr(td({class=>'info',colspan=>'4'},"No collection of Interfaces"));
 	}
@@ -427,15 +439,16 @@ sub updateNodeConf {
 	}
 
 	# $intf is the ifIndex
-	foreach my $intf (keys %{$IF}) 
+	foreach my $intf (keys %{$IF})
 	{
 		my $ifDescr = $IF->{$intf}{ifDescr};
 
 		my $thisintfover = $override->{$ifDescr} ||= {};
-		
+
 		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr}; # for linking the if state to the nodeconf
 
 		my %tranferrables = ("descr_$intf" => "Description",
+												 "displayname_$intf" => "displayname",
 												 "speed_$intf" => "ifSpeed",
 												 "speedIn_$intf" => "ifSpeedIn",
 												 "speedOut_$intf" => "ifSpeedOut",
@@ -464,7 +477,7 @@ sub updateNodeConf {
 		delete $override->{$ifDescr} if (scalar keys %{$thisintfover} == 1);
 	}
 
-  # this makes the resulting subsequent node menu into a blank one, 
+  # this makes the resulting subsequent node menu into a blank one,
 	# longterm fixme: instead this should report an 'update done' and show the same node again
 	delete $Q->{node};
 
@@ -488,8 +501,8 @@ sub doNodeUpdate {
 
 	# note that this will force nmis.pl to skip the pingtest as we are a non-root user !!
 	# for now - just pipe the output of a debug run, so the user can see what is going on !
-	
-	# now run the update and display 
+
+	# now run the update and display
 	print header($headeropts);
 
 	if (!$wantwidget)
@@ -504,15 +517,15 @@ sub doNodeUpdate {
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button', 
+				td(button(-name=>'button',
 									-onclick => ($wantwidget? "javascript:get('nmis');" : "submit()"),
 									-value=>'Ok'))));
 	print end_form;
-	
+
 	print "<pre>\n";
 	print "Running update on node $node - Please wait.....\n\n\n";
-	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true force=true 2>&1 |"); 
+
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true force=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -524,8 +537,8 @@ sub doNodeUpdate {
 
 	print "<pre>\n";
 	print "Running collect on node $node - Please wait.....\n\n\n";
-	
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |"); 
+
+	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -542,7 +555,7 @@ sub doNodeUpdate {
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
-				td(button(-name=>'button', 
+				td(button(-name=>'button',
 									-onclick => ($wantwidget? "javascript:get('nmis');" : "submit()"),
 									-value=>'Ok'))));
 	print end_form;

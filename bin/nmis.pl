@@ -2181,6 +2181,14 @@ sub getIntfInfo
 					= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
 				}
+				if ($thisintfover->{displayname})
+				{
+					$thisintf->{displayname}
+					= $V->{interface}->{"${index}_displayname_value"}
+					= $thisintfover->{displayname};
+					$V->{interface}->{"${index}_displayname_title"} = "Display Name";
+					# no log/diag msg as  this comes ONLY from nodeconf, it's not overriding anything
+				}
 
 				for my $speedname (qw(ifSpeed ifSpeedIn ifSpeedOut))
 				{
@@ -6264,33 +6272,30 @@ sub getIntfAllInfo
 
 					dbg("$node $tmpDesc hash=$intHash $info->{$intf}{ifDescr}",3);
 
-					if ( $info->{interface}{$intf}{ifDescr} ne "" ) {
+					if ( $info->{interface}{$intf}{ifDescr} ne "" )
+					{
 						dbg("Add node=$node interface=$info->{interface}{$intf}{ifDescr}",2);
-						$interfaceInfo{$intHash}{node} = $node;
-						$interfaceInfo{$intHash}{sysName} = $info->{system}{sysName};
-						$interfaceInfo{$intHash}{ifIndex} = $info->{interface}{$intf}{ifIndex};
-						$interfaceInfo{$intHash}{ifDescr} = $info->{interface}{$intf}{ifDescr};
-						$interfaceInfo{$intHash}{collect} = $info->{interface}{$intf}{collect};
-						$interfaceInfo{$intHash}{real} = $info->{interface}{$intf}{real};
-						$interfaceInfo{$intHash}{ifType} = $info->{interface}{$intf}{ifType};
-						$interfaceInfo{$intHash}{ifSpeed} = $info->{interface}{$intf}{ifSpeed};
-						$interfaceInfo{$intHash}{ifAdminStatus} = $info->{interface}{$intf}{ifAdminStatus};
-						$interfaceInfo{$intHash}{ifOperStatus} = $info->{interface}{$intf}{ifOperStatus};
-						$interfaceInfo{$intHash}{ifLastChange} = $info->{interface}{$intf}{ifLastChange};
-						$interfaceInfo{$intHash}{Description} = $info->{interface}{$intf}{Description};
-						$interfaceInfo{$intHash}{portModuleIndex} = $info->{interface}{$intf}{portModuleIndex};
-						$interfaceInfo{$intHash}{portIndex} = $info->{interface}{$intf}{portIndex};
-						$interfaceInfo{$intHash}{portDuplex} = $info->{interface}{$intf}{portDuplex};
-						$interfaceInfo{$intHash}{portIfIndex} = $info->{interface}{$intf}{portIfIndex};
-						$interfaceInfo{$intHash}{portSpantreeFastStart} = $info->{interface}{$intf}{portSpantreeFastStart};
-						$interfaceInfo{$intHash}{vlanPortVlan} = $info->{interface}{$intf}{vlanPortVlan};
-						$interfaceInfo{$intHash}{portAdminSpeed} = $info->{interface}{$intf}{portAdminSpeed};
+						my $source = $info->{interface}->{$intf};
+						my $dest = $interfaceInfo{$intHash} ||= {};
+
+						$dest->{node} = $node;
+						$dest->{sysName} = $info->{system}->{sysName};
+
+						for my $copyme (qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
+ifOperStatus ifLastChange Description displayname portModuleIndex portIndex portDuplex portIfIndex
+portSpantreeFastStart vlanPortVlan portAdminSpeed))
+						{
+							$dest->{$copyme} = $source->{$copyme};
+						}
+
 						my $cnt = 1;
-						while ($info->{interface}{$intf}{"ipAdEntAddr$cnt"} ne '') {
-							$interfaceInfo{$intHash}{"ipAdEntAddr$cnt"} = $info->{interface}{$intf}{"ipAdEntAddr$cnt"};
-							$interfaceInfo{$intHash}{"ipAdEntNetMask$cnt"} = $info->{interface}{$intf}{"ipAdEntNetMask$cnt"};
-							$interfaceInfo{$intHash}{"ipSubnet$cnt"} = $info->{interface}{$intf}{"ipSubnet$cnt"};
-							$interfaceInfo{$intHash}{"ipSubnetBits$cnt"} = $info->{interface}{$intf}{"ipSubnetBits$cnt"};
+						while (defined($source->{"ipAdEntAddr$cnt"}))
+						{
+							for my $copymeprefix (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
+							{
+								my $copyme = $copymeprefix.$cnt;
+								$dest->{$copyme} = $source->{$copyme};
+							}
 							$cnt++;
 						}
 					}

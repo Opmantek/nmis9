@@ -2033,8 +2033,10 @@ sub viewAllIntf {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description','ipAdEntAddr1','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
-	'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
+	my @header = ('ifDescr','Description','ipAdEntAddr1','displayname',
+								'ifAdminStatus','ifOperStatus','operAvail','totalUtil',
+								'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange',
+								'collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
 
 	# create hash from loaded view table
 	my %view;
@@ -2165,14 +2167,16 @@ sub viewActivePort {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description','ifAdminStatus','ifOperStatus','operAvail','totalUtil');
+	my @header = ('ifDescr','Description', 'displayname', 'ifAdminStatus','ifOperStatus','operAvail','totalUtil');
 
 	# create hash from view table
 	my %view;
 	my %titles;
 	my %items;
-	for my $k (keys %{$V->{interface}}) {
-		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) {
+	for my $k (keys %{$V->{interface}}) 
+	{
+		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) 
+		{
 			my ($a,$b,$c) = ($1,$2,$3);
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
 			if ($c eq 'title') { $titles{$b} = $V->{interface}{$k}; }
