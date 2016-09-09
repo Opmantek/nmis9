@@ -5750,7 +5750,7 @@ sub HandleNodeDown
 	my $eventname = $eventnames{$typeofdown};
 	$details ||= "$typeofdown error";
 
-	my $eventfunc = ($goingup? "checkEvent":"notify");
+	my $eventfunc = ($goingup? \&checkEvent: \&notify);
 	&$eventfunc(sys => $S,
 							event => $eventname,
 							element => '',
