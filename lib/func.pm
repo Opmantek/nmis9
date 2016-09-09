@@ -36,7 +36,7 @@ use File::Path;
 use File::stat;
 use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
-use Time::Local;		 # not used by func, but wanted for the wmi model stuff
+use Time::Local;
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
@@ -2779,6 +2779,41 @@ sub beautify_physaddress
 	}
 
 	return $raw;									# fallback to return the input unchanged if beautication doesn't work out
+}
+
+# takes binary encoded DateAndTime snmp value, 
+# translates into fractional seconds in gmt
+# args: 0xhexstring or real binary string,
+# returns: fractional seconds in gmt
+# note: not exported.
+sub parse_dateandtime
+{
+	my ($dateandtime) = @_;
+	# see https://tools.ietf.org/html/rfc1443 for format
+
+	if ($dateandtime =~ /^0x([a-f0-9]+)$/i)
+	{
+		$dateandtime = pack("H*", $1);
+	}
+
+	# raw binary? length 8 or length 11 (with timezone)
+	if (length($dateandtime) == 8 or length($dateandtime) == 11)
+	{
+		my ($year,$month,$day,$hour,$min,$sec,$decisec,
+				$sign,$offhour,$offminutes) = unpack("nC6a1C2",$dateandtime);
+
+		my $seconds = Time::Local::timegm($sec,$min,$hour, $day, $month-1,$year)
+				+ $decisec/10;
+		if ($sign && defined($offminutes) && defined($offhour))
+		{
+			$seconds += ($sign eq "+"? -1 : 1) * ($offhour * 3600 + $offminutes * 60);
+		}
+		return $seconds;
+	}
+	else
+	{
+		return undef;
+	}
 }
 
 sub getFilePollLock {

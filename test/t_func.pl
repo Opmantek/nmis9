@@ -17,6 +17,24 @@ use Data::Dumper;
 my %nvp = getArguements(@ARGV);
 my $C = loadConfTable(debug => $nvp{debug}, info=> $nvp{info});
 
+print "testing parse_dateandtime...\n";
+
+# this helps: snmpget -mAll  -v2c -c ... -Ih somenode HOST-RESOURCES-MIB::hrSystemDate.0
+for (["0x07E00909102B3A002B0A00", 1473403438],
+		 ["0x07E00909062D1300", 1473403519],
+		 ["0x07E0090910340B05", 1473439931.5 ],	# mani: with decisecs but clock in local zone and no knowledge thereof
+		)
+{
+	my ($hexstring, $expected) = @$_;
+	my $res = func::parse_dateandtime($hexstring);
+	die "func::parse_dateandtime failed: $hexstring should have translated to $expected, but got $res\n"
+			if ($res != $expected);
+	print "had $hexstring, got $res or gmtime ".gmtime($res)."\n";
+}
+
+exit 0;
+		
+
 print "testing sort with func::alpha...\n";
 # fwd, ie. expect 1 if left side is greater
 for ([0+"nan", 47, 1],					# nan greater than any X
