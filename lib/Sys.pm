@@ -708,9 +708,9 @@ sub getValues
 		# prep the list of things to tackle, snmp first - iff snmp is ok for this node
 		if (ref($thissection->{snmp}) eq "HASH" && $self->{snmp})
 		{
-			# expecting index or port for interfaces
-			my $suffix = (defined($index) && $index ne '')? ".$index"
-					: (defined($port) && $port ne '')? ".$port" : '';
+			# expecting port OR index for interfaces, cbqos etc. note that port overrides index!
+			my $suffix = (defined($port) && $port ne '')? ".$port"
+					: (defined($index) && $index ne '')? ".$index" : "";
 			dbg("class: index=$index port=$port suffix=$suffix");
 
 			for my $itemname (keys %{$thissection->{snmp}})
