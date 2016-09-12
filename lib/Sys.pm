@@ -611,13 +611,8 @@ sub getData
 #
 # args: class, section, index, port (more or less required)
 # ATTENTION: class is NOT name but MODEL SUBSTRUCTURE!
-# NOTE: if section is not given, ALL existing sections are handled
-#
+# NOTE: if section is not given, ALL existing sections are handled (including alerts!)
 # table (optional, if given must be hashref and getvalues adds graphtype list to it),
-#
-# note: supports calculate, with $r and CVAR[0-9], and replace;
-# but fixme: the CVARn handling should be integrated into parseString (must supply input of known subst values, as
-# $result->{$sect}{$index}{$ds} isn't built up by the time the substitutions take place
 #
 # returns: (data hash ref, status hash ref with keys 'error','skipped','nographs','wmi_error','snmp_error')
 #
@@ -642,6 +637,7 @@ sub getValues
 	my (%data,%status, %todos);
 
 	# one or all sections?
+	# attention: this does include 'alerts'!
 	my @todosections = (defined($section) && $section ne '')?
 			exists($class->{$section}) ? $section : ()
 			: (keys %{$class});
@@ -859,14 +855,18 @@ sub getValues
 		}
 	}
 
-	# now handle compute, format, replace etc.
+	# now handle compute, format, replace, alerts etc.
+	# prep the var replacement once
+	my %knownvars = map { $_ => $todos{$_}->{rawvalue} } (keys %todos);
+
 	for my $thing (values %todos)
 	{
 		next if (!$thing->{done});	# we should not end up with unresolved stuff but bsts
 
 		my $value = $thing->{rawvalue};
 
-		# where does it go? remember, multiple sections possible - potentially with DIFFERENT calculate, replace etc...
+		# where does it go? remember, multiple target sections possible - potentially with DIFFERENT calculate,
+		# replace expressions etc!
 		for my $sectionidx (0..$#{$thing->{section}})
 		{
 			# (section and details are multiples, item, indexing, field(name) etc MUST be identical
@@ -875,60 +875,22 @@ sub getValues
 
 			# massaging: calculate and replace really should not be combined in a model,
 			# but if you do nmis won't complain. calculate is done FIRST, however.
+			# all calculate and CVAR expressions refer to the RAW variable value! (for now, as
+			# multiple target sections can have different replace/calculate rules and
+			# we can't easily say which one to pick)
 			if (exists($sectiondetails->{calculate}) && (my $calc = $sectiondetails->{calculate}))
 			{
-				# calculate understands as placeholders: $r for the current oid/thing,
-				# and "CVAR[n]=oidname;" stanzas, with n in 0..9
-				# all CVARn initialisations need to come before use,
-			# and the RAW ds/oid values are substituted, not post-calc/replace/whatever!
-
-				my (@CVAR, $rebuiltcalc, $consumeme);
-				$consumeme=$calc;
-				# rip apart calc, rebuild it with var substitutions
-				while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
+				# setup known var value list so that eval_string can handle CVARx substitutions
+				my ($error, $result) = $self->eval_string(string => $calc,
+																									context => $value,
+																									# for now we don't support multiple or cooked, per-section values
+																									variables => [ \%knownvars ]);
+				if ($error)
 				{
-					$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
-					my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
-
-					if (defined $varnum) # cvar declaration
-					{
-						# decl holds item name
-						if (!exists $todos{$decl})
-						{
-							$status{error} = "CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"";
-							logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"");
-						}
-						$CVAR[$varnum] = $todos{$decl}->{rawvalue};
-					}
-					elsif (defined $varuse) # cvar use
-					{
-						if (!exists $CVAR[$varuse])
-						{
-							$status{error} = "CVAR$varuse used but not defined in calc \"$calc\"";
-							logMsg("ERROR: CVAR$varuse used but not defined in calc \"$calc\"")
-						}
-						$rebuiltcalc .= $CVAR[$varuse]; # sub in the actual value
-					}
-					else 						# shouldn't be reached, ever
-					{
-						$status{error} = "CVAR parsing failure for \"$calc\"";
-						logMsg("ERROR: CVAR parsing failure for \"$calc\"");
-						$rebuiltcalc=$consumeme='';
-						last;
-					}
+					$status{error} = $error;
+					logMsg("ERROR ($self->{name}) $error");
 				}
-				$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
-				dbg("calc translated \"$calc\" into \"$rebuiltcalc\"",3);
-				$calc = $rebuiltcalc;
-
-				my $r = $value;						# ensure backwards compat naming
-				$r = eval $calc;
-				if ($@)
-				{
-					$status{error} = "calculation=$calc in Model failed: $@";
-					logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@");
-				}
-				$value = $r;
+				$value = $result;
 			}
 			# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
 			if (ref($sectiondetails->{replace}) eq "HASH")
@@ -950,7 +912,7 @@ sub getValues
 			$value =~ s{<}{&lt;}gso;
 			$value =~ s{>}{&gt;}gso;
 
-			# result ready, park it in the data structure IFF desired
+			# then park it in the data structure IFF desired
 			# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
 			# nosave also implies no alerts for this thing.
 			if (exists($sectiondetails->{option}) && $sectiondetails->{option} eq "nosave")
@@ -962,6 +924,7 @@ sub getValues
 				my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
 											: $data{ $gothere }->{ $thing->{item} } ) ||= {};
 				$target->{value} = $value;
+
 				# rrd options from the model
 				$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
 				# as well as a title
@@ -970,22 +933,28 @@ sub getValues
 				if ( exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
 				{
 					my $test = $sectiondetails->{alert}->{test};
+					dbg("checking test $test for basic alert \"$target->{title}\"",3);
 
-					my $r = $value;						# backwards-compat
-					my $test_result = eval $test;
-					if ($@)
+					# setup known var value list so that eval_string can handle CVARx substitutions
+					my ($error, $result) = $self->eval_string(string => $test,
+																										context => $value,
+																										# for now we don't support multiple or cooked, per-section values
+																										variables => [ \%knownvars ] );
+					if ($error)
 					{
-						$status{error} = "test=$test in Modeml for $thing->{item} for $gothere failed: $@";
-						logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $@");
+						$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
+						logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 					}
+					dbg("test $test, result=$result",3);
 
 					push @{$self->{alerts}}, 	{ name => $self->{name},
 																			type => "test",
+																			event => $sectiondetails->{alert}->{event},
 																			ds => $thing->{item},
 																			section => $gothere, # that's the section name
 																			source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
 																			value => $value,
-																			test_result => $test_result, };
+																			test_result => $result, };
 				}
 			}
 		}
@@ -1001,6 +970,70 @@ sub getValues
 			. (join(", ", map { "$_='$status{$_}'" } (keys %status)) || 'ok'));
 
 	return (\%data, \%status);
+}
+
+# next gen CVAR/$r evaluation function (will eventually become replacement for parsestring)
+#
+# args: string, context (=$r value), both required,
+# optional variables (=array of one or more varname->val hash refs, checked in order)
+# returns: (error message) or (undef, evaluation result)
+#
+# this understands: $r, CVAR, CVAR0-9; var values come from the first listed variables table
+# that contains a match (exists, may be undef).
+sub eval_string
+{
+	my ($self, %args) = @_;
+
+	my ($input, $context) = @args{"string","context"};
+	return ("missing string to evaluate!") if (!defined $input);
+	return ("missing context for evaluation!") if (!defined $context);
+
+	my $vars = $args{variables};
+
+	my ($rebuiltcalc, $consumeme,%cvar);
+	$consumeme=$input;
+	# rip apart calc, rebuild it with var substitutions
+	while ($consumeme =~ s/^(.*?)(CVAR(\d)?=(\w+);|\$CVAR(\d)?)//)
+	{
+		$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
+		my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
+
+		$varnum = 0 if (!defined $varnum); # the CVAR case == CVAR0
+		if (defined $decl) # cvar declaration, decl holds item name
+		{
+			for my $source (@$vars)
+			{
+				next if (ref($source) ne "HASH"
+								 or !exists($source->{$decl}));
+				$cvar{$varnum} = $source->{$decl};
+				last;
+			}
+
+			return "Error: CVAR$varnum references unknown object \"$decl\" in expression \"$input\""
+					if (!exists $cvar{$varnum});
+		}
+		else # cvar use
+		{
+			return "Error: CVAR$varnum used but not defined in expression \"$input\""
+					if (!exists $cvar{$varnum});
+
+			$rebuiltcalc .= $cvar{$varuse}; # sub in the actual value
+		}
+	}
+	$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
+
+	my $r = $context;						# backwards compat naming: allow $r inside expression
+	$r = eval $rebuiltcalc;
+
+	dbg("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
+			. join(", ", "\$r=$context", map { "CVAR$_=$cvar{$_}" } (sort keys %cvar))
+			. ", result \"$r\"", 3);
+	if ($@)
+	{
+		return "calculation=$rebuiltcalc failed: $@";
+	}
+
+	return (undef, $r);
 }
 
 # look for node model in base Model, based on nodevendor (case-insensitive full match)

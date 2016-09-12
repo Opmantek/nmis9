@@ -122,7 +122,12 @@
 						# we want fractional seconds in gmt.
 						'calculate' => 'return func::parse_dateandtime($r);',
 					},
-        }
+
+					'clockDelta' => {
+						'oid' => 'hrSystemDate',
+						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
+					},
+				}
       },
       'laLoad' => {
         'snmp' => {
@@ -155,7 +160,7 @@
               'unit' => 'processes',
               'level' => 'Warning'
             }
-          }
+          },
         }
       },
     },

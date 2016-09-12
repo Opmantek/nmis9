@@ -2815,6 +2815,11 @@ sub getSystemHealthInfo
 		dbg("No class 'systemHealth' declared in Model.");
 		return 0;
 	}
+	elsif (!$S->status->{snmp_enabled} && !$S->status->{wmi_enabled})
+	{
+		logMsg("ERROR: cannot get systemHealth info, neither SNMP nor WMI enabled!");
+		return 0;
+	}
 
 	# get the default (sub)sections from config, model can override
 	my @healthSections = split(",",
@@ -3252,8 +3257,7 @@ sub processAlerts
 
 	foreach my $alert (@{$alerts})
 	{
-		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evalu
-ated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
+		info("Processing alert: event=Alert: $alert->{event}, level=$alert->{level}, element=$alert->{ds}, details=Test $alert->{test} evaluated with $alert->{value} was $alert->{test_result}") if $alert->{test_result};
 
 		dbg("Processing alert ".Dumper($alert),4);
 
@@ -5529,6 +5533,7 @@ sub runServices
 
 
 # fixme: the CVARn evaluation function should be integrated into and handled by sys::parseString
+# fixme: this function works ONLY for indexed/systemhealth sections!
 sub runAlerts
 {
 	my %args = @_;
