@@ -1014,8 +1014,8 @@ sub eval_string
 		}
 		else # cvar use
 		{
-			return "Error: CVAR$varnum used but not defined in expression \"$input\""
-					if (!exists $cvar{$varnum});
+			return "Error: CVAR$varuse used but not defined in expression \"$input\""
+					if (!exists $cvar{$varuse});
 
 			$rebuiltcalc .= $cvar{$varuse}; # sub in the actual value
 		}
