@@ -353,12 +353,24 @@
           #              is the same as 'uptime' on the bash command line.
           'sysUpTime' => {
             'oid' => 'hrSystemUptime',
-            'title' => 'Uptime'
+            'title' => 'Uptime',
           },
           'snmpUpTime' => {
             'oid' => 'sysUpTime',
-            'title' => 'SNMP_Uptime'
-          }
+            'title' => 'SNMP_Uptime',
+					},
+					
+					'hrSystemDateSec' => {
+						'oid' => 'hrSystemDate',
+						# have: the 0xhexstring equivalent of local 2016-9-9,5:53:28.0,+10:0
+						# we want fractional seconds in gmt.
+						'calculate' => 'return func::parse_dateandtime($r);',
+					},
+
+					'clockDelta' => {
+						'oid' => 'hrSystemDate',
+						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
+					},
         }
       }
     }
