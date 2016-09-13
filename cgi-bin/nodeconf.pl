@@ -49,6 +49,8 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 # widget default on, only off if explicitely set to off
 my $wantwidget = !getbool($Q->{widget},"invert");
 
+my $formid = 'nodeconf';
+
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
@@ -96,16 +98,16 @@ exit;
 #
 # display
 #
-sub displayNodemenu{
-
+sub displayNodemenu
+{
 	my $NT = loadLocalNodeTable();
 
-	#start of page
 	print header($headeropts);
 	if (!$wantwidget)
 	{
 			pageStart(title => $Q->{node}." Node Configuration", refresh => $Q->{refresh});
 	}
+	my $menuformid = "${formid}_menu";
 
 	print start_table,start_Tr,start_td;
 
@@ -113,7 +115,7 @@ sub displayNodemenu{
 	my $thisurl = url(-absolute => 1)."?";
   # the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-id=>"nmis1", -href => $thisurl);
+	print start_form(-id => $menuformid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
@@ -133,7 +135,7 @@ sub displayNodemenu{
 					-values=>\@nodes,
 					-default=>"$Q->{node}",
 					-title=>"node to modify",
-					-onChange=> ($wantwidget? "get('nmis1');" : "submit()" )));
+					-onChange=> ($wantwidget? "get('$menuformid');" : "submit()" )));
 
 	print td({class=>"header",align=>'center'},'Optional Node and Interface Configuration');
 	print end_Tr;
@@ -160,9 +162,9 @@ sub displayNodeConf
 	my %args = @_;
 	my $node = $args{node};
 
-	# start of form, see nmis1 form for doc
+
 	my $thisurl = url(-absolute => 1)."?";
-	print start_form(-id=>"nmis", -href => $thisurl);
+	print start_form(-id => $formid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_update")
 			. hidden(-override => 1, -name => "node", -value => $node)
@@ -202,13 +204,12 @@ sub displayNodeConf
 				eval {
 					if ($AU->CheckAccess("Table_nodeConf_rw","check"))
 					{
-
 							# in case of store config non-widgetted we only need to
 							# submit the form
 							# (and ensure the doupdate hidden field is off, if we're
 							# coming back to this page!)
-							return button(-name=>'button',
-														onClick => ($wantwidget? "javascript:get('nmis');"
+							return button(-name=>'submitbutton',
+														onclick => ($wantwidget? "get('$formid');" 
 																				: '$("#doupdate").val(""); submit()'),
 														-value=>'Store'),
 
@@ -216,9 +217,9 @@ sub displayNodeConf
 							# the appropriate hidden field before submitting and convince
 							# get not to mess with the url, or we'll have duplicate but
 							# different update fields...
-							button(-name=>'button',
-										 onClick => '$("#doupdate").val("true"); '
-										 .($wantwidget? "javascript:get('nmis');" : 'submit();'),
+							button(-name=>'updatebutton',
+										 onclick => '$("#doupdate").val("true"); '
+										 .($wantwidget? "get('$formid');" : 'submit();'),
 										 -value=>'Store and Update Node');
 					} else { return ""; }
 				}));
@@ -511,16 +512,15 @@ sub doNodeUpdate {
 	}
 
 	my $thisurl = url(-absolute => 1)."?";
-	print start_form(-id=>"nmis", -href => $thisurl);
+	print start_form(-id=>$formid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
 				td(button(-name=>'button',
-									-onclick => ($wantwidget? "javascript:get('nmis');" : "submit()"),
+									-onclick => ($wantwidget? "javascript:get('$formid');" : "submit()"),
 									-value=>'Ok'))));
-	print end_form;
 
 	print "<pre>\n";
 	print "Running update on node $node - Please wait.....\n\n\n";
@@ -548,15 +548,10 @@ sub doNodeUpdate {
 	close(PIPE);
 	print "\n</pre>\n";
 
-	# see nmis1 form for documentation
-	print start_form(-id=>"nmis", -href => $thisurl);
-	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
-			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
 				td(button(-name=>'button',
-									-onclick => ($wantwidget? "javascript:get('nmis');" : "submit()"),
+									-onclick => ($wantwidget? "get('$formid');" : "submit()"),
 									-value=>'Ok'))));
 	print end_form;
 }
