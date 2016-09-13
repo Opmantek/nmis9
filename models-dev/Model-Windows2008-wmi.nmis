@@ -93,15 +93,15 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProc,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
-    'nodeModel' => 'Windows2008',
+    'nodeModel' => 'Windows2008-wmi',
 
 
     'rrd' => {
 
       'hrwin' => {
-        'graphtype' => 'hrwinusers,hrwinproc',
+        'graphtype' => 'hrwinusers,hrwinproc,WindowsProc',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers',
@@ -112,31 +112,56 @@
         },
 
 				'wmi' => {
-					'procidle' =>{
+
+					'dpcsQueuedPersec' => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'DPCsQueuedPersec',
+						option => 'gauge,0:U',
+					},
+
+					'interruptsPersec' => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'InterruptsPersec',
+						option => 'gauge,0:U',
+					},
+
+					'percentDpc' => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentDPCTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentIdle' =>{
 						# want the combined row for all processors only
 						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
 						field => 'PercentIdleTime',
 						option => 'gauge,0:U',
 					},
 
-					proctime => {
+					'percentInterrupt' => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentInterruptTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentPrivileged' => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+						field => 'PercentPrivilegedTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentProcessor' => {
 						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
 						field => 'PercentProcessorTime',
-						option => "nosave",
+						option => 'gauge,0:U',
 					},
 
-					usertime => {
+					'percentUser' => {
 						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
 						field => 'PercentUserTime',
-						option => "nosave",
-						calculate => 'CVAR1=intspersec; CVAR2=proctime; return $r+$CVAR1+$CVAR2;',
+						option => 'gauge,0:U',
 					},
 
-					intspersec => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'InterruptsPersec',
-						option => "nosave",
-					},
 				},
       },
 
