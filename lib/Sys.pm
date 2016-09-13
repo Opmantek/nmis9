@@ -950,6 +950,7 @@ sub getValues
 					push @{$self->{alerts}}, 	{ name => $self->{name},
 																			type => "test",
 																			event => $sectiondetails->{alert}->{event},
+																			level => $sectiondetails->{alert}->{level},
 																			ds => $thing->{item},
 																			section => $gothere, # that's the section name
 																			source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
