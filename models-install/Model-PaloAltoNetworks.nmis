@@ -241,7 +241,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -267,7 +267,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -276,7 +276,7 @@
           'Description' => {
             'comment' => 'Added in PA 6.0',
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'

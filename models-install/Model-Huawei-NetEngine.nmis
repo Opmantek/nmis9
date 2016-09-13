@@ -252,7 +252,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name'
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -278,7 +278,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',

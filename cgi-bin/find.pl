@@ -100,35 +100,41 @@ exit 0;
 
 #===================
 
-sub menuFind {
+sub menuFind 
+{
 	my $obj = shift;
 
-	my $thisurl = url(-absolute=>1)."?";
-	# the get() code doesn't work without a query param, nor does it work with all params present
-	# conversely the non-widget mode needs post inputs as query params are ignored
-	print start_form(-id=>'find_the_monkey', -href => $thisurl);
-	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
-			. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
-			. hidden(-override => 1, -name => "widget", -value => $widgetstate);
-
-	print table(
+	if ($obj eq 'interface' && getbool($C->{disable_interfaces_summary}))
+	{
+		print("Error: finding interfaces requires config option disable_interfaces_summary=false!");
+	}
+	else
+	{
+		my $thisurl = url(-absolute=>1)."?";
+		# the get() code doesn't work without a query param, nor does it work with all params present
+		# conversely the non-widget mode needs post inputs as query params are ignored
+		print start_form(-id=>'find_the_monkey', -href => $thisurl);
+		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+				. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
+				. hidden(-override => 1, -name => "widget", -value => $widgetstate);
+		
+		print table(
 			Tr(td({class=>'header',align=>'center',colspan=>'4'},
-				eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
+						eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
 			Tr(td({class=>'header'},'Find String '),td(textfield(-name=>"find",size=>'35',value=>'')),
 				 # making the button type=submit activates it as the enter key handler, which Is A Good Thing(tm).
 				 # however, making the click handler not return false Is A Bad Thing(tm)...
 				 td(submit(-name=>'submit',onclick=>
 									 ($wantwidget? "javascript:get('find_the_monkey');" : "submit();")."return false;",
 									 -value=>"Go"))));
-	print end_form;
-
+		print end_form;
+	}
 }
 
 
-sub viewInterfaceFind {
-
+sub viewInterfaceFind 
+{
 	my $find = $Q->{find};
-
 
 	# verify access to this command
 	$AU->CheckAccess("find_interface"); # same as menu
@@ -140,6 +146,13 @@ sub viewInterfaceFind {
 		print Tr(td({class=>'error'},'Empty search string'));
 		return;
 	}
+
+	if (getbool($C->{disable_interfaces_summary}))
+	{
+		print Tr(td({class=>'error'},'ERROR: Finding interfaces requires config option disable_interfaces_summary=false!'));
+		return;
+	}
+
 
 	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
@@ -155,14 +168,17 @@ sub viewInterfaceFind {
 		my $thisintf = $II->{$intHash};
 
 		if ( 	$thisintf->{node} =~ /$qrfind/ or
-				$thisintf->{Description} =~ /$qrfind/ or
-				$thisintf->{ifDescr} =~ /$qrfind/ or
-				$thisintf->{ifType} =~ /$qrfind/ or
-				$thisintf->{ipAdEntAddr} =~ /$qrfind/ or
-				$thisintf->{ipAdEntNetMask} =~ /$qrfind/ or
-				$thisintf->{ipSubnet} =~ /$qrfind/ or
-				$thisintf->{vlanPortVlan} =~ /$qrfind/
-		) {
+					$thisintf->{Description} =~ /$qrfind/ or
+					$thisintf->{display_name} =~ /$qrfind/ or
+					$thisintf->{ifDescr} =~ /$qrfind/ or
+					$thisintf->{ifType} =~ /$qrfind/ or
+					# fixme: search only for first ip address for now
+					$thisintf->{ipAdEntAddr1} =~ /$qrfind/ or
+					$thisintf->{ipSubnet1} =~ /$qrfind/ or
+					$thisintf->{ipSubnet} =~ /$qrfind/ or
+					$thisintf->{vlanPortVlan} =~ /$qrfind/
+				)
+		{
 			if ($AU->InGroup($NT->{$thisintf->{node}}{group})) {
 				++$counter;
 
@@ -182,10 +198,10 @@ sub viewInterfaceFind {
 							return td({class=>'info Plain'},$thisintf->{ifDescr});
 						}
 					},
-					td({class=>'info Plain'},$thisintf->{ipAdEntAddr}),
-				#	td({class=>'info Plain'},$thisintf->{ipAdEntNetMask}),
-					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{ipSubnet}&widget=$widgetstate"},$thisintf->{ipSubnet})),
+					td({class=>'info Plain'},$thisintf->{ipAdEntAddr1}),
+					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{ipSubnet1}&widget=$widgetstate"},$thisintf->{ipSubnet1})),
 					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{Description}&widget=$widgetstate"},$thisintf->{Description})),
+					td({class=>'info Plain'},$thisintf->{display_name}),
 					td({class=>'info Plain'},$thisintf->{ifType}),
 					td({class=>'info Plain',align=>'right'},$thisintf->{ifSpeed}),
 					td({class=>'info Plain'},$thisintf->{ifAdminStatus}),
@@ -205,7 +221,8 @@ sub viewInterfaceFind {
 	}
 
 	print Tr( eval { my $line;
-			for (('Node','Interface Name','IP Address','Subnet','Description','Type','Bandwidth','Admin','Oper')) {
+			for (('Node','Interface Name','IP Address','Subnet','Description', "Display Name",
+						'Type','Bandwidth','Admin','Oper')) {
 				$line .= td({class=>'header',align=>'center'},$_);
 			}
 			return $line;

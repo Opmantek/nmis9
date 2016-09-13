@@ -232,7 +232,7 @@
           },
           'ifName' => {
             'oid' => 'ifName',
-            'title' => 'ifName'
+            'title' => 'Name (ifName)'
           }
         }
       },
@@ -291,7 +291,7 @@
           },
           'ifName' => {
             'oid' => 'ifName',
-            'title' => 'ifName'
+            'title' => 'Name (ifName)'
           }
         }
       },
@@ -451,7 +451,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name'
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -477,7 +477,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -493,7 +493,7 @@
   				},
   				'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           }
         }
       }

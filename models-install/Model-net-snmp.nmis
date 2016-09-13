@@ -55,54 +55,79 @@
       }
     }
   },
-  'system' => {
+
+  'system' => 
+	{
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
-    'sys' => {
-      'standard' => {        
-        'snmp' => {
+    
+		'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    
+		'sys' => 
+		{
+      'standard' => 
+			{        
+        'snmp' => 
+				{
           'sysLocation' => {
             'replace' => {
-              '' => 'default'
+              '' => 'default',
             },
-            'oid' => 'sysLocation',
-            'title' => 'Location'
+						'oid' => 'sysLocation',
+						'title' => 'Location',
           },
+					
           'sysDescr' => {
             'oid' => 'sysDescr',
-            'title' => 'Description'
+            'title' => 'Description',
           },
+					
           'sysObjectID' => {
-            'oid' => 'sysObjectID'
+            'oid' => 'sysObjectID',
           },
+					
           'ifNumber' => {
             'oid' => 'ifNumber',
-            'title' => 'Interfaces'
+            'title' => 'Interfaces',
           },
+					
           'sysContact' => {
             'replace' => {
-              '' => 'default'
+              '' => 'default',
             },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
+						'oid' => 'sysContact',
+            'title' => 'Contact',
           },
+					
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
           },
           # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
           #              has been running for, not the uptime of the box.  hrSystemUpTime
           #              is the same as 'uptime' on the bash command line.
           'sysUpTime' => {
             'oid' => 'hrSystemUptime',
-            'title' => 'Uptime'
+            'title' => 'Uptime',
           },
-          'snmpUpTime' => {
+          
+					'snmpUpTime' => {
             'oid' => 'sysUpTime',
-            'title' => 'SNMP_Uptime'
-          }
-        }
+            'title' => 'SNMP_Uptime',
+          },
+
+					'hrSystemDateSec' => {
+						'oid' => 'hrSystemDate',
+						# have: the 0xhexstring equivalent of local 2016-9-9,5:53:28.0,+10:0
+						# we want fractional seconds in gmt.
+						'calculate' => 'return func::parse_dateandtime($r);',
+					},
+
+					'clockDelta' => {
+						'oid' => 'hrSystemDate',
+						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
+					},
+				}
       },
       'laLoad' => {
         'snmp' => {
@@ -135,7 +160,7 @@
               'unit' => 'processes',
               'level' => 'Warning'
             }
-          }
+          },
         }
       },
     },
@@ -514,7 +539,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name',
+            'title' => 'Name (ifName/ifDescr)',
 						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
           },
           'ifSpeed' => {
@@ -540,16 +565,16 @@
           },
           'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'Hardware' => {
             'oid' => 'ifDescr',
-            'title' => 'Hardware',
+            'title' => 'Hardware (ifDescr)',
           },
 
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -571,19 +596,20 @@
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
-              '5' => 'dormant'
+              '5' => 'dormant',
             },
             'oid' => 'ifOperStatus',
-            'option' => 'gauge,0:100'
+            'option' => 'gauge,0:100',
           },
-						'ifDescr' => {
-							'oid' => 'ifName',
-							'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
-				},
-					# not wanted in this section but needed or the fallback for ifdescr/ifname won't work
+
+					'ifDescr' => {
+						'oid' => 'ifName',
+						'calculate' => 'CVAR1=ifDescr; CVAR2=Hardware; $r = ("$CVAR1" eq "noSuchObject"? "$CVAR2": "$CVAR1"); ',
+					},
+					
 					'Hardware' => {
             'oid' => 'ifDescr',
-            'title' => 'Hardware',
+						'option' => 'nosave',
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',

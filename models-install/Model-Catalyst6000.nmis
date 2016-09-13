@@ -300,11 +300,11 @@
               '5' => 'dormant'
             },
             'oid' => 'ifOperStatus',
-            'title' => ' Oper Status'
+            'title' => 'Oper Status'
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => ' Name'
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -313,7 +313,7 @@
 
           'ifSpeed' => {
             'oid' => 'ifSpeed',
-            'title' => ' Bandwidth'
+            'title' => 'Bandwidth'
           },
           'ifAdminStatus' => {
             'replace' => {
@@ -326,15 +326,15 @@
               '5' => 'dormant'
             },
             'oid' => 'ifAdminStatus',
-            'title' => ' Admin Status'
+            'title' => 'Admin Status'
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => ' Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
-            'title' => ' Last Change'
+            'title' => 'Last Change'
           }
         }
       }

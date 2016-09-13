@@ -37,40 +37,42 @@ use strict;
 use func;
 use Time::Local;
 
-# first argument
+# first argument: when, one of day week month
 my $date = lc $ARGV[0];
-# second
+# second: report type or 'all'
 my $report = lc $ARGV[1];
-# thirth
-my $conf = $ARGV[2]; # optional NMIS Conf
+# third, optional NMIS Conf
+my $conf = $ARGV[2];
 
-if ($date !~ /day|week|month/) {
-	print "\tUnknown date=$date selected\n";
-	commands();
-	exit;
+my $usage = "Usage: $0 (day|week|month) (all|times|health|top10|outage|response|avail|port)\n\n";
+
+if ($date !~ /^(day|week|month)$/) 
+{
+	die "Unknown date=$date selected\n$usage\n";
 }
 
-if ($report !~ /health|top10|outage|response|avail|port/) {
-	print "\tUnknown report=$report selected\n";
-	commands();
-	exit;
+if ($report !~ /^(all|times|health|top10|outage|response|avail|port)$/) 
+{
+	
+	die "Unknown report=$report selected\n$usage\n";
 }
 
 my $C = loadConfTable(conf=>$conf);
+die "Failed to read configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 my $reportdir = $C->{report_root};
 
-my $start;
-my $end;
-my $outfile;
-my $status;
+my ($start, $end, $outfile);
 my $time = time();
 
-
-if ($date eq 'day') {
+# attention: the file naming logic here must match purge_files() in cgi-bin/reports.pl,
+# or unwanted ancient reports will be left behind!
+if ($date eq 'day') 
+{
 	my ($s,$m,$h) = (localtime($time))[0..2];
 	$end = $time-($s+($m*60)+($h*60*60));
 	$start = $end - (60*60*24); # yesterday
+
 	my ($d,$m,$y,$w) = (localtime($start))[3..6];
 	my $wd = ('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$w];
 	$outfile=sprintf("day-%02d-%02d-%04d-%s.html",$d,$m+1,$y+1900,$wd);
@@ -94,31 +96,19 @@ if ($date eq 'day') {
 	my ($d,$m,$y,$w) = (localtime($start))[3..6];
 	$outfile=sprintf("month-%02d-%04d.html",$m+1,$y+1900);
 } else {
+	# unreachable
 	exit 1;
 }
 
-my $file = "$reportdir/$report-$outfile";
+my @todos = ($report eq "all"? (qw(times health top10 outage response avail port)) : $report);
+for my $thisreport (@todos)
+{
+	my $file = "$reportdir/${thisreport}-${outfile}";
 
-#print "time=".returnDateStamp($time)."\n";
-#print "start=".returnDateStamp($start)."\n";
-#print "end=".returnDateStamp($end)."\n";
-#print "file=$file\n";
-
-$status = system("$C->{'<nmis_cgi>'}/reports.pl conf=$conf report=$report start=$start end=$end outfile=$file");
-logMsg("ERROR (report) generating report=$report file=$file $!") unless $status == 0;
-setFileProt("$file") if $status == 0;;
-
-sub commands {
-
-	print <<EOF;
-
-	Run this program with the next options
-
-	../run-reports.pl day|week|month response|health|top10|avail|port|outage
-
-
-EOF
-
+	my $status = system("$C->{'<nmis_cgi>'}/reports.pl", "conf=$conf", "report=$thisreport",
+											"start=$start", "end=$end", "outfile=$file");
+	logMsg("ERROR (report) generating report=$thisreport file=$file: $!") if ($status);
+	setFileProt($file) if (-f $file);
 }
 
 exit 0;

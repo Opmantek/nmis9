@@ -36,7 +36,7 @@ use File::Path;
 use File::stat;
 use File::Spec;
 use Time::ParseDate; # fixme: actually NOT used by func
-use Time::Local;		 # fixme: actuall NOT used by func
+use Time::Local;
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
@@ -120,7 +120,6 @@ use Exporter;
 		loadConfTable
 		readConfData
 		writeConfData
-		getKernelName
 		createDir
 
 		checkDir
@@ -233,7 +232,7 @@ sub stripSpaces
 {
 	my $str = shift;
 	return undef if (!defined $str);
-	
+
 	$str =~ s/^\s+//;
 	$str =~ s/\s+$//;
 	return $str;
@@ -651,62 +650,108 @@ sub sortall {
 	sort { alpha( $_[2], $_[0]->{$a}{$_[1]}, $_[0]->{$b}{$_[1]}) }  keys %{$_[0]};
 }
 
-sub sorthash {
-my $cnt =  scalar @{$_[1]} ;
-	if (scalar @{$_[1]} == 0) { return sort { alpha( $_[2], $a, $b) }  keys %{$_[0]}; }
-	if (scalar @{$_[1]} == 1) { return sort { alpha( $_[2], $_[0]->{$a}{$_[1]->[0]}, $_[0]->{$b}{$_[1]->[0]}) }  keys %{$_[0]}; }
-	if (scalar @{$_[1]} == 2) { return sort { alpha( $_[2], $_[0]->{$a}{$_[1]->[0]}{$_[1]->[1]}, $_[0]->{$b}{$_[1]->[0]}{$_[1]->[1]}) }  keys %{$_[0]}; }
-	if (scalar @{$_[1]} == 3) { return sort { alpha( $_[2], $_[0]->{$a}{$_[1]->[0]}{$_[1]->[1]}{$_[1]->[2]}, $_[0]->{$b}{$_[1]->[0]}{$_[1]->[1]}{$_[1]->[2]}) }  keys %{$_[0]}; }
+# args: data (must be hashref), sortcriteria (must be list ref, optional), direction (fwd, rev, optional)
+# attention: sortcriteria are NESTING, NOT fallbacks,
+# ie. hash MUST have deep structure Crit1->C2->C3, if you pass three sortcriteria
+# returns sorted keys of the hash
+sub sorthash
+{
+	my ($data, $sortcriteria, $direction) = @_;
+	if (ref($sortcriteria) ne "ARRAY" or !@$sortcriteria)
+	{
+		return sort { alpha( $direction, $a, $b) }  keys %$data;
+	}
+	elsif  (@$sortcriteria == 1)
+	{
+		return sort { alpha( $direction,
+												 $data->{$a}->{$sortcriteria->[0]},
+												 $data->{$b}->{$sortcriteria->[0]}) }  keys %$data;
+	}
+	elsif (@$sortcriteria == 2)
+	{
+		return sort { alpha( $direction,
+												 $data->{$a}->{$sortcriteria->[0]}->{$sortcriteria->[1]},
+												 $data->{$b}->{$sortcriteria->[0]}->{$sortcriteria->[1]} ) } keys %$data;
+	}
+	elsif (@$sortcriteria == 3)
+	{
+		return sort { alpha( $direction,
+												 $data->{$a}->{$sortcriteria->[0]}->{$sortcriteria->[1]}->{$sortcriteria->[2]},
+												 $data->{$b}->{$sortcriteria->[0]}->{$sortcriteria->[1]}->{$sortcriteria->[2]}) } keys %$data;
+	}
+	else
+	{
+		die "Invalid arguments passed to sorthash!\n";
+	}
 }
 
-sub alpha {
-	# first arg is direction
-	my ($f, $s);
-	if ( shift eq 'fwd' ) {
-		$f = shift;
-		$s = shift;
-		if ( $f	eq 'NaN' && $s ne 'NaN') { return 1 }
-		if ( $f	eq 'NaN' && $s eq 'NaN') { return 0 }
-		if ( $s	eq 'NaN' && $f ne 'NaN') { return -1 }
+# internal helper for contextual sorting
+# args: direction (fwd, rev - default is rev), and two inputs
+# returns: -1/0/1
+sub alpha
+{
+	my ($direction, $f, $s) = @_;
 
-	} else {
-		$s = shift;
-		$f = shift;
-		if ( $f	eq 'NaN' && $s ne 'NaN') { return -1 }
-		if ( $f	eq 'NaN' && $s eq 'NaN') { return 0 }
-		if ( $s	eq 'NaN' && $f ne 'NaN') { return 1 }
+	if (!defined($direction) or $direction ne 'fwd')
+	{
+		my $temp = $f; $f = $s; $s = $temp;
 	}
-#print "SORT a=$f, b=$s<br>";
-	#print STDERR "f=$f s=$s sort2=$sort2\n";
-	# Sort IP addresses numerically within each dotted quad
-	if ($f =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
-		my($a1, $a2, $a3, $a4) = ($1, $2, $3, $4);
-		if ($s =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
-			my($b1, $b2, $b3, $b4) = ($1, $2, $3, $4);
-			return ($a1 <=> $b1) || ($a2 <=> $b2)
-			|| ($a3 <=> $b3) || ($a4 <=> $b4);
+
+	# sort nan input after anything else
+	if ($f != $f)									# ie. f is NaN
+	{
+		return ($s != $s)? 0 : 1;
+	}
+	elsif ($s != $s)
+	{
+		return -1;
+	}
+
+	# Sort numbers numerically - integer, fractionals, full ieee format
+	return ($f <=> $s) if ($f =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/
+												 && $s =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+
+	# Handle things like Level1, ..., Level10
+	if ($f =~ /^(.*\D)(\d+)$/)
+	{
+    my @first = ($1, $2);
+		if ($s =~ /^(.*\D)(\d+)$/)
+		{
+			my @second = ($1, $2);
+
+			return ($first[1] <=> $second[1])
+					if ($first[0] eq $second[0]);
 		}
 	}
-	# Handle things like Serial0/1/2
-	if ($f =~ /^(.*\D)(\d+).(\d+).(\d+)/) {
-	    my($a1,$a2,$a3,$a4) = ($1,$2,$3,$4);
-	    if ($s =~ /^(.*\D)(\d+).(\d+).(\d+)/) {
-			my($b1,$b2,$b3,$b4) = ($1,$2,$3,$4);
-			return (lc($a1) cmp lc($b1) ) || ($a2 <=> $b2) || ($a3 <=> $b3) || ($a4 <=> $b4) ;
-	    }
+
+	# Sort IP addresses numerically within each dotted quad
+	# fixme: doesn't handle ipv6
+	if ($f =~ /^(\d+\.){3}\d+$/ && $s =~ /^(\d+\.){3}\d+$/)
+	{
+		my @splitfirst = split(/\./, $f);
+		my @splitsecond = split(/\./, $s);
+		return ( $splitfirst[0] <=> $splitsecond[0]
+						 || $splitfirst[1] <=> $splitsecond[1]
+						 || $splitfirst[2] <=> $splitsecond[2]
+						 || $splitfirst[3] <=> $splitsecond[3] );
 	}
-	# Sort numbers numerically
-	elsif ( $f !~ /[^0-9\.]/ && $s !~ /[^0-9\.]/ ) {
-		return $f <=> $s;
+
+	# Handle things like Serial0/1/2, 3 numeric components (normally at the end),
+	# separated by a single nondigit char
+	if ($f =~ /^(.*\D)(\d+)\D(\d+)\D(\d+)(.*)$/)
+	{
+		my @first = ($1,$2,$3,$4,$5);
+		if ($s =~ /^(.*\D)(\d+)\D(\d+)\D(\d+)(.*)$/)
+		{
+			my @second = ($1,$2,$3,$4,$5);
+			return (lc($first[0]) cmp lc($second[0]) # text component
+							|| $first[1] <=> $second[1]			 # first digit
+							|| $first[2] <=> $second[2]			 # second digit
+							|| $first[3] <=> $second[3]			 # third digit
+							|| lc($first[4]) cmp lc($second[4]) );		# whatever's left
+		}
 	}
-	# Handle things like Level1, ..., Level10
-	if ($f =~ /^(.*\D)(\d+)$/) {
-	    my($a1,$a2) = ($1, $2);
-	    if ($s =~ /^(.*\D)(\d+)$/) {
-			my($b1, $b2) = ($1, $2);
-			return $a2 <=> $b2 if $a1 eq $b1;
-	    }
-	}
+
 	# Default is to sort alphabetically
 	return lc($f) cmp lc($s);
 }
@@ -1149,9 +1194,9 @@ sub readFiletoHash {
 			flock($handle, $lck) or warn "ERROR readFiletoHash, can't lock $file, $!\n";
 			local $/ = undef;
 			my $data = <$handle>;
-			if ( $useJson ) 
+			if ( $useJson )
 			{
-				# be liberal in what we accept: latin1 isn't an allowed encoding for json, 
+				# be liberal in what we accept: latin1 isn't an allowed encoding for json,
 				# but fall back to that before giving up
 				my $hashref = eval { decode_json($data); };
 				my $gotcha = $@;
@@ -1167,7 +1212,7 @@ sub readFiletoHash {
 						info("WARNING file $file contains json with invalid encoding: $gotcha");
 					}
 				}
-				
+
 				if ($@)
 				{
 					logMsg("ERROR convert $file to hash table, $@");
@@ -1245,14 +1290,20 @@ sub getDebug
 }
 
 # debug info with (class::)method names and line number
-sub dbg {
+# args: message, level (default 1), upcall (only relevant if level is 1)
+sub dbg
+{
 	my $msg = shift;
 	my $level = shift || 1;
 	my $upCall = shift || undef;
+
 	my $string;
 	my $caller;
-	if ($C_cache->{debug} >= $level or $level == 0) {
-		if ($level == 1) {
+
+	if ($C_cache->{debug} >= $level or $level == 0)
+	{
+		if ($level == 1)
+		{
 			if ( defined $upCall ) {
 				$string = $upCall;
 			}
@@ -1260,12 +1311,18 @@ sub dbg {
 				($string = (caller(1))[3]) =~ s/\w+:://;
 			}
 			$string .= ",";
-		} else {
-			if ((my $caller = (caller(1))[3]) =~ s/main:://) {
+		}
+		else
+		{
+			if ((my $caller = (caller(1))[3]) =~ s/main:://)
+			{
 				my $ln = (caller(0))[2];
-				print returnTime." $caller#$ln, $msg\n";
-			} else {
-				for my $i (1..10) {
+				$string = "$caller#$ln,";
+			}
+			else
+			{
+				for my $i (1..10)
+				{
 					my ($caller) = (caller($i))[3];
 					my ($ln) = (caller($i-1))[2];
 					$string = "$caller#$ln->".$string;
@@ -1850,22 +1907,6 @@ sub writeConfData {
 	}
 }
 
-sub getKernelName {
-
-	my $C = loadConfTable();
-
-	# Find the kernel name
-	my $kernel;
-	if (defined $C->{os_kernelname}) {
-		$kernel = $C->{os_kernelname};
-	} elsif ( $^O !~ /linux/i) {
-		$kernel = $^O;
-	} else {
-		$kernel = `uname -s`;
-	}
-	chomp $kernel; $kernel = lc $kernel;
-	return $kernel;
-}
 
 # creates the dir in question, and all missing intermediate
 # directories in the path.
@@ -2738,6 +2779,41 @@ sub beautify_physaddress
 	}
 
 	return $raw;									# fallback to return the input unchanged if beautication doesn't work out
+}
+
+# takes binary encoded DateAndTime snmp value, 
+# translates into fractional seconds in gmt
+# args: 0xhexstring or real binary string,
+# returns: fractional seconds in gmt
+# note: not exported.
+sub parse_dateandtime
+{
+	my ($dateandtime) = @_;
+	# see https://tools.ietf.org/html/rfc1443 for format
+
+	if ($dateandtime =~ /^0x([a-f0-9]+)$/i)
+	{
+		$dateandtime = pack("H*", $1);
+	}
+
+	# raw binary? length 8 or length 11 (with timezone)
+	if (length($dateandtime) == 8 or length($dateandtime) == 11)
+	{
+		my ($year,$month,$day,$hour,$min,$sec,$decisec,
+				$sign,$offhour,$offminutes) = unpack("nC6a1C2",$dateandtime);
+
+		my $seconds = Time::Local::timegm($sec,$min,$hour, $day, $month-1,$year)
+				+ $decisec/10;
+		if ($sign && defined($offminutes) && defined($offhour))
+		{
+			$seconds += ($sign eq "+"? -1 : 1) * ($offhour * 3600 + $offminutes * 60);
+		}
+		return $seconds;
+	}
+	else
+	{
+		return undef;
+	}
 }
 
 sub getFilePollLock {

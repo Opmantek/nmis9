@@ -230,7 +230,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -255,7 +255,8 @@
             'title' => 'Bandwidth'
           },
           'Description' => {
-            'oid' => 'ifAlias'
+            'oid' => 'ifAlias',
+						'title' => "Description (ifAlias)",
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -263,7 +264,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       }

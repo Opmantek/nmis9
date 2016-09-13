@@ -1,6 +1,4 @@
 #
-## $Id: rrdfunc.pm,v 8.6 2012/04/28 00:59:36 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,14 +27,14 @@
 #
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.2.1";
+our $VERSION = "2.3.0";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
 
 use strict;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+use vars qw(@ISA @EXPORT);
 
 use Exporter;
 
@@ -51,6 +49,7 @@ use Sys;
 
 @EXPORT = qw(
 		getUpdateStats
+    getRRDerror
 		getRRDasHash
 		getRRDStats
 		addDStoRRD
@@ -58,23 +57,22 @@ use Sys;
 		createRRD
 	);
 
-@EXPORT_OK = qw(
-	);
 
-my $datapoints = 0;
-my $databytes = 0;
-my $rrdcount = 0;
-my @nodes;
+# rough stats of what the module has done,
+# including last error - fixme: this is module-level, not instance-level!
+my %stats;
+sub getRRDerror
+{
+	return $stats{error};
+}
 
-sub getUpdateStats {
-	my %stats;
-
-	$stats{rrdcount} = $rrdcount;
-	$stats{nodecount} = $#nodes + 1;
-	$stats{datapoints} = $datapoints;
-	$stats{databytes} = $databytes;
-
-	return \%stats;
+sub getUpdateStats
+{
+	my %pruned;
+	# don't include the nodes, just their number
+	map { $pruned{$_} = $stats{$_}; } (grep($_ ne "nodes", keys %stats));
+	$pruned{nodecount} = keys %{$stats{nodes}};
+	return \%pruned;
 }
 
 # returns the rrd data for a given rrd type as a hash
@@ -230,7 +228,10 @@ sub getRRDStats
 			}
 		}
 		return \%s;
-	} else {
+	}
+	else
+	{
+		$stats{error} = "RRD is not readable rrd=$db";
 		logMsg("ERROR RRD is not readable rrd=$db");
 		return undef;
 	}
@@ -241,7 +242,8 @@ sub getRRDStats
 # Cologne, dec 2004
 # $rrd = filename of RRD, @ds = list of DS:name:type:hearthbeat:min:max
 #
-sub addDStoRRD {
+sub addDStoRRD
+{
 	my ($rrd, @ds) = @_ ;
 
 	dbg("update $rrd with @ds");
@@ -251,12 +253,15 @@ sub addDStoRRD {
 		$rrdtool = "rrdtool.exe";
 	}
 	my $info = `$rrdtool`;
-	if ($info eq "") {
+	if ($info eq "")
+	{
 		# $rrdtool = "/opt/local/bin/rrdtool"; # maybe this
 		$rrdtool = "/usr/local/rrdtool/bin/rrdtool"; # maybe this
 		$info = `$rrdtool`;
-		if ($info eq "") {
+		if ($info eq "")
+		{
 			logMsg("ERROR, rrdtool not found");
+			$stats{error} = "rrdtool not found";
 			return;
 		}
 	}
@@ -287,14 +292,18 @@ sub addDStoRRD {
 				my $dsMin       = $4 eq 'U' ? 'NaN' : $4;
 				my $dsMax       = $5 eq 'U' ? 'NaN' : $5;
 
-	 		if ( $dsType ne "GAUGE" and $dsType ne "COUNTER" and $dsType ne "DERIVE" and $dsType ne "ABSOLUTE" ) {
-				logMsg("ERROR, unknown DS type in $ds");
-				return undef;
-			}
-			if ($xml =~ /<name> $dsName </) {
-				logMsg("DS $ds already in database $ds");
-			} else {
-
+				if ( $dsType !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE)$/ )
+				{
+					logMsg("ERROR, unknown DS type in $ds");
+					$stats{error} = "unknown DS type in $ds";
+					return undef;
+				}
+				if ($xml =~ /<name> $dsName </)
+				{
+					logMsg("DS $ds already in database $ds");
+				}
+				else
+				{
 				$DSname .= "	<ds>
 			<name> $dsName </name>
 			<type> $dsType </type>
@@ -323,67 +332,84 @@ sub addDStoRRD {
 		}
 	}
 
-	if ($DSname ne "" ) {
-		if ( $xml =~ /Round Robin Archives/ ) {
+	if ($DSname ne "" )
+	{
+		if ( $xml =~ /Round Robin Archives/ )
+		{
 			# check priv.
-			if ( -w $rrd ) {
+			if ( -w $rrd )
+			{
 		 		# Move the old source
-	   			if (rename($rrd,$rrd.".bak")) {
-					dbg("$rrd moved to $rrd.bak");
-					if ( -e "$rrd.xml" ) {
-						# from previous action
-						unlink $rrd.".xml";
-						dbg("$rrd.xml deleted (previous action)");
-					}
-					# update xml and rite output
-					if (open(OUTF, ">$rrd.xml")) {
-						foreach my $line (split(/\n/,$xml)) {
-							if ( $line=~ /Round Robin Archives/ ) {
-								print OUTF $DSname.$line;
-							} elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/) {
-								my @datasources_in_entry = split(/<\/v>/, $2);
-								splice(@datasources_in_entry, 999, 0, "$DSvalue");
-								my $new_line = join("</v>", @datasources_in_entry);
-								print OUTF "$1$new_line</v>$3\n";
-							} elsif ($line =~ /<\/cdp_prep>/) {
-								print OUTF $DSprep.$line ;
-							} else {
-								print OUTF $line;
+	   			if (rename($rrd,$rrd.".bak"))
+					{
+						dbg("$rrd moved to $rrd.bak");
+						if ( -e "$rrd.xml" ) {
+							# from previous action
+							unlink $rrd.".xml";
+							dbg("$rrd.xml deleted (previous action)");
+						}
+						# update xml and rite output
+						if (open(OUTF, ">$rrd.xml")) {
+							foreach my $line (split(/\n/,$xml)) {
+								if ( $line=~ /Round Robin Archives/ ) {
+									print OUTF $DSname.$line;
+								} elsif ($line =~ /^(.+?<row>)(.+?)(<\/row>.*)$/) {
+									my @datasources_in_entry = split(/<\/v>/, $2);
+									splice(@datasources_in_entry, 999, 0, "$DSvalue");
+									my $new_line = join("</v>", @datasources_in_entry);
+									print OUTF "$1$new_line</v>$3\n";
+								} elsif ($line =~ /<\/cdp_prep>/) {
+									print OUTF $DSprep.$line ;
+								} else {
+									print OUTF $line;
+								}
+							}
+							close (OUTF);
+							dbg("xml written to $rrd.xml");
+							# Re-import
+							RRDs::restore($rrd.".xml",$rrd);
+							if (my $ERROR = RRDs::error)
+							{
+								logMsg("update ERROR database=$rrd: $ERROR");
+								$stats{error} = "update database=$rrd: $ERROR";
+							}
+							else
+							{
+								dbg("$rrd created");
+								setFileProt($rrd); # set file owner/permission, default: nmis, 0775
+								unlink $rrd.".xml";
+								dbg("$rrd.xml deleted");
+								unlink $rrd.".bak";
+								dbg("$rrd.bak deleted");
+								logMsg("INFO DataSource @ds added to $rrd");
+								return 1;
 							}
 						}
-						close (OUTF);
-						dbg("xml written to $rrd.xml");
-						# Re-import
-						RRDs::restore($rrd.".xml",$rrd);
-						if (my $ERROR = RRDs::error) {
-							logMsg("update ERROR database=$rrd: $ERROR");
-						} else {
-							dbg("$rrd created");
-							setFileProt($rrd); # set file owner/permission, default: nmis, 0775
-							#`chown nmis:nmis $rrd` ; # set owner
-							# Delete
-							unlink $rrd.".xml";
-							dbg("$rrd.xml deleted");
-							unlink $rrd.".bak";
-							dbg("$rrd.bak deleted");
-							logMsg("INFO DataSource @ds added to $rrd");
-							return 1;
+						else
+						{
+							logMsg("ERROR, could not open $rrd.xml for writing: $!");
+							$stats{error} = "could not open $rrd.xml for writing: $!";
+							rename($rrd.".bak",$rrd); # backup
 						}
-					} else {
-						logMsg("ERROR, could not open $rrd.xml for writing, $!");
-						rename($rrd.".bak",$rrd); # backup
 					}
-				} else {
-					dbg("ERROR, cannot rename $rrd, $!") ;
-				}
-			} else {
-				dbg("ERROR, no write permission for $rrd, $!") ;
+					else
+					{
+						logMsg("ERROR, cannot rename $rrd: $!");
+						$stats{error} = "cannot rename $rrd: $!";
+					}
 			}
-		} else {
-   			dbg("ERROR, could not dump (maybe rrdtool missing): $!");
+			else
+			{
+				logMsg("ERROR, no write permission for $rrd: $!") ;
+				$stats{error} = "no write permission for $rrd: $!";
+			}
+		}
+		else
+		{
+			logMsg("ERROR, could not dump $rrd (maybe rrdtool missing)");
+			$stats{error} = "could not dump $rrd (maybe rrdtool missing)";
 		}
 	}
-
 }
 
 # determine the rrd file name from the node's model, the common-database
@@ -435,13 +461,15 @@ sub getFileName {
 	else
 	{
 		logMsg("ERROR, ($S->{name}) no type=$type found in class=database of model=$S->{mdl}{system}{nodeModel}");
+		$stats{error} = "($S->{name}) no type=$type found in class=database of model=$S->{mdl}{system}{nodeModel}";
 	}
 	return $dir;
 }
 
 # this function takes in a set of data items and updates the relevant rrd file
-# returns: the database file name
-sub updateRRD {
+# returns: the database file name; sets the internal error indicator
+sub updateRRD
+{
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->{info};
@@ -454,15 +482,13 @@ sub updateRRD {
 
 	my $database = $args{database};
 
-	if ( not grep {$S->{name} eq $_} @nodes ) {
-		push(@nodes,$S->{name});
-	}
-
+	++ $stats{nodes}->{$S->{name}};
 	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
 
 	if ($database eq "")
 	{
 		if (! ($database = getFileName(sys=>$S,type=>$type,index=>$index,item=>$item))) {
+			$stats{error} = "No RRD file found!";
 			return; # error
 		}
 
@@ -474,8 +500,8 @@ sub updateRRD {
 		# Check if the RRD Database Exists but is ReadOnly
 		# Maybe this should check for valid directory or not.
 		elsif ( -f $database and not -w $database ) {
-			$S->{error} = "ERROR ($S->{name}) database $database Exists but is readonly";
-			logMsg($S->{error});
+			$stats{error} = "($S->{name}) database $database exists but is readonly!";
+			logMsg("ERROR, $stats{error}");
 			return;
 		}
 		else 												# no db file exists
@@ -499,10 +525,12 @@ sub updateRRD {
 			if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
 											index=>$index))
 			{
+				$stats{error} = "Failed to create RRD file $database!";
 				return; # error
 			}
 		}
-	} else {
+	} else
+	{
 		# no check
 		dbg("database $database");
 	}
@@ -552,8 +580,8 @@ sub updateRRD {
 	#64-bits (8 bytes),
 	my $bytes = $points * 8;
 
-	$datapoints += $points;
-	$databytes += $bytes;
+	$stats{datapoints} += $points;
+	$stats{databytes} += $bytes;
 
 
 	dbg("DS $ds, $points");
@@ -564,15 +592,18 @@ sub updateRRD {
 	if ( @options) {
 		# update RRD
 		RRDs::update($database,@options);
-		++$rrdcount;
+		++$stats{rrdcount};
 		#my $upd = RRDs::updatev($database,@options);
 		#print STDERR Dumper($upd);
 
 		if ($ERROR = RRDs::error) {
-			if ($ERROR !~ /contains more DS|unknown DS name/) {
-				$S->{error} = "ERROR ($S->{name}) database=$database: $ERROR: options = @options";
-				logMsg($S->{error});
-			} else {
+			if ($ERROR !~ /contains more DS|unknown DS name/)
+			{
+				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @options";
+				logMsg("ERROR $stats{error}");
+			}
+			else
+			{
 				dbg("missing DataSource in $database, try to update");
 				# find the DS names in the existing database (format ds[name].* )
 				my $info = RRDs::info($database);
@@ -591,8 +622,10 @@ sub updateRRD {
 			}
 		}
 	}
-	else {
-		logMsg("ERROR ($S->{name}) type=$type, no data to create/update database");
+	else
+	{
+		$stats{error} = "($S->{name}) type=$type, no data to create/update database";
+		logMsg("ERROR $stats{error}");
 	}
 	return $database;
 	dbg("Finished");
@@ -601,7 +634,8 @@ sub updateRRD {
 #
 # define the DataSource configuration for RRD
 #
-sub optionsRRD {
+sub optionsRRD
+{
 	my %args = @_;
 	my $S = $args{sys}; # optional,needed for parsing range
 	my $data = $args{data};
@@ -639,7 +673,9 @@ sub optionsRRD {
 	# default is GAUGE,"U:U",standard heartbeat
 	foreach my $id (sort keys %{$data})
 	{
-		if (length($id) > 18) {
+		if (length($id) > 18)
+		{
+			$stats{error} = "DS name=$id greater then 18 characters";
 			logMsg("ERROR, DS name=$id greater then 18 characters") ;
 			next;
 		}
@@ -669,10 +705,13 @@ sub optionsRRD {
 		dbg("INFO, using database format \'default\'");
 	}
 
-	if ($DB eq "") {
+	if ($DB eq "")
+	{
 		dbg("ERROR ($S->{name}) database format for type=$type not found");
-	} else {
-
+		$stats{error} = "($S->{name}) database format for type=$type not found";
+	}
+	else
+	{
 		push @options,"RRA:AVERAGE:0.5:$DB->{step_day}:$DB->{rows_day}";
 		push @options,"RRA:AVERAGE:0.5:$DB->{step_week}:$DB->{rows_week}";
 		push @options,"RRA:AVERAGE:0.5:$DB->{step_month}:$DB->{rows_month}";
@@ -696,7 +735,8 @@ sub optionsRRD {
 ### also add node directory create for node directories, if rrd is not found
 ### note that the function does NOT create an rrd file if
 ### $main::selftest_dbdir_status is 0 (not undef)
-sub createRRD {
+sub createRRD
+{
 	my %args = @_;
 	my $S = $args{sys}; # optional
 	my $data = $args{data};
@@ -718,18 +758,22 @@ sub createRRD {
 	}
 	# Check if the RRD Database Exists but is ReadOnly
 	# Maybe this should check for valid directory or not.
-	elsif ( -f $database and not -w $database ) {
+	elsif ( -f $database and not -w $database )
+	{
+		$stats{error} = "($S->{name}) database $database Exists but is readonly";
 		dbg("ERROR ($S->{name}) database $database Exists but is readonly");
 		$exit = 0;
 	}
 	# are we allowed to create new files, or is the filesystem with the database dir (almost) full already?
 	elsif (defined $main::selftest_dbdir_status && !$main::selftest_dbdir_status)
 	{
+		$stats{error} = "Not creating $database, as database filesystem is (almost) full!";
 		logMsg("ERROR: Not creating $database, as database filesystem is (almost) full!");
 		return 0;
 	}
 	# It doesn't so create it
-	else {
+	else
+	{
 		my @x = $database =~ /\//g; # until last slash
 		my $dir = $`; # before last slash
 
@@ -767,23 +811,30 @@ sub createRRD {
 			}
 			RRDs::create("$database",@options);
 			my $ERROR = RRDs::error;
-			if ($ERROR) {
+			if ($ERROR)
+			{
+				$stats{error} = "($S->{name}) unable to create $database: $ERROR";
 				logMsg("ERROR ($S->{name}) unable to create $database: $ERROR");
 				$exit = 0;
 			}
 			# set file owner and permission, default: nmis, 0775.
 			setFileProt($database); # Cologne, Jan 2005
 			# Double check created OK for this user
-			if ( -f $database and -r $database and -w $database ) {
+			if ( -f $database and -r $database and -w $database )
+			{
 				logMsg("INFO ($S->{name}) created RRD $database");
 				sleep 1;		# wait at least 1 sec to avoid rrd 1 sec step errors as next call is RRDBupdate
 			}
-			else {
+			else
+			{
+				$stats{error} = "($S->{name}) could not create RRD $database - check directory permissions";
 				logMsg("ERROR ($S->{name}) could not create RRD $database - check directory permissions");
 				$exit = 0;
 			}
 		}
-		else {
+		else
+		{
+			$stats{error} = "($S->{name}) unknown type=$type";
 			logMsg("ERROR ($S->{name}) unknown type=$type");
 			$exit = 0;
 		}

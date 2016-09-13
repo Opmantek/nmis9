@@ -226,7 +226,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -252,7 +252,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -260,15 +260,15 @@
           }
         }
       },
-      #'extra' => {
-      #  'indexed' => 'true',
-      #  'snmp' => {
-      #    'Description' => {
-      #      'oid' => 'ifAlias',
-      #      'title' => 'Description'
-      #    }
-      #  }
-      #}
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
+          }
+        }
+      }
     },
     'rrd' => {
       'interface' => {

@@ -1,31 +1,31 @@
 // $Id: commonv8.js,v 8.37 2012/09/18 01:41:00 keiths Exp $
-// 
+//
 // Copyright Opmantek Limited (www.opmantek.com)
-// 
+//
 // ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-// 
+//
 // This file is part of Network Management Information System ("NMIS").
-// 
+//
 // NMIS is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // NMIS is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
-// along with NMIS (most likely in a file named LICENSE).  
+// along with NMIS (most likely in a file named LICENSE).
 // If not, see <http://www.gnu.org/licenses/>
-// 
+//
 // For further information on NMIS or for a license other than GPL please see
-// www.opmantek.com or email contact@opmantek.com 
-// 
+// www.opmantek.com or email contact@opmantek.com
+//
 // User group details:
-// http://support.opmantek.com/users/ 
-// 
+// http://support.opmantek.com/users/
+//
 // *****************************************************************************
 
 // display the default NMIS opening page with menu bar
@@ -57,7 +57,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 	widget_refresh_glob = widget_refresh;
 
 	// build namesAll
-	
+
 	var nodeInfoLength = nodeInfo.length;
 	for(var nodeIndex = 0; nodeIndex < nodeInfoLength; nodeIndex++) {
 		var node = nodeInfo[nodeIndex];
@@ -93,10 +93,10 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			deviceContext.Group[node.Group] = new Array();
 		}
 		deviceContext.Group[node.Group].push(nodeIndex);
-	} 
+	}
 
  	// global error handler
- 	
+
  	  $.ajaxSetup({
         error: function (x, e) {
             if (x.status == 0) {
@@ -114,14 +114,14 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
             } else if (e == 'timeout') {
                 alert('Request Time out.');
             } else if (x.status == 405 ) {
-            	// this is essentially a made-up status code that tells us to re-autheticate            	
+            	// this is essentially a made-up status code that tells us to re-autheticate
             	document.location = document.location.href;
             } else {
                 alert('Unkown error: ' + x.status + ' ' + x.statusText + '\n\n' + x.responseText);
             }
         }
         });
-        
+
 	// set up a object datastore on the NMISV8 tag
 	// indexed by widget 'ID'
 	// at logoff, prompt to save window layout
@@ -130,7 +130,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 	// requires all 'ID" to be functionally distinct
 	// same 'ID' same dialog window is updated.
 	// different 'ID', create new dialog if not existing, or refresh existing.
-	
+
 	// require a minHeight so that the  dialog collapess to the select size on init.
 	$('div#NMISV8').data('NMISV8defaultID', {
 			id			: 'defaultID',
@@ -150,14 +150,14 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			widgetHandle	: '',
 			status	: false
 			});
-		
+
 	// TBD - read into here a JSON array of dialog options,
 	// that were saved to server at logoff
 	// therefore restoring the desktop as it was whenn logged off.
 	// if a new install, or no options saved, or no JSON aray passed, then display the default front page with nav bar and jdMenu scripts
-	
 
-	// get and display top menubar	
+
+	// get and display top menubar
 	$.ajax({
 		url			:	'menu.pl?conf=' + config + '&act=menu_bar_site',
 		async		: false,
@@ -175,7 +175,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		loadWindowState();
 	}
 	else {
-		
+
 		var logStart = 380;
 		if ( useNewNetworkView ) {
 			logStart = 400;
@@ -186,7 +186,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				width : 720,
 				height: 320,
 				position : [ 230, 70 ]
-				});	
+				});
 		}
 		else {
 			createDialog({
@@ -196,7 +196,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				width : 850,
 				height: 300,
 				position : [ 230, 70 ]
-				});	
+				});
 		}
 
 		createDialog({
@@ -236,7 +236,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				position : [ 520, 250 ]
 				});
 		}
-		if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {			
+		if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {
 			createDialog({
 				id		: 'ntw_flowSummary',
 				url		: '/cgi-omk/opFlow.pl?widget=true',
@@ -248,10 +248,10 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		}
 
 		// draw the quick search widget after the others.
-		selectNodeOpen();	
+		selectNodeOpen();
 
 	}
-	
+
 	if ( ! registered ) {
 		createDialog({
 			id       : 'cfg_registration',
@@ -261,9 +261,9 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			position : [ 1000, 70 ]
 			});
 	}
-	
+
 	// except that the setup window should be the topmost dialog if active
-	if ( displaySetupWidget ) 
+	if ( displaySetupWidget )
 	{
 		createDialog({
 			id       : 'cfg_setup',
@@ -273,8 +273,8 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 		});
 	}
 
-};		// end init	
-	
+};		// end init
+
 // ==================================
 
 // function for all widget panel creates
@@ -285,7 +285,7 @@ function	createDialog(opt) {
 
 	var dialogContainer;
 	var dialogHandle;
-	
+
 	// log widget fixup
 	// all log types to go to same widget
 	// update title of widget to reflect log name
@@ -294,21 +294,21 @@ function	createDialog(opt) {
 		opt.id = 'log_file_view';
 	}
 
-	// if no title configured 
+	// if no title configured
 	if ( ! opt.title && opt.id ) {
 	 opt.title = opt.id ;
 	}
 	else if ( ! opt.title ) {
 	 opt.title = 'Default Title';
 	}
-	
+
 	// see if we have a data entry in our namespace
 	var namespace = 'NMISV8' + opt.id;
 	var objData = $('div#NMISV8').data(namespace);
-	
+
 	if ( ! objData  ) {
 		// new dialog
-		
+
 			$('div#NMISV8').data(namespace, {
 				id		:		opt.id,
 				options	: opt,
@@ -323,40 +323,40 @@ function	createDialog(opt) {
 		}
 	}
 	// -------------------------------------------------------
-	
+
 	// set options array as passed to us as 'opt'
 	// will merge command line options onto existing data store records
-	
+
 	// save current window url, so 'back' will rewrite with previous state
 	if ( objData.options.url === opt.url ) {
 			opt.prev_url = '';
 	} else {
 		opt.prev_url = objData.options.url;
 	}
-	
+
 	for(var index in opt) {
 		objData.options[index] = opt[index];
 	};
 	// read updated list of options back to current opt, so we have a full set in opt
-	opt = objData.options; 
-	
+	opt = objData.options;
+
 	// -----------------------------------------------------
-	// test for window already open , otherwise recreate widget	
-	if ( objData.status != true ) {	
-	
+	// test for window already open , otherwise recreate widget
+	if ( objData.status != true ) {
+
 		dialogContainer =	$('<div id="' + opt.id + '" style="display:none;"></div>');
-		dialogContainer.appendTo('body');	
+		dialogContainer.appendTo('body');
 		dialogHandle = dialogContainer.dialog(opt);
 		// tag this dialog with an ID so we know who it is when debugging
-		dialogHandle.dialog("widget").attr( 'id' , opt.id );		
+		dialogHandle.dialog("widget").attr( 'id' , opt.id );
 		// save the datastore dialog on the NMISV8 tag
 		objData.widgetHandle = dialogHandle;
-			
+
 	} else {
 		// window open aleady, just update the html
 		dialogHandle = objData.widgetHandle;
-	}	
-	
+	}
+
 	// update title of widget to reflect log name
 	if ( opt.url.indexOf('act=log_file_view') != -1 ) {
 		// log title same as log name
@@ -369,8 +369,8 @@ function	createDialog(opt) {
 		objData.options.title = opt.title;
 		dialogHandle.dialog( "option", "title", opt.title );
 	}
-		
-	
+
+
 	// get some additional content
 	// but only if we have an URL !!
 	if ( opt.url ) {
@@ -397,7 +397,7 @@ function	createDialog(opt) {
             loadCharts(dialogHandle);
           }
 				}
-			});	
+			});
 		}
 		else
 		{
@@ -416,9 +416,9 @@ function	createDialog(opt) {
             loadCharts(dialogHandle);
           }
 				}
-			});	
-			
-		}	
+			});
+
+		}
 
 
 		//====================================================
@@ -435,7 +435,7 @@ function	createDialog(opt) {
 				if ( !	$(this).attr('id') ) {
 					$(this).attr('id', opt.id);
 				}
-				
+
 				// nmisdev 24 AUg 2012 - change click function syntax to preferred context.
 				//$(this).attr('onClick', "clickMenu(this);return false");
 				$(this).click(function(){
@@ -472,7 +472,7 @@ function	createDialog(opt) {
 
 	//=============================================================
 	// add a formatted time string to the dialog title
-	
+
 	var weekday=new Array(7);
 		weekday[0]="Sun";
 		weekday[1]="Mon";
@@ -481,21 +481,21 @@ function	createDialog(opt) {
 		weekday[4]="Thu";
 		weekday[5]="Fri";
 		weekday[6]="Sat";
-	
+
 	var currentTime = new Date()
 	var day = weekday[currentTime.getDay()]
 	var hours = currentTime.getHours()
 	var minutes = currentTime.getMinutes()
 	if (minutes < 10) {	minutes = "0" + minutes; }
 	var pDate = day + ' ' + hours + ":" + minutes ;
-	
+
 	// ============================================================
 	// add in a 'New Page' icon/button that will open the page in a new window
 	// 2012-12-06 keiths, fixed launch URL for widgets
 	var newurl = opt.url.replace("widget=true","widget=false");
 	if ( ! newurl.match(/widget=false/g) ) {
 		newurl = newurl + '&widget=false';
-	}	
+	}
 	var dialogNewPage = '<a href="' + newurl + '" target="' + opt.id + '"><input type="image" title="New Page" name="' + opt.id + '" src="' + menu_url_base + '/img/slave.png" /></a>';
 
 	// ============================================================
@@ -503,14 +503,14 @@ function	createDialog(opt) {
 	var dialogHistory = '';
 	if ( opt.prev_url ) {
 		dialogHistory = '<input type="image" title="Back" name="' + opt.id + '" onClick="dialogHistoryClick(this.name);" src="' + menu_url_base + '/img/back.png" />';
-	} 
-	
+	}
+
 	// ============================================================
-	// add a refresh icon	
+	// add a refresh icon
 	var dialogRefresh = '<input type="image" title="Refresh" name="' + opt.id + '" onClick="dialogRefreshClick(this.name);" src="' + menu_url_base + '/img/refresh.png" />';
-	
+
 	// ============================================================
-	// re-write the widget top banner line with date etc.	
+	// re-write the widget top banner line with date etc.
 	// this is a kludge, dialog.options should allow title text aligned right.
 	// insert after the title span tag, that has our 'id' as a secure point of reference
 	// could add other objects here, like refresh !!
@@ -521,7 +521,7 @@ function	createDialog(opt) {
 
 	$('span#timer_' + opt.id ).remove();
 	title.css('width','auto');
-	
+
 	// insert + dialogNewPage + '&nbsp;' in below to get newPageButton
 	var insertNewPage = dialogNewPage + '&nbsp;';
 	var insertDate = '&nbsp;' + pDate;
@@ -533,24 +533,24 @@ function	createDialog(opt) {
 		insertNewPage = '';
 		insertDate = '';
 	}
-	newTitle = '<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;width:auto">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + insertDate + '</span>';	
+	newTitle = '<span id="timer_' + opt.id + '" class="ui-dialog-title" style="float:right; margin-right:25px;width:auto">' + insertNewPage + dialogRefresh + '&nbsp;' + dialogHistory + insertDate + '</span>';
 	$(newTitle)
     .appendTo(titleBar);
 
 
 	// =================================================================
 	// bind a handler to the close icon 'X', that will clean up after delete.
-	if ( objData.status != true ) {	
+	if ( objData.status != true ) {
 		dialogHandle.bind( "dialogbeforeclose", function(event, ui) {
 			var id = $(this).dialog("widget").attr( 'id' );
 			var objData = $('div#NMISV8').data('NMISV8'+ id);
 
 			// get and store where we might have been dragged too
 			var pl = $(this).offset().left;
-			var pt = $(this).offset().top;	
+			var pt = $(this).offset().top;
 
 			objData.options.position = [ pl,pt ]  ;
-			
+
 			// drop refresh timer
 			$.doTimeout( id );
 
@@ -573,13 +573,13 @@ function	createDialog(opt) {
 			$('div#'+id).hide().remove();
 			return false;
 		});
-		
+
 	}
 	// dialog is open and ready for html
 	objData.status = true;
 	dialogHandle.dialog('open');
 
-	//===============================================	
+	//===============================================
 	// refresh dialog if url param refresh > 20.
 	// configure time as seconds, not less than 20.. to avoid client overload ( dont know, not tested )
 	//
@@ -587,9 +587,9 @@ function	createDialog(opt) {
 	// http://benalman.com/projects/jquery-dotimeout-plugin/
 	//
 	// clear timer, then create.
-	
+
 	var refreshTime = gup( 'refresh', opt.url );
-	
+
 	if ( (typeof refreshTime !== 'undefined') && ( refreshTime > 10 )) {
 		refreshTime *= 1000;
 		$.doTimeout( opt.id );
@@ -604,7 +604,7 @@ function	createDialog(opt) {
 	 			createDialog(objData.options);
 	 		};
 	 	});
-	} 
+	}
 	else {
 		dialogHandle.dialog( 'moveToTop' );
 	};
@@ -618,7 +618,7 @@ function	createDialog(opt) {
 	// special opFlow handing, it needs to load it's javascript a special way
 	// if it's already loaded call refresh, if refresh is already defined then the javascript has already been loaded
 	// the load will kick of a refresh because of the javascript onload section in opCommon.js
-	// idendifying flow is done by looking for opFlow in the url, namespaces could also be used but there are several	
+	// idendifying flow is done by looking for opFlow in the url, namespaces could also be used but there are several
 	if ( newurl.indexOf("opFlow") !== -1 ) {
 		if( typeof(refresh) != "undefined" ) {
 			refresh();
@@ -645,7 +645,7 @@ function	createDialog(opt) {
 						}
 
 						document.body.appendChild(script);
-					}			
+					}
 				},
 				error: function (xhr, ajaxOptions, thrownError) {
 					// this error is expected from older versions of opflow
@@ -664,7 +664,7 @@ function	createDialog(opt) {
 // previous url is expected to be saved on the window data store as options.prev_url
 // this is called by the 'back icon' with the window ID, to refeence th data store.
 function dialogHistoryClick(dhID) {
-	
+
 		 var namespace = 'NMISV8' + dhID;
 			 var objData = $('div#NMISV8').data(namespace);
 			 createDialog({
@@ -676,7 +676,7 @@ function dialogHistoryClick(dhID) {
 
 // ======================================================================
 function dialogRefreshClick(rfID) {
-	
+
 		 var namespace = 'NMISV8' + rfID;
 			 var objData = $('div#NMISV8').data(namespace);
 			 if ( opCharts == true && typeof(loadCharts) != undefined ) {
@@ -692,7 +692,7 @@ function dialogRefreshClick(rfID) {
 
 // ======================================================================
 // All href will be JQ to 'clickMenu', unless they were specifically targeted to a new window
-// 
+//
 function clickMenu(e) {
 	// nmisdev 24Aug 2012 fix title value to link text
 	// IE9 suppports innerText, rest textContent
@@ -713,7 +713,7 @@ function clickMenu(e) {
 			id 		: e.id,
 			url 	: e.href,
 			title	: myHrefText
-		});			
+		});
 	}
 	return false;
 };
@@ -725,7 +725,7 @@ function clickMenu(e) {
 
 function showElements(oForm) {
    str = "Form Elements of form " + oForm.name + ": \n"
-   for (i = 0; i < oForm.length; i++) 
+   for (i = 0; i < oForm.length; i++)
       str += oForm.elements[i].name + '   v:' + oForm.elements[i].value + "\n"
    alert(str)
 }
@@ -799,15 +799,20 @@ function get(Id,optTrue,optFalse,evnt) {
 				}
 			}
 			// nmisdev 2May2013 if nothing selected, selectedIndex = -1
-			else { 
+			else {
 				if  (sel.selectedIndex==true) {
 					getstr+="&"+sel.name+"="+sel.options[sel.selectedIndex].value;
 				}
 				else {
 					getstr+="&"+sel.name+"="+encodeURIComponent(sel.value);
-				}	
+				}
 			}
-			dialogID = e.id;
+			// don't overwrite the dialogID willy-nilly just because there was a select field
+			// in the form
+			if (e.id)
+			{
+				dialogID = e.id;
+			}
 		}
 	}
 
@@ -836,7 +841,7 @@ function get(Id,optTrue,optFalse,evnt) {
 	var href=f.getAttribute('href');
 	var url=href+getstr;
 
-	// log what we got to the console for debugging.	
+	// log what we got to the console for debugging.
 	// alert( 'id=' + dialogID ); alert( 'href=' + href ); alert( 'getstr=' + getstr );
 
 	// NMIS Registration onClick handler
@@ -852,7 +857,7 @@ function get(Id,optTrue,optFalse,evnt) {
 	}
 	// update widget with new content
 
-	createDialog({ 
+	createDialog({
 		id 		: dialogID,
 		url 	: url
 	});				// update dialog and show it
@@ -882,9 +887,9 @@ return false;
 				} else if (e=='timeout'){
 					result = 'Request Time out.' ;
 				} else if(x.status==0){
-					result = 'You are offline!!\n Please Check Your Network.';					
-					//alert( 'Status 0 !responseText: ' + x.responseText,  '!statusText': x.statusText, '@readyState' : x.readyState);					
-					
+					result = 'You are offline!!\n Please Check Your Network.';
+					//alert( 'Status 0 !responseText: ' + x.responseText,  '!statusText': x.statusText, '@readyState' : x.readyState);
+
 				} else if(x.status==404){
 					result = 'Requested URL not found.';
 				} else if(x.status==500){
@@ -895,7 +900,7 @@ return false;
 				alert( 'h='+ h +', str='+ str +', x.status='+ x.status +', x.statusText='+ x.statusText +', x.responseText='+ x.responseText );
 			}
 		});
-		
+
 		return result;
 	}
 
@@ -948,7 +953,7 @@ function selectNodeOpen(savedpos)
 		width	:	(savedpos != null? savedpos.width : 210),
 		position : (savedpos != null? savedpos.position : [ 10, 355 ])
 	});
-	
+
 	// define some additional content
 	//<div class="tiny">&nbsp;</div>\
 
@@ -968,7 +973,7 @@ onclick="nodeInfoPanel( this.form.names.options[this.form.names.selectedIndex].v
 <button type="button" style="float:left;" href="#"  onclick="selectNode_init(namesAll);">Reset the List</button>\
 </form>\
 </div>';
-	
+
 	nodeSelect.html(mycontent);
 	nodeSelect.dialog('open');
 	// populate  the lists
@@ -977,7 +982,7 @@ onclick="nodeInfoPanel( this.form.names.options[this.form.names.selectedIndex].v
 		$("div#nsContextMenu > ul.jd_menu_vertical").jdMenu();
 
 };
-	
+
 function selectNode_init_all() {
 	$("div#nsContextMenu").empty();
 	nsHtml = '<ul class="jd_menu jd_menu_vertical">';
@@ -1011,7 +1016,7 @@ function preFilter(filter, filtername) {
 // so just pass the array index, which will be a pointer to a list of nodes that matched this criteria
 function nsClick(p) {
 	//alert( p.name+','+p.innerHTML);
-	
+
 	var contextName = p.name;
 	var filterName = p.innerHTML;
 
@@ -1037,7 +1042,7 @@ function nodeInfoPanel(nodename) {
 	//var pserver = getServer();
 	//var url ='network.pl?act=network_node_view&refresh=60&node=' + nodename + '&server=' + pserver + '';
 	var url ='network.pl?act=network_node_view&conf=' + config + '&refresh=' + widget_refresh_glob +  '&node=' + encodeURIComponent(nodename) + '';
-	
+
 	// attention: the id must match what network.pl's selectLarge() uses!
 	var node = nodename.split(".", 1 )[0];
 	if ( node == '' ) {
@@ -1055,7 +1060,7 @@ function nodeInfoPanel(nodename) {
 		left	:	100,
 		top		:	300
 		};
-	
+
 		var nodeSelect = createDialog(opt);
 		nodeSelect.dialog("open");
 		return false;
@@ -1080,10 +1085,10 @@ function selectNode_init(newList) {
 	namesArray = newList;
 	tempArray  = new Array();
 	remvdArray = new Array();
-	
+
 	// empty the node menu div
 	$("#nsInputMatchResult").empty();
-	
+
 	// get select object
 	selObj = d.getElementById("names");
 	// rebuild the list
@@ -1143,7 +1148,7 @@ function nsInputMatchKey(str) {
 }
 
 function buildOptions(arrayName) {
-	
+
 	if ( arrayName == undefined ) { return; }
 	// clear the select list
 	selObj.options.length = 0;
@@ -1256,7 +1261,7 @@ function setTime() { return }; 				//TBD - fix me
 		};
 
 
-	
+
 // ===================================================
 		function toProperCase(s)
 		{
@@ -1283,7 +1288,7 @@ function gup( name, href ) {
 
 //===============================================
 
-// set the pick list for the top nav bar 
+// set the pick list for the top nav bar
 // expect list of servers to focuse parent window on.
 // ie portal application.
 
@@ -1339,7 +1344,7 @@ $(function($) {
 	});
 });
 
-function loadWindowState() {	
+function loadWindowState() {
 	if( userWindowData ) {
 		for( var i = 0; i < userWindowData.length; i++ )
 		{
@@ -1369,7 +1374,7 @@ function loadWindowState() {
 function saveWindowState() {
 	windowObjects = $("div#NMISV8").data();
 	windowData = [];
-	
+
 	jQuery.each(windowObjects, function(name, value) {
 		objData = value;
 		if ( objData.status === true ) {
@@ -1377,21 +1382,21 @@ function saveWindowState() {
 			thisWindow = { height: dialogHandle.dialog( "option", "height" ),
 										 width: dialogHandle.dialog( "option", "width" ),
 										 position: dialogHandle.dialog( "option", "position" ),
-										 title: objData.options.title, 
-										 url: objData.options.url, 
+										 title: objData.options.title,
+										 url: objData.options.url,
 										 id: objData.options.id };
 	    windowData.push( thisWindow );
 		}
   });
 
-	windowDataString = JSON.stringify({ windowData: windowData });	
+	windowDataString = JSON.stringify({ windowData: windowData });
 	$.ajax({
     type: "POST",
 		url:	'menu.pl',
     data: windowDataString,
     contentType: "application/json; charset=utf-8",
     dataType: "html"
-  }); 
+  });
 }
 
 function clearWindowState() {
@@ -1402,5 +1407,5 @@ function clearWindowState() {
     data: windowDataString,
     contentType: "application/json; charset=utf-8",
     dataType: "html"
-  }); 
+  });
 }

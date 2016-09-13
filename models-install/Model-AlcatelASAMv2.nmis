@@ -298,7 +298,7 @@
           },
           'ifName' => {
             'oid' => 'ifName',
-            'title' => 'ifName'
+            'title' => 'Name (ifName)'
           }
         }
       },

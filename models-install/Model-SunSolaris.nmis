@@ -154,7 +154,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -179,11 +179,12 @@
             'title' => 'Admin Status'
           },
           'Description' => {
-            'oid' => 'ifAlias'
+            'oid' => 'ifAlias',
+						'title' => "Description (ifAlias)",
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',

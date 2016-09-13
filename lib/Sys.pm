@@ -49,37 +49,85 @@ sub new
 {
 	my ($class, %args) = @_;
 
-	my $self = {
-		name => undef,		# name of node
-		mdl => undef,		# ref Model modified
-		snmp => undef, 		# ref snmp object
-		wmi => undef,			# wmi accessor object
-		info => {},		  # node info table
-		ifinfo => {},		# interface info table
-		view => {},			# view info table
-		cfg => {},			# configuration of node
-		rrd => {},			# RRD table for loading
-		reach => {},		# tmp reach table
-		error => "",
-		alerts => [],
-		logging => 1,
-		debug => 0,
-		cache_models => 1,					# json caching for model files default on
-	};
+	my $self = bless(
+		{
+			name => undef,		# name of node
+			node => undef,		# node name is lc of name
+			mdl => undef,		  # ref Model modified
 
-	bless $self, $class;
+			snmp => undef, 		# snmp accessor object
+			wmi => undef,			# wmi accessor object
+
+			info => {},		  # node info table
+			view => {},			# view info table
+			cfg => {},			# configuration of node
+			rrd => {},			# RRD table for loading - fixme unused
+			reach => {},		# tmp reach table
+			alerts => [],		# getValues() saves stuff there, nmis.pl consumes
+
+			error => undef,						# last internal error
+			wmi_error => undef,				# last wmi accessor error
+			snmp_error => undef,			# last snmp accessor error
+
+			debug => 0,
+			update => 0,						 # flag for update vs collect operation - attention: read by others!
+			cache_models => 1,			 # json caching for model files default on
+		}, $class);
+
 	return $self;
 }
 
+
+#===================================================================
+sub mdl 	{ my $self = shift; return $self->{mdl} };				# my $M = $S->mdl
+sub ndinfo 	{ my $self = shift; return $self->{info} };				# my $NI = $S->ndinfo
+sub view 	{ my $self = shift; return $self->{view} };				# my $V = $S->view
+sub ifinfo 	{ my $self = shift; return $self->{info}{interface} };	# my $IF = $S->ifinfo
+sub cbinfo 	{ my $self = shift; return $self->{info}{cbqos} };		# my $CB = $S->cbinfo
+sub pvcinfo 	{ my $self = shift; return $self->{info}{pvc} };	# my $PVC = $S->pvcinfo
+sub callsinfo 	{ my $self = shift; return $self->{info}{calls} };	# my $CALL = $S->callsinfo
+sub reach 	{ my $self = shift; return $self->{reach} };			# my $R = $S->reach
+sub ndcfg	{ my $self = shift; return $self->{cfg} };				# my $NC = $S->ndcfg
+sub envinfo	{ my $self = shift; return $self->{info}{environment} };# my $ENV = $S->envinfo
+sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $SH = $S->syshealth
+sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->alerts
+#===================================================================
+
+
+# small accessor for sys' status and errors
+# args: none
+# returns: hash ref of state info: error, snmp_error, wmi_error, snmp_enabled, wmi_enabled
+#
+# error is sys' internal error status (undef if no problems),
+# snmp_error is from snmp accessor, undef if no snmp configured or not (yet) active or ok
+# wmi_error is from wmi, undef if no wmi configured or not (yet) active or ok
+# wmi_enabled is 1 if the config was suitable for wmi and init() was called with wmi
+# snmp_enabled is 1 if config was suitable for snmp and init() was called with snmp
+#
+# note: all info exept error is valid only AFTER init() was run
+sub status
+{
+	my ($self) = @_;
+
+	return { error => $self->{error},
+					 snmp_enabled => $self->{snmp}? 1 : 0,
+					 wmi_enabled => $self->{wmi}? 1 : 0,
+					 snmp_error => $self->{snmp_error},
+					 wmi_error => $self->{wmi_error} };
+}
+
 # initialise the system object for a given node
+# attention: while it's possible to reuse a sys object for different nodes,
+# it is NOT RECOMMENDED!
+#
 # node config is loaded if snmp or wmi args are true
-# args: node (required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
+# args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
 # update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0)
 #
 # update means ignore model loading errors, also disables cache_models
 # force means ignore the old node file, only relevant if update is enabled as well.
 #
-# returns: 1 if successful, 0 otherwise
+# returns: 1 if _everything_ was successful, 0 otherwise, also sets details for status()
 sub init
 {
 	my ($self, %args) = @_;
@@ -96,6 +144,11 @@ sub init
 	my $wantwmi = getbool(exists $args{wmi}? $args{wmi} : $snmp);
 
 	my $C = loadConfTable();			# needed to determine the correct dir; generally cached and a/v anyway
+	if (ref($C) ne "HASH" or !keys %$C)
+	{
+		$self->{error} = "failed to load configuration table!";
+		return 0;
+	}
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
 	# caching can be chosen with argument cache_models here.
@@ -111,23 +164,18 @@ sub init
 	}
 	$self->{cache_models} = 0 if (getbool($C->{cache_models},"invert"));
 
-	my $exit = 1;
-	my $cfg;
-	my $info;
-
-	# cleanup
-	$self->{mdl} = undef;
-	$self->{info} = {};
-	$self->{reach} = {};
-	$self->{rrd} = {};
-	$self->{view} = {};
+	# (re-)cleanup, set defaults
 	$self->{snmp} = $self->{wmi} = undef;
+	$self->{mdl} = undef;
+	for my $nuke (qw(info view rrd reach))
+	{
+		$self->{$nuke} = {};
+	}
 	$self->{cfg} = {node => { ping => 'true'}};
 
-	my $ext = getExtension(dir=>'var');
-
-	# load info of node  and interfaces in tables of this object, if a node is given
-	if ($self->{name} ne "")
+	# load info of node and interfaces in tables of this object, if a node is given
+	# otherwise load the 'generic' sys object
+	if ($self->{name})
 	{
 		# if force is off, load the existing node info
 		# if on, ignore that information and start from scratch (to bypass optimisations)
@@ -135,8 +183,8 @@ sub init
 		{
 			dbg("Not loading info of node=$self->{name}, force means start from scratch");
 		}
-		# load in table {info}
-		elsif (($self->{info} = loadTable(dir=>'var',name=>"$self->{node}-node")))
+		# load the saved node info data
+		elsif ( ref($self->{info} = loadTable(dir=>'var', name=>"$self->{node}-node")) eq "HASH" && keys %{$self->{info}} )
 		{
 			if (getbool($self->{debug}))
 			{
@@ -146,74 +194,87 @@ sub init
 			}
 			dbg("info of node=$self->{name} loaded");
 		}
-		else
+		# or bail out if this is not an update operation, all gigo if we continued w/o.
+		elsif (!$self->{update})
 		{
-			$self->{error} = "ERROR loading var/$self->{node}-node.$ext";
-			dbg("ignore error message") if $self->{update};
-			$exit = 0;
+			$self->{error} = "Failed to load node info file for $self->{node}!";
+			return 0;
 		}
 	}
 
-	$exit = 1 if $self->{update}; # ignore previous errors if update
-
-	## This is overriding the devices with nodedown=true!
-	if (($info = loadTable(dir=>'var',name=>"nmis-system")))
+	# This is overriding the devices with nodedown=true!
+	if ((my $info = loadTable(dir=>'var',name=>"nmis-system")))
 	{
-		if ( defined $info->{system} and ref($info->{system}) eq "HASH" ) {
-			delete $info->{system};
-		}
-		$self->mergeHash($self->{info},$info);
-		dbg("info of nmis-system loaded");
-	} else {
-		logMsg("ERROR cannot load var/nmis-system.$ext");
+		# unwanted legacy gunk?
+		delete $info->{system} if ( ref($info) eq "HASH" and ref($info->{system}) eq "HASH" );
+
+		$self->_mergeHash($self->{info}, $info); # let's consider this nonterminal
+	}
+	else
+	{
+		# not terminal
+		$self->{error} = "Failed to load nmis-system info!";
 	}
 
 	# load node configuration - attention: only done if snmp or wmi are true!
-	if ($exit
+	if (!$self->{error}
 			and ($snmp or $wantwmi)
 			and $self->{name} ne "")
 	{
-		if ($self->{cfg}{node} = getNodeCfg($self->{name})) {
+		# fixme: this uses NMIS module code. very unclean separation.
+		my $lnt = NMIS::loadLocalNodeTable();
+		my $safename = NMIS::checkNodeName($self->{name});
+		$self->{cfg}->{node} = Clone::clone($lnt->{ $safename })
+				if (ref($lnt) eq "HASH" && $safename);
+
+		if ($self->{cfg}->{node})
+		{
 			dbg("cfg of node=$self->{name} loaded");
-		} else {
-			dbg("loading of cfg of node=$self->{name} failed");
-			$exit = 0;
 		}
-	} else {
+		else
+		{
+			$self->{error} = "Failed to load cfg of node=$self->{name}!";
+			return 0;									# cannot do anything further
+		}
+	}
+	else
+	{
 		dbg("no loading of cfg of node=$self->{name}");
 	}
+
+
+	# load Model of node or the base Model, or give up
 	my $thisnodeconfig = $self->{cfg}->{node};
+	my $curmodel = $self->{info}{system}{nodeModel};
+	my $loadthis = "Model";
 
-	# load Model of node or base Model
-	my $tmpmodel = $self->{info}{system}{nodeModel};
-	my $condition = "none";
-
-	if ($self->{info}{system}{nodeModel} ne "" and $exit and not $self->{update}) {
-		$condition = "not update";
-		$exit = $self->loadModel(model=>"Model-$self->{info}{system}{nodeModel}") ;
+	# get the specific model
+	if ($curmodel and not $self->{update})
+	{
+		$loadthis = "Model-$curmodel";
 	}
+	# no specific model, update yes, ping yes, collect no -> pingonly
 	elsif (getbool($thisnodeconfig->{ping})
 				 and !getbool($thisnodeconfig->{collect})
 				 and $self->{update})
 	{
-		$condition = "PingOnly";
-		$exit = $self->loadModel(model=>"Model-PingOnly");
-		$snmp = 0;
+		$loadthis = "Model-PingOnly";
 	}
-	else {
-		$condition = "default";
-		dbg("loading the default model");
-		$exit = $self->loadModel(model=>"Model");
-	}
+	# default model otherwise
+	dbg("loading model $loadthis for node $self->{name}");
+	# model loading failures are terminal
+	return 0 if (!$self->loadModel(model => $loadthis));
 
-	# init the snmp accessor, but do not connect (yet)
-	if ($self->{name} ne "" and $snmp)
+	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
+	if ($self->{name} and $snmp and $thisnodeconfig->{collect})
 	{
-		$exit = 0 if !($self->initsnmp());
+		# remember name for error message, no relevance for comms
+		$self->{snmp} = snmp->new(debug => $self->{debug},
+															name => $self->{cfg}->{node}->{name}); # fixme why not self->{name}?
 	}
 	# wmi: no connections supported AND we try this only if
 	# suitable config args are present (ie. host and username, password is optional)
-	if ($self->{name} and  $wantwmi and $thisnodeconfig->{host} and $thisnodeconfig->{wmiusername})
+	if ($self->{name} and $wantwmi and $thisnodeconfig->{host} and $thisnodeconfig->{wmiusername})
 	{
 		my $maybe = WMI->new(host => $thisnodeconfig->{host},
 												 username => $thisnodeconfig->{wmiusername},
@@ -225,39 +286,12 @@ sub init
 		}
 		else
 		{
-			$exit = 0;
-			dbg("failed to create wmi accessor: $maybe");
+			$self->{error} = $maybe;	# not terminal
+			logMsg("failed to create wmi accessor for $self->{name}: $maybe");
 		}
 	}
 
-	dbg("node=$self->{name} condition=$condition nodedown=$self->{info}{system}{nodedown} snmpdown=$self->{info}{system}{snmpdown} nodeType=$self->{info}{system}{nodeType} group=$self->{info}{system}{group}");
-	dbg("returning from Sys->init with exit of $exit");
-	return $exit;
-	}
-
-
-# create communication object, does NOT open the connection!
-# attention: REQUIRES that sys::init was run with snmp enabled, or no conf will be loaded
-sub initsnmp
-{
-	my $self = shift;
-
-	# remember name for error message, no relevance for comms
-	$self->{snmp} = snmp->new(debug => $self->{debug},
-														name => $self->{cfg}->{node}->{name});
-	dbg("snmp for node=$self->{name} initialized");
-	return 1;
-}
-
-sub getSnmpError {
-	my $self = shift;
-
-	if ( defined $self->{snmp}{error} and $self->{snmp}{error} ne "" ) {
-		return $self->{snmp}{error};
-	}
-	else {
-		return undef;
-	}
+	return $self->{error}? 0 : 1;
 }
 
 # tiny accessor for figuring out if a node is configured for wmi
@@ -273,43 +307,22 @@ sub wmi
 	return $self->{wmi};
 }
 
-
-#===================================================================
-
-# for easy coding of tables in object sys
-
-sub mdl 	{ my $self = shift; return $self->{mdl} };				# my $M = $S->mdl
-sub ndinfo 	{ my $self = shift; return $self->{info} };				# my $NI = $S->ndinfo
-sub view 	{ my $self = shift; return $self->{view} };				# my $V = $S->view
-sub ifinfo 	{ my $self = shift; return $self->{info}{interface} };	# my $IF = $S->ifinfo
-sub cbinfo 	{ my $self = shift; return $self->{info}{cbqos} };		# my $CB = $S->cbinfo
-sub pvcinfo 	{ my $self = shift; return $self->{info}{pvc} };	# my $PVC = $S->pvcinfo
-sub callsinfo 	{ my $self = shift; return $self->{info}{calls} };	# my $CALL = $S->callsinfo
-
 # like above: accessor only works AFTER init() was run with snmp enabled,
 # and doesn't imply snmp works, just that it's configured
 sub snmp 	{ my $self = shift; return $self->{snmp} };
-
-sub reach 	{ my $self = shift; return $self->{reach} };			# my $R = $S->reach
-sub ndcfg	{ my $self = shift; return $self->{cfg} };				# my $NC = $S->ndcfg
-sub envinfo	{ my $self = shift; return $self->{info}{environment} };# my $ENV = $S->envinfo
-sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $SH = $S->syshealth
-sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->alerts
-
-#===================================================================
-
 
 # open snmp session based on host address
 #
 # for max message size we try in order: host-specific value if set for this host,
 # what is given as argument or default 1472. argument is expected to reflect the
 # global default.
-# returns: 1 if ok (or nothing to do b/c node nocollect), 0 otherwise
+# returns: 1 if ok, 0 otherwise
+#
+# note: function MUST NOT skip connection opening based on collect t/f, because
+# otherwise update ops can never bootstrap stuff.
 sub open
 {
 	my ($self, %args) = @_;
-
-	return 1 if (!getbool($self->{cfg}{node}{collect}));
 
 	# prime config for snmp, based mostly on cfg->node - cloned to not leak any of the updated bits
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
@@ -334,13 +347,26 @@ sub close {
 	return $self->{snmp}->close if (defined($self->{snmp}));
 }
 
+# small helper to tell sys that snmp or wmi are considered dead
+# and to stop using this mechanism until (re)init'd
+# args: self, what (snmp or wmi)
+# returns: nothing
+sub disable_source
+{
+	my ($self,$moriturus) = @_;
+	return if ($moriturus !~ /^(wmi|snmp)$/);
 
-#===================================================================
+	$self->close() if ($moriturus eq "snmp"); # bsts, avoid leakage
+	dbg("disabling source $moriturus") if ($self->{$moriturus});
+	delete $self->{$moriturus};
+}
 
-# returns interface info, but indexed by ifdescr instead of internal indexing by ifindex
+# helper that returns interface info,
+# but indexed by ifdescr instead of internal indexing by ifindex
+#
 # args: none
 # returns: hashref
-# note: this is NOT live data, the info is shallowly clones on conversion!
+# note: does NOT return live data, the info is shallowly cloned on conversion!
 sub ifDescrInfo
 {
 	my $self = shift;
@@ -354,7 +380,6 @@ sub ifDescrInfo
 
 		$ifDescrInfo{$ifDescr} = {%$thisentry};
 	}
-
 	return \%ifDescrInfo;
 }
 
@@ -363,39 +388,39 @@ sub ifDescrInfo
 # copy config and model info into node info table
 # args: type, if type==all then nodeModel and nodeType are only updated from mdl if missing
 # if type==overwrite then nodeModel and nodeType are updated unconditionally
+# returns: nothing
 #
 # attention: if sys wasn't initialized with snmp true, then cfg will be blank!
 # if no type arg, then nodemodel and type aren't touched
 sub copyModelCfgInfo
 {
-		my $self = shift;
-		my %args = @_;
-		my $type = $args{type};
+	my ($self, %args) = @_;
+	my $type = $args{type};
 
-		# copy all node info, with the exception of auth-related fields
-		my $dontcopy = qr/^(wmi(username|password)|community|(auth|priv)(key|password|protocol))$/;
-
+	# copy all node info, with the exception of auth-related fields
+	my $dontcopy = qr/^(wmi(username|password)|community|(auth|priv)(key|password|protocol))$/;
+	if (ref($self->{cfg}->{node}) eq "HASH")
+	{
 		for my $fn (keys %{$self->{cfg}->{node}})
 		{
-				next if ($fn =~ $dontcopy);
-				$self->{info}->{system}->{$fn} = $self->{cfg}->{node}->{$fn};
+			next if ($fn =~ $dontcopy);
+			$self->{info}->{system}->{$fn} = $self->{cfg}->{node}->{$fn};
 		}
+	}
 
-		if ( $type eq 'all' or $type eq 'overwrite' )
-		{
-				my $mustoverwrite = ($type eq 'overwrite');
+	if ( $type eq 'all' or $type eq 'overwrite' )
+	{
+		my $mustoverwrite = ($type eq 'overwrite');
 
-				dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}");
+		dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}");
 
-				# make the changes unconditionally if overwrite requested, otherwise only if not present
-				$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel}
-				if (!$self->{info}{system}{nodeModel} or $mustoverwrite);
-				$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}
-				if (!$self->{info}{system}{nodeType} or $mustoverwrite);
-		}
+		# make the changes unconditionally if overwrite requested, otherwise only if not present
+		$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel}
+		if (!$self->{info}{system}{nodeModel} or $mustoverwrite);
+		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}
+		if (!$self->{info}{system}{nodeType} or $mustoverwrite);
+	}
 }
-
-#===================================================================
 
 # get info from node, using snmp and/or wmi
 # Values are stored in {info}, under class or given table arg
@@ -404,7 +429,8 @@ sub copyModelCfgInfo
 # table (=name where data is parked, defaults to arg class),
 # debug (aka model; optional, just a debug flag!)
 #
-# returns 0 if retrieval was a total failure, 1 if it worked (at least somewhat)
+# returns 0 if retrieval was a _total_ failure, 1 if it worked (at least somewhat),
+# also sets details for status()
 sub loadInfo
 {
 	my ($self,%args) = @_;
@@ -422,11 +448,29 @@ sub loadInfo
 																						section=>$section,
 																						index=>$index,
 																						port=>$port);
-	if (!$status->{error})
-	{
-		dbg("MODEL loadInfo $self->{name} class=$class:") if $wantdebug;
-		my $target = $self->{info}->{$table};
+	$self->{wmi_error} = $status->{wmi_error};
+	$self->{snmp_error} = $status->{snmp_error};
+	$self->{error} = $status->{error};
 
+	# no data? okish iff marked as skipped
+	if (!keys %$result)
+	{
+		$self->{error} = "loadInfo failed for $self->{name}: $result->{error}";
+		return 0;
+	}
+	elsif ($result->{skipped})	# nothing to report because model said skip these items, apparently all of them...
+	{
+		dbg("no results, skipped because of control expression or index mismatch");
+		return 1;
+	}
+	else													# we have data, maybe errors too?
+	{
+		dbg("got data, but errors as well: error=$self->{error} snmp=$self->{snmp_error} wmi=$self->{wmi_error}")
+				if ($self->{error} or $self->{snmp_error} or $self->{wmi_error});
+
+		dbg("MODEL loadInfo $self->{name} class=$class") if $wantdebug;
+
+		my $target = $self->{info}->{$table} ||= {};
 		foreach my $sect (keys %{$result})
 		{
 			if ($index ne '')
@@ -480,53 +524,41 @@ sub loadInfo
 				}
 			}
 		}
+		return 1;										# we're happy(ish) - snmp or wmi worked
 	}
-	elsif ($result->{skipped})	# nothing to report because model said skip these items
-	{
-		dbg("no results, skipped because of control expression or index mismatch");
-	}
-	else
-	{
-		dbg("ERROR ($self->{info}{system}{name}) on loadInfo, $result->{error}");
-		return 0;
-	}
-
-	return 1;										# we're happy(ish) - snmp or wmi worked
 }
 
-#===================================================================
-
-# get node info by snmp, oid's are defined in Model. Values are stored in table {info}
-# argument config is the gobal config hash, for finding the snmp_max_repetitions default
-sub loadNodeInfo {
+# get node info (subset) as defined by Model. Values are stored in table {info}
+# args: none
+# returns: 1 if worked (at least somewhat), 0 otherwise - check status() for details
+sub loadNodeInfo
+{
 	my $self = shift;
 	my %args = @_;
-	my $C = $args{config};
 
-	# find a value for max-repetitions: this controls how many OID's will be in a single request.
-	# note: no last-ditch default; if not set we let the snmp module do its thing
-	my $max_repetitions = $self->{info}{system}{max_repetitions} || $C->{snmp_max_repetitions};
+	my $C = loadConfTable();
+	my $exit = $self->loadInfo(class=>'system'); # sets status
 
-	my $exit = $self->loadInfo(class=>'system');
-
-	# check if nbarpd is possible
-	if (getbool($self->{mdl}{system}{nbarpd_check}) and $args{section} eq "") {
+	# check if nbarpd is possible: wanted by model, snmp configured, no snmp problems in last load
+	if (getbool($self->{mdl}{system}{nbarpd_check}) && $self->{snmp} && !$self->{snmp_error})
+	{
+		# find a value for max-repetitions: this controls how many OID's will be in a single request.
+		# note: no last-ditch default; if not set we let the snmp module do its thing
+		my $max_repetitions = $self->{info}{system}{max_repetitions} || $C->{snmp_max_repetitions};
 		my %tmptable = $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions);
-		#2011-11-14 Integrating changes from Till Dierkesmann
-		$self->{info}{system}{nbarpd} = (defined $self->{snmp}->gettable('cnpdStatusTable',$max_repetitions)) ? "true" : "false" ;
+
+		$self->{info}{system}{nbarpd} = keys %tmptable? "true" : "false" ;
 		dbg("NBARPD is $self->{info}{system}{nbarpd} on this node");
 	}
 	return $exit;
 }
-
-#===================================================================
 
 # get data to store in rrd
 # args: class, section, port, index (more or less required)
 # ATTENTION: class is NOT a name, but a model substructure!
 # if  no section is given, all sections will be handled.
 # optional: debug (aka model), flag for debugging
-# returns: data hashref or undef if error
+# returns: data hashref or undef if error; also sets details for status()
 sub getData
 {
 	my ($self, %args) = @_;
@@ -537,7 +569,6 @@ sub getData
 	my $section = $args{section};
 
 	my $wantdebug = $args{debug} || $args{model};
-
 	dbg("index=$index port=$port class=$class section=$section");
 
 	if (!$class) {
@@ -556,14 +587,18 @@ sub getData
 																					index=>$index,
 																					port=>$port,
 																					table=>$self->{info}{graphtype});
-	# data good,
-	if ( !$status->{error})
+	$self->{error} = $status->{error};
+	$self->{wmi_error} = $status->{wmi_error};
+	$self->{snmp_error} = $status->{snmp_error};
+
+	# data? we're happy-ish
+	if (keys %$result)
 	{
 		dbg("MODEL getData $self->{name} class=$class:" .Dumper($result)) if ($wantdebug);
 	}
 	elsif ($status->{skipped})
 	{
-		dbg("getValues skipped collection, no results",3);
+		dbg("getValues skipped collection, no results");
 	}
 	elsif ($status->{error})
 	{
@@ -572,26 +607,23 @@ sub getData
 	return $result;
 }
 
-#===================================================================
-
 # get data from snmp and/or wmi, as requested by Model
 #
 # args: class, section, index, port (more or less required)
 # ATTENTION: class is NOT name but MODEL SUBSTRUCTURE!
-# NOTE: if section is not given, ALL existing sections are handled
-#
+# NOTE: if section is not given, ALL existing sections are handled (including alerts!)
 # table (optional, if given must be hashref and getvalues adds graphtype list to it),
 #
-# note: supports calculate, with $r and CVAR[0-9], and replace;
-# but fixme: the CVARn handling should be integrated into parseString (must supply input of known subst values, as
-# $result->{$sect}{$index}{$ds} isn't built up by the time the substitutions take place
-#
-# returns: (data hash ref, status hash ref with keys 'error','skipped', 'nographs')
+# returns: (data hash ref, status hash ref with keys 'error','skipped','nographs','wmi_error','snmp_error')
 #
 # skipped is set if a control expression disables collection OR not given index but section is indexed.
 # (note that index given but unindexed session seen does NOT fall under skipped!)
+#
 # nographs is set if one or more sections have a no_graphs attribute set (not relevant for data, but for arg table)
-# error is set to (last) error message if anything goes wrong with snmp or wmi, or if there are no results
+#
+# error is set to the last general error (e.g. dud model); similar for wmi_error and snmp_error, but these
+# include more dynamic aspects (e.g. connection issues).
+# error is completely independent of wmi_error and snmp_error; error does also NOT mean there's no data!
 sub getValues
 {
 	my ($self, %args) = @_;
@@ -605,6 +637,7 @@ sub getValues
 	my (%data,%status, %todos);
 
 	# one or all sections?
+	# attention: this does include 'alerts'!
 	my @todosections = (defined($section) && $section ne '')?
 			exists($class->{$section}) ? $section : ()
 			: (keys %{$class});
@@ -657,25 +690,23 @@ sub getValues
 				}
 				$$target = join(",", keys %seen);
 			}
-			# no graphtype? complain if the model doesn't say deliberate omission
+			# no graphtype? complain if the model doesn't say deliberate omission - not terminal though
 			elsif (getbool($thissection->{no_graphs}))
 			{
 				$status{nographs} = "deliberate omission of graph type for section $sectionname";
 			}
 			else
 			{
-				# fixme why not in response?
-				$self->{error} = "ERROR ($self->{info}{system}{name}) missing property 'graphtype' for section $sectionname";
-				logMsg($self->{error});
+				$status{error} = "$self->{name} is missing property 'graphtype' for section $sectionname";
 			}
 		}
 
 		# prep the list of things to tackle, snmp first - iff snmp is ok for this node
 		if (ref($thissection->{snmp}) eq "HASH" && $self->{snmp})
 		{
-			# expecting index or port for interfaces
-			my $suffix = (defined($index) && $index ne '')? ".$index"
-					: (defined($port) && $port ne '')? ".$port" : '';
+			# expecting port OR index for interfaces, cbqos etc. note that port overrides index!
+			my $suffix = (defined($port) && $port ne '')? ".$port"
+					: (defined($index) && $index ne '')? ".$index" : "";
 			dbg("class: index=$index port=$port suffix=$suffix");
 
 			for my $itemname (keys %{$thissection->{snmp}})
@@ -684,11 +715,29 @@ sub getValues
 				next if (!exists $thisitem->{oid});
 
 				dbg("oid for section $sectionname, item $itemname primed for loading", 3);
+
 				# for snmp each oid belongs to one reportable thingy, and we want to get all oids in one go
-				$todos{$itemname} = { oid => $thisitem->{oid} . $suffix,
-															section => $sectionname,
-															item => $itemname, # fixme might not be required
-															details => $thisitem };
+				# HOWEVER, the same thing is often saved in multiple sections!
+				if ($todos{$itemname})
+				{
+					if ($todos{$itemname}->{oid} ne  $thisitem->{oid}.$suffix)
+					{
+					  $status{snmp_error} = "ERROR ($self->{name}) model error, $itemname has multiple clashing oids!";
+						logMsg($status{snmp_error});
+						next;
+					}
+					push @{$todos{$itemname}->{section}}, $sectionname;
+					push @{$todos{$itemname}->{details}}, $thisitem;
+
+					dbg("item $itemname present in multiple sections: ".join(", ", @{$todos{$itemname}->{section}}),3);
+				}
+				else
+				{
+					$todos{$itemname} = { oid => $thisitem->{oid} . $suffix,
+																section => [$sectionname],
+																item => $itemname, # fixme might not be required
+																details => [$thisitem] };
+				}
 			}
 		}
 		# now look for wmi-sourced stuff - iff wmi is ok for this node
@@ -711,11 +760,31 @@ sub getValues
 				# fixme: do wmi queries have to be rewritten/expanded with node properties?
 
 				# for wmi we'd like to perform a query just ONCE for all involved items
-				$todos{$itemname} = { query =>  $query,
-															section => $sectionname,
-															item => $itemname, # fixme might not be required
-															details => $thisitem, # crucial: contains the field(name)
-															indexed => $thissection->{indexed} }; # crucial for controlling  gettable
+				# but again the sme thing may need saving in more than one section
+				if ($todos{$itemname})
+				{
+					if ($todos{$itemname}->{query} ne $query
+							or $todos{$itemname}->{details}->{field} ne $thisitem->{field}
+							or $todos{$itemname}->{indexed} ne $thissection->{indexed})
+					{
+					  $status{wmi_error} = "ERROR ($self->{name}) model error, $itemname has multiple clashing queries/fields!";
+						logMsg($status{wmi_error});
+						next;
+					}
+
+					push @{$todos{$itemname}->{section}}, $sectionname;
+					push @{$todos{$itemname}->{details}}, $thisitem;
+
+					dbg("item $itemname present in multiple sections: ".join(", ", @{$todos{$itemname}->{section}}),3);
+				}
+				else
+				{
+					$todos{$itemname} = { query =>  $query,
+																section => [$sectionname],
+																item => $itemname, # fixme might not be required
+																details => [$thisitem], # crucial: contains the field(name)
+																indexed => $thissection->{indexed} }; # crucial for controlling  gettable
+				}
 			}
 		}
 	}
@@ -725,10 +794,10 @@ sub getValues
 	if (my @haveoid = grep(exists($todos{$_}->{oid}), keys %todos))
 	{
 		my @rawsnmp = $self->{snmp}->getarray( map { $todos{$_}->{oid} } (@haveoid));
-		if (my $error = $self->getSnmpError)
+		if (my $error = $self->{snmp}->error)
 		{
 			dbg("ERROR ($self->{info}{system}{name}) on get values by snmp: $error");
-			$status{error} = $error;
+			$status{snmp_error} = $error;
 		}
 		else
 		{
@@ -769,7 +838,7 @@ sub getValues
 				if ($error)
 				{
 					dbg("ERROR ($self->{info}{system}{name}) on get values by wmi: $error");
-					$status{error} = $error;
+					$status{wmi_error} = $error;
 				}
 				else
 				{
@@ -778,118 +847,116 @@ sub getValues
 				}
 			}
 			# get the field name from the model entry
+			# note: field name is enforced same across all target sections so we use the first one
 			$todos{$itemname}->{rawvalue} = (defined $index?
 																			 $seen{$query}->{$index}
-																			 : $seen{$query})->{ $todos{$itemname}->{details}->{field} };
+																			 : $seen{$query})->{ $todos{$itemname}->{details}->[0]->{field} };
 			$todos{$itemname}->{done} = 1;
 		}
 	}
 
-	# now handle compute, format, replace etc.
+	# now handle compute, format, replace, alerts etc.
+	# prep the var replacement once
+	my %knownvars = map { $_ => $todos{$_}->{rawvalue} } (keys %todos);
+
 	for my $thing (values %todos)
 	{
 		next if (!$thing->{done});	# we should not end up with unresolved stuff but bsts
 
 		my $value = $thing->{rawvalue};
 
-		# massaging: calculate and replace really should not be combined,
-		# but if you do nmis won't complain. calculate is done FIRST, however.
-		if (exists($thing->{details}->{calculate}) && (my $calc = $thing->{details}->{calculate}))
+		# where does it go? remember, multiple target sections possible - potentially with DIFFERENT calculate,
+		# replace expressions etc!
+		for my $sectionidx (0..$#{$thing->{section}})
 		{
-			# calculate understands as placeholders: $r for the current oid/thing,
-			# and "CVAR[n]=oidname;" stanzas, with n in 0..9
-			# all CVARn initialisations need to come before use,
-			# and the RAW ds/oid values are substituted, not post-calc/replace/whatever!
+			# (section and details are multiples, item, indexing, field(name) etc MUST be identical
+			my ($gothere,$sectiondetails) = ($thing->{section}->[$sectionidx],
+																			 $thing->{details}->[$sectionidx]);
 
-			my (@CVAR, $rebuiltcalc, $consumeme);
-			$consumeme=$calc;
-			# rip apart calc, rebuild it with var substitutions
-			while ($consumeme =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))//)
+			# massaging: calculate and replace really should not be combined in a model,
+			# but if you do nmis won't complain. calculate is done FIRST, however.
+			# all calculate and CVAR expressions refer to the RAW variable value! (for now, as
+			# multiple target sections can have different replace/calculate rules and
+			# we can't easily say which one to pick)
+			if (exists($sectiondetails->{calculate}) && (my $calc = $sectiondetails->{calculate}))
 			{
-				$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
-				my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
-
-				if (defined $varnum) # cvar declaration
+				# setup known var value list so that eval_string can handle CVARx substitutions
+				my ($error, $result) = $self->eval_string(string => $calc,
+																									context => $value,
+																									# for now we don't support multiple or cooked, per-section values
+																									variables => [ \%knownvars ]);
+				if ($error)
 				{
-					# decl holds item name
-					logMsg("ERROR: CVAR$varnum references unknown object \"$decl\" in calc \"$calc\"")
-							if (!exists $todos{$decl});
-					$CVAR[$varnum] = $todos{$decl}->{rawvalue};
+					$status{error} = $error;
+					logMsg("ERROR ($self->{name}) $error");
 				}
-				elsif (defined $varuse) # cvar use
-				{
-					logMsg("ERROR: CVAR$varuse used but not defined in calc \"$calc\"")
-							if (!exists $CVAR[$varuse]);
-
-					$rebuiltcalc .= $CVAR[$varuse]; # sub in the actual value
-				}
-				else 						# shouldn't be reached, ever
-				{
-					logMsg("ERROR: CVAR parsing failure for \"$calc\"");
-					$rebuiltcalc=$consumeme='';
-					last;
-				}
+				$value = $result;
 			}
-			$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
-			dbg("calc translated \"$calc\" into \"$rebuiltcalc\"",3);
-			$calc = $rebuiltcalc;
-
-			my $r = $value;						# ensure backwards compat naming
-			$r = eval $calc;
-			logMsg("ERROR ($self->{name}) calculation=$calc in Model, $@") if $@;
-
-			$value = $r;
-		}
-		# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
-		if (ref($thing->{details}->{replace}) eq "HASH")
-		{
-			my $reptable = $thing->{details}->{replace};
-
-			$value = (exists($reptable->{$value})? $reptable->{$value}
-								: exists($reptable->{unknown})? $reptable->{unknown} : $value);
-		}
-
-		# specific formatting requested?
-		if (exists($thing->{details}->{format}) && (my $wantedformat = $thing->{details}->{format}))
-		{
-			$value = sprintf($wantedformat, $value);
-		}
-
-		# don't trust snmp or wmi data; neuter any html.
-		$value =~ s{&}{&amp;}gso;
-		$value =~ s{<}{&lt;}gso;
-		$value =~ s{>}{&gt;}gso;
-
-		# result ready, park it in the data structure IFF desired
-		# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
-		# nosave also implies no alerts for this thing.
-		if (exists($thing->{details}->{option}) && $thing->{details}->{option} eq "nosave")
-		{
-			dbg("item $thing->{item} is marked as nosave, not saving", 3);
-		}
-		else
-		{
-			my $target = (defined $index? $data{ $thing->{section} }->{$index}->{$thing->{item}}
-										: $data{ $thing->{section} }->{$thing->{item}} ) ||= {};
-			$target->{value} = $value;
-			# rrd options from the model
-			$target->{option} = $thing->{details}->{option} if (exists $thing->{details}->{option});
-			# as well as a title
-			$target->{title} = $thing->{details}->{title} if (exists $thing->{details}->{title});
-
-			if ( exists($thing->{details}->{alert}) && $thing->{details}->{alert}->{test} )
+			# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
+			if (ref($sectiondetails->{replace}) eq "HASH")
 			{
-				my $test = $thing->{details}->{alert}->{test};
+				my $reptable = $sectiondetails->{replace};
 
-				my $r = $value;						# backwards-compat
-				my $test_result = eval $test;
-				logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item}, $@") if $@;
+				$value = (exists($reptable->{$value})? $reptable->{$value}
+									: exists($reptable->{unknown})? $reptable->{unknown} : $value);
+			}
 
-				push @{$self->{alerts}}, 	{ name => $self->{name},
-																		type => "test",
-																		ds => $thing->{item},
-																		value => $value,
-																		test_result => $test_result, };
+			# specific formatting requested?
+			if (exists($sectiondetails->{format}) && (my $wantedformat = $sectiondetails->{format}))
+			{
+				$value = sprintf($wantedformat, $value);
+			}
+
+			# don't trust snmp or wmi data; neuter any html.
+			$value =~ s{&}{&amp;}gso;
+			$value =~ s{<}{&lt;}gso;
+			$value =~ s{>}{&gt;}gso;
+
+			# then park it in the data structure IFF desired
+			# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
+			# nosave also implies no alerts for this thing.
+			if (exists($sectiondetails->{option}) && $sectiondetails->{option} eq "nosave")
+			{
+				dbg("item $thing->{item} is marked as nosave, not saving in $gothere", 3);
+			}
+			else
+			{
+				my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
+											: $data{ $gothere }->{ $thing->{item} } ) ||= {};
+				$target->{value} = $value;
+
+				# rrd options from the model
+				$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
+				# as well as a title
+				$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
+
+				if ( exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+				{
+					my $test = $sectiondetails->{alert}->{test};
+					dbg("checking test $test for basic alert \"$target->{title}\"",3);
+
+					# setup known var value list so that eval_string can handle CVARx substitutions
+					my ($error, $result) = $self->eval_string(string => $test,
+																										context => $value,
+																										# for now we don't support multiple or cooked, per-section values
+																										variables => [ \%knownvars ] );
+					if ($error)
+					{
+						$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
+						logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
+					}
+					dbg("test $test, result=$result",3);
+
+					push @{$self->{alerts}}, 	{ name => $self->{name},
+																			type => "test",
+																			event => $sectiondetails->{alert}->{event},
+																			level => $sectiondetails->{alert}->{level},
+																			ds => $thing->{item},
+																			section => $gothere, # that's the section name
+																			source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
+																			value => $value,
+																			test_result => $result, };
+				}
 			}
 		}
 	}
@@ -900,42 +967,114 @@ sub getValues
 		my $sections = join(", ",$section, @todosections);
 		$status{error} = "ERROR ($self->{info}{system}{name}): no values collected for $sections!";
 	}
+	dbg("loaded ".(keys%todos || 0)." values, status: "
+			. (join(", ", map { "$_='$status{$_}'" } (keys %status)) || 'ok'));
 
 	return (\%data, \%status);
 }
 
-#===================================================================
+# next gen CVAR/$r evaluation function (will eventually become replacement for parsestring)
+#
+# args: string, context (=$r value), both required,
+# optional variables (=array of one or more varname->val hash refs, checked in order)
+# returns: (error message) or (undef, evaluation result)
+#
+# this understands: $r, CVAR, CVAR0-9; var values come from the first listed variables table
+# that contains a match (exists, may be undef).
+sub eval_string
+{
+	my ($self, %args) = @_;
 
-# look for node model in base Model
-sub selectNodeModel {
-	my $self = shift;
-	my %args = @_;
+	my ($input, $context) = @args{"string","context"};
+	return ("missing string to evaluate!") if (!defined $input);
+	return ("missing context for evaluation!") if (!defined $context);
+
+	my $vars = $args{variables};
+
+	my ($rebuiltcalc, $consumeme,%cvar);
+	$consumeme=$input;
+	# rip apart calc, rebuild it with var substitutions
+	while ($consumeme =~ s/^(.*?)(CVAR(\d)?=(\w+);|\$CVAR(\d)?)//)
+	{
+		$rebuiltcalc.=$1;											 # the unmatched, non-cvar stuff at the begin
+		my ($varnum,$decl,$varuse)=($3,$4,$5); # $2 is the whole |-group
+
+		$varnum = 0 if (!defined $varnum); # the CVAR case == CVAR0
+		if (defined $decl) # cvar declaration, decl holds item name
+		{
+			for my $source (@$vars)
+			{
+				next if (ref($source) ne "HASH"
+								 or !exists($source->{$decl}));
+				$cvar{$varnum} = $source->{$decl};
+				last;
+			}
+
+			return "Error: CVAR$varnum references unknown object \"$decl\" in expression \"$input\""
+					if (!exists $cvar{$varnum});
+		}
+		else # cvar use
+		{
+			return "Error: CVAR$varuse used but not defined in expression \"$input\""
+					if (!exists $cvar{$varuse});
+
+			$rebuiltcalc .= $cvar{$varuse}; # sub in the actual value
+		}
+	}
+	$rebuiltcalc.=$consumeme; # and the non-CVAR-containing remainder.
+
+	my $r = $context;						# backwards compat naming: allow $r inside expression
+	$r = eval $rebuiltcalc;
+
+	dbg("calc translated \"$input\" into \"$rebuiltcalc\", used variables: "
+			. join(", ", "\$r=$context", map { "CVAR$_=$cvar{$_}" } (sort keys %cvar))
+			. ", result \"$r\"", 3);
+	if ($@)
+	{
+		return "calculation=$rebuiltcalc failed: $@";
+	}
+
+	return (undef, $r);
+}
+
+# look for node model in base Model, based on nodevendor (case-insensitive full match)
+# and sysdescr (case-insensitive regex match) from nodeinfo
+# args: none
+# returns: model name or 'Default'
+sub selectNodeModel
+{
+	my ($self, %args) = @_;
 	my $vendor = $self->{info}{system}{nodeVendor};
 	my $descr = $self->{info}{system}{sysDescr};
 
-	foreach my $vndr (sort keys %{$self->{mdl}{models}}) {
-		if ($vndr =~ /^$vendor$/i ) {
+	foreach my $vndr (sort keys %{$self->{mdl}{models}})
+	{
+		if ($vndr =~ /^$vendor$/i )
+		{
 			# vendor found
-			foreach my $order (sort {$a <=> $b} keys %{$self->{mdl}{models}{$vndr}{order}}) {
-				foreach my $mdl (sort keys %{$self->{mdl}{models}{$vndr}{order}{$order}}) {
-					if ($descr =~ /$self->{mdl}{models}{$vndr}{order}{$order}{$mdl}/i) {
-						dbg("INFO, Model \'$mdl\' found for Vendor $vendor");
+			my $thisvendor = $self->{mdl}{models}{$vndr};
+			foreach my $order (sort {$a <=> $b} keys %{$thisvendor->{order}})
+			{
+				my $listofmodels = $thisvendor->{order}->{$order};
+				foreach my $mdl (sort keys %{$listofmodels})
+				{
+					if ($descr =~ /$listofmodels->{$mdl}/i)
+					{
+						dbg("INFO, Model \'$mdl\' found for Vendor $vendor and sysDescr $descr");
 						return $mdl;
 					}
 				}
 			}
 		}
 	}
-	dbg("ERROR, Model not found for Vendor $vendor, Model=Default");
+	dbg("ERROR, No model found for Vendor $vendor, returning Model=Default");
 	return 'Default';
 }
-
-#===================================================================
 
 # load requested Model into this object
 # args: model, required
 #
-# returns: 1 if ok, 0 if not
+# returns: 1 if ok, 0 if not; sets internal error status for status().
 sub loadModel
 {
 	my ($self, %args) = @_;
@@ -964,17 +1103,21 @@ sub loadModel
 	if ($self->{cache_models} && -f $thiscf)
 	{
 		$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
+		if (ref($self->{mdl}) ne "HASH" or !keys %{$self->{mdl}})
+		{
+			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache)!";
+			$exit = 0;
+		}
 		dbg("INFO, model $model loaded (from cache)");
-		$exit = (ref($self->{mdl}) eq "HASH" && keys %{$self->{mdl}})? 1 : 0;
 	}
 	else
 	{
 		my $ext = getExtension(dir=>'models');
 		# loadtable returns live/shared/cached info, but we must not modify that shared original!
 		$self->{mdl} = Clone::clone(loadTable(dir=>'models',name=>$model));
-		if (!$self->{mdl})
+		if (ref($self->{mdl}) ne "HASH" or !keys %{$self->{mdl}})
 		{
-			$self->{error} = "ERROR ($self->{name}) reading Model file models/$model.$ext";
+			$self->{error} = "ERROR ($self->{name}) failed to load Model file from models/$model.$ext!";
 			$exit = 0;
 		}
 		else
@@ -986,13 +1129,17 @@ sub loadModel
 				$mdl = loadTable(dir=>'models',name=>$name);
 				if (!$mdl)
 				{
-					$self->{error} = "ERROR ($self->{name}) reading Model file models/${name}.$ext";
+					$self->{error} = "ERROR ($self->{name}) failed to read Model file from models/${name}.$ext!";
 					$exit = 0;
 				}
 				else
 				{
 					# this mostly copies, so cloning not needed
-					$self->mergeHash($self->{mdl},$mdl); # add or overwrite
+					# however, an unmergeable model is terminal, mustn't be cached, useless.
+					if (!$self->_mergeHash($self->{mdl}, $mdl))
+					{
+						return 0;
+					}
 				}
 			}
 			dbg("INFO, model $model loaded (from source)");
@@ -1104,70 +1251,65 @@ sub loadModel
 	return $exit;
 }
 
-#===================================================================
+# small internal helper that merges two hashes
+# args: self, destination hashref, source hashref, optional recursion level indicator
+# stuff from source overwrites stuff in dest, including arrays.
+#
+# returns: destination hashref or undef, also sets details for status().
+sub _mergeHash
+{
+	my ($self, $dest, $source, $lvl) = @_;
 
-sub getNodeCfg {
-	my $name = shift;
-	my %cfg;
-	my $n;
-	my $nm;
-
-	if (($n = NMIS::loadLocalNodeTable())) {
-		if (($nm = NMIS::checkNodeName($name))) {
-			%cfg = %{$n->{$nm}};
-			dbg("cfg of node=$nm found");
-			return \%cfg;
-		}
-	}
-	return 0;
-}
-
-#===================================================================
-
-# merge two hashes
-sub mergeHash {
-	my $self = shift;
-	my $href1 = shift; # primary
-	my $href2 = shift;
-	my $lvl = shift;
-
+	$lvl ||= '';
 	$lvl .= "=";
 
-	my ($k,$v);
+	while (my ($k,$v) = each %{$source})
+	{
+		dbg("$lvl key=$k, val=$v",4);
 
-	while (($k,$v) = each %{$href2}) {
-		dbg("$lvl key=$k, val=$v",3);
-		if (exists $href1->{$k} and ref $href1->{$k} eq "HASH" and ref $v eq "HASH") {
-			$self->mergeHash($href1->{$k},$href2->{$k},$lvl);
-		} else {
-			if (exists $href1->{$k} and ref $href1->{$k} eq "HASH" and ref $v ne "HASH") {
-				$self->{error} = "ERROR ($self->{name}) inconsistent hash, key=$k, value=$v";
-				logMsg($self->{error});
-				return undef;
-			}
-			$href1->{$k} = $v;
-			dbg("$lvl > load key=$k, val=$v",4);
+		if ( ref($dest->{$k}) eq "HASH" and ref($v) eq "HASH")
+		{
+			$self->_mergeHash($dest->{$k}, $source->{$k}, $lvl);
+		}
+		elsif( ref($dest->{$k}) eq "HASH" and ref($v) ne "HASH")
+		{
+			$self->{error} = "cannot merge inconsistent hash: key=$k, value=$v, value is ". ref($v);
+			logMsg("ERROR ($self->{name}) ".$self->{error});
+			return undef;
+		}
+		else
+		{
+			$dest->{$k} = $v;
+			dbg("$lvl > load key=$k, val=$v", 4);
 		}
 	}
-	return $href1; # return prim. ref
+	return $dest;
 }
 
-#===================================================================
-
 # search in Model for Title based on attribute name
-sub getTitle {
-	my $self = shift;
-	my %args = @_;
+# attention: searches ONLY the sys areas, NOT rrd!
+# args: self, attr (required), section (optional)
+# returns: title string or undef
+sub getTitle
+{
+	my ($self, %args) = @_;
 	my $attr = $args{attr};
-	my $class = $args{section}; # optional
+	my $section = $args{section};
 
-	for my $cls (keys %{$self->{mdl}}) {
-		next if $class ne "" and $class ne $cls;
-		for my $sect (keys %{$self->{mdl}{$cls}{sys}}) {
-			for my $at (keys %{$self->{mdl}{$cls}{sys}{$sect}{snmp}}) {
-				if ($attr eq $at and $self->{mdl}{$cls}{sys}{$sect}{snmp}{$at}{title} ne "") {
-					return $self->{mdl}{$cls}{sys}{$sect}{snmp}{$at}{title};
-				}
+	for my $class (keys %{$self->{mdl}})
+	{
+		next if (defined($section) and $class ne $section);
+		my $thisclass = $self->{mdl}->{$class};
+		for my $sectionname (keys %{$thisclass->{sys}})
+		{
+			my $thissection = $thisclass->{sys}->{$sectionname};
+			# check both wmi and snmp sections
+			for my $maybe (qw(snmp wmi))
+			{
+				return $thissection->{$maybe}->{$attr}->{title}
+				if (ref($thissection->{$maybe}) eq "HASH"
+						and ref($thissection->{$maybe}->{$attr}) eq "HASH"
+						and exists($thissection->{$maybe}->{$attr}->{title}));
 			}
 		}
 	}
@@ -1175,7 +1317,6 @@ sub getTitle {
 }
 
 #===================================================================
-
 # parse string to replace scalars or evaluate string and return result
 # args: self=sys, string (required),
 # optional: sect, index, item, type. CVAR stuff works ONLY if sect is set!
@@ -1183,6 +1324,8 @@ sub getTitle {
 #
 # note: variables in BOTH rrd and sys sections should be found in this routine,
 # regardless of whether our caller is looking at rrd or sys.
+# returns: parsed string
+# fixme: does only log errors, not report them
 sub parseString
 {
 	my ($self, %args) = @_;
@@ -1306,45 +1449,48 @@ sub parseString
 }
 
 
-#===================================================================
-
 # returns a hash of graphtype -> rrd section name for this node
 # this hash is inverted compared to the raw grapthype data in the node info,
 # and it doesn't report indices.
+#
 # keys are clearly unique, values are not: often multiple graphs are sourced
 # from one rrd section.
 #
 # fixme: the index argument is ignored, all graphs are listed.
-sub loadGraphTypeTable {
-	my $self = shift;
-	my %args = @_;
+sub loadGraphTypeTable
+{
+	my ($self, %args) = @_;
 	my $index = $args{index};
 
+	# graphtype => type/rrd/section name
 	my %result;
 
-	foreach my $i (keys %{$self->{info}{graphtype}}) {
-		if (ref $self->{info}{graphtype}{$i} eq 'HASH') { # index
-			foreach my $tp (keys %{$self->{info}{graphtype}{$i}}) {
-				foreach (split(/,/,$self->{info}{graphtype}{$i}{$tp})) {
+	foreach my $i (keys %{$self->{info}{graphtype}})
+	{
+		my $thissection = $self->{info}->{graphtype}->{$i};
+
+		if (ref($thissection) eq 'HASH')
+		{
+			foreach my $tp (keys %{$thissection})
+			{
+				foreach (split(/,/, $thissection->{$tp}))
+				{
 					#next if $index ne "" and $index != $i;
 					$result{$_} = $tp if $_ ne "";
 				}
 			}
-		} else {
-			foreach (split(/,/,$self->{info}{graphtype}{$i})) {
+		}
+		else
+		{
+			foreach (split(/,/, $thissection))
+			{
 				$result{$_} = $i if $_ ne "";
 			}
 		}
 	}
-	# returned table format is graphtype => type
-	my $cnt = scalar keys %result;
-	dbg("loaded $cnt keys",3);
-#	writeTable(dir=>'var',name=>"nmis-debug-graphtable",data=>\%result);
-
+	dbg("found ".(scalar keys %result)." graphtypes",3);
 	return \%result;
 }
-
-#===================================================================
 
 # get type name based on graphtype name or type name (checked)
 # it's either nodefile -> graphtype ->WANTTHIS -> INPUT,INPUT...
@@ -1352,23 +1498,23 @@ sub loadGraphTypeTable {
 # an rrd section named WANTTHIS)
 # optional check = true means suppress error messages (default no suppression)
 # fixme: index argument is ignored by loadGraphTypeTable and unnecessary here as well
-sub getTypeName {
-	my $self = shift;
-	my %args = @_;
+sub getTypeName
+{
+	my ($self, %args) = @_;
 	my $graphtype = $args{graphtype} || $args{type};
 	my $index = $args{index};
 	my $check = $args{check};
 
 	my $h = $self->loadGraphTypeTable(index=>$index);
-	return $h->{$graphtype} if ($h->{$graphtype} ne "");
+	return $h->{$graphtype} if (defined($h->{$graphtype}));
 
 	# fall back to rrd section named the same as the graphtype
-	return $graphtype if ($self->{mdl}{database}{type}{$graphtype});
+	return $graphtype if (exists($self->{mdl}->{database}->{type}->{$graphtype}));
 
-	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table") if (!getbool($check));
+	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table")
+			if (!getbool($check));
 	return undef; # not found
 }
-
 
 # find instances of a particular graphtype
 # this function returns the indices (and thus the list) of instances/things for a
@@ -1383,54 +1529,52 @@ sub getTypeName {
 # returns: list of matching indices
 sub getTypeInstances
 {
-		my ($self,%args) = @_;
-		my $graphtype = $args{graphtype};
-		my $section = $args{section};
-		my @instances;
+	my ($self,%args) = @_;
+	my $graphtype = $args{graphtype};
+	my $section = $args{section};
+	my @instances;
 
-		my $gtt = $self->{info}{graphtype};
-		for my $maybe (keys %{$gtt})
+	my $gtt = $self->{info}{graphtype};
+	for my $maybe (keys %{$gtt})
+	{
+		# graphtype element can be flat, ie. health => health,response,numintf
+		# in which case we ignore it - there are no instances
+		next if (ref($gtt->{$maybe}) ne "HASH");
+
+		# otherwise it's expected to be dbtype => sometype,othertype; one or more of these
+		# first see if we have a section match, e.g. interface
+		if (defined $section && $section ne '' && defined $gtt->{$maybe}->{$section})
 		{
-				# graphtype element can be flat, ie. health => health,response,numintf
-				# in which case we ignore it - there are no instances
-				next if (ref($gtt->{$maybe}) ne "HASH");
-
-				# otherwise it's expected to be dbtype => sometype,othertype; one or more of these
-				# first see if we have a section match, e.g. interface
-				if (defined $section && $section ne '' && defined $gtt->{$maybe}->{$section})
-				{
-						push @instances, $maybe;
-						next;
-				}
-
-				# otherwise collect all the sometype,othertype,anothertype  values and look
-				# for a match. this is for finding the parent of
-				# interface => 'autil,util,abits,bits,maxbits via maxbits for example.
-				if (defined $graphtype && $graphtype ne '')
-				{
-						for my $subsection ( keys %{$gtt->{$maybe}} )
-						{
-								if (grep($graphtype eq $_, split(/,/, $gtt->{$maybe}->{$subsection})))
-								{
-										push @instances, $maybe;
-										last;				# done with this index
-								}
-						}
-				}
+			push @instances, $maybe;
+			next;
 		}
-		return @instances;
+
+		# otherwise collect all the sometype,othertype,anothertype  values and look
+		# for a match. this is for finding the parent of
+		# interface => 'autil,util,abits,bits,maxbits via maxbits for example.
+		if (defined $graphtype && $graphtype ne '')
+		{
+			for my $subsection ( keys %{$gtt->{$maybe}} )
+			{
+				if (grep($graphtype eq $_, split(/,/, $gtt->{$maybe}->{$subsection})))
+				{
+					push @instances, $maybe;
+					last;				# done with this index
+				}
+			}
+		}
+	}
+	return @instances;
 }
-
-
-#===================================================================
 
 # ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type,
 # index and item; and the information in the node's model and common-database.
 # this does NO LONGER use the node info cache!
 # optional argument suppress_errors makes getdbname not print error messages
-sub getDBName {
-	my $self = shift;
-	my %args = @_;
+sub getDBName
+{
+	my ($self,%args) = @_;
+
 	my $graphtype = $args{graphtype} || $args{type};
 	my $index = $args{index};
 	my $item = $args{item};
@@ -1440,27 +1584,26 @@ sub getDBName {
 	# if we have no index but item: fall back to that, and vice versa
 	if (defined $item && (!defined $index || $index eq ''))
 	{
-			dbg("synthetic index from item for graphtype=$graphtype, item=$item",2);
-			$index=$item;
+		dbg("synthetic index from item for graphtype=$graphtype, item=$item",2);
+		$index=$item;
 	}
 	elsif (defined $index && (!defined $item || $item eq ''))
 	{
-			dbg("synthetic item from index for graphtype=$graphtype, index=$index",2);
-			$item=$index;
+		dbg("synthetic item from index for graphtype=$graphtype, index=$index",2);
+		$item=$index;
 	}
 
 	# first do the 'reverse lookup' from graph name to rrd section name
 	if (defined ($sect = $self->getTypeName(graphtype=>$graphtype, index=>$index)))
 	{
-
-			$db = rrdfunc::getFileName(sys => $self, type => $sect,
-																 index => $index, item => $item);
+		$db = rrdfunc::getFileName(sys => $self, type => $sect,
+															 index => $index, item => $item);
 	}
 
 	if (!defined $db)
 	{
-			logMsg("ERROR ($self->{info}{system}{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, sect=$sect") if (!$suppress);
-			return undef;
+		logMsg("ERROR ($self->{info}{system}{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, sect=$sect") if (!$suppress);
+		return undef;
 	}
 
 	dbg("returning database name=$db for sect=$sect, index=$index, item=$item");
@@ -1470,68 +1613,85 @@ sub getDBName {
 #===================================================================
 
 # get header based on graphtype
-sub graphHeading {
-	my $self = shift;
-	my %args = @_;
+# args graphtype, type, index, item
+# returns header or undef
+sub graphHeading
+{
+	my ($self,%args) = @_;
+
 	my $graphtype = $args{graphtype} || $args{type};
 	my $index = $args{index};
 	my $item = $args{item};
 
-	my $header;
-	$header = $self->{mdl}{heading}{graphtype}{$graphtype};
-	if ($header ne "") {
+	my $header = $self->{mdl}->{heading}->{graphtype}->{$graphtype}
+	if (defined $self->{mdl}->{heading}->{graphtype}->{$graphtype});
+
+	if ($header)
+	{
 		$header = $self->parseString(string=>$header,index=>$index,item=>$item);
-	} else {
-		$header = "heading not defined in Model";
+	}
+	else
+	{
+		$header = "Heading not defined in Model";
 		logMsg("heading for graphtype=$graphtype not found in model=$self->{mdl}{system}{nodeModel}");
 	}
 	return $header;
 }
 
-#===================================================================
-
-sub writeNodeInfo {
+sub writeNodeInfo
+{
 	my $self = shift;
 
-	# remove old info
+	# remove ancient unwanted legacy info
 	delete $self->{info}{view_system};
 	delete $self->{info}{view_interface};
+
 	my $ext = getExtension(dir=>'var');
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
-	### 2013-08-27 keiths, the system object should not exist for nmis-system
-	if ( $name eq "nmis-system" ) {
-		if ( defined $self->{info}{system} and ref($self->{info}{system}) eq "HASH" ) {
-			dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{system}",2);
-			delete $self->{info}{system};
-		}
-		if ( defined $self->{info}{graphtype}{health} and $self->{info}{graphtype}{health} ne "" ) {
-			dbg("INFO var/nmis-system.$ext file is corrupted, deleting \$info->{graphtype}{health}",2);
-			delete $self->{info}{graphtype}{health};
-		}
+
+	if ( $name eq "nmis-system" )
+	{
+		### 2013-08-27 keiths, the system object should not exist for nmis-system
+		delete $self->{info}->{system};
+		delete $self->{info}->{graphtype}->{health} if (ref($self->{info}->{graphtype}) eq "HASH");
 	}
 
 	writeTable(dir=>'var',name=>$name,data=>$self->{info}); # write node info
 }
 
-sub writeNodeView {
-	my $self = shift;
-	my $name = "$self->{node}-view";
-	#2011-11-14 Integrating changes from Till Dierkesmann
-	writeTable(dir=>'var',name=>$name,data=>$self->{view}); # write view info
-}
+# write out the node view information IFF the object has any, or if arg force is given
+# args: force, default 0
+# returns: nothing
+sub writeNodeView
+{
+	my ($self, %args) = @_;
 
-sub readNodeView {
-	my $self = shift;
-	my $name = "$self->{node}-view";
-	if ( existFile(dir=>'var',name=>$name) ) {
-		$self->{view} = loadTable(dir=>'var',name=>$name);
-	} else {
-		$self->{view} = {};
+	if ((ref($self->{view}) eq "HASH" and keys %{$self->{view}})
+			or getbool($args{force}))
+	{
+		writeTable(dir=>'var',
+							 name=> "$self->{node}-view",
+							 data=>$self->{view}); # write view info
+	}
+	else
+	{
+		dbg("not overwriting view file for $self->{node}: no view data present!");
 	}
 }
 
-#===================================================================
+sub readNodeView
+{
+	my $self = shift;
+	my $name = "$self->{node}-view";
+	if ( existFile(dir=>'var',name=>$name) )
+	{
+		$self->{view} = loadTable(dir=>'var',name=>$name);
+	}
+	else {
+		$self->{view} = {};
+	}
+}
 
 
 1;

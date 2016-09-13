@@ -1539,12 +1539,11 @@ EO_HTML
 			my @out;
 			foreach my $k (@items){
 				# the default title is the key name.
-				my $title = $k;
-				#Can I get a better title?
-				if ( defined $V->{system}{"${k}_title"} or $S->getTitle(attr=>$k,section=>'system') ) {
-					$title = $V->{system}{"${k}_title"} || $S->getTitle(attr=>$k,section=>'system');
-				}
-
+				# but can I get a better title?
+				my $title = ( defined($V->{system}->{"${k}_title"}) ?
+											$V->{system}{"${k}_title"} 
+											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
+				
 				# print STDERR "DEBUG: k=$k, title=$title\n";
 
 				if ($title ne '') {
@@ -2034,8 +2033,10 @@ sub viewAllIntf {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description','ipAdEntAddr1','ifAdminStatus','ifOperStatus','operAvail','totalUtil',
-	'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange','collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
+	my @header = ('ifDescr','Description','ipAdEntAddr1','display_name',
+								'ifAdminStatus','ifOperStatus','operAvail','totalUtil',
+								'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange',
+								'collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
 
 	# create hash from loaded view table
 	my %view;
@@ -2166,14 +2167,16 @@ sub viewActivePort {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description','ifAdminStatus','ifOperStatus','operAvail','totalUtil');
+	my @header = ('ifDescr','Description', 'display_name', 'ifAdminStatus','ifOperStatus','operAvail','totalUtil');
 
 	# create hash from view table
 	my %view;
 	my %titles;
 	my %items;
-	for my $k (keys %{$V->{interface}}) {
-		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) {
+	for my $k (keys %{$V->{interface}}) 
+	{
+		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) 
+		{
 			my ($a,$b,$c) = ($1,$2,$3);
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
 			if ($c eq 'title') { $titles{$b} = $V->{interface}{$k}; }

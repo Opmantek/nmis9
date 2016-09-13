@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: models.pl,v 8.5 2012/01/06 07:09:37 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,11 +27,9 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
  
-# 
 use strict;
 use NMIS;
 use func;
@@ -46,7 +42,7 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
+my ($C, $localerror);
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
@@ -55,8 +51,6 @@ $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and 
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
-
-# NMIS Authentication module
 use Auth;
 
 # variables used for the security mods
@@ -173,7 +167,7 @@ sub notfound {
 	print "Request not found\n";
 }
 
-exit;
+exit 0;
 
 #==================================================================
 
@@ -194,8 +188,9 @@ sub displayModel{
 	pageStart(title => "NMIS Modeling", refresh => 86400) if (!$wantwidget);
 
 	my $S = Sys::->new; # create system object and load base Model or nodeModel
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},"ERROR init, $S->{error}"));
+	if (!($S->init(name=>$node,snmp=>'false'))) 
+	{
+		print Tr(td({class=>'error', colspan=>'9'},"ERROR init, ". $S->status->{error}));
 		goto End_page;
 	}
 
@@ -205,7 +200,7 @@ sub displayModel{
 	# load Model if defined
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+			print Tr(td({class=>'error', colspan=>'9'}, $S->status->{error}));
 			goto End_page;
 		}
 	}
@@ -292,7 +287,7 @@ sub displayModel{
 
 	if ($model ne "" and $section ne "" and $Q->{checkmodel} eq 'on') {
 		if ((my $err = checkModel(sys=>$S))) {
-			print td({class=>'error'},"Error found in section $err<br>$S->{errorfound}");
+			print td({class=>'error'},"Error found in section $err<br>$localerror");
 		}
 	}
 	print end_Tr;
@@ -475,8 +470,8 @@ sub checkIndexed {
 			return 'info',''; 
 		} 
 		else {
-			$S->{errorfound} = "value $value must be true or var value not found in MIB";
-			return 'error',$S->{errorfound};
+			$localerror = "value $value must be true or var value not found in MIB";
+			return 'error',$localerror;
 		}
 	}
 }
@@ -506,8 +501,8 @@ sub checkOID {
 	elsif (name2oid($name)) {
 		return 'info',''; 
 	} else {
-		$S->{errorfound} = "oid $name not found in Mib, check NMIS config section mibs";
-		return 'error',$S->{errorfound};
+		$localerror = "oid $name not found in Mib, check NMIS config section mibs";
+		return 'error',$localerror;
 	}
 }
 
@@ -521,8 +516,8 @@ sub checkGraphType {
 	my @types = split /,/,$types;
 	foreach my $graph (@types) {
 		if ( ! loadTable(dir=>'models',name=>"Graph-$graph") ) {
-			$S->{errorfound} = "file does not exists or has bad format or cannot read file models/Graph-$graph.$ext";
-			return 'error',$S->{errorfound};
+			$localerror = "file does not exists or has bad format or cannot read file models/Graph-$graph.$ext";
+			return 'error',$localerror;
 		}
 	}
 	return 'info','';
@@ -537,18 +532,18 @@ sub checkThreshold {
 
 	my (undef,undef,$tp) = split/,/,$hash;
 	if (not exists $M->{stats}{type}{$tp}) {
-		$S->{errorfound} = 1;
+		$localerror = 1;
 		return 'error',"type=$tp not found in section stats of Model";
 	}
 	foreach my $nm (split /,/,$threshold) {
 		if ($M->{threshold}{name}{$nm} eq "") {
-			$S->{errorfound} = "threshold=$nm not found in section threshold of Model";
-			return 'error',$S->{errorfound};
+			$localerror = "threshold=$nm not found in section threshold of Model";
+			return 'error',$localerror;
 		}
 		my $item;
 		if (!($item = $M->{threshold}{name}{$nm}{item})) {
-			$S->{errorfound} = "no value of item found in name=$nm of section threshold of Model";
-			return 'error',$S->{errorfound};
+			$localerror = "no value of item found in name=$nm of section threshold of Model";
+			return 'error',$localerror;
 		}
 		my $found = 0;
 		# look in section stats
@@ -556,8 +551,8 @@ sub checkThreshold {
 			if ($ln =~ /\:$item\=/) { $found = 1; last;}
 		}
 		if (!$found) {
-			$S->{errorfound} = "no value of threshold=$nm found in type=$tp of section stats of Model";
-			return 'error',$S->{errorfound};
+			$localerror = "no value of threshold=$nm found in type=$tp of section stats of Model";
+			return 'error',$localerror;
 		}
 	}
 	return 'info','';
@@ -570,8 +565,8 @@ sub checkType {
 	my $type = $args{type};
 
 	if (not exists $M->{database}{type}{$type}) {
-		$S->{errorfound} = "type=$type not found in section database of Model";
-		return 'error',$S->{errorfound};
+		$localerror = "type=$type not found in section database of Model";
+		return 'error',$localerror;
 	}
 	return 'header','';
 
@@ -587,8 +582,8 @@ sub checkStsName {
 	my ($sect,undef,$tp) = split/,/,$hash;
 
 	if (not exists $M->{stats}{type}{$tp}) {
-		$S->{errorfound} = "type=$tp not found in section stats of Model";
-		return 'error',$S->{errorfound};
+		$localerror = "type=$tp not found in section stats of Model";
+		return 'error',$localerror;
 	}
 	# look in section stats
 	my $found = 0;
@@ -596,8 +591,8 @@ sub checkStsName {
 		if ($ln =~ /\:$name\=/i) { $found = 1; last;}
 	}
 	if (!$found) {
-		$S->{errorfound} = "stsname=$name not found in type=$tp of section stats of Model";
-		return 'error',$S->{errorfound};
+		$localerror = "stsname=$name not found in type=$tp of section stats of Model";
+		return 'error',$localerror;
 	}
 
 	return 'info','';
@@ -610,8 +605,8 @@ sub checkStatsType {
 	my $tp = $args{type};
 
 	if (not exists $M->{stats}{type}{$tp}) {
-		$S->{errorfound} = "type=$tp not found in section stats of Model";
-		return 'error',$S->{errorfound};
+		$localerror = "type=$tp not found in section stats of Model";
+		return 'error',$localerror;
 	}
 	return 'header','';
 }
@@ -630,7 +625,7 @@ sub checkControl {
 		my $result = $S->parseString(string=>"($string) ? 1:0", type=>$tp);
 		return ('info','',' (<b>result=true</b>)') if $result eq "1";
 		return ('info','',' (<b>result=false</b>)') if $result eq "0";
-		$S->{errorfound} = 1;
+		$localerror = 1;
 		return ('error',$result," (<b>result=error</b>)");
 	}
 	return '';
@@ -641,12 +636,12 @@ sub checkModel {
 	my $S = $args{sys};
 	my $M = $S->mdl;
 
-	$S->{errorfound} = '';
+	$localerror = '';
 
 	foreach my $section (sort keys %{$M}) {
 		my @output;
 		nextSect(sys=>$S,sect=>$M->{$section},index=>0,output=>\@output); # walk through all  sections
-		return $section if $S->{errorfound} ne '' ;
+		return $section if $localerror ne '' ;
 	}
 	return "";
 }
@@ -668,12 +663,12 @@ sub editModel{
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 		goto End_editModel;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 			goto End_editModel;
 		}
 	}
@@ -767,12 +762,12 @@ sub doEditModel {
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->{error});
+		logMsg($S->status->{error});
 		return;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->{error});
+			logMsg($S->status->{error});
 			return;
 		}
 	}
@@ -813,12 +808,12 @@ sub deleteModel{
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 		goto End_deleteModel;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 			goto End_deleteModel;
 		}
 	}
@@ -970,12 +965,12 @@ sub doDeleteModel {
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->{error});
+		logMsg($S->status->{error});
 		return;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->{error});
+			logMsg($S->status->{error});
 			return;
 		}
 	}
@@ -1023,12 +1018,12 @@ sub addModel{
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 		goto End_addModel;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->{error}));
+			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
 			goto End_addModel;
 		}
 	}
@@ -1149,12 +1144,12 @@ sub doAddModel {
 
 	my $S = Sys::->new; # create system object
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->{error});
+		logMsg($S->status->{error});
 		return;
 	}
 	if ($node eq "" and $model ne "") {
 		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->{error});
+			logMsg($S->status->{error});
 			return;
 		}
 	}

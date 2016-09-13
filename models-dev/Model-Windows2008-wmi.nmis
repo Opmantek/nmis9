@@ -2,31 +2,31 @@
 ## $Id: Model-Windows2008.nmis,v 8.5 2012/04/28 00:59:36 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
@@ -97,7 +97,7 @@
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008',
 
-		
+
     'rrd' => {
 
       'hrwin' => {
@@ -124,7 +124,7 @@
 						field => 'PercentProcessorTime',
 						option => "nosave",
 					},
-					
+
 					usertime => {
 						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
 						field => 'PercentUserTime',
@@ -139,7 +139,7 @@
 					},
 				},
       },
-			
+
       'tcp' => {
         'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {
@@ -185,7 +185,7 @@
           }
         },
       },
-			
+
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -253,7 +253,7 @@
       }
     },
 
-		
+
     'sys' => {
       'alerts' => {
         'snmp' => {
@@ -264,15 +264,17 @@
               'test' => '$r > 250',
               'event' => 'High TCP Connection Count',
 							'unit' => 'connections',
-              'level' => 'Warning'
+              'level' => 'Warning',
             }
           }
         }
       },
 
-			
-      'standard' => {
-        'snmp' => {
+
+      'standard' =>
+			{
+				'snmp' =>
+				{
           'sysLocation' => {
             'replace' => {
               '' => 'default',
@@ -308,23 +310,67 @@
           #              is the same as 'uptime' on the bash command line.
           'sysUpTime' => {
             'oid' => 'hrSystemUptime',
-            'title' => 'Uptime'
+            'title' => 'Uptime',
           },
           'snmpUpTime' => {
             'oid' => 'sysUpTime',
-            'title' => 'SNMP_Uptime'
-          }
-        }
+            'title' => 'SNMP_Uptime',
+					},
+
+										'hrSystemDateSec' => {
+						'oid' => 'hrSystemDate',
+						# have: the 0xhexstring equivalent of local 2016-9-9,5:53:28.0,+10:0
+						# we want fractional seconds in gmt.
+						'calculate' => 'return func::parse_dateandtime($r);',
+					},
+
+					'clockDelta' => {
+						'oid' => 'hrSystemDate',
+						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
+					},
+
+								
+        },
+
+				'wmi' =>
+				{
+					'winbuild' => {
+						query => "select * from win32_operatingsystem",
+						field => "BuildNumber",
+					},
+					'winosname' => {
+						query => "select * from win32_operatingsystem",
+						field => "Caption",	# note: field Name is similar but gunk-infested
+					},
+					'winversion' => {
+						query => "select * from win32_operatingsystem",
+						field => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
+					},
+					'winsysname' => {
+						query => "select * from win32_operatingsystem",
+						field => "CSName",
+					},
+					'wintime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
+					},
+					'winboottime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LastBootUpTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
+					}
+				}
       },
-			
-      'extra' => 
+
+      'extra' =>
 			{
-				'wmi' => 
+				'wmi' =>
 				{
 					# if we want to get multiple things from a single query
 					# actually not even required: the code runs every query it sees just once
-					"-common-" => { 
-						query => 'select * from win32_pagefileusage' 
+					"-common-" => {
+						query => 'select * from win32_pagefileusage'
 					},
 
 								# this one i only want to collect, but not save
@@ -332,7 +378,7 @@
 									query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
 									field => 'InterruptsPersec',
 									option => "nosave",
-									
+
 					},
 
 
@@ -341,7 +387,7 @@
 						field => 'Name',
 #						calculate => 'CVAR1=intspersec; return $r." ".$CVAR1;',
 					},
-					
+
 					'totalswap' => {
 						title => "total swap in bytes",
 						# not necessary if there is a query in -common-
@@ -349,7 +395,7 @@
 						field => 'AllocatedBaseSize',
 						calculate => 'return $r*(1<<20);',
 					},
-					
+
 					'usedswap' => {
 						title => "used swap in bytes",
 						# again, not necessary if there is a query in -common-
@@ -366,8 +412,8 @@
 						calculate => '$r =~ s/\s*$//; return $r;',
 					},
 				},
-						
-				
+
+
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers.0',
@@ -385,7 +431,7 @@
       },
 
 
-			
+
     },
     'nodeVendor' => 'Microsoft'
   },
@@ -563,17 +609,17 @@
       }
     }
   },
-	systemHealth => 
+	"systemHealth" =>
 	{
 		'sections' => 'diskIOTable',
-		'sys' => 
+		'sys' =>
 		{
-      'diskIOTable' => 
-			{        
+      'diskIOTable' =>
+			{
         'indexed' => 'Name',
-				wmi => 
+				wmi =>
 				{
-					'Name' => 
+					'Name' =>
 					{
 						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
 						field => 'Name',
@@ -597,8 +643,9 @@
 		},
 		'rrd' =>
 		{
-			'diskIOTable' => 
-			{        
+			'diskIOTable' =>
+			{
+        'graphtype' => 'diskio-rw,diskio-rwbytes',
         'indexed' => 'Name', # for wmi the index field name MUST be given and the same as in the sys section
 				wmi =>
 				{
