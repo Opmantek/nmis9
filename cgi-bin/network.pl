@@ -2033,7 +2033,7 @@ sub viewAllIntf {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description','ipAdEntAddr1','displayname',
+	my @header = ('ifDescr','Description','ipAdEntAddr1','display_name',
 								'ifAdminStatus','ifOperStatus','operAvail','totalUtil',
 								'ifSpeed','ifSpeedIn','ifSpeedOut','ifPhysAddress','ifLastChange',
 								'collect','ifIndex','portDuplex','portSpantreeFastStart','vlanPortVlan','escalate');
@@ -2167,7 +2167,7 @@ sub viewActivePort {
 	my $V = $S->view();
 
 	# order of header
-	my @header = ('ifDescr','Description', 'displayname', 'ifAdminStatus','ifOperStatus','operAvail','totalUtil');
+	my @header = ('ifDescr','Description', 'display_name', 'ifAdminStatus','ifOperStatus','operAvail','totalUtil');
 
 	# create hash from view table
 	my %view;

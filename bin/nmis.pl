@@ -2181,12 +2181,12 @@ sub getIntfInfo
 					= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
 				}
-				if ($thisintfover->{displayname})
+				if ($thisintfover->{display_name})
 				{
-					$thisintf->{displayname}
-					= $V->{interface}->{"${index}_displayname_value"}
-					= $thisintfover->{displayname};
-					$V->{interface}->{"${index}_displayname_title"} = "Display Name";
+					$thisintf->{display_name}
+					= $V->{interface}->{"${index}_display_name_value"}
+					= $thisintfover->{display_name};
+					$V->{interface}->{"${index}_display_name_title"} = "Display Name";
 					# no log/diag msg as  this comes ONLY from nodeconf, it's not overriding anything
 				}
 
@@ -6287,7 +6287,7 @@ sub getIntfAllInfo
 						$dest->{sysName} = $info->{system}->{sysName};
 
 						for my $copyme (qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
-ifOperStatus ifLastChange Description displayname portModuleIndex portIndex portDuplex portIfIndex
+ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
 portSpantreeFastStart vlanPortVlan portAdminSpeed))
 						{
 							$dest->{$copyme} = $source->{$copyme};

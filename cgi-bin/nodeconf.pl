@@ -291,7 +291,7 @@ sub displayNodeConf
 				}
 
 				$description = $thisintfover->{Description};
-				$displayname = $thisintfover->{displayname};
+				$displayname = $thisintfover->{display_name};
 				$speed = $thisintfover->{ifSpeed};
 				$speedIn = $thisintfover->{ifSpeedIn};
 				$speedOut = $thisintfover->{ifSpeedOut};
@@ -448,7 +448,7 @@ sub updateNodeConf {
 		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr}; # for linking the if state to the nodeconf
 
 		my %tranferrables = ("descr_$intf" => "Description",
-												 "displayname_$intf" => "displayname",
+												 "displayname_$intf" => "display_name",
 												 "speed_$intf" => "ifSpeed",
 												 "speedIn_$intf" => "ifSpeedIn",
 												 "speedOut_$intf" => "ifSpeedOut",

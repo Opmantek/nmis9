@@ -169,7 +169,7 @@ sub viewInterfaceFind
 
 		if ( 	$thisintf->{node} =~ /$qrfind/ or
 					$thisintf->{Description} =~ /$qrfind/ or
-					$thisintf->{displayname} =~ /$qrfind/ or
+					$thisintf->{display_name} =~ /$qrfind/ or
 					$thisintf->{ifDescr} =~ /$qrfind/ or
 					$thisintf->{ifType} =~ /$qrfind/ or
 					# fixme: search only for first ip address for now
@@ -201,7 +201,7 @@ sub viewInterfaceFind
 					td({class=>'info Plain'},$thisintf->{ipAdEntAddr1}),
 					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{ipSubnet1}&widget=$widgetstate"},$thisintf->{ipSubnet1})),
 					td({class=>'info Plain'},a({href=>url(-absolute=>1)."?act=find_interface_view&find=$thisintf->{Description}&widget=$widgetstate"},$thisintf->{Description})),
-					td({class=>'info Plain'},$thisintf->{displayname}),
+					td({class=>'info Plain'},$thisintf->{display_name}),
 					td({class=>'info Plain'},$thisintf->{ifType}),
 					td({class=>'info Plain',align=>'right'},$thisintf->{ifSpeed}),
 					td({class=>'info Plain'},$thisintf->{ifAdminStatus}),
