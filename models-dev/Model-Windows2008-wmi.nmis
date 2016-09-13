@@ -93,15 +93,83 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProc,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProcessor,WindowsPaging,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008-wmi',
 
-
     'rrd' => {
 
+      'WindowsProcessor' => {
+        'graphtype' => 'WindowsProcessor',
+
+				'wmi' => {
+					"-common-" => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+					},
+
+					'dpcsQueuedPersec' => {
+						field => 'DPCsQueuedPersec',
+						option => 'gauge,0:U',
+					},
+
+					'interruptsPersec' => {
+						field => 'InterruptsPersec',
+						option => 'gauge,0:U',
+					},
+
+					'percentDpc' => {
+						field => 'PercentDPCTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentIdle' =>{
+						field => 'PercentIdleTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentInterrupt' => {
+						field => 'PercentInterruptTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentPrivileged' => {
+						field => 'PercentPrivilegedTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentProcessor' => {
+						field => 'PercentProcessorTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentUser' => {
+						field => 'PercentUserTime',
+						option => 'gauge,0:U',
+					},
+				},
+      },
+
+      'WindowsPagefile' => {
+        'graphtype' => 'WindowsPaging',
+
+				'wmi' => {
+					"-common-" => {
+						query => 'select * from win32_pagefileusage',
+					},
+
+					'pageUsage' => {
+						field => 'CurrentUsage',
+						calculate => 'return $r*(1<<20);',
+					},
+					'pageTotal' => {
+						field => 'AllocatedBaseSize',
+						calculate => 'return $r*(1<<20);',
+					},
+
+				},
+      },
       'hrwin' => {
-        'graphtype' => 'hrwinusers,hrwinproc,WindowsProc',
+        'graphtype' => 'hrwinusers,hrwinproc',
         'snmp' => {
           'hrNumUsers' => {
             'oid' => 'hrSystemNumUsers',
@@ -111,58 +179,7 @@
 					},
         },
 
-				'wmi' => {
 
-					'dpcsQueuedPersec' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'DPCsQueuedPersec',
-						option => 'gauge,0:U',
-					},
-
-					'interruptsPersec' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'InterruptsPersec',
-						option => 'gauge,0:U',
-					},
-
-					'percentDpc' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentDPCTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentIdle' =>{
-						# want the combined row for all processors only
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentIdleTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentInterrupt' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentInterruptTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentPrivileged' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentPrivilegedTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentProcessor' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentProcessorTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentUser' => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-						field => 'PercentUserTime',
-						option => 'gauge,0:U',
-					},
-
-				},
       },
 
       'tcp' => {

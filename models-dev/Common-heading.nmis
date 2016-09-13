@@ -187,6 +187,8 @@
       'echoRtt' => 'ICMP Echo RTT Monitor Stats',
       'jitterRttMon' => 'UDP Jitter RTT Monitor Stats',
       'icmpjitterRtt' => 'ICMP Jitter RTT Monitor Stats',
+      'WindowsProcessor' => 'Windows Processor Stats',
+      'WindowsPaging' => 'Windows Pagefile Stats',
     }
   }
 );
