@@ -778,10 +778,14 @@ else
 	}
 
 	printBanner("Copying new and updated NMIS config files");
-	for my $cff ("Config.nmis", "BusinessServices.nmis","ServiceStatus.nmis",
-							 "Customers.nmis", "Events.nmis")
+	# copy if missing - note: doesn't cover syntactically broken, though
+	for my $cff ("License.nmis", "Access.nmis", "Config.nmis", "BusinessServices.nmis", "ServiceStatus.nmis",
+							 "Contacts.nmis", "Enterprise.nmis", "Escalations.nmis",
+							 "ifTypes.nmis", "Links.nmis", "Locations.nmis", "Logs.nmis",
+							 "Customers.nmis", "Events.nmis", 
+							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis", "Outage.nmis", "Portal.nmis",
+							 "PrivMap.nmis", "Services.nmis", "Users.nmis", "users.dat")
 	{
-		# copy if missing - note: doesn't cover syntactically broken, though
 		if (-f "$site/install/$cff" && !-e "$site/conf/$cff")
 		{
 			safecopy("$site/install/$cff","$site/conf/$cff");
@@ -1291,7 +1295,7 @@ that crontab.\n\n";
 
 		if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in $systemcronfile?"))
 		{
-			my $res = File::Copy::copy($newcronfile, $systemcronfile);
+			my $res = File::Copy::cp($newcronfile, $systemcronfile);
 			if (!$res)
 			{
 				echolog("Error: writing to $systemcronfile failed: $!");
@@ -1465,7 +1469,7 @@ EOF
 		# test for local include first
 		if ( -e "$libPath/$mFile" ) {
 			$nmisModules->{$mod}{file} = "$libPath/$mFile";
-			$nmisModules->{$mod}{version} = &moduleVersion("$libPath/$mFile");
+			$nmisModules->{$mod}{version} = &moduleVersion("$libPath/$mFile", $mod);
 		}
 		else {
 			# Now look in @INC for module path and name
@@ -1473,7 +1477,7 @@ EOF
 			foreach my $path( @INC ) {
 				if ( -e "$path/$mFile" )
 				{
-					my $thisversion = moduleVersion("$path/$mFile");
+					my $thisversion = moduleVersion("$path/$mFile", $mod);
 					if (!$nmisModules->{$mod}{version}
 							or !$thisversion
 							or version->parse($thisversion) >= version->parse($nmisModules->{$mod}{version}))
@@ -1492,20 +1496,27 @@ EOF
 
 
 # get the module version
-# this is non-optimal, but gets the task done with no includes or 'use modulexxx'
-# whhich would kill this script :-)
-sub moduleVersion {
-	my $mFile = shift;
+# args: actual file, and module name
+# this is non-optimal, and fails on a few modules (e.g. Encode)
+sub moduleVersion 
+{
+	my ($mFile, $modname) = @_;
 	open FH,"<$mFile" or return 'FileNotFound';
 	while (<FH>)
 	{
 		if (/^\s*((our|my)\s+\$|\$(\w+::)*)VERSION\s*=\s*['"]?\s*[vV]?([0-9\.]+)\s*['"]?s*;/)
 		{
+			close FH;
 			return $4;
 		}
 	}
 	close FH;
-	return '';
+	# present but didn't match? ask the module then...
+	eval { no warnings; require $mFile; };
+	return undef if ($@);
+
+	my $ver = eval { $modname->VERSION };
+	return $ver;
 }
 
 # returns (1) if no critical modules missing, (0,critical) otherwise
@@ -1790,7 +1801,16 @@ sub safecopy
 	}
 
 	logInstall("copying $source to $destination");
-	File::Copy::cp($source,$destination) or die "Failed to copy $source to $destination: $!\n";
+	# unfortunately, file::copy in centos/rh6 is too old for useful behaviour wrt. permissions,
+	if (version->parse($File::Copy::VERSION) < version->parse("2.15"))
+	{
+		die "Failed to copy $source to $destination: $!\n"
+				if (system("cp","-a", $source, $destination));
+	}
+	else
+	{
+		File::Copy::cp($source,$destination) or die "Failed to copy $source to $destination: $!\n";
+	}
 	return 1;
 }
 
