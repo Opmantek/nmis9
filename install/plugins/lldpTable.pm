@@ -80,7 +80,7 @@ sub update_plugin
 
 		foreach $possNeighbour (@possibleNames) {
 			if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
-				logMsg("$lldpNeighbour found as $possNeighbour in LNT for $node");
+				dbg("$lldpNeighbour found as $possNeighbour in LNT for $node");
 				$changesweremade = 1;
 				$entry->{lldpRemSysName_raw} = $entry->{lldpRemSysName};
 				$entry->{lldpRemSysName} = $possNeighbour;
