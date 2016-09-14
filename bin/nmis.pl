@@ -950,7 +950,7 @@ sub doCollect
 	# Check for both update and collect LOCKs
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
 		print STDERR "Error: running collect but update lock exists for $name which has not finished!\n";
-		logMsg("WARNING running collecct but update lock exists for $name which has not finished!");
+		logMsg("WARNING running collect but update lock exists for $name which has not finished!");
 		return;
 	}
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) )
