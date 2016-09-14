@@ -28,12 +28,12 @@
 # *****************************************************************************
 #
 # this module queries WMI services via the standalone wmic executable
-# fixme: we should support timeouts, messy retrofit as wmic itself doesn't...
 package WMI;
 our $VERSION = "1.0.0";
 
 use strict;
 use File::Temp;
+use Encode 2.23;								# core module, version is what came with 5.10.0 which we can make do with
 
 # the constructor is not doing much at this time, merely checks that the arguments are sufficient
 #
@@ -240,6 +240,11 @@ sub _run_query
 		for my $line (@rawdata)
 		{
 			chomp $line;
+			# wmic may very well return utf-8 encoded data, e.g. for Caption in win32_operatingsystem on 6.0.6001
+			# so let's try to be nice and decode it into native unicode
+			my $validunicode = eval { decode('utf-8', $line, Encode::FB_CROAK); };
+			$line = $validunicode if (!$@);
+
 			# CLASS: Win32_PerfRawData_PerfOS_PagingFile
 			if ($line =~ /^class:\s+(\S+)\s*$/i)
 			{
