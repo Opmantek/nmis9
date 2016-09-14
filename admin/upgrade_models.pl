@@ -156,6 +156,7 @@ sub compute_signature
 	die "cannot parse file $fn: $@\n" if ($@ or !keys %structure);
 	$sauce ||= '';
 
+	# native/non-encoding for json is ok for input to md5
 	my $fullsig = Digest::MD5::md5_hex($sauce.JSON::XS->new->canonical(1)->pretty(0)->encode(\%structure));
 	return substr($fullsig,0,16);
 }

@@ -107,25 +107,25 @@ while ($run) {
 		print "  done in ".$t->deltaTime() ."\n";
 		
 		print $t->markTime(). " JSON deserialize from file $jsonfile\n";
-		open(my $fh, "<$jsonfile");
+		open($fh, "<$jsonfile");
 		local $/ = undef;
 		my $content = <$fh>;
-		my $II = decode_json($content);
+		$II = decode_json($content);
 		close $fh;
 		print "  done in ".$t->deltaTime() ."\n";	
 		
 		print $t->markTime(). " JSON serialize to file with pretty\n";
-		open(my $fh, ">$jsonfile");
+		open($fh, ">$jsonfile");
 		#print $fh encode_json($II); 
-		print $fh JSON::XS->new->pretty(1)->encode($II);
+		print $fh JSON::XS->new->pretty(1)->utf8(1)->encode($II);
 		close $fh;
 		print "  done in ".$t->deltaTime() ."\n";
 
 		print $t->markTime(). " JSON deserialize from file $jsonfile with pretty\n";
-		open(my $fh, "<$jsonfile");
+		open($fh, "<$jsonfile");
 		local $/ = undef;
-		my $content = <$fh>;
-		my $II = decode_json($content);
+		$content = <$fh>;
+		$II = decode_json($content);
 		close $fh;
 		print "  done in ".$t->deltaTime() ."\n";	
 

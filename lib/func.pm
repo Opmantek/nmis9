@@ -1133,12 +1133,17 @@ sub writeHashtoFile {
 
 	my $errormsg;
 	# write out the data, but defer error logging until after the lock is released!
-	if ( $useJson and $pretty ) {
-		if ( not print $handle JSON::XS->new->pretty(1)->encode($data) ) {
+	if ( $useJson and $pretty ) 
+	{
+		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
+		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) ) 
+		{
 			$errormsg = "ERROR cannot write data object to file $file: $!";
 		}
 	}
-	elsif ( $useJson ) {
+	elsif ( $useJson ) 
+	{
+		# encode_json already ensures utf8-encoded json
 		eval { print $handle encode_json($data) } ;
 		if ( $@ ) {
 			$errormsg = "ERROR cannot write data object to $file: $@";
@@ -1204,7 +1209,7 @@ sub readFiletoHash {
 				#  utf8 failed but latin1 worked?
 				if ($gotcha)
 				{
-					$hashref = eval { JSON::XS->new->latin1->decode($data); };
+					$hashref = eval { JSON::XS->new->latin1(1)->decode($data); };
 					if (!$@)
 					{
 						$gotcha =~ s!at \S+ line \d+,.+$!!;

@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: connect.pl,v 8.13 2012/08/16 07:26:00 keiths Exp $
-#
 # THIS SOFTWARE IS NOT PART OF NMIS AND IS COPYRIGHTED, PROTECTED AND LICENSED 
 # BY OPMANTEK.  
 # 
@@ -34,13 +32,11 @@
 # are viewable at http://opmantek.com/licensing
 #   
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use JSON::XS;
 
-# 
 use strict;
 use NMIS;
 use func;
@@ -178,8 +174,10 @@ sub doSend{
 			$ni{$_} = $NI->{system}{$_};
 		}	
 
-		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%ni);
+		# consistency: always use the same correct utf-8 encoding for json
+		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) 
+		{
+			print JSON::XS->new->pretty(1)->utf(8)->encode(\%ni);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%ni);
@@ -201,7 +199,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($NT);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($NT);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($NT);
@@ -220,7 +218,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($NS);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($NS);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($NS);
@@ -243,6 +241,7 @@ sub doSend{
 		{
 			print JSON::XS->new
 					->pretty(getbool($C->{use_json_pretty}))
+					->utf8(1)
 					->encode(\%allevents);
 		}
 		else 
@@ -276,7 +275,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%summaryHash);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%summaryHash);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%summaryHash);
@@ -307,7 +306,7 @@ sub doSend{
 			printHead if ($format eq "html");
 
 			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-				print JSON::XS->new->pretty(1)->encode($summaryHash);
+				print JSON::XS->new->pretty(1)->utf8(1)->encode($summaryHash);
 			}	
 			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($summaryHash);
@@ -328,7 +327,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($stats);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($stats);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($stats);
@@ -347,7 +346,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($IF);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($IF);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($IF);
@@ -364,7 +363,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($II);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($II);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($II);
@@ -390,7 +389,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%reportTable);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%reportTable);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%reportTable);
@@ -416,7 +415,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%cpuTable);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%cpuTable);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%cpuTable);
@@ -465,7 +464,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%linkTable);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%linkTable);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%linkTable);
@@ -512,7 +511,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%pktsTable);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%pktsTable);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%pktsTable);
@@ -559,7 +558,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%pvcTable);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%pvcTable);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%pvcTable);
@@ -577,7 +576,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%logreport);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%logreport);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%logreport);
@@ -596,7 +595,7 @@ sub doSend{
 			printHead if ($format eq "html");
 
 			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-				print JSON::XS->new->pretty(1)->encode($hash);
+				print JSON::XS->new->pretty(1)->utf8(1)->encode($hash);
 			}	
 			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
@@ -620,7 +619,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode(\%hash);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode(\%hash);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json(\%hash);
@@ -638,7 +637,7 @@ sub doSend{
 			printHead if ($format eq "html");
 
 			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-				print JSON::XS->new->pretty(1)->encode($hash);
+				print JSON::XS->new->pretty(1)->utf8(1)->encode($hash);
 			}	
 			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
@@ -687,7 +686,7 @@ sub doSend{
 			printHead if ($format eq "html");
 
 			if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-				print JSON::XS->new->pretty(1)->encode($hash);
+				print JSON::XS->new->pretty(1)->utf8(1)->encode($hash);
 			}	
 			elsif ( getbool($C->{use_json}) ) {
 				print encode_json($hash);
@@ -714,7 +713,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($hash);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($hash);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($hash);
@@ -739,7 +738,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($OT);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($OT);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($OT);
@@ -760,7 +759,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($OT);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($OT);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($OT);
@@ -788,7 +787,7 @@ sub doSend{
 		printHead if ($format eq "html");
 
 		if ( getbool($C->{use_json}) and getbool($C->{use_json_pretty}) ) {
-			print JSON::XS->new->pretty(1)->encode($tm);
+			print JSON::XS->new->pretty(1)->utf8(1)->encode($tm);
 		}	
 		elsif ( getbool($C->{use_json}) ) {
 			print encode_json($tm);

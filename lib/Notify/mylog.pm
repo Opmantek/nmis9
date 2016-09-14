@@ -124,7 +124,7 @@ sub sendNotification {
 	$mylog->{message} = $message;
 	
 	open(LOG,">$file") or logMsg("ERROR, can not write to $file");
-	print LOG JSON::XS->new->pretty(1)->encode($mylog);
+	print LOG JSON::XS->new->pretty(1)->utf8(1)->encode($mylog);
 	close LOG;
 	# good to set permissions on file.....
 }

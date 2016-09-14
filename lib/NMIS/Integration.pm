@@ -29,7 +29,6 @@
 #
 # Some common functions for more advanced ingtegrations with NMIS.
 #
-
 package NMIS::Integration;
 our $VERSION = "1.0.0";
 
@@ -48,22 +47,24 @@ use Exporter;
 
 @ISA = qw(Exporter);
 
-@EXPORT = qw(    
+# fixme: backupFile export clashes with func. stop using export.
+@EXPORT = qw(
 	$omkBin
-	
+
 	getNodeList
 	getNodeDetails
 	importNodeFromNmis
 	opEventsXable
-	
+
 	emailSummary
-	
+
 	start_xlsx
 	add_worksheet
 	end_xlsx
-	
+
 	backupFile
 );
+
 
 # ask opnode_admin for a list of known nodes
 # returns plain list of node names
@@ -75,7 +76,7 @@ sub getNodeList
 		print "ERROR, opEvents required but $omkBin/opnode_admin.pl not found or not executable\n";
 		die;
 	}
-	
+
 
 	open(P, "$omkBin/opnode_admin.pl act=list 2>&1 |")
 			or die "cannot run opnode_admin.pl: $!\n";
@@ -101,7 +102,7 @@ sub getNodeDetails
 		print "ERROR, opEvents required but $omkBin/opnode_admin.pl not found or not executable\n";
 		die;
 	}
-	
+
 	if (!$node)
 	{
 		print "ERROR cannot get node details without node!\n";
@@ -109,14 +110,15 @@ sub getNodeDetails
 	}
 
 	# stuff from stderr won't be valid json, ever.
+	# opnode-admin produces utf8 encoded json, as it should...
 	my $data = `$omkBin/opnode_admin.pl act=export node=\"$node\"`;
 	if (my $res = $? >> 8)
 	{
 		print "ERROR cannot get node $node details: $data\n";
 		return undef;
 	}
-
-	return JSON::XS->new->decode($data);
+	# ...and we need to parse it expecting utf8
+	return decode_json($data);
 }
 
 sub opEventsXable {
@@ -131,7 +133,7 @@ sub opEventsXable {
 		print "ERROR, opEvents required but $omkBin/opnode_admin.pl not found or not executable\n";
 		die;
 	}
-	
+
 	if ( $simulate ) {
 		print "SIMULATE: opEventsXable node=$node disable/enable=$desired\n";
 	}
@@ -159,7 +161,7 @@ sub importNodeFromNmis {
 		print "ERROR, opEvents required but $omkBin/opeventsd.pl not found or not executable\n";
 		die;
 	}
-	
+
 	my $command = "$omkBin/opeventsd.pl act=import_from_nmis overwrite=$overwrite nodes=$node";
 	print "importNodeFromNmis: $command\n" if $debug;
 	if ( $simulate ) {
@@ -191,13 +193,13 @@ sub emailSummary {
 	my $SUMMARY = $args{summary};
 
 	my $email = $args{email};
-	my $file_name = $args{file_name};	
-	my $file_path_name = $args{file_path_name};	
-	
+	my $file_name = $args{file_name};
+	my $file_path_name = $args{file_path_name};
+
 	my @recipients = split(/\,/,$email);
-		
-	
-	my $entity = MIME::Entity->build(From=>$C->{mail_from}, 
+
+
+	my $entity = MIME::Entity->build(From=>$C->{mail_from},
 																	To=>$email,
 																	Subject=> $subject,
 																	Type=>"multipart/mixed");
@@ -211,7 +213,7 @@ sub emailSummary {
 		push (@lines, @{$SUMMARY});
 		push @lines, ("","");
 	}
-		
+
 	print "Sending summary email to $email\n";
 
 	my $textover = join("\n", @lines);
@@ -222,10 +224,10 @@ sub emailSummary {
 	$entity->attach(Path => $file_path_name,
 									Disposition => "attachment",
 									Filename => $file_name,
-									Type => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");																		
+									Type => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
 	my ($status, $code, $errmsg) = sendEmail(
-	  # params for connection and sending 
+	  # params for connection and sending
 		sender => $from_address,
 		recipients => \@recipients,
 
@@ -234,7 +236,7 @@ sub emailSummary {
 		hello => $C->{mail_domain},
 		usetls => $C->{mail_use_tls},
 		ipproto => $C->{mail_server_ipproto},
-		
+
 		username => $C->{mail_user},
 		password => $C->{mail_password},
 
@@ -252,7 +254,7 @@ sub emailSummary {
 	else
 	{
 		print "Summary Email sent to $email\n";
-	}	
+	}
 }
 
 sub start_xlsx {
@@ -317,7 +319,7 @@ sub end_xlsx {
 sub backupFile {
 	my %arg = @_;
 	my $buff;
-	if ( not -f $arg{backup} ) {			
+	if ( not -f $arg{backup} ) {
 		if ( -r $arg{file} ) {
 			open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
 			open(OUT,">$arg{backup}") or warn ("ERROR: problem with file $arg{backup}; $!");
