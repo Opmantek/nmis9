@@ -1,58 +1,58 @@
 %hash = 
-		(
-		 # rule numbers may be fractional numbers (for easy insertion)
-		 # first matching rule terminates the policy application
-		 # 
-		 # a rule consists of: optional IF filter section, then
-		 # sections to adjust, only systemHealth supported so far
-		 #
-		 # filter keys: node.xyz or config.abc; node.nodeModel is 
-		 # the (possibly dynamic) current model
-		 #
-		 # filter values: string, list of strings,
-		 # or regexp (=string with //, optionally case-insensitive //i)
+    (
+     # rule numbers may be fractional numbers (for easy insertion)
+     # first matching rule terminates the policy application
+     # 
+     # a rule consists of: optional IF filter section, then
+     # sections to adjust, only systemHealth supported so far
+     #
+     # filter keys: node.xyz or config.abc; node.nodeModel is 
+     # the (possibly dynamic) current model
+     #
+     # filter values: string, list of strings,
+     # or regexp (=string with //, optionally case-insensitive //i)
 
-		 # 10 => {
-		 # 	 IF => { 'node.name' => ['nodeA','nodeB'],
-		 # 					 'node.location' => '/def.*/',
-		 # 					 'config.auth_ldap_server' => '/192\./', },
-			 
-		 # 	 systemHealth => {
-		 # 		 'fanStatus' => 'true',	# add if not present
-		 # 		 'tempStatus' => 'false', # remove if present
-		 # 	 },
-		 # },
-		 
-		 # 20 => {
-		 # 	 IF => { 'node.name' => 'nodeC' },
-		 # 	 systemHealth => { 
-		 # 		 diskIOTable => 'false' # this node runs off r/o flash disk
-		 # 	 },
-		 # },
-
-		 999 => {    # the fallback/defaults, without filter
-			 systemHealth => { 
-				 cdp => 'true',
-				 lldp => 'true',
+     # 10 => {
+     # 	 IF => { 'node.name' => ['nodeA','nodeB'],
+     #            'node.location' => '/def.*/',
+     #            'config.auth_ldap_server' => '/192\./', },
+       
+     # 	 systemHealth => {
+     #      'fanStatus' => 'true',	# add if not present
+     #      'tempStatus' => 'false', # remove if present
+     # 	 },
+     # },
+     
+     # 20 => {
+     # 	 IF => { 'node.name' => 'nodeC' },
+     # 	 systemHealth => { 
+     #      diskIOTable => 'false' # this node runs off r/o flash disk
+     # 	 },
+     # },
+     
+     999 => {    # the fallback/defaults, without filter
+       systemHealth => { 
+         cdp => 'true',
+         lldp => 'true',
          bgpPeer => 'true',
          ospfNbr => 'true',
 
-				 diskIOTable => 'true',
-				 software => 'false',
-				 entityMib => 'true',
-				 fanStatus => 'true',
-				 tempStatus => 'true',
-				 'env-temp' => 'true',
-				 fanStatus => 'true',
-				 psuStatus => 'true',
-				 tempStatus => 'true',
+         diskIOTable => 'true',
+         software => 'false',
+         entityMib => 'true',
+         fanStatus => 'true',
+         tempStatus => 'true',
+         'env-temp' => 'true',
+         fanStatus => 'true',
+         psuStatus => 'true',
+         tempStatus => 'true',
 
-				 addressTable => 'true',
-				 macTable => 'true',
-				 vtpVlan => 'true',
+         addressTable => 'true',
+         macTable => 'true',
+         vtpVlan => 'true',
 
-				 ifTable => 'false',
-				 CiscoPseudowireVC => 'false',
+         ifTable => 'false',
+         CiscoPseudowireVC => 'false',
          mplsVpnVrf => 'false',
          mplsL3VpnVrf => 'false',
          mplsL3VpnIfConf => 'false',
@@ -60,37 +60,37 @@
          mplsL3VpnVrfRT => 'false',
          mplsVpnVrfRouteTarget => 'false',
          mplsLdpEntity => 'false',
-				 
-			 },
-			 # should include all possible values
-			 # entries: grouping/ordering tag, text
-			 _display => {
+         
+       },
+       # should include all possible values
+       # entries: grouping/ordering tag, text
+       _display => {
 
-				 cdp => [ 1, "Network Neighbors using the Cisco Discovery Protocol" ],
-				 lldp => [ 1, "Network Neighbors using the Link Layer Discovery Protocol" ],
+         cdp => [ 1, "Network Neighbors using the Cisco Discovery Protocol" ],
+         lldp => [ 1, "Network Neighbors using the Link Layer Discovery Protocol" ],
 
-				 bgpPeer => [ 2, "Routing Protocol information using the BGP Peer MIB" ],
-				 ospfNbr => [ 2, "Routing Protocol information using the OSPF Neighbor MIB" ],
+         bgpPeer => [ 2, "Routing Protocol information using the BGP Peer MIB" ],
+         ospfNbr => [ 2, "Routing Protocol information using the OSPF Neighbor MIB" ],
 
-				 diskIOTable => [ 3, "NET SNMP MIB - Disk I/O Statistics" ],
-				 software => [ 3, "Host Resource MIB - Installed Software" ],
+         diskIOTable => [ 3, "NET SNMP MIB - Disk I/O Statistics" ],
+         software => [ 3, "Host Resource MIB - Installed Software" ],
 
-				 addressTable => [ 4, "Network Addressing - IP ARP Tables showing IP to MAC Address information" ],
-				 macTable => [ 4, "Network Addressing - MAC/CAM Table information of MAC addresses connected to ports" ],
-				 vtpVlan => [ 4, "Network Addressing - Cisco VLAN information including and support for MAC/CAM information" ],
+         addressTable => [ 4, "Network Addressing - IP ARP Tables showing IP to MAC Address information" ],
+         macTable => [ 4, "Network Addressing - MAC/CAM Table information of MAC addresses connected to ports" ],
+         vtpVlan => [ 4, "Network Addressing - Cisco VLAN information including and support for MAC/CAM information" ],
 
-				 entityMib => [ 6, "Device Inventory using the Entity MIB" ],
-				 ciscoAsset => [ 6, "Device Inventory using the Cisco Asset Entity MIB" ],
+         entityMib => [ 6, "Device Inventory using the Entity MIB" ],
+         ciscoAsset => [ 6, "Device Inventory using the Cisco Asset Entity MIB" ],
 
-				 'env-temp' => [ 8, "Cisco Environment Temperature" ],
-				 fanStatus => [ 8, "Cisco Fan Status" ],
-				 psuStatus => [ 8, "Cisco Power Supply Status" ],
-				 tempStatus => [ 8, "Cisco Temperature Status" ], 
-				 Cisco_CBQoS => [ 8, "Cisco CBQoS Interfaces" ], 
-				 NetFlowInterfaces => [ 8, "Cisco NetFlow Interfaces" ], 
-				 
-				 ifTable => [ 10, "Logical Network Inventory - List of interfaces" ],
-				 CiscoPseudowireVC => [ 10, "Logical Network Inventory - Cisco Layer2 Overlay Networks" ],
+         'env-temp' => [ 8, "Cisco Environment Temperature" ],
+         fanStatus => [ 8, "Cisco Fan Status" ],
+         psuStatus => [ 8, "Cisco Power Supply Status" ],
+         tempStatus => [ 8, "Cisco Temperature Status" ], 
+         Cisco_CBQoS => [ 8, "Cisco CBQoS Interfaces" ], 
+         NetFlowInterfaces => [ 8, "Cisco NetFlow Interfaces" ], 
+         
+         ifTable => [ 10, "Logical Network Inventory - List of interfaces" ],
+         CiscoPseudowireVC => [ 10, "Logical Network Inventory - Cisco Layer2 Overlay Networks" ],
          mplsVpnVrf => [ 10, "Logical Network Inventory - List of VPN VRF's" ],
          mplsL3VpnVrf => [ 10, "Logical Network Inventory - List of VPN VRF's" ],
          mplsL3VpnIfConf => [ 10, "Logical Network Inventory - MPLS Configured Interfaces" ],
@@ -99,6 +99,6 @@
          mplsVpnVrfRouteTarget => [ 10, "Logical Network Inventory - MPLS Route Targets" ],
          mplsLdpEntity => [ 10, "Logical Network Inventory - MPLS Label Distribution Protocol Information" ],
 
-      },		 
+      },     
     },
 	);

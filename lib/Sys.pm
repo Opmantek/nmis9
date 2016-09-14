@@ -935,6 +935,22 @@ sub getValues
 					my $test = $sectiondetails->{alert}->{test};
 					dbg("checking test $test for basic alert \"$target->{title}\"",3);
 
+					if (exists($sectiondetails->{calculate}) && (my $calc = $sectiondetails->{calculate}))
+					{
+						# setup known var value list so that eval_string can handle CVARx substitutions
+						my ($error, $result) = $self->eval_string(string => $calc,
+																											context => $value,
+																											# for now we don't support multiple or cooked, per-section values
+																											variables => [ \%knownvars ]);
+						dbg("DEBUG calculate: calc=$calc error=$error value=$value result=$result",1);
+						if ($error)
+						{
+							$status{error} = $error;
+							logMsg("ERROR ($self->{name}) $error");
+						}
+						$value = $result;
+					}
+
 					# setup known var value list so that eval_string can handle CVARx substitutions
 					my ($error, $result) = $self->eval_string(string => $test,
 																										context => $value,

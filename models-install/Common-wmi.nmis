@@ -30,42 +30,205 @@
 # *****************************************************************************
 
 %hash = (
-  'systemHealth' => {
-    'sys' => {
-      'software' => {
-        'headers' => 'hrSWInstalledIndex,hrSWInstalledName,hrSWInstalledID,hrSWInstalledType,hrSWInstalledDate',
-        'indexed' => 'hrSWInstalledIndex',
-        'snmp' => {
-          'hrSWInstalledIndex' => {
-            'oid' => 'hrSWInstalledIndex',
-            'title' => 'Index'
-          },
-          'hrSWInstalledName' => {
-            'oid' => 'hrSWInstalledName',
-            'title' => 'Name'
-          },
-          'hrSWInstalledID' => {
-            'oid' => 'hrSWInstalledID',
-            'title' => 'ID'
-          },
-          'hrSWInstalledType' => {
-            'oid' => 'hrSWInstalledType',
-            'title' => 'Type',
-            'replace' => {
-              '1' => 'unknown',
-              '2' => 'operatingSystem',
-              '3' => 'deviceDriver',
-              '4' => 'application',
-            },
-          },
-          'hrSWInstalledDate' => {
-            'oid' => 'hrSWInstalledDate',
-            'title' => 'Date',
-            'calculate' => '$r =~ s/^0x//; my @date = unpack("n C6 a C2", pack("H*",$r)); $r = sprintf("%04d-%02d-%02d %02d:%02d:%02d", @date)',
-          },
-        }
+  'system' => {
+
+    'rrd' => {
+
+      'WindowsProcessor' => {
+        'graphtype' => 'WindowsProcessor',
+
+				'wmi' => {
+					"-common-" => {
+						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+					},
+
+					'dpcsQueuedPersec' => {
+						field => 'DPCsQueuedPersec',
+						option => 'gauge,0:U',
+					},
+
+					'interruptsPersec' => {
+						field => 'InterruptsPersec',
+						option => 'gauge,0:U',
+					},
+
+					'percentDpc' => {
+						field => 'PercentDPCTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentIdle' =>{
+						field => 'PercentIdleTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentInterrupt' => {
+						field => 'PercentInterruptTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentPrivileged' => {
+						field => 'PercentPrivilegedTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentProcessor' => {
+						field => 'PercentProcessorTime',
+						option => 'gauge,0:U',
+					},
+
+					'percentUser' => {
+						field => 'PercentUserTime',
+						option => 'gauge,0:U',
+					},
+				},
       },
-    }
+
+      'WindowsPagefile' => {
+        'graphtype' => 'WindowsPaging',
+
+				'wmi' => {
+					"-common-" => {
+						query => 'select * from win32_pagefileusage',
+					},
+
+					'pageUsage' => {
+						field => 'CurrentUsage',
+						calculate => 'return $r*(1<<20);',
+					},
+					'pageTotal' => {
+						field => 'AllocatedBaseSize',
+						calculate => 'return $r*(1<<20);',
+					},
+				},
+      },
+    },
+  },
+  'systemHealth' => {
+		'sys' =>
+		{
+      'LogicalDisk' =>
+			{
+				'headers' => 'Name,Description,FreeSpace',
+        'indexed' => 'Name',
+				wmi =>
+				{
+					'Name' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'Name',
+						title => 'name of the disk device',
+					},
+					'Description' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'Description',
+						title => 'optional description of the disk device',
+					},
+					'FreeSpace' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'FreeMegabytes',
+						title => 'free space in bytes of the disk device',
+						calculate => 'return $r * (1<<20);',
+					},
+				},
+			},
+		},
+		'rrd' =>
+		{
+			'LogicalDisk' =>
+			{
+        'graphtype' => 'diskio-rw,diskio-rwbytes',
+        'indexed' => 'Name', # for wmi the index field name MUST be given and the same as in the sys section
+				wmi =>
+				{
+					'AvgDiskQueueLen' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'AvgDiskQueueLength',
+						title => 'Average Disk Queue Length',
+						option => 'gauge:0,U',
+					},
+
+					'CurDiskQueueLen' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'CurrentDiskQueueLength',
+						title => 'Current Disk Queue Length',
+						option => 'gauge:0,U',
+					},
+
+
+					'AvgDiskBytePerTran' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'AvgDiskBytesPerTransfer',
+						title => 'Average Disk Bytes Per Transfer',
+						option => 'gauge:0,U',
+					},
+
+					'AvgDiskSecPerTran' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'AvgDisksecPerTransfer',
+						title => 'Average Disk Seconds Per Transfer',
+						option => 'gauge:0,U',
+					},
+
+					'DiskBytesPersec' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'DiskBytesPersec',
+						title => 'Disk Bytes per Second',
+						option => 'gauge:0,U',
+					},
+
+					'DiskTransPersec' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'DiskTransfersPersec',
+						title => 'Disk Transfers per Second',
+						option => 'gauge:0,U',
+					},
+
+					'PercentFreeSpace' =>
+					{
+						query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+						field => 'PercentFreeSpace',
+						title => 'PercentFreeSpace',
+						option => 'gauge:0,U',
+					},
+					
+					
+					
+					
+					
+					
+					#'DiskIOReadB' =>
+					#{
+					#	query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+					#	field => 'DiskReadBytesPersec',
+					#	title => 'Read Bytes/sec',
+					#	option => 'gauge:0,U',
+					#},
+					#'DiskIOWriteB' =>
+					#{
+					#	query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+					#	field => 'DiskWriteBytesPersec',
+					#	title => 'Write Bytes/sec',
+					#	option => 'gauge:0,U',
+					#},
+					#'DiskIOB' =>
+					#{
+					#	query => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+					#	field => 'DiskBytesPersec',
+					#	title => 'Combined Read and Write Bytes/sec',
+					#	option => 'gauge:0,U',
+					#},
+				},
+			},
+		},
   }
 );
 

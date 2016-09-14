@@ -49,6 +49,12 @@
       },
       'event' => {
         'common-model' => 'event'
+      },
+      'software' => {
+        'common-model' => 'software'
+      },
+      'wmi' => {
+        'common-model' => 'wmi'
       }
     }
   },
@@ -99,75 +105,75 @@
 
     'rrd' => {
 
-      'WindowsProcessor' => {
-        'graphtype' => 'WindowsProcessor',
-
-				'wmi' => {
-					"-common-" => {
-						query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
-					},
-
-					'dpcsQueuedPersec' => {
-						field => 'DPCsQueuedPersec',
-						option => 'gauge,0:U',
-					},
-
-					'interruptsPersec' => {
-						field => 'InterruptsPersec',
-						option => 'gauge,0:U',
-					},
-
-					'percentDpc' => {
-						field => 'PercentDPCTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentIdle' =>{
-						field => 'PercentIdleTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentInterrupt' => {
-						field => 'PercentInterruptTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentPrivileged' => {
-						field => 'PercentPrivilegedTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentProcessor' => {
-						field => 'PercentProcessorTime',
-						option => 'gauge,0:U',
-					},
-
-					'percentUser' => {
-						field => 'PercentUserTime',
-						option => 'gauge,0:U',
-					},
-				},
-      },
-
-      'WindowsPagefile' => {
-        'graphtype' => 'WindowsPaging',
-
-				'wmi' => {
-					"-common-" => {
-						query => 'select * from win32_pagefileusage',
-					},
-
-					'pageUsage' => {
-						field => 'CurrentUsage',
-						calculate => 'return $r*(1<<20);',
-					},
-					'pageTotal' => {
-						field => 'AllocatedBaseSize',
-						calculate => 'return $r*(1<<20);',
-					},
-
-				},
-      },
+      #'WindowsProcessor' => {
+      #  'graphtype' => 'WindowsProcessor',
+      #
+			#	'wmi' => {
+			#		"-common-" => {
+			#			query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+			#		},
+      #
+			#		'dpcsQueuedPersec' => {
+			#			field => 'DPCsQueuedPersec',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'interruptsPersec' => {
+			#			field => 'InterruptsPersec',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentDpc' => {
+			#			field => 'PercentDPCTime',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentIdle' =>{
+			#			field => 'PercentIdleTime',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentInterrupt' => {
+			#			field => 'PercentInterruptTime',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentPrivileged' => {
+			#			field => 'PercentPrivilegedTime',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentProcessor' => {
+			#			field => 'PercentProcessorTime',
+			#			option => 'gauge,0:U',
+			#		},
+      #
+			#		'percentUser' => {
+			#			field => 'PercentUserTime',
+			#			option => 'gauge,0:U',
+			#		},
+			#	},
+      #},
+      #
+      #'WindowsPagefile' => {
+      #  'graphtype' => 'WindowsPaging',
+      #
+			#	'wmi' => {
+			#		"-common-" => {
+			#			query => 'select * from win32_pagefileusage',
+			#		},
+      #
+			#		'pageUsage' => {
+			#			field => 'CurrentUsage',
+			#			calculate => 'return $r*(1<<20);',
+			#		},
+			#		'pageTotal' => {
+			#			field => 'AllocatedBaseSize',
+			#			calculate => 'return $r*(1<<20);',
+			#		},
+      #
+			#	},
+      #},
       'hrwin' => {
         'graphtype' => 'hrwinusers,hrwinproc',
         'snmp' => {
@@ -308,6 +314,17 @@
 							'unit' => 'connections',
               'level' => 'Warning',
             }
+          },
+          'clockDelta' => {
+						'oid' => 'hrSystemDate',
+            'title' => 'System Clock Delta',
+						'calculate' => 'my $delta = Time::HiRes::time - $r; return ($delta > 0)? $delta: -$delta;',
+            'alert' => {
+              'test' => '$r > 60',
+              'event' => 'System Clock Drift',
+							'unit' => 'seconds',
+              'level' => 'Critical',
+            }
           }
         }
       },
@@ -359,7 +376,7 @@
             'title' => 'SNMP_Uptime',
 					},
 
-										'hrSystemDateSec' => {
+					'hrSystemDateSec' => {
 						'oid' => 'hrSystemDate',
 						# have: the 0xhexstring equivalent of local 2016-9-9,5:53:28.0,+10:0
 						# we want fractional seconds in gmt.
@@ -367,6 +384,7 @@
 					},
 
 					'clockDelta' => {
+            'title' => 'System Clock Delta',
 						'oid' => 'hrSystemDate',
 						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
 					},
@@ -653,67 +671,7 @@
   },
 	"systemHealth" =>
 	{
-		'sections' => 'diskIOTable',
-		'sys' =>
-		{
-      'diskIOTable' =>
-			{
-        'indexed' => 'Name',
-				wmi =>
-				{
-					'Name' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'Name',
-						title => 'name of the disk device',
-					},
-					'Description' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'Description',
-						title => 'optional description of the disk device',
-					},
-					'FreeSpace' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'FreeMegabytes',
-						title => 'free space in bytes of the disk device',
-						calculate => 'return $r * (1<<20);',
-					},
-				},
-			},
-		},
-		'rrd' =>
-		{
-			'diskIOTable' =>
-			{
-        'graphtype' => 'diskio-rw,diskio-rwbytes',
-        'indexed' => 'Name', # for wmi the index field name MUST be given and the same as in the sys section
-				wmi =>
-				{
-					'DiskIOReadB' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'DiskReadBytesPersec',
-						title => 'Read Bytes/sec',
-						option => 'gauge:0,U',
-					},
-					'DiskIOWriteB' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'DiskWriteBytesPersec',
-						title => 'Write Bytes/sec',
-						option => 'gauge:0,U',
-					},
-					'DiskIOB' =>
-					{
-						query => 'select * from Win32_PerfFormattedData_PerfDisk_logicaldisk',
-						field => 'DiskBytesPersec',
-						title => 'Combined Read and Write Bytes/sec',
-						option => 'gauge:0,U',
-					},
-				},
-			},
-		},
+		'sections' => 'LogicalDisk',
+
 	},
 );
