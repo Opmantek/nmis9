@@ -123,6 +123,7 @@ elsif ($args{act} eq "export")
 	{
 			 open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
+	# ensure that the output is indeed valid json, utf-8 encoded
 	print $fh JSON::XS->new->pretty(1)->canonical(1)->utf8->encode($noderec);
 	close $fh if ($fh != \*STDOUT);
 
@@ -299,7 +300,10 @@ elsif ($args{act} =~ /^(create|update)$/)
 
 	print STDERR "Parsing JSON node configuration data\n" if ($debuglevel or $infolevel);
 	my $mayberec;
-	eval { $mayberec = decode_json($nodedata); };
+	# check correct encoding (utf-8) first, fall back to latin-1
+	$mayberec = eval { decode_json($nodedata); };
+	$mayberec = eval { JSON::XS->new->latin1(1)->decode($nodedata); } if ($@);
+	
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
 
 	die "Invalid node data, name value \"$mayberec->{name}\" does not match argument \"$node\".
