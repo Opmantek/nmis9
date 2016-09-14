@@ -304,6 +304,20 @@
 
     'sys' => {
       'alerts' => {
+        'wmi' => {
+					'clockDeltaWin' => {
+						title => "System Clock Delta",
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',
+            'alert' => {
+              'test' => '$r > 60',
+              'event' => 'System Clock Drift',
+							'unit' => 'seconds',
+              'level' => 'Critical',
+            }
+					},
+        },
         'snmp' => {
           'tcpCurrEstab' => {
             'oid' => 'tcpCurrEstab',
@@ -315,17 +329,18 @@
               'level' => 'Warning',
             }
           },
-          'clockDelta' => {
-						'oid' => 'hrSystemDate',
-            'title' => 'System Clock Delta',
-						'calculate' => 'my $delta = Time::HiRes::time - $r; return ($delta > 0)? $delta: -$delta;',
-            'alert' => {
-              'test' => '$r > 60',
-              'event' => 'System Clock Drift',
-							'unit' => 'seconds',
-              'level' => 'Critical',
-            }
-          }
+					# hrsystemdate seems to not include the timezone, but wmi does (see clockDeltaWin)
+          #'clockDelta' => {
+					#	'oid' => 'hrSystemDate',
+          #  'title' => 'System Clock Delta',
+					#	'calculate' => 'my $delta = Time::HiRes::time - $r; return ($delta > 0)? $delta: -$delta;',
+          #  'alert' => {
+          #    'test' => '$r > 60',
+          #    'event' => 'System Clock Drift',
+					#		'unit' => 'seconds',
+          #    'level' => 'Critical',
+          #  }
+          #}
         }
       },
 
@@ -389,7 +404,7 @@
 						'calculate' => 'my $delta = Time::HiRes::time - func::parse_dateandtime($r); return ($delta > 0)? $delta: -$delta;',
 					},
 
-								
+
         },
 
 				'wmi' =>
@@ -413,14 +428,15 @@
 					'wintime' => {
 						query => "select * from win32_operatingsystem",
 						field => "LocalDateTime", # 20160824173101.375199+600
-						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
 					},
 					'winboottime' => {
 						query => "select * from win32_operatingsystem",
 						field => "LastBootUpTime", # 20160824173101.375199+600
-						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)+$7*60)',
-					}
-				}
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+
+				},
       },
 
       'extra' =>
