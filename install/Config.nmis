@@ -328,6 +328,10 @@ my %hash = (
     'auth_ms_ldap_base' => 'dc=corp,dc=opmantek,dc=com',
     'auth_ms_ldap_attr' => 'sAMAccountName',
     'auth_ms_ldap_debug' => 'false',
+    'auth_cw_server' => '',
+    'auth_cw_company_id' => '',
+    'auth_cw_public_key' => '',
+    'auth_cw_private_key' => '',
   },
 
   'master_slave' => {

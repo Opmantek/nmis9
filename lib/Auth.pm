@@ -93,6 +93,9 @@ my $C;
 use NMIS;
 use func;
 use notify;											# for auth lockout emails
+use MIME::Base64;
+use Mojo::UserAgent;
+
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -433,11 +436,13 @@ sub user_verify {
 			$exit = $self->_ms_ldap_verify($u,$p,0);
 
 		} elsif ( $auth eq "ms-ldaps" ) {
-		### 2013-05-27 keiths, Change from Mateusz Kwiatkowski
+		  ### 2013-05-27 keiths, Change from Mateusz Kwiatkowski
 			$exit = $self->_ms_ldap_verify($u,$p,1);
-
 		} elsif ( $auth eq "novell-ldap" ) {
 			$exit = _novell_ldap_verify($u,$p,0);
+		} elsif ( $auth eq "connectwise" ) {
+			$exit = $self->_connectwise_verify($u,$p);
+		}
 	#	} elsif ( defined( $C->{'web-htpasswd-file'} ) ) {
 	#		$rv = _file_verify($C->{'web-htpasswd-file'},$u,$p,1);
 	#		return $rv if($rv);
@@ -447,7 +452,7 @@ sub user_verify {
 	#	} elsif ( defined( $C->{'web-unix-password-file'} ) ) {
 	#		$rv = file_verify($C->{'web-unix-password-file'},$u,$p,3);
 	#		return $rv if($rv);
-		}
+	# }
 
 		if ($exit) {
 			#Redundant logging
@@ -783,6 +788,69 @@ sub _ms_ldap_verify {
 	$ldap2->unbind();
 
 	return 0; # not found
+}
+
+#----------------------------------
+# ConnectWise API  verify username/password
+#
+# VERSION 1.0.0 20160916 Mark Henry for Opmantek
+# This section was inspired by a code sample
+# provided by Robert Staats written using
+# REST::Client
+#
+sub _connectwise_verify {
+	my $self = shift;
+	my($u, $p) = @_;
+	my $protocol = 'https'; #Connectwise API requires validate call to be HTTPS
+	
+	logAuth("DEBUG start sub _connectwise_verify") if $debug;
+	
+	# The bulk of what we need comes from Config.nmis
+	my $cw_server = $C->{auth_cw_server};
+	my $company_id = $C->{auth_cw_company_id};
+	my $public_key = $C->{auth_cw_public_key};
+	my $private_key = $C->{auth_cw_private_key};
+
+	if ($cw_server eq "" || $company_id eq "" || $public_key eq "" || $private_key eq "") {
+		logAuth("ERROR one or more required ConnectWise variables are missing from Config.nmis");
+		return 0;
+	}
+
+	# Build API call to ConnectWise
+	# This is static, builds Authorization per Connectwise API
+	my $headers = {"Content-type" => 'application/json', Accept => 'application/json', Authorization => 'Basic ' . encode_base64($company_id . '+' . $public_key . ':' . $private_key,'')};
+
+	logAuth("DEBUG built headers") if $debug;
+
+	my $client = Mojo::UserAgent->new();
+	logAuth("DEBUG created Mojo::UserAgent") if $debug;
+
+	my $request_body = "{email: \"$u\",password: \"$p\"}";
+	my $urlValidateCredentials = $protocol . "://" . $cw_server. "/v4_6_release/apis/3.0/company/contacts/validatePortalCredentials";
+	my $responseContent = $client->post($urlValidateCredentials => $headers => $request_body);
+	logAuth("DEBUG created client->POST") if $debug;
+
+	my $response = $responseContent->success();
+	logAuth("DEBUG got responseContent->success") if $debug;
+	if ($response) {
+		my $body = decode_json($response->body());
+		logAuth("DEBUG response->body converted from JSON") if $debug;
+
+		if ($body->{'success'}) {
+			# permitted
+			logAuth("INFO Connectwise Login Successful for $u ContactId: ".$body->{'contactId'});
+			return 1;
+		} else {
+			logAuth("ERROR Connectwise Login Failed for $u Reply: ".$body->{'success'});
+			return 0;
+		}
+	} else {
+		logAuth("ERROR Connectwise response failed");
+		return 0;
+	}
+
+	# How did I get down here? 
+	return 0; 
 }
 
 
