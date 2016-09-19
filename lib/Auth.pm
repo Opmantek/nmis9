@@ -1,6 +1,4 @@
 #
-## $Id: Auth.pm,v 8.10 2012/11/27 00:23:20 keiths Exp $
-#
 #    Auth.pm - Web authorization libraries and routines
 #
 #    Copyright (C) 2005 Robert W. Smith
@@ -60,7 +58,7 @@
 #					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 #
 package Auth;
-our $VERSION = "1.1.1";
+our $VERSION = "1.2.0";
 
 use strict;
 use vars qw(@ISA @EXPORT);
@@ -94,8 +92,6 @@ use NMIS;
 use func;
 use notify;											# for auth lockout emails
 use MIME::Base64;
-use Mojo::UserAgent;
-
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -798,13 +794,21 @@ sub _ms_ldap_verify {
 # provided by Robert Staats written using
 # REST::Client
 #
-sub _connectwise_verify {
+sub _connectwise_verify
+{
 	my $self = shift;
 	my($u, $p) = @_;
 	my $protocol = 'https'; #Connectwise API requires validate call to be HTTPS
-	
+
+	eval { require Mojo::UserAgent; };
+	if ($@)
+	{
+		logAuth("ERROR Connectwise authentication method requires Mojo::UserAgent but module not available: $@!");
+		return 0;
+	}
+
 	logAuth("DEBUG start sub _connectwise_verify") if $debug;
-	
+
 	# The bulk of what we need comes from Config.nmis
 	my $cw_server = $C->{auth_cw_server};
 	my $company_id = $C->{auth_cw_company_id};
@@ -849,8 +853,8 @@ sub _connectwise_verify {
 		return 0;
 	}
 
-	# How did I get down here? 
-	return 0; 
+	# How did I get down here?
+	return 0;
 }
 
 
@@ -1268,8 +1272,8 @@ sub loginout {
 
 	my $maxtries = $C->{auth_lockout_after};
 
-	if (defined($username) && $username ne '') 
-	{ 
+	if (defined($username) && $username ne '')
+	{
 		# someone is trying to log in
 		if ($maxtries)
 		{
@@ -1283,7 +1287,7 @@ sub loginout {
 			}
 		}
 		logAuth("DEBUG: verifying $username") if $debug;
-		if( $self->user_verify($username,$password)) 
+		if( $self->user_verify($username,$password))
 		{
 			#logAuth("DEBUG: user verified $username") if $debug;
 			#logAuth("self.privilevel=$self->{privilevel} self.config=$self->{config} config=$config") if $debug;
@@ -1292,7 +1296,7 @@ sub loginout {
 			$self->SetUser($username);
 			# and reset the failure counter
 			$self->update_failure_counter(user => $username, action => 'reset') if ($maxtries);
-			
+
 			# handle default privileges or not.
 			if ( $self->{priv} eq "" and ( $C->{auth_default_privilege} eq ""
 																		 or getbool($C->{auth_default_privilege},"invert")) ) {
@@ -1335,15 +1339,15 @@ sub loginout {
 							hello => $C->{mail_domain},
 							usetls => $C->{mail_use_tls},
 							ipproto => $C->{mail_server_ipproto},
-							
+
 							username => $C->{mail_user},
 							password => $C->{mail_password},
-							
+
 							# and params for making the message on the go
 							to => $C->{server_admin},
 							from => $C->{mail_from},
 							subject => "Account \"$username\" locked after $newcount failed logins",
-							body => qq|The account \"$username\" on $C->{server_name} has exceeded the maximum number 
+							body => qq|The account \"$username\" on $C->{server_name} has exceeded the maximum number
 of failed login attempts and was locked.
 
 To re-enable this account visit $C->{nmis_host_protocol}://$C->{nmis_host}$C->{"<cgi_url_base>"}/tables.pl?act=config_table_menu&table=Users&widget=false and select the "reset login count" option. |,
@@ -1412,7 +1416,7 @@ sub update_failure_counter
 {
 	my ($self, %args) = @_;
 	my ($user, $action) = @args{"user","action"};
-			
+
 	return "cannot update failure counter without valid user argument!" if (!$user);
 	return "cannot update failure counter without valid action argument!" if (!$action or $action !~ /^(inc|reset)$/);
 
@@ -1451,14 +1455,14 @@ sub update_failure_counter
 }
 
 # returns the current failure counter for the given user
-# args: user, required. 
+# args: user, required.
 # returns: (undef,counter) or error message
 sub get_failure_counter
 {
 	my ($self, %args) = @_;
 	my $user = $args{"user"};
 	return "cannot get failure counter without valid user argument!" if (!$user);
-			
+
 	my $statedir = $C->{'<nmis_var>'}."/nmis_system/auth_failures";
 	createDir($statedir) if (!-d $statedir);
 
@@ -1476,7 +1480,7 @@ sub get_failure_counter
 	}
 	return (undef, $userdata->{count});
 }
-	
+
 
 #----------------------------------
 
