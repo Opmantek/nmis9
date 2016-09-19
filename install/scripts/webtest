@@ -9,7 +9,7 @@
 # -p sets a specific web proxy, no proxies used otherwise
 #
 # exits with 100 if ok, 50 if the code is ok but the body is wrong, 0 otherwise
-our $VERSION = "1.2.0";
+our $VERSION = "1.3.0";
 
 use strict;
 use LWP::UserAgent;
@@ -21,11 +21,12 @@ die "Usage: $0 [options] <url>
 -s regex: regular expression for ok http status code
 -c regex: regular expression for ok body content
 -f N: follow up to N redirections
+-D: send no-caching request headers
 -N: do NOT verify SSL certificates
 -d: append debug output to the given file
 -p http://proxy:port/ sets up access via web proxy
 \n\n"
-		if (!getopts("c:s:f:Nd:p:",\%opts) or @ARGV != 1);
+		if (!getopts("c:s:f:Nd:p:D",\%opts) or @ARGV != 1);
 
 my $okcode = $opts{s}? qr/$opts{s}/ : qr/200/;
 my $okbody = $opts{c} &&  qr/$opts{c}/i;
@@ -65,14 +66,20 @@ if ($opts{p})
 	print $dfh Time::HiRes::time." setting proxy for http and https to $opts{p}\n" if ($dfh);
 }
 
+
+
 my $exitcode = 0;
 my $statusmsg = "Unknown Failure";
 
 $url = "http://$url" if ($url !~ m!^([a-z]+)://!);
 
 my @starttime = Time::HiRes::gettimeofday;
-print $dfh Time::HiRes::time." issuing GET\n" if ($dfh);
-my $res = $ua->get($url);
+print $dfh Time::HiRes::time." issuing GET".($opts{D}? " with no-cache headers":"")."\n"  if ($dfh);
+
+
+my $res = ($opts{D})? $ua->get($url, 
+															 "Pragma" => "no-cache", 
+															 "Cache-Control" => "no-cache") : $ua->get($url);
 my $responsetime = Time::HiRes::tv_interval(\@starttime);
 my $contentlength = length($res->decoded_content);
 
