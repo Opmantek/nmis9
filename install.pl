@@ -222,9 +222,9 @@ libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-process
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
-libexcel-writer-xlsx-perl));
+libexcel-writer-xlsx-perl libmojolicious-perl));
 
-	my @rhpackages = (qw(perl-core cpan autoconf automake gcc cvs cairo cairo-devel
+	my @rhpackages = (qw(perl-core autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
@@ -1460,9 +1460,33 @@ EOF
 	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 
-	# now determine if installed or not.
-	foreach my $mod ( keys %$nmisModules ) {
+	# these are critical for getting mojolicious installed, as centos 6 perl has a much too old perl
+	# these modules are in core since 5.19 or thereabouts
+	
+	$nmisModules->{"IO::Socket::IP"} = { file => "MODULE NOT FOUND", type  => "use",
+																			 by => "lib/Auth.pm", priority => 99 };
+	# io socket ip needs at least this version of socket...
+	$nmisModules->{"Socket"} = { file => "MODULE NOT FOUND", type  => "use",
+															 by => "lib/Auth.pm", minversion => "1.97", 
+															 priority => 99 };
+	# and socket needs at least this version of extutils constant to build
+	$nmisModules->{"ExtUtils::Constant"} = { file => "MODULE NOT FOUND", type  => "use",
+																					 by => "lib/Auth.pm", minversion => "0.23", 
+																					 priority => 100 };
+	# and mojolicious needs all these
+	$nmisModules->{"JSON::PP"} = { file => "MODULE NOT FOUND", type  => "use",
+																 by => "lib/Auth.pm", priority => 99 };
+	$nmisModules->{"Time::Local"} = { file => "MODULE NOT FOUND", type  => "use",
+																		by => "lib/Auth.pm", minversion => "1.2", priority => 99 };
+	# and time::local needs at least this version of test::More
+	$nmisModules->{"Test::More"} = { file => "MODULE NOT FOUND", type  => "use",
+																	 by => "lib/Auth.pm", minversion => "0.96", priority => 100 };
 
+
+	# now determine if installed or not.
+	# sort by the required cpan sequencing (no priority is last)
+	foreach my $mod (keys %$nmisModules)
+	{
 		my $mFile = $mod . '.pm';
 		# check modules that are multivalued, such as 'xx::yyy'	and replace :: with directory '/'
 		$mFile =~ s/::/\//g;
@@ -1520,6 +1544,7 @@ sub moduleVersion
 }
 
 # returns (1) if no critical modules missing, (0,critical) otherwise
+# note that they're returned in order of cpan sequencing priority
 sub listModules
 {
   my (@missing, @critmissing);
@@ -1528,7 +1553,9 @@ sub listModules
 										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
-	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
+	# sort by install prio, or file 
+	foreach my $k ( sort { $nmisModules->{$b}->{priority} <=> $nmisModules->{$a}->{priority}
+												 or $nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
 	{
     logInstall(join("\t", $k, $nmisModules->{$k}->{file},
 										$nmisModules->{$k}->{version}||"N/A", $nmisModules->{$k}->{minversion}||"N/A"));
