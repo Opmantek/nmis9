@@ -549,9 +549,12 @@ and then restart the installer.\n\n";
 			else
 			{
 				# there doesn't seem an easy way to prime the cpan shell with args,
-				# then let interact with the user via stdin/stdout...
+				# then let interact with the user via stdin/stdout... and not all versions
+				# of cpan seem to start it automatically
 				print "\n
-Please start the CPAN configuration by entering 'o conf init' on\nthe CPAN prompt. To return to the installer when done, please exit the CPAN\nshell with 'exit'.\n";
+If the CPAN configuration doesn't start automatically, then please
+enter 'o conf init' on the CPAN prompt. To return to the installer when done,
+please exit the CPAN\nshell with 'exit'.\n";
 				&input_ok;
 				system("cpan");
 			}
@@ -1045,15 +1048,32 @@ if (open(F, "$site/models/Common-database.nmis"))
 # check if the common-databases differ, and if so offer to run migrate_rrd_locations.pl
 if (!$isnewinstall)
 {
-	echolog("Checking Common-database files for updates");
-	logInstall("running $site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
-	my $res = system("$site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
-	if ($res >> 8 == 0)						# relevant diffs were found
+	printBanner("Checking Common-database file for updates");
+
+	# two cases: something not found -> migration tool to update, missing stuff, FIRST.
+	# then if there are any issues with actual actual differences, full migration tool run
+	my $diffs = `$site/admin/diffconfigs.pl $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null`;
+	my $res = $? >> 8;
+
+	if (!$res)
 	{
-		printBanner("RRD Database Migration");
-		echolog("The installer has detected differences between your current Common-database
-and the shipped one. These changes can be merged using the rrd migration
-script that comes with NMIS.
+		echolog("No differences between current and new Common-database.nmis found.");
+		print "\n\n";
+	}
+	elsif ($diffs =~ m!^-\s+<NOT PRESENT!m)
+	{
+		# perform a missingonly update
+		echolog("Found new entries, adding them.");
+		execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis missingonly=true leavelocked=true");
+		print "\n\n";
+	}
+	
+	if ($diffs =~ m!^-\s+/nodes!m) # ie. present but different
+	{
+		printBanner("RRD Database Migration Required");
+		echolog("The installer has detected structural differences between your current 
+Common-database and the shipped one. These changes can be merged using 
+the rrd migration script that comes with NMIS.
 
 If you choose Y below, the installer will use admin/migrate_rrd_locations.pl
 to move all existing RRD files into the appropriate new locations and merge
@@ -1061,7 +1081,7 @@ the Common-database entries.  This is highly recommended!
 
 If you choose N, then NMIS will continue using the RRD locations specified
 in your current Common-database configuration file.\n\n");
-
+		
 		if (input_yn("OK to run rrd migration script?"))
 		{
 			echolog("Running RRD migration script in test mode first...");
@@ -1078,8 +1098,7 @@ Please check the installation log and diagnostic output for details.\n");
 			else
 			{
 				echolog("Performing the actual RRD migration operation...\n");
-				my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis");
-
+				my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis leavelocked=true");
 				if ($error)
 				{
 					echolog("Error: RRD migration failed! Please use the rollback script
@@ -1104,15 +1123,6 @@ It is highly recommended that you perform the RRD migration.");
 			&input_ok;
 		}
 	}
-	else
-	{
-		echolog("No relevant differences between current and new Common-database.nmis,
-no RRD migration required.");
-	}
-
-
-
-
 }
 
 echolog("Ensuring correct file permissions...");
