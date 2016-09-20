@@ -108,7 +108,17 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 ### 2012-08-29 keiths, adding wiget less support, widget on by default.
 my $widget = getbool($Q->{widget},"invert")? "false" : "true";
-my $wantwidget = $widget eq "true";
+
+### unless told otherwise, and this is not JQuery call, widget is false!
+if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+if ( not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+my $wantwidget = ($widget eq "true");
 
 ### 2012-08-29 keiths, setting default refresh based on widget or not
 if ( $Q->{refresh} eq "" and $wantwidget ) { 
@@ -358,11 +368,12 @@ sub loadLogFile {
 	my	@fileList =  sort {
 		($a =~ /^$file(?:\.(\d+))?(?:\.\w+)?$/)[0] <=> ($b =~ /^$file(?:\.(\d+))?(?:\.\w+)?$/)[0]
 		||
-		($a)  cmp  ($b) }
+		($b)  cmp  ($a) }
 	<$file*>;
+	print STDERR "DEBUG: fileList=@fileList\n";
 
 	foreach my $file ( @fileList ) {
-		my $readLogFile = ($file =~ /\.gz/) ? "$zcat $file" : "$tac $file" ;
+		my $readLogFile = ($file =~ /\.gz/) ? "$zcat $file | $tac" : "$tac $file" ;
 	
 		open (DATA, "$readLogFile |") or warn returnTime." Log.pl, Cannot open the file $readLogFile $!\n";
 		while (<DATA>) {
