@@ -334,6 +334,18 @@
         'PRINT:RecordsExported:AVERAGE:RecordsExported=%1.2lf',
         'PRINT:RecordsExported:MAX:RecordsExportedMax=%1.2lf',
       ],
+      'WindowsProcessor' => [
+        'DEF:percentProcessor=$database:percentProcessor:AVERAGE',
+        'PRINT:percentProcessor:AVERAGE:percentProcessor=%1.2lf',
+        'PRINT:percentProcessor:MAX:percentProcessorMax=%1.2lf',
+      ],
+      'WindowsPagefile' => [
+        'DEF:pageUsage=$database:pageUsage:AVERAGE',
+        'DEF:pageTotal=$database:pageTotal:AVERAGE',
+        'CDEF:percentPageUsage=pageUsage,pageTotal,/,100,*',
+        'PRINT:percentPageUsage:AVERAGE:percentPageUsage=%1.2lf',
+        'PRINT:percentPageUsage:MAX:percentPageUsageMax=%1.2lf',
+      ],
     }
   }
 );

@@ -41,7 +41,7 @@
 		'standard' => [
 			'DEF:pageUsage=$database:pageUsage:AVERAGE',
 			'DEF:pageTotal=$database:pageTotal:AVERAGE',
-                        'CDEF:percentPageUsage=pageUsage,pageTotal,/,100,*',
+			'CDEF:percentPageUsage=pageUsage,pageTotal,/,100,*',
 			'LINE2:percentPageUsage#0000ff:Percent Pagefile Usage\\n',
 			'GPRINT:percentPageUsage:LAST:Last %6.2lf',
 			'GPRINT:percentPageUsage:AVERAGE:Average %6.2lf',

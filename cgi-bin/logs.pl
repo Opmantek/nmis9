@@ -370,7 +370,6 @@ sub loadLogFile {
 		||
 		($b)  cmp  ($a) }
 	<$file*>;
-	print STDERR "DEBUG: fileList=@fileList\n";
 
 	foreach my $file ( @fileList ) {
 		my $readLogFile = ($file =~ /\.gz/) ? "$zcat $file | $tac" : "$tac $file" ;
@@ -466,7 +465,7 @@ sub displayLogFile {
 	my $sound = undef;
 	my @sound_levels = split(",",$C->{sound_levels});
 	foreach my $level (@sound_levels) {
-		print STDERR "DEBUG SOUND: $level logLevelSummary=$logLevelSummary->{$level}\n";
+		#print STDERR "DEBUG SOUND: $level logLevelSummary=$logLevelSummary->{$level}\n";
 		if ( $C->{"sound_$level"} and $logLevelSummary->{$level} ) {
 			$sound = $C->{"sound_$level"};
 			last;

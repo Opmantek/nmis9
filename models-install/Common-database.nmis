@@ -160,6 +160,9 @@
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
       'NetworkInterface' => '/nodes/$node/interface/NetworkInterface-$index.rrd',
+      'WindowsProcessor' => '/nodes/$node/health/WindowsProcessor.rrd',
+      'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile.rrd',
+      'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
     }
   }
 );

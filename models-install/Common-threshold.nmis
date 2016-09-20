@@ -825,6 +825,36 @@
           }
         }
       },
+      'WindowsProcessor' => {
+        'item' => 'percentProcessor',
+        'event' => 'Proactive CPU',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '100',
+              'critical' => '95',
+              'minor' => '90',
+              'major' => '85',
+              'warning' => '80',
+            }
+          }
+        }
+      },
+      'WindowsPaging' => {
+        'item' => 'percentPageUsage',
+        'event' => 'Proactive Page File Usage',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '80',
+              'minor' => '70',
+              'major' => '60',
+              'warning' => '50',
+            }
+          }
+        }
+      },
     }
   }
 );
