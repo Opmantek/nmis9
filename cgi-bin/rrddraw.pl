@@ -269,6 +269,10 @@ sub rrdDraw
 		$datestamp_end = returnDateStamp($end);
 		$datestamp = returnDateStamp(time);
 		$database = $db;
+		
+		# escape any : chars which might be in the database name
+		$database =~ s/:/\\:/g;
+		
 		$group = $grp;
 		$itm = $item;
 		$length = $l;
