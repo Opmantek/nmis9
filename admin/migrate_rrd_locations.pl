@@ -35,7 +35,7 @@
 #
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "1.4.0";
+our $VERSION = "1.5.0";
 
 use strict;
 use File::Copy;
@@ -50,13 +50,17 @@ use lib "$FindBin::Bin/../lib";
 use NMIS;
 use func 1.2.1;
 
-my $usage = "Usage: ".basename($0)." newlayout=/path/to/new/Common-database.nmis [simulate=true] [info=true]\n
+my $usage = "Usage: ".basename($0)." newlayout=/path/to/new/Common-database.nmis [simulate=true] [info=true] [missingonly=true]\n
 newlayout: Common-database.nmis file to use for new locations, merged into current one.
 simulate: only show what would be done, don't make any changes
-info: produce more informational output\n\n";
+info: produce more informational output
+missingonly: no renaming, just add missing entries to Common-database.
+\n\n";
 
 my %args=getArguements(@ARGV);
 my $simulate = getbool($args{simulate});
+my $missingonly = getbool($args{missingonly});
+my $leavelocked = getbool($args{leavelocked});
 
 my $base = Cwd::abs_path("$FindBin::RealBin/..");
 
@@ -78,7 +82,8 @@ $SIG{__DIE__} = sub {
 	die @_ if $^S;								# within eval
 
 	&saverollback;
-	print STDERR "\nA fatal error occurred:\n\n",@_,"\nYou can roll back the changes using the script saved in $rollbackf\n\n";
+	print STDERR "\nA fatal error occurred:\n\n",@_,
+	($simulate? "\n\n" : "\nYou can roll back the changes using the script saved in $rollbackf\n\n"); # no need to roll back anything in simulation mode
 	exit 1;
 };
 
@@ -100,10 +105,10 @@ print STDERR "Version $VERSION of ".basename($0)." starting\nReading local node 
 my $LNT = loadLocalNodeTable();
 my (%rrdfiles,$countfiles);
 
-
 # verify that the current common-database doesn't have anything custom that
 # the new shipped version does not have
-my $curlayout = readFiletoHash(file => $C->{'<nmis_models>'}."/Common-database.nmis");
+my $curlayoutfile = $C->{'<nmis_models>'}."/Common-database.nmis";
+my $curlayout = readFiletoHash(file => $curlayoutfile);
 if (ref($curlayout) ne "HASH" or ref($curlayout->{database}) ne "HASH")
 {
 	print STDERR "Cannot fine a current database layout file (Common-database.nmis), cannot proceed with migration!\n";
@@ -124,8 +129,41 @@ are merged into $newdbf, and will abort now.\n\n";
 	}
 }
 
+if ($missingonly)
+{
+	print STDERR "Checking for missing entries in current database layout\n";
+	my $needtosave;
+	
+	for my $newtype (keys %{$newlayout->{database}->{type}})
+	{
+		next if exists $curlayout->{database}->{type}->{$newtype};
+		print STDERR "Adding $newtype\n";
+		if (!$simulate)
+		{		
+			$curlayout->{database}->{type}->{$newtype} = 
+					$newlayout->{database}->{type}->{$newtype};
+			$needtosave = 1;
+		}
+	}
+	if ($needtosave)
+	{
+		push @rollback, "mv $curlayoutfile.pre-update $curlayoutfile";
+		rename($curlayoutfile,"$curlayoutfile.pre-update") 
+				or die "Could not rename $curlayoutfile: $!\n";
+		writeHashtoFile(file => $curlayoutfile, data => $curlayout);
 
-
+		# save the rollback file anyway
+		&saverollback;
+		print STDERR "Saving rollback information in $rollbackf\n";
+		print STDERR "Update complete.\n";
+	}
+	else
+	{
+		print STDERR "No missing entries found.\n";
+	}
+	unlink($lockoutfile) if (!$leavelocked);
+	exit 0;
+}
 
 print STDERR "Identifying RRD files to rename\n";
 # find all rrd files for all nodes with sys() objects based on
@@ -136,14 +174,14 @@ for my $node (sort keys %{$LNT})
 	# cache disabled so that the func table_cache gets populated
 	$S->init(name=>$node, snmp=>'false', cache_models => 'false');
 	my $NI = $S->ndinfo;
-
+	
 	# walk graphtype keys, if hash value: key is index, go one level deeper;
 	# otherwise key of graphtype is all getDBName needs
 	for my $section (keys %{$NI->{graphtype}})
 	{
 		# the generic ones remain where they were - in /metrics/.
 		next if ($section =~ /^(network|nmis|metrics)$/);
-
+		
 		if (ref($NI->{graphtype}->{$section}) eq "HASH")
 		{
 			my $index = $section;
@@ -196,11 +234,11 @@ for my $node (keys %rrdfiles)
 	# again, disabling the model cache use so that the massaged table_cache remains in force
 	my $S = Sys->new;
 	$S->init(name=>$node, snmp=>'false', cache_models => 'false');
-
+	
 	for my $oldname (keys %{$rrdfiles{$node}})
 	{
 		my $meta = $rrdfiles{$node}->{$oldname};
-
+		
 		my $newname = $S->getDBName(graphtype => $meta->{graphtype},
 																index => $meta->{index},
 																item => $meta->{item});
@@ -213,7 +251,7 @@ for my $node (keys %rrdfiles)
 		{
 			my $friendlyold = $oldname; $friendlyold =~ s/^$C->{database_root}//;
 			my $friendlynew = $newname; $friendlynew =~ s/^$C->{database_root}//;
-
+			
 			info("Old RRD file $friendlyold, new $friendlynew");
 			$todos{$oldname} = $newname;
 		}
@@ -290,7 +328,6 @@ if (!$simulate)
 	print STDERR "Merging current Common-database with new data\n";
 	# finally merge old common-database and the new one's type areas,
 	# save the old common-database.nmis away and replace it with the new one
-	my $curlayoutfile = $C->{'<nmis_models>'}."/Common-database.nmis";
 	my $curlayout = readFiletoHash(file => $curlayoutfile);
 	push @rollback, "mv $curlayoutfile.pre-migrate $curlayoutfile";
 	rename($curlayoutfile,"$curlayoutfile.pre-migrate") or die "Could not rename $curlayoutfile: $!\n";
@@ -302,8 +339,8 @@ if (!$simulate)
 	&saverollback;
 	print STDERR "Saving rollback information in $rollbackf\n";
 
-	# finally unlock nmis (unconditionally)
-	unlink($lockoutfile);
+	# finally unlock nmis
+	unlink($lockoutfile) if (!$leavelocked);
 }
 
 if ($simulate)
