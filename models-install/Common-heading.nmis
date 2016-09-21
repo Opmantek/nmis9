@@ -184,7 +184,10 @@
       'fortinet-mem' => 'Memory Usage',
       'fortinet-sessions' => 'Session Count',
       'NetFlowStats' => 'NetFlow Export Stats',
-      
+			'WindowsDiskBytes' => "Windows Logical Disk Stats",
+      'WindowsPaging' => 'Windows Pagefile',
+      'WindowsDisk' => 'Windows Logical Disk Stats',
+			'WindowsProcessor' => 'Windows Processor Stats',
     }
   }
 );
