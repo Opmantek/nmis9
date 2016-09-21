@@ -1541,9 +1541,9 @@ EO_HTML
 				# the default title is the key name.
 				# but can I get a better title?
 				my $title = ( defined($V->{system}->{"${k}_title"}) ?
-											$V->{system}{"${k}_title"} 
+											$V->{system}{"${k}_title"}
 											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
-				
+
 				# print STDERR "DEBUG: k=$k, title=$title\n";
 
 				if ($title ne '') {
@@ -1562,7 +1562,7 @@ EO_HTML
 
 					my $value;
 					# get the value from the view if it one of the special ones, or only present there
-					if ( 
+					if (
 						$k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 						or not exists($NI->{system}{$k})
 					) {
@@ -1799,7 +1799,7 @@ EO_HTML
 			}
 			@graphs = @newgraphs;
 		}
-		
+
 		my $gotWmiCpu = 0;
 
 		foreach my $graph (@graphs) {
@@ -1829,7 +1829,7 @@ EO_HTML
 				}
 			} else {
 				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ] if $graph ne "hrsmpcpu";
-				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) { 
+				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) {
 					$gotWmiCpu = 1;
 				}
 			}
@@ -2095,9 +2095,13 @@ sub viewAllIntf {
 	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
 		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		print Tr(
-		eval { my @out;
-			foreach my $k (@hd){
-				my $color = ($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF';
+			eval {
+				my @out;
+
+				foreach my $k (@hd)
+				{
+					my $color = getbool($view{$intf}{collect}{value})?
+							($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF' : "#cccccc";				# no collect gets grey background
 				push @out,td({class=>'info Plain',style=>getBGColor($color)},
 				eval { my $line;
 					$view{$intf}{$k}{value} = ($view{$intf}{$k}{value} =~ /noSuch|unknow/i) ? '' : $view{$intf}{$k}{value};
@@ -2178,9 +2182,9 @@ sub viewActivePort {
 	my %view;
 	my %titles;
 	my %items;
-	for my $k (keys %{$V->{interface}}) 
+	for my $k (keys %{$V->{interface}})
 	{
-		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) 
+		if ( $k =~ /^(\d+)_(.+)_(.+)$/ )
 		{
 			my ($a,$b,$c) = ($1,$2,$3);
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
@@ -3312,7 +3316,7 @@ sub nodeAdminSummary {
 
 					my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 					my $lastCollectClass = "info Plain";
-	
+
 					my $lastUpdatePoll = defined $NI->{system}{lastUpdatePoll} ? returnDateStamp($NI->{system}{lastUpdatePoll}) : "N/A";
 					my $lastUpdateClass = "info Plain";
 
@@ -3332,7 +3336,7 @@ sub nodeAdminSummary {
 						$actClass = "info Plain";
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastCollectPoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastCollectPoll} ) {
 							$lastCollectPoll = "unknown";
 							$lastCollectClass = "info Plain Minor";
@@ -3347,7 +3351,7 @@ sub nodeAdminSummary {
 
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastUpdatePoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastUpdatePoll} ) {
 							$lastUpdatePoll = "unknown";
 							$lastUpdateClass = "info Plain Minor";
