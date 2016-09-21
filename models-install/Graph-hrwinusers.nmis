@@ -40,14 +40,14 @@
 	'option' => {
 		'standard' => [
 			'DEF:hrNumUsers=$database:hrNumUsers:AVERAGE',
-			'LINE2:hrNumUsers#0000ff:Average Num Users\\n',
-			'GPRINT:hrNumUsers:MIN:Min Num Users %1.0lf',
-			'GPRINT:hrNumUsers:AVERAGE:Average Num Users %1.0lf',
-			'GPRINT:hrNumUsers:MAX:Max Num Users %1.0lf'
+			'LINE1:hrNumUsers#00BFFF:Average Num Users',
+			'GPRINT:hrNumUsers:AVERAGE:Average %1.0lf',
+			'GPRINT:hrNumUsers:MIN:Min %1.0lf',
+			'GPRINT:hrNumUsers:MAX:Max %1.0lf\\n'
 		],
 	'small' => [
 			'DEF:hrNumUsers=$database:hrNumUsers:AVERAGE',
-			'LINE2:hrNumUsers#0000ff:Average Num Users'
+			'LINE1:hrNumUsers#00BFFF:Average Num Users'
 		]
 	}
 );

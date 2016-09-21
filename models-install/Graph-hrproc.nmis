@@ -35,12 +35,12 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Memory Used'
+		'standard' => 'Processes'
 	},
 	'option' => {
 		'standard' => [
 			'DEF:hrProcesses=$database:hrProcesses:AVERAGE',
-			'LINE2:hrProcesses#0000ff:Average Num Processes\\n',
+			'LINE1:hrProcesses#00BFFF:Average Num Processes\\n',
 			'GPRINT:hrProcesses:MIN:Min Num Processes %1.0lf',
 			'GPRINT:hrProcesses:AVERAGE:Average Num Processes %1.0lf',
 			'GPRINT:hrProcesses:MAX:Max Num Processes %1.0lf'
