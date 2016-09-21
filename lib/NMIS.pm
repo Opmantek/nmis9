@@ -449,7 +449,6 @@ sub loadCfgTable {
 				{ 'os_cmd_read_file_reverse' => { display => 'text', value => ['tac']}},
 				{ 'os_cmd_file_decompress' => { display => 'text', value => ['gzip -d -c']}},
 				{ 'os_kernelname' => { display => 'text', value => ['']}},
-				{ 'os_username' => { display => 'text', value => ['nmis']}},
 				{ 'os_fileperm' => { display => 'text', value => ['0775']}},
 				{ 'report_files_max' => { display => 'text', value => ['60']}},
 				{ 'loc_sysLoc_format' => { display => 'text', value => ['']}},
