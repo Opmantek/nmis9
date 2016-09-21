@@ -270,7 +270,7 @@ sub rrdDraw
 		$datestamp = returnDateStamp(time);
 		$database = $db;
 		
-		# escape any : chars which might be in the database name
+		# escape any : chars which might be in the database name e.g handling C: in the RPN
 		$database =~ s/:/\\:/g;
 		
 		$group = $grp;

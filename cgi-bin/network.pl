@@ -1799,6 +1799,8 @@ EO_HTML
 			}
 			@graphs = @newgraphs;
 		}
+		
+		my $gotWmiCpu = 0;
 
 		foreach my $graph (@graphs) {
 			my @pr;
@@ -1821,12 +1823,15 @@ EO_HTML
 			}
 			$cnt++;
 			# proces multi graphs
-			if ($graph eq 'hrsmpcpu') {
+			if ($graph eq 'hrsmpcpu' and not $gotWmiCpu) {
 				foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
 					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ] if exists $NI->{device}{$index};
 				}
 			} else {
-				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ];
+				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ] if $graph ne "hrsmpcpu";
+				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) { 
+					$gotWmiCpu = 1;
+				}
 			}
 			#### now print it
 			foreach ( @pr ) {

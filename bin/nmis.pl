@@ -8521,8 +8521,11 @@ sub doThreshold
 
 				$thrname = $thissection->{threshold};	# get commasep string of threshold name(s)
 				dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
+				
+				# getbool of this is not valid anymore, for WMI indexed must be named, so getbool 'indexed' => 'Name' evaluates to false 
+				# changing now to be not false.
 
-				if (!getbool($thissection->{indexed}))	# if indexed then all instances must be checked individually
+				if (not ( $thissection->{indexed} ne "" and $thissection->{indexed} ne "false" ))	# if indexed then all instances must be checked individually
 				{
 					runThrHld(sys=>$S, table=>$sts, type=>$type, thrname=>$thrname); # single
 				}

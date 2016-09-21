@@ -833,8 +833,8 @@
             'value' => {
               'fatal' => '100',
               'critical' => '95',
-              'minor' => '90',
-              'major' => '85',
+              'major' => '90',
+              'minor' => '85',
               'warning' => '80',
             }
           }
@@ -848,9 +848,24 @@
             'value' => {
               'fatal' => '95',
               'critical' => '80',
-              'minor' => '70',
-              'major' => '60',
+              'major' => '70',
+              'minor' => '60',
               'warning' => '50',
+            }
+          }
+        }
+      },
+      'DiskQueueLength' => {
+        'item' => 'AvgDiskQLen',
+        'event' => 'Proactive Disk Queue Length',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '5',
+              'critical' => '4',
+              'major' => '2',
+              'minor' => '1',
+              'warning' => '0.01',
             }
           }
         }

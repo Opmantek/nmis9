@@ -346,6 +346,12 @@
         'PRINT:percentPageUsage:AVERAGE:percentPageUsage=%1.2lf',
         'PRINT:percentPageUsage:MAX:percentPageUsageMax=%1.2lf',
       ],
+      'LogicalDisk' => [
+        'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
+        'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
+        'CDEF:AvgDiskQLen=AvgDiskReadQLen,AvgDiskWriteQLen,+,1000,/',
+        'PRINT:AvgDiskQLen:AVERAGE:AvgDiskQLen=%1.2lf',
+      ],
     }
   }
 );

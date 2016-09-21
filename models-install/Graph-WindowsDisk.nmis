@@ -39,47 +39,82 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:AvgDiskQueueLen=$database:AvgDiskQueueLen:AVERAGE',
-			'DEF:CurDiskQueueLen=$database:CurDiskQueueLen:AVERAGE',
-			'DEF:AvgDiskBytePerTran=$database:AvgDiskBytePerTran:AVERAGE',
-			'DEF:AvgDiskSecPerTran=$database:AvgDiskSecPerTran:AVERAGE',
-			'DEF:DiskBytesPersec=$database:DiskBytesPersec:AVERAGE',
-			'DEF:DiskTransPersec=$database:DiskTransPersec:AVERAGE',
+			'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
+			'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
+			'DEF:DiskWritesPersec=$database:DiskWritesPersec:AVERAGE',
+			'DEF:DiskReadsPersec=$database:DiskReadsPersec:AVERAGE',			
+			'DEF:PercentFreeSpace=$database:PercentFreeSpace:AVERAGE',
 
-			'LINE1:AvgDiskQueueLen#0000ff:AvgDiskQueueLen\\t',
-			'GPRINT:AvgDiskQueueLen:LAST:Last %6.2lf',
-			'GPRINT:AvgDiskQueueLen:AVERAGE:Average %6.2lf',
-			'GPRINT:AvgDiskQueueLen:MAX:Max %6.2lf\\n',
+			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
+			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+			
+			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:AVERAGE:Average %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:MAX:Max %8.2lf\\n',
+      
+			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Average %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:MAX:Max %8.2lf\\n',
 
-			'LINE1:CurDiskQueueLen#0000ff:CurDiskQueueLen\\t',
-			'GPRINT:CurDiskQueueLen:LAST:Last %6.2lf',
-			'GPRINT:CurDiskQueueLen:AVERAGE:Average %6.2lf',
-			'GPRINT:CurDiskQueueLen:MAX:Max %6.2lf\\n',
+			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'GPRINT:DiskWritesPersec:LAST:Last %8.2lf',
+			'GPRINT:DiskWritesPersec:AVERAGE:Average %8.2lf',
+			'GPRINT:DiskWritesPersec:MAX:Max %8.2lf\\n',
 
-			'LINE1:AvgDiskBytePerTran#0000ff:AvgDiskBytePerTran\\t',
-			'GPRINT:AvgDiskBytePerTran:LAST:Last %6.2lf',
-			'GPRINT:AvgDiskBytePerTran:AVERAGE:Average %6.2lf',
-			'GPRINT:AvgDiskBytePerTran:MAX:Max %6.2lf\\n',
+			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'GPRINT:DiskReadsPersec:LAST:Last %8.2lf',
+			'GPRINT:DiskReadsPersec:AVERAGE:Average %8.2lf',
+			'GPRINT:DiskReadsPersec:MAX:Max %8.2lf\\n',
 
-			'LINE1:AvgDiskSecPerTran#0000ff:AvgDiskSecPerTran\\t',
-			'GPRINT:AvgDiskSecPerTran:LAST:Last %6.2lf',
-			'GPRINT:AvgDiskSecPerTran:AVERAGE:Average %6.2lf',
-			'GPRINT:AvgDiskSecPerTran:MAX:Max %6.2lf\\n',
+			#'LINE1:PerDiskReadTime#0000ff:PerDiskReadTime\\t',
+			#'GPRINT:PerDiskReadTime:LAST:Last %8.2lf',
+			#'GPRINT:PerDiskReadTime:AVERAGE:Average %8.2lf',
+			#'GPRINT:PerDiskReadTime:MAX:Max %8.2lf\\n',
+      #
+			#'LINE1:PerDiskWriteTime#ff00ff:PerDiskWriteTime\\t',
+			#'GPRINT:PerDiskWriteTime:LAST:Last %8.2lf',
+			#'GPRINT:PerDiskWriteTime:AVERAGE:Average %8.2lf',
+			#'GPRINT:PerDiskWriteTime:MAX:Max %8.2lf\\n',
 
-			'LINE1:DiskBytesPersec#0000ff:DiskBytesPersec\\t',
-			'GPRINT:DiskBytesPersec:LAST:Last %6.2lf',
-			'GPRINT:DiskBytesPersec:AVERAGE:Average %6.2lf',
-			'GPRINT:DiskBytesPersec:MAX:Max %6.2lf\\n',
+			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
+			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentFreeSpace:AVERAGE:Average %8.2lf',
+			'GPRINT:PercentFreeSpace:MAX:Max %8.2lf\\n',
+		],
+		'small' => [
+			'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
+			'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
+			'DEF:DiskWritesPersec=$database:DiskWritesPersec:AVERAGE',
+			'DEF:DiskReadsPersec=$database:DiskReadsPersec:AVERAGE',			
+			'DEF:PercentFreeSpace=$database:PercentFreeSpace:AVERAGE',
 
-			'LINE1:DiskTransPersec#0000ff:DiskTransPersec\\t',
-			'GPRINT:DiskTransPersec:LAST:Last %6.2lf',
-			'GPRINT:DiskTransPersec:AVERAGE:Average %6.2lf',
-			'GPRINT:DiskTransPersec:MAX:Max %6.2lf\\n',
-		]
+			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
+			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+			
+			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:AVERAGE:Avg. %8.2lf\\n',
+      
+			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Avg. %8.2lf\\n',
+
+			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'GPRINT:DiskWritesPersec:LAST:Last %8.0lf',
+			'GPRINT:DiskWritesPersec:AVERAGE:Avg. %8.0lf\\n',
+
+			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'GPRINT:DiskReadsPersec:LAST:Last %8.0lf',
+			'GPRINT:DiskReadsPersec:AVERAGE:Avg. %8.0lf\\n',
+
+			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
+			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentFreeSpace:AVERAGE:Avg. %8.2lf\\n',
+		]		
 	}
 );
-
-
 
 
 

@@ -979,6 +979,9 @@ sub getSummaryStats{
 	if ( -r $db ) {
 		push @option, ("--start", "$start", "--end", "$end") ;
 
+		# escape any : chars which might be in the database name, e.g handling C: in the RPN
+		$db =~ s/:/\\:/g;
+
 		{
 			no strict;
 			$database = $db; # global
