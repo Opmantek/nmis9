@@ -101,7 +101,6 @@ my %hash = (
     'os_cmd_read_file_reverse' => 'tac',
     'os_cmd_file_decompress' => 'gzip -d -c',
     'os_kernelname' => '',
-    'os_username' => 'nmis',
     'os_execperm' => '0770',
     'os_fileperm' => '0660',
     'report_files_max' => '60',
