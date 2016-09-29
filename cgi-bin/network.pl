@@ -684,9 +684,11 @@ sub printGroup {
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
 
+	my $urlsafegroup = uri_escape($group);
+
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -841,13 +843,15 @@ sub printGroupView {
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
 
+	my $urlsafegroup = uri_escape($group);
+
 	print
 	start_Tr,
 	start_td({class=>"infolft $overallStatus"});
 
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -1003,7 +1007,8 @@ sub selectLarge {
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Customer $customer Groups")) if $customer ne "";
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Business Service $business Groups")) if $business ne "";
 
-	foreach my $group (sort keys %{$GT} ) {
+	foreach my $group (sort keys %{$GT} ) 
+	{
 		# test if caller wanted stats for a particular group
 		if ( $select eq "customer" ) {
 			next if $CT->{$customer}{groups} !~ /$group/;
@@ -1013,6 +1018,8 @@ sub selectLarge {
 		}
 
 		++$groupcount;
+
+		my $urlsafegroup = uri_escape($group);
 
 		my $printGroupHeader = 1;
 		foreach my $node (sort {uc($a) cmp uc($b)} keys %{$NT}) {
@@ -1032,7 +1039,7 @@ sub selectLarge {
 				$printGroupHeader = 0;
 				print Tr(th({class=>'title',colspan=>'15'},
 					"$group Node List and Status",
-					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
+					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
 
 					));
 				print Tr( eval {
@@ -1541,9 +1548,9 @@ EO_HTML
 				# the default title is the key name.
 				# but can I get a better title?
 				my $title = ( defined($V->{system}->{"${k}_title"}) ?
-											$V->{system}{"${k}_title"} 
+											$V->{system}{"${k}_title"}
 											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
-				
+
 				# print STDERR "DEBUG: k=$k, title=$title\n";
 
 				if ($title ne '') {
@@ -1562,7 +1569,7 @@ EO_HTML
 
 					my $value;
 					# get the value from the view if it one of the special ones, or only present there
-					if ( 
+					if (
 						$k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 						or not exists($NI->{system}{$k})
 					) {
@@ -1799,7 +1806,7 @@ EO_HTML
 			}
 			@graphs = @newgraphs;
 		}
-		
+
 		my $gotWmiCpu = 0;
 
 		foreach my $graph (@graphs) {
@@ -1829,7 +1836,7 @@ EO_HTML
 				}
 			} else {
 				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ] if $graph ne "hrsmpcpu";
-				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) { 
+				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) {
 					$gotWmiCpu = 1;
 				}
 			}
@@ -2095,9 +2102,13 @@ sub viewAllIntf {
 	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
 		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		print Tr(
-		eval { my @out;
-			foreach my $k (@hd){
-				my $color = ($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF';
+			eval {
+				my @out;
+
+				foreach my $k (@hd)
+				{
+					my $color = getbool($view{$intf}{collect}{value})?
+							($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF' : "#cccccc";				# no collect gets grey background
 				push @out,td({class=>'info Plain',style=>getBGColor($color)},
 				eval { my $line;
 					$view{$intf}{$k}{value} = ($view{$intf}{$k}{value} =~ /noSuch|unknow/i) ? '' : $view{$intf}{$k}{value};
@@ -2178,9 +2189,9 @@ sub viewActivePort {
 	my %view;
 	my %titles;
 	my %items;
-	for my $k (keys %{$V->{interface}}) 
+	for my $k (keys %{$V->{interface}})
 	{
-		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) 
+		if ( $k =~ /^(\d+)_(.+)_(.+)$/ )
 		{
 			my ($a,$b,$c) = ($1,$2,$3);
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
@@ -3265,13 +3276,15 @@ sub nodeAdminSummary {
 		my $cols = @headers;
 		my $nmisLink = a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;" if (!getbool($widget));
 
+		my $urlsafegroup = uri_escape($group);
+
 		print start_table({class=>'dash', width=>'100%'});
 		print Tr(th({class=>'title',colspan=>$cols},
 				$nmisLink,
 				"Node Admin Summary$extra ",
 				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"},"All Nodes"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
 			));
 		print Tr( eval {
 			my $line;
@@ -3312,7 +3325,7 @@ sub nodeAdminSummary {
 
 					my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 					my $lastCollectClass = "info Plain";
-	
+
 					my $lastUpdatePoll = defined $NI->{system}{lastUpdatePoll} ? returnDateStamp($NI->{system}{lastUpdatePoll}) : "N/A";
 					my $lastUpdateClass = "info Plain";
 
@@ -3332,7 +3345,7 @@ sub nodeAdminSummary {
 						$actClass = "info Plain";
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastCollectPoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastCollectPoll} ) {
 							$lastCollectPoll = "unknown";
 							$lastCollectClass = "info Plain Minor";
@@ -3347,7 +3360,7 @@ sub nodeAdminSummary {
 
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastUpdatePoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastUpdatePoll} ) {
 							$lastUpdatePoll = "unknown";
 							$lastUpdateClass = "info Plain Minor";
@@ -3438,12 +3451,15 @@ sub nodeAdminSummary {
 						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
 					}
 
-					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) {
+					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) 
+					{
 						$noExceptions = 0;
+
+						my $urlsafegroup = uri_escape($LNT->{$node}->{group});
 						print Tr(
 							td({class => "info Plain"},$nodelink),
 							td({class => 'info Plain'},
-								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$LNT->{$node}{group}&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
+								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
 							),
 							td({class => 'infolft Plain'},$issues),
 							td({class => $actClass},$LNT->{$node}{active}),
