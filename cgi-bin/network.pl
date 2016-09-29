@@ -684,9 +684,11 @@ sub printGroup {
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
 
+	my $urlsafegroup = uri_escape($group);
+
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -841,13 +843,15 @@ sub printGroupView {
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
 
+	my $urlsafegroup = uri_escape($group);
+
 	print
 	start_Tr,
 	start_td({class=>"infolft $overallStatus"});
 
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -1003,7 +1007,8 @@ sub selectLarge {
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Customer $customer Groups")) if $customer ne "";
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Business Service $business Groups")) if $business ne "";
 
-	foreach my $group (sort keys %{$GT} ) {
+	foreach my $group (sort keys %{$GT} ) 
+	{
 		# test if caller wanted stats for a particular group
 		if ( $select eq "customer" ) {
 			next if $CT->{$customer}{groups} !~ /$group/;
@@ -1013,6 +1018,8 @@ sub selectLarge {
 		}
 
 		++$groupcount;
+
+		my $urlsafegroup = uri_escape($group);
 
 		my $printGroupHeader = 1;
 		foreach my $node (sort {uc($a) cmp uc($b)} keys %{$NT}) {
@@ -1032,7 +1039,7 @@ sub selectLarge {
 				$printGroupHeader = 0;
 				print Tr(th({class=>'title',colspan=>'15'},
 					"$group Node List and Status",
-					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
+					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
 
 					));
 				print Tr( eval {
@@ -3269,13 +3276,15 @@ sub nodeAdminSummary {
 		my $cols = @headers;
 		my $nmisLink = a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;" if (!getbool($widget));
 
+		my $urlsafegroup = uri_escape($group);
+
 		print start_table({class=>'dash', width=>'100%'});
 		print Tr(th({class=>'title',colspan=>$cols},
 				$nmisLink,
 				"Node Admin Summary$extra ",
 				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"},"All Nodes"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
 			));
 		print Tr( eval {
 			my $line;
@@ -3442,12 +3451,15 @@ sub nodeAdminSummary {
 						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
 					}
 
-					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) {
+					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) 
+					{
 						$noExceptions = 0;
+
+						my $urlsafegroup = uri_escape($LNT->{$node}->{group});
 						print Tr(
 							td({class => "info Plain"},$nodelink),
 							td({class => 'info Plain'},
-								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$LNT->{$node}{group}&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
+								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
 							),
 							td({class => 'infolft Plain'},$issues),
 							td({class => $actClass},$LNT->{$node}{active}),

@@ -197,12 +197,14 @@ foreach ( keys %{$LL} ) {
 	}
 }
 
+my $urlsafegroup = uri_escape($logGroup);
+
 # real work starts now
 ## set a default link href
 # subst node search and level when used.
 my $logLinkStart=qq|<a id="nmislogs" onclick="clickMenu(this);return false;" |.
 								 qq|href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&refresh=$logRefresh|.
-								 qq|&node=&search=&level=&lines=$logLines&sort=$logSort&widget=$widget&group=$logGroup">|;
+								 qq|&node=&search=&level=&lines=$logLines&sort=$logSort&widget=$widget&group=$urlsafegroup">|;
 my $logLinkEnd=qq|</a>|;
 
 print header($headeropts);
@@ -917,7 +919,7 @@ sub logMenuBar {
 			 		 (
 						map { my $k = $_;
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$logGroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
 								-onclick=>"clickMenu(this);return false;"},
 					 			$k
 								)
@@ -929,7 +931,7 @@ sub logMenuBar {
 						map { my $k = $_;
 									my $txtColor = logRFCColor($k);
 							a({
-								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$logGroup",
+								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
 								-onclick=>"clickMenu(this);return false;", -style=>"color:$txtColor;"},
 								$k
 							)
