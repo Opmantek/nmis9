@@ -1346,6 +1346,10 @@ sub getNodeInfo
 				# Decide on vendor name.
 				my @x = split(/\./,$NI->{system}{sysObjectID});
 				my $i = $x[6];
+				
+				if ( not $i ) {
+					$i = $NI->{system}{sysObjectID};
+				}
 
 				if ( $enterpriseTable->{$i}{Enterprise} ne "" )
 				{
