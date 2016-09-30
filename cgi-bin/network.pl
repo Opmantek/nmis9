@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: network.pl,v 8.33 2012/09/18 07:27:12 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -30,12 +28,6 @@
 #
 # *****************************************************************************
 
-#===================
-# nmisdev - 14 AUg 2011 - moved if/else to subs, and a parent sub,
-# so that a more logical coding approach can be taken
-# ===================
-
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -740,103 +732,114 @@ sub printGroup {
 # Title: Current Network Status
 # subtitle: All Groups Status
 #============================
-
 sub selectNetworkView {
 	my %args = @_;
 	my $type = $args{type};
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	#my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
-	my @h=qw(Group NodeDn Metric Reach Health);
-
-	@h=qw(Group NodeDn NodeDeg Metric Reach Health) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	my @h = (exists $C->{display_status_summary} and getbool($C->{display_status_summary})?
+					 (qw(Group NodeDn NodeDeg Metric Reach Health))
+					 : (qw(Group NodeDn Metric Reach Health)));
 
 	my $healthTitle = "All Groups Status";
 	my $healthType = "group";
 
 	logMsg("TIMING: ".$t->elapTime()." selectNetworkView healthTitle=$healthTitle healthType=$healthType") if $timing;
 
-	my $graphGroup = $group;
-	if ( $group eq "" ) { $graphGroup = "network"; }
+	my $graphGroup = $group || 'network';
 	my $colspan = @h;
 
 	print
-	start_table( {class=>"noborder" }),
+			start_table( {class=>"noborder" }),
 
-	Tr(td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>"metrics", group=>"$graphGroup", node=>"", intf=>"", width=>"600", height=>"75") )),
+			Tr(td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>"metrics", group=>"$graphGroup", node=>"", intf=>"", width=>"600", height=>"75") )),
 
-	#Tr(th({class=>"title",colspan=>'10'},"Current Network Status")),
-	# Use a subtitle when using multiple servers
-	#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
-	#Tr(th({class=>"header"},\@h));
-	start_Tr;
+			start_Tr;
 
 	print th({class=>"header",title=>"A group of nodes, and the status"},"Group");
 	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Down");
-	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Degraded") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Degraded")
+			if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 	print th({class=>"header",title=>"A single metric for the group of nodes"},"Metric");
 	print th({class=>"header",title=>"Group reachability (pingability) of the nodes"},"Reachability");
 	print th({class=>"header",title=>"The health of the group"},"Health");
 
 	print end_Tr;
 
-	if ($AU->InGroup("network") and $group eq ''){
-		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup(group => $group);
+	# no group selected? then produce the overall statistics
+	if ($AU->InGroup("network") and $group eq '')
+	{
+		getSummaryStatsbyGroup(group => undef); # fixme can that be removed or simplified or something?
 
 		my $percentDown = 0;
-		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 )
+		{
 			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 		}
 		my $classDegraded = "Normal";
 		if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 			$classDegraded = "Error";
 		}
+
 		print
-		start_Tr,
-		td(
-			{class=>"infolft $overallStatus"},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
-		);
-		#td({class=>"info $overallStatus"},"$overallStatus"),
-		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-		#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
+				start_Tr,
+				td(
+					{class=>"infolft $overallStatus"},
+					a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
+				);
 		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
-		#my @h = qw/metric reachable available health response/;
 		my @h = qw/metric reachable health/;
-		foreach my $t (@h) {
+		foreach my $t (@h)
+		{
 			my $units = $t eq 'response' ? 'ms' : '%' ;
 			my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
 			if ( $value == 100 ) { $value = 100 }
 			my $bg = "background-color:" . colorPercentHi($groupSummary->{average}{$t});
 			$bg = "background-color:" . colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}) if $t eq 'response';
+
 			print
-			start_td({class=>'info Plain',style=>"$bg"}),
-			img({src=>$C->{$icon{${t}}}}),
-			$value,
-			"$units",
-			end_td;
+					start_td({class=>'info Plain',style=>"$bg"}),
+					img({src=>$C->{$icon{${t}}}}),
+					$value,
+					"$units",
+					end_td;
 		}
 		print end_Tr;
-
 	}
 
-	foreach $group (sort keys %{$GT} ) {
-		next unless $AU->InGroup($group);
+	# now compute and print the stats for as many groups as allowed
+	my $cutoff = getbool($Q->{unlimited})? undef
+			: $C->{network_summary_maxgroups} || 30;
+
+	my @allowed = sort(grep($AU->InGroup($_), keys %{$GT}));
+	splice(@allowed, $cutoff) if (defined($cutoff) && $cutoff < @allowed);
+
+	foreach $group (@allowed)
+	{
+		# fixme: the walk should be done JUST ONCE, not N times for N groups!
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup(group => $group);
 		printGroupView($group);
-	}	# end foreach
+	}
+	if (@allowed < keys %{$GT})
+	{
+		$q->param(-name => "unlimited", -value => 'true');
+		# url with -query doesn't include newly set params :-(
+		my %fullparams = $q->Vars;
+		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
+				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
+				. "'>Click here</a> for a full view!</td></tr>";
+	}
 	print end_table;
 
-} # end sub selectNetworkView
+}
 
-sub printGroupView {
-
+sub printGroupView
+{
 	my $group = shift;
 	my $icon;
 
@@ -1007,7 +1010,7 @@ sub selectLarge {
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Customer $customer Groups")) if $customer ne "";
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Business Service $business Groups")) if $business ne "";
 
-	foreach my $group (sort keys %{$GT} ) 
+	foreach my $group (sort keys %{$GT} )
 	{
 		# test if caller wanted stats for a particular group
 		if ( $select eq "customer" ) {
@@ -3451,7 +3454,7 @@ sub nodeAdminSummary {
 						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
 					}
 
-					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) 
+					if ( not $filter or ( $filter eq "exceptions" and $exception ) )
 					{
 						$noExceptions = 0;
 

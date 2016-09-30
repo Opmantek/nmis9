@@ -170,6 +170,7 @@ my %hash = (
     'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
+		'network_summary_maxgroups' => 30,
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
     'auto_expand_more_graphs' => 'true',
 
