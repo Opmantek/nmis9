@@ -84,31 +84,34 @@
 					},
 				},
       },
-
-      'WindowsPagefile' => {
-        'graphtype' => 'WindowsPaging',
-        'threshold' => 'WindowsPaging',
-
-				'wmi' => {
-					"-common-" => {
-						query => 'select * from win32_pagefileusage',
-					},
-
-					'pageUsage' => {
-						field => 'CurrentUsage',
-						calculate => 'return $r*(1<<20);',
-					},
-					'pageTotal' => {
-						field => 'AllocatedBaseSize',
-						calculate => 'return $r*(1<<20);',
-					},
-				},
-      },
     },
   },
   'systemHealth' => {
 		'sys' =>
 		{
+      'WindowsPagefile' => {
+				'headers' => 'Name,pageTotal,pageUsage',
+        'indexed' => 'Name',
+				'wmi' => {
+					"-common-" => {
+						query => 'select * from win32_pagefileusage',
+					},
+					'Name' => {
+						field => 'Name',
+						title => 'Name'
+					},
+					'pageUsage' => {
+						field => 'CurrentUsage',
+						calculate => 'return $r*(1<<20);',
+						title => 'Usage'
+					},
+					'pageTotal' => {
+						field => 'AllocatedBaseSize',
+						calculate => 'return $r*(1<<20);',
+						title => 'Size'
+					},
+				},
+      },
       'LogicalDisk' =>
 			{
 				'headers' => 'Name,Description,FreeSpace',
@@ -139,6 +142,23 @@
 		},
 		'rrd' =>
 		{
+      'WindowsPagefile' => {
+        'graphtype' => 'WindowsPaging',
+        'threshold' => 'WindowsPaging',
+        'indexed' => 'Name',
+				'wmi' => {
+					'pageUsage' => {
+					  query => 'select * from win32_pagefileusage',
+						field => 'CurrentUsage',
+						calculate => 'return $r*(1<<20);',
+					},
+					'pageTotal' => {
+					  query => 'select * from win32_pagefileusage',
+						field => 'AllocatedBaseSize',
+						calculate => 'return $r*(1<<20);',
+					},
+				},
+      },
 			'LogicalDisk' =>
 			{
         'graphtype' => 'WindowsDisk,WindowsDiskBytes',

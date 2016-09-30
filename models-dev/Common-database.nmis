@@ -120,7 +120,7 @@
       'fanStatus' => '/health/$nodeType/$node-fanstatus-$index.rrd',
       'tempStatus' => '/health/$nodeType/$node-tempstatus-$index.rrd',
       'WindowsProcessor' => '/nodes/$node/health/WindowsProcessor.rrd',
-      'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile.rrd',
+      'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
     }
   }
