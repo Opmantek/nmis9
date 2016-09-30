@@ -345,21 +345,15 @@ sub returnTime
 	return POSIX::strftime("%H:%M:%S", localtime($time));
 }
 
-sub get_localtime {
-	my $time;
-	# pull the system timezone and then the local time
-	if ($^O =~ /win32/i) { # could add timezone code here
-		$time = scalar localtime;
-	} else {
-		# assume UNIX box - look up the timezone as well.
-		my $zone = uc((split " ", `date`)[4]);
-		if ($zone =~ /CET|CEST/) {
-			$time = returnDateStamp;
-		} else {
-			$time = (scalar localtime)." ".$zone;
-		}
-	}
-	return $time;
+# this function returns the given time (or now) ALMOST in ctime format,
+# i.e. same start but the timezone name is appended.
+# args: time, optional.
+sub get_localtime
+{
+	my ($time) = @_;
+	$time ||= time;
+
+	return POSIX::strftime("%a %b %H:%M:%S %Y %Z", localtime($time));
 }
 
 sub convertMonth {
