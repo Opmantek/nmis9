@@ -96,7 +96,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifName',
-            'title' => 'Name'
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -122,11 +122,11 @@
           },
           'Description' => {
             'oid' => 'ifDescr',
-            'title' => 'Description'
+            'title' => 'Description (ifDescr)'
           },
           'Hardware' => {
             'oid' => 'ifAlias',
-            'title' => 'Hardware'
+            'title' => 'Hardware (ifAlias)'
           },
 
           'ifLastChange' => {

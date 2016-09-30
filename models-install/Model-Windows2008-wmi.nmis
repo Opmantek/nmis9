@@ -56,219 +56,32 @@
       'interface' => {
         'common-model' => 'Windows-interface'
       },
+      'system' => {
+        'common-model' => 'Windows-system'
+      },
+      'alerts' => {
+        'common-model' => 'Windows-alerts'
+      },
       'wmi' => {
         'common-model' => 'wmi'
       }
     }
   },
-  'alerts' => {
-    'storage' => {
-      'HighDiskUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-        	'Normal' => '70',
-        	'Warning' => '75',
-        	'Minor' => '80',
-        	'Major' => '95',
-        	'Critical' => '98',
-        	'Fatal' => '99',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Disk Usage',
-        'level' => 'Warning',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
-      },
-      'HighMemoryUsage' => {
-        'type' => 'threshold-rising',
-        'threshold' => {
-        	'Normal' => '85',
-        	'Warning' => '0',
-        	'Minor' => '0',
-        	'Major' => '90',
-        	'Critical' => '95',
-        	'Fatal' => '98',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'High Memory Usage',
-        'level' => 'Warning',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
-      }
-    }
-  },
+	'systemHealth' => {
+		'sections' => 'WindowsPagefile,LogicalDisk',
+	},
+
   'system' => {
     'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008-wmi',
-
-    'rrd' => {
-      'hrwin' => {
-        'graphtype' => 'hrwinusers,hrwinproc',
-        'snmp' => {
-          'hrNumUsers' => {
-            'oid' => 'hrSystemNumUsers',
-          },
-          'hrProcesses' => {
-            'oid' => 'hrSystemProcesses',
-					},
-        },
-      },
-
-      'tcp' => {
-        'graphtype' => 'tcp-conn,tcp-segs',
-        'snmp' => {
-          'tcpActiveOpens' => {
-            'oid' => 'tcpActiveOpens',
-            'option' => 'counter,0:U'
-          },
-          'tcpPassiveOpens' => {
-            'oid' => 'tcpPassiveOpens',
-            'option' => 'counter,0:U'
-          },
-          'tcpAttemptFails' => {
-            'oid' => 'tcpAttemptFails',
-            'option' => 'counter,0:U'
-          },
-          'tcpEstabResets' => {
-            'oid' => 'tcpEstabResets',
-            'option' => 'counter,0:U'
-          },
-          'tcpCurrEstab' => {
-            'oid' => 'tcpCurrEstab',
-            'option' => 'gauge,0:U'
-          },
-          'tcpInSegs' => {
-            'oid' => 'tcpInSegs',
-            'option' => 'counter,0:U'
-          },
-          'tcpOutSegs' => {
-            'oid' => 'tcpOutSegs',
-            'option' => 'counter,0:U'
-          },
-          'tcpRetransSegs' => {
-            'oid' => 'tcpRetransSegs',
-            'option' => 'counter,0:U'
-          },
-          'tcpInErrs' => {
-            'oid' => 'tcpInErrs',
-            'option' => 'counter,0:U'
-          },
-          'tcpOutRsts' => {
-            'oid' => 'tcpOutRsts',
-            'option' => 'counter,0:U'
-          }
-        },
-      },
-
-      'mib2ip' => {
-        'graphtype' => 'ip,frag',
-        'snmp' => {
-          'ipFragFails' => {
-            'oid' => 'ipFragFails',
-            'option' => 'counter,0:U'
-          },
-          'ipInAddrErrors' => {
-            'oid' => 'ipInAddrErrors',
-            'option' => 'counter,0:U'
-          },
-          'ipOutRequests' => {
-            'oid' => 'ipOutRequests',
-            'option' => 'counter,0:U'
-          },
-          'ipFragCreates' => {
-            'oid' => 'ipFragCreates',
-            'option' => 'counter,0:U'
-          },
-          'ipInDiscards' => {
-            'oid' => 'ipInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ipInHdrErrors' => {
-            'oid' => 'ipInHdrErrors',
-            'option' => 'counter,0:U'
-          },
-          'ipInReceives' => {
-            'oid' => 'ipInReceives',
-            'option' => 'counter,0:U'
-          },
-          'ipFragOKs' => {
-            'oid' => 'ipFragOKs',
-            'option' => 'counter,0:U'
-          },
-          'ipForwDatagrams' => {
-            'oid' => 'ipForwDatagrams',
-            'option' => 'counter,0:U'
-          },
-          'ipOutDiscards' => {
-            'oid' => 'ipOutDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ipInDelivers' => {
-            'oid' => 'ipInDelivers',
-            'option' => 'counter,0:U'
-          },
-          'ipReasmFails' => {
-            'oid' => 'ipReasmFails',
-            'option' => 'counter,0:U'
-          },
-          'ipReasmOKs' => {
-            'oid' => 'ipReasmOKs',
-            'option' => 'counter,0:U'
-          },
-          'ipReasmReqds' => {
-            'oid' => 'ipReasmReqds',
-            'option' => 'counter,0:U'
-          },
-          'ipInUnknownProtos' => {
-            'oid' => 'ipInUnknownProtos',
-            'option' => 'counter,0:U'
-          }
-        }
-      }
-    },
-
+    'nodeVendor' => 'Microsoft',
 
     'sys' => {
-      'alerts' => {
-        'wmi' => {
-					'clockDeltaWin' => {
-						title => "System Clock Delta",
-						query => "select * from win32_operatingsystem",
-						field => "LocalDateTime", # 20160824173101.375199+600
-						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',
-            'alert' => {
-              'test' => '$r > 60',
-              'event' => 'System Clock Drift',
-							'unit' => 'seconds',
-              'level' => 'Critical',
-            }
-					},
-        },
-        'snmp' => {
-          'tcpCurrEstab' => {
-            'oid' => 'tcpCurrEstab',
-            'title' => 'TCP Established Sessions',
-            'alert' => {
-              'test' => '$r > 250',
-              'event' => 'High TCP Connection Count',
-							'unit' => 'connections',
-              'level' => 'Warning',
-            }
-          },
-        }
-      },
 
-
-      'standard' =>
-			{
+      'standard' => {
 			
-				'snmp' =>
-				{
+				'snmp' => {
           'sysLocation' => {
             'replace' => {
               '' => 'default',
@@ -312,8 +125,7 @@
 					},
         },
 
-				'wmi' =>
-				{
+				'wmi' => {
 					'LocalDateTime' => {
 						query => "select * from win32_operatingsystem",
 						field => "LocalDateTime", # 20160824173101.375199+600
@@ -353,8 +165,29 @@
 
       'extra' =>
 			{
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers.0',
+            'title' => 'Users'
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses.0',
+            'title' => 'Processes'
+          },
+          'hrMemorySize' => {
+            'oid' => 'hrMemorySize.0',
+            'title' => 'Memory'
+          },
+        },
 				'wmi' =>
 				{
+					# example for pulling stuff from an UNSHARED SEPARATE query
+					'bios' => {
+						title  => "Bios Name",
+						query => 'select name from win32_bios',
+						field => "Name",
+						calculate => '$r =~ s/\s*$//; return $r;',
+					},
 
 					# if we want to get multiple things from a single query
 					# actually not even required: the code runs every query it sees just once
@@ -388,94 +221,9 @@
           #  query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
           #  field => 'InterruptsPersec',
           #  option => "nosave",
-					#},
-
-					# example for pulling stuff from an UNSHARED SEPARATE query
-					'bios' => {
-						title  => "Bios Name",
-						query => 'select name from win32_bios',
-						field => "Name",
-						calculate => '$r =~ s/\s*$//; return $r;',
-					},
-					
+					#},					
 				},
-
-        'snmp' => {
-          'hrNumUsers' => {
-            'oid' => 'hrSystemNumUsers.0',
-            'title' => 'Users'
-          },
-          'hrProcesses' => {
-            'oid' => 'hrSystemProcesses.0',
-            'title' => 'Processes'
-          },
-          'hrMemorySize' => {
-            'oid' => 'hrMemorySize.0',
-            'title' => 'Memory'
-          },
-        }
-      },
-
-
-
-    },
-    'nodeVendor' => 'Microsoft'
-  },
-
-  'storage' => {
-    'sys' => {
-      'storage' => {
-        'snmp' => {
-          'hrStorageUnits' => {
-            'oid' => 'hrStorageAllocationUnits'
-          },
-          'hrStorageSize' => {
-            'oid' => 'hrStorageSize'
-          },
-          'hrStorageUsed' => {
-            'oid' => 'hrStorageUsed',
-          },
-          'hrStorageDescr' => {
-            'oid' => 'hrStorageDescr'
-          },
-          'hrStorageType' => {
-            'oid' => 'hrStorageType'
-          }
-        },
-        'indexed' => 'true'
       },
     },
-    'nocollect' => {
-      'Description' => ''
-    }
   },
-  'hrsmpcpu' => {
-    'rrd' => {
-      'hrsmpcpu' => {
-        'indexed' => 'true',
-        'graphtype' => 'hrsmpcpu',
-        'threshold' => 'hrsmpcpu',
-       }
-     }
-  },
-  'device' => {
-    'sys' => {
-      'device' => {
-        'snmp' => {
-          'hrDeviceType' => {
-            'oid' => 'hrDeviceType'
-          },
-          'hrDeviceDescr' => {
-            'oid' => 'hrDeviceDescr'
-          }
-        },
-        'indexed' => 'true'
-      }
-    }
-  },
-	"systemHealth" =>
-	{
-		'sections' => 'WindowsPagefile,LogicalDisk',
-
-	},
 );

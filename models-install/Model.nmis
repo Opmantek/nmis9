@@ -65,7 +65,7 @@
           'Windows2008' => 'Windows Version 6\.0'
         },
         '20' => {
-          'Windows2008' => 'Windows Version 6\.1'
+          'Windows2008R2' => 'Windows Version 6\.1'
         },
         '25' => {
           'Windows2012' => 'Windows Version 6\.2'
