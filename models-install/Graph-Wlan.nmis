@@ -40,18 +40,18 @@
 	'option' => {
 		'standard' => [
 			'DEF:wlanTxBytes=$database:wlanTxBytes:AVERAGE',
-                        'CDEF:WlanTxGBytes=wlanTxBytes,1048576,/'
+                        'CDEF:WlanTxGBytes=wlanTxBytes,1048576,/',
 			'LINE1:wlanTxGBytes#0000ff:WLAN TX',
 			'DEF:wlanRxBytes=$database:wlanRxBytes:AVERAGE',
-                        'CDEF:WlanRxGBytes=wlanRxBytes,1048576,/'
+                        'CDEF:WlanRxGBytes=wlanRxBytes,1048576,/',
 			'LINE1:wlanRxGBytes#047f00:WLAN RX',
 		],
 		'small' => [
 			'DEF:wlanTxBytes=$database:wlanTxBytes:AVERAGE',
-                        'CDEF:WlanTxGBytes=wlanTxBytes,1048576,/'
+                        'CDEF:WlanTxGBytes=wlanTxBytes,1048576,/',
 			'LINE1:wlanTxGBytes#0000ff:WLAN TX',
 			'DEF:wlanRxBytes=$database:wlanRxBytes:AVERAGE',
-                        'CDEF:WlanRxGBytes=wlanRxBytes,1048576,/'
+                        'CDEF:WlanRxGBytes=wlanRxBytes,1048576,/',
 			'LINE1:wlanRxGBytes#047f00:WLAN RX',
 		]
 	}
