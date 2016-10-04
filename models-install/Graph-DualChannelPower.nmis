@@ -1,0 +1,83 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERChANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Level',
+	},
+	'option' => {
+		'standard' => [
+				 'DEF:rxRemSigCh0=$database:rxSigCh0:AVERAGE',
+				 'DEF:rxSigCh0=$database:rxSigCh0:AVERAGE',
+				 'DEF:rxRemSigCh1=$database:rxSigCh1:AVERAGE',
+				 'DEF:rxSigCh1=$database:rxSigCh1:AVERAGE',
+				 
+				 'LINE2:rxSigCh0#006400:Ch0 Signal Level\\t\\t',
+				 'GPRINT:rxSigCh0:AVERAGE:Avg %6.2lf',
+				 'GPRINT:rxSigCh0:MIN:Min %6.2lf',
+				 'GPRINT:rxSigCh0:MAX:Max %6.2lf\\n',
+				 
+				 'LINE2:rxSigCh1#7FFF00:Ch1 Signal Level\\t\\t\\t',
+				 'GPRINT:rxSigCh1:AVERAGE:Avg %10.2lf',
+				 'GPRINT:rxSigCh1:MIN:Min %6.2lf',
+				 'GPRINT:rxSigCh1:MAX:Max %6.2lf\\n', 
+
+				 'LINE2:rxRemSigCh0#0000ff:Ch0 Remote Signal Level\\t\\t',
+				 'GPRINT:rxRemSigCh0:AVERAGE:Avg %10.2lf',
+				 'GPRINT:rxRemSigCh0:MIN:Min %6.2lf',
+				 'GPRINT:rxRemSigCh0:MAX:Max %6.2lf\\n',
+				 
+				 'LINE2:rxRemSigCh1#4daef6:Ch1 Signal Remote Level\\t\\t\\t',
+				 'GPRINT:rxRemSigCh1:AVERAGE:Avg %10.2lf',
+				 'GPRINT:rxRemSigCh1:MIN:Min %6.2lf',
+				 'GPRINT:rxRemSigCh1:MAX:Max %6.2lf\\n', 
+				], 
+		'small' => [ 
+				 'DEF:rxSigCh0=$database:rxSigCh0:AVERAGE',
+				 'DEF:rxRemSigCh0=$database:rxRemSigCh0:AVERAGE',
+				 'DEF:rxSigCh1=$database:rxSigCh1:AVERAGE',
+				 'DEF:rxRemSigCh1=$database:rxRemSigCh1:AVERAGE',
+				 
+				 'LINE2:rxSigCh0#006400:Ch0 Signal\\t',
+				 'LINE2:rxRemSigCh0#0000ff:Ch0 Remote Signal\\t',
+				 'GPRINT:rxSigCh0:AVERAGE:Avg %6.2lf',
+				 'GPRINT:rxRemSigCh0:AVERAGE:Avg %6.2lf',
+
+				 'LINE2:rxSigCh1#7FFF00:Ch1 Signal',
+				 'LINE2:rxRemSigCh1#4daef6:Ch1 Remote Signal',
+				 'GPRINT:rxSigCh1:AVERAGE:Avg %6.2lf',
+				 'GPRINT:rxRemSigCh1:AVERAGE:Avg %6.2lf',
+		],
+				
+	}
+);

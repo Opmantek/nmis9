@@ -73704,5 +73704,8 @@
     'Enterprise' => 'NovelSat',
     'OID' => '37576'
   },
-
+  '43356' => {
+    'Enterprise' => 'Mimosa',
+    'OID' => '43356'
+  },
 );
