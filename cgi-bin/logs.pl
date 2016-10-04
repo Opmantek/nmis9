@@ -202,7 +202,7 @@ my $urlsafegroup = uri_escape($logGroup);
 # real work starts now
 ## set a default link href
 # subst node search and level when used.
-my $logLinkStart=qq|<a id="nmislogs" onclick="clickMenu(this);return false;" |.
+my $logLinkStart=qq|<a id="nmislogs" |.
 								 qq|href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&refresh=$logRefresh|.
 								 qq|&node=&search=&level=&lines=$logLines&sort=$logSort&widget=$widget&group=$urlsafegroup">|;
 my $logLinkEnd=qq|</a>|;
@@ -285,7 +285,7 @@ sub viewLogList {
 				td({class=>'info',style=>'text-align:left'},
 								a({
 								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$LL->{$i}{logName}&widget=$widget",
-								-onclick=>"clickMenu(this);return false;"},
+},
 					 			$LL->{$i}{logName}
 								),
 					),
@@ -576,7 +576,7 @@ sub outputLine {
 			$line =~ s/$logSplit[3]/$logNodeLink/;
 
 			my $id = qq|node_view_$logNode|;
-			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
+			my $logNodeButton=qq|<a id="$id" |.
 			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
 			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
@@ -646,7 +646,7 @@ sub outputLine {
 			$line =~ s/$logSplit[3]/$logNodeLink/;
 
 			my $id = qq|node_view_$logNode|;
-			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
+			my $logNodeButton=qq|<a id="$id" |.
 			qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
 			qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 			qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
@@ -751,7 +751,7 @@ sub outputLine {
 			my $id = qq|node_view_$logNode|;
 
 			# set up the leading buttons
-			my $logNodeButton=qq|<a id="$id" onclick="clickMenu(this);return false;" |.
+			my $logNodeButton=qq|<a id="$id" |.
 												qq|href="$C->{network}?conf=$Q->{conf}&act=network_node_view|.
 												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
@@ -920,7 +920,7 @@ sub logMenuBar {
 						map { my $k = $_;
 							a({
 								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&lines=$k&level=$logLevel&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
-								-onclick=>"clickMenu(this);return false;"},
+								},
 					 			$k
 								)
 							} ('15','25','50','100','250','500','1000'  )
@@ -932,7 +932,7 @@ sub logMenuBar {
 									my $txtColor = logRFCColor($k);
 							a({
 								-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&level=$k&lines=$logLines&search=".uri_escape($logSearch)."&sort=$logSort&widget=$widget&group=$urlsafegroup",
-								-onclick=>"clickMenu(this);return false;", -style=>"color:$txtColor;"},
+								-style=>"color:$txtColor;"},
 								$k
 							)
 						} ('ALL','Fatal','Critical','Major','Minor','Warning','Error','Normal','Unknown' )
@@ -940,15 +940,14 @@ sub logMenuBar {
 				),
 				th({class=>'header', colspan=>'1', style=>'text-align:left;'},
 				a({
-					-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_summary&widget=$widget&logname=$logName",
-					-onclick=>"clickMenu(this);return false;"},
+					-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_summary&widget=$widget&logname=$logName",},
 					'Summary'),
 				),
 				# for completeness, toss in a link to the log list view.
 				th({class=>'header', colspan=>'2', style=>'text-align:left'},
 				a({
 					-href=>"$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_list_view&widget=$widget",
-					-onclick=>"clickMenu(this);return false;"},
+},
 					'Log List'),
 				),
 			),	# end_Tr,
@@ -1099,11 +1098,11 @@ sub logSummary {
 		next if $index eq "Header"; # kill the header
 ##		next unless $AU->InGroup($NT->{$index}{group});
 		print "<tr>";
-		print qq|<th class="info"><a onclick="clickMenu(this);return false;" href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$index">$index</a></th>|;
+		print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$index">$index</a></th>|;
 
    	for my $event ( sort keys %{ $logSum{"Header"} } ) {
 			my $urlsafeevent = uri_escape($event);
-			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a onclick="clickMenu(this);return false;" href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$urlsafeevent&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
+			if ( $logSum{$index}{$event} ) { print qq|<th class="info"><a href="$C->{'<cgi_url_base>'}/logs.pl?conf=$Q->{conf}&act=log_file_view&logname=$logName&widget=$widget&search=$urlsafeevent&lines=$logSum{$index}{$event}">$logSum{$index}{$event}</a></th>|;
 			}
 			else { print "<th class='info'>&nbsp;</th>";}
 		}
