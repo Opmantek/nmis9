@@ -63,7 +63,7 @@
         'common-model' => 'Windows-alerts'
       },
       'wmi' => {
-        'common-model' => 'wmi'
+        'common-model' => 'Windows-wmi'
       }
     }
   },
