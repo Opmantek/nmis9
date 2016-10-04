@@ -49,10 +49,10 @@
     },
     'type' => {
       'nmis' => '/metrics/nmis-system.rrd',
-      'kpi' => '/health/$nodeType/$node-reach.rrd',
-      'nodehealth' => '/health/$nodeType/$node-health.rrd',
+      'kpi' => '/nodes/$node/health/reach.rrd',
+      'nodehealth' => '/nodes/$node/health/health.rrd',
       'metrics' => '/metrics/$item.rrd',
-      'health' => '/health/$nodeType/$node-reach.rrd'
+      'health' => '/nodes/$node/health/reach.rrd',
     }
   },
   'models' => {
