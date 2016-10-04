@@ -1,9 +1,11 @@
 #
+## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+#
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
-#  This file is part of Network Management Information System (.NMIS.).
+#  This file is part of Network Management Information System (“NMIS”).
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -24,7 +26,7 @@
 #  
 #  User group details:
 #  http://support.opmantek.com/users/
-#    
+#  
 # *****************************************************************************
 
 %hash = (
@@ -52,8 +54,8 @@
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
-    'nodeModel' => 'MikroTik',
-    'nodeType' => 'router',
+    'nodeModel' => 'Mimosa',
+    'nodeType' => 'generic',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -93,6 +95,74 @@
       }
     },
     'rrd' => {
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
     }
   },
   'interface' => {
@@ -152,10 +222,7 @@
       'extra' => {
         'indexed' => 'true',
         'snmp' => {
-  				'ifHighSpeed' => {
-  					'oid' => 'ifHighSpeed'
-  				},
-  				'Description' => {
+          'Description' => {
             'oid' => 'ifAlias',
             'title' => 'Description'
           }
@@ -165,38 +232,7 @@
     'rrd' => {
       'interface' => {
         'indexed' => 'true',
-          'mtxrWlRtab' => {
-            'graphtype' => 'env-temp,systemvoltage,DualChannelPower,',
-            'indexed' => 'true',
-            'snmp' => {
-             
-               'systemvoltage' => {
-                 'oid' => '.1.3.6.1.4.1.14988.1.1.3.8.0',
-                 'sysObjectName' => 'systemvoltage',
-                 'option' => 'gauge,U:U',
-               },
-               'currentTemp' => {
-                 'oid' => '.1.3.6.1.4.1.14988.1.1.3.10.0',
-                 'sysObjectName' => 'currentTemp',
-                 'option' => 'gauge,U:U',
-               },
-               'procTemp' => {
-                 'oid' => '.1.3.6.1.4.1.14988.1.1.3.11.0',
-                 'sysObjectName' => 'procTemp',
-                 'option' => 'gauge,U:U',
-               },
-               'currentDraw' => {
-                 'oid' => '.1.3.6.1.4.1.14988.1.1.3.13.0',
-                 'sysObjectName' => 'currentDraw',
-                 'option' => 'gauge,0:U',
-               },
-               'pwrConsume' => {
-                 'oid' => '.1.3.6.1.4.1.14988.1.1.3.12.0',
-                 'sysObjectName' => 'pwrConsume',
-                 'option' => 'gauge,U:U',
-               },
-            },
-
+        'snmp' => {
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -245,61 +281,60 @@
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
       },
-  		'pkts_hc' => {
-  			'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts_hc,errpkts_hc',
-  			'snmp' => {
-  				'ifHCInOctets' => {
-  					'oid' => 'ifHCInOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInUcastPkts' => {
-  					'oid' => 'ifHCInUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInMcastPkts' => {
-  					'oid' => 'ifHCInMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCInBcastPkts' => {
-  					'oid' => 'ifHCInBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInDiscards' => {
-  					'oid' => 'ifInDiscards',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifInErrors' => {
-  					'oid' => 'ifInErrors',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutOctets' => {
-  					'oid' => 'ifHCOutOctets',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutUcastPkts' => {
-  					'oid' => 'ifHCOutUcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutMcastPkts' => {
-  					'oid' => 'ifHCOutMulticastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifHCOutBcastPkts' => {
-  					'oid' => 'ifHCOutBroadcastPkts',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutDiscards' => {
-  					'oid' => 'ifOutDiscards',
-  					'option' => 'counter,0:U'
-  				},
-  				'ifOutErrors' => {
-  					'oid' => 'ifOutErrors',
-  					'option' => 'counter,0:U'
-  				},
-  			}
-  		}
+      'pkts' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInNUcastPkts' => {
+            'oid' => 'ifInNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutNUcastPkts' => {
+            'oid' => 'ifOutNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+        },
+        'graphtype' => 'pkts,errpkts'
+      }
     },
     'collect' => {
       'Description' => '(CNOC|Collection)',
@@ -315,114 +350,86 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
-    }
+	  }
   },
   'systemHealth' => {
-     'sections' => 'mtxrWlAp,mtxrWlRtab',
-     'sys' => {
-      'mtxrWlAp' => {
-         'headers' => 'Frequency,SSID,linkRateRx,linkRateTx',
-         'indexed' => 'mtxrWlApIndex',
-         'index_oid' => '1.3.6.1.4.1.14988.1.1.1.3.1',
-         'index_regex' => '\.(\d+)$',
-         #'index_oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.1',
-         'snmp' => {
-            'Frequency' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.3.1.7',
-               'sysObjectID' => 'frequency',
-               'title' => 'Frequency',
-            },
-            'linkRateRx' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.3.1.3',
-               'sysObjectID' => 'linkRateRx',
-               'title' => 'Wireless Link Rate Rx',
-            },
-            'linkRateTx' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.3.1.2',
-               'sysObjectID' => 'linkRateTx',
-               'title' => 'Wireless Link Rate Tx',
-            },
-            'SSID' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.3.1.4',
-               'sysObjectID' => 'SSID',
-               'title' => 'SSID',
-            },
-            'BSSID' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.3.1.5',
-               'sysObjectID' => 'BSSID',
-               'title' => 'BSSID',
-            },
-         },
-      },
-
-      'mtxrWlRtab' => {
-         'headers' => 'OsVers,WlanUp',
-         'indexed' => 'mtxrWlRtabIface',
-         'index_oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.1',
-         'index_regex' => '14988\.1\.1\.1\.2\.1\.1\.(.+)$',
-         #'index_oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.1',
-         'snmp' => {
-            'OsVers' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.10',
-               'sysObjectID' => 'OsVers',
-               'title' => 'ROuter OS ver',
-            },
-            'WlanUp' => {
-               'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.11',
-               'sysObjectID' => 'WlanUp',
-               'title' => 'Wlan Uptime',
-            },
-         },
-      },
-    },
-    'rrd' => {
-      'mtxrWlRtab' => {
-        'graphtype' => 'DualChannelPower,LinkRate,Wlan',
-        'indexed' => 'true',
+  	'sections' => 'Chain,Stream',
+    'sys' => {
+      'Chain' => {
+        'headers' => 'index',
+        'indexed' => 'mimosaChain',
+         'index_oid' => '1.3.6.1.4.1.43356.2.1.2.6.1.1.2',
         'snmp' => {
-          'rxSigCh0' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.14',
-            'sysObjectName' => 'rxSigCH0',
-            'option' => 'gauge,U:U',
+          'index' => {
+            'title' => 'Radio num',
           },
-          'rxSigCh1' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.16',
-            'sysObjectName' => 'rxSigCh1',
-            'option' => 'gauge,U:U',
+          'mimosaTxPower' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.1.1.2',
+            'sysObjectName' => 'mimosaTxPower1',
+            'title' => 'Tx Power',
+          },       
+          'mimosaRxPower' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.1.1.3',
+            'sysObjectName' => 'mimosaRxPower',
+            'title' => 'Rx Power',
           },
-          'rxRemSigCh0' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.13',
-            'sysObjectName' => 'rxRemSigCh0',
-            'option' => 'gauge,U:U',
-          },
-          'rxRemSigCh1' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.15',
-            'sysObjectName' => 'rxRemSigCh1',
-            'option' => 'gauge,U:U',
-          },
-          'wlanTxBytes' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.4',
-            'sysObjectName' => 'wlanTxBytes',
-            'option' => 'gauge,0:U',
-          },
-          'wlanRxBytes' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.5',
-            'sysObjectName' => 'wlanRxBytes',
-            'option' => 'gauge,0:U',
-          },
-          'linkRateRx' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.9',
-            'sysObjectName' => 'rxSigCH0',
-            'option' => 'gauge,0:U',
-          },
-          'linkRateTx' => {
-            'oid' => '.1.3.6.1.4.1.14988.1.1.1.2.1.8',
-            'sysObjectName' => 'linkRateTx',
-            'option' => 'gauge,0:U',
-          },
+          
         },
       },
+      'Stream' => {
+        'indexed' => 'mimosaStream',
+        'headers' => 'index',
+        'index_oid' => '1.3.6.1.4.1.43356.2.1.2.6.2.1.2',
+        'snmp' => {
+          'mimosaTxPhy' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.2.1.2',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'mimosaTxPhy'
+          },
+          'mimosaRxPhy' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.2.1.5',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'mimosaRxPhy'
+          },
+        },  
+      },
     },
-  },
+    
+    'rrd' => {
+      'Chain' => {
+        'graphtype' => 'TxPower',
+        'indexed' => 'true',
+        'snmp' => {
+          'TxPower' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.1.1.2',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'TxPower'
+          },          
+          'RxPower' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.1.1.3',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'RxPower'
+          },        
+        },
+      },
+      'Stream' => {
+        'graphtype' => 'RxPower',
+        'indexed' => 'true',
+        'snmp' => {
+          'mimosaTxPhy' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.2.1.2',
+            'option' => 'counter,U:U',
+            'sysObjectName' => 'mimosaTxPhy1'
+          },
+          
+          'mimosaRxPhy' => {
+            'oid' => '1.3.6.1.4.1.43356.2.1.2.6.2.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'mimosaRxPhy1'
+          },
+          
+        },  
+      },
+    },
+  }
 );
-

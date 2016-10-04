@@ -1,9 +1,10 @@
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
 #  This file is part of Network Management Information System (“NMIS”).
+#  
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -25,45 +26,33 @@
 #  User group details:
 #  http://support.opmantek.com/users/
 #  
-# *****************************************************************************
+# ************************************************************************
 
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'Station Count'
 	},
 	'vlabel' => {
-		'standard' => 'Level',
+		'standard' => 'Stations'
 	},
 	'option' => {
 		'standard' => [
-				 'DEF:signal=$database:signal:AVERAGE',
-				 'DEF:snr=$database:snr:AVERAGE',
-				 
-				 'LINE2:signal#006400:Signal Level',
-				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
-				 'GPRINT:signal:MIN:Min %10.2lf',
-				 'GPRINT:signal:MAX:Max %10.2lf\\n',
-				 
-				 'LINE2:snr#7FFF00:SNR\\t\\t\\t',
-				 'GPRINT:snr:AVERAGE:Avg %10.2lf',
-				 'GPRINT:snr:MIN:Min %10.2lf',
-				 'GPRINT:snr:MAX:Max %10.2lf\\n', 
-
-			'DEF:lock=$database:rfsignalstate:AVERAGE',
-			'GPRINT:lock:AVERAGE:RF Signal Lock (0/1)\\tAvg %10.2lf\\n', 
-
-				], 
-		'small' => [ 
-				 'DEF:signal=$database:signal:AVERAGE',
-				 'DEF:snr=$database:snr:AVERAGE',
-				 
-				 'LINE2:signal#006400:Signal',
-				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
-
-				 'LINE2:snr#7FFF00:SNR',
-				 'GPRINT:snr:AVERAGE:Avg %10.2lf',
+			'DEF:StaCount=$database:StaCount:AVERAGE',
+			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
+			'LINE2:StaCount#4daef6:Visible GPS',
+			'GPRINT:StaCount:LAST:Visible GPS',
+			'LINE2:gpsSatsTracked#00cc00:Tracked GPS',
+			'GPRINT:gpsSatsTracked:LAST:Tracked GPS',
 		],
-				
+		'small' => [
+			'DEF:StaCount=$database:StaCount:AVERAGE',
+
+			'LINE2:StaCount#4daef6:Stations',
+			'GPRINT:StaCount:AVERAGE:Avg # %1.2lf',
+			'GPRINT:StaCount:LAST:Current #%1.2lf',
+			'GPRINT:StaCount:MAX:Max # %1.2lf\\n',
+
+		]
 	}
 );

@@ -1,0 +1,65 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# ************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Signal Strength'
+	},
+	'vlabel' => {
+		'standard' => 'Strength dBm'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ubntStaSignal=$database:ubntStaSignal:AVERAGE',
+			'DEF:StaLocalCINR=$database:StaLocalCINR:AVERAGE',
+			'LINE2:ubntStaSignal#4daef6:Signal Strength',
+			'GPRINT:ubntStaSignal:LAST:Current %1.2lf dBm',
+			'GPRINT:ubntStaSignal:AVERAGE:Avg. %1.2lf dBm',
+			'GPRINT:ubntStaSignal:MAX:Max %1.2lf dBm\\n',			
+			'LINE1:StaLocalCINR#00cc00:Local CINR     ',
+			'GPRINT:StaLocalCINR:LAST:Current %1.2lf dBm',
+			'GPRINT:StaLocalCINR:AVERAGE:Avg. %1.2lf dBm',
+			'GPRINT:StaLocalCINR:MAX:Max %1.2lf dBm\\n',			
+		],
+		'small' => [
+			'DEF:ubntStaSignal=$database:ubntStaSignal:AVERAGE',
+			'DEF:StaLocalCINR=$database:StaLocalCINR:AVERAGE',
+			'LINE2:ubntStaSignal#4daef6:Strength',
+		#	'GPRINT:ubntStaSignal:LAST:Current %1.0lf',
+			'GPRINT:ubntStaSignal:AVERAGE:Avg. %1.0lf',
+		#	'GPRINT:ubntStaSignal:MAX:Max %1.0lf\\n',
+			'LINE1:StaLocalCINR#00cc00:CINR    ',
+		#	'GPRINT:StaLocalCINR:LAST:Current %1.0lf',
+			'GPRINT:StaLocalCINR:AVERAGE:Avg. %1.0lfm',
+		#	'GPRINT:StaLocalCINR:MAX:Max %1.0lf\\n',			
+		]
+	}
+);

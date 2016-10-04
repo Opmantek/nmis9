@@ -1,0 +1,598 @@
+#
+#  Copyright 1999-2016 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# **************************************************************************
+# Common-database.nmis select the correct style for this file.
+#      'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
+#      'HBS' => '/nodes/$node/health/utilization-$index.rrd',
+#      'HBS-Util' => '/nodes/$node/health/hbs.rrd',
+#
+# Common-heading.nmis
+#      'RadwinHSU' => 'In/Out Transmission',
+#      'RadwinSignalStrength' => 'Wireless Strength',
+#      'Radwintemp' => 'Device Temp',
+#      'RadwinUtil' => 'HSU Utilization',
+#
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response',
+    'nodeModel' => 'RadwinWireless',
+    'nodeType' => 'generic',
+    'rrd' => {
+      'HBS-Util' => {
+       'graphtype' => 'RadwinUtil2,RadwinMill',
+    #   'indexed' => 'false',
+
+        'snmp' => {
+          'HbsUpTraffic' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.18.0',
+            'sysObjectName' => 'HbsUpTraffic',
+            'option' => 'gauge,U:U'
+          },
+         'HbsDownTraffic' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.17.0',
+            'sysObjectName' => 'HbsDownTraffic',
+            'option' => 'gauge,U:U'
+          },
+          'HbsAirUpMill' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.15.0',
+            'sysObjectName' => 'HbsAirUpMill',
+            'option' => 'gauge,U:U'
+          },
+          'HbsAirDownMill' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.16.0',
+            'sysObjectName' => 'HbsAirDownMill',
+            'option' => 'gauge,U:U'
+          },
+        }
+      },
+    },
+    'sys' => {
+      'HBS-Util' => {
+
+        'snmp' => {
+          'HbsUpTraffic' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.18.0',
+            'sysObjectName' => 'HbsUpTraffic',
+            'title' => 'HBS Traffic Up',
+          },
+         'HbsDownTraffic' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.17.0',
+            'sysObjectName' => 'HbsDownTraffic',
+            'title' => 'HBS Traffic Down',
+          },
+          'HbsAirUpMill' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.15.0',
+            'sysObjectName' => 'HbsAirUpMill',
+            'title' => 'HBS Air Up Mill',
+          },
+          'HbsAirDownMill' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.16.0',
+            'sysObjectName' => 'HbsAirDownMill',
+            'title' => 'HBS Air Down Mill',
+          },
+        }
+      },
+
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      }
+    },
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+            'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+      'pkts' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInNUcastPkts' => {
+            'oid' => 'ifInNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutNUcastPkts' => {
+            'oid' => 'ifOutNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+        },
+        'graphtype' => 'pkts,errpkts',
+      }
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'Radio Interface|sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    }
+  },
+   'systemHealth' => {
+    'sections' => 'Radwin,HBS',
+    'sys' => {
+      'Radwin' => {
+        'headers' => 'OduAirSSID,AntConf,VLANID,AirLinkCompressed,Distance,Product,OduEthernetIfAdd',
+
+        'index_oid' => '1.3.6.1.4.1.4458.1000.1.5.9.1',
+        'index_regex' => '\.(\d+)$',
+        'indexed' => 'AirRxPower',
+
+        'snmp' => {
+          'AirRxPower' => {
+            'format' => '%1.0f db',
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.9.1',
+            'sysObjectName' => 'AirRxPower',
+            'title' => 'Signal Strength'
+          },
+          'Distance' => {
+            'format' => '%1.2f Mi',
+            'calculate' => '${r}*0.000621371',
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.29',
+            'sysObjectName' => 'Distance',
+            'title' => 'Miles to AP'
+          },
+          'AntConf' => {
+            'replace' => {
+              '1' => 'Single antenna, single data stream',
+              '2' => 'Dual antenna, single data stream',
+              '3' => 'Dual antenna, dual data stream'
+            },
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.57',
+            'title' => 'Antenna Conf'
+          },
+          'VLANID' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.1.27',
+            'sysObjectName' => 'VLANID',
+            'title' => 'VLAN'
+          },
+          'OduAirSSID' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.3',
+            'sysObjectName' => 'OduAirSSID',
+            'title' => 'SSID'
+          },
+          'Product' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.1.30',
+            'sysObjectName' => 'Product',
+            'title' => 'Product'
+          },
+          'OduEthernetIfAdd' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.3.2.1.5',
+            'sysObjectName' => 'OduEthernetIfAdd',
+            'title' => 'MAC Address'
+          },
+          'AirLinkCompressed' => {
+            'format' => '%1.0f Mb',
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.70',
+            'sysObjectName' => 'AirLinkCompressed',
+            'title' => 'AggCapacity'
+          },
+        }
+     },
+    'HBS' => {
+      'headers' => 'hsuName,hsuIP,hsuLocation,linkhbsrss,linkhsurss',
+      'index_oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+      'index_regex' => '\.(\d+)$',
+      'indexed' => 'HbsAirLinkCompressedStatic',
+   
+      'snmp' => {
+        'HbsAirLinkCompressedStatic' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+          'sysObjectName' => 'HbsAirLinkCompressedStatic',
+          'title' => 'Air Interface Data'
+        },
+	'hsuIP' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+          'sysObjectName' => 'hsuIP',
+          'title' => 'IP Address',
+          'calculate' => 'my @values = split(/\,/, $r);$r =join(".", unpack "C*", pack "H*", $values[1]);'
+	},
+        'hsuName' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+          'sysObjectName' => 'hsuName',
+          'title' => 'Name',
+          'calculate' => 'my @values = split(/\,/, $r);$r = $values[2];'
+        },
+        'hsuLocation' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+          'sysObjectName' => 'hsuLocation',
+          'title' => 'Location',
+          'calculate' => 'my @values = split(/\,/, $r);$r = $values[3];'
+        },
+        'linkhbsrss' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.9',
+          'sysObjectName' => 'linkhbsrss',
+          'title' => 'HBS',
+          'format' => '%1.2f dBm'
+         },
+         'linkhsurss' => {
+          'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.11',
+          'sysObjectName' => 'linkhsurss',
+          'title' => 'HSU',
+          'format' => '%1.2f dBm'
+        },
+      }
+    },
+   },
+    'rrd' => {
+      'Radwin' => {
+       'graphtype' => 'RadwinSignalStrength,RadwinHSU,Radwintemp',
+       'indexed' => 'true',
+        'snmp' => {
+          'AirRxPower' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.5.9.1',
+            'sysObjectName' => 'AirRxPower',
+            'option' => 'gauge,U:U'
+          },
+          'TpPortInBytes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.4.4.3.1.101',
+            'sysObjectName' => 'TpPortInBytes',
+            'option' => 'counter,0:U'
+          },
+          'TpPortOutBytes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.4.4.3.1.102',
+            'sysObjectName' => 'TpPortOutBytes',
+            'option' => 'counter,0:U'
+          },
+	 'boardtemp' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.1.1.44',
+            'sysObjectName' => 'boardtemp',
+            'option' => 'gauge,U:U'
+          },
+        }
+      },
+      'HBS' => {
+       'graphtype' => 'RadwinRSSI,RadwinUtil,RadwinChain',
+       'indexed' => 'true',
+       # Enable this control to hide unused links
+       'control' => 'CVAR=HbsAirLinkCompressedStatic;$CVAR !~ /No Link/',
+      
+         'snmp' => {
+          'linkhbsrss' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.9',
+            'sysObjectName' => 'linkhbsrss',
+            'option' => 'gauge,U:U'
+          },
+          'linkhsurss' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.11',
+            'sysObjectName' => 'linkhsurss',
+            'option' => 'gauge,U:U'
+          },
+          'hsurxrateinkbps' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.26',
+            'sysObjectName' => 'hsurxrateinkbps',
+            'option' => 'gauge,0:U'
+          },
+          'hsutxrateinkbps' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.27',
+            'sysObjectName' => 'hsutxrateinkbps',
+            'option' => 'gauge,0:U'
+          },
+
+          # Throughput DOWN
+          'hbsesttput' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.6',
+            'sysObjectName' => 'hbsesttput',
+            'option' => 'gauge,U:U'
+          },
+          'maxtpdown' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.20',
+            'sysObjectName' => 'maxtpdown',
+            'option' => 'gauge,U:U'
+          },
+          'airconfdownmir' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.6.2.1.3',
+            'sysObjectName' => 'airconfdownmir',
+            'option' => 'gauge,U:U'
+          },
+
+          # Throughput UP
+          'hsuesttput' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.7',
+            'sysObjectName' => 'hsuesttput',
+            'option' => 'gauge,U:U'
+          },
+          'maxtpup' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.21',
+            'sysObjectName' => 'maxtpup',
+            'option' => 'gauge,U:U'
+          },
+          'airconfupmir' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.6.2.1.2',
+            'sysObjectName' => 'airconfupmir',
+            'option' => 'gauge,U:U'
+          },
+
+          # OTHER
+          'cpecapacitylimit' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.24',
+            'sysObjectName' => 'cpecapacitylimit',
+            'option' => 'gauge,0:U'
+          },
+          'hsurxrate' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.26',
+            'sysObjectName' => 'hsurxrate',
+            'option' => 'gauge,0:U'
+          },
+          'hsutxrate' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.27',
+            'sysObjectName' => 'hsutxrate',           
+            'option' => 'gauge,0:U'
+          },
+          'hsuinbytes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.15',
+            'sysObjectName' => 'hsuinbytes',
+            'calculate' => '$r = unpack("I", pack("i", $r))',
+            'option' => 'gauge,U:U'
+          },
+          'hsuoutbytes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.16',
+            'sysObjectName' => 'hsuoutbytes',
+            'calculate' => '$r = unpack("I", pack("i", $r))',
+            'option' => 'gauge,U:U'
+          },
+          'hsuinframes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.17',
+            'sysObjectName' => 'hsuinframes',
+            'calculate' => '$r = unpack("I", pack("i", $r))',
+            'option' => 'gauge,U:U'
+          },
+          'hsuoutframes' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.18',
+            'sysObjectName' => 'hsuoutframes',
+            'calculate' => '$r = unpack("I", pack("i", $r))',
+            'option' => 'gauge,U:U'
+          },
+          'hbs_chain1' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hbs_chain1',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 126, 2))));',
+            'option' => 'gauge,U:U'
+          },
+          'hbs_chain2' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hbs_chain2',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 128, 2))));',
+            'option' => 'gauge,U:U'
+          },
+          'hbs_chain3' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hbs_chain3',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 130, 2))));',
+            'option' => 'gauge,U:U'
+          },
+          'hsu_chain1' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hsu_chain1',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 132, 2))));',
+            'option' => 'gauge,U:U'
+          },
+          'hsu_chain2' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hsu_chain2',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 134, 2))));',
+            'option' => 'gauge,U:U'
+          },
+          'hsu_chain3' => {
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.22',
+            'sysObjectName' => 'hsu_chain3',
+            'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 136, 2))));',
+            'option' => 'gauge,U:U'
+          },
+        }
+      }
+    }
+  }
+);

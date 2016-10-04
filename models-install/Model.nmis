@@ -531,6 +531,27 @@
         }
       }
     },
+    'Radwin Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadwinWireless' => 'Wireless Link'
+        }
+      }
+    },  
+    'ALCOMA, Ltd' => {
+      'order' => {
+        '10' => {
+          'Alcoma' => 'ALCOMA IP-Stack'
+        }
+      }
+    },
+    'Trango Systems, Inc.' => {
+      'order' => {
+        '10' => {
+          'Trango' => 'Apex Lynx-2.0.1'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

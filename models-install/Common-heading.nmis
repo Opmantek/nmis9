@@ -188,6 +188,21 @@
       'WindowsPaging' => 'Windows Pagefile Stats',
       'WindowsDisk' => 'Windows Logical Disk Stats',
 			'WindowsProcessor' => 'Windows Processor Stats',
+      'RadwinHSU' => 'In/Out Transmission',
+      'RadwinSignalStrength' => 'Wireless Signal Strength', 
+      'Radwintemp' => 'Device Temperature',
+      'RadwinUtil' => 'Rx/Tx from HSU Lan Port',
+      'RadwinRSSI' => 'Estimated Throughput',
+      'RadwinUtil2' => 'Radwin HBS Utilization',
+      'RadwinMill' => 'Radwin Mill',
+      'RadwinErrors' => 'ifInErrors',
+      'RadwinChain' => 'RSS per Chain',
+      'StaSignal' => 'Signal Strength',
+      'AFStatus' => 'Air Fiber Status',
+      'AirMax' => 'Air Max',
+      'LinkRate' => 'Link Rate',
+      'power' => 'Signal Power',
+      'linkrate' => 'Link Rate',
     }
   }
 );

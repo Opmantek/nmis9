@@ -1,6 +1,4 @@
 #
-## $Id: Model-Default.nmis,v 8.6 2012/08/14 12:20:36 keiths Exp $
-#
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -28,13 +26,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Common-database.nmis select the correct style for this file.
-#      'mtxrWlRtab' => '/nodes/$node/health/mtxrWlRtab-$index.rrd',
-#      'mtxrWlRtab' => '/health/$nodeType/$node-mtxrWlRtab-$index.rrd',
-#
-# Common-heading.nmis
-#      'mtxrStrength' => 'Wireless Strength & Speed',
-#
 
 %hash = (
   '-common-' => {
@@ -122,7 +113,7 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name (ifDescr)'
+            'title' => 'Name'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -148,7 +139,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type (ifType)'
+            'title' => 'Type'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -264,95 +255,429 @@
       'ifType' => 'other'
 	}
   },
-  'systemHealth' => {
-    'sections' => 'mtxrWlRtab',
-    'sys' => {
-      'mtxrWlRtab' => {
-        'headers' => 'index,mtxrWlRtabStrength,mtxrWlRtabTxBytes,mtxrWlRtabRxBytes,mtxrWlRtabTxPackets,mtxrWlRtabRxPackets,mtxrWlRtabTxRate,mtxrWlRtabRxRate',
-        'index_oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
-        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',
-        'indexed' => 'mtxrWlRtabStrength',
-        'snmp' => {
-          'mtxrWlRtabStrength' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
-            'sysObjectName' => 'mtxrWlRtabStrength',
-            'title' => 'Strength'
-          },
-          'mtxrWlRtabTxBytes' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.4',
-            'sysObjectName' => 'mtxrWlRtabTxBytes',
-            'title' => 'TxBytes'
-          },
-          'mtxrWlRtabRxBytes' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.5',
-            'sysObjectName' => 'mtxrWlRtabRxBytes',
-            'title' => 'RxBytes'
-          },
-          'mtxrWlRtabTxPackets' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.6',
-            'sysObjectName' => 'mtxrWlRtabTxPackets',
-            'title' => 'TxPackets'
-          },
-          'mtxrWlRtabRxPackets' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.7',
-            'sysObjectName' => 'mtxrWlRtabRxPackets',
-            'title' => 'RxPackets'
-          },
-          'mtxrWlRtabTxRate' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.8',
-            'sysObjectName' => 'mtxrWlRtabTxRate',
-            'title' => 'TxRate'
-          },
-          'mtxrWlRtabRxRate' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.9',
-            'sysObjectName' => 'mtxrWlRtabRxRate',
-            'title' => 'RxRate'
-          },
-        }
+   'systemHealth' => {
+     #'sections' => 'radio,station,AirMax,LinkRate,AFStatus',
+     'sections' => 'station,AirMax,LinkRate,AirFiberStatistics,AFStatus',
+     'sys' => {
+      'radio' => {
+         'headers' => 'ubntRadioIndex,ubntRadioMode,ubntRadioCCode,ubntRadioFreq',
+         'indexed' => 'ubntRadioIndex',
+         'index_oid' => '1.3.6.1.4.1.41112.1.4.1.1.1',
+         'snmp' => {  
+            'ubntRadioIndex' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.1.1.1',
+               'sysObjectName' => 'ubntRadioIndex',
+               'title' => 'Radio Index',
+            },
+            'ubntRadioMode' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.1.1.2',
+               'sysObjectName' => 'ubntRadioMode',
+               'title' => 'Radio Mode',
+            },
+            'ubntRadioCCode' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.1.1.3',
+               'sysObjectName' => 'ubntRadioCCode',
+               'title' => 'Radio CCode',
+            },
+            'ubntRadioFreq' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.1.1.4',
+               'sysObjectName' => 'ubntRadioFreq',
+               'title' => 'Radio Freq',
+            },
+          }, 
+       },
+      'AirFiberConfig' => {
+         'headers' => 'airFiberConfigIndex,maxTxModRate',
+         'indexed' => 'airFiberConfigIndex',
+         'index_oid' => '1.3.6.1.4.1.41112.1.3.1.1.1',
+         'index_regex' => '\.(\d+)$',
+         'snmp' => {  
+            'airFiberConfigIndex' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.1.1.1',
+               'sysObjectName' => 'ubntRadioIndex',
+               'title' => 'Radio Index',
+            },
+            'maxTxModRate' => {
+               'replace' => {
+                   '0' => 'qPSK-SISO-1-4x',
+                   '1' => 'qPSK-SISO-1x',
+                   '2' => 'qPSK-MIMO-2x',
+                   '4' => 'qAM16-MIMO-4x',
+                   '6' => 'qAM64-MIMO-6x',
+                   '8' => 'qAM256-MIMO-8x'
+               },
+               'oid' => '1.3.6.1.4.1.41112.1.3.1.1.11',
+               'sysObjectName' => 'ubntRadioIndex',
+               'title' => 'Radio Index',
+            },
+         },
       },
-    },
-    'rrd' => {
-      'mtxrWlRtab' => {
-        'graphtype' => 'mtxrStrength',
-        'indexed' => 'true',
-        'snmp' => {
-          'mtxrWlRtabStrength' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.3',
-            'sysObjectName' => 'mtxrWlRtabStrength',
-            'option' => 'gauge,U:U'
-          },
-          'mtxrWlRtabTxBytes' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.4',
-            'sysObjectName' => 'mtxrWlRtabTxBytes',
-            'option' => 'counter,0:U'
-          },
-          'mtxrWlRtabRxBytes' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.5',
-            'sysObjectName' => 'mtxrWlRtabRxBytes',
-            'option' => 'counter,0:U'
-          },
-          'mtxrWlRtabTxPackets' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.6',
-            'sysObjectName' => 'mtxrWlRtabTxPackets',
-            'option' => 'counter,0:U'
-          },
-          'mtxrWlRtabRxPackets' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.7',
-            'sysObjectName' => 'mtxrWlRtabRxPackets',
-            'option' => 'counter,0:U'
-          },
-          'mtxrWlRtabTxRate' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.8',
-            'sysObjectName' => 'mtxrWlRtabTxRate',
-            'option' => 'gauge,0:U'
-          },
-          'mtxrWlRtabRxRate' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.9',
-            'sysObjectName' => 'mtxrWlRtabRxRate',
-            'option' => 'gauge,0:U'
-          },
-        }
+      'AirFiberStatistics' => {
+         'headers' => 'airFiberStatisticsIndex,txOctetsOK,rxOctetsOK',
+         'indexed' => 'airFiberStatisticsIndex',
+         'index_oid' => '1.3.6.1.4.1.41112.1.3.3.1.1',
+         'index_regex' => '\.(\d+)$',
+         'snmp' => {  
+            'airFiberStatisticsIndex' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.3.1.1',
+               'sysObjectName' => 'airFiberStatisticsIndex',
+               'title' => 'Index',
+            },
+            'txOctetsOK' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.3.1.6',
+               'sysObjectName' => 'txOctetsOK',
+               'title' => 'TX Capacity',
+            },
+            'rxOctetsOK' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.3.1.7',
+               'sysObjectName' => 'rxOctetsOK',
+               'title' => 'RX Capacity',
+            },
+         },
       },
-    }
-  }
+      'AFStatus' => {
+         'headers' => 'curTXModRate,maxTxModRate,remoteTXModRate',
+         'indexed' => 'AFStatIndex',
+         'index_oid' => '1.3.6.1.4.1.41112.1.3.2.1.1',
+         #'index_regex' => '\.(\d+)$',
+         'snmp' => {  
+            'AFStatIndex' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.1',
+               'sysObjectName' => 'AFStatIndex',
+               'title' => 'AF Status Index',
+            },
+            'rxCapacity' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.5',
+               'sysObjectName' => 'rxCapacity',
+               'title' => 'RX Capacity',
+            },
+            'txCapacity' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.5',
+               'sysObjectName' => 'txCapacity',
+               'title' => 'TX Capacity',
+            },
+            'rxPower0' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.11',
+               'sysObjectName' => 'rxPower0',
+               'title' => 'Signal Ch0',
+            },
+            'rxPower1' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.14',
+               'sysObjectName' => 'rxPower1',
+               'title' => 'Signal Ch1',
+            },
+            'remoteRXPower0' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.19',
+               'sysObjectName' => 'rxPower0',
+               'title' => 'Remote Signal Ch0',
+            },
+            'remoteRXPower1' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.22',
+               'sysObjectName' => 'rxPower1',
+               'title' => 'Remote Signal Ch1',
+            },
+            'curTXModRate' => {
+               'replace' => {
+                   '0' => 'qPSK-SISO-1-4x',
+                   '1' => 'qPSK-SISO-1x',
+                   '2' => 'qPSK-MIMO-2x',
+                   '4' => 'qAM16-MIMO-4x',
+                   '6' => 'qAM64-MIMO-6x',
+                   '8' => 'qAM256-MIMO-8x'
+               },
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.2',
+               'sysObjectName' => 'curTXModRate',
+               'title' => 'Curr Tx Mod Rate',
+            },
+            'maxTxModRate' => {
+               'replace' => {
+                   '0' => 'qPSK-SISO-1-4x',
+                   '1' => 'qPSK-SISO-1x',
+                   '2' => 'qPSK-MIMO-2x',
+                   '4' => 'qAM16-MIMO-4x',
+                   '6' => 'qAM64-MIMO-6x',
+                   '8' => 'qAM256-MIMO-8x'
+               },
+               'oid' => '1.3.6.1.4.1.41112.1.3.1.1.11',
+               'sysObjectName' => 'maxTxModRate',
+               'title' => 'Max Tx Mod Rate',
+            },
+            'remoteTXModRate' => {
+               'replace' => {
+                   '0' => 'qPSK-SISO-1-4x',
+                   '1' => 'qPSK-SISO-1x',
+                   '2' => 'qPSK-MIMO-2x',
+                   '4' => 'qAM16-MIMO-4x',
+                   '6' => 'qAM64-MIMO-6x',
+                   '8' => 'qAM256-MIMO-8x'
+               },
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.18',
+               'sysObjectName' => 'remoteTXModRate',
+               'title' => 'Remote Tx Mod Rate',
+            },
+            'tempenv' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.7',
+               'sysObjectName' => 'radio0TempC',
+               'title' => 'Temperture',
+            },
+            'gpsSatsVisible' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.34',
+               'sysObjectName' => 'gpsSatsVisible',
+               'title' => 'Visible GPS Sats',
+            },
+            'gpsSatsTracked' => {
+               'oid' => '1.3.6.1.4.1.41112.1.3.2.1.35',
+               'sysObjectName' => 'gpsSatsTracked',
+               'title' => 'Tracked GPS Sats',
+            },
+         },
+
+      },
+      'station' => {
+         'headers' => 'ubntStaName,ubntStaMac,ubntStaDistance',
+         'indexed' => 'ubntStaMac',
+         'index_oid' => '1.3.6.1.4.1.41112.1.4.7.1.1',
+         'index_regex' => '41112\.1\.4\.7\.1\.1\.(.+)$',
+         'snmp' => {
+            'ubntStaMac' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.1',
+               'sysObjectName' => 'ubntStaMac',
+               'calculate' => '$r =~ s/^0x//; $r = join ".", map { hex } $r =~ /../g;',
+               #'calculate' => '$r =~ s/^0x//; @bytes = unpack("C*", pack("H*", $r));$template = join(":", ("%02x") x @bytes); $r= sprintf($template, @bytes);',
+               'title' => 'Station Mac',
+            },
+            'ubntStaName' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.2',
+               'sysObjectName' => 'ubntStaName',
+               'title' => 'Station name',
+            },
+            'ubntStaSignal' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.3',
+               'sysObjectName' => 'ubntStaSignal',
+               'title' => 'Signal',
+            },
+            'ubntStaDistance' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.5',
+               'sysObjectName' => 'ubntStaDistance',
+               'title' => 'Distance',
+            },
+            'ubntStaConnTime' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.15',
+               'sysObjectName' => 'ubntStaConnTime',
+               'title' => 'Air Time',
+            },
+            'ubntStaLocalCINR' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.7.1.6',
+               'sysObjectName' => 'ubntStaLocalCINR',
+               'title' => 'CINR Local'
+            },
+          },
+      }, 
+      'AirMax' => { 
+        'headers' => 'ubntAirMaxEnabled',
+        #'headers' => 'ubntAirMaxEnabled,ubntAirMaxQuality,untAirMaxCapacity',
+        'indexed' => 'ubntAirMaxIfIndex',
+        'index_oid' => '1.3.6.1.4.1.41112.1.4.6.1.1',
+        'index_regex' => '\.(\d+)$',
+        'snmp' => {
+           'ubntAirMaxIfIndex' => {
+              'oid' => '1.3.6.1.4.1.41112.1.4.6.1.1',
+              'sysObjectName' => 'ubntAirMaxIfIndex',
+              'title' => 'AirMax IF Idx',
+            },
+           'ubntAirMaxEnabled' =>  {
+              'replace' => {
+                 '0' => 'False',
+                 '1' => 'True',
+              },
+              'oid' => '1.3.6.1.4.1.41112.1.4.6.1.2',
+              'sysObjectName' => 'ubntAirMaxEnabled',
+              'title' => 'Airmax Enabled',
+           },
+           'ubntAirMaxQuality' =>  {
+              'oid' => '1.3.6.1.4.1.41112.1.4.6.1.3',
+              'sysObjectName' => 'ubntAirMaxQuality',
+              'title' => 'Airmax Quality',
+           },
+           'ubntAirMaxCapacity' => {
+              'oid' => '1.3.6.1.4.1.41112.1.4.6.1.4',
+              'sysObjectName' => 'ubntAirMaxCapacity',
+              'title' => 'Airmax Capacity',
+           },
+         },
+       },
+       'LinkRate' => {
+        'headers' => 'ubntWlStatTxRate,ubntWlStatRxRate',
+        'index_oid' => '1.3.6.1.4.1.41112.1.4.5.1.1',
+        'index_regex' => '\.(\d+)$',
+        'indexed' => 'WlStatIndex',
+        'snmp' => {
+           'WlStatIndex' => {
+              'oid' => '1.3.6.1.4.1.41112.1.4.5.1.1',
+              'sysObjectName' => 'WlStatIndex',
+              'title' => 'WL Stat Idx',
+           },
+           'ubntWlStatTxRate' => {
+              'oid' => '1.3.6.1.4.1.41112.1.4.5.1.9',
+              'sysObjectName' => 'ubntWlStatTxRate',
+              'title' => 'Link Rate Tx',
+            },
+            'ubntWlStatRxRate' => {
+               'oid' => '1.3.6.1.4.1.41112.1.4.5.1.10',
+               'sysObjectName' => 'ubntWlStatRxRate',
+               'title' => 'Link Rate Rx',
+             },
+             'StaCount' => {
+                'oid' => '1.3.6.1.4.1.41112.1.4.5.1.15',
+                'sysObjectName' => 'StaCount',
+                'title' => 'Station Count',
+             },
+         }, 
+      },
+     },
+     'rrd' => {
+     	
+          'station' => {
+            'graphtype' => 'StaSignal',
+            'indexed' => 'true',
+            'snmp' => { 
+               'ubntStaSignal' => {
+                 'oid' => '1.3.6.1.4.1.41112.1.4.7.1.3',
+                 'sysObjectName' => 'ubntStaSignal',
+                 'option' => 'gauge,U:U', 
+               },
+               'StaLocalCINR' => {
+                  'oid' => '1.3.6.1.4.1.41112.1.4.7.1.6',
+                  'sysObjectName' => 'StaLocalCINR',
+                  'option' => 'gauge,U:U', 
+               },
+               'ubntStaConnTime' => {
+                  'oid' => '1.3.6.1.4.1.41112.1.4.7.1.15',
+                  'sysObjectName' => 'ubntStaConnTime',
+                  'option' => 'counter,0:U',
+               },
+             },
+          },
+          'AirFiberStatistics' => {
+            'graphtype' => 'Capacity',
+            'indexed' => 'true',
+             'snmp' => {  
+       #         'airFiberStatisticsIndex' => {
+       #            'oid' => '1.3.6.1.4.1.41112.1.3.3.1.1',
+       #            'sysObjectName' => 'airFiberStatisticsIndex',
+       #         },
+                'txOctetsOK' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.3.1.6',
+                   'sysObjectName' => 'txOctetsOK',
+                },
+                'rxOctetsOKIndex' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.3.1.7',
+                   'sysObjectName' => 'rxOctetsOK',
+                },
+             },
+          },
+          'AFStatus' => {
+             'graphtype' => 'GPSSats,temp',
+             'indexed' => 'true',
+             'snmp' => { 
+                'AFStatIndex' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.1',
+                   'sysObjectName' => 'AFStatIndex',
+                },
+                'rxCapacity' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.5',
+                   'sysObjectName' => 'rxCapacity',
+                   'option' => 'gauge,U:U'
+                },
+                'txCapacity' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.5',
+                   'sysObjectName' => 'txCapacity',
+                   'option' => 'gauge,U:U'
+                },
+                'rxPower0' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.11',
+                   'sysObjectName' => 'rxPower0',
+                   'option' => 'gauge,U:U'
+                },
+                'rxPower1' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.14',
+                   'sysObjectName' => 'rxPower1',
+                   'option' => 'gauge,U:U'
+                },
+                'remoteRXPower0' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.19',
+                   'sysObjectName' => 'rxPower0',
+                   'option' => 'gauge,U:U'
+                },
+                'remoteRXPower1' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.22',
+                   'sysObjectName' => 'rxPower1',
+                   'option' => 'gauge,U:U'
+                },
+                'tempenv' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.7',
+                   'sysObjectName' => 'tempenv',
+                   'option' => 'gauge,U:U'
+                },
+                'gpsSatsVisible' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.34',
+                   'sysObjectName' => 'gpsSatsVisible',
+                   'option' => 'counter,0:U'
+                },
+                'gpsSatsTracked' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.3.2.1.35',
+                   'sysObjectName' => 'gpsSatsTracked',
+                   'option' => 'counter,0:U'
+                },
+             },
+          },
+          'AirMax' => { 
+            'graphtype' => 'AirMax',
+            'indexed' => 'true',
+            'snmp' => { 
+              'ubntAirMaxIfIndex' => {
+                 'oid' => '1.3.6.1.4.1.41112.1.4.6.1.1',
+                 'sysObjectName' => 'ubntAirMaxIfIndex',
+              },
+              'ubntAirMaxQuality' =>  {
+                 'oid' => '1.3.6.1.4.1.41112.1.4.6.1.3',
+                 'sysObjectName' => 'ubntAirMaxQuality',
+                 'option' => 'gauge,0:100',
+              }, 
+              'ubntAirMaxCapacity' => {
+                 'oid' => '1.3.6.1.4.1.41112.1.4.6.1.4',
+                 'sysObjectName' => 'ubntAirMaxCapacity',
+                 'option' => 'gauge,0:U'
+              },
+            },
+          },
+          'LinkRate' => {
+            'graphtype' => 'LinkRate,StaCount',
+            'indexed' => 'true',
+            'snmp' => { 
+               'WlStatIndex' => {
+                  'oid' => '1.3.6.1.4.1.41112.1.4.5.1.1',
+                  'sysObjectName' => 'WlStatIndex',
+               },
+               'linkRateTx' => {
+                  'oid' => '1.3.6.1.4.1.41112.1.4.5.1.9',
+                  'sysObjectName' => 'linkRateTx',
+                   'option' => 'gauge,0:U'
+                },
+                'linkRateRx' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.4.5.1.10',
+                   'sysObjectName' => 'linkRateRx',
+                   'option' => 'gauge,0:U'
+                 },
+                'StaCount' => {
+                   'oid' => '1.3.6.1.4.1.41112.1.4.5.1.15',
+                   'sysObjectName' => 'StaCount',
+                   'option' => 'gauge,0:U'
+                 },
+             },
+          },
+   #}, #rrd
+   #},
+     },
+   },
 );
