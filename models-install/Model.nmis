@@ -49,7 +49,6 @@
     },
     'type' => {
       'nmis' => '/metrics/nmis-system.rrd',
-      'kpi' => '/nodes/$node/health/reach.rrd',
       'nodehealth' => '/nodes/$node/health/health.rrd',
       'metrics' => '/metrics/$item.rrd',
       'health' => '/nodes/$node/health/reach.rrd',
