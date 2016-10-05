@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.0a";
+our $VERSION = "8.6.0b";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -1011,7 +1011,8 @@ sub getLevelLogEvent {
 
 
 
-sub getSummaryStats{
+sub getSummaryStats
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $index = $args{index}; # optional
@@ -1025,7 +1026,9 @@ sub getSummaryStats{
 	my $M  = $S->mdl;
 
 	my $C = loadConfTable();
-	if (getbool($C->{server_master}) and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
+	if (getbool($C->{server_master}) and $NI->{system}{server}
+			and lc($NI->{system}{server}) ne lc($C->{server_name}))
+	{
 		# send request to remote server
 		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
 		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
@@ -1041,73 +1044,89 @@ sub getSummaryStats{
 	dbg("Start type=$type, index=$index, start=$start, end=$end");
 
 	# check if type exist in nodeInfo
-	if (!($db = $S->getDBName(graphtype=>$type,index=>$index,item=>$item))) {
-		return; # Error
+	if (!($db = $S->getDBName(graphtype=>$type,index=>$index,item=>$item)))
+	{
+		# fixme: should this be logged as error? likely not, as common-bla models set
+		# up all kinds of things that don't work everywhere...
+		#logMsg("ERROR ($S->{name}) no rrd name found for type $type, index $index, item $item");
+		return;
 	}
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$type} eq "") {
-		logMsg("ERROR, ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
+		logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
 		return;
 	}
 
-	# check if rrd file exist
-	if ( -r $db ) {
-		push @option, ("--start", "$start", "--end", "$end") ;
+	# check if rrd file exists - note that this is NOT an error if the db belongs to
+	# a section with source X but source X isn't enabled (e.g. only wmi or only snmp)
+	if (! -e $db )
+	{
+		# unfortunately the sys object here is generally NOT a live one
+		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
+		# to figure out if the right source is enabled
+		my %status = PreciseNodeStatus(system => $S);
+		# fixme unclear how to find the model's rrd section for this thing?
 
-		# escape any : chars which might be in the database name, e.g handling C: in the RPN
-		$db =~ s/:/\\:/g;
+		my $severity = "INFO";
+		logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
+					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+					 .($status{wmi_enabled}?"enabled":"disabled") );
+		return;
+	}
 
-		{
-			no strict;
-			$database = $db; # global
-			$speed = $IF->{$index}{ifSpeed} if $index ne "";
-			$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-			$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-			$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
-			$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
+	push @option, ("--start", "$start", "--end", "$end") ;
 
-			# read from Model and translate variable ($database etc.) rrd options
-			foreach my $str (@{$M->{stats}{type}{$type}}) {
-				my $s = $str;
-				$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-				if ($s =~ /ERROR/) {
-					logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
-					return; # error
-				}
-				push @option, $s;
+	# escape any : chars which might be in the database name, e.g handling C: in the RPN
+	$db =~ s/:/\\:/g;
+
+	{
+		no strict;
+		$database = $db; # global
+		$speed = $IF->{$index}{ifSpeed} if $index ne "";
+		$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+		$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+		$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
+		$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
+
+		# read from Model and translate variable ($database etc.) rrd options
+		foreach my $str (@{$M->{stats}{type}{$type}}) {
+			my $s = $str;
+			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			if ($s =~ /ERROR/) {
+				logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
+				return; # error
 			}
+			push @option, $s;
 		}
-		if (getbool($C->{debug})) {
-			foreach (@option) {
-				dbg("option=$_",2);
-			}
+	}
+	if (getbool($C->{debug})) {
+		foreach (@option) {
+			dbg("option=$_",2);
 		}
+	}
 
-		($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-		if (($ERROR = RRDs::error)) {
-			logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
-		} else {
-			##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
-			if ( scalar(@$graphret) ) {
-				map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
-				foreach my $line ( @$graphret ) {
-					my ($name,$value) = split "=", $line;
-					if ($index ne "") {
-						$summaryStats{$index}{$name} = $value; # use $index as primairy key
-					} else {
-						$summaryStats{$name} = $value;
-					}
-					dbg("name=$name, index=$index, value=$value",2);
-					##logMsg("INFO name=$name, index=$index, value=$value");
-				}
-				return \%summaryStats;
-			} else {
-				logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
-			}
-		}
+	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
+	if (($ERROR = RRDs::error)) {
+		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 	} else {
-		logMsg("ERROR ($S->{name}) database=$db does not exist or is protected for read");
+		##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
+		if ( scalar(@$graphret) ) {
+			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
+			foreach my $line ( @$graphret ) {
+				my ($name,$value) = split "=", $line;
+				if ($index ne "") {
+					$summaryStats{$index}{$name} = $value; # use $index as primairy key
+				} else {
+					$summaryStats{$name} = $value;
+				}
+				dbg("name=$name, index=$index, value=$value",2);
+				##logMsg("INFO name=$name, index=$index, value=$value");
+			}
+			return \%summaryStats;
+		} else {
+			logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
+		}
 	}
 	return;
 }
@@ -1767,7 +1786,8 @@ sub colorResponseTimeStatic {
 
 
 # fixme: az looks like this function should be reworked with
-# or ditched in favour of nodeStatus()
+# or ditched in favour of nodeStatus() and PreciseNodeStatus()
+# fixme: this also doesn't understand wmidown (properly)
 sub overallNodeStatus {
 	my %args = @_;
 	my $group = $args{group};
