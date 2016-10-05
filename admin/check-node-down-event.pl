@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: t_summary.pl,v 1.1 2012/01/06 07:09:38 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -30,11 +28,12 @@
 #
 # *****************************************************************************
 
-# Auto configure to the <nmis-base>/lib
+# this script helps to fix inconsistencies between nodes' down status
+# and node down events: if the node status doesn't line up with the event existence,
+# create a closing/clearing/up event.
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-
-# 
 use strict;
 use func;
 use NMIS;
@@ -49,10 +48,6 @@ print $t->elapTime(). " Begin\n";
 
 print $t->elapTime(). " loadConfTable\n";
 my $C = loadConfTable(conf=>$nvp{conf},debug=>"false");
-
-#my $node = "ACBH7A2";
-#checkNodeDown($node);
-
 
 my $LNT = loadLocalNodeTable();
 foreach my $node (sort keys %{$LNT}) {
@@ -69,14 +64,14 @@ sub checkNodeDown {
 
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$node,snmp=>'false');
-	
+
 	my $NI = $S->{info};
 
 	my $result = eventExist($NI->{system}{name}, $event, "") ;
 	my $nodeDownEvent = $result ? "true" : "false";
 
 	if ( $nodeDownEvent ne $NI->{system}{nodedown} ) {
-		print $t->elapTime(). " checkEvent $node $event=$nodeDownEvent nodedown=$NI->{system}{nodedown} snmpdown=$NI->{system}{snmpdown}\n";
+		print $t->elapTime(). " checkEvent $node $event=$nodeDownEvent nodedown=$NI->{system}{nodedown} snmpdown=$NI->{system}{snmpdown} wmidown=$NI->{system}{snmpdown}\n";
 		my $result = checkEvent(sys=>$S,event=>$event,level=>"Normal",element=>"",details=>"Ping failed");
 
 	}
