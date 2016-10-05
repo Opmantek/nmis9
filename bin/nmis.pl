@@ -5766,6 +5766,7 @@ sub HandleNodeDown
 										 'node' => "Node Down" );
 	my $eventname = $eventnames{$typeofdown};
 	$details ||= "$typeofdown error";
+	$details =~ s/\n+$//;					# the event log doesn't cope well with blank lines
 
 	my $eventfunc = ($goingup? \&checkEvent: \&notify);
 	&$eventfunc(sys => $S,
