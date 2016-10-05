@@ -108,6 +108,7 @@ use Exporter;
 
 
 		nodeStatus
+    PreciseNodeStatus
 
 		getSummaryStats
 		getGroupSummary
@@ -805,9 +806,9 @@ sub loadNodeSummary {
 # this is the most official reporter of node status, and should be
 # used instead of just looking at local system info nodedown
 #
-# reason: underlying events state can change asynchronously (eg. fpingd),
-# and the per-node status from the node file cannot be guaranteed to
-# be up to date if that happens.
+# reason for looking for events (instead of wmidown/snmpdown markers):
+# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+# file cannot be guaranteed to be up to date if that happens.
 sub nodeStatus {
 	my %args = @_;
 	my $NI = $args{NI};
@@ -820,18 +821,25 @@ sub nodeStatus {
 
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
+	my $wmi_down_event = "WMI Down";
 
-	# ping disabled ->  snmp state is authoritative
-	if ( getbool($NI->{system}{ping},"invert") and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if (getbool($NI->{system}{ping},"invert")
+			 and ( eventExist($NI->{system}{name}, $snmp_down, "")
+						 or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	{
 		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
 		$status = 0;
 	}
-	# ping enabled, pingable but dead snmp -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( getbool($NI->{system}{collect}) and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+	elsif ( getbool($NI->{system}{collect}) and
+					( eventExist($NI->{system}{name}, $snmp_down, "")
+						or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	{
 		$status = -1;
 	}
 	# let NMIS use the status summary calculations
@@ -850,6 +858,75 @@ sub nodeStatus {
 	}
 
 	return $status;
+}
+
+# this is a variation of nodeStatus, which doesn't say why a node is degraded
+# args: system object (doesn't have to be init'd with snmp/wmi)
+# returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
+# ping_enabled and ping_status, wmi_enabled and wmi_status
+sub PreciseNodeStatus
+{
+	my (%args) = @_;
+	my $S = $args{system};
+	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "Sys");
+
+	my $C = loadConfTable();
+
+	my $nisys = $S->ndinfo->{system};
+	my $nodename = $nisys->{name};
+
+	# reason for looking for events (instead of wmidown/snmpdown markers):
+	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+	# file cannot be guaranteed to be up to date if that happens.
+
+	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
+	# and if collect was true as well.
+	my %precise = ( overall => undef, # 1 reachable, 0 unreachable, -1 degraded
+									snmp_enabled =>  defined($nisys->{snmpdown})||0,
+									wmi_enabled => defined($nisys->{wmidown})||0,
+									ping_enabled => getbool($nisys->{ping}),
+									snmp_status => undef,
+									wmi_status => undef,
+									ping_status => undef );
+
+	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
+	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
+
+	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if (!$precise{ping_enabled}
+			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
+						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, but unpingable -> unreachable
+	elsif ( !$precise{ping_status} )
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# only applicable is collect eq true, handles SNMP Down incorrectness
+	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
+					or ($precise{snmp_enabled} and !$precise{snmp_status}) )
+	{
+		$precise{overall} = -1;
+	}
+	# let NMIS use the status summary calculations, if recently updated
+	elsif ( defined $C->{node_status_uses_status_summary}
+					and getbool($C->{node_status_uses_status_summary})
+					and defined $nisys->{status_summary}
+					and defined $nisys->{status_updated}
+					and $nisys->{status_summary} <= 99
+					and $nisys->{status_updated} > time - 500 )
+	{
+		$precise{overall} = -1;
+	}
+	else
+	{
+		$precise{overall} = 1;
+	}
+	return %precise;
 }
 
 sub logConfigEvent {
