@@ -343,7 +343,6 @@ sub loadLogFile {
 	my $readLogNum;
 	my $searchLogNum;
 
-	# get all files that match the glob '$file*'
 	# $file includes full path as configured in Logs.xxxx, or derived from default path
 	my $tac = "tac";
 	my $zcat = "zcat -q";
@@ -357,15 +356,14 @@ sub loadLogFile {
 		$tac = $C->{'os_cmd_read_file_reverse'};
 	}
 
-	# build a list of files - sorted by numeric extension
-	my	@fileList =  sort {
-		($a =~ /^$file(?:\.(\d+))?(?:\.\w+)?$/)[0] <=> ($b =~ /^$file(?:\.(\d+))?(?:\.\w+)?$/)[0]
-		||
-		($b)  cmp  ($a) }
-	<$file*>;
+	# build a list of files - but we need that sorted by age! looking at extensions doesn't work reliably
+	# because event.log.5.gz is newer than event.log.7.gz,
+	# but event.log-20160710.gz is OLDER than event.log-20160702.gz...
+	# let's get all files that match the glob '$file*'
+	my	@fileList =  sort { (stat($b))[9] <=> (stat($a))[9] } <$file*>;
 
 	foreach my $file ( @fileList ) {
-		my $readLogFile = ($file =~ /\.gz/) ? "$zcat $file | $tac" : "$tac $file" ;
+		my $readLogFile = ($file =~ /\.gz$/i) ? "$zcat $file | $tac" : "$tac $file" ;
 
 		open (DATA, "$readLogFile |") or warn returnTime." Log.pl, Cannot open the file $readLogFile $!\n";
 		while (<DATA>) {
