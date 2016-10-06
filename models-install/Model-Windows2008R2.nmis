@@ -1,0 +1,193 @@
+#
+## $Id: Model-Windows2008.nmis,v 8.5 2012/04/28 00:59:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'software' => {
+        'common-model' => 'software'
+      },
+      'interface' => {
+        'common-model' => 'Windows-interface'
+      },
+      'system' => {
+        'common-model' => 'Windows-system'
+      },
+      'alerts' => {
+        'common-model' => 'Windows-alerts'
+      },
+      'wmi' => {
+        'common-model' => 'Windows-wmi'
+      }
+    }
+  },
+	'systemHealth' => {
+		'sections' => 'WindowsPagefile,LogicalDisk',
+	},
+
+  'system' => {
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodeType' => 'server',
+    'nodeModel' => 'Windows2008R2',
+    'nodeVendor' => 'Microsoft',
+
+    'sys' => {
+
+      'standard' => {
+
+				'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime',
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime',
+					},
+        },
+
+				'wmi' => {
+					'winbuild' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "BuildNumber",
+					},
+					'winosname' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "Caption",	# note: 'field' Name is similar but gunk-infested
+					},
+					'winversion' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
+					},
+					'winsysname' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "CSName",
+					},
+					'wintime' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "LocalDateTime", # 20160824173101.375199+600
+						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+					'winboottime' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "LastBootUpTime", # 20160824173101.375199+600
+						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+
+				},
+      },
+
+      'extra' => {
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers.0',
+            'title' => 'Users'
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses.0',
+            'title' => 'Processes'
+          },
+          'hrMemorySize' => {
+            'oid' => 'hrMemorySize.0',
+            'title' => 'Memory'
+          },
+        },
+				'wmi' => {
+					'LocalDateTime' => {
+						'query' => "select * from win32_operatingsystem",
+						'field' => "LocalDateTime", # 20160824173101.375199+600
+						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); return func::returnDateStamp($r)',
+            'title' => 'System Clock',
+					},
+
+					# example for pulling stuff from an UNSHARED SEPARATE 'query'
+					'bios' => {
+						title  => "Bios Name",
+						'query' => 'select name from win32_bios',
+						'field' => "Name",
+						'calculate' => '$r =~ s/\s*$//; return $r;',
+					},
+				},
+      },
+    },
+  },
+);

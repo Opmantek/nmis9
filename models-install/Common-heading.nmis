@@ -3,7 +3,7 @@
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
-#  This file is part of Network Management Information System (NMIS).
+#  This file is part of Network Management Information System (NMIS).
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -184,7 +184,25 @@
       'fortinet-mem' => 'Memory Usage',
       'fortinet-sessions' => 'Session Count',
       'NetFlowStats' => 'NetFlow Export Stats',
-      
+			'WindowsDiskBytes' => "Windows Logical Disk Stats",
+      'WindowsPaging' => 'Windows Pagefile Stats',
+      'WindowsDisk' => 'Windows Logical Disk Stats',
+			'WindowsProcessor' => 'Windows Processor Stats',
+      'RadwinHSU' => 'In/Out Transmission',
+      'RadwinSignalStrength' => 'Wireless Signal Strength', 
+      'Radwintemp' => 'Device Temperature',
+      'RadwinUtil' => 'Rx/Tx from HSU Lan Port',
+      'RadwinRSSI' => 'Estimated Throughput',
+      'RadwinUtil2' => 'Radwin HBS Utilization',
+      'RadwinMill' => 'Radwin Mill',
+      'RadwinErrors' => 'ifInErrors',
+      'RadwinChain' => 'RSS per Chain',
+      'StaSignal' => 'Signal Strength',
+      'AFStatus' => 'Air Fiber Status',
+      'AirMax' => 'Air Max',
+      'LinkRate' => 'Link Rate',
+      'power' => 'Signal Power',
+      'linkrate' => 'Link Rate',
     }
   }
 );

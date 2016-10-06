@@ -1,0 +1,211 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'system' => {
+    'rrd' => {
+      'hrwin' => {
+        'graphtype' => 'hrwinusers,hrwinproc',
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers',
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses',
+					},
+        },
+      },
+
+      'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'snmp' => {
+          'tcpActiveOpens' => {
+            'oid' => 'tcpActiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'oid' => 'tcpPassiveOpens',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'oid' => 'tcpAttemptFails',
+            'option' => 'counter,0:U'
+          },
+          'tcpEstabResets' => {
+            'oid' => 'tcpEstabResets',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'option' => 'gauge,0:U'
+          },
+          'tcpInSegs' => {
+            'oid' => 'tcpInSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutSegs' => {
+            'oid' => 'tcpOutSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpRetransSegs' => {
+            'oid' => 'tcpRetransSegs',
+            'option' => 'counter,0:U'
+          },
+          'tcpInErrs' => {
+            'oid' => 'tcpInErrs',
+            'option' => 'counter,0:U'
+          },
+          'tcpOutRsts' => {
+            'oid' => 'tcpOutRsts',
+            'option' => 'counter,0:U'
+          }
+        },
+      },
+
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed',
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      },
+    },
+    'nocollect' => {
+      'Description' => ''
+    }
+  },
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrsmpcpu',
+        'threshold' => 'hrsmpcpu',
+       }
+     }
+  },
+  'device' => {
+    'sys' => {
+      'device' => {
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        },
+        'indexed' => 'true'
+      }
+    }
+  }
+);

@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: network.pl,v 8.33 2012/09/18 07:27:12 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -30,12 +28,6 @@
 #
 # *****************************************************************************
 
-#===================
-# nmisdev - 14 AUg 2011 - moved if/else to subs, and a parent sub,
-# so that a more logical coding approach can be taken
-# ===================
-
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -684,9 +676,11 @@ sub printGroup {
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
 
+	my $urlsafegroup = uri_escape($group);
+
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -738,108 +732,121 @@ sub printGroup {
 # Title: Current Network Status
 # subtitle: All Groups Status
 #============================
-
 sub selectNetworkView {
 	my %args = @_;
 	my $type = $args{type};
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	#my @h=qw(Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime);
-	my @h=qw(Group NodeDn Metric Reach Health);
-
-	@h=qw(Group NodeDn NodeDeg Metric Reach Health) if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	my @h = (exists $C->{display_status_summary} and getbool($C->{display_status_summary})?
+					 (qw(Group NodeDn NodeDeg Metric Reach Health))
+					 : (qw(Group NodeDn Metric Reach Health)));
 
 	my $healthTitle = "All Groups Status";
 	my $healthType = "group";
 
 	logMsg("TIMING: ".$t->elapTime()." selectNetworkView healthTitle=$healthTitle healthType=$healthType") if $timing;
 
-	my $graphGroup = $group;
-	if ( $group eq "" ) { $graphGroup = "network"; }
+	my $graphGroup = $group || 'network';
 	my $colspan = @h;
 
 	print
-	start_table( {class=>"noborder" }),
+			start_table( {class=>"noborder" }),
 
-	Tr(td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>"metrics", group=>"$graphGroup", node=>"", intf=>"", width=>"600", height=>"75") )),
+			Tr(td({class=>'image',colspan=>$colspan},htmlGraph(graphtype=>"metrics", group=>"$graphGroup", node=>"", intf=>"", width=>"600", height=>"75") )),
 
-	#Tr(th({class=>"title",colspan=>'10'},"Current Network Status")),
-	# Use a subtitle when using multiple servers
-	#Tr(th({class=>"subtitle",colspan=>'10'},"Server nmisdev, as of xxxx")),
-	#Tr(th({class=>"header"},\@h));
-	start_Tr;
+			start_Tr;
 
 	print th({class=>"header",title=>"A group of nodes, and the status"},"Group");
 	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Down");
-	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Degraded") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
+	print th({class=>"header",title=>"Number of nodes down in the group"},"Nodes Degraded")
+			if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 	print th({class=>"header",title=>"A single metric for the group of nodes"},"Metric");
 	print th({class=>"header",title=>"Group reachability (pingability) of the nodes"},"Reachability");
 	print th({class=>"header",title=>"The health of the group"},"Health");
 
 	print end_Tr;
 
-	if ($AU->InGroup("network") and $group eq ''){
-		# get all the stats and stuff the hashs
-		getSummaryStatsbyGroup(group => $group);
+	# no group selected? then produce the overall statistics
+	if ($AU->InGroup("network") and $group eq '')
+	{
+		getSummaryStatsbyGroup(group => undef); # fixme can that be removed or simplified or something?
 
 		my $percentDown = 0;
-		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
+		if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 )
+		{
 			$percentDown = int( ($groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100 );
 		}
 		my $classDegraded = "Normal";
 		if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 			$classDegraded = "Error";
 		}
+
 		print
-		start_Tr,
-		td(
-			{class=>"infolft $overallStatus"},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
-		);
-		#td({class=>"info $overallStatus"},"$overallStatus"),
-		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
-		#td({class=>'info Plain'},"$groupSummary->{average}{countup}"),
+				start_Tr,
+				td(
+					{class=>"infolft $overallStatus"},
+					a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_allgroups"},$healthTitle),
+				);
 		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 		print td({class=>"info $overallStatus"},"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}");
 		print td({class=>"info $classDegraded"},"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}") if ( exists $C->{display_status_summary} and getbool($C->{display_status_summary}));
 
-		#my @h = qw/metric reachable available health response/;
 		my @h = qw/metric reachable health/;
-		foreach my $t (@h) {
+		foreach my $t (@h)
+		{
 			my $units = $t eq 'response' ? 'ms' : '%' ;
 			my $value = $t eq 'response' ? $groupSummary->{average}{$t} : sprintf("%.1f",$groupSummary->{average}{$t});
 			if ( $value == 100 ) { $value = 100 }
 			my $bg = "background-color:" . colorPercentHi($groupSummary->{average}{$t});
 			$bg = "background-color:" . colorResponseTime($groupSummary->{average}{$t},$C->{response_time_threshold}) if $t eq 'response';
+
 			print
-			start_td({class=>'info Plain',style=>"$bg"}),
-			img({src=>$C->{$icon{${t}}}}),
-			$value,
-			"$units",
-			end_td;
+					start_td({class=>'info Plain',style=>"$bg"}),
+					img({src=>$C->{$icon{${t}}}}),
+					$value,
+					"$units",
+					end_td;
 		}
 		print end_Tr;
-
 	}
 
-	foreach $group (sort keys %{$GT} ) {
-		next unless $AU->InGroup($group);
+	# now compute and print the stats for as many groups as allowed
+	my $cutoff = getbool($Q->{unlimited})? undef
+			: $C->{network_summary_maxgroups} || 30;
+
+	my @allowed = sort(grep($AU->InGroup($_), keys %{$GT}));
+	splice(@allowed, $cutoff) if (defined($cutoff) && $cutoff < @allowed);
+
+	foreach $group (@allowed)
+	{
+		# fixme: the walk should be done JUST ONCE, not N times for N groups!
 		# get all the stats and stuff the hashs
 		getSummaryStatsbyGroup(group => $group);
 		printGroupView($group);
-	}	# end foreach
+	}
+	if (@allowed < keys %{$GT})
+	{
+		$q->param(-name => "unlimited", -value => 'true');
+		# url with -query doesn't include newly set params :-(
+		my %fullparams = $q->Vars;
+		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
+				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
+				. "'>Click here</a> for a full view!</td></tr>";
+	}
 	print end_table;
 
-} # end sub selectNetworkView
+}
 
-sub printGroupView {
-
+sub printGroupView
+{
 	my $group = shift;
 	my $icon;
 
 	my $idsafegroup = $group;
 	$idsafegroup =~ s/ /_/g;		# spaces aren't allowed in id attributes!
+
+	my $urlsafegroup = uri_escape($group);
 
 	print
 	start_Tr,
@@ -847,7 +854,7 @@ sub printGroupView {
 
 	if ($AU->InGroup($group)) {
 	# force a new window if clicked
-		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$group", id=>"network_summary_$idsafegroup"},"$group");
+		print a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_summary_group&refresh=$Q->{refresh}&widget=$widget&group=$urlsafegroup", id=>"network_summary_$idsafegroup"},"$group");
 	}
 	else {
 		print "$group";
@@ -1003,7 +1010,8 @@ sub selectLarge {
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Customer $customer Groups")) if $customer ne "";
 	print Tr(th({class=>'toptitle',colspan=>'15'},"Business Service $business Groups")) if $business ne "";
 
-	foreach my $group (sort keys %{$GT} ) {
+	foreach my $group (sort keys %{$GT} )
+	{
 		# test if caller wanted stats for a particular group
 		if ( $select eq "customer" ) {
 			next if $CT->{$customer}{groups} !~ /$group/;
@@ -1013,6 +1021,8 @@ sub selectLarge {
 		}
 
 		++$groupcount;
+
+		my $urlsafegroup = uri_escape($group);
 
 		my $printGroupHeader = 1;
 		foreach my $node (sort {uc($a) cmp uc($b)} keys %{$NT}) {
@@ -1032,7 +1042,7 @@ sub selectLarge {
 				$printGroupHeader = 0;
 				print Tr(th({class=>'title',colspan=>'15'},
 					"$group Node List and Status",
-					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
+					a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Node Admin Exceptions")
 
 					));
 				print Tr( eval {
@@ -1427,6 +1437,8 @@ sub viewNode {
 		return;
 	}
 
+	my %status = PreciseNodeStatus(system => $S);
+
 	$S->readNodeView();
 	my $V = $S->view;
 
@@ -1541,9 +1553,9 @@ EO_HTML
 				# the default title is the key name.
 				# but can I get a better title?
 				my $title = ( defined($V->{system}->{"${k}_title"}) ?
-											$V->{system}{"${k}_title"} 
+											$V->{system}{"${k}_title"}
 											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
-				
+
 				# print STDERR "DEBUG: k=$k, title=$title\n";
 
 				if ($title ne '') {
@@ -1562,7 +1574,7 @@ EO_HTML
 
 					my $value;
 					# get the value from the view if it one of the special ones, or only present there
-					if ( 
+					if (
 						$k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 						or not exists($NI->{system}{$k})
 					) {
@@ -1579,13 +1591,15 @@ EO_HTML
 					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
 					$color = colorPercentHi(0) if $color eq "red";
 
-					if ($k eq 'status') {
-						# check status from event db
-						if ( not nodeStatus(NI => $NI) ) {
+					if ($k eq 'status')
+					{
+						if ( !$status{overall} )
+						{
 							$value = "unreachable";
 							$color = "#F00";
 						}
-						elsif ( nodeStatus(NI => $NI) == -1 ) {
+						elsif ( $status{overall} == -1 )
+						{
 							$value = "degraded";
 							$color = "#FF0";
 						}
@@ -1800,6 +1814,8 @@ EO_HTML
 			@graphs = @newgraphs;
 		}
 
+		my $gotWmiCpu = 0;
+
 		foreach my $graph (@graphs) {
 			my @pr;
 			# check if database rule exists
@@ -1821,12 +1837,15 @@ EO_HTML
 			}
 			$cnt++;
 			# proces multi graphs
-			if ($graph eq 'hrsmpcpu') {
+			if ($graph eq 'hrsmpcpu' and not $gotWmiCpu) {
 				foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
 					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ] if exists $NI->{device}{$index};
 				}
 			} else {
-				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ];
+				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ] if $graph ne "hrsmpcpu";
+				if ( $M->{heading}{graphtype}{$graph} =~ /Windows Processor/ ) {
+					$gotWmiCpu = 1;
+				}
 			}
 			#### now print it
 			foreach ( @pr ) {
@@ -1874,8 +1893,8 @@ EO_HTML
 }
 
 
-sub viewInterface {
-
+sub viewInterface
+{
 	my $intf = $Q->{intf};
 
 	my $node = $Q->{node};
@@ -1894,6 +1913,7 @@ sub viewInterface {
 
 	$S->readNodeView();
 	my $V = $S->view();
+	my %status = PreciseNodeStatus(system => $S);
 
 	# order of items
 	my @order = ('ifAdminStatus','ifOperStatus','ifDescr','ifType','ifPhysAddress','Description','operAvail','totalUtil',
@@ -1909,12 +1929,19 @@ sub viewInterface {
 
 	print start_table;
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical', colspan=>'2'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, "
+								. join(", ",@causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print start_Tr;
@@ -2031,6 +2058,7 @@ sub viewAllIntf {
 
 	$S->readNodeView();
 	my $V = $S->view();
+	my %status = PreciseNodeStatus(system => $S);
 
 	# order of header
 	my @header = ('ifDescr','Description','ipAdEntAddr1','display_name',
@@ -2060,15 +2088,21 @@ sub viewAllIntf {
 	}
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
-
 	print start_table;
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning'},"Node degraded, "
+								. join(", ", @causes)
+								. ",status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
@@ -2090,9 +2124,13 @@ sub viewAllIntf {
 	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
 		next if (getbool($active) and !getbool($view{$intf}{collect}{value}));
 		print Tr(
-		eval { my @out;
-			foreach my $k (@hd){
-				my $color = ($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF';
+			eval {
+				my @out;
+
+				foreach my $k (@hd)
+				{
+					my $color = getbool($view{$intf}{collect}{value})?
+							($view{$intf}{$k}{color} ne "") ? $view{$intf}{$k}{color} : '#FFF' : "#cccccc";				# no collect gets grey background
 				push @out,td({class=>'info Plain',style=>getBGColor($color)},
 				eval { my $line;
 					$view{$intf}{$k}{value} = ($view{$intf}{$k}{value} =~ /noSuch|unknow/i) ? '' : $view{$intf}{$k}{value};
@@ -2166,6 +2204,8 @@ sub viewActivePort {
 	$S->readNodeView();
 	my $V = $S->view();
 
+	my %status = PreciseNodeStatus(system => $S);
+
 	# order of header
 	my @header = ('ifDescr','Description', 'display_name', 'ifAdminStatus','ifOperStatus','operAvail','totalUtil');
 
@@ -2173,9 +2213,9 @@ sub viewActivePort {
 	my %view;
 	my %titles;
 	my %items;
-	for my $k (keys %{$V->{interface}}) 
+	for my $k (keys %{$V->{interface}})
 	{
-		if ( $k =~ /^(\d+)_(.+)_(.+)$/ ) 
+		if ( $k =~ /^(\d+)_(.+)_(.+)$/ )
 		{
 			my ($a,$b,$c) = ($1,$2,$3);
 			$view{$a}{$b}{$c} = $V->{interface}{$k};
@@ -2199,12 +2239,19 @@ sub viewActivePort {
 
 	print start_table;
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning'},"Node degraded, "
+								. join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
@@ -2304,16 +2351,24 @@ sub viewStorage {
 		return;
 	}
 
+	my %status = PreciseNodeStatus(system => $S);
+
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} ) {
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
+								. join(", ",@causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Storage of node $NI->{system}{name}"));
@@ -2366,7 +2421,9 @@ sub viewService
 		return;
 	}
 
-	# get the current servic status for this node
+	my %status = PreciseNodeStatus(system => $S);
+
+	# get the current service status for this node
 	my %sstatus = loadServiceStatus(node => $node);
 	# structure is server -> service -> node -> data, we don't want the outer layer
 	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
@@ -2375,12 +2432,19 @@ sub viewService
 												widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
+								. join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Monitored services on node $NI->{system}{name}"));
@@ -2458,16 +2522,25 @@ sub viewServiceList {
 	$S->readNodeView();
 	my $V = $S->view();
 
+	my %status = PreciseNodeStatus(system => $S);
+
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, "
+								. join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',colspan=>'7'},"List of Services on node $NI->{system}{name}"));
@@ -2561,16 +2634,24 @@ sub viewStatus {
 	$S->readNodeView();
 	my $V = $S->view();
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	my %status = PreciseNodeStatus(system => $S);
 
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
+								.join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	my $color = colorPercentHi($NI->{system}{status_summary}) if $NI->{system}{status_summary};
@@ -2658,16 +2739,24 @@ sub viewEnvironment {
 		return;
 	}
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	my %status = PreciseNodeStatus(system => $S);
 
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
+								. join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',colspan=>'3'},"Environment of node $NI->{system}{name}"));
@@ -2708,9 +2797,11 @@ sub viewEnvironment {
 	pageEnd() if (!$wantwidget);
 }
 
-sub viewSystemHealth {
+# display a systemhealth table for one node and its (indexed) instances of that particular section/kind
+# args: section, also uses Q
+sub viewSystemHealth
+{
 	my $section = shift;
-
 	my $node = $Q->{node};
 
 	my $S = Sys::->new; # get system object
@@ -2725,6 +2816,8 @@ sub viewSystemHealth {
 		print 'You are not authorized for this request';
 		return;
 	}
+
+	my %status = PreciseNodeStatus(system => $S);
 
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
@@ -2770,12 +2863,19 @@ sub viewSystemHealth {
 			push(@cells,td({class=>'header'},"History")) if $graphtype;
 			++$colspan;
 
-			if ( not nodeStatus(NI => $NI) ) {
+			if (!$status{overall})
+			{
 				print Tr(td({class=>'Critical',colspan=>$colspan},'Node unreachable'));
 			}
-			elsif ( nodeStatus(NI => $NI) == -1 ) {
-				my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+			elsif ( $status{overall} == -1 ) # degraded, but why?
+			{
+				my @causes;
+				push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+				push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
+										. join(", ",@causes)
+										. ", status=$NI->{system}{status_summary}"));
 			}
 
 			print Tr(th({class=>'title',colspan=>$colspan},"$section of node $NI->{system}{name}"));
@@ -2847,8 +2947,8 @@ sub viewSystemHealth {
 	pageEnd() if (!$wantwidget);
 }
 
-#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-sub viewCSSGroup {
+sub viewCSSGroup
+{
 	my $node = $Q->{node};
 
 	my $S = Sys::->new; # get system object
@@ -2866,12 +2966,21 @@ sub viewCSSGroup {
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
 
-	if ( not nodeStatus(NI => $NI) ) {
+	my %status = PreciseNodeStatus(system =>  $S);
+
+	if ( !$status{overall})
+	{
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
+								. join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Groups of node $NI->{system}{name}"));
@@ -2889,8 +2998,8 @@ sub viewCSSGroup {
 	pageEnd() if (!$wantwidget);
 }
 
-#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-sub viewCSSContent {
+sub viewCSSContent
+{
 	my $node = $Q->{node};
 
 	my $S = Sys::->new; # get system object
@@ -2905,14 +3014,24 @@ sub viewCSSContent {
 		return;
 	}
 
+	my %status = PreciseNodeStatus(system => $S);
+
 	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 	print start_table({class=>'table'});
-	if ( not nodeStatus(NI => $NI) ) {
+
+	if ( !$status{overall} )
+	{
 		print Tr(td({class=>'Critical',colspan=>'3'},'Node unreachable'));
 	}
-	elsif ( nodeStatus(NI => $NI) == -1 ) {
-		my $snmpok = getbool($NI->{system}{snmpdown}) ? "SNMP Down" : "SNMP Up";
-		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, $snmpok, status=$NI->{system}{status_summary}"));
+	elsif ( $status{overall} == -1 )
+	{
+		my @causes;
+		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
+		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+
+		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
+								.join(", ", @causes)
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(td({class=>'tabletitle',colspan=>'3'},"Content of node $NI->{system}{name}"));
@@ -3216,7 +3335,8 @@ sub viewTop10 {
 # url: node_admin_summary
 # Title: Node Admin Summary
 #============================'
-sub nodeAdminSummary {
+sub nodeAdminSummary
+{
 	my %args = @_;
 
 	my $group = $Q->{group};
@@ -3236,37 +3356,40 @@ sub nodeAdminSummary {
 
 		#print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
 		my @headers = (
-					"name",
-					"group",
-					"summary",
-					"active",
-					"last collect poll",
-					"last update poll",
-					"ping (icmp)",
-					"icmp working",
-					"collect (snmp)",
-					"snmp working",
-					"community",
-					"version",
-					"nodeVendor",
-					"nodeModel",
-					"nodeType",
-					"sysObjectID",
-					"sysDescr",
-					"Int. Collect of Total",
+			"name",
+			"group",
+			"summary",
+			"active",
+			"last collect poll",
+			"last update poll",
+			"ping (icmp)",
+			"icmp working",
+			"collect (snmp/wmi)",
+			"wmi working",
+			"snmp working",
+			"community",
+			"version",
+			"nodeVendor",
+			"nodeModel",
+			"nodeType",
+			"sysObjectID",
+			"sysDescr",
+			"Int. Collect of Total",
 				);
 
 		my $extra = " for $group" if $group ne "";
 		my $cols = @headers;
 		my $nmisLink = a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;" if (!getbool($widget));
 
+		my $urlsafegroup = uri_escape($group);
+
 		print start_table({class=>'dash', width=>'100%'});
 		print Tr(th({class=>'title',colspan=>$cols},
 				$nmisLink,
 				"Node Admin Summary$extra ",
 				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&refresh=$C->{page_refresh_time}&widget=$widget"},"All Nodes"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
-				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$group&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget"},"All Information"),
+				a({style=>"color:white;",href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=exceptions"},"Only Exceptions")
 			));
 		print Tr( eval {
 			my $line;
@@ -3275,7 +3398,8 @@ sub nodeAdminSummary {
 			} return $line;
 		} );
 
-		foreach my $node (sort keys %{$LNT}) {
+		foreach my $node (sort keys %{$LNT})
+		{
 			#if ( $LNT->{$node}{active} eq "true" ) {
 			if ( 1 ) {
 				if ( $AU->InGroup($LNT->{$node}{group}) and ($group eq "" or $group eq $LNT->{$node}{group}) ) {
@@ -3307,7 +3431,7 @@ sub nodeAdminSummary {
 
 					my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 					my $lastCollectClass = "info Plain";
-	
+
 					my $lastUpdatePoll = defined $NI->{system}{lastUpdatePoll} ? returnDateStamp($NI->{system}{lastUpdatePoll}) : "N/A";
 					my $lastUpdateClass = "info Plain";
 
@@ -3316,6 +3440,9 @@ sub nodeAdminSummary {
 
 					my $snmpable = "unknown";
 					my $snmpClass = "info Plain";
+
+					my $wmiworks = "unknown";
+					my $wmiclass = "info Plain";
 
 					my $moduleClass = "info Plain";
 
@@ -3327,7 +3454,7 @@ sub nodeAdminSummary {
 						$actClass = "info Plain";
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastCollectPoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastCollectPoll} ) {
 							$lastCollectPoll = "unknown";
 							$lastCollectClass = "info Plain Minor";
@@ -3342,7 +3469,7 @@ sub nodeAdminSummary {
 
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastUpdatePoll = "N/A";
-						}	
+						}
 						elsif ( not defined $NI->{system}{lastUpdatePoll} ) {
 							$lastUpdatePoll = "unknown";
 							$lastUpdateClass = "info Plain Minor";
@@ -3370,21 +3497,38 @@ sub nodeAdminSummary {
 							push(@issueList,"Node is currently unreachable");
 						}
 
-						if ( $LNT->{$node}{collect} eq "false" ) {
-							$snmpable = "N/A";
-							$community = "N/A";
-						}
-						else {
-							$snmpable = "true";
+						# figure out what sources are enabled and which of those work/are misconfig'd etc
+						my %status = PreciseNodeStatus(system => $S);
 
-							if ( not defined $NI->{system}{snmpdown} ) {
-								$snmpable = "unknown";
-								$snmpClass = "info Plain Minor";
+						if ( !getbool($LNT->{$node}{collect}) or !$status{wmi_enabled} )
+						{
+							$wmiworks = "N/A";
+						}
+						else
+						{
+							if (!$status{wmi_status})
+							{
+								$wmiworks = "false";
+								$wmiclass = "Info Plain Major";
 								$exception = 1;
-								push(@issueList,"SNMP state is unknown");
+								push @issueList, "WMI access is currently down";
 							}
-							elsif ( $NI->{system}{snmpdown} eq "true" ) {
-								$snmpable = "false";
+							else
+							{
+								$wmiworks = "true";
+							}
+						}
+
+						if ( !getbool($LNT->{$node}{collect}) or !$status{snmp_enabled} )
+						{
+							$community = $snmpable = "N/A";
+						}
+						else
+						{
+							$snmpable = 'true';
+							if ( !$status{snmp_status} )
+							{
+								$snmpable = 'false';
 								$snmpClass = "info Plain Major";
 								$exception = 1;
 								push(@issueList,"SNMP access is currently down");
@@ -3409,7 +3553,6 @@ sub nodeAdminSummary {
 								$exception = 1;
 								push(@issueList,"Not using automatic model discovery");
 							}
-
 						}
 					}
 
@@ -3433,12 +3576,15 @@ sub nodeAdminSummary {
 						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
 					}
 
-					if ( not $filter or ( $filter eq "exceptions" and $exception ) ) {
+					if ( not $filter or ( $filter eq "exceptions" and $exception ) )
+					{
 						$noExceptions = 0;
+
+						my $urlsafegroup = uri_escape($LNT->{$node}->{group});
 						print Tr(
 							td({class => "info Plain"},$nodelink),
 							td({class => 'info Plain'},
-								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$LNT->{$node}{group}&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
+								a({href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"},$LNT->{$node}{group})
 							),
 							td({class => 'infolft Plain'},$issues),
 							td({class => $actClass},$LNT->{$node}{active}),
@@ -3449,9 +3595,14 @@ sub nodeAdminSummary {
 							td({class => $pingClass},$pingable),
 
 							td({class => 'info Plain'},$LNT->{$node}{collect}),
+
+							td({class => $wmiclass},$wmiworks),
+
+
 							td({class => $snmpClass},$snmpable),
 							td({class => $commClass},$community),
 							td({class => 'info Plain'},$LNT->{$node}{version}),
+
 
 							td({class => 'info Plain'},$NI->{system}{nodeVendor}),
 							td({class => $moduleClass},"$NI->{system}{nodeModel} ($LNT->{$node}{model})"),

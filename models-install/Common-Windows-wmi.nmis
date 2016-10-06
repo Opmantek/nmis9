@@ -1,0 +1,245 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your 'option') any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'system' => {
+    'rrd' => {
+      'WindowsProcessor' => {
+        'graphtype' => 'WindowsProcessor',
+        'threshold' => 'WindowsProcessor',
+        'wmi' => {
+          "-common-" => {
+            'query' => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+          },
+          'dpcsQueuedPersec' => {
+            'field' => 'DPCsQueuedPersec',
+            'option' => 'gauge,0:U',
+          },
+          'interruptsPersec' => {
+            'field' => 'InterruptsPersec',
+            'option' => 'gauge,0:U',
+          },
+          'percentDpc' => {
+            'field' => 'PercentDPCTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentIdle' =>{
+            'field' => 'PercentIdleTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentInterrupt' => {
+            'field' => 'PercentInterruptTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentPrivileged' => {
+            'field' => 'PercentPrivilegedTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentProcessor' => {
+            'field' => 'PercentProcessorTime',
+            'option' => 'gauge,0:U',
+          },
+          'percentUser' => {
+            'field' => 'PercentUserTime',
+            'option' => 'gauge,0:U',
+          },
+        },
+      },
+    },
+  },
+  'systemHealth' => {
+    'sys' => {
+      'WindowsPagefile' => {
+        'headers' => 'Name,pageTotal,pageUsage',
+        'indexed' => 'Name',
+        'wmi' => {
+          "-common-" => {
+            'query' => 'select * from win32_pagefileusage',
+          },
+          'Name' => {
+            'field' => 'Name',
+            'title' => 'Name'
+          },
+          'pageUsage' => {
+            'field' => 'CurrentUsage',
+            'calculate' => 'return $r*(1<<20);',
+            'title' => 'Usage'
+          },
+          'pageTotal' => {
+            'field' => 'AllocatedBaseSize',
+            'calculate' => 'return $r*(1<<20);',
+            'title' => 'Size'
+          },
+        },
+      },
+      'LogicalDisk' => {
+        'headers' => 'Name,Description,FreeSpace',
+        'indexed' => 'Name',
+      	'wmi' => {
+          'Name' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Name',
+            'title' => 'name of the disk device',
+          },
+          'Description' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Description',
+            'title' => 'optional description of the disk device',
+          },
+          'FreeSpace' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'FreeMegabytes',
+            'title' => 'free space in bytes of the disk device',
+            'calculate' => 'return $r * (1<<20);',
+          },
+        },
+      },
+    },
+    'rrd' => {
+      'WindowsPagefile' => {
+        'graphtype' => 'WindowsPaging',
+        'threshold' => 'WindowsPaging',
+        'indexed' => 'Name',
+        'wmi' => {
+          'pageUsage' => {
+            'query' => 'select * from win32_pagefileusage',
+            'field' => 'CurrentUsage',
+            'calculate' => 'return $r*(1<<20);',
+          },
+          'pageTotal' => {
+            'query' => 'select * from win32_pagefileusage',
+            'field' => 'AllocatedBaseSize',
+            'calculate' => 'return $r*(1<<20);',
+          },
+        },
+      },
+      'LogicalDisk' =>
+      {
+        'graphtype' => 'WindowsDisk,WindowsDiskBytes',
+        'indexed' => 'Name', # for wmi the index 'field' name MUST be given and the same as in the sys section
+        'threshold' => 'DiskQueueLength',
+
+      	'wmi' => {
+          'AvgDiskReadQLen' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'AvgDiskReadQueueLength',
+            'title' => 'Average Disk Read Queue Length',
+            'calculate' => 'CVAR1=Frequency_PerfTime; sprintf("%.3f",$r / $CVAR1) * 1000;',            
+            'option' => 'counter,U:U'
+          },
+          'AvgDiskWriteQLen' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'AvgDiskWriteQueueLength',
+            'title' => 'Average Disk Write Queue Length',
+            'calculate' => 'CVAR1=Frequency_PerfTime; sprintf("%.3f",$r / $CVAR1) * 1000;',            
+            'option' => 'counter,U:U'
+          },
+          'Frequency_PerfTime' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'Frequency_PerfTime',
+            'option' => 'nosave',
+          },
+
+          'DiskWritesPersec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskWritesPersec',
+            'title' => 'Disk Writes per Second',
+            'option' => 'counter,U:U'
+          },
+          'DiskReadsPersec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskReadsPersec',
+            'title' => 'Disk Reads per Second',
+            'option' => 'counter,U:U'
+          },
+
+          'DiskReadBytesSec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskReadBytesPersec',
+            'title' => 'Disk Read Bytes per Second',
+            'option' => 'counter,U:U'
+          },
+          'DiskWriteBytesSec' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'DiskWriteBytesPersec',
+            'title' => 'Disk Write Bytes per Second',
+            'option' => 'counter,U:U'
+          },
+
+          'PercentFreeSpace' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'PercentFreeSpace',
+            'title' => 'Percent Free Space',
+            'calculate' => 'CVAR1=PercentFreeSpaceB; return sprintf("%.3f",$r / $CVAR1 * 100);',
+            'option' => 'gauge,U:U'
+          },
+          'PercentFreeSpaceB' => {
+            'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+            'field' => 'PercentFreeSpace_Base',
+            'option' => 'nosave',
+          },
+          
+          #'PerDiskReadTime' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskReadTime',
+          #  'title' => 'Percent Disk Read Time',
+          #  'calculate' => 'CVAR1=PerDiskReadTimeB; sprintf("%.3f",$r / $CVAR1 * 100);',
+          #  'option' => 'gauge,U:U'
+          #},
+          #'PerDiskReadTimeB' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskReadTime_Base',
+          #  'option' => 'nosave',
+          #},
+          #
+          #'PerDiskWriteTime' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskWriteTime',
+          #  'title' => 'Percent Disk Write Time',
+          #  'calculate' => 'CVAR1=PerDiskWriteTimeB; sprintf("%.3f",$r / $CVAR1 * 100);',
+          #  'option' => 'gauge,U:U'
+          #},
+          #'PerDiskWriteTimeB' =>
+          #{
+          #  'query' => 'select * from Win32_PerfRawData_PerfDisk_LogicalDisk',
+          #  'field' => 'PercentDiskWriteTime_Base',
+          #  'option' => 'nosave',
+          #},
+          #
+
+        },
+      },
+    },
+  }
+);

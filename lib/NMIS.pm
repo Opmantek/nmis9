@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.0a";
+our $VERSION = "8.6.0b";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -108,6 +108,7 @@ use Exporter;
 
 
 		nodeStatus
+    PreciseNodeStatus
 
 		getSummaryStats
 		getGroupSummary
@@ -449,7 +450,6 @@ sub loadCfgTable {
 				{ 'os_cmd_read_file_reverse' => { display => 'text', value => ['tac']}},
 				{ 'os_cmd_file_decompress' => { display => 'text', value => ['gzip -d -c']}},
 				{ 'os_kernelname' => { display => 'text', value => ['']}},
-				{ 'os_username' => { display => 'text', value => ['nmis']}},
 				{ 'os_fileperm' => { display => 'text', value => ['0775']}},
 				{ 'report_files_max' => { display => 'text', value => ['60']}},
 				{ 'loc_sysLoc_format' => { display => 'text', value => ['']}},
@@ -806,9 +806,9 @@ sub loadNodeSummary {
 # this is the most official reporter of node status, and should be
 # used instead of just looking at local system info nodedown
 #
-# reason: underlying events state can change asynchronously (eg. fpingd),
-# and the per-node status from the node file cannot be guaranteed to
-# be up to date if that happens.
+# reason for looking for events (instead of wmidown/snmpdown markers):
+# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+# file cannot be guaranteed to be up to date if that happens.
 sub nodeStatus {
 	my %args = @_;
 	my $NI = $args{NI};
@@ -821,18 +821,25 @@ sub nodeStatus {
 
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
+	my $wmi_down_event = "WMI Down";
 
-	# ping disabled ->  snmp state is authoritative
-	if ( getbool($NI->{system}{ping},"invert") and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if (getbool($NI->{system}{ping},"invert")
+			 and ( eventExist($NI->{system}{name}, $snmp_down, "")
+						 or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	{
 		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
 		$status = 0;
 	}
-	# ping enabled, pingable but dead snmp -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( getbool($NI->{system}{collect}) and eventExist($NI->{system}{name}, $snmp_down, "") ) {
+	elsif ( getbool($NI->{system}{collect}) and
+					( eventExist($NI->{system}{name}, $snmp_down, "")
+						or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	{
 		$status = -1;
 	}
 	# let NMIS use the status summary calculations
@@ -851,6 +858,75 @@ sub nodeStatus {
 	}
 
 	return $status;
+}
+
+# this is a variation of nodeStatus, which doesn't say why a node is degraded
+# args: system object (doesn't have to be init'd with snmp/wmi)
+# returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
+# ping_enabled and ping_status, wmi_enabled and wmi_status
+sub PreciseNodeStatus
+{
+	my (%args) = @_;
+	my $S = $args{system};
+	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "Sys");
+
+	my $C = loadConfTable();
+
+	my $nisys = $S->ndinfo->{system};
+	my $nodename = $nisys->{name};
+
+	# reason for looking for events (instead of wmidown/snmpdown markers):
+	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
+	# file cannot be guaranteed to be up to date if that happens.
+
+	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
+	# and if collect was true as well.
+	my %precise = ( overall => undef, # 1 reachable, 0 unreachable, -1 degraded
+									snmp_enabled =>  defined($nisys->{snmpdown})||0,
+									wmi_enabled => defined($nisys->{wmidown})||0,
+									ping_enabled => getbool($nisys->{ping}),
+									snmp_status => undef,
+									wmi_status => undef,
+									ping_status => undef );
+
+	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
+	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
+
+	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
+	if (!$precise{ping_enabled}
+			and ( ($precise{wmi_enabled} and !$precise{wmi_status})
+						or ($precise{snmp_enabled} and !$precise{snmp_status}) ))
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, but unpingable -> unreachable
+	elsif ( !$precise{ping_status} )
+	{
+		$precise{overall} = 0;
+	}
+	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# only applicable is collect eq true, handles SNMP Down incorrectness
+	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
+					or ($precise{snmp_enabled} and !$precise{snmp_status}) )
+	{
+		$precise{overall} = -1;
+	}
+	# let NMIS use the status summary calculations, if recently updated
+	elsif ( defined $C->{node_status_uses_status_summary}
+					and getbool($C->{node_status_uses_status_summary})
+					and defined $nisys->{status_summary}
+					and defined $nisys->{status_updated}
+					and $nisys->{status_summary} <= 99
+					and $nisys->{status_updated} > time - 500 )
+	{
+		$precise{overall} = -1;
+	}
+	else
+	{
+		$precise{overall} = 1;
+	}
+	return %precise;
 }
 
 sub logConfigEvent {
@@ -935,7 +1011,8 @@ sub getLevelLogEvent {
 
 
 
-sub getSummaryStats{
+sub getSummaryStats
+{
 	my %args = @_;
 	my $type = $args{type};
 	my $index = $args{index}; # optional
@@ -949,7 +1026,9 @@ sub getSummaryStats{
 	my $M  = $S->mdl;
 
 	my $C = loadConfTable();
-	if (getbool($C->{server_master}) and $NI->{system}{server} and lc($NI->{system}{server}) ne lc($C->{server_name})) {
+	if (getbool($C->{server_master}) and $NI->{system}{server}
+			and lc($NI->{system}{server}) ne lc($C->{server_name}))
+	{
 		# send request to remote server
 		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
 		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
@@ -965,70 +1044,89 @@ sub getSummaryStats{
 	dbg("Start type=$type, index=$index, start=$start, end=$end");
 
 	# check if type exist in nodeInfo
-	if (!($db = $S->getDBName(graphtype=>$type,index=>$index,item=>$item))) {
-		return; # Error
+	if (!($db = $S->getDBName(graphtype=>$type,index=>$index,item=>$item)))
+	{
+		# fixme: should this be logged as error? likely not, as common-bla models set
+		# up all kinds of things that don't work everywhere...
+		#logMsg("ERROR ($S->{name}) no rrd name found for type $type, index $index, item $item");
+		return;
 	}
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$type} eq "") {
-		logMsg("ERROR, ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
+		logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
 		return;
 	}
 
-	# check if rrd file exist
-	if ( -r $db ) {
-		push @option, ("--start", "$start", "--end", "$end") ;
+	# check if rrd file exists - note that this is NOT an error if the db belongs to
+	# a section with source X but source X isn't enabled (e.g. only wmi or only snmp)
+	if (! -e $db )
+	{
+		# unfortunately the sys object here is generally NOT a live one
+		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
+		# to figure out if the right source is enabled
+		my %status = PreciseNodeStatus(system => $S);
+		# fixme unclear how to find the model's rrd section for this thing?
 
-		{
-			no strict;
-			$database = $db; # global
-			$speed = $IF->{$index}{ifSpeed} if $index ne "";
-			$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-			$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-			$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
-			$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
+		my $severity = "INFO";
+		logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
+					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+					 .($status{wmi_enabled}?"enabled":"disabled") );
+		return;
+	}
 
-			# read from Model and translate variable ($database etc.) rrd options
-			foreach my $str (@{$M->{stats}{type}{$type}}) {
-				my $s = $str;
-				$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-				if ($s =~ /ERROR/) {
-					logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
-					return; # error
-				}
-				push @option, $s;
-			}
-		}
-		if (getbool($C->{debug})) {
-			foreach (@option) {
-				dbg("option=$_",2);
-			}
-		}
+	push @option, ("--start", "$start", "--end", "$end") ;
 
-		($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-		if (($ERROR = RRDs::error)) {
-			logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
-		} else {
-			##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
-			if ( scalar(@$graphret) ) {
-				map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
-				foreach my $line ( @$graphret ) {
-					my ($name,$value) = split "=", $line;
-					if ($index ne "") {
-						$summaryStats{$index}{$name} = $value; # use $index as primairy key
-					} else {
-						$summaryStats{$name} = $value;
-					}
-					dbg("name=$name, index=$index, value=$value",2);
-					##logMsg("INFO name=$name, index=$index, value=$value");
-				}
-				return \%summaryStats;
-			} else {
-				logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
+	# escape any : chars which might be in the database name, e.g handling C: in the RPN
+	$db =~ s/:/\\:/g;
+
+	{
+		no strict;
+		$database = $db; # global
+		$speed = $IF->{$index}{ifSpeed} if $index ne "";
+		$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+		$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
+		$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
+		$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
+
+		# read from Model and translate variable ($database etc.) rrd options
+		foreach my $str (@{$M->{stats}{type}{$type}}) {
+			my $s = $str;
+			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			if ($s =~ /ERROR/) {
+				logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
+				return; # error
 			}
+			push @option, $s;
 		}
+	}
+	if (getbool($C->{debug})) {
+		foreach (@option) {
+			dbg("option=$_",2);
+		}
+	}
+
+	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
+	if (($ERROR = RRDs::error)) {
+		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 	} else {
-		logMsg("ERROR ($S->{name}) database=$db does not exist or is protected for read");
+		##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
+		if ( scalar(@$graphret) ) {
+			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
+			foreach my $line ( @$graphret ) {
+				my ($name,$value) = split "=", $line;
+				if ($index ne "") {
+					$summaryStats{$index}{$name} = $value; # use $index as primairy key
+				} else {
+					$summaryStats{$name} = $value;
+				}
+				dbg("name=$name, index=$index, value=$value",2);
+				##logMsg("INFO name=$name, index=$index, value=$value");
+			}
+			return \%summaryStats;
+		} else {
+			logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
+		}
 	}
 	return;
 }
@@ -1688,7 +1786,8 @@ sub colorResponseTimeStatic {
 
 
 # fixme: az looks like this function should be reworked with
-# or ditched in favour of nodeStatus()
+# or ditched in favour of nodeStatus() and PreciseNodeStatus()
+# fixme: this also doesn't understand wmidown (properly)
 sub overallNodeStatus {
 	my %args = @_;
 	my $group = $args{group};
@@ -2284,18 +2383,19 @@ sub htmlGraph {
 	my $win_height = $C->{win_height};
 
 	my $urlsafenode = uri_escape($node);
+	my $urlsafegroup = uri_escape($group);
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$group&intf=$intf&server=$server&node=$urlsafenode";
+	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$intf&server=$server&node=$urlsafenode";
 
 
 	if( getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
 	}
 	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$group&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
@@ -3059,7 +3159,8 @@ sub loadServiceStatus
 																			and $ST->{$wantservice}
 																			and $C->{server_name} eq $wantserver)));
 	}
-	# otherwise read them all...
+	# otherwise read them all...BUT make sure that older files with legacy names
+	# do not overwrite the correct new material!
 	else
 	{
 		if (!opendir(D, $statusdir))
@@ -3088,11 +3189,24 @@ sub loadServiceStatus
 			next;
 		}
 
-		# sanity-check: files could be orphaned (ie. deleted node, or deleted service, or no
-		# longer listed with the node, or not from this server - all ignored if only_known is false
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
 		my $thisserver = $sdata->{server} || $C->{server_name};
+
+		# sanity check 1: if we have data for this service already, only accept this
+		# if its last_run is strictly newer
+		if (ref($result{$thisserver}) eq "HASH"
+				&& ref($result{$thisserver}->{$thisservice}) eq "HASH" 
+				&& ref($result{$thisserver}->{$thisservice}->{$thisnode}) eq "HASH"
+				&& $sdata->{last_run} <= $result{$thisserver}->{$thisservice}->{$thisnode}->{last_run})
+		{
+			dbg("Skipping status file $maybe: would overwrite existing newer data for server $thisserver, service $thisservice, node $thisnode", 1);
+			next;
+		}
+
+		# sanity check 2: files could be orphaned (ie. deleted node, or deleted service, or no
+		# longer listed with the node, or not from this server - all ignored if only_known is false
+		
 		if (!$onlyknown
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service

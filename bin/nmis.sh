@@ -82,6 +82,11 @@ then
 	MODEL="model=true"
 fi
 
+if [ "$3" = "9" ]
+then
+	DEBUG="debug=9"
+fi
+
 if [ "$3" = "debug" ]
 then
 	DEBUG="debug=true"

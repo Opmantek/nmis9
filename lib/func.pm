@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.5.2";
+our $VERSION = "1.5.3";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -345,21 +345,15 @@ sub returnTime
 	return POSIX::strftime("%H:%M:%S", localtime($time));
 }
 
-sub get_localtime {
-	my $time;
-	# pull the system timezone and then the local time
-	if ($^O =~ /win32/i) { # could add timezone code here
-		$time = scalar localtime;
-	} else {
-		# assume UNIX box - look up the timezone as well.
-		my $zone = uc((split " ", `date`)[4]);
-		if ($zone =~ /CET|CEST/) {
-			$time = returnDateStamp;
-		} else {
-			$time = (scalar localtime)." ".$zone;
-		}
-	}
-	return $time;
+# this function returns the given time (or now) ALMOST in ctime format,
+# i.e. same start but the timezone name is appended.
+# args: time, optional.
+sub get_localtime
+{
+	my ($time) = @_;
+	$time ||= time;
+
+	return POSIX::strftime("%a %b %H:%M:%S %Y %Z", localtime($time));
 }
 
 sub convertMonth {
@@ -759,8 +753,8 @@ sub alpha
 # sets file ownership and permissions, with diagnostic return values
 # note: DO NOT USE setFileProt() from logMsg - use this one!
 #
-# args: file (required), username, permission
-# if run as root, then ownership is changed to username and primary group
+# args: file (required), username, groupname, permission
+# if run as root, then ownership is changed to username and to config nmis_group
 # if NOT root, then just the file group ownership is changed, to config nmis_group (if possible).
 #
 # returns undef if successful, error message otherwise
@@ -770,7 +764,8 @@ sub setFileProtDiag
 	my $C = loadConfTable();
 
 	my $filename = $args{file};
-	my $username = $args{username} || $C->{'os_username'} || "nmis";
+	my $username = $args{username} || $C->{nmis_user} || "nmis";
+	my $groupname = $args{groupname} || $C->{nmis_group} || 'nmis';
 	my $permission = $args{permission};
 
 	return "file=$filename does not exist"
@@ -801,10 +796,10 @@ sub setFileProtDiag
 		}
 	}
 
-	my ($login,$pass,$uid,$gid) = getpwnam($username);
+	my ($login,$pass,$uid,$primgid) = getpwnam($username);
 	return "cannot change file owner to unknown user \"$username\"!"
 			if (!$login);
-	my $onlygroup = getgrnam($C->{'nmis_group'}); # for the non-root case
+	my $gid = getgrnam($groupname);
 
 	# we can change file ownership iff running as root
 	my $myuid = $<;
@@ -813,9 +808,9 @@ sub setFileProtDiag
 		# ownership ok or in need of changing?
 		if ($currentstatus->uid != $uid or $currentstatus->gid != $gid)
 		{
-			dbg("setting owner of $filename to $username",3);
+			dbg("setting owner of $filename to $username:$groupname",3);
 
-			return("Could not change ownership of $filename to $username, $!")
+			return("Could not change ownership of $filename to $username:$groupname, $!")
 					if (!chown($uid,$gid,$filename));
 		}
 	}
@@ -826,10 +821,10 @@ sub setFileProtDiag
 		# and if the target group is one you're a member of
 		# in this case username is IGNORED and we aim for config nmis_group
 
-		if (defined($onlygroup) && $currentstatus->gid != $onlygroup)
+		if (defined($gid) && $currentstatus->gid != $gid)
 		{
-			dbg("setting group owner of $filename to $C->{nmis_group}",3);
-			return ("could not set the group of $filename to $C->{'nmis_group'}: $!")
+			dbg("setting group owner of $filename to $groupname",3);
+			return ("could not set the group of $filename to $groupname: $!")
 					if (!chown($myuid, $gid, $filename));
 		}
 	}
@@ -837,7 +832,7 @@ sub setFileProtDiag
 	{
 		# we complain about this situation only if a change would be required
 		return "Cannot change ownership/permissions of $filename: neither root nor file owner!"
-				if (!defined($onlygroup) or $currentstatus->gid != $onlygroup);
+				if (!defined($gid) or $currentstatus->gid != $gid);
 	}
 
 	# perms need changing?
@@ -1133,15 +1128,15 @@ sub writeHashtoFile {
 
 	my $errormsg;
 	# write out the data, but defer error logging until after the lock is released!
-	if ( $useJson and $pretty ) 
+	if ( $useJson and $pretty )
 	{
 		# make sure that all json files contain valid utf8-encoded json, as required by rfc7159
-		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) ) 
+		if ( not print $handle JSON::XS->new->utf8(1)->pretty(1)->encode($data) )
 		{
 			$errormsg = "ERROR cannot write data object to file $file: $!";
 		}
 	}
-	elsif ( $useJson ) 
+	elsif ( $useJson )
 	{
 		# encode_json already ensures utf8-encoded json
 		eval { print $handle encode_json($data) } ;
@@ -1983,12 +1978,12 @@ sub checkDir
 		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{'nmis_user'} dir=$username");
 	}
 
-	if ( $C->{'os_username'} eq $username ) {
-		push(@messages,"INFO: $dir has correct owner from config os_username=$username") if $C->{debug};
+	if ( $C->{'nmis_user'} eq $username ) {
+		push(@messages,"INFO: $dir has correct owner from config nmis_user=$username") if $C->{debug};
 	}
 	else {
 		$result = 0;
-		push(@messages,"ERROR: $dir DOES NOT have correct owner from config os_username=$C->{'os_username'} dir=$username");
+		push(@messages,"ERROR: $dir DOES NOT have correct owner from config nmis_user=$C->{nmis_user} dir=$username");
 	}
 
 	if ( $C->{'nmis_group'} eq $groupname ) {
@@ -2786,7 +2781,7 @@ sub beautify_physaddress
 	return $raw;									# fallback to return the input unchanged if beautication doesn't work out
 }
 
-# takes binary encoded DateAndTime snmp value, 
+# takes binary encoded DateAndTime snmp value,
 # translates into fractional seconds in gmt
 # args: 0xhexstring or real binary string,
 # returns: fractional seconds in gmt
@@ -2886,7 +2881,9 @@ sub createPollLock
 		flock($handle, LOCK_EX) or warn "createPollLock: ERROR can't lock file $lockFile, $!\n";
 
 		# we ignore any problems with the perms
-		setFileProtDiag(file => $lockFile, username => $C->{os_username},
+		setFileProtDiag(file => $lockFile,
+										username => $C->{nmis_user},
+										groupname => $C->{nmis_group},
 										permission => $C->{os_fileperm});
 
 		print $handle "$PID\n";

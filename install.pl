@@ -222,9 +222,9 @@ libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-process
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
-libexcel-writer-xlsx-perl));
+libexcel-writer-xlsx-perl libmojolicious-perl));
 
-	my @rhpackages = (qw(perl-core cpan autoconf automake gcc cvs cairo cairo-devel
+	my @rhpackages = (qw(perl-core autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
@@ -549,9 +549,12 @@ and then restart the installer.\n\n";
 			else
 			{
 				# there doesn't seem an easy way to prime the cpan shell with args,
-				# then let interact with the user via stdin/stdout...
+				# then let interact with the user via stdin/stdout... and not all versions
+				# of cpan seem to start it automatically
 				print "\n
-Please start the CPAN configuration by entering 'o conf init' on\nthe CPAN prompt. To return to the installer when done, please exit the CPAN\nshell with 'exit'.\n";
+If the CPAN configuration doesn't start automatically, then please
+enter 'o conf init' on the CPAN prompt. To return to the installer when done,
+please exit the CPAN\nshell with 'exit'.\n";
 				&input_ok;
 				system("cpan");
 			}
@@ -1045,15 +1048,32 @@ if (open(F, "$site/models/Common-database.nmis"))
 # check if the common-databases differ, and if so offer to run migrate_rrd_locations.pl
 if (!$isnewinstall)
 {
-	echolog("Checking Common-database files for updates");
-	logInstall("running $site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
-	my $res = system("$site/admin/diffconfigs.pl -q $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null | grep -qF /database/type");
-	if ($res >> 8 == 0)						# relevant diffs were found
+	printBanner("Checking Common-database file for updates");
+
+	# two cases: something not found -> migration tool to update, missing stuff, FIRST.
+	# then if there are any issues with actual actual differences, full migration tool run
+	my $diffs = `$site/admin/diffconfigs.pl $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null`;
+	my $res = $? >> 8;
+
+	if (!$res)
 	{
-		printBanner("RRD Database Migration");
-		echolog("The installer has detected differences between your current Common-database
-and the shipped one. These changes can be merged using the rrd migration
-script that comes with NMIS.
+		echolog("No differences between current and new Common-database.nmis found.");
+		print "\n\n";
+	}
+	elsif ($diffs =~ m!^-\s+<NOT PRESENT!m)
+	{
+		# perform a missingonly update
+		echolog("Found new entries, adding them.");
+		execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis missingonly=true leavelocked=true");
+		print "\n\n";
+	}
+	
+	if ($diffs =~ m!^-\s+/nodes!m) # ie. present but different
+	{
+		printBanner("RRD Database Migration Required");
+		echolog("The installer has detected structural differences between your current 
+Common-database and the shipped one. These changes can be merged using 
+the rrd migration script that comes with NMIS.
 
 If you choose Y below, the installer will use admin/migrate_rrd_locations.pl
 to move all existing RRD files into the appropriate new locations and merge
@@ -1061,7 +1081,7 @@ the Common-database entries.  This is highly recommended!
 
 If you choose N, then NMIS will continue using the RRD locations specified
 in your current Common-database configuration file.\n\n");
-
+		
 		if (input_yn("OK to run rrd migration script?"))
 		{
 			echolog("Running RRD migration script in test mode first...");
@@ -1078,8 +1098,7 @@ Please check the installation log and diagnostic output for details.\n");
 			else
 			{
 				echolog("Performing the actual RRD migration operation...\n");
-				my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis");
-
+				my $error = execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis leavelocked=true");
 				if ($error)
 				{
 					echolog("Error: RRD migration failed! Please use the rollback script
@@ -1104,15 +1123,6 @@ It is highly recommended that you perform the RRD migration.");
 			&input_ok;
 		}
 	}
-	else
-	{
-		echolog("No relevant differences between current and new Common-database.nmis,
-no RRD migration required.");
-	}
-
-
-
-
 }
 
 echolog("Ensuring correct file permissions...");
@@ -1460,9 +1470,33 @@ EOF
 	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 
-	# now determine if installed or not.
-	foreach my $mod ( keys %$nmisModules ) {
+	# these are critical for getting mojolicious installed, as centos 6 perl has a much too old perl
+	# these modules are in core since 5.19 or thereabouts
+	
+	$nmisModules->{"IO::Socket::IP"} = { file => "MODULE NOT FOUND", type  => "use",
+																			 by => "lib/Auth.pm", priority => 99 };
+	# io socket ip needs at least this version of socket...
+	$nmisModules->{"Socket"} = { file => "MODULE NOT FOUND", type  => "use",
+															 by => "lib/Auth.pm", minversion => "1.97", 
+															 priority => 99 };
+	# and socket needs at least this version of extutils constant to build
+	$nmisModules->{"ExtUtils::Constant"} = { file => "MODULE NOT FOUND", type  => "use",
+																					 by => "lib/Auth.pm", minversion => "0.23", 
+																					 priority => 100 };
+	# and mojolicious needs all these
+	$nmisModules->{"JSON::PP"} = { file => "MODULE NOT FOUND", type  => "use",
+																 by => "lib/Auth.pm", priority => 99 };
+	$nmisModules->{"Time::Local"} = { file => "MODULE NOT FOUND", type  => "use",
+																		by => "lib/Auth.pm", minversion => "1.2", priority => 99 };
+	# and time::local needs at least this version of test::More
+	$nmisModules->{"Test::More"} = { file => "MODULE NOT FOUND", type  => "use",
+																	 by => "lib/Auth.pm", minversion => "0.96", priority => 100 };
 
+
+	# now determine if installed or not.
+	# sort by the required cpan sequencing (no priority is last)
+	foreach my $mod (keys %$nmisModules)
+	{
 		my $mFile = $mod . '.pm';
 		# check modules that are multivalued, such as 'xx::yyy'	and replace :: with directory '/'
 		$mFile =~ s/::/\//g;
@@ -1520,6 +1554,7 @@ sub moduleVersion
 }
 
 # returns (1) if no critical modules missing, (0,critical) otherwise
+# note that they're returned in order of cpan sequencing priority
 sub listModules
 {
   my (@missing, @critmissing);
@@ -1528,7 +1563,9 @@ sub listModules
 										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
-	foreach my $k (sort {$nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
+	# sort by install prio, or file 
+	foreach my $k ( sort { $nmisModules->{$b}->{priority} <=> $nmisModules->{$a}->{priority}
+												 or $nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
 	{
     logInstall(join("\t", $k, $nmisModules->{$k}->{file},
 										$nmisModules->{$k}->{version}||"N/A", $nmisModules->{$k}->{minversion}||"N/A"));

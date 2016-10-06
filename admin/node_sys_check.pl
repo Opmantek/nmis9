@@ -143,6 +143,13 @@ sub checkNode {
 		foreach my $indx (sort keys %{$NI->{graphtype}} ) {
 			print "Processing $indx\n" if $debug;
 			if ( ref($NI->{graphtype}{$indx}) eq "HASH" and keys %{$NI->{graphtype}{$indx}} ) {
+				
+				if ( defined $NI->{graphtype}{$indx}{LogicalDisk} and $NI->{graphtype}{$indx}{LogicalDisk} =~ /diskio-rwbytes/ ) {
+					print "FIXING: $node LogicalDisk $indx has graphtype diskio things\n";
+					$NI->{graphtype}{$indx}{LogicalDisk} = "WindowsDiskBytes,WindowsDisk";
+					$changes = 1;
+				}
+				
 				foreach my $section (@interfaceSections) {
 					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{interface}{$indx} ) {
 						# there should be an interface to check

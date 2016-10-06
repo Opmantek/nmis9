@@ -88,7 +88,7 @@ my %hash = (
     'display_status_summary' => 'false',
     
 		# to have additional fields in the node summary data.
-    'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown',
+    'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
@@ -101,7 +101,6 @@ my %hash = (
     'os_cmd_read_file_reverse' => 'tac',
     'os_cmd_file_decompress' => 'gzip -d -c',
     'os_kernelname' => '',
-    'os_username' => 'nmis',
     'os_execperm' => '0770',
     'os_fileperm' => '0660',
     'report_files_max' => '60',
@@ -171,6 +170,7 @@ my %hash = (
     'upnotify_stateful_events' => 'down|proactive|alert',
     'model_health_sections' => 'cpu_cpm,entityMib,diskIOTable,ds3Errors,SONETErrors',
     'network_health_view' => 'Group',
+		'network_summary_maxgroups' => 30,
     'json_node_fields' => 'uuid,supportGroup,cmdbType',
     'auto_expand_more_graphs' => 'true',
 

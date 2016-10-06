@@ -1,0 +1,122 @@
+#
+## $Id: Graph-hrproc.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Windows Disk'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
+			'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
+			'DEF:DiskWritesPersec=$database:DiskWritesPersec:AVERAGE',
+			'DEF:DiskReadsPersec=$database:DiskReadsPersec:AVERAGE',			
+			'DEF:PercentFreeSpace=$database:PercentFreeSpace:AVERAGE',
+
+			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
+			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+			
+			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:AVERAGE:Average %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:MAX:Max %8.2lf\\n',
+      
+			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Average %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:MAX:Max %8.2lf\\n',
+
+			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'GPRINT:DiskWritesPersec:LAST:Last %8.2lf',
+			'GPRINT:DiskWritesPersec:AVERAGE:Average %8.2lf',
+			'GPRINT:DiskWritesPersec:MAX:Max %8.2lf\\n',
+
+			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'GPRINT:DiskReadsPersec:LAST:Last %8.2lf',
+			'GPRINT:DiskReadsPersec:AVERAGE:Average %8.2lf',
+			'GPRINT:DiskReadsPersec:MAX:Max %8.2lf\\n',
+
+			#'LINE1:PerDiskReadTime#0000ff:PerDiskReadTime\\t',
+			#'GPRINT:PerDiskReadTime:LAST:Last %8.2lf',
+			#'GPRINT:PerDiskReadTime:AVERAGE:Average %8.2lf',
+			#'GPRINT:PerDiskReadTime:MAX:Max %8.2lf\\n',
+      #
+			#'LINE1:PerDiskWriteTime#ff00ff:PerDiskWriteTime\\t',
+			#'GPRINT:PerDiskWriteTime:LAST:Last %8.2lf',
+			#'GPRINT:PerDiskWriteTime:AVERAGE:Average %8.2lf',
+			#'GPRINT:PerDiskWriteTime:MAX:Max %8.2lf\\n',
+
+			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
+			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentFreeSpace:AVERAGE:Average %8.2lf',
+			'GPRINT:PercentFreeSpace:MAX:Max %8.2lf\\n',
+		],
+		'small' => [
+			'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
+			'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
+			'DEF:DiskWritesPersec=$database:DiskWritesPersec:AVERAGE',
+			'DEF:DiskReadsPersec=$database:DiskReadsPersec:AVERAGE',			
+			'DEF:PercentFreeSpace=$database:PercentFreeSpace:AVERAGE',
+
+			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
+			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+			
+			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
+			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskReadQLenM:AVERAGE:Avg. %8.2lf\\n',
+      
+			'LINE1:AvgDiskWriteQLenM#ffa500:AvgDiskWriteQLen\\t',
+			'GPRINT:AvgDiskWriteQLenM:LAST:Last %8.2lf',
+			'GPRINT:AvgDiskWriteQLenM:AVERAGE:Avg. %8.2lf\\n',
+
+			'LINE1:DiskWritesPersec#00a5ff:DiskWritesPersec\\t',
+			'GPRINT:DiskWritesPersec:LAST:Last %8.0lf',
+			'GPRINT:DiskWritesPersec:AVERAGE:Avg. %8.0lf\\n',
+
+			'LINE1:DiskReadsPersec#00FF7F:DiskReadsPersec\\t',
+			'GPRINT:DiskReadsPersec:LAST:Last %8.0lf',
+			'GPRINT:DiskReadsPersec:AVERAGE:Avg. %8.0lf\\n',
+
+			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
+			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentFreeSpace:AVERAGE:Avg. %8.2lf\\n',
+		]		
+	}
+);
+
+
+
+
+

@@ -189,6 +189,8 @@
       'icmpjitterRtt' => 'ICMP Jitter RTT Monitor Stats',
       'WindowsProcessor' => 'Windows Processor Stats',
       'WindowsPaging' => 'Windows Pagefile Stats',
+      'WindowsDisk' => 'Windows Logical Disk Stats',
+      'WindowsDiskBytes' => 'Windows Logical Disk Stats',
     }
   }
 );

@@ -116,6 +116,7 @@ sub typeGraph {
 	my $graphtype = $Q->{graphtype};
 
 	my $urlsafenode = uri_escape($node);
+	my $urlsafegroup = uri_escape($group);
 
 	my $length;
 
@@ -467,7 +468,7 @@ sub typeGraph {
 				# Fast select graphtype buttons
 				td({class=>'header',align=>'center',colspan=>'2'}, div({class=>"header"}, eval {
 						my @out;
-						my $cg = "conf=$Q->{conf}&group=$group&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
+						my $cg = "conf=$Q->{conf}&group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
 						foreach my $gtp (keys %graph_button_table) {
 							foreach my $gt (keys %{$GTT}) {
 								if ($gtp eq $gt) {
@@ -574,7 +575,7 @@ sub typeGraph {
 		}
 
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$urlsafenode&group=$group&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
+				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
 		my $chartDiv = "";
 		if( getbool($C->{display_opcharts}) ) {
 			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;

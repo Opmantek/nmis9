@@ -825,6 +825,51 @@
           }
         }
       },
+      'WindowsProcessor' => {
+        'item' => 'percentProcessor',
+        'event' => 'Proactive CPU',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '100',
+              'critical' => '95',
+              'major' => '90',
+              'minor' => '85',
+              'warning' => '80',
+            }
+          }
+        }
+      },
+      'WindowsPaging' => {
+        'item' => 'percentPageUsage',
+        'event' => 'Proactive Page File Usage',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '80',
+              'major' => '70',
+              'minor' => '60',
+              'warning' => '50',
+            }
+          }
+        }
+      },
+      'DiskQueueLength' => {
+        'item' => 'AvgDiskQLen',
+        'event' => 'Proactive Disk Queue Length',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '5',
+              'critical' => '4',
+              'major' => '2',
+              'minor' => '1',
+              'warning' => '0.01',
+            }
+          }
+        }
+      },
     }
   }
 );

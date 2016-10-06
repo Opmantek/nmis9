@@ -1,0 +1,83 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERChANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Level',
+	},
+	'option' => {
+		'standard' => [
+				 'DEF:mimosaTxPhy1=$database:mimosaTxPhy2:AVERAGE',
+				 'DEF:mimosaTxPhy2=$database:mimosaTxPhy2:AVERAGE',
+				 'DEF:mimosaTxPhy3=$database:mimosaTxPhy4:AVERAGE',
+				 'DEF:mimosaTxPhy4=$database:mimosaTxPhy4:AVERAGE',
+
+				 'LINE2:mimosaTxPhy1#0000ff:Ch0 Remote Signal Level',
+				 'GPRINT:mimosaTxPhy1:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy1:MIN:Min %10.2lf',
+				 'GPRINT:mimosaTxPhy1:MAX:Max %10.2lf\\n',
+				 
+				 'LINE2:mimosaTxPhy2#006400:Ch0 Signal Level',
+				 'GPRINT:mimosaTxPhy2:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy2:MIN:Min %10.2lf',
+				 'GPRINT:mimosaTxPhy2:MAX:Max %10.2lf\\n',
+				 
+				 'LINE2:mimosaTxPhy3#4daef6:Ch1 Signal Remote Level',
+				 'GPRINT:mimosaTxPhy3:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy3:MIN:Min %10.2lf',
+				 'GPRINT:mimosaTxPhy3:MAX:Max %10.2lf\\n', 
+				 
+				 'LINE2:mimosaTxPhy4#7FFF00:Ch1 Signal Level',
+				 'GPRINT:mimosaTxPhy4:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy4:MIN:Min %10.2lf',
+				 'GPRINT:mimosaTxPhy4:MAX:Max %10.2lf\\n', 
+				], 
+		'small' => [ 
+				 'DEF:mimosaTxPhy1=$database:mimosaTxPhy1:AVERAGE',
+				 'DEF:mimosaTxPhy2=$database:mimosaTxPhy2:AVERAGE',
+				 'DEF:mimosaTxPhy3=$database:mimosaTxPhy3:AVERAGE',
+				 'DEF:mimosaTxPhy4=$database:mimosaTxPhy4:AVERAGE',
+				 
+				 'LINE2:mimosaTxPhy1#0000ff:Tx Pwr1',
+				 'LINE2:mimosaTxPhy2#006400:tx Pwr2',
+				 'LINE2:mimosaTxPhy3#4daef6:Tx Pwr3',
+				 'LINE2:mimosaTxPhy4#7FFF00:Tx Pwr3',
+
+				 'GPRINT:mimosaTxPhy1:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy2:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy3:AVERAGE:Avg %10.2lf',
+				 'GPRINT:mimosaTxPhy4:AVERAGE:Avg %10.2lf',
+		],
+				
+	}
+);

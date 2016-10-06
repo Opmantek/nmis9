@@ -29,7 +29,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
+our $VERSION="1.0.0";
 
 # Auto configure to the <nmis-base>/lib
 use FindBin;
@@ -334,7 +334,7 @@ sub getMonitoredServices {
 	return $serviceIndex;
 }
 
-#	my $desired = $args{desired} || $C->{'os_username'} || "nmis";
+#	my $desired = $args{desired} || $C->{'nmis_user'} || "nmis";
 
 
 

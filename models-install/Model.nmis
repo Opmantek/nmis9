@@ -49,10 +49,9 @@
     },
     'type' => {
       'nmis' => '/metrics/nmis-system.rrd',
-      'kpi' => '/health/$nodeType/$node-reach.rrd',
-      'nodehealth' => '/health/$nodeType/$node-health.rrd',
+      'nodehealth' => '/nodes/$node/health/health.rrd',
       'metrics' => '/metrics/$item.rrd',
-      'health' => '/health/$nodeType/$node-reach.rrd'
+      'health' => '/nodes/$node/health/reach.rrd',
     }
   },
   'models' => {
@@ -65,7 +64,7 @@
           'Windows2008' => 'Windows Version 6\.0'
         },
         '20' => {
-          'Windows2008' => 'Windows Version 6\.1'
+          'Windows2008R2' => 'Windows Version 6\.1'
         },
         '25' => {
           'Windows2012' => 'Windows Version 6\.2'
@@ -528,6 +527,27 @@
         #},
         '99' => {
           'Default-HC' => '.'
+        }
+      }
+    },
+    'Radwin Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadwinWireless' => 'Wireless Link'
+        }
+      }
+    },  
+    'ALCOMA, Ltd' => {
+      'order' => {
+        '10' => {
+          'Alcoma' => 'ALCOMA IP-Stack'
+        }
+      }
+    },
+    'Trango Systems, Inc.' => {
+      'order' => {
+        '10' => {
+          'Trango' => 'Apex Lynx-2.0.1'
         }
       }
     },

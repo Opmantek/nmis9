@@ -1,0 +1,105 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'alerts' => {
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '70',
+        	'Warning' => '75',
+        	'Minor' => '80',
+        	'Major' => '95',
+        	'Critical' => '98',
+        	'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '85',
+        	'Warning' => '0',
+        	'Minor' => '0',
+        	'Major' => '90',
+        	'Critical' => '95',
+        	'Fatal' => '98',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+      }
+    }
+  },
+  'system' => {
+    'sys' => {
+      'alerts' => {
+        'wmi' => {
+					'clockDeltaWin' => {
+						title => "System Clock Delta",
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',
+            'alert' => {
+              'test' => '$r > 60',
+              'event' => 'System Clock Drift',
+							'unit' => 'seconds',
+              'level' => 'Critical',
+            }
+					},
+        },
+        'snmp' => {
+          'tcpCurrEstab' => {
+            'oid' => 'tcpCurrEstab',
+            'title' => 'TCP Established Sessions',
+            'alert' => {
+              'test' => '$r > 250',
+              'event' => 'High TCP Connection Count',
+							'unit' => 'connections',
+              'level' => 'Warning',
+            }
+          },
+        }
+      },
+    },
+  },
+);

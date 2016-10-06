@@ -1346,6 +1346,10 @@ sub getNodeInfo
 				# Decide on vendor name.
 				my @x = split(/\./,$NI->{system}{sysObjectID});
 				my $i = $x[6];
+				
+				if ( not $i ) {
+					$i = $NI->{system}{sysObjectID};
+				}
 
 				if ( $enterpriseTable->{$i}{Enterprise} ne "" )
 				{
@@ -5762,6 +5766,7 @@ sub HandleNodeDown
 										 'node' => "Node Down" );
 	my $eventname = $eventnames{$typeofdown};
 	$details ||= "$typeofdown error";
+	$details =~ s/\n+$//;					# the event log doesn't cope well with blank lines
 
 	my $eventfunc = ($goingup? \&checkEvent: \&notify);
 	&$eventfunc(sys => $S,
@@ -8521,8 +8526,11 @@ sub doThreshold
 
 				$thrname = $thissection->{threshold};	# get commasep string of threshold name(s)
 				dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
+				
+				# getbool of this is not valid anymore, for WMI indexed must be named, so getbool 'indexed' => 'Name' evaluates to false 
+				# changing now to be not false.
 
-				if (!getbool($thissection->{indexed}))	# if indexed then all instances must be checked individually
+				if (not ( $thissection->{indexed} ne "" and $thissection->{indexed} ne "false" ))	# if indexed then all instances must be checked individually
 				{
 					runThrHld(sys=>$S, table=>$sts, type=>$type, thrname=>$thrname); # single
 				}
