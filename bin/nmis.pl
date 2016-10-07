@@ -4897,29 +4897,66 @@ sub runServices
 		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
 		my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		my $hrIndextable;
-		foreach my $var ( @snmpvars )
-		{
-			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
-			{
-				foreach my $inst (keys %{$hrIndextable}) {
-					my $value = $hrIndextable->{$inst};
-					my $textoid = oid2name(name2oid($var).".".$inst);
-					if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-					( $textoid, $inst ) = split /\./, $textoid, 2;
-					$snmpTable{$textoid}{$inst} = $value;
-					dbg("Indextable=$inst textoid=$textoid value=$value",2);
+		#foreach my $var ( @snmpvars )
+		#{
+		#	if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
+		#	{
+		#		foreach my $inst (keys %{$hrIndextable}) {
+		#			my $value = $hrIndextable->{$inst};
+		#			my $textoid = oid2name(name2oid($var).".".$inst);
+		#			if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+		#			( $textoid, $inst ) = split /\./, $textoid, 2;
+		#			$snmpTable{$textoid}{$inst} = $value;
+		#			dbg("Indextable=$inst textoid=$textoid value=$value",2);
+		#		}
+		#	}
+		#	# SNMP failed, so mark SNMP down so code below handles results properly
+		#	else
+		#	{
+		#		logMsg("$node SNMP failed while collecting SNMP Service Data");
+		#		HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+		#		$snmp_allowed = 0;
+		#		last;
+		#	}
+		#}
+
+		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions)) {
+			foreach my $inst (keys %{$hrIndextable}) {
+				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
+				
+				(
+					$snmpTable{'hrSWRunPath'}{$inst},
+					$snmpTable{'hrSWRunParameters'}{$inst},
+					$snmpTable{'hrSWRunStatus'}{$inst},
+					$snmpTable{'hrSWRunType'}{$inst},
+					$snmpTable{'hrSWRunPerfCPU'}{$inst},
+					$snmpTable{'hrSWRunPerfMem'}{$inst}
+				) = $SNMP->getarray(
+					"hrSWRunPath.$inst",
+					"hrSWRunParameters.$inst",
+					"hrSWRunStatus.$inst",
+					"hrSWRunType.$inst",
+					"hrSWRunPerfCPU.$inst",
+					"hrSWRunPerfMem.$inst"
+				);
+				if ( $SNMP->error ) {
+					logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+					$snmp_allowed = 0;	
+					last;				
 				}
-			}
-			# SNMP failed, so mark SNMP down so code below handles results properly
-			else
-			{
-				logMsg("$node SNMP failed while collecting SNMP Service Data");
-				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-				$snmp_allowed = 0;
-				last;
+				dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
 			}
 		}
-
+		# SNMP failed, so mark SNMP down so code below handles results properly
+		else
+		{
+			logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+			HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+			$snmp_allowed = 0;
+			last;
+		}
+		
 		# are we still good to continue?
 		# don't do anything with the (incomplete and unusable) snmp data if snmp failed just now
 		if ($snmp_allowed)
