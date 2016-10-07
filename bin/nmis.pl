@@ -1347,6 +1347,7 @@ sub getNodeInfo
 				my @x = split(/\./,$NI->{system}{sysObjectID});
 				my $i = $x[6];
 				
+				# Special handling for devices with bad sysObjectID, e.g. Trango
 				if ( not $i ) {
 					$i = $NI->{system}{sysObjectID};
 				}
@@ -5766,7 +5767,6 @@ sub HandleNodeDown
 										 'node' => "Node Down" );
 	my $eventname = $eventnames{$typeofdown};
 	$details ||= "$typeofdown error";
-	$details =~ s/\n+$//;					# the event log doesn't cope well with blank lines
 
 	my $eventfunc = ($goingup? \&checkEvent: \&notify);
 	&$eventfunc(sys => $S,
@@ -9156,12 +9156,13 @@ sub makesysuptime
 	my $info = $sys->ndinfo->{system};
 
 	return if (ref($info) ne "HASH" or !keys %$info);
-
+	
 	# if this is wmi, we need to make a sysuptime first. these are seconds
-	if ($info->{wintime} && $info->{winboottime})
-	{
-		$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
-	}
+	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
+	#if ($info->{wintime} && $info->{winboottime})
+	#{
+	#	$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
+	#}
 
 	# pre-mangling it's a number, maybe fractional, in 1/100s ticks
 	# post-manging it is text, and we can't do a damn thing anymore
