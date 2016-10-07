@@ -3159,7 +3159,8 @@ sub loadServiceStatus
 																			and $ST->{$wantservice}
 																			and $C->{server_name} eq $wantserver)));
 	}
-	# otherwise read them all...
+	# otherwise read them all...BUT make sure that older files with legacy names
+	# do not overwrite the correct new material!
 	else
 	{
 		if (!opendir(D, $statusdir))
@@ -3188,11 +3189,24 @@ sub loadServiceStatus
 			next;
 		}
 
-		# sanity-check: files could be orphaned (ie. deleted node, or deleted service, or no
-		# longer listed with the node, or not from this server - all ignored if only_known is false
 		my $thisservice = $sdata->{service};
 		my $thisnode = $sdata->{node};
 		my $thisserver = $sdata->{server} || $C->{server_name};
+
+		# sanity check 1: if we have data for this service already, only accept this
+		# if its last_run is strictly newer
+		if (ref($result{$thisserver}) eq "HASH"
+				&& ref($result{$thisserver}->{$thisservice}) eq "HASH" 
+				&& ref($result{$thisserver}->{$thisservice}->{$thisnode}) eq "HASH"
+				&& $sdata->{last_run} <= $result{$thisserver}->{$thisservice}->{$thisnode}->{last_run})
+		{
+			dbg("Skipping status file $maybe: would overwrite existing newer data for server $thisserver, service $thisservice, node $thisnode", 1);
+			next;
+		}
+
+		# sanity check 2: files could be orphaned (ie. deleted node, or deleted service, or no
+		# longer listed with the node, or not from this server - all ignored if only_known is false
+		
 		if (!$onlyknown
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service
