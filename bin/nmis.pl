@@ -4892,11 +4892,11 @@ sub runServices
 	{
 		info("node has SNMP services to check");
 
-		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-
-		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
-		my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		dbg("get index of hrSWRunName by snmp, then get some data");
 		my $hrIndextable;
+
+		# keeping this block until all confirmed good in the world.
+		#my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
 		#foreach my $var ( @snmpvars )
 		#{
 		#	if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
@@ -4922,6 +4922,8 @@ sub runServices
 
 		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions)) {
 			foreach my $inst (keys %{$hrIndextable}) {
+				
+				# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
 				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
 				
 				(
