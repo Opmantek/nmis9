@@ -825,7 +825,7 @@ sub selectNetworkView {
 		getSummaryStatsbyGroup(group => $group);
 		printGroupView($group);
 	}
-	if (@allowed < keys %{$GT})
+	if (not getbool($Q->{unlimited}) and @allowed < keys %{$GT})
 	{
 		$q->param(-name => "unlimited", -value => 'true');
 		# url with -query doesn't include newly set params :-(
@@ -833,6 +833,15 @@ sub selectNetworkView {
 		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
 				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
 				. "'>Click here</a> for a full view!</td></tr>";
+	}
+	elsif ( getbool($Q->{unlimited}) and @allowed < keys %{$GT})
+	{
+		$q->param(-name => "unlimited", -value => 'false');
+		# url with -query doesn't include newly set params :-(
+		my %fullparams = $q->Vars;
+		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
+				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
+				. "'>Click here</a> to hide extra groups.</td></tr>";
 	}
 	print end_table;
 
