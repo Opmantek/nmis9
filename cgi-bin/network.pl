@@ -138,6 +138,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'nmis_runtime_view') {	viewRunTime(); exit;
 } elsif ($Q->{act} eq 'nmis_polling_summary') {	viewPollingSummary(); exit;
 } elsif ($Q->{act} eq "nmis_selftest_view") { viewSelfTest(); exit;
+} elsif ($Q->{act} eq "nmis_selftest_reset") { clearSelfTest(); exit;
 } else {
 	$select = 'health';
 	#notfound(); exit
@@ -343,6 +344,9 @@ sub selectMetrics
 													class => "black" },
 												$message)));
 				}
+				print Tr(td({class => "info Major"},
+										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"  },
+											"Reset Selftest Status")));
 				print end_table;
 			}
 		}
@@ -1318,6 +1322,25 @@ sub viewPollingSummary {
 } # viewPollingSummary
 
 
+# remove the selftest cache file, then refresh the whole nmis gui
+# without that refresh, the js code picks up the wrong uri for the widget and
+# every automatic refresh silently reruns the clear selftest :-/
+sub clearSelfTest
+{
+	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
+
+	if ($wantwidget)
+	{
+		print header($headeropts),
+		qq|<script type="text/javascript">window.location='$C->{nmis}?conf=$Q->{conf}';</script>|;
+	}
+	else
+	{
+		# in non-widgetted mode a redirect is good enough
+		print $q->redirect(url(-absolute => 1)."?conf=$Q->{conf}&act=network_summary_metrics");
+	}
+}
+
 # show the full nmis self test
 sub viewSelfTest
 {
@@ -1337,12 +1360,19 @@ sub viewSelfTest
 			Tr(th({class=>'title',colspan=>'2'},"NMIS Selftest")),
 			Tr(td({class=>"heading3"}, "Last Selftest"), td({class=>"rht Plain"},
 																										returnDateStamp($selfteststatus->{lastupdate})));
-
+			my $anytrouble;
 			for my $test (@{$selfteststatus->{tests}})
 			{
 				my ($name,$message) = @$test;
 				print Tr(td({class => "heading3"}, $name),
 								 td({class => "rht ".($message? "Critical":"Normal")}, $message || "OK"));
+				$anytrouble = 1 if ($message);
+			}
+			if ($anytrouble)
+			{
+				print Tr(td({class => "info Major", colspan => 2},
+										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"  },
+											"Reset Selftest Status")));
 			}
 			print end_table;
 		}
