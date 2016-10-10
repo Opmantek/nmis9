@@ -2539,7 +2539,7 @@ sub viewServiceList {
 
 	if ( !$status{overall} )
 	{
-		print Tr(td({class=>'Critical',colspan=>'6'},'Node unreachable'));
+		print Tr(td({class=>'Critical',colspan=>'7'},"Node unreachable"));
 	}
 	elsif ( $status{overall} == -1 )
 	{
@@ -2547,7 +2547,7 @@ sub viewServiceList {
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 
-		print Tr(td({class=>'Warning',colspan=>'6'},"Node degraded, "
+		print Tr(td({class=>'Warning',colspan=>'7'},"Node degraded, "
 								. join(", ", @causes)
 								. ", status=$NI->{system}{status_summary}"));
 	}
@@ -2566,7 +2566,7 @@ uri_escape($node);
 	if (defined $NI->{services}) {
 		print Tr(
 			td({class=>'header'},a({href=>"$url&sort=Service",class=>"wht"},"Service")),
-			td({class=>'header'},"Additional"),
+			td({class=>'header'},"Parameters"),
 			td({class=>'header'},"Type"),
 			td({class=>'header'},"Status"),
 			td({class=>'header'},"PID"),
@@ -2581,11 +2581,11 @@ uri_escape($node);
 
 			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
 			my $cpusecs = $NI->{services}{$service}{hrSWRunPerfCPU} / 100;
-			my $additional = $NI->{services}{$service}{hrSWRunParameters} || $NI->{services}{$service}{hrSWRunPath};
+			my $parameters = $NI->{services}{$service}{hrSWRunPath} . " " . $NI->{services}{$service}{hrSWRunParameters}; 
 
 			print Tr(
 				td({class=>'info Plain'},$prog),
-				td({class=>'info Plain'},$additional),
+				td({class=>'info Plain'},$parameters),
 				td({class=>'info Plain'},$NI->{services}{$service}{hrSWRunType}),
 				td({class=>'info Plain',style=>"background-color:".$color},$NI->{services}{$service}{hrSWRunStatus}),
 				td({class=>'info Plain'},$pid),
