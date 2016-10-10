@@ -5131,9 +5131,9 @@ sub runServices
 			{
 				my $wantedprocname = $ST->{$service}{Service_Name};
 				# KS now supporting looking at the hrSWRunParameters or hrSWRunPath for extra matching to support stupid Java and others.
-				my $additionalcheck = $ST->{$service}{Service_Additional};
+				my $parametercheck = $ST->{$service}{Service_Parameter};
 
-				if (!$wantedprocname and !$additionalcheck) {
+				if (!$wantedprocname and !$parametercheck) {
 					dbg("ERROR, service_name is empty");
 					logMsg("ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Additional are empty");
 					next;
@@ -5151,7 +5151,8 @@ sub runServices
 				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
 
 				# KS don't have a hit from there, so see if there is an additional check to perform
-				if ( !@matchingpids and $additionalcheck ) {
+				### AZ TODO
+				if ( !@matchingpids and $parametercheck ) {
 					foreach my $serv ( keys %services ) {
 						my $additional = $services{$serv}{hrSWRunParameters} || $services{$serv}{hrSWRunPath};
 						if ( $additional =~ /$additionalcheck/ ) {
