@@ -1346,7 +1346,8 @@ sub getNodeInfo
 				# Decide on vendor name.
 				my @x = split(/\./,$NI->{system}{sysObjectID});
 				my $i = $x[6];
-				
+
+				# Special handling for devices with bad sysObjectID, e.g. Trango
 				if ( not $i ) {
 					$i = $NI->{system}{sysObjectID};
 				}
@@ -4882,7 +4883,6 @@ sub runServices
 	my ($snmpcmd,@ret, $var, $i, $key);
 	my $write=0;
 
-	my $nodeCheckSnmpServices = 0;
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
 	if ($snmp_allowed
 			and getbool($NT->{$node}{active})
@@ -4892,68 +4892,113 @@ sub runServices
 	{
 		info("node has SNMP services to check");
 
-		dbg("get index of hrSWRunName hrSWRunStatus by snmp");
-
-		#logMsg("get index of hrSWRunName hrSWRunStatus by snmp");
-		my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		dbg("get index of hrSWRunName by snmp, then get some data");
 		my $hrIndextable;
-		foreach my $var ( @snmpvars )
-		{
-			if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
-			{
-				foreach my $inst (keys %{$hrIndextable}) {
-					my $value = $hrIndextable->{$inst};
-					my $textoid = oid2name(name2oid($var).".".$inst);
-					if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-					( $textoid, $inst ) = split /\./, $textoid, 2;
-					$snmpTable{$textoid}{$inst} = $value;
-					dbg("Indextable=$inst textoid=$textoid value=$value",2);
+
+		# keeping this block until all confirmed good in the world.
+		#my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
+		#foreach my $var ( @snmpvars )
+		#{
+		#	if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
+		#	{
+		#		foreach my $inst (keys %{$hrIndextable}) {
+		#			my $value = $hrIndextable->{$inst};
+		#			my $textoid = oid2name(name2oid($var).".".$inst);
+		#			if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
+		#			( $textoid, $inst ) = split /\./, $textoid, 2;
+		#			$snmpTable{$textoid}{$inst} = $value;
+		#			dbg("Indextable=$inst textoid=$textoid value=$value",2);
+		#		}
+		#	}
+		#	# SNMP failed, so mark SNMP down so code below handles results properly
+		#	else
+		#	{
+		#		logMsg("$node SNMP failed while collecting SNMP Service Data");
+		#		HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+		#		$snmp_allowed = 0;
+		#		last;
+		#	}
+		#}
+
+		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions)) {
+			foreach my $inst (keys %{$hrIndextable}) {
+				
+				# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
+				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
+				
+				(
+					$snmpTable{'hrSWRunPath'}{$inst},
+					$snmpTable{'hrSWRunParameters'}{$inst},
+					$snmpTable{'hrSWRunStatus'}{$inst},
+					$snmpTable{'hrSWRunType'}{$inst},
+					$snmpTable{'hrSWRunPerfCPU'}{$inst},
+					$snmpTable{'hrSWRunPerfMem'}{$inst}
+				) = $SNMP->getarray(
+					"hrSWRunPath.$inst",
+					"hrSWRunParameters.$inst",
+					"hrSWRunStatus.$inst",
+					"hrSWRunType.$inst",
+					"hrSWRunPerfCPU.$inst",
+					"hrSWRunPerfMem.$inst"
+				);
+				if ( $SNMP->error ) {
+					logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+					$snmp_allowed = 0;	
+					last;				
 				}
-			}
-			# SNMP failed, so mark SNMP down so code below handles results properly
-			else
-			{
-				logMsg("$node SNMP Down while collecting SNMP Service Data");
-				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-				last;
+				dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
 			}
 		}
-
-		# prepare service list for all observed services
-		foreach (sort keys %{$snmpTable{hrSWRunName}} )
+		# SNMP failed, so mark SNMP down so code below handles results properly
+		else
 		{
-			# key services by name_pid
-			$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
-			$services{$key}{hrSWRunName} = $key;
-			$services{$key}{hrSWRunPath} = $snmpTable{hrSWRunPath}{$_};
-			$services{$key}{hrSWRunParameters} = $snmpTable{hrSWRunParameters}{$_};
-			$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-			$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-			$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-			$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
-
-			dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
+			logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+			HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+			$snmp_allowed = 0;
+			last;
 		}
-		# keep all services for display (not rrd!)
-		$NI->{services} = \%services;
-
-		# now clear events that applied to processes that no longer exist
-		my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
-		for my $eventkey (keys %nodeevents)
+		
+		# are we still good to continue?
+		# don't do anything with the (incomplete and unusable) snmp data if snmp failed just now
+		if ($snmp_allowed)
 		{
-			my $thisevent = $nodeevents{$eventkey};
-
-			# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
-			# until then we trigger on the element format plus event name
-			if ($thisevent->{element} =~ /^\S+:\d+$/
-					&& $thisevent->{event} =~ /process memory/i
-					&& !exists $services{$thisevent->{element}})
+			# prepare service list for all observed services
+			foreach (sort keys %{$snmpTable{hrSWRunName}} )
 			{
-				dbg("clearing event $thisevent->{event} for node $thisevent->{node} as process "
-						.$thisevent->{element}." no longer exists");
-				checkEvent(sys => $S, event => $thisevent->{event}, level => $thisevent->{level},
-									 element => $thisevent->{element},
-									 details=>$thisevent->{details});
+				# key services by name_pid
+				$key = $snmpTable{hrSWRunName}{$_}.':'.$_;
+				$services{$key}{hrSWRunName} = $key;
+				$services{$key}{hrSWRunPath} = $snmpTable{hrSWRunPath}{$_};
+				$services{$key}{hrSWRunParameters} = $snmpTable{hrSWRunParameters}{$_};
+				$services{$key}{hrSWRunType} = ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
+				$services{$key}{hrSWRunStatus} = ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
+				$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
+				$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+
+				dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",2);
+			}
+			# keep all services for display (not rrd!)
+			$NI->{services} = \%services;
+
+			# now clear events that applied to processes that no longer exist
+			my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
+			for my $eventkey (keys %nodeevents)
+			{
+				my $thisevent = $nodeevents{$eventkey};
+
+				# fixme NMIS-73: this should be tied to both the element format and a to-be-added 'service' field of the event
+				# until then we trigger on the element format plus event name
+				if ($thisevent->{element} =~ /^\S+:\d+$/
+						&& $thisevent->{event} =~ /process memory/i
+						&& !exists $services{$thisevent->{element}})
+				{
+					dbg("clearing event $thisevent->{event} for node $thisevent->{node} as process "
+							.$thisevent->{element}." no longer exists");
+					checkEvent(sys => $S, event => $thisevent->{event}, level => $thisevent->{level},
+										 element => $thisevent->{element},
+										 details=>$thisevent->{details});
+				}
 			}
 		}
 	}
@@ -5766,7 +5811,6 @@ sub HandleNodeDown
 										 'node' => "Node Down" );
 	my $eventname = $eventnames{$typeofdown};
 	$details ||= "$typeofdown error";
-	$details =~ s/\n+$//;					# the event log doesn't cope well with blank lines
 
 	my $eventfunc = ($goingup? \&checkEvent: \&notify);
 	&$eventfunc(sys => $S,
@@ -8526,8 +8570,8 @@ sub doThreshold
 
 				$thrname = $thissection->{threshold};	# get commasep string of threshold name(s)
 				dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
-				
-				# getbool of this is not valid anymore, for WMI indexed must be named, so getbool 'indexed' => 'Name' evaluates to false 
+
+				# getbool of this is not valid anymore, for WMI indexed must be named, so getbool 'indexed' => 'Name' evaluates to false
 				# changing now to be not false.
 
 				if (not ( $thissection->{indexed} ne "" and $thissection->{indexed} ne "false" ))	# if indexed then all instances must be checked individually
@@ -9156,12 +9200,13 @@ sub makesysuptime
 	my $info = $sys->ndinfo->{system};
 
 	return if (ref($info) ne "HASH" or !keys %$info);
-
+	
 	# if this is wmi, we need to make a sysuptime first. these are seconds
-	if ($info->{wintime} && $info->{winboottime})
-	{
-		$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
-	}
+	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
+	#if ($info->{wintime} && $info->{winboottime})
+	#{
+	#	$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
+	#}
 
 	# pre-mangling it's a number, maybe fractional, in 1/100s ticks
 	# post-manging it is text, and we can't do a damn thing anymore
