@@ -397,6 +397,15 @@ sub menu_bar_site {
 		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|
 				if ($AU->CheckAccess("table_config_view","check"));
 
+		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nodetype_list">Add/Edit Node Types</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=roletype_list">Add/Edit Node Roles</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
+		push @setupitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=nettype_list">Add/Edit Network Types</a>|
+				if ($AU->CheckAccess("table_config_view","check"));
+
 		push @setupitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
 				if ($AU->CheckAccess("Table_Nodes_view","check"));
 
