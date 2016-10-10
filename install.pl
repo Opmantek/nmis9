@@ -1130,6 +1130,7 @@ execPrint("$site/admin/fixperms.pl");
 
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
+unlink("$site/var/nmis_system/selftest.json");
 
 # daemon restarting should only be done after nmis is unlocked
 printBanner("Restart the fping daemon...");
