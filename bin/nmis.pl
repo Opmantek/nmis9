@@ -5155,7 +5155,7 @@ sub runServices
 				if ( !@matchingpids and $parametercheck ) {
 					foreach my $serv ( keys %services ) {
 						my $additional = $services{$serv}{hrSWRunParameters} || $services{$serv}{hrSWRunPath};
-						if ( $additional =~ /$additionalcheck/ ) {
+						if ( $additional =~ /$parametercheck/ ) {
 							push(@matchingpids,$serv);
 						}
 					}
