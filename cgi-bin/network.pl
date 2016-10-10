@@ -345,7 +345,8 @@ sub selectMetrics
 												$message)));
 				}
 				print Tr(td({class => "info Major"},
-										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=nmis_selftest_reset"  }, "Reset Selftest Status")));
+										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"  },
+											"Reset Selftest Status")));
 				print end_table;
 			}
 		}
@@ -1321,12 +1322,23 @@ sub viewPollingSummary {
 } # viewPollingSummary
 
 
-# remove the selftest cache file, then sends the client back to the standard page
-# without the redirect every automatic page reload would rerun the clear selftest...
+# remove the selftest cache file, then refresh the whole nmis gui
+# without that refresh, the js code picks up the wrong uri for the widget and
+# every automatic refresh silently reruns the clear selftest :-/
 sub clearSelfTest
 {
 	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
-	print $q->redirect(url(-absolute => 1)."?conf=$Q->{conf}&act=network_summary_metrics");
+
+	if ($wantwidget)
+	{
+		print header($headeropts),
+		qq|<script type="text/javascript">window.location='$C->{nmis}?conf=$Q->{conf}';</script>|;
+	}
+	else
+	{
+		# in non-widgetted mode a redirect is good enough
+		print $q->redirect(url(-absolute => 1)."?conf=$Q->{conf}&act=network_summary_metrics");
+	}
 }
 
 # show the full nmis self test
@@ -1348,12 +1360,19 @@ sub viewSelfTest
 			Tr(th({class=>'title',colspan=>'2'},"NMIS Selftest")),
 			Tr(td({class=>"heading3"}, "Last Selftest"), td({class=>"rht Plain"},
 																										returnDateStamp($selfteststatus->{lastupdate})));
-
+			my $anytrouble;
 			for my $test (@{$selfteststatus->{tests}})
 			{
 				my ($name,$message) = @$test;
 				print Tr(td({class => "heading3"}, $name),
 								 td({class => "rht ".($message? "Critical":"Normal")}, $message || "OK"));
+				$anytrouble = 1 if ($message);
+			}
+			if ($anytrouble)
+			{
+				print Tr(td({class => "info Major", colspan => 2},
+										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&act=nmis_selftest_reset&widget=$widget"  },
+											"Reset Selftest Status")));
 			}
 			print end_table;
 		}
