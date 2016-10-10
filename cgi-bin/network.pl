@@ -138,6 +138,7 @@ if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'nmis_runtime_view') {	viewRunTime(); exit;
 } elsif ($Q->{act} eq 'nmis_polling_summary') {	viewPollingSummary(); exit;
 } elsif ($Q->{act} eq "nmis_selftest_view") { viewSelfTest(); exit;
+} elsif ($Q->{act} eq "nmis_selftest_reset") { clearSelfTest(); exit;
 } else {
 	$select = 'health';
 	#notfound(); exit
@@ -343,6 +344,8 @@ sub selectMetrics
 													class => "black" },
 												$message)));
 				}
+				print Tr(td({class => "info Major"},
+										a({ href => url(-absolute=>1)."?conf=$Q->{conf}&amp;act=nmis_selftest_reset"  }, "Reset Selftest Status")));
 				print end_table;
 			}
 		}
@@ -1308,6 +1311,14 @@ sub viewPollingSummary {
 
 } # viewPollingSummary
 
+
+# remove the selftest cache file, then sends the client back to the standard page
+# without the redirect every automatic page reload would rerun the clear selftest...
+sub clearSelfTest
+{
+	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
+	print $q->redirect(url(-absolute => 1)."?conf=$Q->{conf}&act=network_summary_metrics");
+}
 
 # show the full nmis self test
 sub viewSelfTest
