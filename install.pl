@@ -785,7 +785,7 @@ else
 	for my $cff ("License.nmis", "Access.nmis", "Config.nmis", "BusinessServices.nmis", "ServiceStatus.nmis",
 							 "Contacts.nmis", "Enterprise.nmis", "Escalations.nmis",
 							 "ifTypes.nmis", "Links.nmis", "Locations.nmis", "Logs.nmis",
-							 "Customers.nmis", "Events.nmis", 
+							 "Customers.nmis", "Events.nmis",
 							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis", "Outage.nmis", "Portal.nmis",
 							 "PrivMap.nmis", "Services.nmis", "Users.nmis", "users.dat")
 	{
@@ -1067,12 +1067,12 @@ if (!$isnewinstall)
 		execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis missingonly=true leavelocked=true");
 		print "\n\n";
 	}
-	
+
 	if ($diffs =~ m!^-\s+/nodes!m) # ie. present but different
 	{
 		printBanner("RRD Database Migration Required");
-		echolog("The installer has detected structural differences between your current 
-Common-database and the shipped one. These changes can be merged using 
+		echolog("The installer has detected structural differences between your current
+Common-database and the shipped one. These changes can be merged using
 the rrd migration script that comes with NMIS.
 
 If you choose Y below, the installer will use admin/migrate_rrd_locations.pl
@@ -1081,7 +1081,7 @@ the Common-database entries.  This is highly recommended!
 
 If you choose N, then NMIS will continue using the RRD locations specified
 in your current Common-database configuration file.\n\n");
-		
+
 		if (input_yn("OK to run rrd migration script?"))
 		{
 			echolog("Running RRD migration script in test mode first...");
@@ -1130,6 +1130,7 @@ execPrint("$site/admin/fixperms.pl");
 
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
+unlink("$site/var/nmis_system/selftest.json");
 
 # daemon restarting should only be done after nmis is unlocked
 printBanner("Restart the fping daemon...");
@@ -1472,16 +1473,16 @@ EOF
 
 	# these are critical for getting mojolicious installed, as centos 6 perl has a much too old perl
 	# these modules are in core since 5.19 or thereabouts
-	
+
 	$nmisModules->{"IO::Socket::IP"} = { file => "MODULE NOT FOUND", type  => "use",
 																			 by => "lib/Auth.pm", priority => 99 };
 	# io socket ip needs at least this version of socket...
 	$nmisModules->{"Socket"} = { file => "MODULE NOT FOUND", type  => "use",
-															 by => "lib/Auth.pm", minversion => "1.97", 
+															 by => "lib/Auth.pm", minversion => "1.97",
 															 priority => 99 };
 	# and socket needs at least this version of extutils constant to build
 	$nmisModules->{"ExtUtils::Constant"} = { file => "MODULE NOT FOUND", type  => "use",
-																					 by => "lib/Auth.pm", minversion => "0.23", 
+																					 by => "lib/Auth.pm", minversion => "0.23",
 																					 priority => 100 };
 	# and mojolicious needs all these
 	$nmisModules->{"JSON::PP"} = { file => "MODULE NOT FOUND", type  => "use",
@@ -1532,7 +1533,7 @@ EOF
 # get the module version
 # args: actual file, and module name
 # this is non-optimal, and fails on a few modules (e.g. Encode)
-sub moduleVersion 
+sub moduleVersion
 {
 	my ($mFile, $modname) = @_;
 	open FH,"<$mFile" or return 'FileNotFound';
@@ -1563,7 +1564,7 @@ sub listModules
 										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
-	# sort by install prio, or file 
+	# sort by install prio, or file
 	foreach my $k ( sort { $nmisModules->{$b}->{priority} <=> $nmisModules->{$a}->{priority}
 												 or $nmisModules->{$a}{file} cmp $nmisModules->{$b}{file} } keys %$nmisModules)
 	{
@@ -1811,11 +1812,11 @@ sub enable_custom_repo
 
 # copy file from a to b, but only if the target is not a symlink
 # if symlink, warn the user about it and request confirmation (default action: leave unchanged)
-# args: source, destination
+# args: source, destination, options
 # returns: 1 if ok, dies on errors
 sub safecopy
 {
-	my ($source, $destination) = @_;
+	my ($source, $destination, %options) = @_;
 	die "safecopy: invalid args, $source is not a file!\n" if (!-f $source);
 	die "safecopy: invalid args, $destination missing or a dir!\n" if (!$destination or -d $destination);
 
@@ -1836,8 +1837,16 @@ sub safecopy
 			echolog("Overwriting $destination (= $actualtarget) as requested.");
 		}
 	}
-
-	logInstall("copying $source to $destination");
+	# must work around 'text file busy' on executables (right now just wmic)
+	if (-e $destination)
+	{
+		logInstall("replacing $destination with $source");
+		unlink($destination) or die("failed to remove $destination: $!\n");
+	}
+	else
+	{
+		logInstall("copying $source to $destination");
+	}
 	# unfortunately, file::copy in centos/rh6 is too old for useful behaviour wrt. permissions,
 	if (version->parse($File::Copy::VERSION) < version->parse("2.15"))
 	{

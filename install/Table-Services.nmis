@@ -2,6 +2,7 @@
 			Services => [
 				{ 'Name' => { mandatory => 'true', header => 'Name',display => 'key,header,text', value => [ '' ] }},
 				{ 'Service_Name' => { mandatory => 'false', header => 'Service Name',display => 'header,text', value => [ '' ] }},
+				{ 'Service_Parameters' => { mandatory => 'false', header => 'Service Parameters',display => 'header,text', value => [ '' ] }},
 				{ 'Service_Type' => { mandatory => 'true', header => 'Service Type',display => 'header,popup', value => [ 'service', "port", "dns", 'script', 'wmi', 'program', 'nagios-plugin' ] }},
 				{ 'Port' => { header => 'Port',display => 'header,text', value => [ '' ] }},
 				{ 'Poll_Interval' => { mandatory => 'true', header => 'Poll Interval',display => 'header,popup', value => [ "5m", "1m", "2m", "15m", "30m", "1h", "6h", "1d" ] }},

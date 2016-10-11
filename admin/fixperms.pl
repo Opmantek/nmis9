@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: fixperms.pl,v 8.3 2011/11/09 06:16:04 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -60,9 +58,9 @@ else {
 	system("chown","-R","$C->{nmis_user}:$C->{nmis_group}",$C->{'<nmis_base>'});
 	system("chmod","-R","g+rw", $C->{'<nmis_base>'});
 
-	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} ) 
+	if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} )
 	{
-		system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}", 
+		system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}",
 					 $C->{'<nmis_data>'});
 
 		system("chmod","-R","g+rw", $C->{'<nmis_data>'});
@@ -101,5 +99,9 @@ for my $location ($C->{'<nmis_base>'}."/lib",
 	setFileProtDirectory($location, "true") 	if (!$done{$location});
 	$done{$location} = 1;
 }
+
+# remove the selftest cache file to ensure it's regenerated;
+# otherwise we may show stale warnings about permissions that were already fixed
+unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
 
 exit 0;

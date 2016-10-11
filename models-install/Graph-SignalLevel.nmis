@@ -37,10 +37,10 @@
 	},
 	'option' => {
 		'standard' => [
-				 'DEF:signal=$database:signal:AVERAGE',
+				 'DEF:signal=$database:signallevel:AVERAGE',
 				 'DEF:snr=$database:snr:AVERAGE',
 				 
-				 'LINE2:signal#006400:Signal Level',
+				 'LINE2:signal#006400:Signal Level\\t\\t',
 				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
 				 'GPRINT:signal:MIN:Min %10.2lf',
 				 'GPRINT:signal:MAX:Max %10.2lf\\n',
@@ -55,10 +55,10 @@
 
 				], 
 		'small' => [ 
-				 'DEF:signal=$database:signal:AVERAGE',
+				 'DEF:signal=$database:signallevel:AVERAGE',
 				 'DEF:snr=$database:snr:AVERAGE',
 				 
-				 'LINE2:signal#006400:Signal',
+				 'LINE2:signal#006400:Signal Level\\t',
 				 'GPRINT:signal:AVERAGE:Avg %10.2lf',
 
 				 'LINE2:snr#7FFF00:SNR',

@@ -881,7 +881,7 @@ sub PreciseNodeStatus
 
 	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
 	# and if collect was true as well.
-	my %precise = ( overall => undef, # 1 reachable, 0 unreachable, -1 degraded
+	my %precise = ( overall => 1, # 1 reachable, 0 unreachable, -1 degraded
 									snmp_enabled =>  defined($nisys->{snmpdown})||0,
 									wmi_enabled => defined($nisys->{wmidown})||0,
 									ping_enabled => getbool($nisys->{ping}),
@@ -901,7 +901,7 @@ sub PreciseNodeStatus
 		$precise{overall} = 0;
 	}
 	# ping enabled, but unpingable -> unreachable
-	elsif ( !$precise{ping_status} )
+	elsif ($precise{ping_enabled} && !$precise{ping_status} )
 	{
 		$precise{overall} = 0;
 	}
@@ -3196,7 +3196,7 @@ sub loadServiceStatus
 		# sanity check 1: if we have data for this service already, only accept this
 		# if its last_run is strictly newer
 		if (ref($result{$thisserver}) eq "HASH"
-				&& ref($result{$thisserver}->{$thisservice}) eq "HASH" 
+				&& ref($result{$thisserver}->{$thisservice}) eq "HASH"
 				&& ref($result{$thisserver}->{$thisservice}->{$thisnode}) eq "HASH"
 				&& $sdata->{last_run} <= $result{$thisserver}->{$thisservice}->{$thisnode}->{last_run})
 		{
@@ -3206,7 +3206,7 @@ sub loadServiceStatus
 
 		# sanity check 2: files could be orphaned (ie. deleted node, or deleted service, or no
 		# longer listed with the node, or not from this server - all ignored if only_known is false
-		
+
 		if (!$onlyknown
 				or ( $thisnode and $LNT->{$thisnode} # known node
 						 and $thisservice and $ST->{$thisservice} # known service

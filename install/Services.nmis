@@ -4,6 +4,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'snmp.exe',
+		'Service_Parameters' => '',
     'Name' => 'SNMP_Service'
   },
   'SNMP_Daemon' => {
@@ -11,6 +12,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'snmpd',
+		'Service_Parameters' => '',
     'Name' => 'SNMP_Daemon'
   },
   'dns' => {
@@ -53,6 +55,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'httpd',
+		'Service_Parameters' => '',
     'Name' => 'HTTP_Server'
   },
   'mysqld_daemon' => {
@@ -60,6 +63,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'mysqld',
+		'Service_Parameters' => '',
     'Name' => 'mysqld_daemon'
   },
   'port22' => {
