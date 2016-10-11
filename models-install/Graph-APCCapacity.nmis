@@ -47,10 +47,9 @@
 			'DEF:battimeleft=$database:RunTimeRem:AVERAGE',
 			'CDEF:battimeleftmin=battimeleft,60,/',
 			'AREA:batcapleft#00ff00:Capacity Remaining',
-			'GPRINT:batcapleft:LAST:%2.1lf %%',
-			'COMMENT:\\n',
+			'GPRINT:batcapleft:LAST:%2.1lf %%\\n',
 			'GPRINT:battimemin:LAST:Time on Battery %5.1lf min',
-			'GPRINT:battimeleftmin:LAST:Run Time Remaining %5.1lf min',
+			'GPRINT:battimeleftmin:LAST:Run Time Remaining %5.1lf min\\n',
 		],
 
 		'small' => [
@@ -62,7 +61,7 @@
 			'CDEF:battimeleftmin=battimeleft,60,/',
 			'AREA:batcapleft#00ff00:Capacity Remaining',
 			'GPRINT:batcapleft:LAST:%2.1lf %%',
-			'GPRINT:battimeleftmin:LAST:Run Time Remaining %5.1lf min',
+			'GPRINT:battimeleftmin:LAST:Run Time Remaining %5.1lf min\\n',
 		],
 
 	}

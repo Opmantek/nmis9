@@ -42,8 +42,7 @@
 			'--rigid',
 			'DEF:load=$database:OutputLoad:AVERAGE',
 			'LINE:load#FF8C00:Output Load',
-			'GPRINT:load:AVERAGE:%2.1lf %%',
-			'COMMENT:\\n',	
+			'GPRINT:load:AVERAGE:%2.1lf %%\\n',
 		],
 	}
 );

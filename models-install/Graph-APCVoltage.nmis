@@ -39,8 +39,7 @@
 		'standard' => [
 			'DEF:ac1=$database:InputVoltage:AVERAGE',
 			'LINE:ac1#4B0082:Line Input',
-			'GPRINT:ac1:AVERAGE:%5.2lf V',
-			'COMMENT:\\n',
+			'GPRINT:ac1:AVERAGE:%5.2lf V\\n',
 		],
 	}
 );
