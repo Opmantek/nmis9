@@ -4920,12 +4920,15 @@ sub runServices
 		#	}
 		#}
 
-		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions)) {
-			foreach my $inst (keys %{$hrIndextable}) {
-				
+		# get the process parameters by row (=process instance),
+		# not by column (=process property): avoids oversize snmp packets
+		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions))
+		{
+			foreach my $inst (keys %{$hrIndextable})
+			{
 				# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
 				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
-				
+
 				(
 					$snmpTable{'hrSWRunPath'}{$inst},
 					$snmpTable{'hrSWRunParameters'}{$inst},
@@ -4944,8 +4947,8 @@ sub runServices
 				if ( $SNMP->error ) {
 					logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
 					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-					$snmp_allowed = 0;	
-					last;				
+					$snmp_allowed = 0;
+					last;
 				}
 				dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
 			}
@@ -4958,7 +4961,7 @@ sub runServices
 			$snmp_allowed = 0;
 			last;
 		}
-		
+
 		# are we still good to continue?
 		# don't do anything with the (incomplete and unusable) snmp data if snmp failed just now
 		if ($snmp_allowed)
@@ -5058,7 +5061,8 @@ sub runServices
 		$timer->resetTime;
 		my $responsetime;						# blank the responsetime
 
-		# DNS: lookup whatever Service_name contains (fqdn or ip address), nameserver being the host in question
+		# DNS: lookup whatever Service_name contains (fqdn or ip address),
+		# nameserver being the host in question
 		if ( $ST->{$service}{Service_Type} eq "dns" ) {
 			use Net::DNS;
 			my $lookfor = $ST->{$service}{Service_Name};
@@ -5126,18 +5130,22 @@ sub runServices
 
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
 			if ( getbool($C->{snmp_stop_polling_on_error},"invert")
-					 or ( getbool($C->{snmp_stop_polling_on_error}) and !getbool($NI->{system}{snmpdown})
+					 or ( getbool($C->{snmp_stop_polling_on_error})
+								and !getbool($NI->{system}{snmpdown})
 								and !getbool($NI->{system}{nodedown}) ) )
 			{
 				my $wantedprocname = $ST->{$service}{Service_Name};
-				# KS now supporting looking at the hrSWRunParameters or hrSWRunPath for extra matching to support stupid Java and others.
-				my $parametercheck = $ST->{$service}{Service_Parameter};
+				my $parametercheck = $ST->{$service}{Service_Parameters};
 
-				if (!$wantedprocname and !$parametercheck) {
-					dbg("ERROR, service_name is empty");
-					logMsg("ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Additional are empty");
+				if (!$wantedprocname and !$parametercheck)
+				{
+					dbg("ERROR, Both Service_Name and Service_Parameters are empty");
+					logMsg("ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Parameters are empty!");
 					next;
 				}
+				# one of the two blank is ok
+				$wantedprocname ||= ".*";
+				$parametercheck ||= ".*";
 
 				# lets check the service status from snmp for matching process(es)
 				# it's common to have multiple processes with the same name on a system,
@@ -5147,26 +5155,18 @@ sub runServices
 				# interpretation of notrunnable is not clear.
 				# invalid is for (short-lived) zombies, which should be ignored.
 
-				# services list is keyed by name:pid
-				my @matchingpids = grep (/^$wantedprocname:\d+$/, keys %services);
+				# we check: the process name, against regex from Service_Name definition,
+				# AND the process path + parameters, against regex from Service_Parameters
+				# services list is keyed by "name:pid"
+				my @matchingpids = grep((/^$wantedprocname:\d+$/
+																 && ($services{$_}->{hrSWRunPath}." ".
+																		 $services{$_}->{hrSWRunParameters}) =~ /$parametercheck/), keys %services);
 
-				# KS don't have a hit from there, so see if there is an additional check to perform
-				### AZ TODO
-				if ( !@matchingpids and $parametercheck ) {
-					foreach my $serv ( keys %services ) {
-						my $additional = $services{$serv}{hrSWRunParameters} || $services{$serv}{hrSWRunPath};
-						if ( $additional =~ /$parametercheck/ ) {
-							push(@matchingpids,$serv);
-						}
-					}
-				}
-
-				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids);
+				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i,
+														 @matchingpids);
 
 				dbg("runServices: found ".scalar(@matchingpids)." total and "
-						.scalar(@livingpids). " live processes for $wantedprocname");
-				dbg("runServices: live $wantedprocname processes: "
-						.join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
+						.scalar(@livingpids). " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: " .join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
 
 				if (!@livingpids)
 				{
@@ -5174,8 +5174,9 @@ sub runServices
 					$cpu = 0;
 					$memory = 0;
 					$gotMemCpu = 1;
-					logMsg("INFO, service $ST->{$service}{Name} is down, ".(@matchingpids? "only non-running processes"
-																																	: "no matching processes"));
+					logMsg("INFO, service $ST->{$service}{Name} is down, "
+								 .(@matchingpids? "only non-running processes"
+									 : "no matching processes"));
 				}
 				else
 				{
@@ -9201,7 +9202,7 @@ sub makesysuptime
 	my $info = $sys->ndinfo->{system};
 
 	return if (ref($info) ne "HASH" or !keys %$info);
-	
+
 	# if this is wmi, we need to make a sysuptime first. these are seconds
 	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
 	#if ($info->{wintime} && $info->{winboottime})
