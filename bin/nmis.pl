@@ -7884,7 +7884,7 @@ sub runDaemons
 		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
 			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" ) 
 			{
-				system($C->{'<nmis_bin>'}/$C->{daemon_fping_filename},"restart=true");
+				system("$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}","restart=true");
 				logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
 			} 
 			else 
@@ -7900,7 +7900,7 @@ sub runDaemons
 		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
 			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" ) 
 			{
-				system($C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename});
+				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
 				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
 			} 
 			else 
