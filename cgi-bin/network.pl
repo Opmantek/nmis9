@@ -2141,7 +2141,7 @@ sub viewAllIntf {
 
 		print Tr(td({class=>'Warning'},"Node degraded, "
 								. join(", ", @causes)
-								. ",status=$NI->{system}{status_summary}"));
+								. ", status=$NI->{system}{status_summary}"));
 	}
 
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $node"));
@@ -2611,7 +2611,7 @@ uri_escape($node);
 
 			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
 			my $cpusecs = $NI->{services}{$service}{hrSWRunPerfCPU} / 100;
-			my $parameters = $NI->{services}{$service}{hrSWRunPath} . " " . $NI->{services}{$service}{hrSWRunParameters}; 
+			my $parameters = $NI->{services}{$service}{hrSWRunPath} . " " . $NI->{services}{$service}{hrSWRunParameters};
 
 			print Tr(
 				td({class=>'info Plain'},$prog),
