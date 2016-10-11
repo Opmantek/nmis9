@@ -5126,6 +5126,7 @@ sub runServices
 						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
+			# snmp not allowed also includes the case of snmp having failed just now
 			next if (!$snmp_allowed);
 
 			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}");
@@ -7881,22 +7882,29 @@ sub runDaemons
 	# start fast ping daemon
 	if ( getbool($C->{daemon_fping_active}) ) {
 		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" ) {
-				`$C->{'<nmis_bin>'}/$C->{daemon_fping_filename} restart=true`;
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" ) 
+			{
+				system($C->{'<nmis_bin>'}/$C->{daemon_fping_filename},"restart=true");
 				logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
-			} else {
+			} 
+			else 
+			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
 			}
 		}
 	}
 
 	# start ipsla daemon
-	if ( getbool($C->{daemon_ipsla_active}) ) {
+	if ( getbool($C->{daemon_ipsla_active}) ) 
+	{
 		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" ) {
-				`$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}`;
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" ) 
+			{
+				system($C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename});
 				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			} else {
+			} 
+			else 
+			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
 			}
 		}
