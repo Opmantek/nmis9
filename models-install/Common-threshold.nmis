@@ -115,21 +115,6 @@
           }
         }
       },
-      'hrsmpcpu' => {
-        'event' => 'Proactive CPU',
-        'item' => 'hrCpuLoad',
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'major' => '60',
-              'minor' => '50',
-              'warning' => '40'
-            }
-          }
-        }
-      },
       'cpuUtil' => {
         'item' => 'cpuUtil',
         'event' => 'Proactive CPU',
@@ -261,6 +246,76 @@
               'minor' => '50',
               'warning' => '40',
               'major' => '60'
+            }
+          }
+        }
+      },
+      'hrdisk' => {
+        'event' => 'Proactive Disk Usage',
+        'item' => 'hrDiskUsedPer',
+        'select' => {
+          '10' => {
+            'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /Fixed Disk/',
+            'value' => {
+              'fatal' => '97',
+              'critical' => '95',
+              'major' => '90',
+              'minor' => '80',
+              'warning' => '75',
+            },
+          },
+          '20' => {
+            'control' => '$hrDiskSize <= 1610612736000 and $hrDiskSize >= 209715200000 and $hrStorageType =~ /Fixed Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '97',
+              'major' => '95',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '30' => {
+            'control' => '$hrDiskSize <= 3221225472000 and $hrDiskSize >= 1610612736000 and $hrStorageType =~ /Fixed Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '98',
+              'major' => '96',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '40' => {
+            'control' => '$hrDiskSize >= 3221225472000 and $hrStorageType =~ /Fixed Disk/',
+            'value' => {
+              'fatal' => '99.5',
+              'critical' => '99',
+              'major' => '98',
+              'minor' => '96',
+              'warning' => '93',
+            },
+          },
+          'default' => {
+            'value' => {
+              'fatal' => '97',
+              'critical' => '95',
+              'major' => '90',
+              'minor' => '80',
+              'warning' => '75',
+            }
+          }
+        }
+      },
+      'hrsmpcpu' => {
+        'event' => 'Proactive CPU',
+        'item' => 'hrCpuLoad',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '50',
+              'warning' => '40'
             }
           }
         }

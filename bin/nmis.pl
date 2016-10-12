@@ -8673,6 +8673,7 @@ sub runThrHld
 	my $M = $S->mdl;
 	my $IF = $S->ifinfo;
 	my $ET = $S->{info}{env_temp};
+	my $DISK = $S->{info}{storage};
 
 	my $sts = $args{table};
 	my $type = $args{type};
@@ -8711,6 +8712,9 @@ sub runThrHld
 	}
 	elsif ($index ne '' and $thrname eq "hrsmpcpu" ) {
 		$element = "CPU $index";
+	}
+	elsif ($index ne '' and $thrname eq "hrdisk" ) {
+		$element = "$DISK->{$index}{hrStorageDescr}";
 	}
 	elsif ($type =~ /cbqos/ and defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
 		$element = "$IF->{$index}{ifDescr}: $item";

@@ -171,7 +171,7 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Service Up',
     'Description' => 'A service NMIS is managing has failed completely.',
-		 },
+	},
 
   'Service Degraded' => {
     'Event' => 'Service Degraded',
@@ -299,6 +299,15 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive CPU User Closed',
     'Description' => 'The User CPU utilisation threshold has been exceeded.',
+  },
+  'Proactive Disk Usage' => {
+    'CancelingEvent' => 'Proactive Disk Usage Closed',
+    'Description' => 'The node has high disk usage (disk is getting full)',
+    'Event' => 'Proactive Disk Usage',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
   },
   'Proactive Heap Utilisation' => {
     'Event' => 'Proactive Heap Utilisation',

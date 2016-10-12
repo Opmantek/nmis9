@@ -61,8 +61,10 @@
       'hrdisk' => [
         'DEF:hrDiskSize=$database:hrDiskSize:AVERAGE',
         'DEF:hrDiskUsed=$database:hrDiskUsed:AVERAGE',
+        'CDEF:hrDiskUsedPer=hrDiskUsed,hrDiskSize,/,100,*',
         'PRINT:hrDiskSize:AVERAGE:hrDiskSize=%1.2lf',
-        'PRINT:hrDiskUsed:AVERAGE:hrDiskUsed=%1.2lf'
+        'PRINT:hrDiskUsed:AVERAGE:hrDiskUsed=%1.2lf',
+        'PRINT:hrDiskUsedPer:AVERAGE:hrDiskUsedPer=%1.2lf'
       ],
       'hrsmpcpu' => [
         'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
