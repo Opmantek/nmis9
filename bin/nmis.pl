@@ -4702,7 +4702,7 @@ sub runServer
 				} else {
 					if (
 						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
-						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageFixedDisk
+						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageNetworkDisk
 					) {
 						undef %Val;
 						my $hrStorageType = $D->{hrStorageType};
