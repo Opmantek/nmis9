@@ -328,10 +328,13 @@ sub open
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = $self->{info}{system}{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name};
+	$snmpcfg->{host} = ( $self->{info}{system}{host_addr} 
+											 || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
+	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef; 
+	
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
 	return 0 if (!$self->{snmp}->open(config => $snmpcfg,

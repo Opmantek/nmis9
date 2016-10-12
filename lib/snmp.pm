@@ -243,7 +243,8 @@ sub open
 		retries => $cobj->{retries} || $args{retries} || 1,
 
 		max_msg_size => $cobj->{max_msg_size} || $args{max_msg_size} || 1472,
-		oidpkt => $cobj->{oidpkt} || $args{oidpkt} || 10,
+		oidpkt => $cobj->{oidpkt} || $args{oidpkt} || 10, # for gettable
+		max_repetitions => $cobj->{max_repetitions} || $args{max_repetitions} || undef, # for the bulk functions
 
 		version => $cobj->{version} || $args{version} || 'snmpv2c',
 		community => $cobj->{community} || $args{community} || 'public',
@@ -470,8 +471,8 @@ sub getarray
 # retrieves one table with a get_table request, returns hashref
 # requires session to be open.
 #
-# args: oid to retrieve (name or numeric), maxrepetitions (optional,
-# if given and numeric, controls how many ID/PDUs will be in a single request),
+# args: oid to retrieve (name or numeric), maxrepetitions (optional, overrides config
+# if given. if numeric, controls how many ID/PDUs will be in a single request),
 # rewritekeys (optional, default no; if given only the index part of the oid is kept)
 #
 # returns: undef if error (sets internal error text),
@@ -498,6 +499,10 @@ sub gettable
 			return undef;
 		}
 	}
+
+	# fall back to config
+	$maxrepetitions = $self->{config}->{max_repetitions}
+	if (!defined $maxrepetitions);
 
 	my @methodargs = ( "-baseoid" => $name );
 	push @methodargs, ("-contextname" => $self->{config}->{context})
