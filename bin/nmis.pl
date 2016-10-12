@@ -4879,77 +4879,28 @@ sub runServices
 		# get the process parameters by column, allowing efficient bulk requests
 		# but possibly running into bad agents at times, which gettable/getindex
 		# compensates for by backing off and retrying.
-		if (1)
-		{
-			for my $var (qw(hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus 
+		for my $var (qw(hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus
 hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
-			{
-				if ( $hrIndextable = $SNMP->getindex($var))
-				{
-					foreach my $inst (keys %{$hrIndextable}) 
-					{
-						my $value = $hrIndextable->{$inst};
-						my $textoid = oid2name(name2oid($var).".".$inst);
-						$value = snmp2date($value) if ($textoid =~ /date\./i);
-						( $textoid, $inst ) = split /\./, $textoid, 2;
-						$snmpTable{$textoid}{$inst} = $value;
-						dbg("Indextable=$inst textoid=$textoid value=$value",2);
-					}
-				}
-				# SNMP failed, so mark SNMP down so code below handles results properly
-				else
-				{
-					logMsg("$node SNMP failed while collecting SNMP Service Data");
-					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-					$snmp_allowed = 0;
-					last;
-				}
-			}
-		}
-		else
 		{
-			# get the process parameters by row (=process instance),
-			# not by column (=process property): avoids oversize snmp packets
-			# unfortunately that is much too slow!
-			
-			if ( $hrIndextable = $SNMP->getindex("hrSWRunName"))
+			if ( $hrIndextable = $SNMP->getindex($var))
 			{
 				foreach my $inst (keys %{$hrIndextable})
 				{
-					# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
-					$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
-					
-					(
-					 $snmpTable{'hrSWRunPath'}{$inst},
-					 $snmpTable{'hrSWRunParameters'}{$inst},
-					 $snmpTable{'hrSWRunStatus'}{$inst},
-					 $snmpTable{'hrSWRunType'}{$inst},
-					 $snmpTable{'hrSWRunPerfCPU'}{$inst},
-					 $snmpTable{'hrSWRunPerfMem'}{$inst}
-					) = $SNMP->getarray(
-						"hrSWRunPath.$inst",
-						"hrSWRunParameters.$inst",
-						"hrSWRunStatus.$inst",
-						"hrSWRunType.$inst",
-						"hrSWRunPerfCPU.$inst",
-						"hrSWRunPerfMem.$inst"
-							);
-					if ( $SNMP->error ) {
-						logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
-						HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-						$snmp_allowed = 0;
-						last;
-					}
-					dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
+					my $value = $hrIndextable->{$inst};
+					my $textoid = oid2name(name2oid($var).".".$inst);
+					$value = snmp2date($value) if ($textoid =~ /date\./i);
+					( $textoid, $inst ) = split /\./, $textoid, 2;
+					$snmpTable{$textoid}{$inst} = $value;
+					dbg("Indextable=$inst textoid=$textoid value=$value",2);
 				}
 			}
 			# SNMP failed, so mark SNMP down so code below handles results properly
 			else
 			{
-				logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+				logMsg("$node SNMP failed while collecting SNMP Service Data");
 				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
 				$snmp_allowed = 0;
-				last;
+					last;
 			}
 		}
 
