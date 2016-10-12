@@ -243,7 +243,8 @@ sub open
 		retries => $cobj->{retries} || $args{retries} || 1,
 
 		max_msg_size => $cobj->{max_msg_size} || $args{max_msg_size} || 1472,
-		oidpkt => $cobj->{oidpkt} || $args{oidpkt} || 10,
+		oidpkt => $cobj->{oidpkt} || $args{oidpkt} || 10, # for gettable
+		max_repetitions => $cobj->{max_repetitions} || $args{max_repetitions} || undef, # for the bulk functions
 
 		version => $cobj->{version} || $args{version} || 'snmpv2c',
 		community => $cobj->{community} || $args{community} || 'public',
@@ -470,8 +471,8 @@ sub getarray
 # retrieves one table with a get_table request, returns hashref
 # requires session to be open.
 #
-# args: oid to retrieve (name or numeric), maxrepetitions (optional,
-# if given and numeric, controls how many ID/PDUs will be in a single request),
+# args: oid to retrieve (name or numeric), maxrepetitions (optional, overrides config
+# if given. if numeric, controls how many ID/PDUs will be in a single request),
 # rewritekeys (optional, default no; if given only the index part of the oid is kept)
 #
 # returns: undef if error (sets internal error text),
@@ -499,32 +500,57 @@ sub gettable
 		}
 	}
 
-	my @methodargs = ( "-baseoid" => $name );
-	push @methodargs, ("-contextname" => $self->{config}->{context})
-			if ($self->{config}->{context});
-	push @methodargs, ("-maxrepetitions" => $maxrepetitions)
-			if ($maxrepetitions);
+	# fall back to config'd value
+	$maxrepetitions = $self->{config}->{max_repetitions}
+	if (!defined $maxrepetitions);
 
-	my $result = $self->{session}->get_table(@methodargs);
-	return undef if (!$self->checkResult($result, [$name]));
-
-	my $cnt = scalar keys %{$result};
-	dbg("result: $cnt values for table $name",3);
-
-	if (getbool($rewritekeys))
+	# repeat the op, but try backing off and smaller maxrepetitions
+	# if we run into message size exceeded issues
+	my $triesleft = 5;
+	while ($triesleft)
 	{
-		my @todo = keys %{$result};
-		for my $fullkey (@todo)
+		my @methodargs = ( "-baseoid" => $name );
+		push @methodargs, ("-contextname" => $self->{config}->{context})
+				if ($self->{config}->{context});
+		push @methodargs, ("-maxrepetitions" => $maxrepetitions)
+				if ($maxrepetitions);
+
+		my $result = $self->{session}->get_table(@methodargs);
+		my $errormsg = $self->{session}->error;
+		--$triesleft;
+		if ($triesleft && $errormsg && $errormsg =~ /message size exceeded/i)
 		{
-			my $newkey = $fullkey;
-			$newkey =~ s/^$name.//;
+			# if the net::snmp guesswork with maxrepetitions 0 didn't pan out, try 20;
+			# if we had a value, reduce it by 25%.
+			$maxrepetitions = $maxrepetitions? int($maxrepetitions * 0.75) : 20;
 
-			$result->{$newkey} = $result->{$fullkey};
-			delete $result->{$fullkey};
+			# and make sure this persists across the session lifetime
+			$self->{config}->{max_repetitions} = $maxrepetitions;
+			dbg("get_table failed with message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
+			logMsg("WARNING ($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
+			next;
 		}
-	}
+		return undef if (!$self->checkResult($result, [$name]));
 
-	return $result;
+		my $cnt = scalar keys %{$result};
+		dbg("result: $cnt values for table $name",3);
+
+		if (getbool($rewritekeys))
+		{
+			my @todo = keys %{$result};
+			for my $fullkey (@todo)
+			{
+				my $newkey = $fullkey;
+				$newkey =~ s/^$name.//;
+
+				$result->{$newkey} = $result->{$fullkey};
+				delete $result->{$fullkey};
+			}
+		}
+
+		return $result;
+	}
+	return undef;									# ran out of tries
 }
 
 # get array, but rewrite keys so that they contain only index part below table oid

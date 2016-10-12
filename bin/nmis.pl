@@ -734,10 +734,16 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
+		# snmp-enabled node? then try to create a session obj
+		# (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(timeout => $C->{snmp_timeout},
 						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+						 max_msg_size => $C->{snmp_max_msg_size},
+						 # how many oids/pdus per bulk request, or let net::snmp guess a value
+						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+						 # how many oids per simple get request (for getarray), or default (no guessing)
+						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
+				if ($S->status->{snmp_enabled});
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
@@ -1001,7 +1007,12 @@ sub doCollect
 		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(timeout => $C->{snmp_timeout},
 						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+						 max_msg_size => $C->{snmp_max_msg_size},
+						 # how many oids/pdus per bulk request, or let net::snmp guess a value
+						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+						 # how many oids per simple get request for getarray, or default (no guessing)
+						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
+				if ($S->status->{snmp_enabled});
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
@@ -1825,10 +1836,6 @@ sub getIntfInfo
 	my $C = loadConfTable();
 	my $nodename = $NI->{system}->{name};
 
-	### handling the default value for max-repetitions,
-	# this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
@@ -1887,7 +1894,7 @@ sub getIntfInfo
 		}
 		else
 		{
-			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions)))
+			if ($ifIndexTable = $SNMP->gettable('ifIndex'))
 			{
 				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable}))
 				{
@@ -2043,8 +2050,8 @@ sub getIntfInfo
 			my $ifMaskTable;
 			my %ifCnt;
 			info("Getting Device IP Address Table");
-			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex',$max_repetitions)) {
-				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
+			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
+				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
 					foreach my $addr (keys %{$ifAdEntTable}) {
 						my $index = $ifAdEntTable->{$addr};
 						next if ($singleInterface and $intf_one ne $index);
@@ -2624,10 +2631,6 @@ sub getEnvInfo
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
-	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -2660,7 +2663,7 @@ sub getEnvInfo
 		my $index_var = $M->{environment}{sys}{$section}{indexed};
 
 		my (%envIndexNum, $envIndexTable);
-		if ($envIndexTable = $SNMP->gettable($index_var, $max_repetitions))
+		if ($envIndexTable = $SNMP->gettable($index_var))
 		{
 			foreach my $oid ( oid_lex_sort(keys %{$envIndexTable}))
 			{
@@ -2808,10 +2811,6 @@ sub getSystemHealthInfo
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
-	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -2936,7 +2935,7 @@ sub getSystemHealthInfo
 			info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
 			my (%healthIndexNum, $healthIndexTable);
 
-			if ($healthIndexTable = $SNMP->gettable($index_snmp,$max_repetitions))
+			if ($healthIndexTable = $SNMP->gettable($index_snmp))
 			{
 				# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
 				foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable}))
@@ -3420,9 +3419,6 @@ sub getIntfData
 
 	my $createdone = "false";
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	info("Starting Interface get data, node $S->{name}");
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
@@ -3438,9 +3434,9 @@ sub getIntfData
 
 		my ($ifAdminTable, $ifOperTable);
 
-		if ( ($ifAdminTable = $SNMP->getindex('ifAdminStatus',$max_repetitions)) )
+		if ($ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
-			$ifOperTable = $SNMP->getindex('ifOperStatus',$max_repetitions);
+			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index (keys %{$ifAdminTable})
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
@@ -3469,7 +3465,7 @@ sub getIntfData
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
 		my $ifLastChangeTable;
-		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions))
+		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange'))
 		{
 			for my $index (sort {$a <=> $b} (keys %{$ifLastChangeTable}))
 			{
@@ -3892,13 +3888,10 @@ sub getCBQoSwalk
 
 	# get the qos interface indexes and objects from the snmp table
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	info("start table scanning");
 
 	# read qos interface table
-	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions))
+	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex'))
 	{
 		foreach my $PIndex (keys %{$ifIndexTable}) {
 			my $intf = $ifIndexTable->{$PIndex}; # the interface number from the snmp qos table
@@ -3931,7 +3924,7 @@ sub getCBQoSwalk
 					my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
 
 					# get the policy config table for this interface
-					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex",$max_repetitions);
+					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
 
 					if ( $C->{debug} > 5 ) {
 						print Dumper ( $qosIndexTable );
@@ -4347,9 +4340,6 @@ sub getCallswalk
 	my (%seen, %callsTable, %mappingTable, $intfindex,$parentintfIndex,
 			$IntfIndexTable, $IntfStatusTable);
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	dbg("Starting Calls ports collection");
 
 	# double check if any call interfaces on this node.
@@ -4376,7 +4366,7 @@ sub getCallswalk
 	add_mapping("1.3.6.1.2.1.31.1.2.1.3","ifStackStatus","");
 
 	# getindex the cpmDS0InterfaceIndex oid to populate $callsTable hash with such as interface indexes, ports, slots
-	if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex",$max_repetitions))
+	if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex"))
 	{
 		foreach my $index (keys %{$IntfIndexTable})
 		{
@@ -4388,7 +4378,7 @@ sub getCallswalk
 				$callsTable{$intfindex}{'port'} = $port;
 				$callsTable{$intfindex}{'channel'} = $channel;
 			}
-		if ($IntfStatusTable = $SNMP->getindex("ifStackStatus",$max_repetitions))
+		if ($IntfStatusTable = $SNMP->getindex("ifStackStatus"))
 		{
 			foreach my $index (keys %{$IntfStatusTable})
 			{
@@ -4485,9 +4475,6 @@ sub getPVC
 	my %pvcStats;		# start this new every time
 	my %snmpTable;
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	dbg("Starting frame relay PVC collection");
 
 	# double check if any frame relay interfaces on this node.
@@ -4520,7 +4507,7 @@ sub getPVC
 
 	my $frCircEntryTable;
 	my $cfrExtCircIfNameTable;
-	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry',$max_repetitions))
+	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry'))
 	{
 		foreach my $index (keys %{$frCircEntryTable})
 		{
@@ -4534,7 +4521,7 @@ sub getPVC
 		# fixme hardcoded model name is bad
 		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ )
 		{
-			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName',$max_repetitions))
+			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName'))
 			{
 				foreach my $index (keys %{$cfrExtCircIfNameTable}) {
 					my ($port,$pvc) = split /\./,$index;
@@ -4634,16 +4621,13 @@ sub runServer
 
 	my ($result, %Val, %ValMeM, $hrCpuLoad);
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
-
 	info("Starting server device/storage collection, node $NI->{system}{name}");
 
 	# get cpu info
 	delete $NI->{device};
 	if (ref($M->{device}) eq "HASH" && keys %{$M->{device}})
 	{
-		my $deviceIndex = $SNMP->getindex('hrDeviceIndex',$max_repetitions);
+		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
 		$S->loadInfo(class=>'device',model=>$model); # get cpu load without index
 		foreach my $index (keys %{$deviceIndex}) {
 			if ($S->loadInfo(class=>'device',index=>$index,model=>$model)) {
@@ -4688,7 +4672,7 @@ sub runServer
 	if ($M->{storage} ne '') {
 		# get storage info
 		my $disk_cnt = 1;
-		my $storageIndex = $SNMP->getindex('hrStorageIndex',$max_repetitions);
+		my $storageIndex = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable = undef;
@@ -4730,8 +4714,8 @@ sub runServer
 						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
 							# only get this snmp once if we need to, and created an named index.
 							if ( not defined $fileSystemTable ) {
-								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint',$max_repetitions);
-								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint',$max_repetitions);
+								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint');
+								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint');
 								foreach my $fsIndex ( keys %$hrFSMountPoint ) {
 									my $mp = $hrFSMountPoint->{$fsIndex};
 									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
@@ -4865,9 +4849,6 @@ sub runServices
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	my $cpu;
 	my $memory;
 	my $msg;
@@ -4895,71 +4876,81 @@ sub runServices
 		dbg("get index of hrSWRunName by snmp, then get some data");
 		my $hrIndextable;
 
-		# keeping this block until all confirmed good in the world.
-		#my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-		#foreach my $var ( @snmpvars )
-		#{
-		#	if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
-		#	{
-		#		foreach my $inst (keys %{$hrIndextable}) {
-		#			my $value = $hrIndextable->{$inst};
-		#			my $textoid = oid2name(name2oid($var).".".$inst);
-		#			if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-		#			( $textoid, $inst ) = split /\./, $textoid, 2;
-		#			$snmpTable{$textoid}{$inst} = $value;
-		#			dbg("Indextable=$inst textoid=$textoid value=$value",2);
-		#		}
-		#	}
-		#	# SNMP failed, so mark SNMP down so code below handles results properly
-		#	else
-		#	{
-		#		logMsg("$node SNMP failed while collecting SNMP Service Data");
-		#		HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-		#		$snmp_allowed = 0;
-		#		last;
-		#	}
-		#}
-
-		# get the process parameters by row (=process instance),
-		# not by column (=process property): avoids oversize snmp packets
-		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions))
+		# get the process parameters by column, allowing efficient bulk requests
+		# but possibly running into bad agents at times, which gettable/getindex
+		# compensates for by backing off and retrying.
+		if (1)
 		{
-			foreach my $inst (keys %{$hrIndextable})
+			for my $var (qw(hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus 
+hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			{
-				# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
-				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
-
-				(
-					$snmpTable{'hrSWRunPath'}{$inst},
-					$snmpTable{'hrSWRunParameters'}{$inst},
-					$snmpTable{'hrSWRunStatus'}{$inst},
-					$snmpTable{'hrSWRunType'}{$inst},
-					$snmpTable{'hrSWRunPerfCPU'}{$inst},
-					$snmpTable{'hrSWRunPerfMem'}{$inst}
-				) = $SNMP->getarray(
-					"hrSWRunPath.$inst",
-					"hrSWRunParameters.$inst",
-					"hrSWRunStatus.$inst",
-					"hrSWRunType.$inst",
-					"hrSWRunPerfCPU.$inst",
-					"hrSWRunPerfMem.$inst"
-				);
-				if ( $SNMP->error ) {
-					logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+				if ( $hrIndextable = $SNMP->getindex($var))
+				{
+					foreach my $inst (keys %{$hrIndextable}) 
+					{
+						my $value = $hrIndextable->{$inst};
+						my $textoid = oid2name(name2oid($var).".".$inst);
+						$value = snmp2date($value) if ($textoid =~ /date\./i);
+						( $textoid, $inst ) = split /\./, $textoid, 2;
+						$snmpTable{$textoid}{$inst} = $value;
+						dbg("Indextable=$inst textoid=$textoid value=$value",2);
+					}
+				}
+				# SNMP failed, so mark SNMP down so code below handles results properly
+				else
+				{
+					logMsg("$node SNMP failed while collecting SNMP Service Data");
 					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
 					$snmp_allowed = 0;
 					last;
 				}
-				dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
 			}
 		}
-		# SNMP failed, so mark SNMP down so code below handles results properly
 		else
 		{
-			logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
-			HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-			$snmp_allowed = 0;
-			last;
+			# get the process parameters by row (=process instance),
+			# not by column (=process property): avoids oversize snmp packets
+			# unfortunately that is much too slow!
+			
+			if ( $hrIndextable = $SNMP->getindex("hrSWRunName"))
+			{
+				foreach my $inst (keys %{$hrIndextable})
+				{
+					# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
+					$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
+					
+					(
+					 $snmpTable{'hrSWRunPath'}{$inst},
+					 $snmpTable{'hrSWRunParameters'}{$inst},
+					 $snmpTable{'hrSWRunStatus'}{$inst},
+					 $snmpTable{'hrSWRunType'}{$inst},
+					 $snmpTable{'hrSWRunPerfCPU'}{$inst},
+					 $snmpTable{'hrSWRunPerfMem'}{$inst}
+					) = $SNMP->getarray(
+						"hrSWRunPath.$inst",
+						"hrSWRunParameters.$inst",
+						"hrSWRunStatus.$inst",
+						"hrSWRunType.$inst",
+						"hrSWRunPerfCPU.$inst",
+						"hrSWRunPerfMem.$inst"
+							);
+					if ( $SNMP->error ) {
+						logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+						HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+						$snmp_allowed = 0;
+						last;
+					}
+					dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
+				}
+			}
+			# SNMP failed, so mark SNMP down so code below handles results properly
+			else
+			{
+				logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
+				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+				$snmp_allowed = 0;
+				last;
+			}
 		}
 
 		# are we still good to continue?
@@ -7882,12 +7873,12 @@ sub runDaemons
 	# start fast ping daemon
 	if ( getbool($C->{daemon_fping_active}) ) {
 		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" ) 
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}","restart=true");
 				logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
-			} 
-			else 
+			}
+			else
 			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
 			}
@@ -7895,15 +7886,15 @@ sub runDaemons
 	}
 
 	# start ipsla daemon
-	if ( getbool($C->{daemon_ipsla_active}) ) 
+	if ( getbool($C->{daemon_ipsla_active}) )
 	{
 		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" ) 
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
 				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			} 
-			else 
+			}
+			else
 			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
 			}
