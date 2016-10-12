@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.0b";
+our $VERSION = "8.6.0c";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
