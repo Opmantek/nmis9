@@ -1406,6 +1406,7 @@ sub parseString
 				$hrStorageUsed = $self->{info}{storage}{$indx}{hrStorageUsed};
 				$hrDiskSize = $hrStorageSize * $hrStorageUnits;
 				$hrDiskUsed = $hrStorageUsed * $hrStorageUnits;
+				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
 			}
 			
 			# fixing auto-vivification bug!
