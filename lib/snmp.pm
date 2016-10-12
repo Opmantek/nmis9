@@ -527,6 +527,7 @@ sub gettable
 			# and make sure this persists across the session lifetime
 			$self->{config}->{max_repetitions} = $maxrepetitions;
 			dbg("get_table failed with message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
+			logMsg("WARNING ($self->{name}) SNMP message size exceeded, retrying with maxrepetitions reduced to $maxrepetitions");
 			next;
 		}
 		return undef if (!$self->checkResult($result, [$name]));
