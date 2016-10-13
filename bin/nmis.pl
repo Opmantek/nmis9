@@ -120,10 +120,12 @@ my $sleep	= $nvp{sleep};
 ### 2012-12-03 keiths, adding some model testing and debugging options.
 my $model		= getbool($nvp{model});
 
-# store multithreading arguments in nvp
-my $mthread		=$nvp{mthread};
-my $mthreadDebug=$nvp{mthreaddebug};
-my $maxThreads	=$nvp{maxthreads}||1;
+# multiprocessing: commandline overrides config
+my $mthread	= (exists $nvp{mthread}? $nvp{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $nvp{maxthreads}? $nvp{maxthreads} : $C->{nmis_maxthreads}) || 1;
+
+my $mthreadDebug=$nvp{mthreaddebug}; # cmdline only for this debugging flag
+
 
 # park the list of collect/update plugins globally
 my @active_plugins;
@@ -8057,20 +8059,20 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # NMIS8 Config
 ######################################################
 # Run Full Statistics Collection
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
+*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
 # ######################################################
 # Optionally run a more frequent Services-only Collection
-# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
+# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 ######################################################
 # Run Summary Update every 2 minutes
 */2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
 ######################################################
 # Run the update once a day
-30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
+30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true
 ######################################################
 # Log Rotation is now handled with /etc/logrotate.d/nmis, which
 # the installer offers to setup using install/logrotate*.conf
@@ -8299,9 +8301,9 @@ command line options are:
   [force=true|false]     Makes an update operation run from scratch, without optimisations
   [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
-  [mthread=true|false]   default=false - Enable Multithreading or not;
-  [mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
-  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create\n
+  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
+  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
 !;
 }
 

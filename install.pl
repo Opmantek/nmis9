@@ -1300,9 +1300,12 @@ and provides an example/default Cron schedule.
 The installer can install this default schedule in /etc/cron.d/nmis,
 which immediately activates it.
 
-If you already have NMIS entries in your root crontab,
+(If you already have old NMIS entries in your root user's crontab,
 then the installer will comment out all NMIS entries in
-that crontab.\n\n";
+that crontab.)
+
+From 8.6.0 onwards the default Cron schedule uses the nmis_maxthreads
+configuration setting (which defaults to 10 parallel processes).\n\n";
 
 		if (input_yn("Do you want the default NMIS Cron schedule\nto be installed in $systemcronfile?"))
 		{
