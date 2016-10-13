@@ -89,6 +89,9 @@ my %hash = (
     
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
+
+		'nmis_mthread' => 'false',
+		'nmis_maxthreads' => '10',
 		
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
