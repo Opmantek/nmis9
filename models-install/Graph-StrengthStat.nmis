@@ -31,25 +31,25 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => 'Wireless Signal Strength'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => 'Strength dB'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.2lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.2lf',
-			'GPRINT:linkrate:MAX:Max %6.2lf\\n',			
+			'DEF:strength=$database:strength:AVERAGE',
+			'LINE2:strength#4daef6:Wireless Strength',
+			'GPRINT:strength:LAST:Current %1.2lf dB',
+			'GPRINT:strength:AVERAGE:Avg. %1.2lf dB',
+			'GPRINT:strength:MAX:Max %1.2lf dB\\n',			
 		],
 		'small' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.0lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.0lf',
-			'GPRINT:linkrate:MAX:Max %6.0lf\\n',			
+			'DEF:strength=$database:strength:AVERAGE',
+			'LINE2:strength#4daef6:Strength',
+			'GPRINT:strength:LAST:Current %1.0lf dB',
+			'GPRINT:strength:AVERAGE:Avg. %1.0lf',
+			'GPRINT:strength:MAX:Max %1.0lf\\n',
 		]
 	}
 );

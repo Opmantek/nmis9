@@ -31,41 +31,25 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => 'Wireless Signal Strength'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => 'Strength dB'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:curTXModRate=$database:curTXModRate:AVERAGE',
-			'DEF:remoteTXModRate=$database:remoteTXModRate:AVERAGE',
-			'DEF:maxTxModRate=$database:maxTxModRate:AVERAGE',
-
-			'LINE2:curTXModRate#4daef6:TX Mod Rate',
-			'GPRINT:curTXModRate:LAST:Current %1.2lf dBm',
-			'GPRINT:curTXModRate:AVERAGE:Avg. %1.2lf dBm',
-			'GPRINT:maxTxModRate:MAX:Max %1.2lf dBm\\n',			
-
-			'LINE1:remoteTXModRate#00cc00:RX Mod Rate',
-			'GPRINT:remoteTXModRate:LAST:Current %1.2lf dBm',
-			'GPRINT:remoteTXModRate:AVERAGE:Avg. %1.2lf dBm',
-			#'GPRINT:remoteTXModRate:MAX:Max %1.2lf dBm\\n',			
+			'DEF:strength=$database:strength:AVERAGE',
+			'LINE2:strength#4daef6:Wireless Strength',
+			'GPRINT:strength:LAST:Current %1.2lf dB',
+			'GPRINT:strength:AVERAGE:Avg. %1.2lf dB',
+			'GPRINT:strength:MAX:Max %1.2lf dB\\n',			
 		],
 		'small' => [
-			'DEF:curTXModRate=$database:curTXModRate:AVERAGE',
-			'DEF:remoteTXModRate=$database:remoteTXModRate:AVERAGE',
-			'DEF:maxTxModRate=$database:maxTxModRate:AVERAGE',
-			
-                        'LINE2:curTXModRate#4daef6:TX Mod Rate',
-			'GPRINT:curTXModRate:LAST:Current %1.0lf dBm',
-			'GPRINT:curTXModRate:AVERAGE:Avg. %1.0lf dBm',
-			'GPRINT:maxTxModRate:MAX:Max %1.0lf dBm\\n',			
-
-			'LINE1:remoteTXModRate#00cc00:RX Mod Rate',
-			'GPRINT:remoteTXModRate:LAST:Current %1.0lf dBm',
-			'GPRINT:remoteTXModRate:AVERAGE:Avg. %1.0lf dBm',
-			#'GPRINT:remoteTXModRate:MAX:Max %1.0lf dBm\\n',			
+			'DEF:strength=$database:strength:AVERAGE',
+			'LINE2:strength#4daef6:Strength',
+			'GPRINT:strength:LAST:Current %1.0lf dB',
+			'GPRINT:strength:AVERAGE:Avg. %1.0lf',
+			'GPRINT:strength:MAX:Max %1.0lf\\n',
 		]
 	}
 );

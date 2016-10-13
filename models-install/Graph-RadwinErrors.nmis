@@ -1,10 +1,9 @@
 #
-#  Copyright Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2016 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
 #  This file is part of Network Management Information System (“NMIS”).
-#  
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -26,30 +25,29 @@
 #  User group details:
 #  http://support.opmantek.com/users/
 #  
-# ************************************************************************
+# *****************************************************************************
 
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => 'Ethernet ifInErrors (CRC)'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => '#Packets'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.2lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.2lf',
-			'GPRINT:linkrate:MAX:Max %6.2lf\\n',			
+			'DEF:ifinerrors=$database:ifinerrors:AVERAGE',
+			'LINE2:ifinerrors#ff0000:Packets with ifInErrors',
+                        'GPRINT:ifinerrors:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:ifinerrors:MAX:Max %1.2lf \\n',
 		],
 		'small' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.0lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.0lf',
-			'GPRINT:linkrate:MAX:Max %6.0lf\\n',			
+			'DEF:ifinerrors=$database:ifinerrors:AVERAGE',
+			'LINE2:ifinerrors#ff0000:ifInErrors',
+                        'GPRINT:ifinerrors:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:ifinerrors:MAX:Max %1.2lf \\n',
 		]
 	}
 );
+

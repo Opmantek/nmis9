@@ -1,0 +1,123 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# ************************************************************************
+#
+#
+
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		#'short' => 'RSSI on HSU'
+                'short' => 'Estimated Throughput'
+	},
+	'vlabel' => {
+		'standard' => 'Throughput'
+	},
+	'option' => {
+		'standard' => [
+                        # DOWN
+                        'DEF:hbsesttput=$database:hbsesttput:AVERAGE',
+                        'DEF:maxtpdown=$database:maxtpdown:AVERAGE',
+                        'DEF:airconfdownmir=$database:airconfdownmir:AVERAGE',
+                        # UP
+                        'DEF:hsuesttput=$database:hsuesttput:AVERAGE',
+                        'DEF:maxtpup=$database:maxtpup:AVERAGE',
+                        'DEF:airconfupmir=$database:airconfupmir:AVERAGE',
+
+                        # Fix incoming kbps to bps to formatting will work
+                        #'CDEF:hbsesttput_x=hbsesttput,1000,*',
+                        #'CDEF:maxtpdown_x=maxtpdown,1000,*',
+                        'CDEF:airconfdownmir_x=airconfdownmir,1000,*',
+                        #'CDEF:hsuesttput_x=hsuesttput,1000,*',
+                        #'CDEF:maxtpup_x=maxtpup,1000,*',
+                        'CDEF:airconfupmir_x=airconfupmir,1000,*',
+
+                        # CREATE SPLIT
+                        'CDEF:split_hbsesttput=hbsesttput,-1,*',
+                        'CDEF:split_maxtpdown=maxtpdown,-1,*',
+                        'CDEF:split_airconfdownmir=airconfdownmir,-1,*',
+                        # DRAW GRAPH
+                        'AREA:split_maxtpdown#00BFFF:HBS Peak Capacity',
+                        'GPRINT:maxtpdown:AVERAGE:Avg. %1.2lf %sbps',
+                        'GPRINT:maxtpdown:MAX:Max %1.2lf %sbps\\n',
+
+                        'GPRINT:hbsesttput:MAX:Dedicated Capacity %1.2lf %sbps\\n',
+                        'GPRINT:airconfdownmir_x:AVERAGE:Downlink MIR %1.2lf [%sbps]\\n',
+                        'COMMENT:\s',
+
+                        'AREA:maxtpup#00FF7F:HSU Peak Capacity',
+                        'GPRINT:maxtpup:AVERAGE:Avg. %1.2lf %sbps',
+                        'GPRINT:maxtpup:MAX:Max %1.2lf %sbps \\n',
+
+                        'GPRINT:hsuesttput:MAX:Dedicated Capacity %1.2lf %sbps\\n',
+                        'GPRINT:airconfupmir_x:AVERAGE:Uplink MIR %1.2lf [%sbps]\\n',
+
+		],
+		'small' => [
+            		# DOWN
+            		'DEF:hbsesttput=$database:hbsesttput:AVERAGE',
+            		'DEF:maxtpdown=$database:maxtpdown:AVERAGE',
+            		'DEF:airconfdownmir=$database:airconfdownmir:AVERAGE',
+            		# UP
+            		'DEF:hsuesttput=$database:hsuesttput:AVERAGE',
+            		'DEF:maxtpup=$database:maxtpup:AVERAGE',
+            		'DEF:airconfupmir=$database:airconfupmir:AVERAGE',
+
+			# Fix incoming kbps to bps to formatting will work
+			#'CDEF:hbsesttput_x=hbsesttput,1000,*',
+			#'CDEF:maxtpdown_x=maxtpdown,1000,*',
+			'CDEF:airconfdownmir_x=airconfdownmir,1000,*',
+			#'CDEF:hsuesttput_x=hsuesttput,1000,*',
+			#'CDEF:maxtpup_x=maxtpup,1000,*',
+			'CDEF:airconfupmir_x=airconfupmir,1000,*',
+
+            		# CREATE SPLIT
+            		'CDEF:split_hbsesttput=hbsesttput,-1,*',
+            		'CDEF:split_maxtpdown=maxtpdown,-1,*',
+            		'CDEF:split_airconfdownmir=airconfdownmir,-1,*',
+            		# DRAW GRAPH
+         		'AREA:split_maxtpdown#00BFFF:HBS Peak Capacity',
+            		'GPRINT:maxtpdown:AVERAGE:Avg. %1.2lf %sbps',
+            		'GPRINT:maxtpdown:MAX:Max %1.2lf %sbps\\n',
+
+            		'GPRINT:hbsesttput:MAX:Dedicated Capacity %1.2lf %sbps\\n',
+            		'GPRINT:airconfdownmir_x:AVERAGE:Downlink MIR %1.2lf [%sbps]\\n',
+            		'COMMENT:\s',
+
+            		'AREA:maxtpup#00FF7F:HSU Peak Capacity',
+            		'GPRINT:maxtpup:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:maxtpup:MAX:Max %1.2lf %sbps \\n',
+
+        	    	'GPRINT:hsuesttput:MAX:Dedicated Capacity %1.2lf %sbps\\n',
+     		    	'GPRINT:airconfupmir_x:AVERAGE:Uplink MIR %1.2lf [%sbps]\\n',
+                        
+		]
+	}
+);

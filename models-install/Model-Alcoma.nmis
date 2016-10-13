@@ -53,45 +53,10 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,env-temp,power,SignalLevel,LinkRate',
+    'nodegraph' => 'health,response,ip,env-temp,power,signal,linkrate',
     'nodeModel' => 'Alcoma',
     'nodeType' => 'generic',
     'sys' => {
-      'radio' => {
-        'snmp' => {
-          'currentTemp' => {
-            'oid' => '1.3.6.1.4.1.12140.2.3.9.0',
-            'sysObjectName' => 'currentTemp',
-             'title' => 'Temperature',
-          },
-  
-          'snr' => {
-             'oid' => '1.3.6.1.4.1.12140.2.4.2.0',
-             'sysObjectName' => 'snr',
-             'title' => 'SNR',
-          },
-          'signal' => {
-             'oid' => '1.3.6.1.4.1.12140.2.3.4.0',
-             'sysObjectName' => 'signal',
-             'title' => 'Signal Strength',
-          },
-          'power' => {
-             'oid' => '1.3.6.1.4.1.12140.2.3.3.0',
-             'sysObjectName' => 'power',
-             'title'=> 'Power'
-          },
-          'sigquality' => {
-             'oid' => '1.3.6.1.4.1.12140.2.4.1.0',
-             'sysObjectName' => 'sigquality',
-             'title' => 'Signal Quality',
-          },
-          'LinkRate' => {
-             'oid' => '1.3.6.1.4.1.12140.2.4.5.0',
-             'sysObjectName' => 'LinkRate',
-             'title' => 'Link Rate',
-          },
-        },
-      },# radio
       'standard' => {
         'snmp' => {
           'sysLocation' => {
@@ -127,41 +92,74 @@
             'oid' => 'sysName'
           }
         }
-      }
-    },
-    'rrd' => {
+      },
       'radio' => {
-        'graphtype' => 'env-temp,power,SignalLevel,LinkRate',
         'snmp' => {
           'currentTemp' => {
             'oid' => '1.3.6.1.4.1.12140.2.3.9.0',
-            'sysObjectName' => 'currentTemp',
-            'option' => 'gauge,U:U',
+            'sysObjectName' => 'alMPTemperature',
+             'title' => 'Temperature',
           },
-  
           'snr' => {
              'oid' => '1.3.6.1.4.1.12140.2.4.2.0',
-             'sysObjectName' => 'snr',
-             'option' => 'gauge,0:U', 
+             'sysObjectName' => 'alMPSNR',
+             'title' => 'SNR',
           },
           'signal' => {
              'oid' => '1.3.6.1.4.1.12140.2.3.4.0',
-             'sysObjectName' => 'signal',
+             'sysObjectName' => 'alMPRX-Level',
+             'title' => 'Signal Strength',
+          },
+          'power' => {
+             'oid' => '1.3.6.1.4.1.12140.2.3.3.0',
+             'sysObjectName' => 'alMPTX-PWR',
+             'title'=> 'Power'
+          },
+          'sigquality' => {
+             'oid' => '1.3.6.1.4.1.12140.2.4.1.0',
+             'sysObjectName' => 'alMPQuality',
+             'title' => 'Signal Quality',
+          },
+          'linkrate' => {
+             'oid' => '1.3.6.1.4.1.12140.2.4.5.0',
+             'sysObjectName' => 'alMPRate',
+             'title' => 'Link Rate',
+          },
+        },
+      },# radio
+    },
+    'rrd' => {
+      'radio' => {
+        'graphtype' => 'env-temp,power,signal,linkrate',
+        'snmp' => {
+          'currentTemp' => {
+            'oid' => '1.3.6.1.4.1.12140.2.3.9.0',
+            'sysObjectName' => 'alMPTemperature',
+            'option' => 'gauge,U:U',
+          },
+          'signal' => {
+             'oid' => '1.3.6.1.4.1.12140.2.3.4.0',
+             'sysObjectName' => 'alMPRX-Level',
+             'option' => 'gauge,U:U', 
+          },
+          'snr' => {
+             'oid' => '1.3.6.1.4.1.12140.2.4.2.0',
+             'sysObjectName' => 'alMPSNR',
              'option' => 'gauge,0:U', 
           },
           'power' => {
              'oid' => '1.3.6.1.4.1.12140.2.3.3.0',
-             'sysObjectName' => 'power',
+             'sysObjectName' => 'alMPTX-PWR',
              'option' => 'gauge,U:U', 
           },
           'sigquality' => {
              'oid' => '1.3.6.1.4.1.12140.2.4.1.0',
-             'sysObjectName' => 'sigquality',
+             'sysObjectName' => 'alMPQuality',
              'option' => 'gauge,0:U', 
           },
-          'LinkRate' => {
+          'linkrate' => {
              'oid' => '1.3.6.1.4.1.12140.2.4.5.0',
-             'sysObjectName' => 'LinkRate',
+             'sysObjectName' => 'alMPRate',
              'option' => 'gauge,0:U', 
           },
         },
@@ -291,15 +289,6 @@
           }
         }
       },
-      'extra' => {
-        'indexed' => 'true',
-        'snmp' => {
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description'
-          }
-        }
-      }
     },
     'rrd' => {
       'interface' => {
@@ -325,10 +314,6 @@
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
           },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -345,10 +330,6 @@
             'oid' => 'ifOutOctets',
             'option' => 'counter,0:U'
           },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          }
         },
         'threshold' => 'util_in,util_out',
         'graphtype' => 'bits,abits,maxbits,util,autil'
@@ -357,20 +338,12 @@
       'pkts' => {
         'indexed' => 'true',
         'snmp' => {
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
           'ifInUcastPkts' => {
             'oid' => 'ifInUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifInDiscards' => {
             'oid' => 'ifInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifOutErrors' => {
@@ -406,7 +379,7 @@
             'option' => 'counter,0:U'
           },
         },
-        'graphtype' => 'pkts,errpkts,env-temp,power,SignalLevel,LinkRate'
+        'graphtype' => 'pkts,errpkts,env-temp,power,signal,linkrate'
       }
     },
     'collect' => {
@@ -414,10 +387,10 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'ifDescr' => 'sublayer',
       'Description' => '^#',
       'noDescription' => 'true',
-      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
+      'ifType' => 'softwareLoopback'
     },
     'noevent' => {
       'Description' => '^!',

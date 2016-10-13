@@ -39,20 +39,17 @@
 	'option' => {
 		'standard' => [
 			'DEF:StaCount=$database:StaCount:AVERAGE',
-			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
-			'LINE2:StaCount#4daef6:Visible GPS',
-			'GPRINT:StaCount:LAST:Visible GPS',
-			'LINE2:gpsSatsTracked#00cc00:Tracked GPS',
-			'GPRINT:gpsSatsTracked:LAST:Tracked GPS',
+			'LINE1:StaCount#4daef6:Stations',
+			'GPRINT:StaCount:LAST:Current %6.2lf',
+			'GPRINT:StaCount:AVERAGE:Avg %6.2lf',
+			'GPRINT:StaCount:MAX:Max %6.2lf\\n',
 		],
 		'small' => [
 			'DEF:StaCount=$database:StaCount:AVERAGE',
-
-			'LINE2:StaCount#4daef6:Stations',
-			'GPRINT:StaCount:AVERAGE:Avg # %1.2lf',
-			'GPRINT:StaCount:LAST:Current #%1.2lf',
-			'GPRINT:StaCount:MAX:Max # %1.2lf\\n',
-
+			'LINE1:StaCount#4daef6:Stations',
+			'GPRINT:StaCount:LAST:Current %6.2lf',
+			'GPRINT:StaCount:AVERAGE:Avg %6.2lf',
+			'GPRINT:StaCount:MAX:Max %6.2lf\\n',
 		]
 	}
 );
