@@ -198,11 +198,20 @@
       'RadwinErrors' => 'ifInErrors',
       'RadwinChain' => 'RSS per Chain',
       'StaSignal' => 'Signal Strength',
-      'AFStatus' => 'Air Fiber Status',
+      'AirFiberPower' => 'Air Fiber Power',
+      'AirFiberCapacity' => 'Air Fiber Capacity',
       'AirMax' => 'Air Max',
       'LinkRate' => 'Link Rate',
       'power' => 'Signal Power',
       'linkrate' => 'Link Rate',
+      'inDropPackets' => 'Dropped Packets',
+      'lockstat' => 'Modem Status',
+      'modemMSE' => 'Modem MSE',
+      'mimosaChain' => 'Radio Chain',
+      'mimosaStream' => 'MIMO Stream',
+      'Wlan' => 'WLAN Transmitted/Received',
+      'Radio' => 'Radio Information',
+      'signal' => "Signal Level",
     }
   }
 );
