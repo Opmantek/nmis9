@@ -41,10 +41,16 @@
 		'standard' => [
       'DEF:systemvoltage=$database:systemvoltage:AVERAGE',
       'LINE1:systemvoltage#0000ff:mV',
+			'GPRINT:systemvoltage:LAST:Current %1.2lf',
+			'GPRINT:systemvoltage:AVERAGE:Avg. %1.2lf',
+			'GPRINT:systemvoltage:MAX:Max %1.2lf\\n',
 		],
 		'small' => [
       'DEF:systemvoltage=$database:systemvoltage:AVERAGE',
       'LINE1:systemvoltage#0000ff:mV',
+			'GPRINT:systemvoltage:LAST:Current %1.2lf',
+			'GPRINT:systemvoltage:AVERAGE:Avg. %1.2lf',
+			'GPRINT:systemvoltage:MAX:Max %1.2lf\\n',
 		]
 	}
 );

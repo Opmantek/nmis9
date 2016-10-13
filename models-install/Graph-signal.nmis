@@ -37,29 +37,48 @@
 	},
 	'option' => {
 		'standard' => [
-				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
-				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
-				 
-				 'LINE2:rxPower0#006400:Ch0 Signal Level\\t\\t',
-				 'GPRINT:rxPower0:AVERAGE:Avg %10.2lf',
-				 'GPRINT:rxPower0:MIN:Min %10.2lf',
-				 'GPRINT:rxPower0:MAX:Max %10.2lf\\n',
-				 
-				 'LINE2:rxPower1#7FFF00:Ch1 Signal Level\\t\\t\\t',
-				 'GPRINT:rxPower1:AVERAGE:Avg %10.2lf',
-				 'GPRINT:rxPower1:MIN:Min %10.2lf',
-				 'GPRINT:rxPower1:MAX:Max %10.2lf\\n', 
+			'DEF:signal=$database:signal:AVERAGE',
+			'DEF:sigquality=$database:sigquality:AVERAGE',
+			'DEF:snr=$database:snr:AVERAGE',
+			
+			'LINE2:signal#006400:Signal Level\\t',
+			'GPRINT:signal:LAST:Current %6.2lf',
+			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
+			'GPRINT:signal:MAX:Max %6.2lf\\n',
+			
+			'LINE2:sigquality#4daef6:Signal Quality',
+			'GPRINT:sigquality:LAST:Current %6.2lf',
+			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
+			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
+
+			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'GPRINT:snr:LAST:Current %6.2lf',
+			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
+			'GPRINT:snr:MAX:Max %6.2lf\\n',
+
+			#'DEF:lock=$database:sigquality:AVERAGE',
+			#'GPRINT:lock:AVERAGE:RF Signal Lock (0/1)\\tAvg %10.2lf\\n', 
 
 				], 
 		'small' => [ 
-				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
-				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
-				 
-				 'LINE2:rxPower0#006400:Ch0 Signal\\t',
-				 'GPRINT:rxPower0:AVERAGE:Avg %10.2lf',
+			'DEF:signal=$database:signal:AVERAGE',
+			'DEF:sigquality=$database:sigquality:AVERAGE',
+			'DEF:snr=$database:snr:AVERAGE',
+			
+			'LINE2:signal#006400:Signal Level\\t',
+			'GPRINT:signal:LAST:Current %6.2lf',
+			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
+			'GPRINT:signal:MAX:Max %6.2lf\\n',
 
-				 'LINE2:rxPower1#7FFF00:Ch1 Signal',
-				 'GPRINT:rxPower1:AVERAGE:Avg %10.2lf',
+			'LINE2:sigquality#4daef6:Signal Quality',
+			'GPRINT:sigquality:LAST:Current %6.2lf',
+			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
+			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
+			
+			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'GPRINT:snr:LAST:Current %6.2lf',
+			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
+			'GPRINT:snr:MAX:Max %6.2lf\\n',
 		],
 				
 	}

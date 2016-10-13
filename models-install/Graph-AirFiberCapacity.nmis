@@ -1,7 +1,5 @@
 #
-## $Id: Graph-sensortemp.nmis,v 8.2 2011/08/28 15:11:52 nmisdev Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -35,25 +33,39 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Degrees',
-		'short' => 'Degrees'
+		'standard' => 'Power',
 	},
 	'option' => {
 		'standard' => [
-			'DEF:tempenv=$database:currentTemp:AVERAGE',
-			'LINE1:tempenv#4daef6: Degrees',
-			'GPRINT:tempenv:LAST:Current %1.2lf',
-			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
-			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
+				 'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
+				 'DEF:txCapacity=$database:txCapacity:AVERAGE',
+
+         'CDEF:txCapacitySplit=txCapacity,-1,*',
+
+				 'AREA:rxCapacity#40E0D0:RX Capacity\\t',
+				 'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps',
+				 'GPRINT:rxCapacity:MAX:Max %6.2lf %sbps\\n',
+				 
+				 'AREA:txCapacitySplit#4daef6:TX Capacity\\t',
+				 'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps',
+				 'GPRINT:txCapacity:MAX:Max %6.2lf %sbps\\n', 
+		], 
+		'small' => [ 
+				 'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
+				 'DEF:txCapacity=$database:txCapacity:AVERAGE',
+
+         'CDEF:txCapacitySplit=txCapacity,-1,*',
+
+				 'AREA:rxCapacity#40E0D0:RX Capacity',
+				 'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
+				 
+				 'AREA:txCapacitySplit#4daef6:TX Capacity',
+				 'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
 		],
-		'small' => [
-			'DEF:tempenv=$database:currentTemp:AVERAGE',
-			'LINE1:tempenv#4daef6: Degrees',
-			'GPRINT:tempenv:LAST:Current %1.2lf',
-			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
-			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
-		]
+				
 	}
 );
-
-

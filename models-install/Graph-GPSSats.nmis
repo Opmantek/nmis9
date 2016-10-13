@@ -41,21 +41,30 @@
 			'DEF:gpsSatsVisible=$database:gpsSatsVisible:AVERAGE',
 			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
 
-			'LINE2:gpsSatsVisible#4daef6:Visible',
-			'GPRINT:gpsSatsVisible:AVERAGE:Visible %1.2lf\\n',
+			'LINE1:gpsSatsVisible#4daef6:Visible',
+			'GPRINT:gpsSatsVisible:LAST:Current %1.0lf',
+			'GPRINT:gpsSatsVisible:AVERAGE:Avg. %1.0lf',
+			'GPRINT:gpsSatsVisible:MAX:Max %1.0lf\\n',
 
-			'LINE2:gpsSatsTracked#00cc00:Tracked',
-			'GPRINT:gpsSatsTracked:AVERAGE:Tracked %1.2lf',
+			'LINE1:gpsSatsTracked#00cc00:Tracked',
+			'GPRINT:gpsSatsTracked:LAST:Current %1.0lf',
+			'GPRINT:gpsSatsTracked:AVERAGE:Avg. %1.0lf',
+			'GPRINT:gpsSatsTracked:MAX:Max %1.0lf\\n',
 		],
 		'small' => [
 			'DEF:gpsSatsVisible=$database:gpsSatsVisible:AVERAGE',
 			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
 
-			'LINE2:gpsSatsVisible#4daef6:Visible',
-			'GPRINT:gpsSatsVisible:AVERAGE:Visible %1.0lf\\n',
+			'LINE1:gpsSatsVisible#4daef6:Visible',
+			'GPRINT:gpsSatsVisible:LAST:Current %6.0lf',
+			'GPRINT:gpsSatsVisible:AVERAGE:Avg. %6.0lf',
+			'GPRINT:gpsSatsVisible:MAX:Max %6.0lf\\n',
 
-			'LINE2:gpsSatsTracked#00cc00:Tracked',
-			'GPRINT:gpsSatsTracked:AVERAGE:Tracked %1.0lf',
+			'LINE1:gpsSatsTracked#00cc00:Tracked',
+			'GPRINT:gpsSatsTracked:LAST:Current %6.0lf',
+			'GPRINT:gpsSatsTracked:AVERAGE:Avg. %6.0lf',
+			'GPRINT:gpsSatsTracked:MAX:Max %6.0lf\\n',
 		]
 	}
 );
+

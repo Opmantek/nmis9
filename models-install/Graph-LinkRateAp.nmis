@@ -30,26 +30,42 @@
 
 %hash = (
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Wireless Signal Strength'
+		'standard' => '$node LinkRate Rx/Tx - $length from $datestamp_start to $datestamp_end',
+		'short' => 'LinkRate Rx/Tx'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dB'
+		'standard' => 'Bytes Rx/Tx'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:RxPower=$database:RxPower:AVERAGE',
-			'LINE2:RxPower#4daef6:Wireless Strength',
-			'GPRINT:RxPower:LAST:Current %1.2lf dB',
-			'GPRINT:RxPower:AVERAGE:Avg. %1.2lf dB',
-			'GPRINT:RxPower:MAX:Max %1.2lf dB\\n',			
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkRateTx=linkRateTx,-1,*',
+      # DRAW GRAPH
+      'AREA:linkRateRx#00cc00:Rx Link Rate',
+      'GPRINT:linkRateRx:AVERAGE:Avg. %1.2lf %sbps',
+      'GPRINT:linkRateRx:MAX:Max %1.2lf %sbps\\n',
+      #
+      'AREA:split_linkRateTx#4daef6:Tx Link Rate',
+      'GPRINT:linkRateTx:AVERAGE:Avg. %1.2lf %sbps',
+      'GPRINT:linkRateTx:MAX:Max %1.2lf %sbps\\n',
 		],
 		'small' => [
-			'DEF:RxPower=$database:RxPower:AVERAGE',
-			'LINE2:RxPower#4daef6:Strength',
-			'GPRINT:RxPower:LAST:Current %1.0lf dB',
-			'GPRINT:RxPower:AVERAGE:Avg. %1.0lf',
-			'GPRINT:RxPower:MAX:Max %1.0lf\\n',
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkRateTx=linkRateTx,-1,*',
+      # DRAW GRAPH
+      'AREA:linkRateRx#00cc00:Rx Link Rate',
+      'GPRINT:linkRateRx:AVERAGE:Avg. %1.2lf %sbps',
+      'GPRINT:linkRateRx:MAX:Max %1.2lf %sbps\\n',
+      #
+      'AREA:split_linkRateTx#4daef6:Tx Link Rate',
+      'GPRINT:linkRateTx:AVERAGE:Avg. %1.2lf %sbps',
+      'GPRINT:linkRateTx:MAX:Max %1.2lf %sbps\\n',
 		]
 	}
 );

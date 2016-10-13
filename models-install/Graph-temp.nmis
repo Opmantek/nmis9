@@ -35,17 +35,23 @@
 		'short' => 'Temp.'
 	},
 	'vlabel' => {
-		'standard' => 'Temperature Environment'
+		'standard' => 'Temperature Environment',
+		'short' => 'Temperature'
 	},
 	'option' => {
 		'standard' => [
 			'DEF:tempenv=$database:tempenv:AVERAGE',
-			'LINE1:tempenv#00ff00: Degrees'
+			'LINE1:tempenv#4daef6: Degrees',
+			'GPRINT:tempenv:LAST:Current %6.2lf',
+			'GPRINT:tempenv:AVERAGE:Avg. %6.2lf',
+			'GPRINT:tempenv:MAX:Max %6.2lf\\n',
 		],
 		'small' => [
 			'DEF:tempenv=$database:tempenv:AVERAGE',
-			'LINE1:tempenv#00ff00: Degrees',
-			'GPRINT:tempenv:AVERAGE:Avg Temp. Env. %1.2lf Degrees'
+			'LINE1:tempenv#4daef6: Degrees',
+			'GPRINT:tempenv:LAST:Current %6.2lf',
+			'GPRINT:tempenv:AVERAGE:Avg. %6.2lf',
+			'GPRINT:tempenv:MAX:Max %6.2lf\\n',
 		]
 	}
 );

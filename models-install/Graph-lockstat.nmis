@@ -37,16 +37,13 @@
 	},
 	'option' => {
 		'standard' => [
-				 'DEF:modemLockStat=$database:modemLockStat:AVERAGE',
-				 
-				 'LINE2:lockstat#7FFF00:Modem Lock Status\\t\\t\\t',
+			'DEF:modemLockStat=$database:modemLockStat:AVERAGE',
+			'LINE2:modemLockStat#7FFF00:Modem Lock Status\\t\\t\\t',
 
-				], 
+		], 
 		'small' => [ 
-				 'DEF:modemLockStat=$database:modemLockStat:AVERAGE',
-				 
-				 'LINE2:lockstat#7FFF00:Modem Lock Status\\t\\t\\t',
+			'DEF:modemLockStat=$database:modemLockStat:AVERAGE',
+			'LINE2:modemLockStat#7FFF00:Modem Lock Status\\t\\t\\t',
 		],
-				
 	}
 );

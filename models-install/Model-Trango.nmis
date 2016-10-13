@@ -96,16 +96,19 @@
         'snmp' => {
            'TxCapacity' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.2.11.0',
-              'sysObjectName' => 'TxCapacity',
+              'sysObjectName' => 'modemSpeedCurrent',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
               'title' => ''
            },
            'modemMSE' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.2.4.2.1.0', 
-              'sysObjectName' => 'modemeMSE',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
+              'sysObjectName' => 'modemMSE',
            },
            'sysRemoteMSE' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.1.33.4.1.0', 
-              'sysObjectName' => 'sysRemoteMSE',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
+              'sysObjectName' => 'sysRemoteLinkMSE',
            },
            'rfPowerInt' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.3.4.2.0',
@@ -136,21 +139,24 @@
         'snmp' => {
            'TxCapacity' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.2.11.0',
-              'sysObjectName' => 'TxCapacity',
+              'sysObjectName' => 'modemSpeedCurrent',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));'
            },
            'modemMSE' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.2.4.2.1.0', 
-              'sysObjectName' => 'modemeMSE',
+              'sysObjectName' => 'modemMSE',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
               'option' => 'gauge,U:U',
            },
            'sysRemoteMSE' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.1.33.4.1.0', 
-              'sysObjectName' => 'sysRemoteMSE',
+              'sysObjectName' => 'sysRemoteLinkMSE',
+              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
               'option' => 'gauge,U:U',
            },
            'power' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.3.4.2.0',
-              'sysObjectName' => 'power',
+              'sysObjectName' => 'rfPowerInt',
            },
            'InDropPackets' => {
               'oid' => '.1.3.6.1.4.1.5454.1.80.3.16.3.0',

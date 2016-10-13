@@ -308,25 +308,25 @@
     }, #rrd
   },  
   'system' => {
-    'nodegraph' => 'health,response,env-temp,systemvoltage',
-    'nodeModel' => 'MikroTik',
+    'nodegraph' => 'health,response',
+    'nodeModel' => 'MikroTikRouter',
     'nodeType' => 'router',
     'rrd' => {
-      'mikrotik' => {
-        'graphtype' => 'env-temp,systemvoltage',
-        'snmp' => {
-          'systemvoltage' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.3.8.0',
-            'sysObjectName' => 'mtxrHlVoltage',
-            'option' => 'gauge,U:U',
-          },
-          'currentTemp' => {
-            'oid' => '1.3.6.1.4.1.14988.1.1.3.10.0',
-            'sysObjectName' => 'mtxrHlTemperature',
-            'option' => 'gauge,U:U',
-          },
-        }
-      },
+    #  'mikrotik' => {
+    #    'graphtype' => 'env-temp,systemvoltage',
+    #    'snmp' => {
+    #      'systemvoltage' => {
+    #        'oid' => '1.3.6.1.4.1.14988.1.1.3.8.0',
+    #        'sysObjectName' => 'mtxrHlVoltage',
+    #        'option' => 'gauge,U:U',
+    #      },
+    #      'currentTemp' => {
+    #        'oid' => '1.3.6.1.4.1.14988.1.1.3.10.0',
+    #        'sysObjectName' => 'mtxrHlTemperature',
+    #        'option' => 'gauge,U:U',
+    #      },
+    #    }
+    #  },
     },
     'sys' => {
       'standard' => {
