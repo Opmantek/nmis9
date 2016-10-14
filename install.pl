@@ -813,6 +813,8 @@ else
 
 		execPrint("$site/admin/updateconfig.pl $site/install/Modules.nmis $site/conf/Modules.nmis");
 
+		execPrint("$site/admin/updateconfig.pl $site/install/Events.nmis $site/conf/Events.nmis");
+
 		# patch config changes that affect existing entries, which update_config_defaults
 		# doesn't handle
 		# which includes enabling uuid

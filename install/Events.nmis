@@ -181,7 +181,7 @@
     'CancelingEvent' => 'Service Up',
     'Description' => 'A service that NMIS is managing is up but not fully working.',
   },
-		 
+
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
     'Notify' => 'true',
@@ -428,7 +428,7 @@
   },
   'Alert: High Memory Utilisation' => {
     'CancelingEvent' => 'Alert: High Memory Utilisation Closed',
-    'Description' => 'TODO',
+    'Description' => 'High memory utilisation was detected on this system.',
     'Event' => 'Alert: High Memory Utilisation',
     'Log' => 'true',
     'Notify' => 'true',
@@ -437,7 +437,7 @@
   },
   'Alert: UPS Battery Status' => {
     'CancelingEvent' => 'Alert: UPS Battery Status Closed',
-    'Description' => 'TODO',
+    'Description' => 'The UPS has reported a battery to be less than fully operational.',
     'Event' => 'Alert: UPS Battery Status',
     'Log' => 'true',
     'Notify' => 'true',
@@ -446,7 +446,7 @@
   },
   'Alert: UPS Output Status' => {
     'CancelingEvent' => 'Alert: UPS Output Status Closed',
-    'Description' => 'TODO',
+    'Description' => 'The UPS output is not in its normal/online state.',
     'Event' => 'Alert: UPS Output Status',
     'Log' => 'true',
     'Notify' => 'true',
@@ -455,7 +455,7 @@
   },
   'Alert: High Temperature' => {
     'CancelingEvent' => 'Alert: High Temperature Closed',
-    'Description' => 'TODO',
+    'Description' => 'The node\'s sensors have reported temperatures outside of the safe range.',
     'Event' => 'Alert: High Temperature',
     'Log' => 'true',
     'Notify' => 'true',
@@ -464,7 +464,7 @@
   },
   'Alert: ONU Down' => {
     'CancelingEvent' => 'Alert: ONU Down Closed',
-    'Description' => 'TODO',
+    'Description' => 'An ONU (optical network unit) was detected to be down.',
     'Event' => 'Alert: ONU Down',
     'Log' => 'true',
     'Notify' => 'true',
@@ -474,7 +474,7 @@
 
   'Proactive Disk Queue Length' => {
     'CancelingEvent' => 'Proactive Disk Queue Length Closed',
-    'Description' => 'TODO',
+    'Description' => 'The length of the I/O queue has exceeded the normal range.',
     'Event' => 'Proactive Disk Queue Length',
     'Log' => 'true',
     'Notify' => 'true',
@@ -483,7 +483,7 @@
   },
   'Proactive Page File Usage' => {
     'CancelingEvent' => 'Proactive Page File Usage Closed',
-    'Description' => 'TODO',
+    'Description' => 'The node has high swap or page file utilisation.',
     'Event' => 'Proactive Page File Usage',
     'Log' => 'true',
     'Notify' => 'true',
@@ -492,7 +492,7 @@
   },
   'Proactive QoS Packet Drops' => {
     'CancelingEvent' => 'Proactive QoS Packet Drops Closed',
-    'Description' => 'TODO',
+    'Description' => 'The QoS system has had to drop packets due to congestion.',
     'Event' => 'Proactive QoS Packet Drops',
     'Log' => 'true',
     'Notify' => 'true',
@@ -501,7 +501,7 @@
   },
   'Proactive QoS no buffer Packet Drops' => {
     'CancelingEvent' => 'Proactive QoS no buffer Packet Drops Closed',
-    'Description' => 'TODO',
+    'Description' => 'The QoS system has had to drop packets because of buffer allocation failures.',
     'Event' => 'Proactive QoS no buffer Packet Drops',
     'Log' => 'true',
     'Notify' => 'true',
@@ -510,7 +510,7 @@
   },
   'Proactive Buffer Misses' => {
     'CancelingEvent' => 'Proactive Buffer Misses Closed',
-    'Description' => 'TODO',
+    'Description' => 'The routing processor has run out of free buffer space in a memory pool.',
     'Event' => 'Proactive Buffer Misses',
     'Log' => 'true',
     'Notify' => 'true',
@@ -519,4 +519,3 @@
   },
 
 );
-
