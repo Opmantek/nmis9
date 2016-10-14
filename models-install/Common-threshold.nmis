@@ -403,11 +403,11 @@
             'value' => {
               'critical' => '2000',
               'fatal' => '3000',
-              'minor' => '300',
-              'warning' => '100',
+              'minor' => '600',
+              'warning' => '400',
               'major' => '1000'
             },
-            'control' => '$nodeType =~ /example/'
+            'control' => '$location =~ qr/Cloud/'
           },
           '20' => {
             'value' => {
