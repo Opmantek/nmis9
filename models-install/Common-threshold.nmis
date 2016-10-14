@@ -920,7 +920,7 @@
               'critical' => '4',
               'major' => '2',
               'minor' => '1',
-              'warning' => '0.01',
+              'warning' => '0.1',
             }
           }
         }
