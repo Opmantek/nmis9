@@ -819,10 +819,10 @@ sub selectNetworkView {
 	# now compute and print the stats for as many groups as allowed
 	my $cutoff = getbool($Q->{unlimited})? undef
 			: $C->{network_summary_maxgroups} || 30;
-
 	my @allowed = sort(grep($AU->InGroup($_), keys %{$GT}));
-	splice(@allowed, $cutoff) if (defined($cutoff) && $cutoff < @allowed);
 
+	my $havetoomany = ($C->{network_summary_maxgroups} || 30) < @allowed;
+	splice(@allowed, $cutoff) if (defined($cutoff) && $cutoff < @allowed);
 	foreach $group (@allowed)
 	{
 		# fixme: the walk should be done JUST ONCE, not N times for N groups!
@@ -830,23 +830,16 @@ sub selectNetworkView {
 		getSummaryStatsbyGroup(group => $group);
 		printGroupView($group);
 	}
-	if (not getbool($Q->{unlimited}) and @allowed < keys %{$GT})
+	if ($havetoomany)
 	{
-		$q->param(-name => "unlimited", -value => 'true');
+		my ($otherstate,$msg) = getbool($Q->{unlimited})? ("false","to hide extra groups"):("true","for a full view");
+
+		$q->param(-name => "unlimited", -value => $otherstate);
 		# url with -query doesn't include newly set params :-(
 		my %fullparams = $q->Vars;
 		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
 				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
-				. "'>Click here</a> for a full view!</td></tr>";
-	}
-	elsif ( getbool($Q->{unlimited}) and @allowed < keys %{$GT})
-	{
-		$q->param(-name => "unlimited", -value => 'false');
-		# url with -query doesn't include newly set params :-(
-		my %fullparams = $q->Vars;
-		print "<tr><td class='info Minor' colspan='$colspan'>Too many groups! <a href='"
-				. url(-absolute=>1)."?".join("&",map { uri_escape($_)."=".uri_escape($fullparams{$_}) }(keys %fullparams))
-				. "'>Click here</a> to hide extra groups.</td></tr>";
+				. "'>Click here</a> $msg.</td></tr>";
 	}
 	print end_table;
 
@@ -1881,7 +1874,7 @@ EO_HTML
 				foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
 					push @pr, [ "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})", "hrsmpcpu", "$index" ] if exists $NI->{device}{$index};
 				}
-			} 
+			}
 			else {
 				push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ] if $graph ne "hrsmpcpu";
 				if ( $graph =~ /(ss-cpu|WindowsProcessor)/ ) {
