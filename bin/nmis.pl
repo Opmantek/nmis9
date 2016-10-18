@@ -571,6 +571,7 @@ sub	runThreads
 		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis")))
 		{
 			$NI->{graphtype}{nmis} = 'nmis';
+			$NI->{graphtype}->{network}->{metrics} = 'metrics';
 		}
 		else
 		{
