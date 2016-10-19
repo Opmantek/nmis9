@@ -553,7 +553,10 @@
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
-            'title' => 'Bandwidth'
+            'title' => 'Bandwidth',
+            'replace' => {
+              '10000000' => '100000000',
+            },
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
