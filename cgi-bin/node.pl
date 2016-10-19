@@ -600,7 +600,7 @@ sub typeGraph {
 	print Tr(td({colspan=>'1'},
 			table({class=>'plain',width=>'100%'},@output)));
 
-
+	print "</table>";
 	print hidden(-name=>'conf', -default=>$Q->{conf},-override=>'1');
 	print hidden(-name=>'p_date_start', -default=>"$date_start",-override=>'1');
 	print hidden(-name=>'p_date_end', -default=>"$date_end",-override=>'1');
@@ -611,7 +611,7 @@ sub typeGraph {
 	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
 	print hidden(-name=>'func', -default=>"view",-override=>'1');
 
-	print end_table, end_form, comment("typeGraph end");
+	print "</form>", comment("typeGraph end");
 	print end_html;
 
 } # end typeGraph
