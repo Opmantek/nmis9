@@ -102,7 +102,18 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	if (-f $lockoutfile)
 	{
-		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+		my $installerpresence = "/tmp/nmis_install_running";
+		# installer should not need to lock this box for more than a few minutes
+		if (-f $installerpresence && (stat($installerpresence))[9] > time - 3600)
+		{
+			logMsg("INFO NMIS is currently disabled, installer is performing upgrade, exiting.");
+			exit(0);
+		}
+		else
+		{
+			logMsg("WARNING NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
+			die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+		}
 	}
 	else
 	{
@@ -575,7 +586,7 @@ sub	runThreads
 		}
 		else
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
 	}
@@ -840,7 +851,7 @@ sub doUpdate
 
 	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 	$S->close;
 
@@ -1134,7 +1145,7 @@ sub doCollect
 
 	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 	$S->close;
 
@@ -2780,7 +2791,7 @@ sub getEnvData
 					my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 			}
@@ -3049,7 +3060,7 @@ sub getSystemHealthData
 					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 			}
@@ -3341,7 +3352,7 @@ sub getNodeData
 			my $db = updateRRD(sys=>$S,data=>$D,type=>$sect);
 			if (!$db)
 			{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 			}
 		}
 	}
@@ -3686,7 +3697,7 @@ sub getIntfData
 				my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 				if (!$db)
 				{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 				}
 			}
 
@@ -3845,7 +3856,7 @@ sub getCBQoSdata
 					my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 				else
@@ -4316,7 +4327,7 @@ sub getCallsdata
 		my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex);
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	return 1;
@@ -4569,7 +4580,7 @@ sub getPVC
 				}
 				else
 				{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 				}
 			}
 		}
@@ -4653,7 +4664,7 @@ sub runServer
 					}
 					else
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 				else
@@ -4711,7 +4722,7 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 
 						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
@@ -4747,7 +4758,7 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 					}
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
@@ -4774,7 +4785,7 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 					}
 					# also collect mem buffers and cached mem if present
@@ -4799,7 +4810,7 @@ sub runServer
 							}
 							else
 							{
-								logMsg("ERROR updateRRD failed: ".getRRDerror);
+								logMsg("ERROR updateRRD failed: ".getRRDerror());
 							}
 					}
 					else
@@ -5493,7 +5504,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		}
 		else
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 
 		# now update the per-service status file
@@ -6222,7 +6233,7 @@ sub runReach
 		my $db = updateRRD(sys=>$S, data=>\%reachVal, type=>"health"); # database name is normally 'reach'
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
@@ -7618,7 +7629,7 @@ sub runMetrics
 	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
 	if (!$db)
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 
 	foreach $group (sort keys %{$GT}) {
@@ -7639,7 +7650,7 @@ sub runMetrics
 		$db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group);
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	dbg("Finished");
