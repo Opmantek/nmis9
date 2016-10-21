@@ -684,7 +684,9 @@ execPrint("$site/bin/fpingd.pl kill=true") if (-x "$site/bin/fpingd.pl");
 open(F,">$site/conf/NMIS_IS_LOCKED");
 print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
-
+open(F, ">/tmp/nmis_install_running");
+print F $$;
+close(F);
 
 printBanner("Copying NMIS files...");
 echolog("Copying source files from $src to $site...\n");
@@ -1133,6 +1135,7 @@ execPrint("$site/admin/fixperms.pl");
 # all files are there; let nmis run
 unlink("$site/conf/NMIS_IS_LOCKED");
 unlink("$site/var/nmis_system/selftest.json");
+unlink("/tmp/nmis_install_running");
 
 # daemon restarting should only be done after nmis is unlocked
 printBanner("Restart the fping daemon...");
@@ -1376,7 +1379,8 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
-
+	print "Update running, please be patient...\n";
+	execPrint("$site/bin/nmis.pl type=update force=true mthread=true");
 }
 else
 {

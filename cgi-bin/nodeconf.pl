@@ -48,6 +48,7 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # widget default on, only off if explicitely set to off
 my $wantwidget = !getbool($Q->{widget},"invert");
+my$widget = $wantwidget ? "true" : "false";
 
 my $formid = 'nodeconf';
 
@@ -118,7 +119,7 @@ sub displayNodemenu
 	print start_form(-id => $menuformid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
-			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print start_table() ; # first table level
 
@@ -168,7 +169,7 @@ sub displayNodeConf
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_update")
 			. hidden(-override => 1, -name => "node", -value => $node)
-			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
+			. hidden(-override => 1, -name => "widget", -value => $widget)
 			. hidden(-id => "doupdate", -override => 1, -name => "update", -value => '');
 
 	print start_table({width=>'100%'}) ; # first table level
@@ -209,7 +210,7 @@ sub displayNodeConf
 							# (and ensure the doupdate hidden field is off, if we're
 							# coming back to this page!)
 							return button(-name=>'submitbutton',
-														onclick => ($wantwidget? "get('$formid');" 
+														onclick => ($wantwidget? "get('$formid');"
 																				: '$("#doupdate").val(""); submit()'),
 														-value=>'Store'),
 
@@ -515,7 +516,7 @@ sub doNodeUpdate {
 	print start_form(-id=>$formid, -href => $thisurl);
 	print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_nodeconf_view")
-			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
+			. hidden(-override => 1, -name => "widget", -value => $widget);
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
 				td(button(-name=>'button',
