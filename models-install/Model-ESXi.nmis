@@ -251,6 +251,8 @@
           },
           'ifDescr' => {
             'oid' => 'ifName'
+            # use ifDescr for backwards compatibility
+            #'oid' => 'ifDescr'
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
@@ -271,7 +273,15 @@
               '5' => 'dormant'
             },
             'oid' => 'ifAdminStatus'
-          }
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
         },
         'indexed' => 'true',
         'threshold' => 'util_in,util_out',
@@ -299,17 +309,28 @@
 						'oid' => 'ifName',
             'title' => 'Name (ifName)',
 					},
-					
-					'Hardware' => {
-						'oid' => 'ifDescr',
-            'title' => 'Hardware (ifDescr)',
+          'Description' => {
+            'oid' => 'ifDescr',
+            'title' => 'Description (ifDescr)'
+          },
+          # use ifDescr for backwards compatibility
+					#'ifDescr' => {
+					#	'oid' => 'ifDescr',
+          #  'title' => 'Name (ifDescr)',
+					#},
+          #'Description' => {
+          #  'oid' => 'ifName',
+          #  'title' => 'Description (ifName)'
+          #},
+          'Hardware' => {
+            'oid' => 'ifAlias',
+            'title' => 'Hardware (ifAlias)'
           },
 
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
             'title' => 'Physical Address',
           },
-
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -327,10 +348,6 @@
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
           },
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description (ifAlias)'
-          },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'
@@ -338,7 +355,10 @@
           'ifType' => {
             'oid' => 'ifType',
             'title' => 'Type (ifType)'
-          }
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
         }
       },
     },
@@ -347,7 +367,7 @@
       'ifDescr' => 'sublayer|null',
       'noDescription' => 'false',
       'Description' => '^#',
-      'ifType' => 'other|softwareloopback|isdn'
+      'ifType' => 'other|softwareloopback'
     },
     'noevent' => {
       'Description' => '^!',
@@ -355,6 +375,15 @@
       'ifType' => 'other'
 	  }
   },
+  'hrdisk' => {
+    'rrd' => {
+      'hrdisk' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrdisk',
+        'threshold' => 'hrdisk',
+      },
+    },
+  },  
   'storage' => {
     'sys' => {
       'storage' => {
