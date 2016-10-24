@@ -1379,7 +1379,8 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
-
+	print "Update running, please be patient...\n";
+	execPrint("$site/bin/nmis.pl type=update force=true mthread=true");
 }
 else
 {
