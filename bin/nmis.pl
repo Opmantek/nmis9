@@ -5003,13 +5003,19 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		if ($lastrun && ((time - $lastrun) < $serviceinterval * 0.9))
 		{
 			$msg .= "skipping this time.";
-			info($msg); logMsg("INFO: $msg");
+			if ($C->{info} or $C->{debug})
+			{
+				info($msg); logMsg("INFO: $msg");
+			}
 			next;
 		}
 		else
 		{
 			$msg .= "must be checked this time.";
-			info($msg); logMsg("INFO: $msg");
+			if ($C->{info} or $C->{debug})
+			{
+				info($msg); logMsg("INFO: $msg");
+			}
 		}
 		# make sure that the rrd heartbeat is suitable for the service interval!
 		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
