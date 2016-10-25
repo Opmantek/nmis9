@@ -45,8 +45,9 @@ my %hash = (
   },
   
 	'globals' => {
-    'global_threshold' => 'true',
-    'threshold_poll_cycle' => 'true',
+    'global_threshold' => 'true', # advanced thresholds enabled or not
+    'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
+		'threshold_poll_node' => 'true', # or perform threshold computation with each node
     'threshold_rising_reset_dampening' => '0.9',
     'threshold_falling_reset_dampening' => '1.1',
     'global_collect_Description' => '(CNOC|Collection)',
