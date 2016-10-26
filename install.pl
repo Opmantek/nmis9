@@ -215,7 +215,7 @@ if ($osflavour)
 {
 	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
 libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
-libcrypt-ssleay-perl apache2 fping snmp snmpd snmptrapd libnet-snmp-perl
+libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
@@ -228,7 +228,7 @@ libexcel-writer-xlsx-perl libmojolicious-perl));
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
-perl-JSON-XS httpd fping make groff perl-CPAN crontabs dejavu*
+perl-JSON-XS httpd fping nmap make groff perl-CPAN crontabs dejavu*
 perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
 perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
