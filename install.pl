@@ -113,9 +113,9 @@ my $nmisversion;
 open(G, "./lib/NMIS.pm");
 for  my $line (<G>)
 {
-	if ($line =~ /^\$VERSION\s*=\s*"(.+)";\s*$/)
+	if ($line =~ /^\s*(our\s+)?\$VERSION\s*=\s*"(.+)";\s*$/)
 	{
-		$nmisversion = $1;
+		$nmisversion = $2;
 		last;
 	}
 }
@@ -1611,6 +1611,8 @@ devices use SNMP Version 3.\n\n|;
 			printBanner("Some Important Perl Modules are missing (or too old)!");
 			print qq|The following Perl modules are missing or too old and need
 to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @critmissing)."\n\n";
+
+			logInstall("Missing important modules: ".join(" ", @critmissing));
 		}
 
 		print qq|These modules can be installed with CPAN:
