@@ -2576,7 +2576,7 @@ sub createHrButtons
 sub loadPortalCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C =	loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 
@@ -2624,7 +2624,7 @@ sub loadPortalCode {
 sub loadServerCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C = loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 
@@ -2662,7 +2662,7 @@ sub loadServerCode {
 sub loadTenantCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C = loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 
