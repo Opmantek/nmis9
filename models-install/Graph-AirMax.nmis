@@ -31,7 +31,7 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => 'AirMax Stats'
 	},
 	'vlabel' => {
 		'standard' => 'AirMax'
@@ -40,26 +40,26 @@
 		'standard' => [
 			'DEF:ubntAirMaxQuality=$database:ubntAirMaxQuality:AVERAGE',
 			'DEF:ubntAirMaxCapacity=$database:ubntAirMaxCapacity:AVERAGE',
-			'LINE2:ubntAirMaxCapacity#4daef6:TX Link Rate',
-			'GPRINT:ubntAirMaxCapacity:LAST:Current %1.2lf',
-			'GPRINT:ubntAirMaxCapacity:AVERAGE:Avg. %1.2lf',
-			'GPRINT:ubntAirMaxCapacity:MAX:Max %1.2lf\\n',			
-			'LINE2:ubntAirMaxQuality#0033cc:RX Link Rate',
-			'GPRINT:ubntAirMaxQuality:LAST:Current %1.2lf',
-			'GPRINT:ubntAirMaxQuality:AVERAGE:Avg. %1.2lf',
-			'GPRINT:ubntAirMaxQuality:MAX:Max %1.2lf\\n',			
+			'LINE2:ubntAirMaxCapacity#4daef6:AirMax Capacity',
+			'GPRINT:ubntAirMaxCapacity:LAST:Current %1.0lf%%',
+			'GPRINT:ubntAirMaxCapacity:AVERAGE:Avg. %1.0lf%%',
+			'GPRINT:ubntAirMaxCapacity:MAX:Max %1.0lf%%\\n',			
+			'LINE2:ubntAirMaxQuality#0033cc:AirMax Quality',
+			'GPRINT:ubntAirMaxQuality:LAST:Current %1.0lf%%',
+			'GPRINT:ubntAirMaxQuality:AVERAGE:Avg. %1.0lf%%',
+			'GPRINT:ubntAirMaxQuality:MAX:Max %1.0lf%%\\n',			
 		],
 		'small' => [
 			'DEF:ubntAirMaxQuality=$database:ubntAirMaxQuality:AVERAGE',
 			'DEF:ubntAirMaxCapacity=$database:ubntAirMaxCapacity:AVERAGE',
-			'LINE2:ubntAirMaxCapacity#4daef6:TX Link Rate',
-			'GPRINT:ubntAirMaxCapacity:LAST:Current %1.0lf',
-			'GPRINT:ubntAirMaxCapacity:AVERAGE:Avg. %1.0lf',
-			'GPRINT:ubntAirMaxCapacity:MAX:Max %1.0lf\\n',			
-			'LINE2:ubntAirMaxQuality#0033cc:RX Link Rate',
-			'GPRINT:ubntAirMaxQuality:LAST:Current %1.0lf',
-			'GPRINT:ubntAirMaxQuality:AVERAGE:Avg. %1.0lf',
-			'GPRINT:ubntAirMaxQuality:MAX:Max %1.0lf\\n',			
+			'LINE2:ubntAirMaxCapacity#4daef6:AirMax Capacity',
+			'GPRINT:ubntAirMaxCapacity:LAST:Current %1.0lf%%',
+			'GPRINT:ubntAirMaxCapacity:AVERAGE:Avg. %1.0lf%%',
+			'GPRINT:ubntAirMaxCapacity:MAX:Max %1.0lf%%\\n',			
+			'LINE2:ubntAirMaxQuality#0033cc:AirMax Quality',
+			'GPRINT:ubntAirMaxQuality:LAST:Current %1.0lf%%',
+			'GPRINT:ubntAirMaxQuality:AVERAGE:Avg. %1.0lf%%',
+			'GPRINT:ubntAirMaxQuality:MAX:Max %1.0lf%%\\n',			
 		]
 	}
 );

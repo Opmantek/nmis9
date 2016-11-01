@@ -328,10 +328,13 @@ sub open
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = $self->{info}{system}{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name};
+	$snmpcfg->{host} = ( $self->{info}{system}{host_addr} 
+											 || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
+	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef; 
+	
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
 	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
@@ -1393,6 +1396,19 @@ sub parseString
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
 			$location = $self->{info}{system}{location};
+			
+			# if I am wanting a storage thingy, then lets populate the variables I need.
+			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {				
+				$hrStorageDescr = $self->{info}{storage}{$indx}{hrStorageDescr};
+				$hrStorageType = $self->{info}{storage}{$indx}{hrStorageType};
+				$hrStorageUnits = $self->{info}{storage}{$indx}{hrStorageUnits};
+				$hrStorageSize = $self->{info}{storage}{$indx}{hrStorageSize};
+				$hrStorageUsed = $self->{info}{storage}{$indx}{hrStorageUsed};
+				$hrDiskSize = $hrStorageSize * $hrStorageUnits;
+				$hrDiskUsed = $hrStorageUsed * $hrStorageUnits;
+				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
+			}
+			
 			# fixing auto-vivification bug!
 			if ($indx ne '' and exists $self->{info}{interface}{$indx}) {
 				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding

@@ -1,0 +1,71 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Power',
+	},
+	'option' => {
+		'standard' => [
+				 'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
+				 'DEF:txCapacity=$database:txCapacity:AVERAGE',
+
+         'CDEF:txCapacitySplit=txCapacity,-1,*',
+
+				 'AREA:rxCapacity#40E0D0:RX Capacity\\t',
+				 'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps',
+				 'GPRINT:rxCapacity:MAX:Max %6.2lf %sbps\\n',
+				 
+				 'AREA:txCapacitySplit#4daef6:TX Capacity\\t',
+				 'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps',
+				 'GPRINT:txCapacity:MAX:Max %6.2lf %sbps\\n', 
+		], 
+		'small' => [ 
+				 'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
+				 'DEF:txCapacity=$database:txCapacity:AVERAGE',
+
+         'CDEF:txCapacitySplit=txCapacity,-1,*',
+
+				 'AREA:rxCapacity#40E0D0:RX Capacity',
+				 'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
+				 
+				 'AREA:txCapacitySplit#4daef6:TX Capacity',
+				 'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
+				 'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
+		],
+				
+	}
+);

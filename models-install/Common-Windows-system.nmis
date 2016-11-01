@@ -190,9 +190,18 @@
         'indexed' => 'true',
         'graphtype' => 'hrsmpcpu',
         'threshold' => 'hrsmpcpu',
-       }
-     }
+      }
+    }
   },
+  'hrdisk' => {
+    'rrd' => {
+      'hrdisk' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrdisk',
+        'threshold' => 'hrdisk',
+      },
+    },
+  },  
   'device' => {
     'sys' => {
       'device' => {

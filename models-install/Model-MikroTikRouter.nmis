@@ -1,0 +1,633 @@
+#
+## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (.NMIS.).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#    
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      #'entityMib' => {
+      #  'common-model' => 'entityMib'
+      #},
+    },
+  },
+
+#MIKROTIK-MIB::mtxrWlApTxRate.3 = Gauge32: 0
+#MIKROTIK-MIB::mtxrWlApRxRate.3 = Gauge32: 0
+#MIKROTIK-MIB::mtxrWlApSsid.3 = STRING: Red3x3
+#MIKROTIK-MIB::mtxrWlApBssid.3 = STRING: 
+#MIKROTIK-MIB::mtxrWlApClientCount.3 = Counter32: 6
+#MIKROTIK-MIB::mtxrWlApFreq.3 = INTEGER: 5415
+#MIKROTIK-MIB::mtxrWlApBand.3 = STRING: 5415/20-Ce/an
+#MIKROTIK-MIB::mtxrWlApNoiseFloor.3 = INTEGER: -103
+#MIKROTIK-MIB::mtxrWlApOverallTxCCQ.3 = Counter32: 0
+#MIKROTIK-MIB::mtxrWlApAuthClientCount.3 = Counter32: 6
+#
+#MIKROTIK-MIB::mtxrWlApTxRate.3 = Gauge32: 270000000
+#MIKROTIK-MIB::mtxrWlApRxRate.3 = Gauge32: 120000000
+#MIKROTIK-MIB::mtxrWlApSsid.3 = STRING: Red3x3
+#MIKROTIK-MIB::mtxrWlApBssid.3 = STRING: 4c:5e:c:8e:ca:93
+#MIKROTIK-MIB::mtxrWlApClientCount.3 = Counter32: 0
+#MIKROTIK-MIB::mtxrWlApFreq.3 = INTEGER: 5415
+#MIKROTIK-MIB::mtxrWlApBand.3 = STRING: 5415/20-Ce/an
+#MIKROTIK-MIB::mtxrWlApNoiseFloor.3 = INTEGER: -106
+#MIKROTIK-MIB::mtxrWlApOverallTxCCQ.3 = Counter32: 0
+#MIKROTIK-MIB::mtxrWlApAuthClientCount.3 = Counter32: 1
+#
+#"mtxrWlApEntry"			"1.3.6.1.4.1.14988.1.1.1.3.1"
+#"mtxrWlApIndex"			"1.3.6.1.4.1.14988.1.1.1.3.1.1"
+#"mtxrWlApTxRate"			"1.3.6.1.4.1.14988.1.1.1.3.1.2"
+#"mtxrWlApRxRate"			"1.3.6.1.4.1.14988.1.1.1.3.1.3"
+#"mtxrWlApSsid"			"1.3.6.1.4.1.14988.1.1.1.3.1.4"
+#"mtxrWlApBssid"			"1.3.6.1.4.1.14988.1.1.1.3.1.5"
+#"mtxrWlApClientCount"			"1.3.6.1.4.1.14988.1.1.1.3.1.6"
+#"mtxrWlApFreq"			"1.3.6.1.4.1.14988.1.1.1.3.1.7"
+#"mtxrWlApBand"			"1.3.6.1.4.1.14988.1.1.1.3.1.8"
+#"mtxrWlApNoiseFloor"			"1.3.6.1.4.1.14988.1.1.1.3.1.9"
+#"mtxrWlApOverallTxCCQ"			"1.3.6.1.4.1.14988.1.1.1.3.1.10"
+#"mtxrWlApAuthClientCount"			"1.3.6.1.4.1.14988.1.1.1.3.1.11"
+  
+  'systemHealth' => {
+    'sections' => 'mtxrWlAp,mtxrWlRtab',
+    'sys' => {
+      'mtxrWlAp' => {
+        'headers' => 'SSID,BSSID,Frequency,Band,ClientCount,AuthClientCount',
+        'indexed' => 'SSID',
+        'index_oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.2',
+        'index_regex' => '\.(\d+)$',
+        'snmp' => {
+          'linkRateTx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.2',
+            'sysObjectID' => 'mtxrWlApTxRate',
+            'title' => 'Wireless Link Rate Tx',
+          },
+          'linkRateRx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.3',
+            'sysObjectID' => 'mtxrWlApRxRate',
+            'title' => 'Wireless Link Rate Rx',
+          },
+          'SSID' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.4',
+            'sysObjectID' => 'mtxrWlApSsid',
+            'title' => 'SSID',
+          },
+          'BSSID' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.5',
+            'sysObjectID' => 'mtxrWlApBssid',
+            'title' => 'BSSID',
+            'calculate' => '$r = func::beautify_physaddress($r)',
+          },
+          'ClientCount' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.6',
+            'sysObjectID' => 'mtxrWlApClientCount',
+            'title' => 'Client Count',
+            # counter
+          },
+          'Frequency' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.7',
+            'sysObjectID' => 'mtxrWlApFreq',
+            'title' => 'Frequency',
+          },
+          'Band' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.8',
+            'sysObjectID' => 'mtxrWlApBand',
+            'title' => 'Band',
+          },
+          'AuthClientCount' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.11',
+            'sysObjectID' => 'mtxrWlApAuthClientCount',
+            'title' => 'Auth Client Count',
+            # counter
+          },
+        },
+      },
+
+      'mtxrWlRtab' => {
+        'headers' => 'mtxrWlRtabAddr,OsVers,wlanUptime',
+        'indexed' => 'mtxrWlRtabIface',
+        'index_oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.1',
+        'index_regex' => '14988\.1\.1\.1\.2\.1\.1\.(.+)$',
+        #'index_oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.1',
+        'snmp' => {
+          'mtxrWlRtabAddr' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.1',
+            'sysObjectID' => 'mtxrWlRtabAddr',
+            'title' => 'Address',
+            'calculate' => '$r = func::beautify_physaddress($r)',
+          },
+          'OsVers' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.10',
+            'sysObjectID' => 'mtxrWlRtabRouterOSVersion',
+            'title' => 'Router OS ver',
+          },
+          'wlanUptime' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.11',
+            'sysObjectID' => 'mtxrWlRtabUptime',
+            'title' => 'Wlan Uptime',
+            'calculate' => '$r = int($r/100); $r = func::convUpTime($r);',
+          },
+        },
+      },
+    },
+
+#MIKROTIK
+#MIKROTIK-MIB::mtxrWlRtabAddr.'L^....'.3 = STRING: 4c:5e:c:8e:ca:93
+#MIKROTIK-MIB::mtxrWlRtabStrength.'L^....'.3 = INTEGER: -48
+#MIKROTIK-MIB::mtxrWlRtabTxBytes.'L^....'.3 = Counter32: 3057314523
+#MIKROTIK-MIB::mtxrWlRtabRxBytes.'L^....'.3 = Counter32: 844912591
+#MIKROTIK-MIB::mtxrWlRtabTxPackets.'L^....'.3 = Counter32: 13034766
+#MIKROTIK-MIB::mtxrWlRtabRxPackets.'L^....'.3 = Counter32: 19094913
+#MIKROTIK-MIB::mtxrWlRtabTxRate.'L^....'.3 = Gauge32: 270000000
+#MIKROTIK-MIB::mtxrWlRtabRxRate.'L^....'.3 = Gauge32: 120000000
+#MIKROTIK-MIB::mtxrWlRtabRouterOSVersion.'L^....'.3 = STRING: 
+#MIKROTIK-MIB::mtxrWlRtabUptime.'L^....'.3 = Timeticks: (28692000) 3 days, 7:42:00.00
+#MIKROTIK-MIB::mtxrWlRtabSignalToNoise.'L^....'.3 = INTEGER: 58
+#MIKROTIK-MIB::mtxrWlRtabTxStrengthCh0.'L^....'.3 = INTEGER: -56
+#MIKROTIK-MIB::mtxrWlRtabRxStrengthCh0.'L^....'.3 = INTEGER: -54
+#MIKROTIK-MIB::mtxrWlRtabTxStrengthCh1.'L^....'.3 = INTEGER: -52
+#MIKROTIK-MIB::mtxrWlRtabRxStrengthCh1.'L^....'.3 = INTEGER: -49
+#MIKROTIK-MIB::mtxrWlRtabTxStrengthCh2.'L^....'.3 = INTEGER: -96
+#MIKROTIK-MIB::mtxrWlRtabRxStrengthCh2.'L^....'.3 = INTEGER: 0
+#MIKROTIK-MIB::mtxrWlRtabTxStrength.'L^....'.3 = INTEGER: -51
+#MIKROTIK-MIB::mtxrWlApTxRate.3 = Gauge32: 270000000
+#MIKROTIK-MIB::mtxrWlApRxRate.3 = Gauge32: 120000000
+#MIKROTIK-MIB::mtxrWlApSsid.3 = STRING: Red3x3
+#MIKROTIK-MIB::mtxrWlApBssid.3 = STRING: 4c:5e:c:8e:ca:93
+#MIKROTIK-MIB::mtxrWlApClientCount.3 = Counter32: 0
+#MIKROTIK-MIB::mtxrWlApFreq.3 = INTEGER: 5415
+#MIKROTIK-MIB::mtxrWlApBand.3 = STRING: 5415/20-Ce/an
+#MIKROTIK-MIB::mtxrWlApNoiseFloor.3 = INTEGER: -106
+#MIKROTIK-MIB::mtxrWlApOverallTxCCQ.3 = Counter32: 0
+#MIKROTIK-MIB::mtxrWlApAuthClientCount.3 = Counter32: 1
+         
+#"mtxrWlRtabAddr"			  "1.3.6.1.4.1.14988.1.1.1.2.1.1"
+#"mtxrWlRtabIface"			"1.3.6.1.4.1.14988.1.1.1.2.1.2"
+#"mtxrWlRtabStrength"			"1.3.6.1.4.1.14988.1.1.1.2.1.3"
+#"mtxrWlRtabTxBytes"			"1.3.6.1.4.1.14988.1.1.1.2.1.4"
+#"mtxrWlRtabRxBytes"			"1.3.6.1.4.1.14988.1.1.1.2.1.5"
+#"mtxrWlRtabTxPackets"			"1.3.6.1.4.1.14988.1.1.1.2.1.6"
+#"mtxrWlRtabRxPackets"			"1.3.6.1.4.1.14988.1.1.1.2.1.7"
+#"mtxrWlRtabTxRate"			"1.3.6.1.4.1.14988.1.1.1.2.1.8"
+#"mtxrWlRtabRxRate"			"1.3.6.1.4.1.14988.1.1.1.2.1.9"
+#"mtxrWlRtabRouterOSVersion"			"1.3.6.1.4.1.14988.1.1.1.2.1.10"
+#"mtxrWlRtabUptime"			"1.3.6.1.4.1.14988.1.1.1.2.1.11"
+#"mtxrWlRtabSignalToNoise"			"1.3.6.1.4.1.14988.1.1.1.2.1.12"
+#"mtxrWlRtabTxStrengthCh0"			"1.3.6.1.4.1.14988.1.1.1.2.1.13"
+#"mtxrWlRtabRxStrengthCh0"			"1.3.6.1.4.1.14988.1.1.1.2.1.14"
+#"mtxrWlRtabTxStrengthCh1"			"1.3.6.1.4.1.14988.1.1.1.2.1.15"
+#"mtxrWlRtabRxStrengthCh1"			"1.3.6.1.4.1.14988.1.1.1.2.1.16"
+#"mtxrWlRtabTxStrengthCh2"			"1.3.6.1.4.1.14988.1.1.1.2.1.17"
+#"mtxrWlRtabRxStrengthCh2"			"1.3.6.1.4.1.14988.1.1.1.2.1.18"
+#"mtxrWlRtabTxStrength"			"1.3.6.1.4.1.14988.1.1.1.2.1.19"
+         
+    'rrd' => {
+      'mtxrWlAp' => {
+        'graphtype' => 'LinkRateAp',
+        'indexed' => 'true',
+        'snmp' => {
+          'linkRateTx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.2',
+            'sysObjectID' => 'mtxrWlApTxRate',
+            'title' => 'Wireless Link Rate Tx',
+          },
+          'linkRateRx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.3',
+            'sysObjectID' => 'mtxrWlApRxRate',
+            'title' => 'Wireless Link Rate Rx',
+          },
+          'ClientCount' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.6',
+            'sysObjectID' => 'mtxrWlApClientCount',
+            'option' => 'nosave',
+            # counter
+          },
+          'AuthClientCount' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.3.1.11',
+            'sysObjectID' => 'mtxrWlApAuthClientCount',
+            'option' => 'nosave',
+            # counter
+          },
+        },
+      },
+      'mtxrWlRtab' => {
+        'graphtype' => 'DualChannelPower,LinkRate,Wlan',
+        'indexed' => 'true',
+        'snmp' => {
+          'wlanUptime' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.11',
+            'sysObjectID' => 'mtxrWlRtabUptime',
+            'option' => 'nosave',
+            'calculate' => '$r = int($r/100); $r = func::convUpTime($r);',
+          },
+          'wlanTxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.4',
+            'sysObjectName' => 'mtxrWlRtabTxBytes',
+            'option' => 'counter,0:U',
+          },
+          'wlanRxBytes' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.5',
+            'sysObjectName' => 'mtxrWlRtabRxBytes',
+            'option' => 'counter,0:U',
+          },
+          'linkRateTx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.8',
+            'sysObjectName' => 'mtxrWlRtabTxRate',
+            'option' => 'gauge,0:U',
+          },
+          'linkRateRx' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.9',
+            'sysObjectName' => 'mtxrWlRtabRxRate',
+            'option' => 'gauge,0:U',
+          },
+          'rxRemSigCh0' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.13',
+            'sysObjectName' => 'mtxrWlRtabTxStrengthCh0',
+            'option' => 'gauge,U:U',
+          },
+          'rxSigCh0' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.14',
+            'sysObjectName' => 'mtxrWlRtabRxStrengthCh0',
+            'option' => 'gauge,U:U',
+          },
+          'rxRemSigCh1' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.15',
+            'sysObjectName' => 'mtxrWlRtabTxStrengthCh1',
+            'option' => 'gauge,U:U',
+          },
+          'rxSigCh1' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.1.2.1.16',
+            'sysObjectName' => 'mtxrWlRtabRxStrengthCh1',
+            'option' => 'gauge,U:U',
+          },
+        }, #snmp
+      }, #section
+    }, #rrd
+  },  
+  'system' => {
+    'nodegraph' => 'health,response',
+    'nodeModel' => 'MikroTikRouter',
+    'nodeType' => 'router',
+    'rrd' => {
+    #  'mikrotik' => {
+    #    'graphtype' => 'env-temp,systemvoltage',
+    #    'snmp' => {
+    #      'systemvoltage' => {
+    #        'oid' => '1.3.6.1.4.1.14988.1.1.3.8.0',
+    #        'sysObjectName' => 'mtxrHlVoltage',
+    #        'option' => 'gauge,U:U',
+    #      },
+    #      'currentTemp' => {
+    #        'oid' => '1.3.6.1.4.1.14988.1.1.3.10.0',
+    #        'sysObjectName' => 'mtxrHlTemperature',
+    #        'option' => 'gauge,U:U',
+    #      },
+    #    }
+    #  },
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      },      
+      'mikrotik' => {
+        'snmp' => {
+          'serialNum' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.7.3.0',
+            'sysObjectName' => 'mtxrSerialNumber',
+            'title' => 'Serial Number',
+          },
+          'softwareVersion' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.4.4.0',
+            'sysObjectName' => 'mtxrLicVersion',
+            'title' => 'Software Version',
+          },
+          'softwareImage' => {
+            'oid' => '1.3.6.1.4.1.14988.1.1.4.1.0',
+            'sysObjectName' => 'mtxrLicSoftwareId',
+            'title' => 'Software Image',
+          },
+        }
+      },
+    },
+  },
+
+#"mtxrHealth"			"1.3.6.1.4.1.14988.1.1.3"
+#"mtxrHlCoreVoltage"			"1.3.6.1.4.1.14988.1.1.3.1"
+#"mtxrHlThreeDotThreeVoltage"			"1.3.6.1.4.1.14988.1.1.3.2"
+#"mtxrHlFiveVoltage"			"1.3.6.1.4.1.14988.1.1.3.3"
+#"mtxrHlTwelveVoltage"			"1.3.6.1.4.1.14988.1.1.3.4"
+#"mtxrHlSensorTemperature"			"1.3.6.1.4.1.14988.1.1.3.5"
+#"mtxrHlCpuTemperature"			"1.3.6.1.4.1.14988.1.1.3.6"
+#"mtxrHlBoardTemperature"			"1.3.6.1.4.1.14988.1.1.3.7"
+#"mtxrHlVoltage"			"1.3.6.1.4.1.14988.1.1.3.8"
+#"mtxrHlActiveFan"			"1.3.6.1.4.1.14988.1.1.3.9"
+#"mtxrHlTemperature"			"1.3.6.1.4.1.14988.1.1.3.10"
+#"mtxrHlProcessorTemperature"			"1.3.6.1.4.1.14988.1.1.3.11"
+#"mtxrHlPower"			"1.3.6.1.4.1.14988.1.1.3.12"
+#"mtxrHlCurrent"			"1.3.6.1.4.1.14988.1.1.3.13"
+#"mtxrHlProcessorFrequency"			"1.3.6.1.4.1.14988.1.1.3.14"
+#"mtxrHlPowerSupplyState"			"1.3.6.1.4.1.14988.1.1.3.15"
+#"mtxrHlBackupPowerSupplyState"			"1.3.6.1.4.1.14988.1.1.3.16"
+#"mtxrHlFanSpeed1"			"1.3.6.1.4.1.14988.1.1.3.17"
+#"mtxrHlFanSpeed2"			"1.3.6.1.4.1.14988.1.1.3.18"
+#"mtxrLicense"			"1.3.6.1.4.1.14988.1.1.4"
+#"mtxrLicSoftwareId"			"1.3.6.1.4.1.14988.1.1.4.1"
+#"mtxrLicUpgrUntil"			"1.3.6.1.4.1.14988.1.1.4.2"
+#"mtxrLicLevel"			"1.3.6.1.4.1.14988.1.1.4.3"
+#"mtxrLicVersion"			"1.3.6.1.4.1.14988.1.1.4.4"
+#"mtxrLicUpgradableTo"			"1.3.6.1.4.1.14988.1.1.4.5"
+#"mtxrSystem"			"1.3.6.1.4.1.14988.1.1.7"
+#"mtxrSystemReboot"			"1.3.6.1.4.1.14988.1.1.7.1"
+#"mtxrUSBPowerReset"			"1.3.6.1.4.1.14988.1.1.7.2"
+#"mtxrSerialNumber"			"1.3.6.1.4.1.14988.1.1.7.3"
+#"mtxrFirmwareVersion"			"1.3.6.1.4.1.14988.1.1.7.4"
+#"mtxrNote"			"1.3.6.1.4.1.14988.1.1.7.5"
+#"mtxrBuildTime"			"1.3.6.1.4.1.14988.1.1.7.6"
+#"mtxrFirmwareUpgradeVersion"			"1.3.6.1.4.1.14988.1.1.7.7"
+
+#MIKROTIK-MIB::mtxrHlVoltage.0 = INTEGER: 24.2
+#MIKROTIK-MIB::mtxrHlActiveFan.0 = STRING: n/a
+#MIKROTIK-MIB::mtxrHlTemperature.0 = INTEGER: 14.0
+#MIKROTIK-MIB::mtxrHlProcessorFrequency.0 = INTEGER: 720
+#MIKROTIK-MIB::mtxrLicSoftwareId.0 = STRING: BUI5-KFYA
+#MIKROTIK-MIB::mtxrLicUpgrUntil.0 = STRING: 1970-1-1,0:1:7.0
+#MIKROTIK-MIB::mtxrLicLevel.0 = INTEGER: 4
+#MIKROTIK-MIB::mtxrLicVersion.0 = STRING: 6.35
+#MIKROTIK-MIB::mtxrLicUpgradableTo.0 = INTEGER: 7
+#MIKROTIK-MIB::mtxrDHCPLeaseCount.0 = Gauge32: 0
+#MIKROTIK-MIB::mtxrSystemReboot.0 = INTEGER: 0
+#MIKROTIK-MIB::mtxrUSBPowerReset.0 = INTEGER: 0
+#MIKROTIK-MIB::mtxrSerialNumber.0 = STRING: 620804BD61F6
+#MIKROTIK-MIB::mtxrFirmwareVersion.0 = STRING: 3.33
+
+  
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name'
+          },
+            'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        }
+      },
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHighSpeed' => {
+             'oid' => 'ifHighSpeed'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+  		'pkts_hc' => {
+  			'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+  			'snmp' => {
+  				'ifHCInOctets' => {
+  					'oid' => 'ifHCInOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInUcastPkts' => {
+  					'oid' => 'ifHCInUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInMcastPkts' => {
+  					'oid' => 'ifHCInMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInBcastPkts' => {
+  					'oid' => 'ifHCInBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInDiscards' => {
+  					'oid' => 'ifInDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInErrors' => {
+  					'oid' => 'ifInErrors',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutOctets' => {
+  					'oid' => 'ifHCOutOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutUcastPkts' => {
+  					'oid' => 'ifHCOutUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutMcastPkts' => {
+  					'oid' => 'ifHCOutMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutBcastPkts' => {
+  					'oid' => 'ifHCOutBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutDiscards' => {
+  					'oid' => 'ifOutDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutErrors' => {
+  					'oid' => 'ifOutErrors',
+  					'option' => 'counter,0:U'
+  				},
+  			}
+  		}
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'sublayer',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'softwareloopback'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    }
+  },
+
+);
+

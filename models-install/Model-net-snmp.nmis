@@ -5,7 +5,7 @@
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
-#  This file is part of Network Management Information System (“NMIS”).
+#  This file is part of Network Management Information System (NMIS).
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -498,6 +498,15 @@
       },
     }
   },
+  'hrdisk' => {
+    'rrd' => {
+      'hrdisk' => {
+        'indexed' => 'true',
+        'graphtype' => 'hrdisk',
+        'threshold' => 'hrdisk',
+      },
+    },
+  },  
   'device' => {
     'sys' => {
       'cpu' => {
@@ -544,7 +553,10 @@
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
-            'title' => 'Bandwidth'
+            'title' => 'Bandwidth',
+            'replace' => {
+              '10000000' => '100000000',
+            },
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',

@@ -1,5 +1,4 @@
-%hash = 
-		(
+%hash = (
   'Alert: BGP Peer Down' => {
     'Event' => 'Alert: BGP Peer Down',
     'Notify' => 'true',
@@ -171,7 +170,7 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Service Up',
     'Description' => 'A service NMIS is managing has failed completely.',
-		 },
+	},
 
   'Service Degraded' => {
     'Event' => 'Service Degraded',
@@ -182,7 +181,7 @@
     'CancelingEvent' => 'Service Up',
     'Description' => 'A service that NMIS is managing is up but not fully working.',
   },
-		 
+
   'Proactive Response Time' => {
     'Event' => 'Proactive Response Time',
     'Notify' => 'true',
@@ -300,6 +299,15 @@
     'CancelingEvent' => 'Proactive CPU User Closed',
     'Description' => 'The User CPU utilisation threshold has been exceeded.',
   },
+  'Proactive Disk Usage' => {
+    'CancelingEvent' => 'Proactive Disk Usage Closed',
+    'Description' => 'The node has high disk usage (disk is getting full)',
+    'Event' => 'Proactive Disk Usage',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
   'Proactive Heap Utilisation' => {
     'Event' => 'Proactive Heap Utilisation',
     'Notify' => 'true',
@@ -335,24 +343,6 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive Dead Modem Closed',
     'Description' => 'A modem is dead and probably should be put out to pasture.',
-  },
-  'Proactive Interface LOW Input Utilisation' => {
-    'Event' => 'Proactive Interface LOW Input Utilisation',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'CancelingEvent' => 'Proactive Interface LOW Input Utilisation Closed',
-    'Description' => 'The interface has very LOW INPUT utilisation.',
-  },
-  'Proactive Interface LOW Output Utilisation' => {
-    'Event' => 'Proactive Interface LOW Output Utilisation',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'CancelingEvent' => 'Proactive Interface LOW Output Utilisation Closed',
-    'Description' => 'The interface has very LOW OUTPUT utilisation.',
   },
   'Proactive CPU IO Wait' => {
     'Event' => 'Proactive CPU IO Wait',
@@ -399,5 +389,133 @@
     'CancelingEvent' => 'Proactive Interface Error Output Packets Closed',
     'Description' => 'The configured threshold has been exceeded for OUTPUT packets with errors being sent by the interface.',
   },
+  'Alert: FAN Status' => {
+    'CancelingEvent' => 'Alert: FAN Status Closed',
+    'Description' => 'A fan has reported a status which is not fully operational.',
+    'Event' => 'Alert: Fan Status',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: Temperature Status' => {
+    'CancelingEvent' => 'Alert: Temperature Status Closed',
+    'Description' => 'The temperature monitor has reported a status which is not fully operational.',
+    'Event' => 'Alert: Temperature Status',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: PSU Status' => {
+    'CancelingEvent' => 'Alert: PSU Status Closed',
+    'Description' => 'A power supply has reported a status which is not fully operational.',
+    'Event' => 'Alert: PSU Status',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+
+  'Alert: OSPF Neighbor Down' => {
+    'CancelingEvent' => 'Alert: OSPF Neighbor Up',
+    'Description' => 'A OSPF Routing Protocol Peer has been detected to be down.',
+    'Event' => 'Alert: OSPF Neighbor Down',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: High Memory Utilisation' => {
+    'CancelingEvent' => 'Alert: High Memory Utilisation Closed',
+    'Description' => 'High memory utilisation was detected on this system.',
+    'Event' => 'Alert: High Memory Utilisation',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: UPS Battery Status' => {
+    'CancelingEvent' => 'Alert: UPS Battery Status Closed',
+    'Description' => 'The UPS has reported a battery to be less than fully operational.',
+    'Event' => 'Alert: UPS Battery Status',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: UPS Output Status' => {
+    'CancelingEvent' => 'Alert: UPS Output Status Closed',
+    'Description' => 'The UPS output is not in its normal/online state.',
+    'Event' => 'Alert: UPS Output Status',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: High Temperature' => {
+    'CancelingEvent' => 'Alert: High Temperature Closed',
+    'Description' => 'The node\'s sensors have reported temperatures outside of the safe range.',
+    'Event' => 'Alert: High Temperature',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Alert: ONU Down' => {
+    'CancelingEvent' => 'Alert: ONU Down Closed',
+    'Description' => 'An ONU (optical network unit) was detected to be down.',
+    'Event' => 'Alert: ONU Down',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+
+  'Proactive Disk Queue Length' => {
+    'CancelingEvent' => 'Proactive Disk Queue Length Closed',
+    'Description' => 'The length of the I/O queue has exceeded the normal range.',
+    'Event' => 'Proactive Disk Queue Length',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Proactive Page File Usage' => {
+    'CancelingEvent' => 'Proactive Page File Usage Closed',
+    'Description' => 'The node has high swap or page file utilisation.',
+    'Event' => 'Proactive Page File Usage',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Proactive QoS Packet Drops' => {
+    'CancelingEvent' => 'Proactive QoS Packet Drops Closed',
+    'Description' => 'The QoS system has had to drop packets due to congestion.',
+    'Event' => 'Proactive QoS Packet Drops',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Proactive QoS no buffer Packet Drops' => {
+    'CancelingEvent' => 'Proactive QoS no buffer Packet Drops Closed',
+    'Description' => 'The QoS system has had to drop packets because of buffer allocation failures.',
+    'Event' => 'Proactive QoS no buffer Packet Drops',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+  'Proactive Buffer Misses' => {
+    'CancelingEvent' => 'Proactive Buffer Misses Closed',
+    'Description' => 'The routing processor has run out of free buffer space in a memory pool.',
+    'Event' => 'Proactive Buffer Misses',
+    'Log' => 'true',
+    'Notify' => 'true',
+    'Stateful' => 'true',
+    'Status' => 'true'
+  },
+
 );
-			

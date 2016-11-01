@@ -35,7 +35,8 @@
 		'short' => '$node - $ifDescr - $length'
 	},
 	'vlabel'=> {
-		'standard' => '% Avg Util'
+		'standard' => '% Avg Util',
+		'split' => 'In(-) Out(+) Avg Util'
 	},
 	'option' => {
 		'standard' => [
@@ -46,23 +47,34 @@
 			'DEF:output=$database:ifOutOctets:AVERAGE',
 			'DEF:inputM=$database:ifInOctets:MAX',
 			'DEF:outputM=$database:ifOutOctets:MAX',
+			'DEF:status=$database:ifOperStatus:AVERAGE',
+
 			'CDEF:inputUtil=input,8,*,$ifSpeedIn,/,100,*',
 			'CDEF:inputSplitUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:outputUtil=output,8,*,$ifSpeedOut,/,100,*',
+
+			'VDEF:inputPct=inputUtil,95,PERCENT',			
+			'VDEF:outputPct=outputUtil,95,PERCENT',
 
 			'CDEF:inputUtilM=inputM,8,*,$ifSpeedIn,/,100,*',
 			'CDEF:inputSplitUtilM=inputM,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:outputUtilM=outputM,8,*,$ifSpeedOut,/,100,*',
 
-			'$GLINE:inputSplitUtil#00BFFF:Avg In',
-			'LINE1:inputSplitUtilM#4169E1:Max In',
-			'GPRINT:inputUtil:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:inputUtil:MAX:Max %1.2lf %% \\n',
-			'$GLINE:outputUtil#00FF7F:Avg Out',
-			'LINE1:outputUtilM#2E8B57:Max Out',
-			'GPRINT:outputUtil:AVERAGE:Avg %1.2lf %%',
-			'GPRINT:outputUtil:MAX:Max %1.2lf %% \\n',
-			'COMMENT:\tInterface Speed $speed\\n'
+			'$GLINE:inputSplitUtil#00BFFF:Average Input\\t',
+			'LINE1:inputSplitUtilM#4169E1:Maximum Input\\t',
+			'GPRINT:inputUtil:LAST:Current %4.2lf%%',
+			'GPRINT:inputUtil:AVERAGE:Average %4.2lf%%',
+			#'GPRINT:inputPct:95th%% %4.2lf%%',
+			'GPRINT:inputUtil:MAX:Maximum %4.2lf%%\\n',
+			'$GLINE:outputUtil#00FF7F:Average Output\\t',
+			'LINE1:outputUtilM#2E8B57:Maximum Output\\t',
+			'GPRINT:outputUtil:LAST:Current %4.2lf%%',
+			'GPRINT:outputUtil:AVERAGE:Average %4.2lf%%',
+			#'GPRINT:outputPct:95th%% %4.2lf%%',
+			'GPRINT:outputUtil:MAX:Maximum %4.2lf%%\\n',
+			
+			'GPRINT:status:AVERAGE:Average Interface Availability %6.0lf%%',
+			'COMMENT:Interface Speed $speed\\n'
 		],
 		'small' => [
 			'DEF:input=$database:ifInOctets:AVERAGE',
@@ -70,8 +82,14 @@
 			'CDEF:inputUtil=input,8,*,$ifSpeedIn,/,100,*',
 			'CDEF:inputSplitUtil=input,8,*,$ifSpeedIn,/,100,*,$split,*',
 			'CDEF:outputUtil=output,8,*,$ifSpeedOut,/,100,*',
-			'$GLINE:inputSplitUtil#00BFFF:In % Util',
-			'$GLINE:outputUtil#00ff00:Out % Util',
+			'$GLINE:inputSplitUtil#00BFFF:Input\\t',
+			'GPRINT:inputUtil:LAST:Current %4.1lf%%',
+			'GPRINT:inputUtil:AVERAGE:Avg. %4.1lf%%',
+			'GPRINT:inputUtil:MAX:Max %4.1lf%%\\n',
+			'$GLINE:outputUtil#00ff00:Output\\t',
+			'GPRINT:outputUtil:LAST:Current %4.1lf%%',
+			'GPRINT:outputUtil:AVERAGE:Avg. %4.1lf%%',
+			'GPRINT:outputUtil:MAX:Max %4.1lf%%\\n',
 			'COMMENT:Interface Speed $speed'
 		]
 	}

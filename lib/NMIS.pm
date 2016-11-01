@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.0b";
+our $VERSION = "8.6.0G";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -2477,6 +2477,11 @@ sub createHrButtons
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
 
+		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
+					push @out, CGI::td({class=>'header litehead'},
+				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
+		}
+		
 		# let's show the possibly many systemhealth items in a dropdown menu
 		if ( defined $S->{mdl}{systemHealth}{sys} )
 		{
@@ -2571,7 +2576,7 @@ sub createHrButtons
 sub loadPortalCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C =	loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 
@@ -2619,7 +2624,7 @@ sub loadPortalCode {
 sub loadServerCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C = loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 
@@ -2657,7 +2662,7 @@ sub loadServerCode {
 sub loadTenantCode {
 	my %args = @_;
 	my $conf = $args{conf};
-	my $C = $main::C;
+	my $C = loadConfTable();
 
 	$conf = $C->{'conf'} if not $conf;
 

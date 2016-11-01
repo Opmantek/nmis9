@@ -73712,4 +73712,9 @@
     'Enterprise' => 'Mimosa',
     'OID' => '43356'
   },
+  '29671' => {
+    'Enterprise' => 'Meraki Networks, Inc.',
+    'OID' => '29671'
+  },
+
 );

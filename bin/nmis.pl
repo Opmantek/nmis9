@@ -102,7 +102,18 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	if (-f $lockoutfile)
 	{
-		die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+		my $installerpresence = "/tmp/nmis_install_running";
+		# installer should not need to lock this box for more than a few minutes
+		if (-f $installerpresence && (stat($installerpresence))[9] > time - 3600)
+		{
+			logMsg("INFO NMIS is currently disabled, installer is performing upgrade, exiting.");
+			exit(0);
+		}
+		else
+		{
+			logMsg("WARNING NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
+			die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
+		}
 	}
 	else
 	{
@@ -120,10 +131,12 @@ my $sleep	= $nvp{sleep};
 ### 2012-12-03 keiths, adding some model testing and debugging options.
 my $model		= getbool($nvp{model});
 
-# store multithreading arguments in nvp
-my $mthread		=$nvp{mthread};
-my $mthreadDebug=$nvp{mthreaddebug};
-my $maxThreads	=$nvp{maxthreads}||1;
+# multiprocessing: commandline overrides config
+my $mthread	= (exists $nvp{mthread}? $nvp{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $nvp{maxthreads}? $nvp{maxthreads} : $C->{nmis_maxthreads}) || 1;
+
+my $mthreadDebug=$nvp{mthreaddebug}; # cmdline only for this debugging flag
+
 
 # park the list of collect/update plugins globally
 my @active_plugins;
@@ -541,13 +554,20 @@ sub	runThreads
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S);
 
-		### 2013-02-22 keiths, disable thresholding on the poll cycle only.
-		if ( getbool($C->{threshold_poll_cycle}) or !getbool($C->{threshold_poll_cycle},"invert") ) {
-			dbg("Starting runThreshold");
-			runThreshold($node_select);
-		}
-		else {
-			dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
+		# thresholds can be run: independent (=t_p_n and t_p_c false), post-collect (=t_p_n false, t_p_c true),
+		# or combined with collect (t_p_n true, t_p_c ignored)
+		if (!getbool($C->{threshold_poll_node}))
+		{
+			# not false
+			if (!getbool($C->{threshold_poll_cycle},"invert") )
+			{
+				dbg("Starting runThreshold (for all selected nodes)");
+				runThreshold($node_select);
+			}
+			else
+			{
+				dbg("Skipping runThreshold with configuration 'threshold_poll_cycle' = $C->{'threshold_poll_cycle'}");
+			}
 		}
 
 		dbg("Starting runEscalate");
@@ -569,10 +589,11 @@ sub	runThreads
 		if (( my $db = updateRRD(data=>$D, sys=>$S, type=>"nmis")))
 		{
 			$NI->{graphtype}{nmis} = 'nmis';
+			$NI->{graphtype}->{network}->{metrics} = 'metrics';
 		}
 		else
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 		$S->writeNodeInfo; # var/nmis-system.xxxx, the base info system
 	}
@@ -734,10 +755,16 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
+		# snmp-enabled node? then try to create a session obj
+		# (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(timeout => $C->{snmp_timeout},
 						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+						 max_msg_size => $C->{snmp_max_msg_size},
+						 # how many oids/pdus per bulk request, or let net::snmp guess a value
+						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+						 # how many oids per simple get request (for getarray), or default (no guessing)
+						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
+				if ($S->status->{snmp_enabled});
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
@@ -831,7 +858,7 @@ sub doUpdate
 
 	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 	$S->close;
 
@@ -1001,7 +1028,12 @@ sub doCollect
 		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(timeout => $C->{snmp_timeout},
 						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size}) if ($S->status->{snmp_enabled});
+						 max_msg_size => $C->{snmp_max_msg_size},
+						 # how many oids/pdus per bulk request, or let net::snmp guess a value
+						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+						 # how many oids per simple get request for getarray, or default (no guessing)
+						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
+				if ($S->status->{snmp_enabled});
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
@@ -1075,6 +1107,12 @@ sub doCollect
 	# don't let runreach perform the rrd update, we want to add the polltime to it!
 	my $reachdata = runReach(sys=>$S, delayupdate => 1);
 
+	# compute thresholds with the node, if configured to do so
+	if (getbool($C->{threshold_poll_node}))
+	{
+		doThreshold(name => $S->{name}, sys => $S, table => {} );
+	}
+
 	$S->writeNodeView;
 	$S->writeNodeInfo;
 
@@ -1120,7 +1158,7 @@ sub doCollect
 
 	if (!updateRRD(sys=>$S, data=> $reachdata, type=>"health"))
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 	$S->close;
 
@@ -1825,10 +1863,6 @@ sub getIntfInfo
 	my $C = loadConfTable();
 	my $nodename = $NI->{system}->{name};
 
-	### handling the default value for max-repetitions,
-	# this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days = $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
 
@@ -1887,7 +1921,7 @@ sub getIntfInfo
 		}
 		else
 		{
-			if (($ifIndexTable = $SNMP->gettable('ifIndex',$max_repetitions)))
+			if ($ifIndexTable = $SNMP->gettable('ifIndex'))
 			{
 				foreach my $oid ( oid_lex_sort(keys %{$ifIndexTable}))
 				{
@@ -2043,8 +2077,8 @@ sub getIntfInfo
 			my $ifMaskTable;
 			my %ifCnt;
 			info("Getting Device IP Address Table");
-			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex',$max_repetitions)) {
-				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask',$max_repetitions)) {
+			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
+				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
 					foreach my $addr (keys %{$ifAdEntTable}) {
 						my $index = $ifAdEntTable->{$addr};
 						next if ($singleInterface and $intf_one ne $index);
@@ -2624,10 +2658,6 @@ sub getEnvInfo
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
 
-	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	dbg("Starting");
 	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -2660,7 +2690,7 @@ sub getEnvInfo
 		my $index_var = $M->{environment}{sys}{$section}{indexed};
 
 		my (%envIndexNum, $envIndexTable);
-		if ($envIndexTable = $SNMP->gettable($index_var, $max_repetitions))
+		if ($envIndexTable = $SNMP->gettable($index_var))
 		{
 			foreach my $oid ( oid_lex_sort(keys %{$envIndexTable}))
 			{
@@ -2774,7 +2804,7 @@ sub getEnvData
 					my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 			}
@@ -2807,10 +2837,6 @@ sub getSystemHealthInfo
 	my $SNMP = $S->snmp;
 	my $M = $S->mdl;	# node model table
 	my $C = loadConfTable();
-
-	# handling the default value for max-repetitions, this controls how many OID's will be in a single request.
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -2936,7 +2962,7 @@ sub getSystemHealthInfo
 			info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
 			my (%healthIndexNum, $healthIndexTable);
 
-			if ($healthIndexTable = $SNMP->gettable($index_snmp,$max_repetitions))
+			if ($healthIndexTable = $SNMP->gettable($index_snmp))
 			{
 				# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
 				foreach my $oid ( oid_lex_sort(keys %{$healthIndexTable}))
@@ -3047,7 +3073,7 @@ sub getSystemHealthData
 					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 			}
@@ -3339,7 +3365,7 @@ sub getNodeData
 			my $db = updateRRD(sys=>$S,data=>$D,type=>$sect);
 			if (!$db)
 			{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 			}
 		}
 	}
@@ -3420,9 +3446,6 @@ sub getIntfData
 
 	my $createdone = "false";
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	info("Starting Interface get data, node $S->{name}");
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0; # reset counters of interface Up and interface collected Up
@@ -3438,9 +3461,9 @@ sub getIntfData
 
 		my ($ifAdminTable, $ifOperTable);
 
-		if ( ($ifAdminTable = $SNMP->getindex('ifAdminStatus',$max_repetitions)) )
+		if ($ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
-			$ifOperTable = $SNMP->getindex('ifOperStatus',$max_repetitions);
+			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index (keys %{$ifAdminTable})
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
@@ -3469,7 +3492,7 @@ sub getIntfData
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
 		my $ifLastChangeTable;
-		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange',$max_repetitions))
+		if ($ifLastChangeTable = $SNMP->getindex('ifLastChange'))
 		{
 			for my $index (sort {$a <=> $b} (keys %{$ifLastChangeTable}))
 			{
@@ -3687,7 +3710,7 @@ sub getIntfData
 				my $db = updateRRD(sys=>$S,data=>$D,type=>$sect,index=>$index);
 				if (!$db)
 				{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 				}
 			}
 
@@ -3846,7 +3869,7 @@ sub getCBQoSdata
 					my $db = updateRRD(sys=>$S,data=>$D,type=>"cbqos-$direction",index=>$intf,item=>$CMName);
 					if (!$db)
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 				else
@@ -3892,13 +3915,10 @@ sub getCBQoSwalk
 
 	# get the qos interface indexes and objects from the snmp table
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	info("start table scanning");
 
 	# read qos interface table
-	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex',$max_repetitions))
+	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex'))
 	{
 		foreach my $PIndex (keys %{$ifIndexTable}) {
 			my $intf = $ifIndexTable->{$PIndex}; # the interface number from the snmp qos table
@@ -3931,7 +3951,7 @@ sub getCBQoSwalk
 					my $inoutIfSpeed = $direction eq "in" ? $ifSpeedIn : $ifSpeedOut;
 
 					# get the policy config table for this interface
-					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex",$max_repetitions);
+					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
 
 					if ( $C->{debug} > 5 ) {
 						print Dumper ( $qosIndexTable );
@@ -4320,7 +4340,7 @@ sub getCallsdata
 		my $db = updateRRD(data=>\%snmpVal,sys=>$S,type=>"calls",index=>$intfindex);
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	return 1;
@@ -4346,9 +4366,6 @@ sub getCallswalk
 
 	my (%seen, %callsTable, %mappingTable, $intfindex,$parentintfIndex,
 			$IntfIndexTable, $IntfStatusTable);
-
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
 
 	dbg("Starting Calls ports collection");
 
@@ -4376,7 +4393,7 @@ sub getCallswalk
 	add_mapping("1.3.6.1.2.1.31.1.2.1.3","ifStackStatus","");
 
 	# getindex the cpmDS0InterfaceIndex oid to populate $callsTable hash with such as interface indexes, ports, slots
-	if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex",$max_repetitions))
+	if ($IntfIndexTable = $SNMP->getindex("cpmDS0InterfaceIndex"))
 	{
 		foreach my $index (keys %{$IntfIndexTable})
 		{
@@ -4388,7 +4405,7 @@ sub getCallswalk
 				$callsTable{$intfindex}{'port'} = $port;
 				$callsTable{$intfindex}{'channel'} = $channel;
 			}
-		if ($IntfStatusTable = $SNMP->getindex("ifStackStatus",$max_repetitions))
+		if ($IntfStatusTable = $SNMP->getindex("ifStackStatus"))
 		{
 			foreach my $index (keys %{$IntfStatusTable})
 			{
@@ -4485,9 +4502,6 @@ sub getPVC
 	my %pvcStats;		# start this new every time
 	my %snmpTable;
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	dbg("Starting frame relay PVC collection");
 
 	# double check if any frame relay interfaces on this node.
@@ -4520,7 +4534,7 @@ sub getPVC
 
 	my $frCircEntryTable;
 	my $cfrExtCircIfNameTable;
-	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry',$max_repetitions))
+	if ( $frCircEntryTable = $SNMP->getindex('frCircuitEntry'))
 	{
 		foreach my $index (keys %{$frCircEntryTable})
 		{
@@ -4534,7 +4548,7 @@ sub getPVC
 		# fixme hardcoded model name is bad
 		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ )
 		{
-			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName',$max_repetitions))
+			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName'))
 			{
 				foreach my $index (keys %{$cfrExtCircIfNameTable}) {
 					my ($port,$pvc) = split /\./,$index;
@@ -4579,7 +4593,7 @@ sub getPVC
 				}
 				else
 				{
-					logMsg("ERROR updateRRD failed: ".getRRDerror);
+					logMsg("ERROR updateRRD failed: ".getRRDerror());
 				}
 			}
 		}
@@ -4634,16 +4648,13 @@ sub runServer
 
 	my ($result, %Val, %ValMeM, $hrCpuLoad);
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || $C->{snmp_max_repetitions};
-
 	info("Starting server device/storage collection, node $NI->{system}{name}");
 
 	# get cpu info
 	delete $NI->{device};
 	if (ref($M->{device}) eq "HASH" && keys %{$M->{device}})
 	{
-		my $deviceIndex = $SNMP->getindex('hrDeviceIndex',$max_repetitions);
+		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
 		$S->loadInfo(class=>'device',model=>$model); # get cpu load without index
 		foreach my $index (keys %{$deviceIndex}) {
 			if ($S->loadInfo(class=>'device',index=>$index,model=>$model)) {
@@ -4666,7 +4677,7 @@ sub runServer
 					}
 					else
 					{
-						logMsg("ERROR updateRRD failed: ".getRRDerror);
+						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
 				else
@@ -4688,7 +4699,7 @@ sub runServer
 	if ($M->{storage} ne '') {
 		# get storage info
 		my $disk_cnt = 1;
-		my $storageIndex = $SNMP->getindex('hrStorageIndex',$max_repetitions);
+		my $storageIndex = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable = undef;
@@ -4702,7 +4713,7 @@ sub runServer
 				} else {
 					if (
 						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
-						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageFixedDisk
+						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageNetworkDisk
 					) {
 						undef %Val;
 						my $hrStorageType = $D->{hrStorageType};
@@ -4724,14 +4735,14 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 
 						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
 							# only get this snmp once if we need to, and created an named index.
 							if ( not defined $fileSystemTable ) {
-								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint',$max_repetitions);
-								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint',$max_repetitions);
+								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint');
+								$hrFSRemoteMountPoint = $SNMP->getindex('hrFSRemoteMountPoint');
 								foreach my $fsIndex ( keys %$hrFSMountPoint ) {
 									my $mp = $hrFSMountPoint->{$fsIndex};
 									$fileSystemTable->{$mp} = $hrFSRemoteMountPoint->{$fsIndex};
@@ -4760,7 +4771,7 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 					}
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
@@ -4787,7 +4798,7 @@ sub runServer
 						}
 						else
 						{
-							logMsg("ERROR updateRRD failed: ".getRRDerror);
+							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 					}
 					# also collect mem buffers and cached mem if present
@@ -4812,7 +4823,7 @@ sub runServer
 							}
 							else
 							{
-								logMsg("ERROR updateRRD failed: ".getRRDerror);
+								logMsg("ERROR updateRRD failed: ".getRRDerror());
 							}
 					}
 					else
@@ -4865,9 +4876,6 @@ sub runServices
 
 	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
 
-	# the default-default is no value whatsoever, for letting the snmp module do its thing
-	my $max_repetitions = $NI->{system}{max_repetitions} || 0;
-
 	my $cpu;
 	my $memory;
 	my $msg;
@@ -4895,71 +4903,32 @@ sub runServices
 		dbg("get index of hrSWRunName by snmp, then get some data");
 		my $hrIndextable;
 
-		# keeping this block until all confirmed good in the world.
-		#my @snmpvars = qw( hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem);
-		#foreach my $var ( @snmpvars )
-		#{
-		#	if ( $hrIndextable = $SNMP->getindex($var,$max_repetitions))
-		#	{
-		#		foreach my $inst (keys %{$hrIndextable}) {
-		#			my $value = $hrIndextable->{$inst};
-		#			my $textoid = oid2name(name2oid($var).".".$inst);
-		#			if ( $textoid =~ /date\./i ) { $value = snmp2date($value) }
-		#			( $textoid, $inst ) = split /\./, $textoid, 2;
-		#			$snmpTable{$textoid}{$inst} = $value;
-		#			dbg("Indextable=$inst textoid=$textoid value=$value",2);
-		#		}
-		#	}
-		#	# SNMP failed, so mark SNMP down so code below handles results properly
-		#	else
-		#	{
-		#		logMsg("$node SNMP failed while collecting SNMP Service Data");
-		#		HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-		#		$snmp_allowed = 0;
-		#		last;
-		#	}
-		#}
-
-		# get the process parameters by row (=process instance),
-		# not by column (=process property): avoids oversize snmp packets
-		if ( $hrIndextable = $SNMP->getindex("hrSWRunName",$max_repetitions))
+		# get the process parameters by column, allowing efficient bulk requests
+		# but possibly running into bad agents at times, which gettable/getindex
+		# compensates for by backing off and retrying.
+		for my $var (qw(hrSWRunName hrSWRunPath hrSWRunParameters hrSWRunStatus
+hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		{
-			foreach my $inst (keys %{$hrIndextable})
+			if ( $hrIndextable = $SNMP->getindex($var))
 			{
-				# TODO we could optimise further here by creating a list of interesting hrSWRunName and only running the SNMP on those.
-				$snmpTable{"hrSWRunName"}{$inst} = $hrIndextable->{$inst};
-
-				(
-					$snmpTable{'hrSWRunPath'}{$inst},
-					$snmpTable{'hrSWRunParameters'}{$inst},
-					$snmpTable{'hrSWRunStatus'}{$inst},
-					$snmpTable{'hrSWRunType'}{$inst},
-					$snmpTable{'hrSWRunPerfCPU'}{$inst},
-					$snmpTable{'hrSWRunPerfMem'}{$inst}
-				) = $SNMP->getarray(
-					"hrSWRunPath.$inst",
-					"hrSWRunParameters.$inst",
-					"hrSWRunStatus.$inst",
-					"hrSWRunType.$inst",
-					"hrSWRunPerfCPU.$inst",
-					"hrSWRunPerfMem.$inst"
-				);
-				if ( $SNMP->error ) {
-					logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
-					HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-					$snmp_allowed = 0;
-					last;
+				foreach my $inst (keys %{$hrIndextable})
+				{
+					my $value = $hrIndextable->{$inst};
+					my $textoid = oid2name(name2oid($var).".".$inst);
+					$value = snmp2date($value) if ($textoid =~ /date\./i);
+					( $textoid, $inst ) = split /\./, $textoid, 2;
+					$snmpTable{$textoid}{$inst} = $value;
+					dbg("Indextable=$inst textoid=$textoid value=$value",2);
 				}
-				dbg("$node, $inst, $snmpTable{'hrSWRunName'}{$inst}, $snmpTable{'hrSWRunPath'}{$inst}, $snmpTable{'hrSWRunParameters'}{$inst}, $snmpTable{'hrSWRunStatus'}{$inst}, $snmpTable{'hrSWRunType'}{$inst}",4);
 			}
-		}
-		# SNMP failed, so mark SNMP down so code below handles results properly
-		else
-		{
-			logMsg("$node SNMP failed while collecting SNMP Service Data: ".$SNMP->error);
-			HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
-			$snmp_allowed = 0;
-			last;
+			# SNMP failed, so mark SNMP down so code below handles results properly
+			else
+			{
+				logMsg("$node SNMP failed while collecting SNMP Service Data");
+				HandleNodeDown(sys=>$S, type => "snmp", details => "get SNMP Service Data: ".$SNMP->error);
+				$snmp_allowed = 0;
+					last;
+			}
 		}
 
 		# are we still good to continue?
@@ -5034,13 +5003,19 @@ sub runServices
 		if ($lastrun && ((time - $lastrun) < $serviceinterval * 0.9))
 		{
 			$msg .= "skipping this time.";
-			info($msg); logMsg("INFO: $msg");
+			if ($C->{info} or $C->{debug})
+			{
+				info($msg); logMsg("INFO: $msg");
+			}
 			next;
 		}
 		else
 		{
 			$msg .= "must be checked this time.";
-			info($msg); logMsg("INFO: $msg");
+			if ($C->{info} or $C->{debug})
+			{
+				info($msg); logMsg("INFO: $msg");
+			}
 		}
 		# make sure that the rrd heartbeat is suitable for the service interval!
 		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
@@ -5090,35 +5065,51 @@ sub runServices
 			}
 		} # end DNS
 
-		# now the 'port'
-		elsif ( $ST->{$service}{Service_Type} eq "port" ) {
+		# now the 'port' service checks, which rely on nmap
+		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
+		elsif ( $ST->{$service}{Service_Type} eq "port" )
+		{
 			$msg = '';
-			my $nmap;
-
 			my ( $scan, $port) = split ':' , $ST->{$service}{Port};
 
-			if ( $scan =~ /udp/ ) {
-				$nmap = "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}";
+			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
+									 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
+			# fork and read from pipe
+			my $pid = open(NMAP, "$nmap 2>&1 |");
+			if (!defined $pid)
+			{
+				my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
+				logMsg($errmsg);
+				info($errmsg);
 			}
-			else {
-				$nmap = "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}";
-			}
-			# now run it, need to use the open() syntax here, else we may not get the response in a multithread env.
-			unless ( open(NMAP, "$nmap 2>&1 |")) {
-				dbg("FATAL: Can't open nmap: $!");
-			}
-			while (<NMAP>) {
-				$msg .= $_;
+			while (<NMAP>)
+			{
+				$msg .= $_;							# this retains the newlines
 			}
 			close(NMAP);
-
-			if ( $msg =~ /Ports: $port\/open/ ) {
-				$ret = 1;
-				dbg("Success: $msg");
+			my $exitcode = $?;
+			# if the pipe close doesn't wait until the child is gone (which it may do...)
+			# then wait and collect explicitely
+			if (waitpid($pid,0) == $pid)
+			{
+				$exitcode = $?;
 			}
-			else {
+			if ($exitcode)
+			{
+				logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+				info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+			}
+			if ($msg =~ /Ports: $port\/open/)
+			{
+				$ret = 1;
+				info("NMAP reported success for port $port: $msg");
+				logMsg("INFO, NMAP reported success for port $port: $msg") if ($C->{debug} or $C->{info});
+			}
+			else
+			{
 				$ret = 0;
-				dbg("Failed: $msg");
+				info("NMAP reported failure for port $port: $msg");
+				logMsg("INFO, NMAP reported failure for port $port: $msg") if ($C->{debug} or $C->{info});
 			}
 		}
 		# now the snmp services - but only if snmp is on
@@ -5548,7 +5539,7 @@ sub runServices
 		}
 		else
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 
 		# now update the per-service status file
@@ -6277,7 +6268,7 @@ sub runReach
 		my $db = updateRRD(sys=>$S, data=>\%reachVal, type=>"health"); # database name is normally 'reach'
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	if ( $NI->{system}{nodeModel} eq 'PingOnly' ) {
@@ -7673,7 +7664,7 @@ sub runMetrics
 	my $db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>'network');
 	if (!$db)
 	{
-		logMsg("ERROR updateRRD failed: ".getRRDerror);
+		logMsg("ERROR updateRRD failed: ".getRRDerror());
 	}
 
 	foreach $group (sort keys %{$GT}) {
@@ -7694,7 +7685,7 @@ sub runMetrics
 		$db = updateRRD(data=>$data,sys=>$S,type=>"metrics",item=>$group);
 		if (!$db)
 		{
-			logMsg("ERROR updateRRD failed: ".getRRDerror);
+			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
 	dbg("Finished");
@@ -7882,12 +7873,12 @@ sub runDaemons
 	# start fast ping daemon
 	if ( getbool($C->{daemon_fping_active}) ) {
 		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" ) 
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}","restart=true");
 				logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
-			} 
-			else 
+			}
+			else
 			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
 			}
@@ -7895,15 +7886,15 @@ sub runDaemons
 	}
 
 	# start ipsla daemon
-	if ( getbool($C->{daemon_ipsla_active}) ) 
+	if ( getbool($C->{daemon_ipsla_active}) )
 	{
 		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" ) 
+			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
 				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			} 
-			else 
+			}
+			else
 			{
 				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
 			}
@@ -8115,20 +8106,20 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # NMIS8 Config
 ######################################################
 # Run Full Statistics Collection
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true maxthreads=10
+*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
 # ######################################################
 # Optionally run a more frequent Services-only Collection
-# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true maxthreads=10
+# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 ######################################################
 # Run Summary Update every 2 minutes
 */2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 #####################################################
 # Run the interfaces 4 times an hour with Thresholding on!!!
 # if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold mthread=true maxthreads=10
+#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
 ######################################################
 # Run the update once a day
-30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true maxthreads=10
+30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true
 ######################################################
 # Log Rotation is now handled with /etc/logrotate.d/nmis, which
 # the installer offers to setup using install/logrotate*.conf
@@ -8357,187 +8348,211 @@ command line options are:
   [force=true|false]     Makes an update operation run from scratch, without optimisations
   [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
-  [mthread=true|false]   default=false - Enable Multithreading or not;
-  [mthreaddebug=true|false] default=false - Enable Multithreading debug or not;
-  [maxthreads=<1..XX>]  default=2 - How many threads should nmis create\n
+  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
+  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
 !;
 }
 
 #=========================================================================================
 
+
+# run threshold calculation operation on all or one node, in a single loop
+# args: node (optional)
+# returns: nothing
 sub runThreshold
 {
 	my $node = shift;
 
 	# check global_threshold not explicitely set to false
-	if (!getbool($C->{global_threshold},"invert")) {
+	if (!getbool($C->{global_threshold},"invert"))
+	{
 		my $node_select;
-		if ($node ne "") {
-			if (!($node_select = checkNodeName($node))) {
-				print "\t Invalid node=$node No node of that name\n";
-				exit 0;
-			}
+		if ($node)
+		{
+			die "Invalid node=$node: No node of that name\n"
+					if (!($node_select = checkNodeName($node)));
 		}
-
-		doThreshold(name=>$node_select,table=>doSummaryBuild(name=>$node_select));
+		doThreshold(name=>$node_select, table => doSummaryBuild(name => $node_select));
 	}
-	else {
+	else
+	{
 		dbg("Skipping runThreshold with configuration 'global_threshold' = $C->{'global_threshold'}");
 	}
-
 }
 
-#=================================================================
+# collects (using getSummaryStats) and returns summary stats
+# for one or all nodes, also writes two debug files.
 #
-# Build first Summary table of all nodes, we need this info for Threshold too
-#
+# args: name (optional), sys (optional, only if name is given)
+# returns: summary stats hash
 sub doSummaryBuild
 {
 	my %args = @_;
 	my $node = $args{name};
+	my $S = $node && $args{sys}? $args{sys} : undef; # use given sys object only with this node
 
 	dbg("Start of Summary Build");
 
-	my $S = Sys->new; # node object
 	my $NT = loadLocalNodeTable();
-	my $NI;
-	my $IF;
-	my $M;
 	my %stshlth;
 	my %stats;
 	my %stsintf;
 
-	foreach my $nd (sort keys %{$NT}) {
+	foreach my $nd (sort keys %{$NT})
+	{
 		next if $node ne "" and $node ne $nd;
-		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{collect})) {
-			if (($S->init(name=>$nd,snmp=>'false'))) { # get cached info of node only
-				$M = $S->mdl; # model ref
-				$NI = $S->ndinfo; # node info
-				$IF = $S->ifinfo; # interface info
+		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{collect}))
+		{
+			if (!$S)
+			{
+				# get cached info of node, iff required
+				$S = Sys->new;
+				next if (!$S->init(name=>$nd,snmp=>'false'));
+			}
 
-				next if getbool($NI->{system}{nodedown});
+			my $M = $S->mdl; # model ref
+			my $NI = $S->ndinfo; # node info
+			my $IF = $S->ifinfo; # interface info
 
-				foreach my $tp (keys %{$M->{summary}{statstype}}) { # oke, look for requests in summary of Model
-					### 2013-09-16 keiths, User defined threshold periods.
+			next if getbool($NI->{system}{nodedown});
 
-					next if (!exists $M->{system}->{rrd}->{$tp}->{threshold});
+			# oke, look for requests in summary of Model
+			foreach my $tp (keys %{$M->{summary}{statstype}})
+			{
+				next if (!exists $M->{system}->{rrd}->{$tp}->{threshold});
+				my $threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
 
-					my $threshold_period = "-15 minutes";
-					if ( $C->{"threshold_period-default"} ne "" ) {
-						$threshold_period = $C->{"threshold_period-default"};
-					}
-
-					if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" ) {
+				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
+				{
 						$threshold_period = $C->{"threshold_period-$tp"};
 						dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
-					}
-					# check whether this is an indexed section, ie. whether there are multiple instances with
-					# their own indices
-					my @instances = $S->getTypeInstances(graphtype => $tp, section => $tp);
-					if (@instances)
-					{
-						foreach my $i (@instances) {
-							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now',index=>$i);
-							# save all info in %sts for threshold run
-							foreach (keys %{$sts->{$i}}) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
-							#
-							foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}}) {
-								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{Description} = $NI->{label}{$tp}{$i}; # descr
-								# check if threshold level available, thresholdname must be equal to type
-								if (exists $M->{threshold}{name}{$tp}) {
-									($stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level},undef,undef) =
-										getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
-								}
-								# save values
-								foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
-									$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
-									dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}");
-								}
-							}
-						}
-					}
-					else
-					{
-						my $dbname = $S->getDBName(graphtype => $tp);
-						if ($dbname && -r $dbname)
-						{
-							my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now');
-							# save all info in %sts for threshold run
-							foreach (keys %{$sts}) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
-							# check if threshold level available, thresholdname must be equal to type
-							if (exists $M->{threshold}{name}{$tp}) {
-								($stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"},undef,undef) =
-									getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
-							}
-							foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}}) {
-								foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
-									$stshlth{$NI->{system}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
-									dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
-								}
-							}
-						}
-					}
-				}
-				### 2013-09-16 keiths, User defined threshold periods.
-				my $threshold_period = "-15 minutes";
-				if ( $C->{"threshold_period-default"} ne "" ) {
-					$threshold_period = $C->{"threshold_period-default"};
 				}
 
+				# check whether this is an indexed section, ie. whether there are multiple instances with
+				# their own indices
+				my @instances = $S->getTypeInstances(graphtype => $tp, section => $tp);
+				if (@instances)
+				{
+					foreach my $i (@instances)
+					{
+						my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now',index=>$i);
+						# save all info from %sts for threshold run
+						foreach (keys %{$sts->{$i}}) { $stats{$nd}{$tp}{$i}{$_} = $sts->{$i}{$_}; }
+
+						foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}})
+						{
+							$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{Description} = $NI->{label}{$tp}{$i}; # descr
+							# check if threshold level available, thresholdname must be equal to type
+							if (exists $M->{threshold}{name}{$tp})
+							{
+								($stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level},undef,undef) =
+										getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
+							}
+							# save values
+							foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
+								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
+								dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}");
+							}
+						}
+					}
+				}
+				# non-indexed
+				else
+				{
+					my $dbname = $S->getDBName(graphtype => $tp);
+					if ($dbname && -r $dbname)
+					{
+						my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>'now');
+						# save all info from %sts for threshold run
+						foreach (keys %{$sts}) { $stats{$nd}{$tp}{$_} = $sts->{$_}; }
+
+						# check if threshold level available, thresholdname must be equal to type
+						if (exists $M->{threshold}{name}{$tp})
+						{
+							($stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"},undef,undef) =
+									getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
+						}
+						foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}})
+						{
+							foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
+								$stshlth{$NI->{system}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
+								dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
+							}
+						}
+					}
+				}
+
+				# reset the threshold period, may have been changed to threshold_period-<something>
+				$threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
+
 				my $tp = "interface";
-				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" ) {
+				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
+				{
 					$threshold_period = $C->{"threshold_period-$tp"};
 					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
 				}
 
 				# get all collected interfaces
-				foreach my $index (keys %{$IF}) {
+				foreach my $index (keys %{$IF})
+				{
 					next unless getbool($IF->{$index}{collect});
-					my $sts = getSummaryStats(sys=>$S,type=>$tp,start=>$threshold_period,end=>time(),index=>$index);
+					my $sts = getSummaryStats(sys=>$S, type=>$tp,
+																		start=>$threshold_period, end=>time(), index=>$index);
 					foreach (keys %{$sts->{$index}}) { $stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_}; } # save for threshold
-					# Jeff Wright update: get all the stats fields into the stts info.
+
+					# copy all stats into the stsintf info.
 					foreach (keys %{$sts->{$index}}) { $stsintf{"${index}.$S->{name}"}{$_} = $sts->{$index}{$_}; }
 				}
 			}
 		}
+		# use a new sys object for every node
+		undef $S;
 	}
-	writeTable(dir=>'var',name=>"nmis-summaryintf15m",data=>\%stsintf);
-	writeTable(dir=>'var',name=>"nmis-summaryhealth15m",data=>\%stshlth);
-	writeTable(dir=>'var',name=>"nmis-summarystats15m",data=>\%stats) if $C->{debug};
+
+	# these two tables are produced ONLY for debugging, they're not used by nmis
+	writeTable(dir=>'var', name=>"nmis-summaryintf15m", data=>\%stsintf);
+	writeTable(dir=>'var', name=>"nmis-summaryhealth15m", data=>\%stshlth);
 	dbg("Finished");
+
 	return \%stats; # input for threshold process
 }
 
 
-# figures out which threshold alerts need to be run
-# for one (or all) nodes, based on model
+# figures out which threshold alerts need to be run for one (or all) nodes, based on model
+# delegates the evaluation work to runThrHld, then updates info structures.
+#
+# args: name (optional), table (required, must be hash ref but may be empty),
+# sys (optional, only used if name is given)
+#
+# note: writes node info file if run as part of type=threshold
+# returns: nothing
 sub doThreshold
 {
 	my %args = @_;
 	my $name = $args{name};
-	my $sts = $args{table}; # pointer to data build by doSummaryBuild
+	my $sts = $args{table}; # pointer to data built up by doSummaryBuild
+	my $S = $args{sys};
 
 	dbg("Starting");
 	func::update_operations_stamp(type => "threshold", start => $starttime, stop => undef)
 			if ($type eq "threshold");	# not if part of collect
-
-	my $NT = loadLocalNodeTable();
-	my $events_config = loadTable(dir => 'conf', name => 'Events'); # cannot use loadGenericTable as that checks and clashes with db_events_sql
-
-	my $S = Sys->new; # create system object
-
 	my $pollTimer = NMIS::Timing->new;
 
-	foreach my $nd (sort keys %{$NT})
+	my $events_config = loadTable(dir => 'conf', name => 'Events');
+	my $NT = loadLocalNodeTable();
+
+	my @cand = ($name && $NT->{$name}? $name :  keys %$NT);
+
+	for my $onenode (@cand)
 	{
-		next if $node ne "" and $node ne lc($nd); # check for single node thresholds
+		next if (!getbool($NT->{$onenode}{active}) or !getbool($NT->{$onenode}{threshold}));
 
-		### 2012-09-03 keiths, changing as pingonly nodes not being thresholded, found by Lenir Santiago
-		#if ($NT->{$nd}{active} eq 'true' and $NT->{$nd}{collect} eq 'true' and $NT->{$nd}{threshold} eq 'true') {
-		next if (!getbool($NT->{$nd}{active}) or !getbool($NT->{$nd}{threshold}));
-
-		# get all cached info of node - does NOT include its nodes.nmis config!
-		next if (!($S->init(name=>$nd, snmp=>'false')));
+		if (@cand > 1 || !$S)
+		{
+			$S = Sys->new;
+			next if (! $S->init(name=>$onenode, snmp=>'false'));
+		}
 
 		my $NI = $S->ndinfo; # pointer to node info table
 		my $M  = $S->mdl;	# pointer to Model table
@@ -8553,7 +8568,7 @@ sub doThreshold
 
 		# first the standard thresholds
 		my $thrname = 'response,reachable,available';
-		runThrHld(sys=>$S,table=>$sts,type=>'health',thrname=>$thrname);
+		runThrHld(sys=>$S, table=>$sts, type=>'health', thrname=>$thrname);
 
 		# search for threshold names in Model of this node
 		foreach my $s (keys %{$M}) # section name
@@ -8581,10 +8596,10 @@ sub doThreshold
 				$thrname = $thissection->{threshold};	# get commasep string of threshold name(s)
 				dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
 
-				# getbool of this is not valid anymore, for WMI indexed must be named, so getbool 'indexed' => 'Name' evaluates to false
-				# changing now to be not false.
-
-				if (not ( $thissection->{indexed} ne "" and $thissection->{indexed} ne "false" ))	# if indexed then all instances must be checked individually
+				# getbool of this is not valid anymore, for WMI indexed must be named,
+				# so getbool 'indexed' => 'Name' evaluates to false. changing now to be not false.
+				if (not ( $thissection->{indexed} ne ""
+									and $thissection->{indexed} ne "false" ))	# if indexed then all instances must be checked individually
 				{
 					runThrHld(sys=>$S, table=>$sts, type=>$type, thrname=>$thrname); # single
 				}
@@ -8666,7 +8681,8 @@ sub doThreshold
 		foreach my $statusKey (sort keys %{$S->{info}{status}})
 		{
 			my $eventKey = $S->{info}{status}{$statusKey}{event};
-			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}" if $S->{info}{status}{$statusKey}{method} eq "Alert";
+			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
+					if $S->{info}{status}{$statusKey}{method} eq "Alert";
 
 			# event control is as configured or all true.
 			my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
@@ -8708,9 +8724,8 @@ sub doThreshold
 			}
 		}
 
-		#print Dumper $S;
-		# Save the new status results
-		$S->writeNodeInfo();
+		# Save the new status results, but only if run standalone
+		$S->writeNodeInfo() if ($type eq "threshold");
 	}
 
 	dbg("Finished");
@@ -8723,14 +8738,21 @@ sub doThreshold
 			if ($type eq "threshold");	# not if part of collect
 }
 
+# performs the threshold value checking and event raising for
+# one or more threshold configurations
+# args: sys, type, thrname, index, item, class (all required),
+# table (required hashref but may be empty),
+# returns: nothing but raises/clears events (via thresholdProcess) and updates table
 sub runThrHld
 {
 	my %args = @_;
+
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
 	my $IF = $S->ifinfo;
 	my $ET = $S->{info}{env_temp};
+	my $DISK = $S->{info}{storage};
 
 	my $sts = $args{table};
 	my $type = $args{type};
@@ -8748,39 +8770,56 @@ sub runThrHld
 		$threshold_period = $C->{"threshold_period-default"};
 	}
 	### 2013-09-16 keiths, User defined threshold periods.
-	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" ) {
+	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" )
+	{
 		$threshold_period = $C->{"threshold_period-$type"};
 		dbg("Found Configured Threshold for $type, changing to \"$threshold_period\"");
 	}
 
 	#	check if values are already in table (done by doSummaryBuild)
-	if (exists $sts->{$S->{name}}{$type}) {
+	if (exists $sts->{$S->{name}}{$type})
+	{
 		$stats = $sts->{$S->{name}}{$type};
-	} else {
-		$stats = getSummaryStats(sys=>$S,type=>$type,start=>$threshold_period,end=>'now',index=>$index,item=>$item);
+	}
+	else
+	{
+		$stats = getSummaryStats(sys=>$S, type=>$type,
+														 start=>$threshold_period, end=>'now',
+														 index=>$index, item=>$item);
 	}
 
 	# get name of element
-	if ($index eq '') {
+	if ($index eq '')
+	{
 		$element = '';
 	}
-	elsif ($index ne '' and $thrname eq "env_temp" ) {
+	elsif ($index ne '' and $thrname eq "env_temp" )
+	{
 		$element = $ET->{$index}{tempDescr};
 	}
-	elsif ($index ne '' and $thrname eq "hrsmpcpu" ) {
+	elsif ($index ne '' and $thrname eq "hrsmpcpu" )
+	{
 		$element = "CPU $index";
 	}
-	elsif ($type =~ /cbqos/ and defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
+	elsif ($index ne '' and $thrname eq "hrdisk" )
+	{
+		$element = "$DISK->{$index}{hrStorageDescr}";
+	}
+	elsif ($type =~ /cbqos/
+				 and defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" )
+	{
 		$element = "$IF->{$index}{ifDescr}: $item";
 	}
-	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" ) {
+	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" )
+	{
 		$element = $IF->{$index}{ifDescr};
 	}
 	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
-		and $M->{systemHealth}{sys}{$type}{indexed} ne "true"
-	) {
+					and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
+	{
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
-		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" ) {
+		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" )
+		{
 			$element = $NI->{$type}{$index}{$elementVar};
 		}
 	}
@@ -8789,7 +8828,6 @@ sub runThrHld
 	}
 
 	# walk through threshold names
-	### 2012-04-25 keiths, fixing loop as not processing correctly.
 	$thrname = stripSpaces($thrname);
 	my @nm_list = split(/,/,$thrname);
 	foreach my $nm (@nm_list)
@@ -8799,12 +8837,14 @@ sub runThrHld
 		# check for control_regex
 		if ( defined $M->{threshold}{name}{$nm}
 			and $M->{threshold}{name}{$nm}{control_regex} ne ""
-			and $item ne ""
-		){
-			if ( $item =~ /$M->{threshold}{name}{$nm}{control_regex}/ ) {
+			and $item ne "" )
+		{
+			if ( $item =~ /$M->{threshold}{name}{$nm}{control_regex}/ )
+			{
 				dbg("MATCHED threshold $nm control_regex MATCHED $item");
 			}
-			else {
+			else
+			{
 				dbg("SKIPPING threshold $nm: $item did not match control_regex");
 				next();
 			}
@@ -8816,7 +8856,7 @@ sub runThrHld
 																														index=>$index,
 																														item=>$item);
 		# get 'Proactive ....' string of Model
-		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event},index=>$index);
+		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event}, index=>$index);
 
 		my $details = "";
 		my $spacer = "";
@@ -8855,7 +8895,6 @@ sub runThrHld
 										 index=>$index,	 # crucial for context
 										 class=>$class); # crucial for context
 	}
-
 }
 
 sub getThresholdLevel

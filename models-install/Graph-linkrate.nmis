@@ -38,28 +38,18 @@
 	},
 	'option' => {
 		'standard' => [
-			'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
-			'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
-			'LINE2:linkRateTx#4daef6:TX Link Rate',
-			'GPRINT:linkRateTx:LAST:Current %1.2lf',
-			'GPRINT:linkRateTx:AVERAGE:Avg. %1.2lf',
-			'GPRINT:linkRateTx:MAX:Max %1.2lf\\n',			
-			'LINE2:linkRateRx#00cc00:RX Link Rate',
-			'GPRINT:linkRateRx:LAST:Current %1.2lf',
-			'GPRINT:linkRateRx:AVERAGE:Avg. %1.2lf',
-			'GPRINT:linkRateRx:MAX:Max %1.2lf\\n',			
+			'DEF:linkrate=$database:linkrate:AVERAGE',
+			'LINE1:linkrate#4daef6:Link Rate',
+			'GPRINT:linkrate:LAST:Current %6.2lf',
+			'GPRINT:linkrate:AVERAGE:Avg. %6.2lf',
+			'GPRINT:linkrate:MAX:Max %6.2lf\\n',			
 		],
 		'small' => [
-			'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
-			'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
-			'LINE2:linkRateTx#4daef6:TX Link Rate',
-			'GPRINT:linkRateTx:LAST:Current %1.0lf',
-			'GPRINT:linkRateTx:AVERAGE:Avg. %1.0lf',
-			'GPRINT:linkRateTx:MAX:Max %1.0lf\\n',			
-			'LINE2:linkRateRx#00cc00:RX Link Rate',
-			'GPRINT:linkRateRx:LAST:Current %1.0lf',
-			'GPRINT:linkRateRx:AVERAGE:Avg. %1.0lf',
-			'GPRINT:linkRateRx:MAX:Max %1.0lf\\n',			
+			'DEF:linkrate=$database:linkrate:AVERAGE',
+			'LINE1:linkrate#4daef6:Link Rate',
+			'GPRINT:linkrate:LAST:Current %6.0lf',
+			'GPRINT:linkrate:AVERAGE:Avg. %6.0lf',
+			'GPRINT:linkrate:MAX:Max %6.0lf\\n',			
 		]
 	}
 );

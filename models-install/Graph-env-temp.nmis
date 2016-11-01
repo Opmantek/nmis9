@@ -35,29 +35,25 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'degrees',
-		'short' => 'degrees'
+		'standard' => 'Degrees',
+		'short' => 'Degrees'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
+			'DEF:tempenv=$database:currentTemp:AVERAGE',
+			'LINE1:tempenv#4daef6: Degrees',
+			'GPRINT:tempenv:LAST:Current %1.2lf',
+			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
+			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
 		],
 		'small' => [
-			'DEF:TempAVG=$database:currentTemp:AVERAGE',
-			'DEF:TempMAX=$database:currentTemp:MAX',
-			'DEF:TempMIN=$database:currentTemp:MIN',
-			'LINE1:TempAVG#0000ff:Temperature',
-			'GPRINT:TempAVG:LAST:Current %1.1lf C',
-			'GPRINT:TempAVG:AVERAGE:Avg %1.1lf C',
-			'GPRINT:TempMAX:MAX:Max %1.1lf C',
-			'GPRINT:TempMIN:MIN:Min %1.1lf C\n'
+			'DEF:tempenv=$database:currentTemp:AVERAGE',
+			'LINE1:tempenv#4daef6: Degrees',
+			'GPRINT:tempenv:LAST:Current %1.2lf',
+			'GPRINT:tempenv:AVERAGE:Avg. %1.2lf',
+			'GPRINT:tempenv:MAX:Max %1.2lf\\n',
 		]
 	}
 );
+
+

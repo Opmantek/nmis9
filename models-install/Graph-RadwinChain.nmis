@@ -1,0 +1,89 @@
+#
+#  Copyright 1999-2016 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'RSS per Chain (polarity)'
+	},
+	'vlabel' => {
+		'standard' => ''
+	},
+	'option' => {
+		'standard' => [
+			'DEF:hsu_chain1=$database:hsu_chain1:AVERAGE',
+                        'DEF:hsu_chain2=$database:hsu_chain2:AVERAGE',
+                        'DEF:hbs_chain1=$database:hbs_chain1:AVERAGE',
+                        'DEF:hbs_chain2=$database:hbs_chain2:AVERAGE',
+
+			'LINE2:hsu_chain1#0033cc:HSU Port A/1 ODU-RF',
+                        'GPRINT:hsu_chain1:LAST:Cur. %1.2lf',
+                        'GPRINT:hsu_chain1:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hsu_chain1:MAX:Max %1.2lf\\n',
+
+                        'LINE2:hsu_chain2#ff9900:HSU Port B/1 ODU-RF',
+                        'GPRINT:hsu_chain2:LAST:Cur. %1.2lf',
+                        'GPRINT:hsu_chain2:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hsu_chain2:MAX:Max %1.2lf\\n',
+
+                        'LINE2:hbs_chain1#00cc00:HBS Port A/1 ODU-RF',
+                        'GPRINT:hbs_chain1:LAST:Cur. %1.2lf',
+                        'GPRINT:hbs_chain1:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hbs_chain1:MAX:Max %1.2lf\\n',
+
+                        'LINE2:hbs_chain2#660099:HBS Port B/1 ODU-RF',
+                        'GPRINT:hbs_chain2:LAST:Cur. %1.2lf',
+                        'GPRINT:hbs_chain2:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hbs_chain2:MAX:Max %1.2lf\\n',
+		],
+		'small' => [
+                        'DEF:hsu_chain1=$database:hsu_chain1:AVERAGE',
+                        'DEF:hsu_chain2=$database:hsu_chain2:AVERAGE',
+                        'DEF:hbs_chain1=$database:hbs_chain1:AVERAGE',
+                        'DEF:hbs_chain2=$database:hbs_chain2:AVERAGE',
+
+                        'LINE2:hsu_chain1#0033cc:HSU Port A/1 ODU-RF',
+                        'GPRINT:hsu_chain1:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hsu_chain1:MAX:Max %1.2lf\\n',
+                        
+                        'LINE2:hsu_chain2#ff9900:HSU Port B/1 ODU-RF',
+                        'GPRINT:hsu_chain2:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hsu_chain2:MAX:Max %1.2lf\\n',
+                        
+                        'LINE2:hbs_chain1#00cc00:HBS Port A/1 ODU-RF',
+                        'GPRINT:hbs_chain1:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hbs_chain1:MAX:Max %1.2lf\\n',
+                        
+                        'LINE2:hbs_chain2#660099:HBS Port B/1 ODU-RF',
+                        'GPRINT:hbs_chain2:AVERAGE:Avg. %1.2lf',
+                        'GPRINT:hbs_chain2:MAX:Max %1.2lf\\n',
+		]
+	}
+);
+

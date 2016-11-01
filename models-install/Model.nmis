@@ -282,6 +282,9 @@
     'Frogfoot Networks' => {
       'order' => {
         '10' => {
+          'Ubiquiti' => 'Linux 2.6.3.'
+        },
+        '20' => {
           'FrogFoot' => 'Linux'
         }
       }
@@ -394,6 +397,9 @@
     'MikroTik' => {
       'order' => {
         '10' => {
+          'MikroTikRouter' => 'RouterOS CCR1072'
+        },
+        '99' => {
           'MikroTik' => 'RouterOS'
         }
       }
@@ -548,6 +554,13 @@
       'order' => {
         '10' => {
           'Trango' => 'Apex Lynx-2.0.1'
+        }
+      }
+    },
+    'Mimosa' => {
+      'order' => {
+        '10' => {
+          'Mimosa' => '.'
         }
       }
     },

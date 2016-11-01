@@ -129,7 +129,7 @@ sub processDir {
 	}
 
 	foreach my $event (sort keys %{$EVENTS}) {
-		if ( $event ne $EVENTS->{$event}{Event} ) {
+		if ( exists $EVENTS->{$event} and $event ne $EVENTS->{$event}{Event} ) {
 			print "ERROR EVENT NAME AND KEY BAD: $event\n";									
 		}
 

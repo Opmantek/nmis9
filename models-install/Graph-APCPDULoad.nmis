@@ -37,13 +37,12 @@
 	},
 	'option' => {
 		'standard' => [
-                        '--upper-limit','30',
-                        '--lower-limit','0',
-                        '--rigid',
+			'--upper-limit','30',
+			'--lower-limit','0',
+			'--rigid',
 			'DEF:load=$database:pduPhase1Load:AVERAGE',
 			'LINE:load#FF8C00:Average Output Load',
-			'GPRINT:load:AVERAGE:%2.1lf Amps',
-			'COMMENT:\\n',	
+			'GPRINT:load:AVERAGE:%2.1lf Amps\\n',
 		],
 	}
 );

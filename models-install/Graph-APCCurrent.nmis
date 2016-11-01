@@ -39,13 +39,12 @@
 		'standard' => [
 			'DEF:loadc=$database:OutputCurrent:AVERAGE',
 			'LINE:loadc#00CED1:Load Current',
-			'GPRINT:loadc:AVERAGE:%5.2lf A',
-			'COMMENT:\\n',	
+			'GPRINT:loadc:AVERAGE:%5.2lf A\\n',
 		],
 		'small' => [
 			'DEF:loadc=$database:OutputCurrent:AVERAGE',
 			'LINE:loadc#00CED1:Load Current',
-			'GPRINT:loadc:AVERAGE:%5.2lf A',
+			'GPRINT:loadc:AVERAGE:%5.2lf A\\n',
 		]
 	}
 );

@@ -421,7 +421,7 @@ sub menu_bar_site {
 		push @setupitems, qq|<a id="cfg_Events" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Events">Event Configuration</a>| 
 				if ($AU->CheckAccess("Table_Events_view","check"));
 				
-		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alert Tuning</a>| 
+		push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Common-threshold&amp;section=threshold">Thresholding Alert Tuning</a>| 
 				if ($AU->CheckAccess("table_models_view","check"));
 
 		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|

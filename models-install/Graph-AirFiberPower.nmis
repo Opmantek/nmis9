@@ -1,0 +1,96 @@
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Power',
+	},
+	'option' => {
+		'standard' => [
+				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
+				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
+
+				 'DEF:remoteRXPower0=$database:remoteRXPower0:AVERAGE',
+				 'DEF:remoteRXPower1=$database:remoteRXPower1:AVERAGE',
+				 
+				 'LINE1:rxPower0#006400:RX Power Ch0 dBm\\t\\t\\t',
+				 'GPRINT:rxPower0:LAST:Current %6.2lf',
+				 'GPRINT:rxPower0:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower0:MIN:Min %6.2lf',
+				 'GPRINT:rxPower0:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:rxPower1#7FFF00:RX Power Ch1 dBm\\t\\t\\t',
+				 'GPRINT:rxPower1:LAST:Current %6.2lf',
+				 'GPRINT:rxPower1:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower1:MIN:Min %6.2lf', 
+				 'GPRINT:rxPower1:MAX:Max %6.2lf\\n', 
+
+				 'LINE1:remoteRXPower0#000064:Remote RX Power Ch0 dBm\\t',
+				 'GPRINT:remoteRXPower0:LAST:Current %6.2lf ',
+				 'GPRINT:remoteRXPower0:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:remoteRXPower0:MIN:Min %6.2lf',
+				 'GPRINT:remoteRXPower0:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:remoteRXPower1#007FFF:Remote RX Power Ch1 dBm\\t',
+				 'GPRINT:remoteRXPower1:LAST:Current %6.2lf',
+				 'GPRINT:remoteRXPower1:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:remoteRXPower1:MIN:Min %6.2lf', 
+				 'GPRINT:remoteRXPower1:MAX:Max %6.2lf\\n', 
+				], 
+		'small' => [ 
+				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
+				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
+
+				 'DEF:remoteRXPower0=$database:remoteRXPower0:AVERAGE',
+				 'DEF:remoteRXPower1=$database:remoteRXPower1:AVERAGE',
+				 
+				 'LINE1:rxPower0#006400:RX Power Ch0 dBm\\t',
+				 'GPRINT:rxPower0:LAST:Current %4.1lf',
+				 'GPRINT:rxPower0:AVERAGE:Avg. %4.1lf\\n',
+				 
+				 'LINE1:rxPower1#7FFF00:RX Power Ch1 dBm\\t',
+				 'GPRINT:rxPower1:LAST:Current %4.1lf',
+				 'GPRINT:rxPower1:AVERAGE:Avg. %4.1lf\\n',
+
+
+				 'LINE1:remoteRXPower0#000064:Rem. RX Power Ch0 dBm',
+				 'GPRINT:remoteRXPower0:LAST:Current %4.1lf ',
+				 'GPRINT:remoteRXPower0:AVERAGE:Avg. %4.1lf\\n',
+				 
+				 'LINE1:remoteRXPower1#007FFF:Rem. RX Power Ch1 dBm',
+				 'GPRINT:remoteRXPower1:LAST:Current %4.1lf',
+				 'GPRINT:remoteRXPower1:AVERAGE:Avg. %4.1lf\\n',
+		],
+				
+	}
+);

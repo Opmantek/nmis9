@@ -74,8 +74,20 @@
     'sys' => {
       'alerts' => {
         'wmi' => {
-					'clockDeltaWin' => {
+					'clockDeltaWarning' => {
 						title => "System Clock Delta",
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',
+            'alert' => {
+              'test' => '$r >= 30 and $r < 60',
+              'event' => 'System Clock Drift',
+							'unit' => 'seconds',
+              'level' => 'Warning',
+            }
+					},
+					'clockDeltaCritical' => {
+						#title => "System Clock Delta",
 						query => "select * from win32_operatingsystem",
 						field => "LocalDateTime", # 20160824173101.375199+600
 						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); my $delta = Time::HiRes::time - $r; return ($delta>=0? $delta:-$delta);',

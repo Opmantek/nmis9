@@ -42,17 +42,17 @@
 			'DEF:sysRemoteMSE=$database:sysRemoteMSE:AVERAGE',
 			'DEF:modemMSE=$database:modemMSE:AVERAGE',
 			'LINE1:sysRemoteMSE#00ff00:Avg Remote MSE',
+			'GPRINT:sysRemoteMSE:AVERAGE:Avg Remote MSE%1.2lf %%\\n',
 			'LINE1:modemMSE#0000ff:Avg Modem MSE',
-			'GPRINT:sysRemoteMSE:AVERAGE:Avg Remote MSE%1.2lf %%',
-			'GPRINT:modemMSE:AVERAGE:Avg Modem MSE %1.2lf %%',
+			'GPRINT:modemMSE:AVERAGE:Avg Modem MSE %1.2lf %%\\n',
 		],
 		'small' => [
 			'DEF:sysRemoteMSE=$database:sysRemoteMSE:AVERAGE',
 			'DEF:modemMSE=$database:modemMSE:AVERAGE',
 			'LINE1:sysRemoteMSE#00ff00:Avg Remote MSE',
+			'GPRINT:sysRemoteMSE:AVERAGE:Avg Remote MSE%1.0lf %%\\n',			
 			'LINE1:modemMSE#0000ff:Avg Modem MSE',
-			'GPRINT:sysRemoteMSE:AVERAGE:Avg Remote MSE%1.0lf %%',
-			'GPRINT:modemMSE:AVERAGE:Avg Modem MSE %1.0lf %%',
+			'GPRINT:modemMSE:AVERAGE:Avg Modem MSE %1.0lf %%\\n',
 		]
 	}
 );

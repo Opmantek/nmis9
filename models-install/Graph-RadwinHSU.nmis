@@ -27,38 +27,40 @@
 #  http://support.opmantek.com/users/
 #  
 # ************************************************************************
+#
+# 06292016 MRH - these OIDs are all stored in bytes
+#
 
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => 'Bytes Transmitted/Received'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => 'Bytes In/Out'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ubntStaSignal=$database:ubntStaSignal:AVERAGE',
-			'DEF:ubntStaLocalCINR=$database:ubntStaLocalCINR:AVERAGE',
-			'LINE2:ubntStaSignal#4daef6:Signal Strength',
-			'LINE1:ubntStaLocalCINR#4daef6:Local CINR',
-			'GPRINT:ubntStaSignal:LAST:Current %1.2lf dBm',
-			'GPRINT:ubntStaSignal:AVERAGE:Avg. %1.2lf dBm',
-			'GPRINT:ubntStaSignal:MAX:Max %1.2lf dBm\\n',			
-			'GPRINT:ubntStaLocalCINR:LAST:Current %1.2lf dBm',
-			'GPRINT:ubntStaLocalCINR:AVERAGE:Avg. %1.2lf dBm',
-			'GPRINT:ubntStaLocalCINR:MAX:Max %1.2lf dBm\\n',			
+			'DEF:TpPortInBytes=$database:TpPortInBytes:AVERAGE',
+			'DEF:TpPortOutBytes=$database:TpPortOutBytes:AVERAGE',			
+			'CDEF:splitInBytes=TpPortInBytes,-1,*',
+			'AREA:splitInBytes#00BFFF:BrRxBytes',
+			'GPRINT:TpPortInBytes:AVERAGE:Avg. %1.2lf %sbytes',
+			'GPRINT:TpPortInBytes:MAX:Max %1.2lf %sbytes\\n',
+			'AREA:TpPortOutBytes#00FF7F:BrTxBytes',
+			'GPRINT:TpPortOutBytes:AVERAGE:Avg. %1.2lf %sbytes',
+			'GPRINT:TpPortOutBytes:MAX:Max %1.2lf %sbytes\\n',
 		],
 		'small' => [
-			'DEF:ubntStaSignal=$database:ubntStaSignal:AVERAGE',
-			'LINE2:ubntStaSignal#4daef6:Strength',
-			'LINE1:ubntStaLocalCINR#4daef6:Local CINR',
-			'GPRINT:ubntStaSignal:LAST:Current %1.0lf dBm',
-			'GPRINT:ubntStaSignal:AVERAGE:Avg. %1.0lf',
-			'GPRINT:ubntStaSignal:MAX:Max %1.0lf\\n',
-			'GPRINT:ubntStaLocalCINR:LAST:Current %1.0lf',
-			'GPRINT:ubntStaLocalCINR:AVERAGE:Avg. %1.0lfm',
-			'GPRINT:ubntStaLocalCINR:MAX:Max %1.2lf\\n',			
+			'DEF:TpPortInBytes=$database:TpPortInBytes:AVERAGE',
+			'DEF:TpPortOutBytes=$database:TpPortOutBytes:AVERAGE',			
+			'CDEF:splitInBytes=TpPortInBytes,-1,*',
+			'AREA:splitInBytes#00BFFF:BrRxBytes',
+			'GPRINT:TpPortInBytes:AVERAGE:Avg. %1.2lf %sbytes',
+			'GPRINT:TpPortInBytes:MAX:Max %1.2lf %sbytes\\n',
+			'AREA:TpPortOutBytes#00FF7F:BrTxBytes',
+			'GPRINT:TpPortOutBytes:AVERAGE:Avg. %1.2lf %sbytes',
+			'GPRINT:TpPortOutBytes:MAX:Max %1.2lf %sbytes\\n',
 		]
 	}
 );

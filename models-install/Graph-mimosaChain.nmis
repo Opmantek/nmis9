@@ -1,0 +1,65 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# ************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => 'Wireless Signal Strength'
+	},
+	'vlabel' => {
+		'standard' => 'Strength dB'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
+			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
+			'LINE2:mimosaTxPower#4daef6:Transmit dB',
+			'GPRINT:mimosaTxPower:LAST:Current %1.2lf',
+			'GPRINT:mimosaTxPower:AVERAGE:Avg. %1.2lf',
+			'GPRINT:mimosaTxPower:MAX:Max %1.2lf\\n',			
+			'LINE2:mimosaRxPower#40E0D0:Receive dB',
+			'GPRINT:mimosaRxPower:LAST:Current %1.2lf',
+			'GPRINT:mimosaRxPower:AVERAGE:Avg. %1.2lf',
+			'GPRINT:mimosaRxPower:MAX:Max %1.2lf\\n',			
+		],
+		'small' => [
+			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
+			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
+			'LINE2:mimosaTxPower#4daef6:Transmit dB',
+			'GPRINT:mimosaTxPower:LAST:Current %1.0lf',
+			'GPRINT:mimosaTxPower:AVERAGE:Avg. %1.0lf',
+			'GPRINT:mimosaTxPower:MAX:Max %1.0lf\\n',
+			'LINE2:mimosaRxPower#40E0D0:Receive dB',
+			'GPRINT:mimosaRxPower:LAST:Current %1.0lf',
+			'GPRINT:mimosaRxPower:AVERAGE:Avg. %1.0lf',
+			'GPRINT:mimosaRxPower:MAX:Max %1.0lf\\n',
+		]
+	}
+);

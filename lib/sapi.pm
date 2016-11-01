@@ -27,14 +27,12 @@
 #
 # *****************************************************************************
 package sapi;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
 use vars qw(@ISA @EXPORT);
 use Exporter;
-use Socket;
-
-use NMIS;
+use IO::Socket::INET;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(sapi);
@@ -45,16 +43,13 @@ sub sapi_connect
 	my $remote_port    = shift;
 	my $script         = shift;
 	my $timeout        = shift;
-	my $SH;
 
-	socket($SH, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or return 0,$!;
-
-	my $iaddr = inet_aton($remote_host) or return 0,$!;
-	my $paddr = sockaddr_in($remote_port, $iaddr) or return 0,$!;
-	connect($SH, $paddr) or return 0,$!;
-	# The above three lines could have been combined into one line.
-	# They are separated for debuging purposes. Here is the single line:
-	# connect($SH, sockaddr_in($remote_port,inet_aton($remote_host))) or return 0,$!
+	my $SH = IO::Socket::INET->new(
+		PeerPort => $remote_port,
+		PeerHost => $remote_host,
+		Type => SOCK_STREAM,
+		Proto => "tcp",
+		Timeout => $timeout) or return (0,$!);
 
 	return 1,$SH;
 }

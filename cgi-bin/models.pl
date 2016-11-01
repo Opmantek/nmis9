@@ -1,35 +1,35 @@
 #!/usr/bin/perl
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 use FindBin;
 use lib "$FindBin::Bin/../lib";
- 
+
 use strict;
 use NMIS;
 use func;
@@ -37,29 +37,35 @@ use csv;
 use Fcntl qw(:DEFAULT :flock);
 use Sys;
 use Mib;
+use Auth;
+use Data::Dumper;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-my $q = new CGI; # This processes all parameters passed via GET and POST
-my $Q = $q->Vars; # values in hash
-my ($C, $localerror);
-
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $q = new CGI;
+my $Q = $q->Vars;
 
 my $wantwidget = (!getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
-# Before going any further, check to see if we must handle
-# an authentication login or logout request
-use Auth;
+if (!$C)
+{
+	print header(-status => 500);
+	pageStart(title => "NMIS Modeling") if (!$wantwidget);
+	print "<div>Error: Failed to load config file!</div>";
+	pageEnd if (!$wantwidget);
+	exit 1;
+}
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
 
-if ($AU->Require) {
+if ($AU->Require)
+{
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
-					password=>$Q->{auth_password},headeropts=>$headeropts) ;
+															password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
 # $AU->CheckAccess, will send header and display message denying access if fails.
@@ -68,610 +74,395 @@ $AU->CheckAccess("table_models_view","header");
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-#======================================================================
-
-
-# Model check
-# this table defines the actions add,delete,edit based on hash keys
+# this table defines the actions add,delete,edit based on location paths
+# this needs to be rewritten to use dotnotation, or arrays are not supportable except at the leaf end
 my %MT = (
-	'view' => {
-		'ablank' => [ # nothing todo
-			'^database,db$',
-			'^database,db,size,default$',
-			'^event,event,default$',
-			'^event,event,\w+,\w+$',
-			'^(interface|storage),nocollect$',
-			'^models,\w+,order$',
-			'^system,ping$',
-			'^system,power$',
-			'^system,sys,standard$',
-			'^threshold,name,\w+,select,default$',
-			'^threshold,name,\w+,select,\w+,value$'
-		],
-		'add' => [
-			'^\w+$',
-			'^calls,rrd,\w+$',
-			'^calls,rrd,\w+,snmp$',
-			'^cbqosin,rrd,cbqos$',
-			'^cbqosout,rrd,cbqos$',
-			'^cbqosin,rrd,cbqos,snmp$',
-			'^cbqosout,rrd,cbqos,snmp$',
-			'^database,type$',
-			'^database,db,size$',
-			'^event,event$',
-			'^heading,graphtype$',
-			'^interface,rrd$',
-			'^\w+,(rrd|sys)$',
-			'^\w+,sys,standard$',
-			'^\w+,(rrd|sys),\w+,snmp$',
-			'^interface,rrd,interface$',
-			'^models$',
-			'^system,power,\w+,snmp$',
-			'^stats,type$',
-			'^summary,statstype$',
-			'^summary,statstype,\w+,sumname$',
-			'^summary,statstype,\w+,sumname,\w+,stsname$',
-			'^threshold,name$',
-			'^threshold,name,\w+,select$',
-			'^common,class$'
-		],
-		'delete' => [
-			'^database,db,size,\w+$',
-			'^models,\w+,order,(\d+|\w+)$',
-			'^summary,statstype,\w+$',
-			'^summary,statstype,\w+,sumname,\w+$',
-			'^threshold,name,\w+$',
-			'^common,class,\w+$',
-			'^alerts,\w+$',
-			'^alerts,\w+,\w+$',
-		],
-		'add,delete' => [
-			'^calls,rrd,\w+,snmp,\w+$',
-			'^event,event,\w+$',
-			'^\w+,(rrd|sys|power),\w+$',
-			'^\w+,(rrd|sys|power),\w+,snmp,\w+$',
-			'^\w+,(rrd|sys|power),\w+,snmp,\w+,replace$',
-			'^threshold,name,\w+,select,\w+$',
-			'^stats,type,\w+$',
-			'^models,\w+$'
-		],
-		'edit,delete' => [
-			'database,type,\w+$',
-			'^\w+,(rrd|sys),\w+,(indexed|threshold|control)$',
-			'^\w+,(rrd|sys),\w+,snmp,\w+,(option|title|check|format|calculate)$',
-			'^heading,graphtype,\w+$',
-			'^\w+,(rrd|sys|power),\w+,snmp,\w+,replace,\w+$'
-		],
-		'edit,add,delete' => [
-			'^stats,type,\w+,\d+$',
-			'^summary,statstype,\w+,sumname,\w+,stsname,\d+$'
-		]
-	}
+	# fixme need to update list of hidables
+	'ablank' => [ # nothing allowed, don't even show them
+	],
+	'add' => [
+		'^\w+$',
+		'^calls,rrd,\w+$',
+		'^calls,rrd,\w+,snmp$',
+		'^cbqosin,rrd,cbqos$',
+		'^cbqosout,rrd,cbqos$',
+		'^cbqosin,rrd,cbqos,snmp$',
+		'^cbqosout,rrd,cbqos,snmp$',
+		'^database,type$',
+		'^database,db,size$',
+		'^event,event$',
+		'^heading,graphtype$',
+		'^interface,rrd$',
+		'^\w+,(rrd|sys)$',
+		'^\w+,sys,standard$',
+		'^\w+,(rrd|sys),\w+,snmp$',
+		'^interface,rrd,interface$',
+		'^models$',
+		'^system,power,\w+,snmp$',
+		'^stats,type$',
+		'^summary,statstype$',
+		'^summary,statstype,\w+,sumname$',
+		'^summary,statstype,\w+,sumname,\w+,stsname$',
+		'^threshold,name$',
+		'^threshold,name,\w+,select$',
+		'^-common-,class$'
+	],
+	'delete' => [
+		'^database,db,size,\w+$',
+		'^models,\w+,order,(\d+|\w+)$',
+		'^summary,statstype,\w+$',
+		'^summary,statstype,\w+,sumname,\w+$',
+		'^threshold,name,\w+$',
+		'^threshold,name,\w+,select,\w+,value$',
+		'^-common-,class,\w+$',
+		'^alerts,\w+$',
+		'^alerts,\w+,\w+$',
+	],
+	'add,delete' => [
+		'^calls,rrd,\w+,snmp,\w+$',
+		'^event,event,\w+$',
+		'^\w+,(rrd|sys|power),\w+$',
+		'^\w+,(rrd|sys|power),\w+,snmp,\w+$',
+		'^\w+,(rrd|sys|power),\w+,snmp,\w+,replace$',
+		'^threshold,name,\w+,select,\w+$',
+		'^stats,type,\w+$',
+		'^models,\w+$'
+	],
+	'edit,delete' => [
+		'database,type,\w+$',
+		'^\w+,(rrd|sys),\w+,(indexed|threshold|control)$',
+		'^\w+,(rrd|sys),\w+,snmp,\w+,(option|title|check|format|calculate)$',
+		'^heading,graphtype,\w+$',
+		'^\w+,(rrd|sys|power),\w+,snmp,\w+,replace,\w+$'
+	],
+	'edit,add,delete' => [
+		'^stats,type,\w+,\d+$',
+		'^summary,statstype,\w+,sumname,\w+,stsname,\d+$'
+	],
+		);
 
-);
+# fixme: as-is the helptext system is NOT context-sensitive, so highly misleading
+# because item 'type' has different meanings in different places.
+my %helptexts = (
+	'type' => 	qq|Format: string<br>
+The name must be unique in this section<br>
+This name creates a relation between configurations in the next sections:<br>
+Starting in a section (node, interface, calls, cbqos_in or cbqos_out) for RRD declaration,
+it must also be declared in section database for generating the RRD database filename. If there
+is a threshold in this section then there must also be rrd rules in section stats.|,
 
-# what shall we do
+	'graphtype' => qq|Format: comma separated list<br>
+List of graph names. For each graph type there must be a graph definition file
+models/Graph-&lt;graphtype&gt;.nmis.|,
 
-if ($Q->{act} eq 'config_model_menu') {				displayModel();
-} elsif ($Q->{act} eq 'config_model_add') {			addModel();
-} elsif ($Q->{act} eq 'config_model_edit') {		editModel();
-} elsif ($Q->{act} eq 'config_model_delete') {		deleteModel();
-} elsif ($Q->{act} eq 'config_model_doadd') {		doAddModel(); displayModel();
-} elsif ($Q->{act} eq 'config_model_doedit') {		doEditModel(); displayModel();
-} elsif ($Q->{act} eq 'config_model_dodelete') {	doDeleteModel(); displayModel();
-} else { notfound(); }
+	'control' =>		qq|Format: expression<br>The control expression will be evaluated
+when the respective section is consulted.|,
 
-sub notfound {
+	'indexed' =>	'Format: SNMP/WMI variable name (or true)<br>Declares that this subsection
+is indexed by the value of the given variable.',
+
+	'oid' => 'Format: SNMP oid, must contain a known name or a numeric OID.<br>',
+
+	'replace' =>	'Format: lookup table of known values and their replacement<br>
+Optional. The result of the collection can be replaced by a given value from this lookup table.<br>
+If the value is not known, "unknown" is tried. If no replacement can be found, then the original value is left.',
+
+	'value' =>			'Format: expression<br>
+	The result of evaluated  expression replaces the originally collected value.',
+
+	'option' =>	'Format: string<br>Declares the data type for this RRD Data Source,
+or prevents the variable from being saved if set to "nosave"<br>If not defined, the default is \'GAUGE,U:U\'.',
+
+	'threshold' =>		'Format: comma separated list of names<br>
+	Optional. Threshold names must be declared in the stats section.',
+
+	'level' =>	'Severity level<br>Format: Fatal, Critical, Major, Minor, Warning or Normal (in descending order)',
+
+	'logging' =>		'Format: true or false<br>Whether an event should be logged or not.',
+
+	'event' =>			'Format: string<br>Name of event',
+
+	'order' =>			'Format: number<br>Order of processing, which always proceeds from lowest to highest number.',
+
+	'statstype' =>		'Format: string<br>Name for this type in the stats section.',
+
+	'sumname' =>		'Format: string<br>Name of parameter in summary file.',
+
+	'stsname' =>		'Format: string<br>Name of parameter (...:stsname=...) in rrd rules in stats section.',
+
+	'calculate' =>		'Format: expression<br>Optional. The result of the evaluated expression replaces
+the originally collected value.',
+
+	'format' =>			'Format: string<br>Optional. Printf format string for rewriting the collected value.',
+
+	'title' =>			'Format: string<br>Used as label for displaying this variable.',
+		);
+
+# showing stuff in the gui
+if (!$Q->{act} or $Q->{act} eq 'config_model_menu') {	displayModel(); }
+elsif ($Q->{act} eq 'config_model_add') {	addModel(); }
+elsif ($Q->{act} eq 'config_model_edit') {	editModel(); }
+elsif ($Q->{act} eq 'config_model_delete') {	deleteModel(); }
+# performing actual changes
+elsif ($Q->{act} eq 'config_model_doadd') {	doAddModel(); displayModel(); }
+elsif ($Q->{act} eq 'config_model_doedit') { doEditModel(); displayModel(); }
+elsif ($Q->{act} eq 'config_model_dodelete') { doDeleteModel(); displayModel(); }
+else
+{
 	print header(-status => 400, %$headeropts);
-	print "Models: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
-	print "Request not found\n";
+	print "Invalid Arguments!";
 }
-
 exit 0;
 
-#==================================================================
+# small die-like helper, works only AFTER headers were sent
+sub bailout
+{
+	my (@msgs) = @_;
+	print "<p>".join("<br/>", @msgs)."</p>";
+	pageEnd if ($wantwidget);
+	exit 0;
+}
 
-#
-# display the model
-#
-sub displayModel{
-	my %args = @_;
+# displays the currently selected model's status,
+# plus a dropdown list for selection/navigation
+# args: none, but uses q for model and section
+sub displayModel
+{
+	my $wantedmodel = $Q->{model};
+	my $wantedsection = $Q->{section};
 
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-
-	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Modeling", refresh => 86400) if (!$wantwidget);
+	pageStart(title => "NMIS Model Editor", refresh => 86400) if (!$wantwidget);
 
-	my $S = Sys::->new; # create system object and load base Model or nodeModel
-	if (!($S->init(name=>$node,snmp=>'false'))) 
+	# a modelish thing requested? then try to load it
+	my $modelstruct;
+	if ($wantedmodel)
 	{
-		print Tr(td({class=>'error', colspan=>'9'},"ERROR init, ". $S->status->{error}));
-		goto End_page;
+		my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+		$modelstruct = readFiletoHash(file => $modelfn);
+		bailout "cannot read model $modelfn: $!"
+				if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 	}
 
-	# Base model selected
-	if ($model eq 'baseModel') { $model = ''; }
+	# find out what model-ish things exist - do NOT use sys, because that resolves inclusions irreversibly!
+	opendir(D, $C->{'<nmis_models>'}) or bailout("cannot read model dir: $!\n");
+	my @modelish = sort { lc($a) cmp lc($b) } map { s/\.nmis$//i; $_; } (grep(/^(Common|Model)(-.+)?\.nmis$/i, readdir(D)));
+	closedir(D);
 
-	# load Model if defined
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'}, $S->status->{error}));
-			goto End_page;
-		}
-	}
 
-	my $B = Sys::->new; # create object with only base Model loaded
-	$B->init(snmp=>'false');
-	
-	my $M = $S->mdl; # model info
-	my $NI = $S->ndinfo; # node info
-	my $NT = loadLocalNodeTable(); # node table
-	my $C = loadConfTable(); # configuration table
-
-	my @common = keys %{$S->{mdl}{'-common-'}{class}};
-
-	# start of form
 	# the get() code doesn't work without a query param, nor does it work with all params present
 	# conversely the non-widget mode needs post inputs as query params are ignored
 	print start_form(-id=>"nmisModels", -href => url(-absolute => 1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_menu")
-			. hidden(-override => 1, -name => "widget", -value => $Q->{widget});
+			. hidden(-override => 1, -name => "widget", -value => $Q->{widget}),
+			# the menu-ish table part
+			start_table(),
+			"<tr>", td({class=>'header'},
+								 "Select Model<br>".
+								 popup_menu(-name=>'model', -override=>'1',
+														-values=>\@modelish,
+														-default => $wantedmodel,
+														-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
 
-	print start_table() ; # first table level
+	my @sections = ('');
+	push @sections, sort keys %{$modelstruct} if ($modelstruct);
 
-	# header info
-	my $ext = getExtension(dir=>'models');
-	my $hdmdl = $model ? "Model-$model.$ext" : 
-						($node ne "") ? "Model-$NI->{system}{nodeModel}" : "base Model.$ext";
+	print td( {class=>'header'},
+						"Select Section<br>".
+						popup_menu(-name=>'section', -override=>'1',
+											 -values=>\@sections,
+											 default => $wantedsection,
+											 -onChange => ($wantwidget? "get('nmisModels');" : "submit()")),
+			);
 
-	print Tr(td({class=>'header',colspan=>'4'},"Model - $hdmdl loaded"));
+	print "</tr>", Tr(td({class=>'header',colspan=>'3'},"Displaying Model $wantedmodel"
+											 .($wantedsection? ", Section $wantedsection":""))),
+			"</table>";
 
-	# row with node names to select
-	if ($model ne $pmodel) { $node = $pnode = ""; }
-	if ($node ne $pnode) { $model = ""; }
-	my @nodes = (sort {lc($a) cmp lc($b)} keys %{$NT});
-	@nodes = ('',grep { $AU->InGroup($NT->{$_}{group}) 
-													and getbool($NT->{$_}{active}) } @nodes);
-	print start_Tr;
-	print td({class=>'header', colspan=>'1'},
-			"Select node<br>".
-				popup_menu(-name=>'node', -override=>'1',
-					-values=>\@nodes,
-					-default=>$node,
-					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
-
-	if ($node ne "" and $model eq "") { $model = $NI->{system}{nodeModel}; } # get nodeModel from node info
-
-	# find all known models, but list each once only - main models listing can include a model 
-	# many times under different criteria
-	my (@models,%unique);
-	foreach my $vndr (keys  %{$B->{mdl}{models}}) {
-		foreach my $order (keys  %{$B->{mdl}{models}{$vndr}{order}}) {
-			foreach my $mdl (keys %{$B->{mdl}{models}{$vndr}{order}{$order}}) 
-			{
-				next if ($unique{$mdl});
-				push @models,$mdl;
-				$unique{$mdl}=1;
-			}
-		}
-	}
-	@models = ('','baseModel',sort {uc($a) cmp uc($b)} @models);
-	print td({class=>'header', colspan=>'1'},
-			"or select node Model<br>".
-				popup_menu(-name=>'model', -override=>'1',
-					-values=>\@models,
-					-default=>$model,
-					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
-
-	#if ($model ne $pmodel) { $section = ""; }
-	my @sections = ('',sort keys %{$M});
-	# and with section names to select
-	print td({class=>'header', colspan=>'1'},
-			"Select section of Model<br>".
-				popup_menu(-name=>'section', -override=>'1',
-					-values=>\@sections,
-					-default=>$section,
-					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
-
-	print td({class=>"header", colspan=>'1'},'Check Model<br>',
-			checkbox( -name=>"checkmodel",
-					-checked=>"$Q->{checkmodel}",
-					-label=>"$Q->{checkmodel}",
-					-onChange => ($wantwidget? "get('nmisModels');" : "submit()" )));
-
-	if ($model ne "" and $section ne "" and $Q->{checkmodel} eq 'on') {
-		if ((my $err = checkModel(sys=>$S))) {
-			print td({class=>'error'},"Error found in section $err<br>$localerror");
-		}
-	}
-	print end_Tr;
-	print end_table;
-
-	if ($section ne "") {
-		print start_table();
-		$S->{section} = $section;
+	if ($wantedsection)
+	{
 		my @output;
-		if ( grep(/$section/,@common)) {
-			print Tr(td({class=>"header",align=>'center',style=>'background-color:black;',colspan=>'11'},
-				'===== Common Model ====='));
-		}
-		print @{nextSect(sys=>$S,sect=>$M->{$section},index=>0,output=>\@output,hash=>$section)};
-		print end_table;
+
+		print start_table();
+
+		nextSect(id => $wantedsection,
+						 sect => $modelstruct->{$wantedsection},
+						 index=>0,
+						 output=>\@output,
+						 hash=>$wantedsection);
+
+		print @output, end_table;
 	}
 
-	print hidden(-name=>'pnode', -default=>"$node",-override=>'1');
-	print hidden(-name=>'pmodel', -default=>$model,-override=>'1');
-	print end_form;
-
-End_page:
-	print end_table();
+	print "</form></table>";
 	pageEnd() if (!$wantwidget);
 }
 
-# walk through the hash table
-sub nextSect {
+# produce html output for one section in a modelish hash structure
+# args: sect (=the structure), id (text for labelling),
+# output (arrayref where output is accumulated),
+# hash: commasep location steps for allowed command determination,
+# index: misnamed, should be 'depth' - nesting level for the table column offset
+# returns: the output argument (unnecessarily as it is updated on the go)
+sub nextSect
+{
 	my %args = @_;
-	my $S = $args{sys};
+
 	my $sect = $args{sect};
 	my $id = $args{id};
+
 	my $index = $args{index};
 	my $output = $args{output};
 	my $hash = $args{hash};
 
-	if ($hash eq 'models') {
-		push @$output, start_Tr;
-		push @$output, td({class=>"header",colspan=>'1'},$S->{section});
-		push @$output, td({class=>"info",colspan=>'9'});
-		push @$output, afunc(sys=>$S,hash=>"$hash");
-		push @$output, end_Tr;
-	}
+	# s section subname
+	foreach my $s (sort keys %{$sect})
+	{
+		if (ref $sect->{$s} eq 'HASH')
+		{
+			my $txt = $s;							# the label for this thing, slightly location dependent
 
-	foreach my $s (sort keys %{$sect}) {
-		if (ref $sect->{$s} eq 'HASH') {
-			my $txt = $s;
-			my $class = 'header';
-			my $errinf;
-			if ($hash =~ /^\w+,rrd$/) { ($class,$errinf) = checkType(sys=>$S,type=>$s); }
-			if ($hash =~ /^summary,statstype$/) { ($class,$errinf) = checkStatsType(sys=>$S,type=>$s); }
-			if ($hash =~ /^\w+,\w+,\w+,snmp$/) { $txt = "Attribute=$s"; } # modify text
-			if ($hash =~ /^\w+,rrd,\w+,snmp$/) { $txt = "DS=$s"; } # modify text
-			if ($id eq 'sys') { $txt = "Section=$s"; }
-			if ($id eq 'rrd') { $txt = "Section=$s"; }
-			if ($s eq 'snmp' and $index != 0) { $txt = "Protocol=$s"; }
-			push @$output, start_Tr;
-			push @$output, td({class=>"header",colspan=>'1'},$S->{section});
-			push @$output, td({class=>"header",colspan=>$index}) if $index != 0;
-			push @$output, ($errinf eq '') ? td({class=>$class,colspan=>'1'},$txt) :
-					td({class=>$class,colspan=>'1',
-						onmouseover=>"Tooltip.show(\"$errinf\");",onmouseout=>"Tooltip.hide();"},$txt);
-			push @$output, td({class=>"info",colspan=>(8-$index)});
-			push @$output, afunc(sys=>$S,hash=>"$hash,$s");
-			push @$output, end_Tr;
-			nextSect(sys=>$S,sect=>$sect->{$s},id=>$s,index=>($index+1),output=>$output,hash=>"$hash,$s");
-			#---
-		} elsif (ref $sect->{$s} eq 'ARRAY') {
-			push @$output, start_Tr;
-			push @$output, td({class=>"header",colspan=>'1'},$S->{section});
+			if ($hash =~ /^\w+,\w+,\w+,(wmi|snmp)$/) { $txt = "Attribute=$s"; }
+			elsif ($hash =~ /^\w+,rrd,\w+,(wmi|snmp)$/) { $txt = "DS=$s"; }
+			elsif ($s =~ /^(snmp|wmi)$/ and $index != 0) { $txt = "Protocol=$s"; }
+			elsif ($id =~ /^(sys|rrd)$/) { $txt = "Section=$s"; }
+
+			push @$output, ( "<tr>",
+											 td({class=>"header",colspan=>'1'}, $id) );
+			# offset/shim
+			push @$output, td({class=>"header",colspan=>$index}) if ($index != 0);
+
+			push @$output, ( td({class=>"header",colspan=>'1'},$txt),
+											 # more shim
+											 td({class=>"info",colspan=>(8-$index)}),
+											 afunc(hash=>"$hash,$s", ref => $sect->{$s}),
+											 "</tr>" );
+
+			nextSect(sect=>$sect->{$s}, id=>$s, index=>($index+1), output=>$output, hash=>"$hash,$s");
+		}
+		elsif (ref $sect->{$s} eq 'ARRAY') # only allowed just before leaf
+		{
+			push @$output, ( "<tr>",
+											 td({class=>"header",colspan=>'1'}, $id) );
 			push @$output, td({class=>"header",colspan=>($index)}) if $index != 0;
-			push @$output, td({class=>"header",colspan=>'1'},$s);
-			push @$output, td({class=>"info",colspan=>(8-$index)});
-			push @$output, afunc(sys=>$S,hash=>"$hash,$s");
-			push @$output, end_Tr;
-			my $cnt = 0;
-			foreach my $txt (@{$sect->{$s}}) {
-				my $errinf;
-				my $class = 'info';
-				if ($s eq 'stsname') { ($class,$errinf) = checkStsName(sys=>$S,hash=>$hash,name=>$txt); }
-				push @$output, start_Tr;
-				push @$output, td({class=>"header",colspan=>'1'},$S->{section});
+
+			push @$output, ( td({class=>"header",colspan=>'1'}, $s),
+											 # more shim
+											 td({class=>"info",colspan=>(8-$index)}),
+											 afunc(hash=>"$hash,$s", ref => $sect->{$s}),
+											 "</tr>" );
+
+			for my $cnt (0..$#{$sect->{$s}})
+			{
+				my $txt  = $sect->{$s}->[$cnt];
+
+				push @$output, ( "<tr>",
+												 td({class=>"header",colspan=>'1'},$id) );
 				push @$output, td({class=>"header",colspan=>($index+1)}) if $index != 0;
-				push @$output, ($errinf eq '') ? td({class=>$class,colspan=>(8-$index)},$txt) :
-						td({class=>$class,colspan=>(8-$index),
-							onmouseover=>"Tooltip.show(\"$errinf\");",onmouseout=>"Tooltip.hide();"},$txt);
-				if ((my $func = checkHash(sys=>$S,hash=>"$hash,$s,$cnt"))) {
-					push @$output, afunc(sys=>$S,func=>$func,hash=>"$hash,$s,$cnt");
-				} else{
-					push @$output, afunc(sys=>$S,hash=>"$hash,$s,$cnt");
-				}
-				push @$output, end_Tr;
-				$cnt++;
+
+				push @$output, ( td({class=>'info',colspan=>(8-$index)},$txt),
+												 afunc(hash=>"$hash,$s,$cnt"),
+												 "</tr>" );
 			}
-		} elsif (ref $sect->{$s} ne 'HASH') {
-			my $errinf = '';
-			my $class = 'info';
-			my $result;
-			if ($s eq 'control') { ($class,$errinf,$result) = checkControl(sys=>$S,hash=>$hash,value=>$sect->{$s}); } # check value
-			if ($s eq 'indexed') { 
-				if ( defined $sect->{index_oid} ) {
-					($class,$errinf) = checkIndexed(sys=>$S,value=>$sect->{$s},index_oid=>$sect->{index_oid}); 
-				}
-				else {
-					($class,$errinf) = checkIndexed(sys=>$S,value=>$sect->{$s}); 					
-				}
-			} # check value
-			if ($s eq 'oid') { ($class,$errinf) = checkOID(sys=>$S,name=>$sect->{$s}); } # check value
-			if ($s eq 'graphtype') { ($class,$errinf) = checkGraphType(sys=>$S,types=>$sect->{$s}); }
-			if ($s eq 'healthgraph') { ($class,$errinf) = checkGraphType(sys=>$S,types=>$sect->{$s}); }
-			if ($s eq 'threshold' and $index > 1) { ($class,$errinf) = checkThreshold(sys=>$S,hash=>$hash,threshold=>$sect->{$s}); }
-			my $txt = my $ss = $s;
-			$txt = $ss = "-blank-" if $s eq "";
-			if ($s eq 'indexed') { $txt = "Section $s"; } # modify text
-			if ($s eq 'option') { $txt = "RRD $s"; }
-			if ($s eq 'oid') { $txt = "SNMP $s"; }
-			if ($s eq 'control') { $txt = "$s (if true)"; }
-			push @$output, start_Tr;
-			push @$output, td({class=>"header",colspan=>'1'},$S->{section});
+		}
+		else												# leaf
+		{
+			my $txt = $s;
+
+			if ($s eq 'indexed') { $txt = "Section Indexed By"; } # modify label
+			elsif ($s eq 'option') { $txt = "RRD $s"; }
+			elsif ($s eq 'oid') { $txt = "SNMP $s"; }
+			elsif ($s eq 'field') { $txt = "WMI $s"; }
+			elsif ($s =~ /^common-/) { $txt = "Include Common-"; }
+
+
+			push @$output, ( "<tr>",
+											 td({class=>"header",colspan=>'1'},$id) );
+			# shim
 			push @$output, td({class=>"header",colspan=>($index)}) if $index != 0;
-			push @$output, td({class=>"header",colspan=>'1',width=>"12%"},$txt);
-			push @$output, ($errinf eq '') ? td({class=>$class,colspan=>(8-$index)},"$sect->{$s}${result}") :
-						td({class=>$class,colspan=>(8-$index),
-							onmouseover=>"Tooltip.show(\"$errinf\");",onmouseout=>"Tooltip.hide();"},"$sect->{$s}${result}");
-			push @$output, afunc(sys=>$S,hash=>"$hash,$ss",name=>$sect->{$s});
-			push @$output, end_Tr;
+
+
+			push @$output, ( td({class=>"header",colspan=>'1',width=>"12%"}, $txt),
+											 td({class=>"info", colspan=>(8-$index)},
+													(!defined $sect->{$s} or $sect->{$s} eq ''? "<em>blank</em>": $sect->{$s} )),
+											 afunc(hash=>"$hash,$s"),
+											 "</tr>" );
 		}
 	}
 	return $output;
 }
 
+# produces html for the supported actions
 # which action? (add,edit,delete,snmp)
-sub afunc {
+# args: hash (=commasep list of location steps, used for $MT),
+# ref (optional, references the actual thing in question)
+# returns: html
+sub afunc
+{
 	my %args = @_;
-	my $S = $args{sys};
 	my $hash = $args{hash};
-	my $name = $args{name};
+	my $ref = $args{ref};
 
-	my $func = checkHash($hash);
-	my $opt = "&node=$Q->{node}&pnode=$Q->{pnode}&model=$Q->{model}&pmodel=$Q->{pmodel}&section=$Q->{section}&hash=$hash&checkmodel=$Q->{checkmodel}&widget=$Q->{widget}";
-	
-	if ($AU->CheckAccess("Table_Models_rw","check")) {
-		if ($func eq 'ablank') {
-			return td({class=>'info'});
-		} else {
-			my @func = split /,/ ,$func;
-			my $line;
-			foreach (@func) {
-				$line .= a({style=>'text-decoration: underline;',href=>url(-absolute=>1)."?conf=$Q->{conf}&act=config_model_$_$opt"},"$_&nbsp;");
-			}
-			if ($hash =~ /oid/ and $Q->{node} ne '') {
-				$line .= a({style=>'text-decoration: underline;',href=>"snmp.pl?conf=$Q->{conf}&act=snmp_var_menu&node=$Q->{node}&var=$name&go=true"},'snmp');
-			}
-			return td({class=>'info',nowrap=>undef},$line);
-		}
-	} else {
-		return "";
+	my $allowedhere = checkHash($hash);
+	# deep structure? edit is NOT possible, but add+delete (generally!) are
+	# note that this heuristic isn't perfect; spots that don't offer add should be explicitely listed in %MT
+	$allowedhere = "add,delete" if (exists $args{ref} && ref($ref) && $allowedhere =~ /edit/);
+
+	my $baseurl = url(-absolute=>1) . "?conf=$Q->{conf}&model=$Q->{model}&section=$Q->{section}&hash=$hash&widget=$Q->{widget}";
+
+	return td({class=>'info'}) if (!$AU->CheckAccess("Table_Models_rw","check")
+																 or $allowedhere eq "ablank");
+
+	my $line;
+	for my $action (split /,/, $allowedhere)
+	{
+		$line .= a({style=>'text-decoration: underline;',
+								href=> $baseurl . "&act=config_model_$action"},"$action&nbsp;");
 	}
+	return td({class=>'info', nowrap=>undef}, $line);
 }
 
-sub checkIndexed {
-	my %args = @_;
-	my $S = $args{sys};
-	my $value = $args{value};
-	my $index_oid = $args{index_oid};
-
-	if (getbool($value)) {
-		return 'info',''; 
-	} 
-	else {
-		# If this is already an OID don't try to cross check it.
-		# checking for 5 levels of numbers as all OID's start with at least 5
-		if ( $value =~ /^\d+\.\d+\.\d+.\d+\.\d+/ ) {
-			return 'info',''; 
-		}
-		elsif (name2oid($value)) {
-			return 'info',''; 
-		} 
-		elsif (not name2oid($value) and $index_oid ) {
-			return 'info',''; 
-		} 
-		else {
-			$localerror = "value $value must be true or var value not found in MIB";
-			return 'error',$localerror;
-		}
-	}
-}
-
-
-sub checkHash {
+# look up function names of allowed ops
+# (ablank/edit/add/add,delete/edit,delete/edit,add,delete)
+# based on the location steps 'hash'
+# args: hash (commasep steps),
+# returns: actionname
+sub checkHash
+{
 	my $hash = shift;
-	$hash =~ s/[-_ ]//g ; # only alphabet
-	foreach my $func (sort keys %{$MT{view}}) {
-		foreach (@{$MT{view}{$func}}) {
-			return $func if ($hash =~ /$_/ ) ;
+
+	foreach my $func (sort keys %MT)
+	{
+		for my $allowedinloc (@{$MT{$func}})
+		{
+			return $func if ($hash =~ /$allowedinloc/ );
 		}
 	}
-	return 'edit'; # default
+	return 'edit'; # default allowed action is edit
 }
 
-sub checkOID {
-	my %args = @_;
-	my $S = $args{sys};
-	my $name = $args{name};
-	
-	# If this is already an OID don't try to cross check it.
-	# checking for 5 levels of numbers as all OID's start with at least 5
-	if ( $name =~ /^\d+\.\d+\.\d+.\d+\.\d+/ ) {
-		return 'info',''; 
-	}
-	elsif (name2oid($name)) {
-		return 'info',''; 
-	} else {
-		$localerror = "oid $name not found in Mib, check NMIS config section mibs";
-		return 'error',$localerror;
-	}
-}
 
-sub checkGraphType {
-	my %args = @_;
-	my $S = $args{sys};
-	my $types = $args{types};
-
-	my $ext = getExtension(dir=>'models');
-
-	my @types = split /,/,$types;
-	foreach my $graph (@types) {
-		if ( ! loadTable(dir=>'models',name=>"Graph-$graph") ) {
-			$localerror = "file does not exists or has bad format or cannot read file models/Graph-$graph.$ext";
-			return 'error',$localerror;
-		}
-	}
-	return 'info','';
-}
-
-sub checkThreshold {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $threshold = $args{threshold};
-	my $hash = $args{hash};
-
-	my (undef,undef,$tp) = split/,/,$hash;
-	if (not exists $M->{stats}{type}{$tp}) {
-		$localerror = 1;
-		return 'error',"type=$tp not found in section stats of Model";
-	}
-	foreach my $nm (split /,/,$threshold) {
-		if ($M->{threshold}{name}{$nm} eq "") {
-			$localerror = "threshold=$nm not found in section threshold of Model";
-			return 'error',$localerror;
-		}
-		my $item;
-		if (!($item = $M->{threshold}{name}{$nm}{item})) {
-			$localerror = "no value of item found in name=$nm of section threshold of Model";
-			return 'error',$localerror;
-		}
-		my $found = 0;
-		# look in section stats
-		foreach my $ln (@{$M->{stats}{type}{$tp}}) { 
-			if ($ln =~ /\:$item\=/) { $found = 1; last;}
-		}
-		if (!$found) {
-			$localerror = "no value of threshold=$nm found in type=$tp of section stats of Model";
-			return 'error',$localerror;
-		}
-	}
-	return 'info','';
-}
-
-sub checkType {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $type = $args{type};
-
-	if (not exists $M->{database}{type}{$type}) {
-		$localerror = "type=$type not found in section database of Model";
-		return 'error',$localerror;
-	}
-	return 'header','';
-
-}
-
-sub checkStsName {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $name = $args{name};
-	my $hash = $args{hash};
-
-	my ($sect,undef,$tp) = split/,/,$hash;
-
-	if (not exists $M->{stats}{type}{$tp}) {
-		$localerror = "type=$tp not found in section stats of Model";
-		return 'error',$localerror;
-	}
-	# look in section stats
-	my $found = 0;
-	foreach my $ln (@{$M->{stats}{type}{$tp}}) { 
-		if ($ln =~ /\:$name\=/i) { $found = 1; last;}
-	}
-	if (!$found) {
-		$localerror = "stsname=$name not found in type=$tp of section stats of Model";
-		return 'error',$localerror;
-	}
-
-	return 'info','';
-}
-
-sub checkStatsType {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $tp = $args{type};
-
-	if (not exists $M->{stats}{type}{$tp}) {
-		$localerror = "type=$tp not found in section stats of Model";
-		return 'error',$localerror;
-	}
-	return 'header','';
-}
-
-sub checkControl {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-	my $string = $args{value};
-	my $hash = $args{hash};
-
-	my ($sect,$rrd,$tp) = split/,/,$hash;
-	if ($S->{name} ne "" and $sect ne "" and $tp ne "") { 
-		return ('info','cannot check because it is index dependent',' (result=unknown)') if ( getbool($M->{$sect}{$rrd}{$tp}{indexed}) and $string =~ /\$i/);
-		# no CVARs as no section given
-		my $result = $S->parseString(string=>"($string) ? 1:0", type=>$tp);
-		return ('info','',' (<b>result=true</b>)') if $result eq "1";
-		return ('info','',' (<b>result=false</b>)') if $result eq "0";
-		$localerror = 1;
-		return ('error',$result," (<b>result=error</b>)");
-	}
-	return '';
-}
-
-sub checkModel {
-	my %args = @_;
-	my $S = $args{sys};
-	my $M = $S->mdl;
-
-	$localerror = '';
-
-	foreach my $section (sort keys %{$M}) {
-		my @output;
-		nextSect(sys=>$S,sect=>$M->{$section},index=>0,output=>\@output); # walk through all  sections
-		return $section if $localerror ne '' ;
-	}
-	return "";
-}
-
-sub editModel{
+# show the appropriate model editing form for a given model+section+locationsteps
+# none, but uses q's model, section, hash
+sub editModel
+{
 	my %args = @_;
 
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
+	my $wantedmodel = $Q->{model};
+	my $wantedsection = $Q->{section};
+	my $locsteps = $Q->{hash};
 
-	#start of page
 	print header($headeropts);
 	pageStart(title => "NMIS Edit Model", refresh => 86400) if (!$wantwidget);
-
 	$AU->CheckAccess("Table_Models_rw");
 
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-		goto End_editModel;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-			goto End_editModel;
-		}
-	}
+	bailout("Missing model argument!") if (!$wantedmodel);
+
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
 	print start_form(-id=>"nmisModels",
@@ -679,144 +470,71 @@ sub editModel{
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_doedit")
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
-			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel");
+			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
+			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')
+			. hidden(-name=>'section', -default=>$wantedsection, -override=>'1')
+			. hidden(-name=>'hash', -default=>$locsteps, -override=>'1');
 
-	print start_table() ; # first table level
+	print "<table>", Tr(td({class=>"header",colspan=>'8',align=>'center'},
+												 "Editing Model $wantedmodel"));
 
-	# display edit field
-	my $index = 0;
-	my $ref = $S->{mdl};
-	my $field;
-	my @hash = split /,/,$Q->{hash};
-	map { s/-blank-// } @hash; # remove this
-	print Tr(td({class=>"header",colspan=>'8',align=>'center'},"Edit of Model $Q->{model}"));
-	foreach my $h (@hash) {
-		$field = $h;
-		print start_Tr;
-		print td({class=>"header",colspan=>$index}) if $index != 0;
-		print td({class=>"header",colspan=>'1'},$h);
-		print td({class=>"info",colspan=>(8-$index)});
-		print end_Tr;
-		$index++ ;
-		$ref = $ref->{$h};
-		last if ref $ref eq 'ARRAY';
+	my $field = $modelstruct;
+	my @locationsteps = split(/,/, $locsteps);
+	# print header, and traverse the structure
+	for my $level (0..$#locationsteps)
+	{
+		print "<tr>";
+		# shim
+		print td({class=>"header",colspan=>$level}) if $level != 0;
+		print td({class=>"header",colspan=>'1'}, $locationsteps[$level]),
+		td({class=>"info",colspan=>(8-$level)}), "</tr>";
+
+		$field = $field->{$locationsteps[$level]};
+		last if (ref($field) eq 'ARRAY'); # fixme: no support for array anywhere EXCEPT at the leaf end!
 	}
-	my $value;
-	if (ref $ref eq 'ARRAY') {
-		$value = @$ref[$hash[$#hash]];
-	} else {
-		$value = $ref;
-	}
+	my $value = (ref($field) eq 'ARRAY')? $field->[$locationsteps[-1]] : $field;
 
-	print Tr(td({colspan=>"$index"}),td({colspan=>(8-$index)},
-			textfield(-name=>"value",align=>"left",override=>1,size=>((length $value) * 1.5),value=>"$value")));
+	my $offset = @locationsteps;
+	print Tr(td({colspan => $offset}),
+					 td({colspan=>(8-$offset)},
+							textfield(-name=>"value",align=>"left",override=>1,size=>((length $value) * 1.5),value=>$value)));
 
 	# for some unknown reason the cancel doesn't work if both get() sets a cancel parameter in the url
 	# and if there is a cancel input field at the same time; fix for now: enforce the input field,
 	# and not let get() make a mess.
-	print Tr(td({colspan=>"$index"}), 
+	print Tr(td({colspan=> $offset}),
 					 td(
-							 submit(-name=>"button", 
-											onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
-											-value=>"Edit"),
-							 submit(-name=>"button",
-											onclick => '$("#cancel").val("true");' 
-											.($wantwidget? 'get("nmisModels")' : 'submit()' ),
-											-value=>'Cancel')));
-
-	my $info = getHelp($field);
-	print Tr(td({class=>'info',colspan=>'8'},$info)) if $info ne "";
-
-	# background values
-	print hidden(-name=>'node', -default=>$node,-override=>'1');
-	print hidden(-name=>'pnode', -default=>$pnode,-override=>'1');
-	print hidden(-name=>'model', -default=>$model,-override=>'1');
-	print hidden(-name=>'pmodel', -default=>$pmodel,-override=>'1');
-	print hidden(-name=>'section', -default=>$section,-override=>'1');
-	print hidden(-name=>'hash', -default=>$Q->{hash},-override=>'1');
-	print hidden(-name=>'checkmodel', -default=>$Q->{checkmodel},-override=>'1');
-
-
-	print end_form;
-
-
-End_editModel:
-	print end_table();
+						 submit(-name=>"button",
+										onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
+										-value=>"Edit"),
+						 submit(-name=>"button",
+										onclick => '$("#cancel").val("true");'
+										.($wantwidget? 'get("nmisModels")' : 'submit()' ),
+										-value=>'Cancel')));
+	if (my $info = getHelp($locationsteps[-1]))
+	{
+		print Tr(td({class=>'Plain',colspan=>'8'},$info));
+	}
+	print "</table></form>";
 	pageEnd() if (!$wantwidget);
 }
 
-sub doEditModel {
-	my %args = @_;
+# show form for deletion of stuff
+# args: none, but uses q's model, section, hash
+sub deleteModel
+{
+	my ($wantedmodel, $wantedsection, $locsteps) = @{$Q}{"model","section","hash"};
 
-	return if (getbool($Q->{cancel}));
-
-	$AU->CheckAccess("Table_Models_rw",'header');
-
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-	my $hash = $Q->{hash};
-	my $value = $Q->{value};
-
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->status->{error});
-		return;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->status->{error});
-			return;
-		}
-	}
-
-	my @hash = split /,/,$Q->{hash};
-	map { s/-blank-// } @hash;
-	my $ref = $S->{mdl};
-	my $pref;
-	foreach (@hash) {
-		$pref = $ref;
-		$ref = $ref->{$_};
-		last if ref $ref eq 'ARRAY';
-	}
-	if (ref $ref eq 'ARRAY') {
-		@$ref[$hash[$#hash]] = $value;
-	} else {
-		$pref->{$hash[$#hash]} = $value;
-	}
-	writeModel(sys=>$S,model=>$model,hash=>$hash);
-
-}
-
-
-sub deleteModel{
-	my %args = @_;
-
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-
-	#start of page
 	print header($headeropts);
 	pageStart(title => "NMIS Delete Model", refresh => 86400) if (!$wantwidget);
-
 	$AU->CheckAccess("Table_Models_rw");
 
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-		goto End_deleteModel;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-			goto End_deleteModel;
-		}
-	}
+	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection);
+
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
 	print start_form(-id=>"nmisModels",
@@ -824,60 +542,36 @@ sub deleteModel{
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_dodelete")
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
-			. hidden(-id => "cancel", -override => 1, -name => "cancel", -value => '');
+			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
+			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')
+			. hidden(-name=>'section', -default=>$wantedsection, -override=>'1')
+			. hidden(-name=>'hash', -default=>$locsteps, -override=>'1');
 
-	print start_table() ; # first table level
-
-	print Tr(td({class=>"header",colspan=>'8',align=>'center'},"Delete part of Model $Q->{model}"));
-
-	# display edit field
-	my $index = 0;
-	my @hash = split /,/,$Q->{hash};
+	print start_table(),
+	Tr(td({class=>"header",colspan=>'8',align=>'center'},"Delete part of Model $wantedmodel")),
 	print Tr(td({class=>"info",colspan=>'8',align=>'center'},"&nbsp"));
-	my $ref = $S->{mdl};
-	my $hs;
-	foreach my $h (@hash) {
-		$hs = $h;
-		last if ref $ref->{$h} ne 'HASH';
-		last if $index == $#hash;
-		$ref = $ref->{$h};
-		print start_Tr;
-		print td({class=>"header",colspan=>$index}) if $index != 0;
-		print td({class=>"header",colspan=>'1'},$h);
-		print td({class=>"info",colspan=>(8-$index)});
-		print end_Tr;
-		$index++;
-	}
-	print Tr(td({class=>"info",colspan=>$index,align=>'center'}),
-				td({class=>"header",colspan=>(8-$index),align=>'center'},
-					b("Delete this part of Model $Q->{model}")));
 
-	my @output;
-	if (ref $ref->{$hs} eq 'ARRAY') {
-		print start_Tr;
-		print td({class=>"info",colspan=>$index}) if $index != 0;
-		print td({class=>"header",colspan=>'1'},"$hs");
-		print td({class=>"info",colspan=>(7-$index)},$ref->{$hs}[$hash[$#hash]]);
-		print end_Tr;
-		$index++;
-	} elsif (ref $ref->{$hs} ne 'HASH') {
-		print start_Tr;
-		print td({class=>"info",colspan=>($index)});
-		print td({class=>"header",colspan=>'1'},$hs);
-		print td({class=>'info',colspan=>(8-$index)},$ref->{$hs});
-		print end_Tr;
-		$index++;
-	} else {
-		print start_Tr;
-		print td({class=>"info",colspan=>$index}) if $index != 0;
-		print td({class=>"header",colspan=>'1'},$hs);
-		print td({class=>"info",colspan=>(8-$index)});
-		print end_Tr;
-		$index++;
-		print @{nextDelSect(sys=>$S,sect=>$ref->{$hs},index=>$index,output=>\@output)};
+	my $field = $modelstruct;
+	my @locationsteps = split(/,/, $locsteps);
+	# print header, and traverse the structure
+	for my $level (0..$#locationsteps)
+	{
+		print "<tr>";
+		# shim
+		print td({colspan=>$level}) if $level != 0;
+		print td({class=> ($level == $#locationsteps? "Major":"header"), colspan=>'1'},
+						 # fixme: might want to show the element if numeric choice, not the index?
+						 $locationsteps[$level]),
+		"</tr>";
+
+		$field = (ref($field) eq "ARRAY")? $field->[$locationsteps[$level]] : $field->{$locationsteps[$level]};
 	}
-	print Tr(td({colspan=>($index-1)}), 
-					 td({colspan=>(9-$index),align=>'center',nowrap=>undef},
+	my $offset = @locationsteps;
+	print "<tr><td colspan='9'>&nbsp;</td></tr>",
+			Tr(td({class=>"Major",colspan=>9,align=>'center'},
+							b("Delete this part of Model $wantedmodel?")));
+
+	print Tr(td({colspan=>9,align=>'center',nowrap=>undef},
 							submit(-name=>'button',
 										 onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
 										 -value=>'DELETE'),b('Are you sure ?'),
@@ -886,596 +580,419 @@ sub deleteModel{
 										 .($wantwidget? 'get("nmisModels")' : 'submit()' ),
 										 -value=>'Cancel')));
 
-	# background values
-	print hidden(-name=>'node', -default=>$node,-override=>'1');
-	print hidden(-name=>'pnode', -default=>$pnode,-override=>'1');
-	print hidden(-name=>'model', -default=>$model,-override=>'1');
-	print hidden(-name=>'pmodel', -default=>$pmodel,-override=>'1');
-	print hidden(-name=>'section', -default=>$section,-override=>'1');
-	print hidden(-name=>'hash', -default=>$Q->{hash},-override=>'1');
-	print hidden(-name=>'checkmodel', -default=>$Q->{checkmodel},-override=>'1');
-	print end_form;
-
-End_deleteModel:
-	print end_table();
-	pageEnd() if (!$wantwidget)
+	print "</form></table>";
+	pageEnd() if (!$wantwidget);
 }
 
-sub nextDelSect {
-	my %args = @_;
-	my $S = $args{sys};
-	my $sect = $args{sect};
-	my $index = $args{index};
-	my $output = $args{output};
-
-	foreach my $s (sort keys %{$sect}) {
-		if (ref $sect->{$s} eq 'ARRAY') {
-			push @$output, start_Tr;
-			push @$output, td({class=>"info",colspan=>($index)});
-			push @$output, td({class=>"header",colspan=>'1'},$s);
-			push @$output, td({class=>"info",colspan=>(7-$index)});
-			push @$output, end_Tr;
-			my $cnt = 0;
-			foreach my $txt (@{$sect->{$s}}) {
-				push @$output, start_Tr;
-				push @$output, td({class=>"info",colspan=>($index+1)});
-				push @$output, td({class=>"header",colspan=>'1'});
-				push @$output, td({class=>"info",colspan=>(7-$index)},$txt);
-				push @$output, end_Tr;
-				$cnt++;
-			}
-		} elsif (ref $sect->{$s} ne 'HASH') {
-			push @$output, start_Tr;
-			push @$output, td({class=>"info",colspan=>($index)});
-			push @$output, td({class=>"header",colspan=>'1',width=>"12%"},$s);
-			push @$output, td({class=>'blank',colspan=>(8-$index)},$sect->{$s});
-			push @$output, end_Tr;
-		}
-	}
-
-	foreach my $s (sort keys %{$sect}) {
-		if (ref $sect->{$s} eq 'HASH') {
-			push @$output, start_Tr;
-			push @$output, td({class=>"info",colspan=>$index}) ;
-			push @$output, td({class=>"header",colspan=>'1'},$s);
-			push @$output, td({class=>"info",colspan=>(8-$index)});
-			push @$output, end_Tr;
-			nextDelSect(sys=>$S,sect=>$sect->{$s},index=>($index+1),output=>$output);
-		}
-	}
-
-	return $output;
-}
-
-
-sub doDeleteModel {
+# show the appropriate form for adding stuff for a given model+section+locationsteps
+# none, but uses q's model, section, hash
+sub addModel
+{
 	my %args = @_;
 
-	return if getbool($Q->{cancel});
+	my ($wantedmodel,$wantedsection,$locsteps) = @{$Q}{"model","section","hash"};
 
-	$AU->CheckAccess("Table_Models_rw",'header');
-
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-	my $hash = $Q->{hash};
-	my $value = $Q->{value};
-
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->status->{error});
-		return;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->status->{error});
-			return;
-		}
-	}
-
-	my @hash = split /,/,$Q->{hash};
-	map { s/-blank-// } @hash;
-	my $ref = $S->{mdl};
-	my $hs;
-	my $index= 0 ;
-	foreach my $h (@hash) {
-		$hs = $h;
-		last if ref $ref->{$h} ne 'HASH';
-		last if $index == $#hash;
-		$ref = $ref->{$h};
-		$index++;
-	}
-
-	if (ref $ref->{$hs} eq 'ARRAY') {
-		splice(@{$ref->{$hs}},$hash[$#hash],1);
-		delete $ref->{$hs} if scalar @{$ref->{$hs}} eq 0;
-	} else{
-		delete $ref->{$hs};
-	}
-
-	writeModel(sys=>$S,model=>$model,hash=>$hash);
-
-}
-
-sub addModel{
-	my %args = @_;
-
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-	my $hash = $Q->{hash};
-
-
-	#start of page
 	print header($headeropts);
 	pageStart(title => "NMIS Add Model", refresh => 86400) if (!$wantwidget);
-
 	$AU->CheckAccess("Table_Models_rw");
 
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-		goto End_addModel;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			print Tr(td({class=>'error', colspan=>'9'},$S->status->{error}));
-			goto End_addModel;
-		}
-	}
+	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection or !$locsteps);
+
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	# what subfields do we want to allow here?
+	my @field;
+		if ($locsteps =~ /^\w+,rrd$/) { @field = qw(type graphtype ds oid); }
+	elsif ($locsteps =~ /^\w+,sys$/) { @field  = qw(type control attribute oid); }
+	elsif ($locsteps =~ /^\w+,rrd,\w+,snmp$/) { @field = qw(ds oid option calculate); }
+	elsif ($locsteps =~ /^\w+,sys,\w+,snmp$/) { @field = qw(attribute oid); }
+	elsif ($locsteps =~ /^\w+,rrd,\w+,snmp,\w+$/) { @field = qw(oid option replace calculate value); }
+	elsif ($locsteps =~ /^\w+,sys,\w+,snmp,\w+$/) { @field = qw(oid replace value title calculate format check); }
+	elsif ($locsteps =~ /^\w+,(rrd|sys),\w+,snmp,\w+,replace$/) { @field = qw(replace value); }
+	elsif ($locsteps =~ /^\w+,rrd,\w+$/) { @field = qw(graphtype control indexed threshold); }
+	elsif ($locsteps =~ /^interface,sys,standard$/) { @field = qw(indexed); }
+	elsif ($locsteps =~ /^\w+,sys,\w+$/) { @field = qw(control indexed); }
+	elsif ($locsteps =~ /^database,db,size$/) { @field = qw(type step_day step_week step_month step_year rows_day rows_week rows_month rows_year); }
+	elsif ($locsteps =~ /^database,type$/) { @field = qw(type filescript); }
+	elsif ($locsteps =~ /^event,event$/) { @field = qw(event role level logging); }
+	elsif ($locsteps =~ /^event,event,\w+$/) { @field = qw(role level logging); }
+	elsif ($locsteps =~ /^heading,graphtype$/) { @field = qw(graphtype headerscript); }
+	elsif ($locsteps =~ /^threshold,name,\w+,select$/
+			or $locsteps =~ /^alerts,\w+,\w+,threshold$/) { @field = qw(order fatal critical major minor warning); }
+	elsif ($locsteps =~ /^threshold,name,\w+,select,\w+$/) { @field = qw(control); }
+	elsif ($locsteps =~ /^threshold,name$/) { @field = qw(name eventdescr item order control fatal critical major minor warning); }
+	elsif ($locsteps =~ /^stats,type$/) { @field = qw(type rrdopt); }
+	elsif ($locsteps =~ /^stats,type,\w+$/) { @field = qw(rrdopt); }
+	elsif ($locsteps =~ /^stats,type,\w+,\d+$/) { @field = qw(rrdopt); }
+	elsif ($locsteps =~ /^summary,statstype$/) { @field = qw( statstype sumname stsname); }
+	elsif ($locsteps =~ /^summary,statstype,\w+,sumname$/) { @field = qw( sumname stsname); }
+	elsif ($locsteps =~ /^summary,statstype,\w+,sumname,\w+,stsname$/) { @field = qw(stsname); }
+	elsif ($locsteps =~ /^summary,statstype,\w+,sumname,\w+,stsname,\d+$/) { @field = qw(stsname); }
+	elsif ($locsteps =~ /^models$/) { @field = qw(vendor order nodetype string); }
+	elsif ($locsteps =~ /^models,\w+$/) { @field = qw(order nodetype string); }
+	elsif ($locsteps =~ /^-common-,class$/) { @field = qw(class common-model); }
+
+	bailout("ERROR: no add operation details available for area $locsteps!") if (!@field);
 
 	# start of form, explanation of href-vs-hiddens see previous start_form
-	print start_form(-id=>"nmisModels", 
-					-href=>url(-absolute=>1)."?")
+	print start_form(-id=>"nmisModels",
+									 -href=>url(-absolute=>1)."?")
 			. hidden(-override => 1, -name => "conf", -value => $C->{conf})
 			. hidden(-override => 1, -name => "act", -value => "config_model_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget})
-			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel");
+			. hidden(-override => 1, -name => "cancel", -value => "", -id => "cancel")
+			. hidden(-name=>'model', -default=>$wantedmodel, -override=>'1')
+			. hidden(-name=>'section', -default=>$wantedsection, -override=>'1')
+			. hidden(-name=>'hash', -default=>$locsteps, -override=>'1');
 
-	print start_table() ; # first table level
+	print "<table>",  Tr(td({class=>"info",colspan=>'8',align=>'center'},"&nbsp"));
 
-	# display edit field
-	my $index = 0;
-	my @hash = split /,/,$hash;
-	print Tr(td({class=>"info",colspan=>'8',align=>'center'},"&nbsp"));
-	my $ref = $S->{mdl};
-	foreach my $h (@hash) {
-		last if ($h =~ /^\d+$/);
-		$ref = $ref->{$h};
-		print start_Tr;
-		print td({class=>"header",colspan=>$index}) if $index != 0;
-		print td({class=>"header",colspan=>'1'},$h);
-		print td({class=>"info",colspan=>(8-$index)});
-		print end_Tr;
-		$index++;
+	# traverse location steps, print header
+	my $field = $modelstruct;
+	my @locationsteps = split(/,/, $locsteps);
+	# print header, and traverse the structure
+	for my $level (0..$#locationsteps)
+	{
+		print "<tr>";
+		# shim
+		print td({class=>"header",colspan=>$level}) if $level != 0;
+		print td({class=>"header",colspan=>'1'}, $locationsteps[$level]),
+		td({class=>"info",colspan=>(8-$level)}), "</tr>";
+
+		$field = $field->{$locationsteps[$level]};
+		last if (ref($field) eq 'ARRAY'); # fixme: no support for array anywhere EXCEPT at the leaf end!
 	}
-	print Tr(td({class=>"info",colspan=>$index,align=>'center'}),
-				td({class=>"header",colspan=>(8-$index),align=>'center'},
-					b("Add next part to Model $Q->{model}")));
-	my @field;
-	my @help;
-	my $hsh = $hash;
-	$hsh =~ s/[-_ ]//g;
+	my $offset = @locationsteps;
+	print Tr(td({class=>"info",colspan=>$offset}),
+					 td({class=>"header",colspan=>(8-$offset),align=>'center'},
+							b("Add next part to Model $wantedmodel")));
 
-	if ($hsh =~ /^\w+,rrd$/) { @field = qw(type graphtype ds oid); }
-	elsif ($hsh =~ /^\w+,sys$/) { @field  = qw(type control attribute oid); }
-	elsif ($hsh =~ /^\w+,rrd,\w+,snmp$/) { @field = qw(ds oid option calculate); }
-	elsif ($hsh =~ /^\w+,sys,\w+,snmp$/) { @field = qw(attribute oid); }
-	elsif ($hsh =~ /^\w+,rrd,\w+,snmp,\w+$/) { @field = qw(oid option replace calculate value); }
-	elsif ($hsh =~ /^\w+,sys,\w+,snmp,\w+$/) { @field = qw(oid replace value title calculate format check); }
-	elsif ($hsh =~ /^\w+,(rrd|sys),\w+,snmp,\w+,replace$/) { @field = qw(replace value); }
-	elsif ($hsh =~ /^\w+,rrd,\w+$/) { @field = qw(graphtype control indexed threshold); }
-	elsif ($hsh =~ /^interface,sys,standard$/) { @field = qw(indexed); }
-	elsif ($hsh =~ /^\w+,sys,\w+$/) { @field = qw(control indexed); }
-	elsif ($hsh =~ /^database,db,size$/) { @field = qw(type step_day step_week step_month step_year rows_day rows_week rows_month rows_year); }
-	elsif ($hsh =~ /^database,type$/) { @field = qw(type filescript); }
-	elsif ($hsh =~ /^event,event$/) { @field = qw(event role level logging); }
-	elsif ($hsh =~ /^event,event,\w+$/) { @field = qw(role level logging); }
-	elsif ($hsh =~ /^heading,graphtype$/) { @field = qw(graphtype headerscript); }
-	elsif ($hsh =~ /^threshold,name,\w+,select$/ 
-			or $hsh =~ /^alerts,\w+,\w+,threshold$/) { @field = qw(order fatal critical major minor warning); }
-	elsif ($hsh =~ /^threshold,name,\w+,select,\w+$/) { @field = qw(control); }
-	elsif ($hsh =~ /^threshold,name$/) { @field = qw(name eventdescr item order control fatal critical major minor warning); }
-	elsif ($hsh =~ /^stats,type$/) { @field = qw(type rrdopt); }
-	elsif ($hsh =~ /^stats,type,\w+$/) { @field = qw(rrdopt); }
-	elsif ($hsh =~ /^stats,type,\w+,\d+$/) { @field = qw(rrdopt); }
-	elsif ($hsh =~ /^summary,statstype$/) { @field = qw( statstype sumname stsname); }
-	elsif ($hsh =~ /^summary,statstype,\w+,sumname$/) { @field = qw( sumname stsname); }
-	elsif ($hsh =~ /^summary,statstype,\w+,sumname,\w+,stsname$/) { @field = qw(stsname); }
-	elsif ($hsh =~ /^summary,statstype,\w+,sumname,\w+,stsname,\d+$/) { @field = qw(stsname); }
-	elsif ($hsh =~ /^models$/) { @field = qw(vendor order nodetype string); }
-	elsif ($hsh =~ /^models,\w+$/) { @field = qw(order nodetype string); }
-	elsif ($hsh =~ /^common,class$/) { @field = qw(class common-model); }
-
-	
-	foreach my $f (@field) {
-		print Tr(td({colspan=>"$index"}),td({class=>"header",colspan=>'1'},"$f"),
-				td({class=>"info",colspan=>(7-$index)},textfield(-name=>"$f",align=>"left",override=>1,size=>'50')));
-		push @help,$f;
+	foreach my $f (@field)
+	{
+		print Tr(td({colspan=>$offset}),td({class=>"header",colspan=>'1'},$f),
+						 td({class=>"info",colspan=>(7-$offset)},
+								textfield(-name=>"_field_$f",align=>"left",override=>1,size=>'50')));
 	}
 
-	print Tr(td({colspan=>"$index"}), 
+	print Tr(td({colspan=>$offset}),
 					 td(submit(-name=>"button",
 										 onclick => ($wantwidget? "get('nmisModels');" : "submit()" ),
 										 -value=>"Add"),
 							submit(-name=>"button",
-										 onclick => '$("#cancel").val("true");' 
+										 onclick => '$("#cancel").val("true");'
 										 .($wantwidget? 'get("nmisModels")' : 'submit()' ),
 										 -value=>"Cancel")));
 
-	foreach (@help) {
-		my $info = getHelp($_);
-		print Tr(td({class=>'blank',colspan=>'8'},$info)) if $info ne "";
+	for my $helpwanted (@field)
+	{
+		if (my $info = getHelp($helpwanted))
+		{
+			print Tr(td({class=>'blank',colspan=>'8'},$info));
+		}
 	}
 
-	# background values
-	print hidden(-name=>'node', -default=>$node,-override=>'1');
-	print hidden(-name=>'pnode', -default=>$pnode,-override=>'1');
-	print hidden(-name=>'model', -default=>$model,-override=>'1');
-	print hidden(-name=>'pmodel', -default=>$pmodel,-override=>'1');
-	print hidden(-name=>'section', -default=>$section,-override=>'1');
-	print hidden(-name=>'hash', -default=>$Q->{hash},-override=>'1');
-	print hidden(-name=>'checkmodel', -default=>$Q->{checkmodel},-override=>'1');
-	print end_form;
-
-End_addModel:
-	print end_table();
-	pageEnd() if (!$wantwidget)
+	print "</form></table>";
+	pageEnd() if (!$wantwidget);
 }
 
-
-sub doAddModel {
-	my %args = @_;
-
-	return if getbool($Q->{cancel});
-
+# endpoint for post, for making in-place edits to leaf things
+# args: none but uses q's mode, section, hash and value, also cancel
+# returns: nothing;
+sub doEditModel
+{
+	return if (getbool($Q->{cancel}));
 	$AU->CheckAccess("Table_Models_rw",'header');
 
-	my $node = $Q->{node};
-	my $pnode = $Q->{pnode};
-	my $model = $Q->{model};
-	my $pmodel = $Q->{pmodel};
-	my $section = $Q->{section};
-	my $hash = $Q->{hash};
+	my ($wantedmodel,$wantedsection,$locsteps,$value) =
+			@{$Q}{"model","section","hash","value"};
 
-	my $S = Sys::->new; # create system object
-	if (!($S->init(name=>$node,snmp=>'false'))) {
-		logMsg($S->status->{error});
-		return;
-	}
-	if ($node eq "" and $model ne "") {
-		if (!($S->loadModel(model=>"Model-$model"))) {
-			logMsg($S->status->{error});
-			return;
-		}
-	}
+	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection
+																		or !$locsteps or !defined $value);
 
-	my $hsh = $hash;
-	my @hsh = split /,/,$hsh;
-	map { s/-blank-// } @hsh;
-	my $ref = $S->{mdl};
-	my $pref;
-	my $hs;
-	my $index= 0 ;
-	foreach my $h (@hsh) {
-		$pref = $ref;
-		last if ref $ref eq 'ARRAY';
-		$ref = $ref->{$h};
-		$index++;
-	}
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
-	$hsh =~ s/[-_ ]//g;
-	if ($hsh =~ /^\w+,rrd$/) {
-		if ($Q->{type} ne "" and $Q->{ds} ne "" and $Q->{oid} ne "") {
-			$ref->{lc $Q->{type}}{graphtype} = $Q->{graphtype} if $Q->{graphtype} ne "";
-			$ref->{lc $Q->{type}}{snmp}{$Q->{ds}}{oid} = $Q->{oid};
-		}
+	my @locationsteps = split(/,/, $locsteps);
+	my $target = $modelstruct;
+	for my $nextstep (@locationsteps[0..$#locationsteps-1])
+	{
+		$target = $target->{$nextstep};
+		last if (!ref($target));		# stop BEFORE the final step
 	}
-	if ($hsh =~ /^\w+,sys$/) {
-		if ($Q->{type} ne "" and $Q->{attribute} ne "" and $Q->{oid} ne "") {
-			$ref->{lc $Q->{type}}{snmp}{$Q->{attribute}}{oid} = $Q->{oid};
-		}
+	if (ref($target) eq 'ARRAY')
+	{
+		$target->[$locationsteps[-1]] = $value;
 	}
-	if ($hsh =~ /^\w+,rrd,\w+,snmp$/) {
-		if ($Q->{ds} ne "" and $Q->{oid} ne "") {
-			$ref->{$Q->{ds}}{oid} = $Q->{oid};
-		}
+	else
+	{
+		$target->{$locationsteps[-1]} = $value;
 	}
-	if ($hsh =~ /^\w+,sys,\w+,snmp$/) {
-		if ($Q->{attribute} ne "" and $Q->{oid} ne "") {
-			$ref->{$Q->{attribute}}{oid} = $Q->{oid};
-		}
-	}
-	if ($hsh =~ /^\w+,(rrd|sys),\w+,snmp,\w+$/) {
-		$ref->{oid} = $Q->{oid} if $Q->{oid} ne "";
-		$Q->{title} =~ s/\x00//g if $Q->{title} ne ""; # I dont understand why
-		$ref->{title} = $Q->{title} if $Q->{title} ne "";
-		$ref->{option} = $Q->{option} if $Q->{option} ne "";
-		$ref->{calculate} = $Q->{calculate} if $Q->{calculate} ne "";
-		$ref->{check} = $Q->{check} if $Q->{check} ne "";
-		$ref->{format} = $Q->{format} if $Q->{format} ne "";
-		$ref->{replace}{$Q->{replace}} = $Q->{value} if $Q->{value} ne "";
-	}
-	if ($hsh =~ /^\w+,(rrd|sys),\w+$/) { 
-		$ref->{control} = $Q->{control} if $Q->{control} ne "";
-		$ref->{indexed} = lc $Q->{indexed} if $Q->{indexed} ne "";
-		$ref->{graphtype} = lc $Q->{graphtype} if $Q->{graphtype} ne "";
-		$ref->{threshold} = $Q->{threshold} if $Q->{threshold} ne "";
-	}
-	if ($hsh =~ /^\w+,(rrd|sys),\w+,snmp,\w+,replace$/) {
-		$ref->{$Q->{replace}} = $Q->{value} if $Q->{value} ne "";
-	}
-	if ($hsh =~ /^database,db,size$/) {
-		if ($Q->{type} ne "" and $Q->{type} ne "default") {
-			$ref->{lc$Q->{type}}{lc $Q->{rows_day}} = $Q->{rows_day} || $ref->{default}{rows_day};
-			$ref->{lc $Q->{type}}{lc $Q->{rows_week}} = $Q->{rows_week} || $ref->{default}{rows_week};
-			$ref->{lc $Q->{type}}{lc $Q->{rows_month}} = $Q->{rows_month} || $ref->{default}{rows_month};
-			$ref->{lc $Q->{type}}{lc $Q->{rows_year}} = $Q->{rows_year} || $ref->{default}{rows_year};
-			$ref->{lc $Q->{type}}{lc $Q->{step_day}} = $Q->{step_day} || $ref->{default}{step_day};
-			$ref->{lc $Q->{type}}{lc $Q->{step_week}} = $Q->{step_week} || $ref->{default}{step_week};
-			$ref->{lc $Q->{type}}{lc $Q->{step_month}} = $Q->{step_month} || $ref->{default}{step_month};
-			$ref->{lc $Q->{type}}{lc $Q->{step_year}} = $Q->{step_year} || $ref->{default}{step_year};
-		}
-	}
-	if ($hsh =~ /^database,type$/) {
-		if ($Q->{type} ne "") {
-			$ref->{lc $Q->{type}} = $Q->{filescript};
-		}
-	}
-	if ($hsh =~ /^event,event$/) { 
-		if ($Q->{event} ne "" and $Q->{role} ne "") {
-			$ref->{lc $Q->{event}}{lc $Q->{role}}{level} = $Q->{level};
-			$ref->{lc $Q->{event}}{lc $Q->{role}}{logging} = $Q->{logging};
-		}
-	}
-	if ($hsh =~ /^event,event,\w+$/) { 
-		if ($Q->{role} ne "") {
-			$ref->{lc $Q->{role}}{level} = $Q->{level};
-			$ref->{lc $Q->{role}}{logging} = $Q->{logging};
-		}
+	writeHashtoFile(file => $modelfn, data => $modelstruct);
+}
+
+# endpoint for post, for deleting leaves or whole subtrees
+# args: none but uses q's model, section, hash,  also cancel
+# returns: nothing;
+sub doDeleteModel
+{
+	return if (getbool($Q->{cancel}));
+	$AU->CheckAccess("Table_Models_rw",'header');
+
+	my ($wantedmodel,$wantedsection,$locsteps) =  @{$Q}{"model","section","hash"};
+
+	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection
+																		or !$locsteps);
+
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my @locationsteps = split(/,/, $locsteps);
+	my $target = $modelstruct;
+	for my $nextstep (@locationsteps[0..$#locationsteps-1])
+	{
+		$target = $target->{$nextstep};
+		last if (ref($target) eq "ARRAY"); # fixme not supported anywhere BUT around a leaf
 	}
 
-	if ($hsh =~ /^heading,graphtype$/) {
-		if ($Q->{graphtype} ne "") {
-			$ref->{lc $Q->{graphtype}} = $Q->{headerscript};
-		}
+	if (ref($target) eq "ARRAY")
+	{
+		splice(@$target, $locationsteps[-1], 1);
+	}
+	elsif (ref($target) eq "HASH")
+	{
+		delete $target->{$locationsteps[-1]};
+	}
+	else
+	{
+		bailout("invalid arguments: ".Dumper(\@locationsteps, $target));
+	}
+	writeHashtoFile(file => $modelfn, data => $modelstruct);
+}
+
+#  endpoint for post, for adding X fields to the area indicated by the locsteps
+# args: none, q's model, section, hash, cancel and all _field_X inputs
+sub doAddModel
+{
+	return if getbool($Q->{cancel});
+	$AU->CheckAccess("Table_Models_rw",'header');
+
+	my ($wantedmodel,$wantedsection,$locsteps) =
+			@{$Q}{"model","section","hash"};
+
+	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection
+																		or !$locsteps);
+
+	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
+	my $modelstruct = readFiletoHash(file => $modelfn);
+	bailout "cannot read model $modelfn: $!"
+			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
+
+	my %fields = map { my $oldkey = $_; s/^_field_//; ($_ => $Q->{$oldkey}); } (grep(/^_field_/, keys %$Q));
+	bailout("No data to add!") if (!%fields);
+
+	# where in the structure are we making changes?
+	# location steps for adding address the area we are adding something IN,
+	# i.e. threshold,name means add an X as threshold,name,X
+	my @locationsteps = split(/,/, $locsteps);
+	my $target = $modelstruct;
+	for my $idx (0..$#locationsteps)
+	{
+		my $nextstep = $locationsteps[$idx];
+		# fixme: arrays supported only around a leaf!
+		last if (ref($target) eq "ARRAY"); # we want to stay OUTSIDE of the array element
+		$target = $target->{$nextstep};
 	}
 
-	if ($hsh =~ /^threshold,name$/) {
-		if ($Q->{name} ne "" and $Q->{item} ne "" and $Q->{order} ne "") {
-			$ref->{$Q->{name}}{item} = $Q->{item};
-			$ref->{$Q->{name}}{event} = $Q->{eventdescr};
-			$ref->{$Q->{name}}{select}{$Q->{order}}{control} = $Q->{control} if $Q->{control} ne "";
-			$ref->{$Q->{name}}{select}{$Q->{order}}{value}{fatal} = $Q->{fatal} || $ref->{default}{value}{fatal};
-			$ref->{$Q->{name}}{select}{$Q->{order}}{value}{critical} = $Q->{critical} || $ref->{default}{value}{critical};
-			$ref->{$Q->{name}}{select}{$Q->{order}}{value}{major} = $Q->{major} || $ref->{default}{value}{major};
-			$ref->{$Q->{name}}{select}{$Q->{order}}{value}{minor} = $Q->{minor} || $ref->{default}{value}{minor};
-			$ref->{$Q->{name}}{select}{$Q->{order}}{value}{warning} = $Q->{warning} || $ref->{default}{value}{warning};
-		}
-	}
-	if ($hsh =~ /^threshold,name,\w+,select$/) {
-		if ($Q->{order} ne "") {
-			$ref->{$Q->{order}}{value}{fatal} = $Q->{fatal} || $ref->{default}{value}{fatal};
-			$ref->{$Q->{order}}{value}{critical} = $Q->{critical} || $ref->{default}{value}{critical};
-			$ref->{$Q->{order}}{value}{major} = $Q->{major} || $ref->{default}{value}{major};
-			$ref->{$Q->{order}}{value}{minor} = $Q->{minor} || $ref->{default}{value}{minor};
-			$ref->{$Q->{order}}{value}{warning} = $Q->{warning} || $ref->{default}{value}{warning};
-		}
-	}
-	if ($hsh =~ /^threshold,name,\w+,select,\w+$/) {
-		$ref->{control} = $Q->{control};
-	}
-	if ($hsh =~ /^stats,type$/) {
-		if ($Q->{type} ne "") {
-			$ref->{lc $Q->{type}} = [$Q->{rrdopt}];
-		}
-	}
-	if ($hsh =~ /^stats,type,\w+$/) {
-		push @$ref,$Q->{rrdopt};
-	}
-	if ($hsh =~ /^stats,type,\w+,\d+$/) {
-		##my @d = (splice(@{$ref},0,$hash[$#hash],1);
-		splice(@{$ref},$hsh[$#hsh],0,$Q->{rrdopt});
-	}
-	if ($hsh =~ /^summary,statstype$/) {
-		if ($Q->{statstype} ne "" and $Q->{sumname} ne "") {
-			$ref->{lc $Q->{statstype}}{name}{lc $Q->{sumname}}{stsname} = [$Q->{stsname}];
-		}
-	}
-	if ($hsh =~ /^summary,statstype,\w+,sumname$/) {
-		if ($Q->{sumname} ne "") {
-			$ref->{lc $Q->{sumname}}{stsname} = [$Q->{stsname}];
-		}
-	}
-	if ($hsh =~ /^summary,statstype,\w+,sumname,\w+,stsname$/) {
-		push @$ref,$Q->{stsname};
-	}
-	if ($hsh =~ /^summary,statstype,\w+,sumname,\w+,stsname,\d+$/) {
-		splice(@{$ref},$hsh[$#hsh],0,$Q->{stsname});
-	}
-	if ($hsh =~ /^models$/) {
-		if ($Q->{vendor} ne "" and $Q->{order} ne "" and $Q->{nodetype} ne "") {
-			$ref->{$Q->{vendor}}{order}{$Q->{order}}{$Q->{nodetype}} = $Q->{string};
-		}
-	}
-	if ($hsh =~ /^models,\w+$/) {
-		if ($Q->{order} ne "" and $Q->{nodetype} ne "") {
-			$ref->{order}{$Q->{order}}{$Q->{nodetype}} = $Q->{string};
-		}
+	# now copy over the stuff from _field_X, depending
+	# on where we are logically
+	if ($locsteps =~ /^-common-,class$/)
+	{
+		$target->{ lc($fields{class}) } = { "common-model" => lc($fields{"common-model"}) };
 	}
 
-	if ($hsh =~ /^common,class$/) { 
-		if ($Q->{class} ne "" and $Q->{'common-model'} ne "") {
-			if ( existFile(dir=>'models',name=>"Common-$Q->{'common-model'}") ) {
-				$ref->{lc $Q->{class}}{'common-model'} = $Q->{'common-model'};
-			} else {
-				my $ext = getExtension(dir=>'models');
-				logMsg("ERROR common Model file models/Common-$Q->{'common-model'}.$ext does not exist");
+	if ($locsteps =~ /^\w+,rrd$/)
+	{
+		$target->{ lc($fields{type}) }->{graphtype} = $fields{graphtype} if ($fields{graphtype});
+		$target->{ lc($fields{type}) }->{snmp}->{ $fields{ds} }->{oid} = $fields{oid}; # fixme no support for wmi!
+	}
+	if ($locsteps =~ /^\w+,sys$/)
+	{
+		$target->{ lc($fields{type}) }->{snmp}->{ $fields{attribute} }->{oid} = $fields{oid};
+	}
+	if ($locsteps =~ /^\w+,rrd,\w+,snmp$/)
+	{
+		$target->{ $fields{ds} }->{oid} = $fields{oid};
+	}
+	if ($locsteps =~ /^\w+,sys,\w+,snmp$/) # fixme no support for wmi
+	{
+		$target->{ $fields{attribute} }->{oid} = $fields{oid};
+	}
+	# "adds to"/replaces a previously defined collectable variable X
+	if ($locsteps =~ /^\w+,(rrd|sys),\w+,snmp,\w+$/) # fixme no support for wmi
+	{
+		$target->{oid} = $fields{oid} if $fields{oid} ne "";
+
+		$target->{title} = $fields{title} if $fields{title} ne "";
+		$target->{option} = $fields{option} if $fields{option} ne "";
+		$target->{calculate} = $fields{calculate} if $fields{calculate} ne "";
+		$target->{check} = $fields{check} if $fields{check} ne "";
+		$target->{format} = $fields{format} if $fields{format} ne "";
+		$target->{replace}{$fields{replace}} = $fields{value} if $fields{value} ne "";
+	}
+	# "adds to"/replaces a previously defined section under rrd or sys
+	if ($locsteps =~ /^\w+,(rrd|sys),\w+$/)
+	{
+		$target->{control} = $fields{control} if $fields{control} ne "";
+		$target->{indexed} =  $fields{indexed} if $fields{indexed} ne "";
+		$target->{graphtype} = lc($fields{graphtype}) if $fields{graphtype} ne "";
+		$target->{threshold} = $fields{threshold} if $fields{threshold} ne "";
+	}
+	if ($locsteps =~ /^\w+,(rrd|sys),\w+,snmp,\w+,replace$/)
+	{
+		$target->{ $fields{replace} } = $fields{value} if $fields{value} ne "";
+	}
+	if ($locsteps =~ /^database,db,size$/)
+	{
+		$target->{ lc($fields{type}) } = {
+			map { lc($fields{$_}) => $fields{$_} } (qw(rows_day rows_week rows_year step_day step_week step_month step_year))
+		};
+	}
+	if ($locsteps =~ /^database,type$/)
+	{
+		$target->{ lc($fields{type}) } = $fields{filescript};
+	}
+
+	if ($locsteps =~ /^event,event$/)
+	{
+		$target->{ lc($fields{event}) }->{ lc($fields{role}) }  = {
+			level => $fields{level},
+			logging => $fields{logging} };
+	}
+	if ($locsteps =~ /^event,event,\w+$/)
+	{
+		$target->{ lc($fields{role}) } = { level => $fields{level},
+																			 logging => $fields{logging} };
+	}
+
+	if ($locsteps =~ /^heading,graphtype$/)
+	{
+		$target->{ lc($fields{graphtype}) } = $fields{headerscript};
+	}
+
+	if ($locsteps =~ /^threshold,name$/)
+	{
+		$target->{ $fields{name} } =
+		{ item => $fields{item},
+			event => $fields{eventdescr},
+			select => {
+				$fields{order} => {
+					value =>
+					{
+						fatal => $fields{fatal},
+						critical => $fields{critical},
+						major => $fields{major},
+						minor => $fields{minor},
+						warning => $fields{warning},
+					}
+				}
 			}
+		};
+		$target->{ $fields{name} }->{select}->{ $fields{order} }->{control} = $fields{control} if $fields{control} ne "";
+	}
+
+	if ($locsteps =~ /^threshold,name,\w+,select$/)
+	{
+		if ($fields{order} ne "")
+		{
+			$target->{ $fields{order} }->{value} =
+			{
+				map { $_ => ($fields{$_} || $target->{default}->{value}->{$_}) } (qw(fatal critical major minor warning))
+			};
+		}
+	}
+	if ($locsteps =~ /^threshold,name,\w+,select,\w+$/)
+	{
+		$target->{control} = $fields{control};
+
+}
+	if ($locsteps =~ /^stats,type$/)
+	{
+		if ($fields{type} ne "")
+		{
+			$target->{ lc($fields{type}) } = [ $fields{rrdopt} ];
 		}
 	}
 
-	writeModel(sys=>$S,model=>$model,hash=>$hash);
-
-}
-
-#
-# write modified common Model and selected Model
-#
-sub writeModel {
-	my %args = @_;
-	my $S = $args{sys};
-	my $model = $args{model};
-	my $hash = $args{hash};
-	if ($model eq '') {
-		# baseModel, no common classes included
-		func::writeHashtoModel(name=>'Model',data=>$S->{mdl});
-	} else {
-		my %mdl;
-		# are we writing a common class of the Model
-		my @hsh = split /,/,$hash;
-		my $class = $hsh[0];
-		my @common = keys %{$S->{mdl}{'-common-'}{class}};
-		if ( grep(/$class/,@common)) {
-			# write this updated common class to disk
-			my $name = 'Common-'.${class};
-			$mdl{$class} = $S->{mdl}{$class};
-			writeTable(dir=>'models',name=>$name,data=>\%mdl);
-		}
-		# now the selected Model without the common parts
-		%mdl = ();
-		for my $k (keys %{$S->{mdl}}) {
-			if (!grep(/$k/,@common)) {
-				$mdl{$k} = $S->{mdl}{$k};
-			}
-		}
-		writeTable(dir=>'models',name=>"Model-$model",data=>\%mdl);
+	# stats is one of the few spots with arrays
+	if ($locsteps =~ /^stats,type,\w+$/)
+	{
+		push @$target, $fields{rrdopt};
 	}
-}
-
-#=============================================================================
-
-sub getHelp {
-	my $help = shift;
-	
-	my $ext = getExtension(dir=>'models');
-
-	my %help = (
-		'type' => 			'Format: string<br>'.
-								'The name must be unique in this section<br>'.
-								'This name create a relation between configurations in the next sections:<br>'.
-								'Starting in a section (node, interface, calls, cbqos_in or cbqos_out) for RRD declaration '.
-								'is must also be declared in section database '.
-								'to declare the script for generating the filename of the RRD database. If there '.
-								'is also declared a threshold in this section then there must also declared rrd rules '.
-								'in section stats.',
-		'graphtype' =>		'Format: comma separated list<br>'.
-								'List of graph names. There must be a description file exist in '.
-								'models/Graph-\'graphtype\'.$ext for every graph.',
-		'ds' =>				'Format: string, max. length is 18 characters<br>'.
-								'The name of the RRD Data Source.',
-		'attribute' => 		'Format: string<br>'.
-								'The name of attribute.',
-		'control' =>		'Format: expression<br>'.
-								'An operator test will be executed on this rule. If the result is true then the oid\'s are executed.'.
-								'<br>The next names of variable can be used, they are replaced at runtime:'.
-									'<ul>'.
-									'<li>$node</li>'.
-									'<li>$nodeModel</li>'.
-									'<li>$nodeType</li>'.
-									'<li>$nodeVendor</li>'.
-									'<li>$sysObjectName</li>'.
-									'<li>$ifDescr</li>'.
-									'<li>$ifType</li>'.
-									'<li>$ifSpeed</li>'.
-									'<li>$InstalledModems</li>'.
-									'</ul>'.
-								'At the Node page the value of $sysObjectName is presented under the name sysName.<br>'.
-								'example: $sysObjectName =~ /7300|2620/',
-		'indexed' =>		'Format: true or var value of MIB<br>'.
-								'Defined this subsection as true if used by code with use of indexing.',
-		'oid' =>			'Format: SNMP iod, must contain a name<br>'.
-								'The oid name of the snmp var. This value must exist in the OID files and this file name declared in nmis.conf (full_mib).',
-		'replace' =>		'Format: string or number<br>'.
-								'Optional. The result of the snmp call can be replaced by a given value.<br>'.
-								'If there is no replace defined then \'unknown\' is used.<br>'.
-								'If \'unknown\' is not defined then the original value is left.',
-		'value' =>			'Format: string or number<br>'.
-								'Value which will replace the original snmp result.',
-		'option' =>			'Format: string<br>Optional. For creation of the RRD Data Source the option value is used.<br>'.
-								'If not defined the default will be used: \'GAUGE,U:U\' ',
-		'filescript' =>		'Format: string<br>Script to define the RRD filename.<br>'.
-								'The next names of variable can be used, they are replaced at runtime:<br>'.
-									'<ul>'.
-									'<li>$node</li>'.
-									'<li>$nodeModel</li>'.
-									'<li>$nodeType</li>'.
-									'<li>$roleType</li>'.
-									'<li>$nodeVendor</li>'.
-									'<li>$ifDescr</li>'.
-									'<li>$ifType</li>'.
-									'<li>$item</li>'.
-									'</ul>',
-		'healthgraph' =>	'Format: comma separated list<br>'.
-								'List of graph(type)s which are active in Node health page.<br>'.
-								'There must be a description file exist in model/Graph-\'graphtype\'.$ext for every grpah.',
-		'nodeType' =>		'Type of node.',
-		'rrdopt' =>			'RRD option rule.<br>'.
-								'Name \$database may be used for rrd file specification',
-		'threshold' =>		'Format: comma separated list of names<br>'.
-								'Optional. Threshold names must be declared in the rrdopt rules of the section stats.',
-		'level' =>			'Format: Fatal, Critical, Major, Minor, Warning or Normal<br>'.
-								'Value of level',
-		'role' =>			'Name of role.',
-		'logging' =>		'Format: true or false<br>'.
-								'Logging of an event',
-		'event' =>			'Format: string<br>'.
-								'Name of event',
-		'eventdescr' =>		'Format: string<br>'.
-								'Description of Proactive event.',
-		'poll' =>			'Format: number<br>'.
-								'The value of 300 is NMIS dependent.',
-		'hbeat' =>			'Format: number<br>'.
-								'The value of 900 is NMIS dependent.',
-		'order' =>			'Format: number<br>'.
-								'Order of processing, starting at lowest number.',
-		'item' =>			'Format: string<br>'.
-								'This name must also be declared in stats.',
-		'name' =>			'Format: string<br>'.
-								'Name of this threshold.',
-		'fatal' =>			'Format: number<br>'.
-								'This number can be a normal value or percent, depending of the rules in stats. '.
-								'If the value of warning is higher then fatal then thresholds for higher being good and lower being bad.',
-		'statstype' =>		'Format: string<br>'.
-								'Name of type in section stats.',
-		'sumname' =>		'Format: string<br>'.
-								'Name of parameter in summary file.',
-		'stsname' =>		'Format: string<br>'.
-								'Name of parameter (...:stsname=...) in rrd rules in section stats.',
-		'nodetype' =>		'Type of node.',
-		'calculate' =>		'Format: string<br>'.
-								'Optional. Calculate string<br>'.
-								'${r} contains input value',
-		'check' =>			'Format: string<br>'.
-								'Optional. Name of an existing method<br>'.
-								'The method is called with the attribute name',
-		'format' =>			'Format: string<br>'.
-								'Optional. Printf format string<br>'.
-								'without quotes',
-		'title' =>			'Format: string<br>'.
-								'Optional. Title is the header text of the Node and Interface pages.<br>'.
-								'If title is declared then the value is displayed in the page.'
-	);
-
-
-	if (exists $help{$help}) {
-		return ul(li($help),$help{$help});
+	# "add" to leaf makes no inherent sense, so implemented as 'insert before'
+	if ($locsteps =~ /^stats,type,\w+,\d+$/)
+	{
+		splice(@$target, $locationsteps[-1], 0, $fields{rrdopt});
 	}
-	return;
 
+	if ($locsteps =~ /^summary,statstype$/)
+	{
+		if ($fields{statstype} ne "" and $fields{sumname} ne "")
+		{
+			$target->{ lc($fields{statstype}) }->{name}->{ lc($fields{sumname}) }->{stsname} = [ $fields{stsname} ];
+		}
+	}
+	if ($locsteps =~ /^summary,statstype,\w+,sumname$/)
+	{
+		if ($fields{sumname} ne "")
+		{
+			$target->{ lc($fields{sumname})}->{stsname} = [ $fields{stsname} ];
+		}
+	}
+	# another array case
+	if ($locsteps =~ /^summary,statstype,\w+,sumname,\w+,stsname$/)
+	{
+		push @$target, $fields{stsname};
+	}
+	if ($locsteps =~ /^summary,statstype,\w+,sumname,\w+,stsname,\d+$/)
+	{
+		# "add" to leaf makes no inherent sense, so implemented as 'insert before'
+		splice(@$target, $locationsteps[-1], 0, $fields{stsname});
+	}
+	if ($locsteps =~ /^models$/)
+	{
+		if ($fields{vendor} ne "" and $fields{order} ne "" and $fields{nodetype} ne "")
+		{
+			$target->{ $fields{vendor} }->{order}->{ $fields{order} }->{ $fields{nodetype} } = $fields{string};
+		}
+	}
+	if ($locsteps =~ /^models,\w+$/)
+	{
+		if ($fields{order} ne "" and $fields{nodetype} ne "")
+		{
+			$target->{order}->{ $fields{order} }->{ $fields{nodetype} } = $fields{string};
+		}
+	}
+
+	writeHashtoFile(file => $modelfn, data => $modelstruct);
 }
 
+# returns help test for given field name
+# fixme: NOT location dependent, so cannot handle contextual field names
+# args: field name
+# returns: html or empty string
+sub getHelp
+{
+	my ($fieldname) = @_;
+	if (my $text = $helptexts{$fieldname})
+	{
+		return ul(li($fieldname), $text);
+	}
+	return "";
+}

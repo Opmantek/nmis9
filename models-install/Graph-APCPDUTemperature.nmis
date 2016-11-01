@@ -39,8 +39,7 @@
 		'standard' => [
 			'DEF:load=$database:pduTemperature:AVERAGE',
 			'LINE:load#FF8C00:Current Temperature',
-			'GPRINT:load:LAST:%2.1lf °F',
-			'COMMENT:\\n',	
+			'GPRINT:load:LAST:%2.1lf °F\\n',
 		],
 	}
 );
