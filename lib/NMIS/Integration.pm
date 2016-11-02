@@ -37,6 +37,7 @@ use func;
 use notify;
 use Excel::Writer::XLSX;
 use MIME::Entity;
+use JSON::XS;
 
 # some global variables
 our $omkBin = "/usr/local/omk/bin";
@@ -53,6 +54,7 @@ use Exporter;
 
 	getNodeList
 	getNodeDetails
+	getCommandOutput
 	importNodeFromNmis
 	opEventsXable
 
@@ -121,6 +123,59 @@ sub getNodeDetails
 	return decode_json($data);
 }
 
+sub getCommandOutput
+{
+	my (%args) = @_;
+
+	my $node = $args{node};
+	my $command = $args{command};
+	my $debug = $args{debug} || 0;
+	
+	if ( not -x "$omkBin/opconfig-cli.pl" ) {
+		print "ERROR, opConfig required but $omkBin/opconfig-cli.pl not found or not executable\n";
+		die;
+	}
+
+	if (!$node)
+	{
+		print "ERROR cannot get node details without node!\n";
+		return undef;
+	}
+
+	#/usr/local/omk/bin/ act=get_command_output node=meatball command="show running-config"
+
+	# stuff from stderr won't be valid json, ever.
+	# opnode-admin produces utf8 encoded json, as it should...
+	my $data;
+	my @lines = `$omkBin/opconfig-cli.pl quiet=1 act=get_command_output node=\"$node\" command=\"$command\"`;
+	foreach my $line (@lines) {
+		if ( $line !~ /get_command_output\:/ ) {
+			$data .= "$line";
+		}
+	}
+	if ( $debug  > 1 ) {
+		print "act=get_command_output node=\"$node\" command=\"$command\"\n";
+		print $data;
+		print "\n\n";
+	}
+
+	if (my $res = $? >> 8)
+	{
+		print "ERROR cannot get node $node details: $data\n";
+		return undef;
+	}
+	
+	my $VAR1;
+	my $VAR1 = eval $data;
+	if ($@) {
+		print"ERROR convert output to hash table, $@\n";
+		return undef;
+	}
+	return $VAR1;
+}
+
+
+
 sub opEventsXable {
 	my (%args) = @_;
 
@@ -156,6 +211,11 @@ sub importNodeFromNmis {
 	my $overwrite = $args{overwrite} || 1;
 	my $simulate = $args{simulate} || 0;
 	my $debug = $args{debug} || 0;
+
+	if ( $node eq "" ) {
+		print "ERROR, importNodeFromNmis needs a node to work on.\n";
+		return 0;
+	}
 
 	if ( not -x "$omkBin/opeventsd.pl" ) {
 		print "ERROR, opEvents required but $omkBin/opeventsd.pl not found or not executable\n";
