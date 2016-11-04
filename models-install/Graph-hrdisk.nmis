@@ -43,15 +43,21 @@
 			'DEF:hrDiskUsed=$database:hrDiskUsed:MAX',
 			'CDEF:perUsedD=hrDiskUsed,hrDiskSize,/,100,*',
 			'AREA:perUsedD#00FFFF:% Disk Used',
-			'GPRINT:perUsedD:MAX:Disk Used %1.0lf %%\\n',
+			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
+			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
+			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
 			'GPRINT:hrDiskSize:MAX:Disk Size %1.3lf %sbytes',
-			'GPRINT:hrDiskUsed:MAX:Disk Used %1.3lf %Sbytes' 
+			'GPRINT:hrDiskUsed:AVERAGE:Average Disk Used %1.3lf %Sbytes',
+			'GPRINT:hrDiskUsed:MAX:Maximum Disk Used %1.3lf %Sbytes\n' 
 		],
 		'small' => [
 			'DEF:hrDiskSize=$database:hrDiskSize:MAX',
 			'DEF:hrDiskUsed=$database:hrDiskUsed:MAX',
 			'CDEF:perUsedD=hrDiskUsed,hrDiskSize,/,100,*',
-			'AREA:perUsedD#00FFFF:% Disk Used'
+			'AREA:perUsedD#00FFFF:% Disk Used',
+			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
+			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
+			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
 		]
 	}
 );
