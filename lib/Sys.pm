@@ -1444,7 +1444,7 @@ sub parseString
 			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($check =~ /ERROR/) {
 				dbg($check);
-				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str";
+				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str, $check";
 				logMsg($str);
 			} else {
 				$str =~ s{(.+)}{eval $1}eg; # execute expression
