@@ -29,7 +29,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION="1.0.0";
+our $VERSION="1.1.0";
 
 # Auto configure to the <nmis-base>/lib
 use FindBin;
@@ -52,7 +52,7 @@ my $usage = "Usage: $bn act=(which action to take)
 \t$bn act=(run|monkey|banana)
 \t$bn snmp=(true|false) - should the tool ensure that the SNMP service is included
 \t$bn services=(true|false) - should the tool update services based on ServerRoles
-\t$bn discover=(true|false) - should the tool update services based on ServerRoles
+\t$bn discover=(true|false) - should the tool discover the services running on the server
 
 \t$bn simulate=(true|false)
 \t$bn debug=(true|false)
@@ -141,13 +141,36 @@ sub processNodes {
 		my $NI = $S->ndinfo;
 		
 		printSum($t->elapTime(). " Processing $node ServerRoles=$LNT->{$node}{ServerRoles} services=$LNT->{$node}{services} vendor=$NI->{system}{nodeVendor}") if $debug;
-		
+
+		# make a discovery index.
+		#make a quicker index with just the name
+		my $runningIndex;
+		if ( exists $NI->{services} ) {							
+			foreach my $runningService ( sort keys %{$NI->{services}} ) {
+				my $hrSWRunName = $NI->{services}{$runningService}{hrSWRunName};
+				my $hrSWRunParameters = $NI->{services}{$runningService}{hrSWRunParameters};
+				# cast off the shackles of PID ownership
+				$hrSWRunName =~ s/([\w\.]+)\:\d+/$1/;
+				$runningIndex->{$hrSWRunName} = $hrSWRunName;
+				$runningIndex->{$hrSWRunParameters} = $hrSWRunName;
+			}
+		}
+
+		my $autoServiceManagement = 1;		
+		if ( $LNT->{$node}{notes} =~ /no auto service management/ ) {
+			$autoServiceManagement = 0;
+			printSum("No Service Management: $node") if $debug;		
+		}
+		elsif ( $LNT->{$node}{notes} =~ /disable service monitoring/ ) {
+			printSum("Disable Service Management: $node") if $debug;
+			$LNT->{$node}{services} = '';	
+		}
 		# we will only process nodes when they are active.
-		if ( $LNT->{$node}{active} eq "true" ) {
+		elsif ( $LNT->{$node}{active} eq "true" ) {
 			my @newServices;
 			
-			# lets set SNMP max size to 2800!
-			$LNT->{$node}{max_msg_size} = 2800;
+			# lets set SNMP max size to 4096!
+			$LNT->{$node}{max_msg_size} = 4096;
 			
 			# looks for monitoring the SNMP daemon
 			my $os = "";
@@ -172,42 +195,55 @@ sub processNodes {
 					$serviceChanges = 1;				
 				}
 			}
-
+						
 			# lets get the roles and make sure each service is there.
-			if ( $doServices ) {
+			if ( $doServices and $LNT->{$node}{ServerRoles} ne "" ) {
 				my @roles = split(",",$LNT->{$node}{ServerRoles});
 				
 				#push the os onto the stack as a standard role, e.g. linux or windows.
-				push(@roles,$os);
+				push(@roles,$os) if $os ne "";
 				
+				print "\nINFO: Server $node has following Roles configured: @roles\n";
+
 				foreach my $role (@roles) {
 					#Are we monitoring the SNMP service?
 					my @monitoredServices = split(",",$serverRoles->{$role}{monitoredServices});
 					foreach my $service (@monitoredServices) {
 						if ( $service and not grep { $_ eq $service } (@currentServices) ) {
-							push(@newServices,$service);
-							push(@addRoleService,$node) if not grep { $_ eq $node } (@addRoleService);
-							printSum("Add Service: $node $service") if $debug;
-							$serviceChanges = 1;		
+
+							# someone said the server role shoudl be added but maybe its not running that service.
+							# lets see if the server actually has this 
+							my $addTheService = 0;
+							if ( exists $NI->{services} ) {
+								my $regex = $serverRoles->{$role}{discoveryRegex};
+								foreach my $runningService ( sort keys %{$runningIndex} ) {
+									if ( $runningService =~ /$regex/ ) {
+										$addTheService = 1;
+										printSum("MATCHED: $node has hrSWRunName \"$runningIndex->{$runningService}\" for role $role, $regex");
+									}
+								}
+							}
+													
+							if ( $addTheService ) {
+								push(@newServices,$service);
+								push(@addRoleService,$node) if not grep { $_ eq $node } (@addRoleService);							
+								printSum("Add Service: $node $service") if $debug;
+								$serviceChanges = 1;
+							}
+							else {
+								printSum("Service NOT Added: $node did not have $service");
+							}
 						}
 					}
-					if ( $discover ) {
+
+					# this will check the server roles for that service and ses if it actually supports it.
+					if ( $discover and exists $serverRoles->{$role} ) {
+						printSum ("\nINFO: $node Server Roles Discovery of $role using $serverRoles->{$role}{discoveryRegex}");
 						my $regex = $serverRoles->{$role}{discoveryRegex};
-						if ( exists $NI->{services} ) {
-							#make a quicker index with just the name
-							my $runningIndex;
-							foreach my $runningService ( sort keys %{$NI->{services}} ) {
-								my $hrSWRunName = $NI->{services}{$runningService}{hrSWRunName};
-								my $hrSWRunParameters = $NI->{services}{$runningService}{hrSWRunParameters};
-								# cast off the shackles of PID ownership
-								$hrSWRunName =~ s/([\w\.]+)\:\d+/$1/;
-								$runningIndex->{$hrSWRunName} = $NI->{services}{$runningService}{hrSWRunName};
-								$runningIndex->{$hrSWRunParameters} = $NI->{services}{$runningService}{hrSWRunName};
-							}
-							
+						if ( exists $NI->{services} ) {							
 							foreach my $runningService ( sort keys %{$runningIndex} ) {
 								if ( $runningService =~ /$regex/ ) {
-									printSum("MATCHED: $node has hrSWRunName \"$runningService\" for role $role");
+									printSum("  MATCHED: hrSWRunName \"$runningIndex->{$runningService}\" for role $role, $regex");
 								}
 							}
 						}
@@ -226,24 +262,18 @@ sub processNodes {
       #   "hrSWRunName" : "httpd.exe:1092",
       #   "hrSWRunPerfCPU" : "1235"
       #},  
-			# lets get the roles and make sure each service is there.
 			if ( $discover ) {
 				# does the node have SNMP services list.
 				if ( exists $NI->{services} ) {
+					printSum ("\nINFO: $node Monitored Service Discovery");
 
-					#make a quicker index with just the name
-					my $runningIndex;
-					foreach my $runningService ( sort keys %{$NI->{services}} ) {
-						my $hrSWRunName = $NI->{services}{$runningService}{hrSWRunName};
-						# cast off the shackles of PID ownership
-						$hrSWRunName =~ s/([\w\.]+)\:\d+/$1/;
-						$runningIndex->{$hrSWRunName} = $NI->{services}{$runningService}{hrSWRunName};
-					}
-					
 					foreach my $runningService ( sort keys %{$runningIndex} ) {
-						if ( exists $serviceIndex->{$runningService} ) {
-							printSum("DISCOVERED: $node has hrSWRunName \"$runningService\" which is monitored service $serviceIndex->{$runningService}");
-							last;
+						#print "runningService=$runningService\n";
+						foreach my $monitoredService ( sort keys %{$serviceIndex} ) {
+							if ( $runningService =~ /$monitoredService/ ) {
+								printSum("  DISCOVERED: $serviceIndex->{$monitoredService} regex=$monitoredService which is hrSWRunName \"$runningService\"");
+								last;
+							}
 						}
 					}
 				}
@@ -329,22 +359,12 @@ sub getMonitoredServices {
 		if ( $MS->{$monserv}{Service_Type} eq "service" ) {
 			my $name = $MS->{$monserv}{Service_Name};
 			$serviceIndex->{$name} = $monserv;
+			#print "DEBUG: name=$name monserv=$monserv\n";
 		}	
 	}
 	return $serviceIndex;
 }
 
-#	my $desired = $args{desired} || $C->{'nmis_user'} || "nmis";
-
-
-
-
-
-#sub makeReport {
-#
-#	end_xlsx(xls => $xls);
-#}	
-#
 sub nodeServiceReport {
 	my %args = @_;
 	
@@ -391,7 +411,10 @@ sub nodeServiceReport {
 
 	foreach my $node (sort keys %{$LNT}) {
 		#if ( $LNT->{$node}{active} eq "true" ) {
+		
+		# if the node has no auto service management in the notes, then we don't touch it!
 		if ( 1 ) {
+			my $autoServiceManagement = 1;
 			if ( $group eq "" or $group eq $LNT->{$node}{group} ) {
 				my $intCollect = 0;
 				my $intCount = 0;
@@ -438,6 +461,14 @@ sub nodeServiceReport {
 				}
 				else {
 					$actClass = "info Plain";
+					
+					if ( $LNT->{$node}{notes} =~ /disable service monitoring/ ) {
+						push(@issueList,"Service monitoring disabled, check notes");
+					}
+					elsif ( $LNT->{$node}{notes} =~ /no auto service management/ ) {
+						$autoServiceManagement = 0;
+						push(@issueList,"No auto service management, check notes");
+					}
 					
 					if ( $LNT->{$node}{active} eq "false" ) {
 						$lastCollectPoll = "N/A";
