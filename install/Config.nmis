@@ -45,8 +45,9 @@ my %hash = (
   },
   
 	'globals' => {
-    'global_threshold' => 'true',
-    'threshold_poll_cycle' => 'true',
+    'global_threshold' => 'true', # advanced thresholds enabled or not
+    'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
+		'threshold_poll_node' => 'true', # or perform threshold computation with each node
     'threshold_rising_reset_dampening' => '0.9',
     'threshold_falling_reset_dampening' => '1.1',
     'global_collect_Description' => '(CNOC|Collection)',
@@ -312,8 +313,8 @@ my %hash = (
     'auth_htpasswd_encrypt' => 'crypt',
     'auth_radius_secret' => '',
     'auth_user_name_regex' => '[\w \-\.\@\`\']+',
-    'auth_web_key' => 'thisismysecretkey',
-    'auth_sso_domain' => '.domain.com',
+    'auth_web_key' => 'Please Change Me!',
+    'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading . 
     'auth_radius_server' => '',
     'auth_expire' => '+30min',
     'auth_login_title' => 'NMIS8 login',

@@ -37,7 +37,7 @@
 # turn on debug if you want detailed logging to the <nmis>/logs/ipsla.log file
 # will fork and leave a status message so you know it is running.
 #
-our $VERSION = "8.5.6";
+our $VERSION = "8.6.0G";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
