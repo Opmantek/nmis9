@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.0a";
+our $VERSION = "8.6.0G";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -54,7 +54,7 @@ if (!getbool($nvp{kill}) and !getbool($nvp{restart})
 	my $base = basename($0);
 	die "$base Version $VERSION
 
-Usage: $base <restart|kill]=[true|false]>[debug=true|false] [logging=true|false] [conf=alt.config]
+Usage: $base <restart|kill]=[true|false]> [debug=true|false] [logging=true|false] [conf=alt.config]
 
 Command line options are:
  restart=true   - kill any running daemon(s) and restarts!
@@ -189,13 +189,23 @@ chdir('/') or die "Can't chdir to /: $!";
 # for debugging, undocumented: argument foreground=true
 if (!getbool($nvp{"foreground"}))
 {
-	## Reopen stdout, stdin to /dev/null
-	# attach stderr to the fpingd logfile
-	# !! if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang !!
-	open(STDIN,  "+>/dev/null");
-	open(STDOUT, "+>&STDIN");
-	open(STDERR, ">>$logfile");
-	fork && exit(0);										# parent exits, child continues with the actual work
+	# Reopen stdout, stdin with /dev/null; stderr to the fpingd logfile
+	# if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang
+	open(STDIN, "<", "/dev/null") or die "cannot reopen stdin: $!\n";
+	open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
+	open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
+	setFileProtDiag(file => $logfile);
+
+	if (!defined(my $pid = fork))
+	{
+		die "cannot fork: $!\n";
+	}
+	elsif ($pid)
+	{
+		# parent: exits
+		exit (0);
+	}
+	# child continues with the actual work
 }
 
 # Announce our presence via a PID file
@@ -549,10 +559,12 @@ sub trim {
 
 sub debug {
 	print STDOUT "\tfpinger: $_[0]\n" if $debug;
-	if ( $nvp{logging} ) {
+	if ( $nvp{logging} )
+	{
 		open LOG, ">>$logfile" or warn "Can't write to $logfile: $!";
 		print LOG returnDateStamp(). " ". $_[0] ."\n";
 		close LOG;
+		setFileProtDiag(file => $logfile);
 	}
 }
 
