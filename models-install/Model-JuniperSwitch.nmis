@@ -4,14 +4,26 @@
       'database' => {
         'common-model' => 'database'
       },
-      'event' => {
-        'common-model' => 'event'
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
       },
       'heading' => {
         'common-model' => 'heading'
       },
-      'threshold' => {
-        'common-model' => 'threshold'
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
+      'entityMib' => {
+        'common-model' => 'entityMib'
       },
       'routing' => {
         'common-model' => 'routing'
@@ -444,7 +456,7 @@
   },
 
   'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,jnxOperations,macTable',
+    'sections' => 'bgpPeer,ospfNbr,jnxOperations,macTable,lldp,lldpLocal,entityMib',
     'sys' => {
       'macTable' => {
         'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
