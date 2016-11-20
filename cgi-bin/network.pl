@@ -1675,7 +1675,7 @@ EO_HTML
 					my $printData = 1;
 					$printData = 0 if $k eq "customer" and not tableExists('Customers');
 					$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
-					$printData = 0 if $k eq "serviceStatus" and not tableExists('serviceStatus');
+					$printData = 0 if $k eq "serviceStatus" and not tableExists('ServiceStatus');
 					$printData = 0 if $k eq "location" and not tableExists('Locations');
 
 					if ( $printData ) {

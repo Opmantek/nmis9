@@ -5065,35 +5065,51 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 		} # end DNS
 
-		# now the 'port'
-		elsif ( $ST->{$service}{Service_Type} eq "port" ) {
+		# now the 'port' service checks, which rely on nmap
+		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
+		elsif ( $ST->{$service}{Service_Type} eq "port" )
+		{
 			$msg = '';
-			my $nmap;
-
 			my ( $scan, $port) = split ':' , $ST->{$service}{Port};
 
-			if ( $scan =~ /udp/ ) {
-				$nmap = "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}";
+			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
+									 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
+			# fork and read from pipe
+			my $pid = open(NMAP, "$nmap 2>&1 |");
+			if (!defined $pid)
+			{
+				my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
+				logMsg($errmsg);
+				info($errmsg);
 			}
-			else {
-				$nmap = "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}";
-			}
-			# now run it, need to use the open() syntax here, else we may not get the response in a multithread env.
-			unless ( open(NMAP, "$nmap 2>&1 |")) {
-				dbg("FATAL: Can't open nmap: $!");
-			}
-			while (<NMAP>) {
-				$msg .= $_;
+			while (<NMAP>)
+			{
+				$msg .= $_;							# this retains the newlines
 			}
 			close(NMAP);
-
-			if ( $msg =~ /Ports: $port\/open/ ) {
-				$ret = 1;
-				dbg("Success: $msg");
+			my $exitcode = $?;
+			# if the pipe close doesn't wait until the child is gone (which it may do...)
+			# then wait and collect explicitely
+			if (waitpid($pid,0) == $pid)
+			{
+				$exitcode = $?;
 			}
-			else {
+			if ($exitcode)
+			{
+				logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+				info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+			}
+			if ($msg =~ /Ports: $port\/open/)
+			{
+				$ret = 1;
+				info("NMAP reported success for port $port: $msg");
+				logMsg("INFO, NMAP reported success for port $port: $msg") if ($C->{debug} or $C->{info});
+			}
+			else
+			{
 				$ret = 0;
-				dbg("Failed: $msg");
+				info("NMAP reported failure for port $port: $msg");
+				logMsg("INFO, NMAP reported failure for port $port: $msg") if ($C->{debug} or $C->{info});
 			}
 		}
 		# now the snmp services - but only if snmp is on
