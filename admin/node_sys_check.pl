@@ -98,7 +98,14 @@ sub checkNode {
 		my @interfaceSections = qw(interface pkts pkts_hc);
 		my @cpuSections = qw(hrsmpcpu);
 
-		my @systemHealthSections = qw(bgpPeer);
+		my @systemHealthSections = qw(
+				bgpPeer
+				mtxrWlRtab
+				mtxrWlAp
+				mtxrWlStat
+				WirelessAccessPoint
+				WirelessRegistration
+		);
 		
 		my %nodeevents = loadAllEvents(node => $node);
 		
@@ -136,6 +143,7 @@ sub checkNode {
 			) {
 				print "FIXING: $node has $section in data but no modelling\n";
 				delete $NI->{$section};
+				$changes = 1;	
 			}
 		}
 
@@ -149,6 +157,7 @@ sub checkNode {
 					$NI->{graphtype}{$indx}{LogicalDisk} = "WindowsDiskBytes,WindowsDisk";
 					$changes = 1;
 				}
+				
 				
 				foreach my $section (@interfaceSections) {
 					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{interface}{$indx} ) {
@@ -197,6 +206,7 @@ sub checkNode {
 
 				}
 
+      	print "INFO: $node working on @cpuSections\n" if $debug;
 				foreach my $section (@cpuSections) {
 					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{device}{$indx} ) {
 						# there should be an interface to check
@@ -237,22 +247,31 @@ sub checkNode {
    #      "bgpPeer" : "bgpPeerStats,bgpPeer"
    #   },
       
+      	print "INFO: $node working on @systemHealthSections\n" if $debug;
 				# clean up systemHealth Sections, BGP Peers initially
 				foreach my $section (@systemHealthSections) {
+	      	print "  looking for $section in graphtype\n" if $debug;
 					if ( defined $NI->{graphtype}{$indx}{$section} 
-						and defined $NI->{$section}
+						and exists $NI->{$section}
 						and (keys %{$NI->{$section}}) 
-						and defined $NI->{$section}{$indx} 
+						and exists $NI->{$section}{$indx} 
 					) {
 						# there should be an section to check
 						print "INFO: $node graphtype $indx for $section and found $section\n" if $debug;
+					}
+					elsif ( defined $NI->{graphtype}{$indx}{$section} 
+						and not defined $NI->{$section}
+					) {
+						print "FIXING: $node $indx has graphtype $section but no nodeinfo section defined\n";
+						delete $NI->{graphtype}{$indx}{$section};
+						$changes = 1;
 					}
 					elsif ( defined $NI->{graphtype}{$indx}{$section} 
 						and defined $NI->{$section}
 						and (keys %{$NI->{$section}}) 
 						and not defined $NI->{$section}{$indx} 
 					) {
-						print "FIXING: $node $indx has graphtype $section but no $section\n";
+						print "FIXING: $node $indx has graphtype $section but no nodeinfo section defined\n";
 						
 						delete $NI->{graphtype}{$indx}{$section};
 						
