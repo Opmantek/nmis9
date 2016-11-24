@@ -30,7 +30,7 @@
 # Some common functions for more advanced ingtegrations with NMIS.
 #
 package NMIS::Integration;
-our $VERSION = "1.0.0";
+our $VERSION = "1.0.1";
 
 use strict;
 use func;
@@ -74,12 +74,6 @@ sub getNodeList
 {
 	my @nodes;
 
-	if ( not -x "$omkBin/opnode_admin.pl" ) {
-		print "ERROR, opEvents required but $omkBin/opnode_admin.pl not found or not executable\n";
-		die;
-	}
-
-
 	open(P, "$omkBin/opnode_admin.pl act=list 2>&1 |")
 			or die "cannot run opnode_admin.pl: $!\n";
 	for my $line (<P>)
@@ -96,13 +90,15 @@ sub getNodeList
 	return \@nodes;
 }
 
+# returns node configuration as hash structure
+# args: node (name)
+# returns: hashref or undef
 sub getNodeDetails
 {
 	my ($node) = @_;
 
 	if ( not -x "$omkBin/opnode_admin.pl" ) {
-		print "ERROR, opEvents required but $omkBin/opnode_admin.pl not found or not executable\n";
-		die;
+		die "ERROR, $omkBin/opnode_admin.pl not found or not executable\n";
 	}
 
 	if (!$node)
@@ -130,7 +126,7 @@ sub getCommandOutput
 	my $node = $args{node};
 	my $command = $args{command};
 	my $debug = $args{debug} || 0;
-	
+
 	if ( not -x "$omkBin/opconfig-cli.pl" ) {
 		print "ERROR, opConfig required but $omkBin/opconfig-cli.pl not found or not executable\n";
 		die;
@@ -164,8 +160,7 @@ sub getCommandOutput
 		print "ERROR cannot get node $node details: $data\n";
 		return undef;
 	}
-	
-	my $VAR1;
+
 	my $VAR1 = eval $data;
 	if ($@) {
 		print"ERROR convert output to hash table, $@\n";
