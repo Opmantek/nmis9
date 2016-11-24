@@ -397,7 +397,7 @@
     'MikroTik' => {
       'order' => {
         '10' => {
-          'MikroTikRouter' => 'RouterOS CCR1072'
+          'MikroTikRouter' => 'RouterOS (CHR|CCR1072)'
         },
         '99' => {
           'MikroTik' => 'RouterOS'
