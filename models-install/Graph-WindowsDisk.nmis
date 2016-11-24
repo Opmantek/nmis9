@@ -47,6 +47,8 @@
 
 			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
 			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+
+			'CDEF:PercentUsedSpace=100,PercentFreeSpace,-',
 			
 			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
 			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
@@ -78,10 +80,10 @@
 			#'GPRINT:PerDiskWriteTime:AVERAGE:Average %8.2lf',
 			#'GPRINT:PerDiskWriteTime:MAX:Max %8.2lf\\n',
 
-			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
-			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
-			'GPRINT:PercentFreeSpace:AVERAGE:Average %8.2lf',
-			'GPRINT:PercentFreeSpace:MAX:Max %8.2lf\\n',
+			'LINE1:PercentUsedSpace#ff00ff:PercentUsedSpace\\t',
+			'GPRINT:PercentUsedSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentUsedSpace:AVERAGE:Average %8.2lf',
+			'GPRINT:PercentUsedSpace:MAX:Max %8.2lf\\n',
 		],
 		'small' => [
 			'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
@@ -92,6 +94,8 @@
 
 			'CDEF:AvgDiskReadQLenM=AvgDiskReadQLen,1000,/',
 			'CDEF:AvgDiskWriteQLenM=AvgDiskWriteQLen,1000,/',
+			
+			'CDEF:PercentUsedSpace=100,PercentFreeSpace,-',
 			
 			'LINE1:AvgDiskReadQLenM#CD5C5C:AvgDiskReadQLen\\t',
 			'GPRINT:AvgDiskReadQLenM:LAST:Last %8.2lf',
@@ -109,9 +113,9 @@
 			'GPRINT:DiskReadsPersec:LAST:Last %8.0lf',
 			'GPRINT:DiskReadsPersec:AVERAGE:Avg. %8.0lf\\n',
 
-			'LINE1:PercentFreeSpace#ff00ff:PercentFreeSpace\\t',
-			'GPRINT:PercentFreeSpace:LAST:Last %8.2lf',
-			'GPRINT:PercentFreeSpace:AVERAGE:Avg. %8.2lf\\n',
+			'LINE1:PercentUsedSpace#ff00ff:PercentUsedSpace\\t',
+			'GPRINT:PercentUsedSpace:LAST:Last %8.2lf',
+			'GPRINT:PercentUsedSpace:AVERAGE:Avg. %8.2lf\\n',
 		]		
 	}
 );
