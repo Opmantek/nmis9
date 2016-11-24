@@ -255,17 +255,17 @@
         'item' => 'hrDiskUsedPer',
         'select' => {
           '10' => {
-            'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /Fixed Disk/',
+            'control' => '$hrDiskSize <= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '97',
               'critical' => '95',
-              'major' => '90',
-              'minor' => '80',
-              'warning' => '75',
+              'major' => '95',
+              'minor' => '95',
+              'warning' => '95',
             },
           },
           '20' => {
-            'control' => '$hrDiskSize <= 1610612736000 and $hrDiskSize >= 209715200000 and $hrStorageType =~ /Fixed Disk/',
+            'control' => '$hrDiskSize <= 1610612736000 and $hrDiskSize >= 209715200000 and $hrStorageType =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '99',
               'critical' => '97',
@@ -275,7 +275,7 @@
             },
           },
           '30' => {
-            'control' => '$hrDiskSize <= 3221225472000 and $hrDiskSize >= 1610612736000 and $hrStorageType =~ /Fixed Disk/',
+            'control' => '$hrDiskSize <= 3221225472000 and $hrDiskSize >= 1610612736000 and $hrStorageType =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '99',
               'critical' => '98',
@@ -285,7 +285,7 @@
             },
           },
           '40' => {
-            'control' => '$hrDiskSize >= 3221225472000 and $hrStorageType =~ /Fixed Disk/',
+            'control' => '$hrDiskSize >= 3221225472000 and $hrStorageType =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '99.5',
               'critical' => '99',
