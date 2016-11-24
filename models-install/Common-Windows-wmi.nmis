@@ -146,6 +146,7 @@
         'graphtype' => 'WindowsDisk,WindowsDiskBytes',
         'indexed' => 'Name', # for wmi the index 'field' name MUST be given and the same as in the sys section
         'threshold' => 'DiskQueueLength',
+        'control' => 'CVAR=Name;$CVAR ne "_Total"',
 
       	'wmi' => {
           'AvgDiskReadQLen' => {
