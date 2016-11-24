@@ -8797,11 +8797,11 @@ sub runThrHld
 	{
 		$element = $ET->{$index}{tempDescr};
 	}
-	elsif ($index ne '' and $thrname eq "hrsmpcpu" )
+	elsif ($index ne '' and $thrname =~ /^hrsmpcpu/ )
 	{
 		$element = "CPU $index";
 	}
-	elsif ($index ne '' and $thrname eq "hrdisk" )
+	elsif ($index ne '' and $thrname =~ /^hrdisk/ )
 	{
 		$element = "$DISK->{$index}{hrStorageDescr}";
 	}

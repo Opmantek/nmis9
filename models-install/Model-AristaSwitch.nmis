@@ -393,7 +393,7 @@
         'indexed' => 'true',
         'snmp' => {
           'entPhySensorValue' => {
-            'calculate' => '$r=10 *(log($r * 10**-4)/log(10)); return $r',
+            'calculate' => '$r = $r > 0 ? 10 *(log($r * 10**-4)/log(10)) : 0; return $r',
             'oid' => '1.3.6.1.2.1.99.1.1.1.4',
             'option' => 'gauge,U:U',
             'sysObjectName' => 'entPhySensorValue'
