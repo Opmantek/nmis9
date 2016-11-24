@@ -181,7 +181,8 @@ sub processNodes {
 			
 			# is the node in opevents at all?
 			if ( $LNT->{$node}{active} eq "true" and not $nodeInOpNodes ) {
-				importNodeFromNmis($node);
+				printSum("Node not in opEvents, importing node \"$node\" now");
+				importNodeFromNmis(node => $node);
 			}
 			
 			# what is the current state of this thing.
