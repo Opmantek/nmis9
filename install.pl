@@ -122,29 +122,38 @@ for  my $line (<G>)
 close G;
 logInstall("Installation of NMIS $nmisversion on host '$hostname' started at ".scalar localtime(time));
 
-
 # there are some slight but annoying differences
-my $osflavour;
+my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
 if (-f "/etc/redhat-release")
 {
 	$osflavour="redhat";
 	logInstall("detected OS flavour RedHat/CentOS");
+
+	open(F, "/etc/redhat-release") or die "cannot read redhat-release: $!\n";
+	my $reldata = join('',<F>);
+	close(F);
+
+	($osmajor,$osminor,$ospatch) = ($1,$2,$4)
+			if ($reldata =~ /(\d+)\.(\d+)(\.(\d+))?/);
+	$osiscentos = 1 if ($reldata =~ /CentOS/);
 }
 elsif (-f "/etc/os-release")
 {
-	open(F,"/etc/os-release");
-	my @osinfo = <F>;
+	open(F,"/etc/os-release") or die "cannot read os-release: $!\n";
+	my $osinfo = join("",<F>);
 	close(F);
-	if (grep(/ID=debian/, @osinfo))
+	if ($osinfo =~ /ID=debian/)
 	{
 		$osflavour="debian";
 		logInstall("detected OS flavour Debian");
 	}
-	elsif (grep(/ID=ubuntu/, @osinfo))
+	elsif ($osinfo =~ /ID=ubuntu/)
 	{
 		$osflavour="ubuntu";
 		logInstall("detected OS flavour Ubuntu");
 	}
+	($osmajor,$osminor,$ospatch) = ($1,$3,$5)
+			if ($osinfo =~ /VERSION_ID=\"(\d+)(\.(\d+))?(\.(\d+))?\"/);
 }
 if (!$osflavour)
 {
@@ -156,6 +165,7 @@ https://community.opmantek.com/x/Dgh4
 for further info.\n\n");
 	&input_ok;
 }
+logInstall("Detected OS $osflavour, Major $osmajor, Minor $osminor, Patch $ospatch");
 
 logInstall("Installation source is $src");
 
@@ -230,14 +240,16 @@ libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
 perl-JSON-XS httpd fping nmap make groff perl-CPAN crontabs dejavu*
 perl-libwww-perl perl-Net-DNS perl-Digest-SHA
-perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-Time-modules
-perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
+perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX
  perl-Digest-HMAC perl-Crypt-DES perl-Clone
 ));
-	# perl-UI-Dialog was only available in rpm/repoforge...
+
+	# perl-Time-modules no longer a/v in rh/centos7
+	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
+			"perl-Time-modules" : "perl-Time-ParseDate";
 
 	# cgi was removed from core in 5.20
 	if (version->parse($^V) >= version->parse("5.19.7"))
@@ -353,13 +365,6 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 		printBanner("Checking Dependencies...");
 
 		# a few packages are only available via the EPEL repo, others need more magic...
-		open(F,"/etc/redhat-release");
-		my $rhver =	<F>;
-		chomp $rhver;
-		close F;
-		my $iscentos = ($rhver =~ /CentOS/);
-		$rhver =~ s/^[^0-9]+(\d)\.\d.*$/$1/;
-
 		# check the enabled extra repos
 		my %enabled_repos;
 		open(F, "yum -C -v repolist enabled|") or die "cannot get repository list from yum: $!\n";
@@ -413,7 +418,7 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 
 			# special handling for certain packages: ghettoforge, epel
 			# and for centos/rh 6 mainly
-			if ($rhver == 6 and
+			if ($osmajor == 6 and
 					($pkg eq "fping" or $pkg eq "rrdtool" or $pkg eq "rrdtool-perl"))
 			{
 				$installcmd = "yum -y --enablerepo=gf-plus install $pkg";
@@ -470,7 +475,7 @@ from $repourl).\n";
 						}
 						else
 						{
-							enable_custom_repo($repo, $iscentos, $rhver);
+							enable_custom_repo($repo, $osiscentos, $osmajor);
 							$enabled_repos{$repo} = 1;
 						}
 					}
@@ -695,7 +700,7 @@ my @candidates;
 find(sub
 		 {
 			 my ($name,$dir,$fn) = ($_, $File::Find::dir, $File::Find::name);
-			 push @candidates, [$dir] if (-d $fn);
+			 push @candidates, [$fn] if (-d $fn); # make sure the directories are created!
 			 push @candidates, [$dir, $name] if (-f $fn); # source contains no symlinks
 		 }, $src);
 
@@ -1807,6 +1812,9 @@ sub enable_custom_repo
 		}
 		else
 		{
+			# according to the epel docs, these two are are required prerequisites on rh 6 and 7.
+			execPrint("subscription-manager repos --enable=rhel-${majorlevel}-server-optional-rpms");
+			execPrint("subscription-manager repos --enable=rhel-${majorlevel}-server-extras-rpms") if ($majorlevel == 7);
 			execPrint("yum -y install 'https://dl.fedoraproject.org/pub/epel/epel-release-latest-$majorlevel.noarch.rpm'");
 		}
 	}
