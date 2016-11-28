@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # a command-line node administration tool for NMIS
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -54,9 +54,10 @@ my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act=list
-\t$bn act={create|export|update|delete} node=nodeX
+\t$bn act={create|export|update|delete|show} node=nodeX
+\t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
-\t$bn act=rename old=nodeX new=nodeY
+\t$bn act=rename old=nodeX new=nodeY [entry.A=B...]
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -64,6 +65,9 @@ create: requires file=NewNodeDef.json
 export: exports to file=someFile.json (or STDOUT if no file given)
 update: updates existing node from file=someFile.json (or STDIN)
 delete: only deletes if confirm=yes (in uppercase) is given
+
+show: prints the nodes properties in the same format as set
+set: adjust one or more node properties
 
 extras: deletedata=<true,false> which makes delete also
 delete all RRD files for the node. default is false.
@@ -128,6 +132,74 @@ elsif ($args{act} eq "export")
 	close $fh if ($fh != \*STDOUT);
 
 	print STDERR "Successfully exported $node configuration to file $file\n" if ($fh != \*STDOUT);
+	exit 0;
+}
+elsif ($args{act} eq "show")
+{
+	my $node = $args{"node"};
+
+	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
+
+	my $noderec = $nodeinfo->{$node};
+	die "Node $node does not exist.\n" if (!$noderec);
+
+	my %flatearth = flatten($noderec);
+	for my $k (sort keys %flatearth)
+	{
+		my $val = $flatearth{$k};
+		print "$k=$flatearth{$k}\n";
+	}
+	exit 0;
+}
+elsif ($args{act} eq "set")
+{
+	my $node = $args{"node"};
+	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
+
+	my $noderec = $nodeinfo->{$node};
+	die "Node $node does not exist.\n" if (!$noderec);
+	my $anythingtodo;
+
+	for my $name (keys %args)
+	{
+		next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
+		++$anythingtodo;
+
+		my $value = $args{$name};
+		$name =~ s/^entry\.//;
+
+		$noderec->{$name} = $value;
+
+		my $error = translate_dotfields($noderec);
+		die "translation of arguments failed: $error\n" if ($error);
+	}
+	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
+
+	die "Invalid node data, does not have required attributes name, host and group\n"
+			if (!$noderec->{name} or !$noderec->{host} or !$noderec->{group});
+
+	die "Invalid node data, netType \"$noderec->{netType}\" is not known!\n"
+			if (!grep($noderec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));
+	die "Invalid node data, roleType \"$noderec->{roleType}\" is not known!\n"
+			if (!grep($noderec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
+
+	# check the group
+	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
+	if (!grep($_ eq $noderec->{group}, @knowngroups))
+	{
+		print STDERR "\nWarning: your node info sets group \"$noderec->{group}\", which does not exist!
+Please adjust group_list in your configuration,
+or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing groups.\n\n";
+	}
+
+	# ok, looks good enough. save the node info.
+	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
+	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
+	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+
+	print STDERR "Successfully updated node $node.
+You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
+
 	exit 0;
 }
 elsif ($args{act} eq "delete")
@@ -215,11 +287,32 @@ elsif ($args{act} eq "rename")
 {
 	my ($old, $new) = @args{"old","new"};
 
-	my ($error, $msg) = NMIS::rename_node(old => $args{old}, new => $args{new},
+
+	my ($error, $msg) = NMIS::rename_node(old => $old, new => $new,
 																				originator => "node_admin",
 																				info => $infolevel, debug => $debuglevel);
 	die "$msg\n" if ($error);
 	print STDERR "Successfully renamed node $args{old} to $args{new}.\n";
+
+	# any property setting operations requested?
+	if (my @todo =  grep(/^entry\..+/, keys %args))
+	{
+		$nodeinfo = loadLocalNodeTable(); # reread after the rename
+		my $noderec = $nodeinfo->{$new};
+
+		for my $name (@todo)
+		{
+			my $value = $args{$name};
+			$name =~ s/^entry\.//;
+
+			$noderec->{$name} = $value;
+			my $error = translate_dotfields($noderec);
+			die "translation of arguments failed: $error\n" if ($error);
+		}
+		# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
+		writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+		print STDERR "Successfully updated node $new.\n";
+	}
 	exit 0;
 }
 elsif ($args{act} eq "mktemplate")
@@ -303,7 +396,7 @@ elsif ($args{act} =~ /^(create|update)$/)
 	# check correct encoding (utf-8) first, fall back to latin-1
 	$mayberec = eval { decode_json($nodedata); };
 	$mayberec = eval { JSON::XS->new->latin1(1)->decode($nodedata); } if ($@);
-	
+
 	die "Invalid node data, JSON parsing failed: $@\n" if ($@);
 
 	die "Invalid node data, name value \"$mayberec->{name}\" does not match argument \"$node\".
@@ -359,3 +452,117 @@ else
 }
 
 exit 0;
+
+# translates EXISTING deep structure into key1.key2.key3 constructs,
+# also supports key1.N.key2.M but toplevel thing must be hash.
+# args: deep hash ref
+# returns: flat hash
+sub flatten
+{
+	my ($deep, $prefix) = @_;
+	my %flattened;
+
+	if ($prefix)
+	{
+		$prefix .= ".";
+	}
+	else
+	{
+		$prefix='entry.';
+	}
+
+	if (ref($deep) eq "HASH")
+	{
+		for my $k (keys %$deep)
+		{
+			if (ref($deep->{$k}))
+			{
+				%flattened = (%flattened, flatten($deep->{$k}, "$prefix$k"));
+			}
+			else
+			{
+				$flattened{"$prefix$k"} = $deep->{$k};
+			}
+		}
+	}
+	elsif (ref($deep) eq "ARRAY")
+	{
+		for my $idx (0..$#$deep)
+		{
+			if (ref($deep->[$idx]))
+			{
+				%flattened = (%flattened, flatten($deep->[$idx], "$prefix$idx"));
+			}
+			else
+			{
+				$flattened{"$prefix$idx"} = $deep->[$idx];
+			}
+		}
+	}
+	else
+	{
+		die "invalid inputs to flatten: ".Dumper($deep)."\n";
+	}
+	return %flattened;
+}
+
+# this function translates a toplevel hash with fields in dot-notation
+# into a deep structure. this is primarily needed in deep data objects
+# handled by the crudcontroller but not necessarily just there.
+#
+# notations supported: fieldname.number for array,
+# fieldname.subfield for hash and nested combos thereof
+#
+# args: resource record ref to fix up, which will be changed inplace!
+# returns: undef if ok, error message if problems were encountered
+sub translate_dotfields
+{
+	my ($resource) = @_;
+	return "toplevel structure must be hash, not ".ref($resource) if (ref($resource) ne "HASH");
+
+	# we support hashkey1.hashkey2.hashkey3, and hashkey1.NN.hashkey2.MM
+	for my $dotkey (grep(/\./, keys %{$resource}))
+	{
+		my $target = $resource;
+		my @indir = split(/\./, $dotkey);
+		for my $idx (0..$#indir) # span the intermediate structure
+		{
+			my $thisstep = $indir[$idx];
+			# numeric? make array, textual? make hash
+			if ($thisstep =~ /^\d+$/)
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need array but found ".(ref($target) || "leaf value")
+						if (ref($target) ne "ARRAY");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					$target->[$thisstep] = $resource->{$dotkey};
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->[$thisstep] ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+			else											# hash
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need hash but found ". (ref($target) || "leaf value")
+						if (ref($target) ne "HASH");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					$target->{$thisstep} = $resource->{$dotkey};
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->{$thisstep} ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+		}
+		delete $resource->{$dotkey};
+	}
+	return undef;
+}
