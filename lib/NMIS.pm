@@ -2481,7 +2481,7 @@ sub createHrButtons
 					push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));
 		}
-		
+
 		# let's show the possibly many systemhealth items in a dropdown menu
 		if ( defined $S->{mdl}{systemHealth}{sys} )
 		{
@@ -3679,18 +3679,24 @@ sub checkEvent
 		}
 		elsif ( $event =~ /Proactive/ )
 		{
-			# but only if we have cleared the threshold by 10%
-			# for thresholds where high = good (default 1.1)
-			if ( defined($args{value}) and defined($args{reset}) )
+			if ( defined(my $value = $args{value}) and defined(my $reset = $args{reset}) )
 			{
-				if ( $args{value} >= $args{reset} )
-				{
-					return unless $args{value} > $args{reset} * $C->{'threshold_falling_reset_dampening'};
-				}
-				else
-				{
+				# but only if we have cleared the threshold by 10%
+				# for thresholds where high = good (default 1.1)
 				# for thresholds where low = good (default 0.9)
-					return unless $args{value} < $args{reset} * $C->{'threshold_rising_reset_dampening'};
+				my $cutoff = $reset * ($value >= $reset?
+															 $C->{'threshold_falling_reset_dampening'}
+															 : $C->{'threshold_rising_reset_dampening'});
+
+				if ( $value >= $reset && $value <= $cutoff )
+				{
+					dbg("Proactive Event value $value too low for dampening limit $cutoff. Not closing.");
+					return;
+				}
+				elsif ($value < $reset && $value >= $cutoff)
+				{
+					dbg("ProactiveEvent value $value too high for dampening limit $cutoff. Not closing.");
+					return;
 				}
 			}
 			$event = "$event Closed";
