@@ -3695,7 +3695,7 @@ sub checkEvent
 				}
 				elsif ($value < $reset && $value >= $cutoff)
 				{
-					dbg("ProactiveEvent value $value too high for dampening limit $cutoff. Not closing.");
+					dbg("Proactive Event value $value too high for dampening limit $cutoff. Not closing.");
 					return;
 				}
 			}
