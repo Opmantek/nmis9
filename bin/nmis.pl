@@ -5341,7 +5341,11 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
  							dbg("collected response $k value $v");
 
 							# for rrd storage, but only numeric values can be stored!
-							$Val{$k} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
+							# k needs sanitizing for rrd: only a-z0-9_ allowed
+							my $rrdsafekey = $k;
+							$rrdsafekey =~ s/[^a-zA-Z0-9_]/_/g;
+							$rrdsafekey = substr($rrdsafekey,0,19);
+							$Val{$rrdsafekey} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
 
 							if ($k eq "responsetime") # response time is handled specially
 							{
