@@ -44,7 +44,7 @@ sub new
 			installed => undef,
 			# match and value
 			searchbases => { 
-				qr/^nmis$/ => ($arg{nmis_base} ||  "/usr/local/nmis8"),
+				qr/^nmis8$/ => ($arg{nmis_base} ||  "/usr/local/nmis8"),
 				qr/^(oav2|open-audit)$/ => ($arg{oav2_base} || "/usr/local/open-audit"),
 				qr/^opmojo$/ => ($arg{opmojo_base} || "/usr/local/opmojo"),
 				qr/^omk$/ => ($arg{omk_base} || "/usr/local/omk/"),
@@ -101,14 +101,10 @@ sub installedModulesList
 	foreach my $modname (keys %{$modules} ) 
 	{
 		my $thismod = $modules->{$modname};
-		for my $basetag (grep($thismod->{base} =~ $_, keys %{$self->{searchbases}}))
-		{
-			if (-f $self->{searchbases}->{$basetag}."/".$thismod->{file})
-			{
-				push @result, $thismod->{name};
-				last;
-			}
-		}
+		# at most one search base is expected to match!
+		my ($basetag) = (sort grep($thismod->{base} =~ $_, keys %{$self->{searchbases}}));
+		my $basedir = $self->{searchbases}->{$basetag} || ''; # no match means absolute file at fs root
+		push @result, $thismod->{name} if (-f "$basedir/".$thismod->{file});
 	}
 	$self->{installed} = \@result;
 	return @result;
@@ -129,9 +125,10 @@ sub getModuleCode
 		# use the first match, there should be at most one
 		my ($basetag) = (sort grep($base =~ $_, keys %{$self->{searchbases}})); 
 
-		# real link? if installed and not synthetic, e.g. "More Modules"
-		my $link = ($base && $basetag 
-								&& -f ($self->{searchbases}->{$basetag}."/".$modules->{$mod}->{file}))?
+		# which link to show? base+file defined, show link if installed or modules.pl if not,
+		# not base or not file? show link
+		my $link = ((!$base and !$modules->{$mod}->{file})
+								or ($base && -f (($self->{searchbases}->{$basetag} || "")."/".$modules->{$mod}->{file})))?
 								$modules->{$mod}->{link} : $self->{nmis_cgi_url_base}."/modules.pl?module=$mod";
 		$modOption .= qq|<option value="$link">$modules->{$mod}{name}</option>\n|;
 	}
