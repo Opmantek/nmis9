@@ -74,8 +74,7 @@ my $privlevel = 5;
 my $user;
 
 # the updated login screen code needs to know what modules are available
-my $M = NMIS::Modules->new(module_base => $C->{'<opmantek_base>'}, 
-													 nmis_base => $C->{'<nmis_base>'}, 
+my $M = NMIS::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
 													 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
 my $moduleCode = $M->getModuleCode();
 my $installedModules = $M->installedModules();

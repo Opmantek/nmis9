@@ -27,242 +27,133 @@
 #
 # *****************************************************************************
 package NMIS::Modules;
-
-require 5;
+our $VERSION = "1.1.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
 use func;
 
-# Create the class and bless the vars you want to "share"
-sub new {
+sub new 
+{
 	my ($class,%arg) = @_;
 
-	my $debug = undef;
-	if ( defined $arg{debug} ) { $debug = $arg{debug} }
-	elsif ( not defined $debug ) { $debug = 0 }
-
-	my $module_base = undef;
-	if ( defined $arg{module_base} ) { $module_base = $arg{module_base} }
-	elsif ( not defined $module_base ) { $module_base = "/usr/local/opmantek/" }
-
-	my $omk_base = undef;
-	if ( defined $arg{omk_base} ) { $omk_base = $arg{omk_base} }
-	elsif ( not defined $omk_base ) { $omk_base = "/usr/local/omk/" }
-
-	my $opmojo_base = undef;
-	if ( defined $arg{opmojo_base} ) { $opmojo_base = $arg{opmojo_base} }
-	elsif ( not defined $opmojo_base ) { $opmojo_base = "/usr/local/opmojo/" }
-
-	my $nmis_base = undef;
-	if ( defined $arg{nmis_base} ) { $nmis_base = $arg{nmis_base} }
-	elsif ( not defined $nmis_base ) { $nmis_base = "/usr/local/nmis8/" }
-
-	my $oav2_base = undef;
-	if ( defined $arg{oav2_base} ) { $oav2_base = $arg{oav2_base} }
-	elsif ( not defined $oav2_base ) { $oav2_base = "/usr/local/open-audit/" }
-
-	my $nmis_cgi_url_base = undef;
-	if ( defined $arg{nmis_cgi_url_base} ) { $nmis_cgi_url_base = $arg{nmis_cgi_url_base} }
-	elsif ( not defined $nmis_cgi_url_base ) { $nmis_cgi_url_base = "/cgi-nmis8" }
-
-	my $self = {
-	   	modules => {},
-	   	loaded => 0,
-	   	installed => undef,
-	   	module_base => $module_base,
-	   	nmis_base => $nmis_base,
-	   	oav2_base => $oav2_base,
-	   	opmojo_base => $opmojo_base,
-	   	omk_base => $omk_base,
-	   	nmis_cgi_url_base => $nmis_cgi_url_base,
-	   	debug => $debug
-	};
-	bless($self,$class);
-
+	my $self = bless(
+		{
+			modules => {},
+			loaded => 0,
+			installed => undef,
+			# match and value
+			searchbases => { 
+				qr/^nmis8$/ => ($arg{nmis_base} ||  "/usr/local/nmis8"),
+				qr/^(oav2|open-audit)$/ => ($arg{oav2_base} || "/usr/local/open-audit"),
+				qr/^opmojo$/ => ($arg{opmojo_base} || "/usr/local/opmojo"),
+				qr/^omk$/ => ($arg{omk_base} || "/usr/local/omk/"),
+			},
+			# link constuction, not search
+			nmis_cgi_url_base => 	$arg{nmis_cgi_url_base} || "/cgi-nmis8",
+		}, $class);
 	return $self;
 }
 
-sub loadModules {
+sub loadModules 
+{
 	my $self = shift;
 	$self->{modules} = loadTable(dir=>'conf',name=>"Modules");
 	$self->{loaded} = 1;
 }
 
-sub getModules {
+sub getModules 
+{
 	my $self = shift;
 	if ( not $self->{loaded} ) {
-		$self->loadModules;	
+		$self->loadModules;
 	}
-	return $self->{modules};	
+	return $self->{modules};
 }
 
-sub moduleInstalled {
+# args: module (= name)
+# returns: 1 if installed, 0 if not
+sub moduleInstalled 
+{
 	my ($self,%arg) = @_;
-	my $installedModules = $self->installedModules(); # fixme should be an array NOT a commastring
-	# fixme this is imprecise and brittle
-	if ( $installedModules =~ /$arg{module}/ ) {
-		return 1;
-	}
-	return 0;	
+	return grep($_ eq $arg{module}, $self->installedModulesList)? 1 : 0;
 }
 
-sub installedModules {
+# args: none
+# returns: string, comma-separated list of module names
+sub installedModules 
+{
 	my $self = shift;
-	my $installedModules;
-	my @installed;
-	
-	# from the cache
-	if ( defined $self->{installed} ) {
-		return $self->{installed};
-	}
-	else {
-		my $modules = $self->getModules();
-		
-		foreach my $mod (keys %{$modules} ) {
-			if ( $modules->{$mod}{base} eq "opmantek" ) { 
-				print STDERR "DEBUG: module_base=$self->{module_base} base=$modules->{$mod}{base}, $self->{module_base}$modules->{$mod}{file}\n" if $self->{debug};
-				if ( -f "$self->{module_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "omk" ) { 
-				if ( -f "$self->{omk_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "opmojo" ) { 
-				if ( -f "$self->{opmojo_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "open-audit" ) { 
-				if ( -f "$self->{oav2_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} =~ /nmis/ ) {
-				print STDERR "DEBUG: nmis_base=$self->{nmis_base} base=$modules->{$mod}{base}, $self->{nmis_base}$modules->{$mod}{file}\n" if $self->{debug};
-				if ( -f "$self->{nmis_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-		}
-		
-		$installedModules = join(",",@installed);
-		
-		# cache this for later use
-		$self->{installed} = $installedModules;
-		return $installedModules;	
-	}
+	return join(",", $self->installedModulesList);
 }
 
-sub installedModulesList {
+# args: none
+# returns: list of installed modules (maybe empty)
+sub installedModulesList 
+{
 	my $self = shift;
-	my $installedModules;
-	my @installed;
-	
-	# from the cache
-	if ( defined $self->{installed} ) {
-		return $self->{installed};
-	}
-	else {
-		my $modules = $self->getModules();
-		
-		foreach my $mod (keys %{$modules} ) {
-			if ( $modules->{$mod}{base} eq "opmantek" ) { 
-				print STDERR "DEBUG: module_base=$self->{module_base} base=$modules->{$mod}{base}, $self->{module_base}$modules->{$mod}{file}\n" if $self->{debug};
-				if ( -f "$self->{module_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "omk" ) { 
-				if ( -f "$self->{omk_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "opmojo" ) { 
-				if ( -f "$self->{opmojo_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} eq "open-audit" ) { 
-				if ( -f "$self->{oav2_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-			elsif ( $modules->{$mod}{base} =~ /nmis/ ) {
-				print STDERR "DEBUG: nmis_base=$self->{nmis_base} base=$modules->{$mod}{base}, $self->{nmis_base}$modules->{$mod}{file}\n" if $self->{debug};
-				if ( -f "$self->{nmis_base}$modules->{$mod}{file}" ) {
-					push(@installed,$modules->{$mod}{name});
-				}
-			}
-		}
-		
-		$installedModules = join(",",@installed);
-		
-		# cache this for later use
-		$self->{installed} = $installedModules;
-		return @installed;	
-	}
-}
 
+	# cache?
+	return @{$self->{installed}} if (ref($self->{installed}) eq "ARRAY");
+
+	my @result;
+	my $modules = $self->getModules();
+	foreach my $modname (keys %{$modules} ) 
+	{
+		my $thismod = $modules->{$modname};
+		# at most one search base is expected to match!
+		my ($basetag) = (sort grep($thismod->{base} =~ $_, keys %{$self->{searchbases}}));
+		my $basedir = $self->{searchbases}->{$basetag} || ''; # no match means absolute file at fs root
+		push @result, $thismod->{name} if (-f "$basedir/".$thismod->{file});
+	}
+	$self->{installed} = \@result;
+	return @result;
+}
 
 # returns html for a menu, works only within the main nmis gui
-sub getModuleCode {
+sub getModuleCode 
+{
 	my $self = shift;
 
-	my $modCode;
-	my $modOption;
-	
+	my $modOption .= qq|<option value="https://opmantek.com/" selected="NMIS Modules">NMIS Modules</option>\n|;
+
 	my $modules = $self->getModules();
-	
-	$modOption .= qq|<option value="https://opmantek.com" selected="NMIS Modules">NMIS Modules</option>\n|;
-	foreach my $mod (sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) {
-		my $link = $modules->{$mod}{link};
-		my $base = $self->{module_base};
-		if ( $modules->{$mod}{base} =~ /nmis/ ) {
-			$base = $self->{nmis_base};
-		}
-		elsif ( $modules->{$mod}{base} =~ /oav2|open-audit/ ) {
-			$base = $self->{oav2_base};
-		}
-		elsif ( $modules->{$mod}{base} =~ /opmojo/ ) {
-			$base = $self->{opmojo_base};
-		}
-		elsif ( $modules->{$mod}{base} eq "omk" ) {
-			$base = $self->{omk_base};
-		}
-		
-		if ( not $mod =~ /Modules/ and not -f "$base$modules->{$mod}{file}" ) {
-			$link = "$self->{nmis_cgi_url_base}/modules.pl?module=$mod";
-		}
+	foreach my $mod (sort { $modules->{$a}{order} <=> $modules->{$b}{order} } 
+									 (keys %{$modules}) ) 
+	{
+		my $base = $modules->{$mod}->{base};
+		# use the first match, there should be at most one
+		my ($basetag) = (sort grep($base =~ $_, keys %{$self->{searchbases}})); 
+
+		# which link to show? base+file defined, show link if installed or modules.pl if not,
+		# not base or not file? show link
+		my $link = ((!$base and !$modules->{$mod}->{file})
+								or ($base && -f (($self->{searchbases}->{$basetag} || "")."/".$modules->{$mod}->{file})))?
+								$modules->{$mod}->{link} : $self->{nmis_cgi_url_base}."/modules.pl?module=$mod";
 		$modOption .= qq|<option value="$link">$modules->{$mod}{name}</option>\n|;
 	}
-	
-	$modCode = qq|
-			<div class="left"> 
+
+	return qq|
+			<div class="left">
 				<form id="viewpoint">
 					<select name="viewselect" onchange="window.open(this.options[this.selectedIndex].value);" size="1">
 						$modOption
 					</select>
 				</form>
 			</div>|;
-		
-	return $modCode;
 }
 
-# returns an array ref of [module title, link, tagline] 
+# returns an array ref of [module title, link, tagline]
 # for every known module (installed or not)
 sub getModuleLinks
 {
 	my ($self) = @_;
 	my @links;
-	
+
 	my $modules = $self->getModules();
 	my @installed = $self->installedModulesList();
-	foreach my $mod 
-			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) ) 
+	foreach my $mod
+			(sort { $modules->{$a}{order} <=> $modules->{$b}{order} } (keys %{$modules}) )
 	{
 		my $thismod = $modules->{$mod};
 
@@ -270,9 +161,9 @@ sub getModuleLinks
 		next if ((!$thismod->{base} and !$thismod->{file})
 						 or $thismod->{name} eq "opService"); # on the way out
 
-		my $modInstalled = ( grep { /$mod/ } @installed) ? 1 : 0;		
+		my $modInstalled = grep($_ eq $mod, @installed) ? 1 : 0;
 		my $link = $modInstalled ? $thismod->{link} : "https://opmantek.com/network-management-system-tools/";
-		
+
 		push @links, [$thismod->{name}, $link, $thismod->{tagline}];
 	}
 	return \@links;
@@ -280,4 +171,3 @@ sub getModuleLinks
 
 
 1;
-                                                                                                                                                                                                                                                        
