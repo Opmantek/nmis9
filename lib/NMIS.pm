@@ -412,9 +412,7 @@ sub loadCfgTable {
 		],
 
   	'modules' => [
-				{ '<opmantek_base>' => { display => 'text', value => ['/usr/local/opmantek']}},
 				{ 'display_opmaps_widget' => { display => 'popup', value => ["true", "false"]}},
-				{ 'display_opflow_widget' => { display => 'popup', value => ["true", "false"]}},
 		],
 
   	'directories' => [

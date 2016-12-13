@@ -36,37 +36,25 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
+use Data::Dumper;
 use func;
 use NMIS::Modules;
 
-my %nvp;
+my $C = loadConfTable();
+my $M = NMIS::Modules->new();
 
-# load configuration table
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
-
-my $M = NMIS::Modules->new(module_base=>$C->{'<opmantek_base>'});
 my $modules = $M->getModules();
 foreach my $mod (keys %{$modules} ) {
-	print "DEBUG1 mod=$mod\n";
+	print "known module $mod\n";
 }
 
-foreach my $mod (keys %{$M->{modules}} ) {
-	print "DEBUG2 mod=$mod\n";
-}
+print "installedlist: ".Dumper([$M->installedModulesList]);
+print "installedModules ugly list: ".$M->installedModules()."\n";
 
 my $moduleCode = $M->getModuleCode();
-print $moduleCode;
-print "\n";
+print "module code: ". $moduleCode."\n";
 
-my $installedModules = $M->installedModules();
-print "installedModules=$installedModules\n";
-
-my @moduleTest = qw(opMaps opReports);
-foreach my $mod (@moduleTest) {
-	if ( $M->moduleInstalled(module => $mod) ) {
-		print "module $mod is installed\n";
-	}
-	else {
-		print "module $mod is NOT installed\n";		
-	}
+foreach my $maybemod (@ARGV)
+{
+	print "module $maybemod ". ($M->moduleInstalled(module => $maybemod)? "is":"IS NOT"). " installed\n";
 }

@@ -43,8 +43,8 @@
 	  'opMaps' => {
 	    'order' => '5',
 	    'name' => 'opMaps',
-	    'base' => 'opmantek',
-	    'file' => '/cgi-bin/opMaps.pl',
+	    'base' => '/',
+	    'file' => '/usr/local/opmantek/cgi-bin/opMaps.pl',
 	    'link' => '/cgi-omk/opMaps.pl',
 	    'description' => 'The opMaps module, provides enhanced operational capabilities, relating real time data collected by NMIS with a geographical context.  This provides staff and management an common ground for understanding current service and business impact.',
 	    'tagline' => 'Provides enhanced operational capabilities with a geographical context.'

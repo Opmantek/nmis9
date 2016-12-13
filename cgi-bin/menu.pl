@@ -156,8 +156,10 @@ sub menu_bar_site {
 	print $q->end_ul();
 
 	
-	sub menu_site {
-		my $M = NMIS::Modules->new(module_base=>$C->{'<opmantek_base>'});
+	sub menu_site 
+	{
+		my $M = NMIS::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
+													 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
 		my $modules = $M->getModules();
 
 		my @menu_site = [];
