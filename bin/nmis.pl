@@ -5374,6 +5374,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 							$rrdsafekey = substr($rrdsafekey,0,19);
 							$Val{$rrdsafekey} = { value => defined($rescaledv)? $rescaledv : $v,
 																		option => "GAUGE,U:U,$serviceheartbeat" };
+							# record the relationship between extra readings and the DS names they're stored under
+							$status{$service}->{ds}->{$k} = $rrdsafekey;
 
 							if ($k eq "responsetime") # response time is handled specially
 							{

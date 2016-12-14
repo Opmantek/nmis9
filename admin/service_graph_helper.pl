@@ -35,7 +35,7 @@
 #
 # this helper guides you through the process of creating custom graphs
 # for such services.
-our $VERSION = "1.0.0";
+our $VERSION = "1.1.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -74,13 +74,13 @@ my $config = loadConfTable(conf=>$confname,
 die "could not load configuration $confname!\n"
 		if (!$config or !keys %$config);
 
-my $dia = UI::Dialog->new('title' => "Service Graph Helper", 
-													height => 20, 
+my $dia = UI::Dialog->new('title' => "Service Graph Helper",
+													height => 20,
 													width =>  70,
 													listheight => 15, order => [ 'cdialog', 'ascii']); # whiptail/newt doesn't behave well
 
 $dia->msgbox("text" => "This helper will guide you through the creation
-of a simple custom graph for an custom NMIS service. 
+of a simple custom graph for an custom NMIS service.
 
 Clicking Cancel at any stage will abort the helper.
 Use the arrow keys and tab to navigate, space to select from lists.");
@@ -91,7 +91,7 @@ my %allsvc = loadServiceStatus;
 # only interested in this server's services!
 %allsvc = %{$allsvc{$config->{server_name}}} if (ref($allsvc{$config->{server_name}}) eq "HASH");
 
-	
+
 my $servicesel = $dia->menu( text => "Please select the service you want to graph:",
 														 list => [ map { ($_,'') } (sort keys %allsvc) ] );
 
@@ -107,11 +107,12 @@ my $thissvc = $allsvc{$servicesel}->{$nodesel};
 
 if (!$thissvc->{status})
 {
-	$dia->msgbox( text => "The service $servicesel seems to be down on node $nodesel. 
+	$dia->msgbox( text => "The service $servicesel seems to be down on node $nodesel,
+and no graph can be created until reliable service data is available.
 Please pick a different node!");
 	exit 0;
 }
-								
+
 # standard readings
 my @readings = [service => 'service status'];
 push @readings, [responsetime => "response time"] if (defined $thissvc->{responsetime});
@@ -124,29 +125,29 @@ if (ref($thissvc->{extra}) eq "HASH")
 	push @readings, map { [ $_ => "custom" ] } (sort keys %{$thissvc->{extra}})
 }
 
-$dia->msgbox(text => "This service collects the following measurements, which 
+$dia->msgbox(text => "This service collects the following measurements, which
 are available for graphing: ". join(", ", map { $_->[0] } (@readings)));
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 
-my ($shortname, @whichds);
+my ($shortname, @whichreadings);
 while (1)
 {
 	undef $shortname;
-	@whichds = $dia->checklist(text => "Please select one ore more measurements to include on your graph:",
+	@whichreadings = $dia->checklist(text => "Please select one or more measurements to include on your graph:",
 														 list => [ map { $_->[0] => [ $_->[1], 0 ] } (@readings) ] );
 	die "User cancelled operation.\n" if ($dia->state ne "OK");
-	
-	if (@whichds == 1)
+
+	if (@whichreadings == 1)
 	{
-		if ($whichds[0] =~ /^(service|responsetime)$/)
+		if ($whichreadings[0] =~ /^(service|responsetime)$/)
 		{
-			$dia->msgbox(text => "There is already a standard graph for \"$whichds[0]\". Please pick a different measurement.");
+			$dia->msgbox(text => "There is already a standard graph for \"$whichreadings[0]\". Please pick a different measurement.");
 			next;
 		}
-		$shortname = $whichds[0];
+		$shortname = $whichreadings[0];
 		last;
 	}
-	elsif (!@whichds)
+	elsif (!@whichreadings)
 	{
 		$dia->msgbox(text => "You have to pick at least one measurement.");
 	}
@@ -158,11 +159,11 @@ while (1)
 
 while (!$shortname)
 {
-  $shortname = $dia->inputbox(text => "Please enter a name for your new graph. 
+  $shortname = $dia->inputbox(text => "Please enter a name for your new graph.
 The name should be short and must not contain any characters except a-z, 0-9, _, - or .",
 															entry =>  "");
 	die "User cancelled operation.\n" if ($dia->state ne "OK");
-	
+
 	$shortname = lc($shortname);
 	$shortname =~ s/[^a-z0-9\._]//g;
 }
@@ -178,39 +179,39 @@ my $newtitle = $dia->inputbox( text => "Please set the new graph title below. Th
 NMIS-variables written as \"\$varname\" will be substituted.",
 															 entry => escape($graph{title}->{standard}) );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
-$graph{title}->{standard} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/ 
+$graph{title}->{standard} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																					and $newtitle ne $graph{title}->{standard});
 
 $newtitle = $dia->inputbox( text => "Please set the new graph title below. This is for small graphs.
 NMIS-variables written as \"\$varname\" will be substituted.",
 															 entry => escape($graph{title}->{short}) );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
-$graph{title}->{short} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/ 
+$graph{title}->{short} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																			 and $newtitle ne $graph{title}->{short});
 
 
 my $vlabel = $dia->inputbox ( text => "Please enter the new vertical axis label, or leave it empty for none. This is for full-sized graphs.",
 															entry => $graph{vlabel}->{standard});
 die "User cancelled operation.\n" if ($dia->state ne "OK");
-$graph{vlabel}->{standard} = $vlabel if ($vlabel and $vlabel !~ /^\s*$/ 
+$graph{vlabel}->{standard} = $vlabel if ($vlabel and $vlabel !~ /^\s*$/
 																				 and $vlabel ne $graph{vlabel}->{standard});
 
 $vlabel = $dia->inputbox ( text => "Please enter the new vertical axis label, or leave it empty for none. This is for small graphs.",
 															entry => $graph{vlabel}->{small});
 die "User cancelled operation.\n" if ($dia->state ne "OK");
-$graph{vlabel}->{small} = $vlabel if ($vlabel and $vlabel !~ /^\s*$/ 
+$graph{vlabel}->{small} = $vlabel if ($vlabel and $vlabel !~ /^\s*$/
 																			and $vlabel ne $graph{vlabel}->{small});
 
-						
+
 # for each choice: ask for line colour (menu of 16 named ones), label, include as gprint too and format (if so)
-for my $idx (0..$#whichds)
+for my $idx (0..$#whichreadings)
 {
-	my $ds = $whichds[$idx];
-	
+	my $reading = $whichreadings[$idx];
+
 	my @choices;
 	while (!@choices)
 	{
-		@choices = $dia->checklist(text => "Please select how measurement \"$ds\" should be graphed:",
+		@choices = $dia->checklist(text => "Please select how measurement \"$reading\" should be graphed:",
 															 list => [ "line" => [ "as a line", 1 ],
 																				 "avg" => [ "show average with legend", 1 ],
 																				 "min" => [ "show min with legend (large graph only)", 0 ],
@@ -218,21 +219,26 @@ for my $idx (0..$#whichds)
 		die "User cancelled operation.\n" if ($dia->state ne "OK");
 	}
 
-	my $label = $dia->inputbox( text => "Please enter the new label for measurement \"$ds\":",
-															entry => $ds);
+	my $label = $dia->inputbox( text => "Please enter the new label for measurement \"$reading\":",
+															entry => $reading);
+	$label =~ s/:/\\:/g;					# required for rrdtool
 	die "User cancelled operation.\n" if ($dia->state ne "OK");
-	
+
+	# figure out the actual rrd ds, which should be part of the service definition
+	my $ds = ref($thissvc->{ds}) eq "HASH" && defined($thissvc->{ds}->{$reading})? $thissvc->{ds}->{$reading} : $reading;
+	$ds =~ s/[^a-zA-Z0-9_]/_/g;		# bsts
+
 	push @{$graph{option}->{standard}}, "DEF:$ds=\$database:$ds:AVERAGE";
 	push @{$graph{option}->{small}}, "DEF:$ds=\$database:$ds:AVERAGE";
-	
+
 
 	if (grep($_ eq "line", @choices))
 	{
 		my $color;
-		
+
 		while (!$color)
 		{
-			$color = $dia->radiolist(text => "Please select a line color for \"$ds\":",
+			$color = $dia->radiolist(text => "Please select a line color for \"$reading\":",
 															 list => [ "C0C0C0" => [ "Silver" , 0 ],
 																				 "808080" => [ "Gray", 0 ],
 																				 "000000" =>  ["Black", 0],
@@ -266,7 +272,7 @@ for my $idx (0..$#whichds)
 	for my $thisprint (@choices)
 	{
 		next if ($thisprint eq "line"); # already done
-		
+
 		my %rrdtype = ( "avg" => "AVERAGE", "min" => "MIN", "max" => "MAX" );
 		my %labeltype = ( "avg" => "Avg", "min" => "Min", "max" => "Max" );
 		my %formats = ( "percent" => '%9.3lf%%',
@@ -279,7 +285,7 @@ for my $idx (0..$#whichds)
 			$labeltype{$thisprint} = "$label $labeltype{$thisprint}" if (!grep($_ eq "line", @choices));
 			$labeldone = 1;
 		}
-		
+
 		if (!$formatchoice)
 		{
 			while (!$formatchoice)
@@ -315,7 +321,7 @@ if (-f $savefilename)
 	{
 		my $backupname = "$savefilename.backup";
 		unlink($backupname);
-		
+
 		my $isok = rename($savefilename, $backupname);
 		die "Cannot rename $savefilename to $backupname: $!\n" if (!$isok);
 
