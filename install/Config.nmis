@@ -1,6 +1,5 @@
-my %hash = ( 		 
+my %hash = (
   'modules' => {
-    '<opmantek_base>' => '/usr/local/opmantek',
     'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
     'display_module_list' => 'true',
@@ -14,12 +13,12 @@ my %hash = (
     'rss_widget_width' => '210',
     'rss_widget_height' => '460'
   },
-	
+
   'online' => {
     'nmis_docs_online' => 'https://community.opmantek.com/',
     'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
-  
+
 	'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',
     '<nmis_admin>' => '<nmis_base>/admin',
@@ -43,13 +42,13 @@ my %hash = (
 		'plugin_root' => '<nmis_conf>/plugins',
 		'<nmis_backups>' => '<nmis_data>/backups',
   },
-  
+
 	'globals' => {
     'global_threshold' => 'true', # advanced thresholds enabled or not
     'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
 		'threshold_poll_node' => 'true', # or perform threshold computation with each node
-    'threshold_rising_reset_dampening' => '0.9',
-    'threshold_falling_reset_dampening' => '1.1',
+    'threshold_rising_reset_dampening' => '0.95',
+    'threshold_falling_reset_dampening' => '1.05',
     'global_collect_Description' => '(CNOC|Collection)',
 		'global_collect_ifDescr' => '',
     'global_nocollect_ifOperStatus' => '',
@@ -66,7 +65,7 @@ my %hash = (
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com'
   },
-  
+
 	'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
 		"roletype_list" => "core,distribution,access,default",
@@ -79,7 +78,7 @@ my %hash = (
     # if this option is present, then *only* properties listed here will be shown in the node view,
     # and in precisely this order. custom properties are supported.
     'network_viewNode_field_list' => 'status,sysName,host_addr,group,customer,location,businessService,serviceStatus,nodeType,nodeModel,sysUpTime,sysLocation,sysContact,sysDescr,ifNumber,lastUpdate,nodeVendor,sysObjectName,roleType,netType',
-		
+
 		# if this option is present use binary logic for node down and set the level to the overall_node_status_level
     'overall_node_status_coarse' => 'false',
     'overall_node_status_level' => 'Critical',
@@ -87,13 +86,13 @@ my %hash = (
 		# if this option is present and enabled, a nodes health impacts its reported summary, providing VERY granular status.
     'node_status_uses_status_summary' => 'false',
     'display_status_summary' => 'false',
-    
+
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 
 		'nmis_mthread' => 'false',
 		'nmis_maxthreads' => '10',
-		
+
     'nmis_host' => 'localhost',
     'nmis_host_protocol' => 'http',
     'domain_name' => '',
@@ -200,7 +199,7 @@ my %hash = (
 		# set to false to disable keeping of closed events in history section
 		'keep_event_history' => 'true',
 		'use_json' => 'true',
-		'use_json_pretty' => 'false', 
+		'use_json_pretty' => 'false',
   },
 
   'url' => {
@@ -209,7 +208,7 @@ my %hash = (
     '<menu_url_base>' => '/menu8',
     'web_report_root' => '<url_base>/reports'
   },
-	
+
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
     'rrddraw' => '<cgi_url_base>/rrddraw.pl', #'rrddraw' => '<cgi_url_base>/opmantek_rrddraw.pl',
@@ -232,20 +231,20 @@ my %hash = (
     'nmis_slave' => '<menu_url_base>/img/slave.png',
     'company_logo' => ''
   },
-	
+
   'css' => {
     'jquery_jdmenu_css' => '<menu_url_base>/css/jquery.jdMenu.css',
     'jquery_ui_css' => '<menu_url_base>/css/smoothness/jquery-ui-1.9.2.custom.css',
     'styles' => '<menu_url_base>/css/dash8.css'
   },
-	
+
   'javascript' => {
     'jquery' => '<menu_url_base>/js/jquery-1.8.3.min.js',
     'jquery_ui' => '<menu_url_base>/js/jquery-ui-1.9.2.custom.js',
     'jquery_bgiframe' => '<menu_url_base>/js/jquery.bgiframe-2.1.2.js',
     'jquery_positionby' => '<menu_url_base>/js/jquery.positionBy.js',
-    'jquery_jdmenu' => '<menu_url_base>/js/jquery.jdMenu.js',			
-    'calendar' => '<menu_url_base>/js/calendar.js',			
+    'jquery_jdmenu' => '<menu_url_base>/js/jquery.jdMenu.js',
+    'calendar' => '<menu_url_base>/js/calendar.js',
     'calendar_setup' => '<menu_url_base>/js/calendar-setup.js',
     'jquery_ba_dotimeout' => '<menu_url_base>/js/jquery.ba-dotimeout.min.js',
     'nmis_common' => '<menu_url_base>/js/commonv8.js',
@@ -253,7 +252,7 @@ my %hash = (
     'highcharts' => '', #'<menu_url_base>/js/highcharts.js',
     'highstock' => '', #'<menu_url_base>/js/highstock.js'
   },
-	
+
   'email' => {
     'mail_server' => '127.0.0.1',
     'mail_server_ipproto' => undef,
@@ -266,14 +265,14 @@ my %hash = (
     'mail_user' => 'your mail username',
     'mail_password' => ''
   },
-	
+
   'syslog' => {
     'syslog_server' => 'localhost:udp:514',
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
     'syslog_events' => 'false'
   },
-	
+
   'sql' => {
     'nmisdb' => 'nmisdb',
     'db_server' => 'localhost',
@@ -290,7 +289,7 @@ my %hash = (
     'db_debug' => '0',
     'db_links_sql' => 'false'
   },
-	
+
   'daemons' => {
     'logwatch' => 'false',
     'daemon_ipsla_active' => 'false',
@@ -299,7 +298,7 @@ my %hash = (
     'daemon_fping_dns_cache' => 'true',
     'daemon_fping_filename' => 'fpingd.pl'
   },
-	
+
   'authentication' => {
 		'auth_lockout_after' => 0,
     'auth_debug' => '',
@@ -314,7 +313,7 @@ my %hash = (
     'auth_radius_secret' => '',
     'auth_user_name_regex' => '[\w \-\.\@\`\']+',
     'auth_web_key' => 'Please Change Me!',
-    'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading . 
+    'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
     'auth_radius_server' => '',
     'auth_expire' => '+30min',
     'auth_login_title' => 'NMIS8 login',
@@ -388,7 +387,7 @@ my %hash = (
     'metric_comparison_first_period' => '-8 hours',
     'metric_comparison_second_period' => '-16 hours',
     'metric_int_utilisation_above' => '-1',
-    
+
     'weight_availability' => '0.1',
     'weight_cpu' => '0.2',
     'weight_int' => '0.3',
@@ -498,6 +497,6 @@ my %hash = (
 		'purge_backup_after' => 30*86400, # backup files
 		'purge_state_after' => 30*86400,	 # unused nmis state files
 		'purge_event_after' => 30*86400,	 # historic, closed events
-		'purge_jsonlog_after' => 30*86400, # json log files 
+		'purge_jsonlog_after' => 30*86400, # json log files
 	},
 );
