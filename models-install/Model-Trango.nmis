@@ -52,7 +52,7 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,env-temp,modemMSE,power,inDropPackets,lockstat',
+    'nodegraph' => 'health,response,env-temp,modemMSE,power,inDropPackets,lockstat',
     'nodeModel' => 'Trango',
     'nodeType' => 'generic',
     'sys' => {

@@ -28,28 +28,69 @@
 #  
 # ************************************************************************
 
+#mtxrWlRtabTxRate OBJECT-TYPE
+#    SYNTAX Gauge32
+#    MAX-ACCESS read-only
+#    STATUS current
+#    DESCRIPTION "bits per second"
+#    ::= { mtxrWlRtabEntry 8 }
+#
+#mtxrWlRtabRxRate OBJECT-TYPE
+#    SYNTAX Gauge32
+#    MAX-ACCESS read-only
+#    STATUS current
+#    DESCRIPTION "bits per second"
+#    ::= { mtxrWlRtabEntry 9 }
+#
+
 %hash = (
 	'title' => {
-		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'standard' => '$node LinkRate Rx/Tx - $length from $datestamp_start to $datestamp_end',
+		'short' => 'LinkRate Rx/Tx'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => 'Bits Rx/Tx'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.2lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.2lf',
-			'GPRINT:linkrate:MAX:Max %6.2lf\\n',			
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %6.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %6.2lf %sbps\\n',
 		],
 		'small' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.0lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.0lf',
-			'GPRINT:linkrate:MAX:Max %6.0lf\\n',			
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %1.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %1.2lf %sbps\\n',
 		]
 	}
 );

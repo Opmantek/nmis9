@@ -30,39 +30,52 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Capacity'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Bits Rx/Tx'
+		'standard' => 'dBm',
 	},
 	'option' => {
 		'standard' => [
-			'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
-			'DEF:txCapacity=$database:txCapacity:AVERAGE',
+			'DEF:signal=$database:signal:AVERAGE',
+			'DEF:sigquality=$database:sigquality:AVERAGE',
+			'DEF:snr=$database:snr:AVERAGE',
+			
+			'LINE2:signal#006400:Signal Level\\t',
+			'GPRINT:signal:LAST:Current %6.2lf',
+			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
+			'GPRINT:signal:MAX:Max %6.2lf\\n',
+			
+			'LINE2:sigquality#4daef6:Signal Quality',
+			'GPRINT:sigquality:LAST:Current %6.2lf',
+			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
+			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
 
-      'CDEF:txCapacitySplit=txCapacity,-1,*',
-			'AREA:rxCapacity#40E0D0:RX Capacity\\t',
-			'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
-			'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps',
-			'GPRINT:rxCapacity:MAX:Max %6.2lf %sbps\\n',
-				 
-			'AREA:txCapacitySplit#4daef6:TX Capacity\\t',
-			'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
-			'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps',
-			'GPRINT:txCapacity:MAX:Max %6.2lf %sbps\\n', 
+			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'GPRINT:snr:LAST:Current %6.2lf',
+			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
+			'GPRINT:snr:MAX:Max %6.2lf\\n',
+
 		], 
 		'small' => [ 
-			'DEF:rxCapacity=$database:rxCapacity:AVERAGE',
-			'DEF:txCapacity=$database:txCapacity:AVERAGE',
+			'DEF:signal=$database:signal:AVERAGE',
+			'DEF:sigquality=$database:sigquality:AVERAGE',
+			'DEF:snr=$database:snr:AVERAGE',
+			
+			'LINE2:signal#006400:Signal Level\\t',
+			'GPRINT:signal:LAST:Current %6.2lf',
+			'GPRINT:signal:AVERAGE:Avg. %6.2lf',
+			'GPRINT:signal:MAX:Max %6.2lf\\n',
 
-      'CDEF:txCapacitySplit=txCapacity,-1,*',
-			'AREA:rxCapacity#40E0D0:RX Capacity',
-			'GPRINT:rxCapacity:LAST:Current %6.2lf %sbps',
-			'GPRINT:rxCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
-				 
-			'AREA:txCapacitySplit#4daef6:TX Capacity',
-			'GPRINT:txCapacity:LAST:Current %6.2lf %sbps',
-			'GPRINT:txCapacity:AVERAGE:Avg. %6.2lf %sbps\\n',
+			'LINE2:sigquality#4daef6:Signal Quality',
+			'GPRINT:sigquality:LAST:Current %6.2lf',
+			'GPRINT:sigquality:AVERAGE:Avg. %6.2lf',
+			'GPRINT:sigquality:MAX:Max %6.2lf\\n',
+			
+			'LINE2:snr#7FFF00:SNR\\t\\t',
+			'GPRINT:snr:LAST:Current %6.2lf',
+			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
+			'GPRINT:snr:MAX:Max %6.2lf\\n',
 		],
 				
 	}

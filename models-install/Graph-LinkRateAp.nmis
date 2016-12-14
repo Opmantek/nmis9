@@ -34,38 +34,48 @@
 		'short' => 'LinkRate Rx/Tx'
 	},
 	'vlabel' => {
-		'standard' => 'Bytes Rx/Tx'
+		'standard' => 'Bits Rx/Tx'
 	},
 	'option' => {
 		'standard' => [
       'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
       'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
             
       # CREATE SPLIT
-      'CDEF:split_linkRateTx=linkRateTx,-1,*',
-      # DRAW GRAPH
-      'AREA:linkRateRx#00cc00:Rx Link Rate',
-      'GPRINT:linkRateRx:AVERAGE:Avg. %1.2lf %sbps',
-      'GPRINT:linkRateRx:MAX:Max %1.2lf %sbps\\n',
-      #
-      'AREA:split_linkRateTx#4daef6:Tx Link Rate',
-      'GPRINT:linkRateTx:AVERAGE:Avg. %1.2lf %sbps',
-      'GPRINT:linkRateTx:MAX:Max %1.2lf %sbps\\n',
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %6.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %6.2lf %sbps\\n',
 		],
 		'small' => [
       'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
       'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
             
       # CREATE SPLIT
-      'CDEF:split_linkRateTx=linkRateTx,-1,*',
-      # DRAW GRAPH
-      'AREA:linkRateRx#00cc00:Rx Link Rate',
-      'GPRINT:linkRateRx:AVERAGE:Avg. %1.2lf %sbps',
-      'GPRINT:linkRateRx:MAX:Max %1.2lf %sbps\\n',
-      #
-      'AREA:split_linkRateTx#4daef6:Tx Link Rate',
-      'GPRINT:linkRateTx:AVERAGE:Avg. %1.2lf %sbps',
-      'GPRINT:linkRateTx:MAX:Max %1.2lf %sbps\\n',
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %1.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %1.2lf %sbps\\n',
 		]
 	}
 );

@@ -99,6 +99,7 @@ sub checkNode {
 		my @cpuSections = qw(hrsmpcpu);
 
 		my @systemHealthSections = qw(
+				hrdisk
 				bgpPeer
 				mtxrWlRtab
 				mtxrWlAp
@@ -246,10 +247,10 @@ sub checkNode {
    #      "bgpPeer" : "bgpPeerStats,bgpPeer"
    #   },
       
-      	print "INFO: $node working on @systemHealthSections\n" if $debug;
+			      	print "INFO: $node working on @systemHealthSections\n" if $debug;
 				# clean up systemHealth Sections, BGP Peers initially
 				foreach my $section (@systemHealthSections) {
-	      	print "  looking for $section in graphtype\n" if $debug;
+				      	print "  looking for $section with index $indx in graphtype\n" if $debug;
 					if ( defined $NI->{graphtype}{$indx}{$section} 
 						and exists $NI->{$section}
 						and (keys %{$NI->{$section}}) 

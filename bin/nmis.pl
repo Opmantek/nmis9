@@ -5294,10 +5294,22 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					if (getbool($svc->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
+						# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
 						if ($flavour_nagios)
 						{
-							my @expandedresponses = map { split /\|/ } (@responses);
-							@responses = @expandedresponses;
+							# ditch any whitespace around the |
+							my @expandedresponses = map { split /\s*\|\s*/ } (@responses);
+
+							@responses = ($expandedresponses[0]); # start with the first line, as is
+							# in addition to the | mode, any subsequent lines can carry any number of
+							# 'performance measurements', which are hard to parse out thanks to a fairly lousy format
+							for my $perfline (@expandedresponses[1..$#expandedresponses])
+							{
+								while ($perfline =~ /([^=]+=\S+)\s*/g)
+								{
+									push @responses, $1;
+								}
+							}
 						}
 
 						# now determine how to save the values in question
@@ -5314,9 +5326,17 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								next;
 							}
 
+							# normal expectation: values reported are unit-less, ready for final use
+							# expectation not guaranteed by nagios
 							my ($k,$v) = split(/=/,$response,2);
+							my $rescaledv;
+
 							if ($flavour_nagios)
 							{
+								# some nagios plugins report multiple metrics, e.g. the check_disk one
+								# but the format for passing performance data is pretty ugly
+								# https://nagios-plugins.org/doc/guidelines.html#AEN200
+
 								$k = $1 if ($k =~ /^'(.+)'$/); # nagios wants single quotes if a key has spaces
 
 								# a plugin can report levels for warning and crit thresholds
@@ -5331,21 +5351,31 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								}
 
 								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
-								if ($value_with_unit =~ /^(.+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
+								if ($value_with_unit =~ /^([0-9\.]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
 								{
-									$v = $1;
-									$status{$service}->{units}->{$k} = $2;
+									my ($numericval,$unit) = ($1,$2);
+									dbg("performance data for label '$k': raw value '$value_with_unit'");
 
+									$status{$service}->{units}->{$k} = $unit; # keep track of the input unit
+									$v = $numericval;
+
+									# massage the value into a number for rrd
+									my %factors = ( 'ms' => 1e-3, 'us' => 1e-6,
+																	'KB' => 1e3, 'MB' => 1e6, 'GB' => 1e9, 'TB' => 1e12); # decimal here
+									$rescaledv = $v * $factors{$unit} if (defined $factors{$unit});
 								}
 							}
- 							dbg("collected response $k value $v");
+ 							dbg("collected response '$k' value '$v'".(defined $rescaledv? " rescaled '$rescaledv'":""));
 
 							# for rrd storage, but only numeric values can be stored!
 							# k needs sanitizing for rrd: only a-z0-9_ allowed
 							my $rrdsafekey = $k;
 							$rrdsafekey =~ s/[^a-zA-Z0-9_]/_/g;
 							$rrdsafekey = substr($rrdsafekey,0,19);
-							$Val{$rrdsafekey} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
+							$Val{$rrdsafekey} = { value => defined($rescaledv)? $rescaledv : $v,
+																		option => "GAUGE,U:U,$serviceheartbeat" };
+							# record the relationship between extra readings and the DS names they're stored under
+							$status{$service}->{ds}->{$k} = $rrdsafekey;
 
 							if ($k eq "responsetime") # response time is handled specially
 							{

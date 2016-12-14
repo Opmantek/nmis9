@@ -33,36 +33,48 @@
 		'short' => 'WLAN Rx/Tx'
 	},
 	'vlabel' => {
-		'standard' => 'Bytes In/Out'
+		'standard' => 'Bits In/Out'
 	},
 	'option' => {
 		'standard' => [
 			'DEF:wlanTxBytes=$database:wlanTxBytes:AVERAGE',
 			'DEF:wlanRxBytes=$database:wlanRxBytes:AVERAGE',
 			# CREATE SPLIT
-			'CDEF:split_wlanTxBytes=wlanTxBytes,-1,*',
+
+			'CDEF:wlanTxBits=wlanTxBytes,8,*',
+			'CDEF:wlanRxBits=wlanRxBytes,8,*',
+
+			'CDEF:split_wlanTxBits=wlanTxBits,-1,*',
+			
 			# DRAW GRAPH
-			'AREA:wlanRxBytes#00FF7F:WLAN Rx Rate',
-			'GPRINT:wlanRxBytes:AVERAGE:Avg. %1.2lf %sbps',
-			'GPRINT:wlanRxBytes:MAX:Max %1.2lf %sbps\\n',
+			'AREA:wlanRxBits#00FF7F:WLAN Rx Rate',
+			'GPRINT:wlanRxBits:LAST:Current %1.2lf %sbps',
+			'GPRINT:wlanRxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:wlanRxBits:MAX:Max %1.2lf %sbps\\n',
 			#
-			'AREA:split_wlanTxBytes#00BFFF:WLAN Tx Rate',
-			'GPRINT:wlanTxBytes:AVERAGE:Avg. %1.2lf %sbps',
-			'GPRINT:wlanTxBytes:MAX:Max %1.2lf %sbps\\n',
+			'AREA:split_wlanTxBits#00BFFF:WLAN Tx Rate',
+			'GPRINT:wlanTxBits:LAST:Current %1.2lf %sbps',
+			'GPRINT:wlanTxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:wlanTxBits:MAX:Max %1.2lf %sbps\\n',
 		],
 		'small' => [
 			'DEF:wlanTxBytes=$database:wlanTxBytes:AVERAGE',
 			'DEF:wlanRxBytes=$database:wlanRxBytes:AVERAGE',
 			# CREATE SPLIT
-			'CDEF:split_wlanTxBytes=wlanTxBytes,-1,*',
+
+			'CDEF:wlanTxBits=wlanTxBytes,8,*',
+			'CDEF:wlanRxBits=wlanRxBytes,8,*',
+
+			'CDEF:split_wlanTxBits=wlanTxBits,-1,*',
+			
 			# DRAW GRAPH
-			'AREA:wlanRxBytes#00FF7F:WLAN Rx Rate',
-			'GPRINT:wlanRxBytes:AVERAGE:Avg. %1.2lf %sbps',
-			'GPRINT:wlanRxBytes:MAX:Max %1.2lf %sbps\\n',
+			'AREA:wlanRxBits#00FF7F:Rx Rate',
+			'GPRINT:wlanRxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:wlanRxBits:MAX:Max %1.2lf %sbps\\n',
 			#
-			'AREA:split_wlanTxBytes#00BFFF:WLAN Tx Rate',
-			'GPRINT:wlanTxBytes:AVERAGE:Avg. %1.2lf %sbps',
-			'GPRINT:wlanTxBytes:MAX:Max %1.2lf %sbps\\n',
+			'AREA:split_wlanTxBits#00BFFF:Tx Rate',
+			'GPRINT:wlanTxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:wlanTxBits:MAX:Max %1.2lf %sbps\\n',
 		]
 	}
 );

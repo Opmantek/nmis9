@@ -163,9 +163,8 @@
       'WindowsProcessor' => '/nodes/$node/health/WindowsProcessor.rrd',
       'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
-      'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
+      'Radwin' => '/nodes/$node/health/Radwin.rrd',
       'HBS' => '/nodes/$node/health/utilization-$index.rrd',  
-      'HBS-Util' => '/nodes/$node/health/hbs.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
       'capacity'  => '/nodes/$node/health/ubnt-capacity-$index.rrd',
       'AirMax'  => '/nodes/$node/health/ubnt-airmax-$index.rrd',
@@ -173,14 +172,14 @@
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'alcomarf' => '/nodes/$node/health/alcoma-rf-linkrate-$index.rrd',
       'mikrotik' => '/nodes/$node/health/mikrotik.rrd',
-      'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
-      'mtxrWlStat' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
-      'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
+      'AccessPoint' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
+      'StationMode' => '/nodes/$node/interface/mtxrWlStat-$index.rrd',
+      'Registration' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',      
-      
+      'throughput' => '/nodes/$node/health/throughput.rrd',      
     }
   }
 );
