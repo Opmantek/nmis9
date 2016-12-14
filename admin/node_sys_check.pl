@@ -158,7 +158,6 @@ sub checkNode {
 					$changes = 1;
 				}
 				
-				
 				foreach my $section (@interfaceSections) {
 					if ( defined $NI->{graphtype}{$indx}{$section} and defined $NI->{interface}{$indx} ) {
 						# there should be an interface to check
@@ -302,6 +301,12 @@ sub checkNode {
 			}
 			
 			
+			if ( defined $NI->{graphtype}{radio} and  $NI->{graphtype}{radio} =~ /linkrate/ ) {
+				print "FIXING: $node radio $indx has graphtype linkrate things\n";
+				$NI->{graphtype}{radio} = "signal,power,env-temp";
+				$changes = 1;
+			}
+
 			if ( ref($NI->{graphtype}{$indx}) eq "HASH" and not keys %{$NI->{graphtype}{$indx}} ) {
 				print "FIXING: $node $indx graphtype has no keys\n";
 				delete $NI->{graphtype}{$indx};

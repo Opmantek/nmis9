@@ -313,6 +313,7 @@
     'nodeType' => 'router',
     'rrd' => {
       'mikrotik' => {
+        'control' => '$sysDescr !~ /RB951G/',
         'graphtype' => 'env-temp,systemvoltage',
         'snmp' => {
           'systemvoltage' => {
