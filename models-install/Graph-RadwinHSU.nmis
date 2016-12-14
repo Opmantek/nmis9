@@ -34,33 +34,47 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Bytes Transmitted/Received'
+		'short' => 'Wireless Transmitted/Received'
 	},
 	'vlabel' => {
-		'standard' => 'Bytes In/Out'
+		'standard' => 'Bits In/Out'
 	},
 	'option' => {
 		'standard' => [
 			'DEF:TpPortInBytes=$database:TpPortInBytes:AVERAGE',
 			'DEF:TpPortOutBytes=$database:TpPortOutBytes:AVERAGE',			
-			'CDEF:splitInBytes=TpPortInBytes,-1,*',
-			'AREA:splitInBytes#00BFFF:BrRxBytes',
-			'GPRINT:TpPortInBytes:AVERAGE:Avg. %1.2lf %sbytes',
-			'GPRINT:TpPortInBytes:MAX:Max %1.2lf %sbytes\\n',
-			'AREA:TpPortOutBytes#00FF7F:BrTxBytes',
-			'GPRINT:TpPortOutBytes:AVERAGE:Avg. %1.2lf %sbytes',
-			'GPRINT:TpPortOutBytes:MAX:Max %1.2lf %sbytes\\n',
+
+      'CDEF:inBits=TpPortInBytes,8,*',
+      'CDEF:outBits=TpPortOutBytes,8,*',
+
+			'CDEF:split_inBits=inBits,-1,*',
+
+			'AREA:split_inBits#00BFFF:Port In',
+			'GPRINT:inBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:inBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:inBits:MAX:Max %6.2lf %sbps\\n',
+
+			'AREA:outBits#00FF7F:Port Out',
+			'GPRINT:outBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:outBits:AVERAGE:Avg. %6.2lf %sbps',
+		 	'GPRINT:outBits:MAX:Max %6.2lf %sbps\\n',
 		],
 		'small' => [
 			'DEF:TpPortInBytes=$database:TpPortInBytes:AVERAGE',
 			'DEF:TpPortOutBytes=$database:TpPortOutBytes:AVERAGE',			
-			'CDEF:splitInBytes=TpPortInBytes,-1,*',
-			'AREA:splitInBytes#00BFFF:BrRxBytes',
-			'GPRINT:TpPortInBytes:AVERAGE:Avg. %1.2lf %sbytes',
-			'GPRINT:TpPortInBytes:MAX:Max %1.2lf %sbytes\\n',
-			'AREA:TpPortOutBytes#00FF7F:BrTxBytes',
-			'GPRINT:TpPortOutBytes:AVERAGE:Avg. %1.2lf %sbytes',
-			'GPRINT:TpPortOutBytes:MAX:Max %1.2lf %sbytes\\n',
+
+      'CDEF:inBits=TpPortInBytes,8,*',
+      'CDEF:outBits=TpPortOutBytes,8,*',
+
+			'CDEF:split_inBits=inBits,-1,*',
+
+			'AREA:split_inBits#00BFFF:Port In',
+			'GPRINT:inBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:inBits:MAX:Max %1.2lf %sbps\\n',
+
+			'AREA:outBits#00FF7F:Port Out',
+			'GPRINT:outBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:outBits:MAX:Max %1.2lf %sbps\\n',
 		]
 	}
 );

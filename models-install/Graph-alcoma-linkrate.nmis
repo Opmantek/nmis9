@@ -31,35 +31,25 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Wireless Signal Strength'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dB'
+		'standard' => 'dBm'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
-			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
-			'LINE2:mimosaTxPower#4daef6:Transmit dB',
-			'GPRINT:mimosaTxPower:LAST:Current %4.2lf',
-			'GPRINT:mimosaTxPower:AVERAGE:Avg. %4.2lf',
-			'GPRINT:mimosaTxPower:MAX:Max %4.2lf\\n',			
-			'LINE2:mimosaRxPower#40E0D0:Receive dB',
-			'GPRINT:mimosaRxPower:LAST:Current %4.2lf',
-			'GPRINT:mimosaRxPower:AVERAGE:Avg. %4.2lf',
-			'GPRINT:mimosaRxPower:MAX:Max %4.2lf\\n',			
+			'DEF:linkrate=$database:linkrate:AVERAGE',
+			'LINE1:linkrate#4daef6:Link Rate',
+			'GPRINT:linkrate:LAST:Current %1.2lf',
+			'GPRINT:linkrate:AVERAGE:Avg. %1.2lf',
+			'GPRINT:linkrate:MAX:Max %1.2lf\\n',			
 		],
 		'small' => [
-			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
-			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
-			'LINE2:mimosaTxPower#4daef6:Transmit dB',
-			'GPRINT:mimosaTxPower:LAST:Current %4.1lf',
-			'GPRINT:mimosaTxPower:AVERAGE:Avg. %4.1lf',
-			'GPRINT:mimosaTxPower:MAX:Max %4.1lf\\n',
-			'LINE2:mimosaRxPower#40E0D0:Receive dB',
-			'GPRINT:mimosaRxPower:LAST:Current %4.1lf',
-			'GPRINT:mimosaRxPower:AVERAGE:Avg. %4.1lf',
-			'GPRINT:mimosaRxPower:MAX:Max %4.1lf\\n',
+			'DEF:linkrate=$database:linkrate:AVERAGE',
+			'LINE1:linkrate#4daef6:Link Rate',
+			'GPRINT:linkrate:LAST:Current %1.2lf',
+			'GPRINT:linkrate:AVERAGE:Avg. %1.2lf',
+			'GPRINT:linkrate:MAX:Max %1.2lf\\n',			
 		]
 	}
 );

@@ -37,7 +37,7 @@
 		'short' => 'Rx/Tx from HSU Lan Port'
 	},
 	'vlabel' => {
-		'standard' => 'Throughput'
+		'standard' => 'Bits RX/TX'
 	},
 	'option' => {
 		'standard' => [

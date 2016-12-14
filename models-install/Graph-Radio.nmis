@@ -31,63 +31,63 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Wireless Signal Strength'
+		'short' => 'Transmit Power'
 	},
 	'vlabel' => {
-		'standard' => 'Radio'
+		'standard' => 'dB'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ubntRadioFreq=$database:ubntRadioFreq:AVERAGE',
+			#'DEF:ubntRadioFreq=$database:ubntRadioFreq:AVERAGE',
 			'DEF:ubntRadioTxPower=$database:ubntRadioTxPower:AVERAGE',
-			'DEF:ubntRadioDistance=$database:ubntRadioDistance:AVERAGE',
-			'DEF:ubntRadioChainmask=$database:ubntRadioChainmask:AVERAGE',
+			#'DEF:ubntRadioDistance=$database:ubntRadioDistance:AVERAGE',
+			#'DEF:ubntRadioChainmask=$database:ubntRadioChainmask:AVERAGE',
 
-			'LINE1:ubntRadioFreq#4daef6:Frequency',
-			'GPRINT:ubntRadioFreq:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioFreq:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioFreq:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioFreq#4daef6:Frequency',
+			#'GPRINT:ubntRadioFreq:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioFreq:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioFreq:MAX:Max %6.0lf\\n',			
 
 			'LINE1:ubntRadioTxPower#4169E1:TX Power',
 			'GPRINT:ubntRadioTxPower:LAST:Current %6.2lf',
 			'GPRINT:ubntRadioTxPower:AVERAGE:Avg. %6.2lf',
 			'GPRINT:ubntRadioTxPower:MAX:Max %6.2lf\\n',			
 
-			'LINE1:ubntRadioDistance#00FF7F:Distance',
-			'GPRINT:ubntRadioDistance:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioDistance:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioDistance:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioDistance#00FF7F:Distance',
+			#'GPRINT:ubntRadioDistance:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioDistance:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioDistance:MAX:Max %6.0lf\\n',			
 
-			'LINE1:ubntRadioChainmask#FF4500:Chainmask',
-			'GPRINT:ubntRadioChainmask:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioChainmask:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioChainmask:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioChainmask#FF4500:Chainmask',
+			#'GPRINT:ubntRadioChainmask:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioChainmask:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioChainmask:MAX:Max %6.0lf\\n',			
 		],
 		'small' => [
-			'DEF:ubntRadioFreq=$database:ubntRadioFreq:AVERAGE',
+			#'DEF:ubntRadioFreq=$database:ubntRadioFreq:AVERAGE',
 			'DEF:ubntRadioTxPower=$database:ubntRadioTxPower:AVERAGE',
-			'DEF:ubntRadioDistance=$database:ubntRadioDistance:AVERAGE',
-			'DEF:ubntRadioChainmask=$database:ubntRadioChainmask:AVERAGE',
+			#'DEF:ubntRadioDistance=$database:ubntRadioDistance:AVERAGE',
+			#'DEF:ubntRadioChainmask=$database:ubntRadioChainmask:AVERAGE',
 
-			'LINE1:ubntRadioFreq#4daef6:Frequency',
-			'GPRINT:ubntRadioFreq:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioFreq:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioFreq:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioFreq#4daef6:Frequency',
+			#'GPRINT:ubntRadioFreq:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioFreq:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioFreq:MAX:Max %6.0lf\\n',			
 
 			'LINE1:ubntRadioTxPower#4169E1:TX Power',
 			'GPRINT:ubntRadioTxPower:LAST:Current %6.2lf',
 			'GPRINT:ubntRadioTxPower:AVERAGE:Avg. %6.2lf',
 			'GPRINT:ubntRadioTxPower:MAX:Max %6.2lf\\n',			
 
-			'LINE1:ubntRadioDistance#00FF7F:Distance',
-			'GPRINT:ubntRadioDistance:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioDistance:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioDistance:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioDistance#00FF7F:Distance',
+			#'GPRINT:ubntRadioDistance:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioDistance:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioDistance:MAX:Max %6.0lf\\n',			
 
-			'LINE1:ubntRadioChainmask#FF4500:Chainmask',
-			'GPRINT:ubntRadioChainmask:LAST:Current %6.0lf',
-			'GPRINT:ubntRadioChainmask:AVERAGE:Avg. %6.0lf',
-			'GPRINT:ubntRadioChainmask:MAX:Max %6.0lf\\n',			
+			#'LINE1:ubntRadioChainmask#FF4500:Chainmask',
+			#'GPRINT:ubntRadioChainmask:LAST:Current %6.0lf',
+			#'GPRINT:ubntRadioChainmask:AVERAGE:Avg. %6.0lf',
+			#'GPRINT:ubntRadioChainmask:MAX:Max %6.0lf\\n',			
 		]
 	}
 );

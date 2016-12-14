@@ -30,18 +30,26 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - $length'
+		'short' => 'Signal Strength'
 	},
 	'vlabel' => {
-		'standard' => 'Power',
+		'standard' => 'Signal',
 	},
 	'option' => {
 		'standard' => [
 				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
 				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
 
+				 'DEF:remoteTXPower=$database:remoteTXPower:AVERAGE',
+
 				 'DEF:remoteRXPower0=$database:remoteRXPower0:AVERAGE',
 				 'DEF:remoteRXPower1=$database:remoteRXPower1:AVERAGE',
+
+				 'LINE1:remoteTXPower#ff8000:Remote TX Power dBm\\t\\t',
+				 'GPRINT:remoteTXPower:LAST:Current %6.2lf',
+				 'GPRINT:remoteTXPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:remoteTXPower:MIN:Min %6.2lf',
+				 'GPRINT:remoteTXPower:MAX:Max %6.2lf\\n',
 				 
 				 'LINE1:rxPower0#006400:RX Power Ch0 dBm\\t\\t\\t',
 				 'GPRINT:rxPower0:LAST:Current %6.2lf',
@@ -70,9 +78,14 @@
 		'small' => [ 
 				 'DEF:rxPower0=$database:rxPower0:AVERAGE',
 				 'DEF:rxPower1=$database:rxPower1:AVERAGE',
+				 'DEF:remoteTXPower=$database:remoteTXPower:AVERAGE',
 
 				 'DEF:remoteRXPower0=$database:remoteRXPower0:AVERAGE',
 				 'DEF:remoteRXPower1=$database:remoteRXPower1:AVERAGE',
+
+				 'LINE1:remoteTXPower#ff8000:Remote TX Power dBm',
+				 'GPRINT:remoteTXPower:LAST:Current %4.2lf',
+				 'GPRINT:remoteTXPower:AVERAGE:Avg. %4.2lf\\n',
 				 
 				 'LINE1:rxPower0#006400:RX Power Ch0 dBm\\t',
 				 'GPRINT:rxPower0:LAST:Current %4.1lf',

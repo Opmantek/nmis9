@@ -47,9 +47,9 @@
 		'small' => [
 			'DEF:AirRxPower=$database:AirRxPower:AVERAGE',
 			'LINE2:AirRxPower#4daef6:Strength',
-			'GPRINT:AirRxPower:LAST:Current %1.0lf dB',
-			'GPRINT:AirRxPower:AVERAGE:Avg. %1.0lf',
-			'GPRINT:AirRxPower:MAX:Max %1.0lf\\n',
+			'GPRINT:AirRxPower:LAST:Current %1.1lf dB',
+			'GPRINT:AirRxPower:AVERAGE:Avg. %1.1lf',
+			'GPRINT:AirRxPower:MAX:Max %1.1lf\\n',
 		]
 	}
 );

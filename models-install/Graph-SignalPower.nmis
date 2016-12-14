@@ -1,10 +1,9 @@
 #
-#  Copyright Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
 #  This file is part of Network Management Information System (“NMIS”).
-#  
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -26,40 +25,47 @@
 #  User group details:
 #  http://support.opmantek.com/users/
 #  
-# ************************************************************************
+# *****************************************************************************
 
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Wireless Signal Strength'
+		'short' => 'Signal Strength'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dB'
+		'standard' => 'Signal',
 	},
 	'option' => {
 		'standard' => [
-			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
-			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
-			'LINE2:mimosaTxPower#4daef6:Transmit dB',
-			'GPRINT:mimosaTxPower:LAST:Current %4.2lf',
-			'GPRINT:mimosaTxPower:AVERAGE:Avg. %4.2lf',
-			'GPRINT:mimosaTxPower:MAX:Max %4.2lf\\n',			
-			'LINE2:mimosaRxPower#40E0D0:Receive dB',
-			'GPRINT:mimosaRxPower:LAST:Current %4.2lf',
-			'GPRINT:mimosaRxPower:AVERAGE:Avg. %4.2lf',
-			'GPRINT:mimosaRxPower:MAX:Max %4.2lf\\n',			
+				 'DEF:rxPower=$database:rxPower:AVERAGE',
+				 'DEF:txPower=$database:txPower:AVERAGE',
+
+				 'LINE1:txPower#ff8000:TX Power dBm\\t',
+				 'GPRINT:txPower:LAST:Current %6.2lf',
+				 'GPRINT:txPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:txPower:MIN:Min %6.2lf',
+				 'GPRINT:txPower:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:rxPower#006400:RX Power dBm\\t',
+				 'GPRINT:rxPower:LAST:Current %6.2lf',
+				 'GPRINT:rxPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower:MIN:Min %6.2lf',
+				 'GPRINT:rxPower:MAX:Max %6.2lf\\n',
+			], 
+		'small' => [ 
+				 'DEF:rxPower=$database:rxPower:AVERAGE',
+				 'DEF:txPower=$database:txPower:AVERAGE',
+
+				 'LINE1:txPower#ff8000:TX Power dBm',
+				 'GPRINT:txPower:LAST:Current %6.2lf',
+				 'GPRINT:txPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:txPower:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:rxPower#006400:RX Power dBm',
+				 'GPRINT:rxPower:LAST:Current %6.2lf',
+				 'GPRINT:rxPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower:MAX:Max %6.2lf\\n',
 		],
-		'small' => [
-			'DEF:mimosaTxPower=$database:mimosaTxPower:AVERAGE',
-			'DEF:mimosaRxPower=$database:mimosaRxPower:AVERAGE',
-			'LINE2:mimosaTxPower#4daef6:Transmit dB',
-			'GPRINT:mimosaTxPower:LAST:Current %4.1lf',
-			'GPRINT:mimosaTxPower:AVERAGE:Avg. %4.1lf',
-			'GPRINT:mimosaTxPower:MAX:Max %4.1lf\\n',
-			'LINE2:mimosaRxPower#40E0D0:Receive dB',
-			'GPRINT:mimosaRxPower:LAST:Current %4.1lf',
-			'GPRINT:mimosaRxPower:AVERAGE:Avg. %4.1lf',
-			'GPRINT:mimosaRxPower:MAX:Max %4.1lf\\n',
-		]
+				
 	}
 );
