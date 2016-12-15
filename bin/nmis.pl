@@ -2723,7 +2723,7 @@ sub getEnvInfo
 		}
 		else
 		{
-			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
+			logMsg("ERROR ($S->{name}) on get environment index table: ".$SNMP->error);
 			HandleNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
 		}
 
@@ -2985,7 +2985,7 @@ sub getSystemHealthInfo
 				}
 				else
 				{
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: ".$SNMP->error);
 					HandleNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
 				}
 			}
