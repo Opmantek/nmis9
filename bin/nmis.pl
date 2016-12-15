@@ -3069,8 +3069,11 @@ sub getSystemHealthData
 						$NI->{$section}{$index}{$item}=$D->{$item}{value};
 					}
 
-					# RRD Database update and remember filename
-					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
+					# RRD Database update and remember filename;
+					# also feed in the section data for filename expansion
+					my $db = updateRRD(sys=>$S, data=>$D,
+														 type=>$sect, index=>$index,
+														 extras => $NI->{$section}->{$index} );
 					if (!$db)
 					{
 						logMsg("ERROR updateRRD failed: ".getRRDerror());
