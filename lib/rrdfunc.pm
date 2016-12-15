@@ -680,10 +680,10 @@ sub optionsRRD
 	# default is GAUGE,"U:U",standard heartbeat
 	foreach my $id (sort keys %{$data})
 	{
-		if (length($id) > 18)
+		if (length($id) > 19)
 		{
-			$stats{error} = "DS name=$id greater then 18 characters";
-			logMsg("ERROR, DS name=$id greater then 18 characters") ;
+			$stats{error} = "DS name=$id greater then 19 characters";
+			logMsg("ERROR, DS name=$id greater then 19 characters") ;
 			next;
 		}
 
