@@ -8618,9 +8618,12 @@ sub doThreshold
 				dbg("section $s, type $type ". ($thissection->{threshold}? "has a": "has no")." threshold");
 				next if (!$thissection->{threshold}); # nothing to do
 
-				# attention: control expressions for indexed section must be run per instance!
+				# attention: control expressions for indexed section must be run per instance,
+				# and no more getbool possible (see below for reason)
 				my $control = $thissection->{control};
-				if ($control and !getbool($thissection->{indexed}) )
+				if ($control and (!defined($thissection->{indexed})
+													or $thissection->{indexed} eq ""
+													or $thissection->{indexed} eq "false") )
 				{
 					dbg("control found:$control for section=$s type=$type, non-indexed", 1);
 					if (!$S->parseString(string=>"($control) ? 1:0", sect => $type))
