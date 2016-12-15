@@ -413,7 +413,8 @@ sub addDStoRRD
 }
 
 # determine the rrd file name from the node's model, the common-database
-# and the input parameters like name/type/item/index
+# and the input parameters like name/type/item/index; also extras (optional),
+# and nmis4 (optional, for backwards compat expansion)
 #
 # attention: this low-level function does NOT translate from graphtype instances to
 # sections (e.g. graphtype cpu and many others is covered by nodehealth section),
@@ -421,14 +422,14 @@ sub addDStoRRD
 # therefore the argument name is type (meaning rrd section) and NOT graphtype.
 #
 # attention: this function name clashes with the function from func.pm, and is therefore
-# not exported
-sub getFileName {
+# not exported!
+sub getFileName
+{
 	my %args = @_;
-	my $S = $args{sys};
-	my $type = $args{type};
-	my $index = $args{index};
-	my $item = $args{item};
-	my $nmis4 = $args{nmis4};
+
+	my ($S,$type,$index,$item,$extras,$nmis4) =
+			@args{"sys","type","index","item","extras","nmis4"};
+
 	my $C = loadConfTable();
 
 	if (!$S) {
@@ -444,15 +445,18 @@ sub getFileName {
 		my $string = $S->{mdl}{database}{type}{$type};
 		$string =~ s/\$node\b/\$host/g if getbool($nmis4);
 
-		# no CVARs as no section given
-		# all the optional components must be safeguarded, as indices (for example) can easily contain '/'
+		# note: no CVARs as no section given
+		# also, all optional inputs must be safeguarded, as indices (for example) can easily contain '/'
 		# and at least these /s must be removed
 		my $safetype = $type; $safetype =~ s!/!_!g;
 		my $safeindex = $index; $safeindex =~ s!/!_!g;
 		my $safeitem = $item; $safeitem =~ s!/!_!g;
+		my %safeextras = ref($extras) eq "HASH"? %{$extras} :  ();
+		map { $safeextras{$_} =~ s!/!_!g; } (keys %safeextras);
 
 		if ($dir = $S->parseString(string=>$string, type=>$safetype,
-															 index=>$safeindex, item=>$safeitem))
+															 index=>$safeindex, item=>$safeitem,
+															 extras => \%safeextras ))
 		{
 			$dir = $C->{database_root}.$dir; # full specification
 			dbg("filename of type=$type is $dir");
@@ -467,89 +471,91 @@ sub getFileName {
 }
 
 # this function takes in a set of data items and updates the relevant rrd file
+# arsg: sys, data (absolutely required), type/index/item (more or less required), extras (optional),
+# database (optional, if set overrides the internal file naming logic)
+#
 # returns: the database file name; sets the internal error indicator
 sub updateRRD
 {
 	my %args = @_;
-	my $S = $args{sys};
+
+	my ($S,$data,$type,$index,$item,$database,$extras) =
+			@args{"sys","data","type","index","item","database","extras"};
+
 	my $NI = $S->{info};
 	my $IF = $S->{intf};
-
-	my $data = $args{data};
-	my $type = $args{type};
-	my $index = $args{index};
-	my $item = $args{item};
-
-	my $database = $args{database};
 
 	++ $stats{nodes}->{$S->{name}};
 	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
 
-	if ($database eq "")
-	{
-		if (! ($database = getFileName(sys=>$S,type=>$type,index=>$index,item=>$item))) {
-			$stats{error} = "No RRD file found!";
-			return; # error
-		}
+	# use heuristic or given database?
+	$database = getFileName(sys=>$S, type=>$type, index=>$index, item=>$item, extras => $extras)
+			if (!defined $database);
 
-		# Does the database exist ?
-		if ( -f $database and -r $database and -w $database ) {
-			# its oke !
-			dbg("database $database exists and is R/W");
-		}
-		# Check if the RRD Database Exists but is ReadOnly
-		# Maybe this should check for valid directory or not.
-		elsif ( -f $database and not -w $database ) {
-			$stats{error} = "($S->{name}) database $database exists but is readonly!";
-			logMsg("ERROR, $stats{error}");
-			return;
-		}
-		else 												# no db file exists
-		{
-			# fall back to nmis4 format if requested to
-			my $C = loadConfTable();
-			if (getbool($C->{nmis4_compatibility}))
-			{
-				dbg("file=$database not found, try nmis4 format");
-				my $database4 = getFileName(sys=>$S, type=>$type, index=>$index,
-																		item=>$item, nmis4=>'true');
-				if ($database4 and -f $database4
-						and -r $database4 and -w $database4 )
-				{
-					$database = $database4;
-					dbg("database $database exists and is R/W");
-				}
-			}
-
-			# nope, create new file
-			if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
-											index=>$index))
-			{
-				$stats{error} = "Failed to create RRD file $database!";
-				return; # error
-			}
-		}
-	} else
+	if (!$database)
 	{
-		# no check
-		dbg("database $database");
+		$stats{error} = "No RRD file found!";
+		logMsg("ERROR, $stats{error}");
+		return;
 	}
 
-	my @options;
-	my $ERROR;
-	my $ds;
-	my $value = "N";
+	# Does the database exist ?
+	if ( -f $database and -r $database and -w $database )
+	{
+		dbg("database $database exists and is R/W");
+	}
+	# Check if the RRD Database Exists but is ReadOnly
+	# Maybe this should check for valid directory or not.
+	elsif ( -f $database and not -w $database )
+	{
+		$stats{error} = "($S->{name}) database $database exists but is readonly!";
+		logMsg("ERROR, $stats{error}");
+		return;
+	}
+	else 												# no db file exists
+	{
+		# fall back to nmis4 format if requested to
+		my $C = loadConfTable();
+		if (getbool($C->{nmis4_compatibility}))
+		{
+			dbg("file=$database not found, try nmis4 format");
+			my $database4 = getFileName(sys=>$S, type=>$type, index=>$index,
+																	item=>$item, nmis4=>'true');
+			if ($database4 and -f $database4
+					and -r $database4 and -w $database4 )
+			{
+				$database = $database4;
+				dbg("database $database exists and is R/W");
+			}
+		}
 
-	dbg("node was reset, inserting U value") if ($NI->{system}->{node_was_reset});
+		# nope, create new file
+		if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
+										index=>$index))
+		{
+			$stats{error} = "Failed to create RRD file $database!";
+			return; # error
+		}
+	}
 
-	foreach my $var (keys %{$data}) {
-		$ds .= ":" if $ds ne "";
-		$ds .= $var;
+	my (@options, @ds);
+	my @values = ("N");							# that's 'reading is for Now'
 
-		# if the node has gone through a reset, then insert a U to avoid spikes
+	dbg("node was reset, inserting U values") if ($NI->{system}->{node_was_reset});
+	foreach my $var (keys %{$data})
+	{
+		# handle the nosave option
+		if (exists($data->{$var}->{option}) && $data->{$var}->{option} eq "nosave")
+		{
+			dbg("DS $var is marked as nosave, not saving to RRD", 3);
+			next;
+		}
+
+		push @ds, $var;
+		# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
 		if ($NI->{system}->{node_was_reset})
 		{
-			$value .= ':U';
+			push @values, 'U';
 		}
 		else
 		{
@@ -568,14 +574,14 @@ sub updateRRD
 			$data->{$var}{value} = "U" if ($data->{$var}{value} !~
 																		 /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
 
-			$value .= ":$data->{$var}{value}";
+			push @values,  $data->{$var}{value};
 		}
 	}
-	push @options,("-t",$ds,$value);
+	my $thevalue =  join(":",@values);
+	my $theds = join(":",@ds);
+	push @options,("-t", $theds, $thevalue);
 
-	# counts the seperators, not the datapoints add 1 extra
-	my $points = () = $ds =~ /:/g;
-	++$points;
+	my $points = scalar @ds;
 	# for bytes consider a 64 bit word, 8 bytes for each thing.
 	#64-bits (8 bytes),
 	my $bytes = $points * 8;
@@ -583,20 +589,19 @@ sub updateRRD
 	$stats{datapoints} += $points;
 	$stats{databytes} += $bytes;
 
+	dbg("DS $theds, $points");
+	dbg("value $thevalue, $bytes bytes");
 
-	dbg("DS $ds, $points");
-	dbg("value $value, $bytes bytes");
+	logPolling("$type,$NI->{system}{name},$index,$item,$theds,$thevalue");
 
-	logPolling("$type,$NI->{system}{name},$index,$item,$ds,$value");
-
-	if ( @options) {
+	if ( @options)
+	{
 		# update RRD
 		RRDs::update($database,@options);
 		++$stats{rrdcount};
-		#my $upd = RRDs::updatev($database,@options);
-		#print STDERR Dumper($upd);
 
-		if ($ERROR = RRDs::error) {
+		if (my $ERROR = RRDs::error)
+		{
 			if ($ERROR !~ /contains more DS|unknown DS name/)
 			{
 				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @options";
@@ -613,9 +618,11 @@ sub updateRRD
 				}
 				# find the missing DS name (format DS:name:type:hearthbeat:min:max)
 				my @options_db = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
-				foreach my $ds (@options_db) {
+				foreach my $ds (@options_db)
+				{
 					my @opt = split /:/, $ds;
-					if ( $opt[0] eq "DS" and $names !~ /:$opt[1]:/ ) {
+					if ( $opt[0] eq "DS" and $names !~ /:$opt[1]:/ )
+					{
 						&addDStoRRD($database,$ds); # sub in rrdfunc
 					}
 				}
@@ -673,16 +680,22 @@ sub optionsRRD
 	# default is GAUGE,"U:U",standard heartbeat
 	foreach my $id (sort keys %{$data})
 	{
-		if (length($id) > 18)
+		if (length($id) > 19)
 		{
-			$stats{error} = "DS name=$id greater then 18 characters";
-			logMsg("ERROR, DS name=$id greater then 18 characters") ;
+			$stats{error} = "DS name=$id greater then 19 characters";
+			logMsg("ERROR, DS name=$id greater then 19 characters") ;
 			next;
 		}
 
 		my ($source,$range,$heartbeat);
 		if ($data->{$id}{option})
 		{
+			if ($data->{$id}->{option} eq "nosave")
+			{
+				dbg("DS $id marked as nosave, ignoring.", 3);
+				next;
+			}
+
 			($source,$range,$heartbeat) = split (/\,/,$data->{$id}{option});
 
 			# no CVARs as no section given

@@ -1,0 +1,96 @@
+#
+#  Copyright Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# ************************************************************************
+
+#mtxrWlRtabTxRate OBJECT-TYPE
+#    SYNTAX Gauge32
+#    MAX-ACCESS read-only
+#    STATUS current
+#    DESCRIPTION "bits per second"
+#    ::= { mtxrWlRtabEntry 8 }
+#
+#mtxrWlRtabRxRate OBJECT-TYPE
+#    SYNTAX Gauge32
+#    MAX-ACCESS read-only
+#    STATUS current
+#    DESCRIPTION "bits per second"
+#    ::= { mtxrWlRtabEntry 9 }
+#
+
+%hash = (
+	'title' => {
+		'standard' => '$node LinkRate Rx/Tx - $length from $datestamp_start to $datestamp_end',
+		'short' => 'LinkRate Rx/Tx'
+	},
+	'vlabel' => {
+		'standard' => 'Bits Rx/Tx'
+	},
+	'option' => {
+		'standard' => [
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %6.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:LAST:Current %6.2lf %sbps',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %6.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %6.2lf %sbps\\n',
+		],
+		'small' => [
+      'DEF:linkRateTx=$database:linkRateTx:AVERAGE',
+      'DEF:linkRateRx=$database:linkRateRx:AVERAGE',
+
+      'CDEF:linkTxBits=linkRateTx,1,*',
+      'CDEF:linkRxBits=linkRateRx,1,*',
+            
+      # CREATE SPLIT
+      'CDEF:split_linkTxBits=linkTxBits,-1,*',
+
+			# DRAW GRAPH
+			'AREA:linkRxBits#00cc00:Rx Link Rate',
+			'GPRINT:linkRxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkRxBits:MAX:Max %1.2lf %sbps\\n',
+
+			'AREA:split_linkTxBits#4daef6:Tx Link Rate',
+			'GPRINT:linkTxBits:AVERAGE:Avg. %1.2lf %sbps',
+			'GPRINT:linkTxBits:MAX:Max %1.2lf %sbps\\n',
+		]
+	}
+);
