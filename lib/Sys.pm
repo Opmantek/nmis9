@@ -444,7 +444,8 @@ sub loadInfo
 	my $port = $args{port};
 
 	my $table = $args{table} || $class;
-	my $wantdebug = $args{debug} || $args{model};
+	my $wantdebug = $args{debug};
+	my $dmodel = $args{model};		# if separate model printfs are wanted
 
 	# pull from the class' sys section, NOT its rrd section (if any)
 	my ($result, $status) = $self->getValues( class=>$self->{mdl}{$class}{sys},
@@ -459,6 +460,7 @@ sub loadInfo
 	if (!keys %$result)
 	{
 		$self->{error} = "loadInfo failed for $self->{name}: $result->{error}";
+    print "MODEL ERROR: ($self->{info}{system}{name}) on loadInfo, $result->{error}\n" if $dmodel;
 		return 0;
 	}
 	elsif ($result->{skipped})	# nothing to report because model said skip these items, apparently all of them...
@@ -476,11 +478,13 @@ sub loadInfo
 		my $target = $self->{info}->{$table} ||= {};
 		foreach my $sect (keys %{$result})
 		{
+			print "MODEL loadInfo $self->{name} class=$class:\n" if $dmodel;
 			if ($index ne '')
 			{
 				foreach my $indx (keys %{$result->{$sect}})
 				{
 					dbg("MODEL section=$sect") if $wantdebug;
+					print "  MODEL section=$sect\n" if $dmodel;
 
 					### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
 					if ( $target->{$indx}{index} eq "" )
@@ -497,11 +501,15 @@ sub loadInfo
 							$self->{view}{$table}{"${indx}_${ds}_title"} = rmBadChars($result->{$sect}->{$indx}->{$ds}->{title});
 						}
 
+						my $modext = "";
 						# complain about nosuchxyz
 						if ($wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/)
 						{
 							dbg( ($1 eq "SuchObject"? "ERROR":"WARNING").": name=$ds index=$indx value=$thisval");
+							$modext = ($1 eq "SuchObject"? "ERROR":"WARNING");
 						}
+						print "  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds index=$indx value=$result->{$sect}{$indx}{$ds}{value}\n" if $dmodel;
+
 						dbg("store: class=$class, type=$sect, DS=$ds, index=$indx, value=$thisval",3);
 					}
 				}
@@ -518,12 +526,16 @@ sub loadInfo
 							$self->{view}{$table}{"${ds}_title"} = rmBadChars($result->{$sect}->{$ds}->{title});
 					}
 
+					my $modext = "";
 					# complain about nosuchxyz
 					if ($wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/)
 					{
 						dbg( ($1 eq "SuchObject"? "ERROR":"WARNING").": name=$ds  value=$thisval");
+						$modext = ($1 eq "SuchObject"? "ERROR":"WARNING");
 					}
 					dbg("store: class=$class, type=$sect, DS=$ds, value=$thisval",3);
+					print "  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds value=$result->{$sect}{$ds}{value}\n" if $dmodel;
+
 				}
 			}
 		}
@@ -571,7 +583,8 @@ sub getData
 	my $class = $args{class};
 	my $section = $args{section};
 
-	my $wantdebug = $args{debug} || $args{model};
+	my $wantdebug = $args{debug};
+	my $dmodel = $args{model};
 	dbg("index=$index port=$port class=$class section=$section");
 
 	if (!$class) {
@@ -599,6 +612,39 @@ sub getData
 	if (keys %$result)
 	{
 		dbg("MODEL getData $self->{name} class=$class:" .Dumper($result)) if ($wantdebug);
+		if ($dmodel)
+		{
+			print "MODEL getData $self->{name} class=$class:\n";
+			foreach my $sec (keys %$result) {
+				if ( $sec =~ /interface|pkts/ )
+				{
+					print "  section=$sec index=$index $self->{info}{interface}{$index}{ifDescr}\n";
+				}
+				else {
+					print "  section=$sec index=$index port=$port\n";
+				}
+				if ( $index eq "" )
+				{
+					foreach my $nam (keys %{$result->{$sec}}) {
+						my $modext = "";
+						$modext = "ERROR:" if $result->{$sec}{$nam}{value} eq "noSuchObject";
+						$modext = "WARNING:" if $result->{$sec}{$nam}{value} eq "noSuchInstance";
+						print "  $modext  oid=$self->{mdl}{$class}{rrd}{$sec}{snmp}{$nam}{oid} name=$nam value=$result->{$sec}{$nam}{value}\n";
+					}
+				}
+				else
+				{
+					foreach my $ind (keys %{$result->{$sec}}) {
+						foreach my $nam (keys %{$result->{$sec}{$ind}}) {
+							my $modext = "";
+							$modext = "ERROR:" if $result->{$sec}{$ind}{$nam}{value} eq "noSuchObject";
+							$modext = "WARNING:" if $result->{$sec}{$ind}{$nam}{value} eq "noSuchInstance";
+							print "  $modext  oid=$self->{mdl}{$class}{rrd}{$sec}{snmp}{$nam}{oid} name=$nam index=$ind value=$result->{$sec}{$ind}{$nam}{value}\n";
+						}
+					}
+				}
+			}
+		}
 	}
 	elsif ($status->{skipped})
 	{
@@ -607,6 +653,7 @@ sub getData
 	elsif ($status->{error})
 	{
 		dbg("MODEL ERROR: $status->{error}") if ($wantdebug);
+		print "MODEL ERROR: $status->{error}\n" if ($dmodel);
 	}
 	return $result;
 }
