@@ -73716,5 +73716,8 @@
     'Enterprise' => 'Meraki Networks, Inc.',
     'OID' => '29671'
   },
-
+  '41112' => {
+    'Enterprise' => 'Ubiquiti Networks, Inc.',
+    'OID' => '41112'
+  },
 );

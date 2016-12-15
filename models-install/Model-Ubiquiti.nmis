@@ -406,8 +406,14 @@
           },
         }, 
       },
+
+#UBNT-AirFIBER-MIB::remoteMAC.1 = STRING: 00:27:22:DA:65:11
+#UBNT-AirFIBER-MIB::remoteIP.1 = STRING: 10.8.211.34
+#"remoteMAC"			"1.3.6.1.4.1.41112.1.3.2.1.45"
+#"remoteIP"			"1.3.6.1.4.1.41112.1.3.2.1.46"
+      
       'AirFiberConfig' => {
-        'headers' => 'airFiberConfigIndex,maxTxModRate',
+        'headers' => 'remoteMAC,remoteIP,maxTxModRate',
         'indexed' => 'airFiberConfigIndex',
         'index_oid' => '1.3.6.1.4.1.41112.1.3.1.1.1',
         'index_regex' => '\.(\d+)$',
@@ -430,10 +436,23 @@
             'sysObjectName' => 'maxTxModRate',
             'title' => 'maxTxModRate',
           },
+          'remoteMAC' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
+            'sysObjectName' => 'remoteMAC',
+            'calculate' => '$r = func::beautify_physaddress($r)',
+            'title' => 'Remote MAC',
+          },
+          'remoteIP' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.46',
+            'sysObjectName' => 'remoteIP',
+            'title' => 'Remote IP',
+          },
         },
       },
+
+
       'AirFiberStatistics' => {
-        'headers' => 'airFiberStatisticsIndex',
+        'headers' => 'remoteMAC,remoteIP',
         'indexed' => 'airFiberStatisticsIndex',
         'index_oid' => '1.3.6.1.4.1.41112.1.3.3.1.1',
         'index_regex' => '\.(\d+)$',
@@ -442,6 +461,17 @@
             'oid' => '1.3.6.1.4.1.41112.1.3.3.1.1',
             'sysObjectName' => 'airFiberStatisticsIndex',
             'title' => 'Index',
+          },
+          'remoteMAC' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
+            'sysObjectName' => 'remoteMAC',
+            'calculate' => '$r = func::beautify_physaddress($r)',
+            'title' => 'Remote MAC',
+          },
+          'remoteIP' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.46',
+            'sysObjectName' => 'remoteIP',
+            'title' => 'Remote IP',
           },
         },
       },
@@ -503,11 +533,21 @@
 #"dfsTimerTxFreq3"			"1.3.6.1.4.1.41112.1.3.2.1.54"
 
       'AirFiberStatus' => {
-        'headers' => 'curTXModRate,maxTxModRate,remoteTXModRate',
+        'headers' => 'remoteMAC,remoteIP,curTXModRate,maxTxModRate,remoteTXModRate',
         'indexed' => 'AFStatIndex',
         'index_oid' => '1.3.6.1.4.1.41112.1.3.2.1.1',
-        #'index_regex' => '\.(\d+)$',
         'snmp' => {  
+          'remoteMAC' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.45',
+            'sysObjectName' => 'remoteMAC',
+            'calculate' => '$r = func::beautify_physaddress($r)',
+            'title' => 'Remote MAC',
+          },
+          'remoteIP' => {
+            'oid' => '1.3.6.1.4.1.41112.1.3.2.1.46',
+            'sysObjectName' => 'remoteIP',
+            'title' => 'Remote IP',
+          },
           'AFStatIndex' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.2.1.1',
             'sysObjectName' => 'AFStatIndex',
@@ -610,7 +650,7 @@
             'oid' => '1.3.6.1.4.1.41112.1.4.7.1.1',
             'sysObjectName' => 'ubntStaMac',
             'calculate' => '$r = func::beautify_physaddress($r)',
-            'title' => 'Station Mac',
+            'title' => 'Station MAC',
           },
           'ubntStaName' => {
             'oid' => '1.3.6.1.4.1.41112.1.4.7.1.2',
@@ -809,7 +849,7 @@
         },
       },
       'AirFiberStatistics' => {
-        'graphtype' => 'Capacity',
+        'graphtype' => 'AirFiberThroughput',
         'indexed' => 'true',
         'snmp' => {  
           #'airFiberStatisticsIndex' => {
@@ -819,10 +859,12 @@
           'txOctetsOK' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.3.1.6',
             'sysObjectName' => 'txOctetsOK',
+            'option' => 'counter,0:U',
           },
-          'rxOctetsOKIndex' => {
+          'rxOctetsOK' => {
             'oid' => '1.3.6.1.4.1.41112.1.3.3.1.7',
             'sysObjectName' => 'rxOctetsOK',
+            'option' => 'counter,0:U',
           },
         },
       },
