@@ -564,6 +564,13 @@
         }
       }
     },
+    'Ubiquiti Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Ubiquiti' => 'Linux'
+        },
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

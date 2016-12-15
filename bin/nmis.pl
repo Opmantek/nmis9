@@ -2723,7 +2723,7 @@ sub getEnvInfo
 		}
 		else
 		{
-			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
+			logMsg("ERROR ($S->{name}) on get environment index table: ".$SNMP->error);
 			HandleNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
 		}
 
@@ -2985,7 +2985,7 @@ sub getSystemHealthInfo
 				}
 				else
 				{
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: ".$SNMP->error);
 					HandleNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
 				}
 			}
@@ -3069,8 +3069,11 @@ sub getSystemHealthData
 						$NI->{$section}{$index}{$item}=$D->{$item}{value};
 					}
 
-					# RRD Database update and remember filename
-					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
+					# RRD Database update and remember filename;
+					# also feed in the section data for filename expansion
+					my $db = updateRRD(sys=>$S, data=>$D,
+														 type=>$sect, index=>$index,
+														 extras => $NI->{$section}->{$index} );
 					if (!$db)
 					{
 						logMsg("ERROR updateRRD failed: ".getRRDerror());
@@ -8615,9 +8618,12 @@ sub doThreshold
 				dbg("section $s, type $type ". ($thissection->{threshold}? "has a": "has no")." threshold");
 				next if (!$thissection->{threshold}); # nothing to do
 
-				# attention: control expressions for indexed section must be run per instance!
+				# attention: control expressions for indexed section must be run per instance,
+				# and no more getbool possible (see below for reason)
 				my $control = $thissection->{control};
-				if ($control and !getbool($thissection->{indexed}) )
+				if ($control and (!defined($thissection->{indexed})
+													or $thissection->{indexed} eq ""
+													or $thissection->{indexed} eq "false") )
 				{
 					dbg("control found:$control for section=$s type=$type, non-indexed", 1);
 					if (!$S->parseString(string=>"($control) ? 1:0", sect => $type))

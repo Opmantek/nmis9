@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "1.2.0";
+our $VERSION = "2.0.0";
 
 use strict;
 use lib "../../lib";
@@ -328,13 +328,13 @@ sub open
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = ( $self->{info}{system}{host_addr} 
+	$snmpcfg->{host} = ( $self->{info}{system}{host_addr}
 											 || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
-	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef; 
-	
+	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef;
+
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
 	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
@@ -585,6 +585,7 @@ sub getData
 	}
 
 	$self->{info}{graphtype} ||= {};
+	# this returns all collected goodies, disregarding nosave - must be handled upstream
 	my ($result,$status) = $self->getValues(class=>$self->{mdl}{$class}{rrd},
 																					section=>$section,
 																					index=>$index,
@@ -915,51 +916,44 @@ sub getValues
 			$value =~ s{<}{&lt;}gso;
 			$value =~ s{>}{&gt;}gso;
 
-			# then park it in the data structure IFF desired
-			# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
-			# nosave also implies no alerts for this thing.
-			if (exists($sectiondetails->{option}) && $sectiondetails->{option} eq "nosave")
-			{
-				dbg("item $thing->{item} is marked as nosave, not saving in $gothere", 3);
-			}
-			else
-			{
-				my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
-											: $data{ $gothere }->{ $thing->{item} } ) ||= {};
-				$target->{value} = $value;
+			# then park the result in the data structure
+			my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
+										: $data{ $gothere }->{ $thing->{item} } ) ||= {};
+			$target->{value} = $value;
 
-				# rrd options from the model
-				$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
-				# as well as a title
-				$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
+			# rrd options come from the model
+			$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
+			# as well as a title
+			$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
 
-				if ( exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+			# if this thing is marked nosave, ignore alerts
+			if ( (!exists($target->{option}) or $target->{option} ne "nosave")
+					 && exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+			{
+				my $test = $sectiondetails->{alert}->{test};
+				dbg("checking test $test for basic alert \"$target->{title}\"",3);
+
+				# setup known var value list so that eval_string can handle CVARx substitutions
+				my ($error, $result) = $self->eval_string(string => $test,
+																									context => $value,
+																									# for now we don't support multiple or cooked, per-section values
+																									variables => [ \%knownvars ] );
+				if ($error)
 				{
-					my $test = $sectiondetails->{alert}->{test};
-					dbg("checking test $test for basic alert \"$target->{title}\"",3);
-
-					# setup known var value list so that eval_string can handle CVARx substitutions
-					my ($error, $result) = $self->eval_string(string => $test,
-																										context => $value,
-																										# for now we don't support multiple or cooked, per-section values
-																										variables => [ \%knownvars ] );
-					if ($error)
-					{
-						$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
-						logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
-					}
-					dbg("test $test, result=$result",3);
-
-					push @{$self->{alerts}}, 	{ name => $self->{name},
-																			type => "test",
-																			event => $sectiondetails->{alert}->{event},
-																			level => $sectiondetails->{alert}->{level},
-																			ds => $thing->{item},
-																			section => $gothere, # that's the section name
-																			source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
-																			value => $value,
-																			test_result => $result, };
+					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
+					logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
+				dbg("test $test, result=$result",3);
+
+				push @{$self->{alerts}}, 	{ name => $self->{name},
+																		type => "test",
+																		event => $sectiondetails->{alert}->{event},
+																		level => $sectiondetails->{alert}->{level},
+																		ds => $thing->{item},
+																		section => $gothere, # that's the section name
+																		source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
+																		value => $value,
+																		test_result => $result, };
 			}
 		}
 	}
@@ -1324,6 +1318,7 @@ sub getTitle
 # args: self=sys, string (required),
 # optional: sect, index, item, type. CVAR stuff works ONLY if sect is set!
 # type and index are only used in substitutions, no logic attached.
+# also optional: extras (hash of substitutable varname-values)
 #
 # note: variables in BOTH rrd and sys sections should be found in this routine,
 # regardless of whether our caller is looking at rrd or sys.
@@ -1332,13 +1327,11 @@ sub getTitle
 sub parseString
 {
 	my ($self, %args) = @_;
-	my $str = $args{string};
-	my $indx = $args{index};
-	my $itm = $args{item};
-	my $sect = $args{sect};
-	my $type = $args{type};
 
-	dbg("parseString:: string to parse $str",3);
+	my ($str,$indx,$itm,$sect,$type,$extras) =
+			@args{"string","index","item","sect","type","extras"};
+
+	dbg("parseString:: string to parse '$str'",3);
 
 	{
 		no strict;									# *shudder*
@@ -1396,9 +1389,9 @@ sub parseString
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
 			$location = $self->{info}{system}{location};
-			
+
 			# if I am wanting a storage thingy, then lets populate the variables I need.
-			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {				
+			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {
 				$hrStorageDescr = $self->{info}{storage}{$indx}{hrStorageDescr};
 				$hrStorageType = $self->{info}{storage}{$indx}{hrStorageType};
 				$hrStorageUnits = $self->{info}{storage}{$indx}{hrStorageUnits};
@@ -1408,7 +1401,7 @@ sub parseString
 				$hrDiskUsed = $hrStorageUsed * $hrStorageUnits;
 				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
 			}
-			
+
 			# fixing auto-vivification bug!
 			if ($indx ne '' and exists $self->{info}{interface}{$indx}) {
 				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
@@ -1435,22 +1428,47 @@ sub parseString
 		}
 
 		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n".
-		"\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",3);
+				"\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",3);
 
-		if ($str =~ /\?/) {
+		# massage the string and replace any available variables from extras first,
+		# before any of the compatibility hardcoded stuff
+		if (ref($extras) eq "HASH")
+		{
+			for my $maybe (sort keys %$extras)
+			{
+				my $presubst = $str;
+				# this substitutes $varname and ${varname},
+				# the latter is safer b/c the former has trouble with varnames sharing a prefix.
+				# no look-ahead assertion is possible, we don't know what the string is used for...
+				if ($str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g)
+				{
+					dbg("substituted '$maybe', str before '$presubst', after '$str'", 3);
+				}
+			}
+		}
+
+
+		if ($str =~ /\?/)
+		{
 			# format of $str is ($scalar =~ /regex/) ? "1" : "0"
 			my $check = $str;
 			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			if ($check =~ /ERROR/) {
+			if ($check =~ /ERROR/)
+			{
 				dbg($check);
 				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str, $check";
 				logMsg($str);
-			} else {
+			}
+			else
+			{
+				# fixme: this is a substantial security risk, because backtics are also evaluated!
 				$str =~ s{(.+)}{eval $1}eg; # execute expression
 			}
 			dbg("result of eval is $str",3);
-		} else {
+		}
+		else
+		{
 			my $s = $str; # copy
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			# $str =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
@@ -1463,7 +1481,6 @@ sub parseString
 		return $str;
 	}
 }
-
 
 # returns a hash of graphtype -> rrd section name for this node
 # this hash is inverted compared to the raw grapthype data in the node info,
@@ -1623,7 +1640,7 @@ sub getDBName
 	}
 
 	dbg("returning database name=$db for sect=$sect, index=$index, item=$item");
-	
+
 	return $db;
 }
 

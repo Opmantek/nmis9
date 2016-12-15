@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: t_system.pl,v 1.1 2012/08/13 05:09:18 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -34,7 +32,7 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use func;
 use NMIS;
@@ -44,7 +42,7 @@ use NMIS::Connect;
 use Data::Dumper;
 use Devel::Size qw(size total_size);
 
-my %nvp;
+my %nvp = (debug =>  'verbose');
 
 my $t = NMIS::Timing->new();
 
@@ -60,28 +58,36 @@ print "Total size of LNT ". total_size($LNT) ."\n";
 
 foreach my $node (sort keys %$LNT) {
 	#print $t->markTime(). " Create System $node\n";
-	#print "  done in ".$t->deltaTime() ."\n";	
-	
+	#print "  done in ".$t->deltaTime() ."\n";
+
 	#print $t->markTime(). " Load Some Data\n";
-	
+
 	#foreach my $inf (sort keys %{$NI}) {
-	#	print "NI $inf=$NI->{inf}\n";	
+	#	print "NI $inf=$NI->{inf}\n";
 	#	if ($inf eq "system") {
 	#		foreach my $sys (sort keys %{$NI->{$inf}}) {
 	#			print "  $sys = $NI->{$inf}{$sys}\n";
 	#		}
 	#	}
 	#}
-	
-	
-	
-	
+
+
+
+
 	my $S = Sys::->new; # create system object
 	$S->init(name=>$node,snmp=>'false');
 	my $NI = $S->{info};
 	my $M = $S->mdl();
-	
+
 	print "Total size of $node: ". total_size($S) ."\n";
+
+	my $string = 'item $item, ifdescr $ifDescr, name $name, index $index, swimage $softwareImage ...';
+	my $res = $S->parseString(string => $string,
+														item => 'dummy',
+														index => 42,
+														extras => $NI->{system});
+	print "az got $res\n";
+
 
 	my @instances = $S->getTypeInstances(section => "hrsmpcpu");
 	if ( exists $M->{system}{rrd}{nodehealth}{snmp}{avgBusy5}{oid} ) {
@@ -100,4 +106,4 @@ foreach my $node (sort keys %$LNT) {
 
 }
 
-print "  done in ".$t->deltaTime() ."\n";	
+print "  done in ".$t->deltaTime() ."\n";
