@@ -169,6 +169,7 @@
       'capacity'  => '/nodes/$node/health/ubnt-capacity-$index.rrd',
       'AirMax'  => '/nodes/$node/health/ubnt-airmax-$index.rrd',
       'AirFiberStatus' => '/nodes/$node/health/ubnt-afstatus-$index.rrd',
+      'AirFiberStatistics' => '/nodes/$node/health/ubnt-afstatistics-$index.rrd',
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'alcomarf' => '/nodes/$node/health/alcoma-rf-linkrate-$index.rrd',
       'mikrotik' => '/nodes/$node/health/mikrotik.rrd',
@@ -179,7 +180,7 @@
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',      
-      'throughput' => '/nodes/$node/health/throughput.rrd',      
+      'throughput' => '/nodes/$node/health/throughput.rrd',
     }
   }
 );
