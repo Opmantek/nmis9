@@ -33,7 +33,7 @@
 		'short' => 'RSS per Chain (polarity)'
 	},
 	'vlabel' => {
-		'standard' => ''
+		'standard' => 'dbm'
 	},
 	'option' => {
 		'standard' => [

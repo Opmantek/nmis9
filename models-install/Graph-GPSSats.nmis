@@ -41,29 +41,42 @@
 			'DEF:gpsSatsVisible=$database:gpsSatsVisible:AVERAGE',
 			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
 
-			'LINE1:gpsSatsVisible#4daef6:Visible',
-			'GPRINT:gpsSatsVisible:LAST:Current %1.0lf',
-			'GPRINT:gpsSatsVisible:AVERAGE:Avg. %1.0lf',
-			'GPRINT:gpsSatsVisible:MAX:Max %1.0lf\\n',
+                        # if gpsSatsVisible gt 100 then return NaN else return gpsSatsVisible
+                        'CDEF:gpsSatsVisibleFix=gpsSatsVisible,100,GT,NaN,gpsSatsVisible,IF',
 
-			'LINE1:gpsSatsTracked#00cc00:Tracked',
-			'GPRINT:gpsSatsTracked:LAST:Current %1.0lf',
-			'GPRINT:gpsSatsTracked:AVERAGE:Avg. %1.0lf',
-			'GPRINT:gpsSatsTracked:MAX:Max %1.0lf\\n',
+                        # if gpsSatsTracked gt 100 then return NaN else return gpsSatsTracked
+                        'CDEF:gpsSatsTrackedFix=gpsSatsTracked,100,GT,NaN,gpsSatsTracked,IF',
+
+			'LINE1:gpsSatsVisibleFix#4daef6:Visible',
+			'GPRINT:gpsSatsVisibleFix:LAST:Current %1.0lf',
+			'GPRINT:gpsSatsVisibleFix:AVERAGE:Avg. %1.0lf',
+			'GPRINT:gpsSatsVisibleFix:MAX:Max %1.0lf\\n',
+
+			'LINE1:gpsSatsTrackedFix#00cc00:Tracked',
+			'GPRINT:gpsSatsTrackedFix:LAST:Current %1.0lf',
+			'GPRINT:gpsSatsTrackedFix:AVERAGE:Avg. %1.0lf',
+			'GPRINT:gpsSatsTrackedFix:MAX:Max %1.0lf\\n',
 		],
 		'small' => [
 			'DEF:gpsSatsVisible=$database:gpsSatsVisible:AVERAGE',
 			'DEF:gpsSatsTracked=$database:gpsSatsTracked:AVERAGE',
 
-			'LINE1:gpsSatsVisible#4daef6:Visible',
-			'GPRINT:gpsSatsVisible:LAST:Current %6.0lf',
-			'GPRINT:gpsSatsVisible:AVERAGE:Avg. %6.0lf',
-			'GPRINT:gpsSatsVisible:MAX:Max %6.0lf\\n',
+                        # if gpsSatsVisible gt 100 then return NaN else return gpsSatsVisible
+                        'CDEF:gpsSatsVisibleFix=gpsSatsVisible,100,GT,NaN,gpsSatsVisible,IF',
 
-			'LINE1:gpsSatsTracked#00cc00:Tracked',
-			'GPRINT:gpsSatsTracked:LAST:Current %6.0lf',
-			'GPRINT:gpsSatsTracked:AVERAGE:Avg. %6.0lf',
-			'GPRINT:gpsSatsTracked:MAX:Max %6.0lf\\n',
+                        # if gpsSatsTracked gt 100 then return NaN else return gpsSatsTracked
+                        'CDEF:gpsSatsTrackedFix=gpsSatsTracked,100,GT,NaN,gpsSatsTracked,IF',
+
+                        'LINE1:gpsSatsVisibleFix#4daef6:Visible',
+                        'GPRINT:gpsSatsVisibleFix:LAST:Current %1.0lf',
+                        'GPRINT:gpsSatsVisibleFix:AVERAGE:Avg. %1.0lf',
+                        'GPRINT:gpsSatsVisibleFix:MAX:Max %1.0lf\\n',
+
+                        'LINE1:gpsSatsTrackedFix#00cc00:Tracked',
+                        'GPRINT:gpsSatsTrackedFix:LAST:Current %1.0lf',
+                        'GPRINT:gpsSatsTrackedFix:AVERAGE:Avg. %1.0lf',
+                        'GPRINT:gpsSatsTrackedFix:MAX:Max %1.0lf\\n',
+
 		]
 	}
 );

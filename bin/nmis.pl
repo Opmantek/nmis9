@@ -8950,7 +8950,7 @@ sub getThresholdLevel
 	my $level;
 	my $thrvalue;
 
-	dbg("Start theshold=$thrname, index=$index");
+	dbg("Start threshold=$thrname, index=$index item=$item");
 
 	# find subsection with threshold values in Model
 	my $T = $M->{threshold}{name}{$thrname}{select};
