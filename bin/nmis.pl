@@ -3040,6 +3040,7 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
+
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
@@ -3100,7 +3101,8 @@ sub getSystemHealthData
 			}
 			else
 			{
-				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $anyerror");
+				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
+				info("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
 				HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
 				HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
@@ -8663,11 +8665,24 @@ sub doThreshold
 				}
 				else
 				{
+					# this can be misleading, b/c not everything updates the instance index -> graphtype association reliably,
+					# so you could get an instance index that's long gone...
 					my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
 					dbg("threshold instances=".(join(", ",@instances)||"none"));
 
 					for my $index (@instances)
 					{
+						# instances that don't have a valid nodeinfo section mustn't be touched
+						# however logic only works in some cases: some model source sections don't have nodeinfo sections associated.
+						if ($s eq "systemHealth"
+								and ( ref($NI->{$type}) ne "HASH" or (!keys %{$NI->{$type}})
+											or ref($NI->{$type}->{$index}) ne "HASH" or $index ne $NI->{$type}->{$index}->{index}))
+						{
+							logMsg("FATAL invalid data for section $type and index $index, cannot run threshold for this index!");
+							info("FATAL invalid data for section $type and index $index, cannot run threshold for this index!");
+							next;
+						}
+
 						# control must be checked individually, too!
 						if ($control)
 						{
@@ -8876,7 +8891,8 @@ sub runThrHld
 					and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
 	{
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
-		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" )
+		if ( ref($NI->{$type}) eq "HASH" && ref($NI->{$type}->{$index}) eq "HASH"
+				 and defined ($NI->{$type}->{$index}->{$elementVar}) and $NI->{$type}{$index}{$elementVar} ne "" )
 		{
 			$element = $NI->{$type}{$index}{$elementVar};
 		}
