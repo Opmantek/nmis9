@@ -3050,6 +3050,21 @@ sub getSystemHealthData
 		# that's instance index value
 		for my $index (sort keys %{$NI->{$section}})
 		{
+			# sanity-check the inputs: an indexed section must always have an index property, which must be eq hash key.
+			my $thissection = $NI->{$section}->{$index};
+
+			if (ref($thissection) ne "HASH" or !keys %$thissection
+					or !exists($thissection->{index})
+					or $index ne $thissection->{index})
+			{
+				logMsg("FATAL invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+				info("FATAL invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+
+				# clean it up as well, it's utterly broken as it is.
+				delete $NI->{$section}->{$index};
+				next;
+			}
+
 			my $rrdData = $S->getData(class=>'systemHealth', section=>$section, index=>$index, debug=>$model);
 			my $howdiditgo = $S->status;
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
@@ -3057,6 +3072,7 @@ sub getSystemHealthData
 			# were there any errors?
 			if (!$anyerror)
 			{
+				my $count = 0;
 				foreach my $sect (keys %{$rrdData})
 				{
 					my $D = $rrdData->{$sect}->{$index};
@@ -3064,6 +3080,7 @@ sub getSystemHealthData
 					# update retrieved values in node info, too, not just the rrd database
 					for my $item (keys %$D)
 					{
+						++$count;
 						dbg("updating node info $section $index $item: old ".$NI->{$section}{$index}{$item}
 								." new $D->{$item}{value}");
 						$NI->{$section}{$index}{$item}=$D->{$item}{value};
@@ -3079,6 +3096,7 @@ sub getSystemHealthData
 						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
+				info("section=$section index=$index read and stored $count values");
 			}
 			else
 			{
