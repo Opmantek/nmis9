@@ -1477,12 +1477,21 @@ sub parseString
 		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n".
 				"\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",3);
 
-		# massage the string and replace any available variables from extras first,
-		# before any of the compatibility hardcoded stuff
+		# massage the string and replace any available variables from extras,
+		# but ONLY WHERE no compatibility hardcoded variable is present.
+		#
+		# if the extras substitution were to be done first, then the identically named
+		# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
 		if (ref($extras) eq "HASH")
 		{
 			for my $maybe (sort keys %$extras)
 			{
+				# note: the $$maybe works ONLY because this is under no strict
+				if (defined($$maybe) && $$maybe ne $extras->{$maybe})
+				{
+					dbg("ignoring '$maybe' from extras: '$extras->{$maybe}' clashes with legacy '$$maybe'", 3);
+					next;
+				}
 				my $presubst = $str;
 				# this substitutes $varname and ${varname},
 				# the latter is safer b/c the former has trouble with varnames sharing a prefix.
@@ -1648,7 +1657,7 @@ sub getTypeInstances
 }
 
 # ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type,
-# index and item, possibly also node info; and certainly the information 
+# index and item, possibly also node info; and certainly the information
 # in the node's model and common-database.
 # args: graphtype or type (required), index, item (mostly required),
 # optional argument suppress_errors makes getdbname not print error messages
@@ -1664,12 +1673,12 @@ sub getDBName
 	my ($sect, $db);
 
 	# if we have no index but item: fall back to that, and vice versa
-	if (defined $item && (!defined $index || $index eq ''))
+	if (defined $item && $item ne '' && (!defined $index || $index eq ''))
 	{
 		dbg("synthetic index from item for graphtype=$graphtype, item=$item",2);
 		$index=$item;
 	}
-	elsif (defined $index && (!defined $item || $item eq ''))
+	elsif (defined $index && $index ne '' && (!defined $item || $item eq ''))
 	{
 		dbg("synthetic item from index for graphtype=$graphtype, index=$index",2);
 		$item=$index;
@@ -1681,11 +1690,11 @@ sub getDBName
 		my $NI = $self->ndinfo;
 		# indexed and section exists? pass that for extra variable expansions
 		# unindexed? pass nothing
-		my $extras = ( defined($index) && $index ne ''? 
+		my $extras = ( defined($index) && $index ne ''?
 									 $NI->{$sect}->{$index} : undef );
-		
+
 		$db = rrdfunc::getFileName( sys => $self, type => $sect,
-															  index => $index, item => $item, 
+															  index => $index, item => $item,
 															  extras => $extras );
 	}
 
