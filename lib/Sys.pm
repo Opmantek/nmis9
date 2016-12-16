@@ -1648,9 +1648,11 @@ sub getTypeInstances
 }
 
 # ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type,
-# index and item; and the information in the node's model and common-database.
-# this does NO LONGER use the node info cache!
+# index and item, possibly also node info; and certainly the information 
+# in the node's model and common-database.
+# args: graphtype or type (required), index, item (mostly required),
 # optional argument suppress_errors makes getdbname not print error messages
+# returns: rrd file name or undef
 sub getDBName
 {
 	my ($self,%args) = @_;
@@ -1676,8 +1678,15 @@ sub getDBName
 	# first do the 'reverse lookup' from graph name to rrd section name
 	if (defined ($sect = $self->getTypeName(graphtype=>$graphtype, index=>$index)))
 	{
-		$db = rrdfunc::getFileName(sys => $self, type => $sect,
-															 index => $index, item => $item);
+		my $NI = $self->ndinfo;
+		# indexed and section exists? pass that for extra variable expansions
+		# unindexed? pass nothing
+		my $extras = ( defined($index) && $index ne ''? 
+									 $NI->{$sect}->{$index} : undef );
+		
+		$db = rrdfunc::getFileName( sys => $self, type => $sect,
+															  index => $index, item => $item, 
+															  extras => $extras );
 	}
 
 	if (!defined $db)
