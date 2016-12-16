@@ -3058,8 +3058,8 @@ sub getSystemHealthData
 					or !exists($thissection->{index})
 					or $index ne $thissection->{index})
 			{
-				logMsg("FATAL invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
-				info("FATAL invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+				logMsg("ERROR invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+				info("ERROR invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
 
 				# clean it up as well, it's utterly broken as it is.
 				delete $NI->{$section}->{$index};
@@ -8678,8 +8678,8 @@ sub doThreshold
 								and ( ref($NI->{$type}) ne "HASH" or (!keys %{$NI->{$type}})
 											or ref($NI->{$type}->{$index}) ne "HASH" or $index ne $NI->{$type}->{$index}->{index}))
 						{
-							logMsg("FATAL invalid data for section $type and index $index, cannot run threshold for this index!");
-							info("FATAL invalid data for section $type and index $index, cannot run threshold for this index!");
+							logMsg("ERROR invalid data for section $type and index $index, cannot run threshold for this index!");
+							info("ERROR invalid data for section $type and index $index, cannot run threshold for this index!");
 							next;
 						}
 
