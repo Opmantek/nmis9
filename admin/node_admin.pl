@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # a command-line node administration tool for NMIS
-our $VERSION = "1.2.0";
+our $VERSION = "1.3.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -54,7 +54,8 @@ my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act=list
-\t$bn act={create|export|update|delete|show} node=nodeX
+\t$bn act={create|update|show} node=nodeX
+\t$bn act={export|delete} {node=nodeX|group=groupY}
 \t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename old=nodeX new=nodeY [entry.A=B...]
@@ -110,13 +111,22 @@ if ($args{act} eq "list")
 }
 elsif ($args{act} eq "export")
 {
-	my ($node,$file) = @args{"node","file"};
+	my ($node,$group,$file) = @args{"node","group","file"};
 
-	die "Cannot export node without node argument!\n\n$usage\n" if (!$node);
+	die "Cannot export without node or group argument!\n\n$usage\n" if (!$node and !$group);
 	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
 
-	my $noderec = $nodeinfo->{$node};
-	die "Node $node does not exist.\n" if (!$noderec);
+	my ($noderec,@nodegroup);
+	if ($node)
+	{
+		$noderec = $nodeinfo->{$node};
+		die "Node $node does not exist.\n" if (!$noderec);
+	}
+	elsif ($group)
+	{
+		@nodegroup = grep ( $_->{group} eq $group, values %$nodeinfo);
+		die "Group $group does not exist or has no members.\n" if (!@nodegroup);
+	}
 
 	my $fh;
 	if (!$file or $file eq "-")
@@ -128,7 +138,7 @@ elsif ($args{act} eq "export")
 			 open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
 	# ensure that the output is indeed valid json, utf-8 encoded
-	print $fh JSON::XS->new->pretty(1)->canonical(1)->utf8->encode($noderec);
+	print $fh JSON::XS->new->pretty(1)->canonical(1)->utf8->encode( $noderec||\@nodegroup);
 	close $fh if ($fh != \*STDOUT);
 
 	print STDERR "Successfully exported $node configuration to file $file\n" if ($fh != \*STDOUT);
@@ -204,83 +214,89 @@ You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon
 }
 elsif ($args{act} eq "delete")
 {
-	my ($node,$confirmation,$nukedata) = @args{"node","confirm","deletedata"};
+	my ($node,$group,$confirmation,$nukedata) = @args{"node","group","confirm","deletedata"};
 
-	die "Cannot delete node without node argument!\n\n$usage\n" if (!$node);
-	die "Node $node does not exist.\n" if (!$nodeinfo->{$node});
-
-	die "NOT deleting node $node:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
+	die "Cannot delete without node or group argument!\n\n$usage\n" if (!$node and !$group);
+	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
 
-	# first thing, get rid of any events
-	cleanEvent($node,"node_admin");
+	my @morituri = $node? ($node) : grep($nodeinfo->{$_}->{group} eq $group, keys %$nodeinfo);
+	my @todelete;
 
-	# if data is to be deleted, do that FIRST (need working sys object to find stuff)
-	if (getbool($nukedata))
+	die "Node $node does not exist.\n" if ($node && !$nodeinfo->{$node});
+	die "Group $group does not exist or has no members.\n" if ($group && !@morituri);
+
+	for my $mustdie (@morituri)
 	{
-		print STDERR "Priming Sys object for finding RRD files\n" if ($debuglevel or $infolevel);
-		my $S = Sys->new; $S->init(name => $node, snmp => "false");
+		# first thing, get rid of any events
+		cleanEvent($mustdie,"node_admin");
 
-		my @todelete;
-		my $oldinfo = $S->ndinfo;
-		# find and nuke all rrds belonging to the deletable node
-		for my $section (keys %{$oldinfo->{graphtype}})
+		# if data is to be deleted, do that FIRST (need working sys object to find stuff)
+		if (getbool($nukedata))
 		{
-			next if ($section =~ /^(network|nmis|metrics)$/);
-			if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
+			print STDERR "Priming Sys object for finding RRD files\n" if ($debuglevel or $infolevel);
+			my $S = Sys->new; $S->init(name => $mustdie, snmp => "false");
+
+			my $oldinfo = $S->ndinfo;
+			# find and nuke all rrds belonging to the deletable node
+			for my $section (keys %{$oldinfo->{graphtype}})
 			{
-				my $index = $section;
-				for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
+				next if ($section =~ /^(network|nmis|metrics)$/);
+				if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
 				{
-					if ($subsection =~ /^cbqos-(in|out)$/)
+					my $index = $section;
+					for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
 					{
-						my $dir = $1;
-						# need to find the qos classes and hand them to getdbname as item
-						for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
+						if ($subsection =~ /^cbqos-(in|out)$/)
 						{
-							my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
-							push @todelete, $S->getDBName(graphtype => $subsection,
-																						index => $index, item => $item);
+							my $dir = $1;
+							# need to find the qos classes and hand them to getdbname as item
+							for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
+							{
+								my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
+								push @todelete, $S->getDBName(graphtype => $subsection,
+																							index => $index, item => $item);
+							}
+						}
+						else
+						{
+							push @todelete, $S->getDBName(graphtype => $subsection, index => $index);
 						}
 					}
-					else
-					{
-						push @todelete, $S->getDBName(graphtype => $subsection, index => $index);
-					}
+				}
+				else
+				{
+					push @todelete, $S->getDBName(graphtype => $section);
 				}
 			}
-			else
+
+			# then take care of the var files
+			my $vardir = $config->{'<nmis_var>'};
+			opendir(D, $vardir) or die "cannot read dir $vardir: $!\n";
+			for my $fn (readdir(D))
 			{
-				push @todelete, $S->getDBName(graphtype => $section);
+				push @todelete, "$vardir/$fn" if ($fn =~ /^$mustdie-(node|view)\.(\S+)$/i);
 			}
+			closedir D;
 		}
 
-		# then take care of the var files
-		my $vardir = $config->{'<nmis_var>'};
-		opendir(D, $vardir) or die "cannot read dir $vardir: $!\n";
-		for my $fn (readdir(D))
-		{
-			push @todelete, "$vardir/$fn" if ($fn =~ /^$node-(node|view)\.(\S+)$/i);
-		}
-		closedir D;
-
-		# then deal with the unwanted stuff
-		for my $fn (@todelete)
-		{
-			next if (!defined $fn);
-			my $relfn = File::Spec->abs2rel($fn, $config->{'<nmis_base>'});
-			print STDERR "Deleting file $relfn, no longer required\n" if ($debuglevel or $infolevel);
-			unlink($fn);
-		}
+		# finally remove the old node from the nodes file
+		print STDERR "Deleting node $mustdie from Nodes table\n" if ($debuglevel or $infolevel);
+		delete $nodeinfo->{$mustdie};
+		print STDERR "Successfully deleted $mustdie\n";
 	}
 
-	# finally remove the old node from the nodes file
-	print STDERR "Deleting node $node from Nodes table\n" if ($debuglevel or $infolevel);
-	delete $nodeinfo->{$node};
+	# then deal with the unwanted stuff
+	for my $fn (@todelete)
+	{
+		next if (!defined $fn);
+		my $relfn = File::Spec->abs2rel($fn, $config->{'<nmis_base>'});
+		print STDERR "Deleting file $relfn, no longer required\n" if ($debuglevel or $infolevel);
+		unlink($fn);
+	}
+
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
 	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
-
-	print STDERR "Successfully deleted $node\n";
 	exit 0;
 }
 elsif ($args{act} eq "rename")
