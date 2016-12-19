@@ -2264,12 +2264,21 @@ sub viewActivePort {
 		if ($items{$_} and $titles{$_} ne '') { push @hd,$_; } # available item
 	}
 
+	# fixme gone
 	my $url = "network.pl?conf=$Q->{conf}&act=network_port_view&node=".uri_escape($node);
 
-	# start of form
-	print start_form(-id=>"nmis",-href=>"$url");
+	my $graphtype = ($Q->{graphtype} eq '') ? $C->{default_graphtype} : $Q->{graphtype};
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	# the get() code doesn't work without a query param, nor does it work with all params present
+	# conversely the non-widget mode needs post inputs as query params are ignored
+	print start_form(-id=>"nmis", -href => url(-absolute=>1)."?")
+			. hidden(-override => 1, -name => "conf", -value => $Q->{conf})
+			. hidden(-override => 1, -name => "act", -value => "network_port_view")
+			. hidden(-override => 1, -name => "widget", -value => $widget)
+			. hidden(-override => 1, -name => "node", -value => $node);
+
+	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},
+												widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 
@@ -2290,7 +2299,7 @@ sub viewActivePort {
 
 	print Tr(th({class=>'title',width=>'100%'},"Interface Table of node $NI->{system}{name}"));
 
-	my $graphtype = ($Q->{graphtype} eq '') ? $C->{default_graphtype} : $Q->{graphtype};
+
 
 	### 2013-12-17 keiths, added dynamic building of the graph types
 	my @graphtypes = ('');
@@ -2308,29 +2317,32 @@ sub viewActivePort {
 	print start_Tr,start_td,start_table;
 	# print header
 	print Tr(
-	eval { my @out;
+	eval {
+		my @out;
 		foreach my $k (@hd){
 			my @hdr = split(/\(/,$titles{$k}); # strip added info
 			push @out,td({class=>'header',align=>'center'},
-			a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_port_view&sort=$k&dir=$dir&graphtype=$graphtype&node="
-						 .uri_escape($node)},
-			$hdr[0]));
+									 a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_port_view&sort=$k&dir=$dir&graphtype=$graphtype&node="
+													.uri_escape($node)},
+										 $hdr[0]));
 		}
 		push @out,td({class=>'header',align=>'center'},'Graph');
-	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-in')) {
-		push @out,td({class=>'header',align=>'center'},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-in&node=".uri_escape($node)},'CBQoS in'));
-		$colspan++;
-	}
-	if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-out')) {
-		push @out,td({class=>'header',align=>'center'},
-		a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-out&node=".uri_escape($node)},'CBQoS out'));
-		$colspan++;
-	}
-	push @out,td({class=>'header',align=>'center'}),popup_menu(-name=>"graphtype",
-	-values=>\@graphtypes,-default=>$graphtype,onchange=>"get('nmis');");
-	return @out;
-	});
+		if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-in')) {
+			push @out,td({class=>'header',align=>'center'},
+									 a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-in&node=".uri_escape($node)},'CBQoS in'));
+			$colspan++;
+		}
+		if ($S->getTypeInstances(graphtype => 'cbqos-in', section => 'cbqos-out')) {
+			push @out,td({class=>'header',align=>'center'},
+									 a({href=>"network.pl?conf=$Q->{conf}&act=network_port_view&graphtype=cbqos-out&node=".uri_escape($node)},'CBQoS out'));
+			$colspan++;
+		}
+		push @out, td({class=>'header',align=>'center'}),
+		popup_menu(-name=>"graphtype",
+							 -values=>\@graphtypes,-default=>$graphtype,
+							 onchange => $wantwidget? "get('nmis');" : 'submit();');
+		return @out;
+		});
 
 	# print data
 	foreach my $intf ( sorthash(\%view,[$sort,"value"], $dir)) {
