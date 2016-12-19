@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.5.0";
+our $VERSION = "1.6.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -40,10 +40,13 @@ use lib "$FindBin::Bin/../lib";
 
 print "Opmantek NMIS Support Tool Version $VERSION\n";
 
-my $usage = "Usage: ".basename($0)." action=collect [node=nodename,nodename...]\n
+my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA,nodeB...]\n
 action=collect: collect general support info in an archive file
  if node argument given: also collect node-specific info
- if nodename='*' then ALL nodes' info will be collected (DATA MIGHT BE HUGE!)\n\n";
+ if nodename='*' then ALL nodes' info will be collected (DATA MIGHT BE HUGE!)
+public: if set to false, then credentials, community, passwords
+ and other sensitive data is removed and not included in the archive.
+\n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
 
@@ -240,7 +243,7 @@ sub shrinkfile
 # and parks all of that in/beneath target dir
 # the target dir must already exist
 #
-# args: node, no_system_stats
+# args: node, no_system_stats, public
 # if node given, then this node's var data is collected as well
 # if no_system_stats is set then the time-consuming top, iostat etc are skipped
 
@@ -248,180 +251,210 @@ sub shrinkfile
 # returns nothing if ok, error message otherwise
 sub collect_evidence
 {
-		my ($targetdir,$args) = @_;
+	my ($targetdir,$args) = @_;
 
-		my $basedir = $globalconf->{'<nmis_base>'};
-		# these three are relevant and often outside of basedir, occasionally without symlink...
-		my $vardir = $globalconf->{'<nmis_var>'};
-		my $dbdir = $globalconf->{'database_root'};
-		my $logdir = $globalconf->{'<nmis_logs>'};
+	# default is public=true, include config as-is
+	my $nosensitive = defined($args->{public}) && $args->{public} =~ /^(false|f|0|off)$/i;
 
-		my $thisnode = $args{node};
+	my $basedir = $globalconf->{'<nmis_base>'};
+	# these three are relevant and often outside of basedir, occasionally without symlink...
+	my $vardir = $globalconf->{'<nmis_var>'};
+	my $dbdir = $globalconf->{'database_root'};
+	my $logdir = $globalconf->{'<nmis_logs>'};
 
-		# report the NMIS version and the support tool version, too.
-		open(F, ">$targetdir/nmis_version") or die "cannot write to $targetdir/nmis_version: $!\n";
-		my $nmisversion = `$basedir/bin/nmis.pl 2>/dev/null`;
-		if ($nmisversion =~ /^NMIS version (\S+)$/m)
+	my $thisnode = $args{node};
+
+	# report the NMIS version and the support tool version, too.
+	open(F, ">$targetdir/nmis_version") or die "cannot write to $targetdir/nmis_version: $!\n";
+	my $nmisversion = `$basedir/bin/nmis.pl 2>/dev/null`;
+	if ($nmisversion =~ /^NMIS version (\S+)$/m)
+	{
+		print F "NMIS Version $1\n";
+	}
+	else
+	{
+		open(G, "$basedir/lib/NMIS.pm");
+		for  my $line (<G>)
 		{
-			print F "NMIS Version $1\n";
+			if ($line =~ /^\$VERSION\s*=\s*"(.+)";\s*$/)
+			{
+				print F "NMIS Version $1\n";
+				last;
+			}
+		}
+		close G;
+	}
+	print  F "Support Tool Version $VERSION\n";
+	close F;
+
+	# dirs to check: the basedir, PLUS the database_root PLUS the nmis_var
+	my $dirstocheck=$basedir;
+	$dirstocheck .= " $vardir" if ($vardir !~ /^$basedir/);
+	$dirstocheck .= " $dbdir" if ($dbdir !~ /^$basedir/);
+	$dirstocheck .= " $logdir" if ($logdir !~ /^$basedir/);
+
+	mkdir("$targetdir/system_status");
+	# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
+	# this needs to cover dbdir and vardir if outside
+	system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
+			or warn "can't list nmis dir: $!\n";
+	# let's also get the cumulative directory sizes for an easier overview
+	system("find -L $dirstocheck -type d -print0| xargs -0 -n 1 du -sk > $targetdir/system_status/dir_info") == 0
+			or warn "can't collect nmis dir sizes: $!\n";
+
+	# get md5 sums of the relevant installation files
+	# no need to checksum dbdir or vardir
+	print "please wait while we collect file status information...\n";
+	system("find -L $basedir \\( \\( -path '$basedir/.git' -o -path '$basedir/database' -o -path '$basedir/logs' -o -path '$basedir/var' \\) -prune \\) -o \\( -type f -print0 \\) |xargs -0 md5sum -- >$targetdir/system_status/md5sum 2>&1");
+
+	# verify the relevant users and groups, dump groups and passwd (not shadow)
+	system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
+	system("id nmis >$targetdir/system_status/nmis_userinfo 2>&1");
+	system("id apache >$targetdir/system_status/web_userinfo 2>&1");
+	system("id www-data >>$targetdir/system_status/web_userinfo 2>&1");
+	# dump the process table,
+	system("ps ax >$targetdir/system_status/processlist.txt") == 0
+			or warn  "can't list processes: $!\n";
+	# the lock status
+	system("cp","/proc/locks","$targetdir/system_status/");
+
+	# dump the memory info, free
+	system("cp","/proc/meminfo","$targetdir/system_status/meminfo") == 0
+			or warn "can't save memory information: $!\n";
+	chmod(0644,"$targetdir/system_status/meminfo"); # /proc/meminfo isn't writable
+	system("free >> $targetdir/system_status/meminfo");
+
+	system("df >> $targetdir/system_status/disk_info");
+	system("mount >> $targetdir/system_status/disk_info");
+
+	system("uname -av > $targetdir/system_status/uname");
+	mkdir("$targetdir/system_status/osrelease");
+	system("cp -a /etc/*release /etc/*version $targetdir/system_status/osrelease/ 2>/dev/null");
+
+	if (!$args->{no_system_stats})
+	{
+		print "please wait while we gather statistics for about 15 seconds...\n";
+		# dump 5 seconds of vmstat, two runs of top, 5 seconds of iostat
+		# these tools aren't necessarily installed, so we ignore errors
+		system("vmstat 1 5 > $targetdir/system_status/vmstat");
+		system("top -b -n 2 > $targetdir/system_status/top");
+		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
+	}
+
+	# copy /etc/hosts, /etc/resolv.conf, interface and route status
+	system("cp","/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf","$targetdir/system_status/") == 0
+			or warn "can't save dns configuration files: $!\n";
+	system("/sbin/ifconfig -a > $targetdir/system_status/ifconfig") == 0
+			or warn "can't save interface status: $!\n";
+	system("/sbin/route -n > $targetdir/system_status/route") == 0
+			or warn "can't save routing table: $!\n";
+
+	# capture the cron files, root's and nmis's tabs
+	mkdir("$targetdir/system_status/cron");
+	system("cp -a /etc/cron* $targetdir/system_status/cron") == 0
+			or warn "can't save cron files: $!\n";
+
+	system("crontab -u root -l > $targetdir/system_status/cron/crontab.root 2>/dev/null");
+	system("crontab -u nmis -l > $targetdir/system_status/cron/crontab.nmis 2>/dev/null");
+
+	# capture the apache configs
+	my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
+	if ($apachehome)
+	{
+		my $apachetarget = "$targetdir/system_status/apache";
+		mkdir ($apachetarget) if (!-d $apachetarget);
+		# on centos/RH there are symlinks pointing to all the apache module binaries, we don't
+		# want these (so  -a or --dereference is essential)
+		system("cp -a $apachehome/* $apachetarget");
+		# and save a filelist for good measure
+		system("ls -laHR $apachehome > $apachetarget/filelist");
+	}
+
+	# copy the install log if there is one
+	if (-f "$basedir/install.log")
+	{
+		system("cp","$basedir/install.log",$targetdir) == 0
+				or warn "can't copy install.log: $!\n";
+	}
+
+	# collect all defined log files
+	mkdir("$targetdir/logs");
+	my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
+	if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
+	{
+		@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" }
+		(qw(nmis.log auth.log fpingd.log event.log slave_event.log trap.log"));
+	}
+	for my $aperrlog ("/var/log/httpd/error_log", "/var/log/apache/error.log", "/var/log/apache2/error.log")
+	{
+		push @logfiles, $aperrlog if (-f $aperrlog);
+	}
+	for my $lfn (@logfiles)
+	{
+		if (!-f $lfn)
+		{
+			# two special cases: fpingd and polling.log aren't necessarily present.
+			warn "ATTENTION: logfile $lfn configured but does not exist!\n"
+					if (basename($lfn) !~ /^(fpingd|polling).log$/);
+			next;
+		}
+
+		# log files that are larger than maxlogsize are automatically tail'd
+		if (-s $lfn > $maxlogsize)
+		{
+			warn "logfile $lfn is too big, truncating to $maxlogsize bytes.\n";
+			my $targetfile=basename($lfn);
+			system("tail -c $maxlogsize $lfn > $targetdir/logs/$targetfile") == 0
+					or warn "couldn't truncate $lfn!\n";
 		}
 		else
 		{
-			open(G, "$basedir/lib/NMIS.pm");
-			for  my $line (<G>)
-			{
-				if ($line =~ /^\$VERSION\s*=\s*"(.+)";\s*$/)
-				{
-					print F "NMIS Version $1\n";
-					last;
-				}
-			}
-			close G;
+			system("cp","$lfn","$targetdir/logs") == 0
+					or warn "ATTENTION: can't copy logfile $lfn to $targetdir!\n";
 		}
-		print  F "Support Tool Version $VERSION\n";
+	}
+	mkdir("$targetdir/conf",0755);
+	mkdir("$targetdir/conf/scripts",0755);
+	mkdir("$targetdir/conf/nodeconf",0755);
+
+	# copy all of conf/ and models/ but NOT any stray stuff beneath
+	system("cp","-r","$basedir/models",$targetdir) == 0
+			or warn "can't copy models to $targetdir: $!\n";
+	system("cp $basedir/conf/* $targetdir/conf 2>/dev/null");
+
+	# for conf, clean out sensitive bits if requested
+	if ($nosensitive)
+	{
+		open(F, "$targetdir/conf/Nodes.nmis") or die "can't read nodes file: $!\n";
+		my @lines = <F>;
+		close F;
+		for my $tbc (@lines)
+		{
+			$tbc =~ s/((?:auth|priv|wmi)(?:password|key)|community|wmiusername|username)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
+		}
+		open(F, ">$targetdir/conf/Nodes.nmis") or die "can't write nodes file: $!\n";
+		print F @lines;
 		close F;
 
-		# dirs to check: the basedir, PLUS the database_root PLUS the nmis_var
-		my $dirstocheck=$basedir;
-		$dirstocheck .= " $vardir" if ($vardir !~ /^$basedir/);
-		$dirstocheck .= " $dbdir" if ($dbdir !~ /^$basedir/);
-		$dirstocheck .= " $logdir" if ($logdir !~ /^$basedir/);
-
-		mkdir("$targetdir/system_status");
-		# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
-		# this needs to cover dbdir and vardir if outside
-		system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
-				or warn "can't list nmis dir: $!\n";
-		# let's also get the cumulative directory sizes for an easier overview
-		system("find -L $dirstocheck -type d -print0| xargs -0 -n 1 du -sk > $targetdir/system_status/dir_info") == 0
-				or warn "can't collect nmis dir sizes: $!\n";
-
-		# get md5 sums of the relevant installation files
-		# no need to checksum dbdir or vardir
-		print "please wait while we collect file status information...\n";
-		system("find -L $basedir \\( \\( -path '$basedir/.git' -o -path '$basedir/database' -o -path '$basedir/logs' -o -path '$basedir/var' \\) -prune \\) -o \\( -type f -print0 \\) |xargs -0 md5sum -- >$targetdir/system_status/md5sum 2>&1");
-
-		# verify the relevant users and groups, dump groups and passwd (not shadow)
-		system("cp","/etc/group","/etc/passwd","$targetdir/system_status/");
-		system("id nmis >$targetdir/system_status/nmis_userinfo 2>&1");
-		system("id apache >$targetdir/system_status/web_userinfo 2>&1");
-		system("id www-data >>$targetdir/system_status/web_userinfo 2>&1");
-		# dump the process table,
-		system("ps ax >$targetdir/system_status/processlist.txt") == 0
-				or warn  "can't list processes: $!\n";
-		# the lock status
-		system("cp","/proc/locks","$targetdir/system_status/");
-
-		# dump the memory info, free
-		system("cp","/proc/meminfo","$targetdir/system_status/meminfo") == 0
-				or warn "can't save memory information: $!\n";
-		chmod(0644,"$targetdir/system_status/meminfo"); # /proc/meminfo isn't writable
-		system("free >> $targetdir/system_status/meminfo");
-
-		system("df >> $targetdir/system_status/disk_info");
-		system("mount >> $targetdir/system_status/disk_info");
-
-		system("uname -av > $targetdir/system_status/uname");
-		mkdir("$targetdir/system_status/osrelease");
-		system("cp -a /etc/*release /etc/*version $targetdir/system_status/osrelease/ 2>/dev/null");
-
-		if (!$args->{no_system_stats})
+		open(F, "$targetdir/conf/Config.nmis") or die "can't read config file: $!\n";
+		@lines = <F>;
+		close (F);
+		for my $tbc (@lines)
 		{
-			print "please wait while we gather statistics for about 15 seconds...\n";
-			# dump 5 seconds of vmstat, two runs of top, 5 seconds of iostat
-			# these tools aren't necessarily installed, so we ignore errors
-			system("vmstat 1 5 > $targetdir/system_status/vmstat");
-			system("top -b -n 2 > $targetdir/system_status/top");
-			system("iostat -kx 1 5 > $targetdir/system_status/iostat");
+			$tbc =~ s/(auth_radius_secret|auth_web_key|default_(?:auth|priv)(?:password|key)|(?:mail|db)_password|db_rootpassword|auth_ms_ldap_dn_psw|auth_tacacs_secret|(?:server|slave)_community)\b(['"]\s*=>)(.*)$/$1$2'_removed_',/g;
 		}
+		open(F, ">$targetdir/conf/Config.nmis") or die "can't write config file: $!\n";
+		print F @lines;
+		close F;
+	}
 
-		# copy /etc/hosts, /etc/resolv.conf, interface and route status
-		system("cp","/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf","$targetdir/system_status/") == 0
-				or warn "can't save dns configuration files: $!\n";
-		system("/sbin/ifconfig -a > $targetdir/system_status/ifconfig") == 0
-				or warn "can't save interface status: $!\n";
-		system("/sbin/route -n > $targetdir/system_status/route") == 0
-				or warn "can't save routing table: $!\n";
+	for my $oksubdir (qw(scripts nodeconf))
+	{
+		system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0
+				or warn "can't copy conf to $targetdir/conf/$oksubdir: $!\n";
+	}
 
-		# capture the cron files, root's and nmis's tabs
-		mkdir("$targetdir/system_status/cron");
-		system("cp -a /etc/cron* $targetdir/system_status/cron") == 0
-				or warn "can't save cron files: $!\n";
-
-		system("crontab -u root -l > $targetdir/system_status/cron/crontab.root 2>/dev/null");
-		system("crontab -u nmis -l > $targetdir/system_status/cron/crontab.nmis 2>/dev/null");
-
-		# capture the apache configs
-		my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;
-		if ($apachehome)
-		{
-			my $apachetarget = "$targetdir/system_status/apache";
-			mkdir ($apachetarget) if (!-d $apachetarget);
-			# on centos/RH there are symlinks pointing to all the apache module binaries, we don't
-			# want these (so  -a or --dereference is essential)
-			system("cp -a $apachehome/* $apachetarget");
-			# and save a filelist for good measure
-			system("ls -laHR $apachehome > $apachetarget/filelist");
-		}
-
-		# copy the install log if there is one
-		if (-f "$basedir/install.log")
-		{
-				system("cp","$basedir/install.log",$targetdir) == 0
-						or warn "can't copy install.log: $!\n";
-		}
-
-		# collect all defined log files
-		mkdir("$targetdir/logs");
-		my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
-		if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
-		{
-			@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" }
-			(qw(nmis.log auth.log fpingd.log event.log slave_event.log trap.log"));
-		}
-		for my $aperrlog ("/var/log/httpd/error_log", "/var/log/apache/error.log", "/var/log/apache2/error.log")
-		{
-				push @logfiles, $aperrlog if (-f $aperrlog);
-		}
-		for my $lfn (@logfiles)
-		{
-				if (!-f $lfn)
-				{
-						# two special cases: fpingd and polling.log aren't necessarily present.
-						warn "ATTENTION: logfile $lfn configured but does not exist!\n"
-								if (basename($lfn) !~ /^(fpingd|polling).log$/);
-						next;
-				}
-
-				# log files that are larger than maxlogsize are automatically tail'd
-				if (-s $lfn > $maxlogsize)
-				{
-					warn "logfile $lfn is too big, truncating to $maxlogsize bytes.\n";
-					my $targetfile=basename($lfn);
-					system("tail -c $maxlogsize $lfn > $targetdir/logs/$targetfile") == 0
-							or warn "couldn't truncate $lfn!\n";
-				}
-				else
-				{
-					system("cp","$lfn","$targetdir/logs") == 0
-							or warn "ATTENTION: can't copy logfile $lfn to $targetdir!\n";
-				}
-		}
-		mkdir("$targetdir/conf",0755);
-		mkdir("$targetdir/conf/scripts",0755);
-		mkdir("$targetdir/conf/nodeconf",0755);
-
-		# copy all of conf/ and models/ but NOT any stray stuff beneath
-		system("cp","-r","$basedir/models",$targetdir) == 0
-				or warn "can't copy models to $targetdir: $!\n";
-		system("cp $basedir/conf/* $targetdir/conf 2>/dev/null");
-		for my $oksubdir (qw(scripts nodeconf))
-		{
-			system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0
-					or warn "can't copy conf to $targetdir/conf/$oksubdir: $!\n";
-		}
-
-		# copy generic var files (=var/nmis-*)
+	# copy generic var files (=var/nmis-*)
 		mkdir("$targetdir/var");
 		opendir(D,"$vardir") or warn "can't read var dir $vardir: $!\n";
 		my @generics = grep(/^nmis[-_]/, readdir(D));
