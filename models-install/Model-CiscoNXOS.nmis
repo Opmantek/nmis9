@@ -253,10 +253,11 @@
   				'sysObjectID' => {
   					'oid' => 'sysObjectID'
   				},
-  				'sysUpTime' => {
-  					'oid' => 'sysUpTime',
-  					'title' => 'Uptime'
-  				},
+				'sysUpTime' => {
+				  'calculate' => '$r * 100',
+				  'oid' => 'snmpEngineTime',
+				  'title' => 'Uptime'
+				},
   				'ifNumber' => {
   					'oid' => 'ifNumber',
   					'title' => 'Interfaces'
