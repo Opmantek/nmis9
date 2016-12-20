@@ -606,7 +606,8 @@
             'oid' => 'sysObjectID'
           },
           'sysUpTime' => {
-            'oid' => 'sysUpTime',
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
             'title' => 'Uptime'
           }
         }
