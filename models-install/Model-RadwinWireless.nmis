@@ -316,6 +316,27 @@
         'graphtype' => 'RadwinRSSI,RadwinUtil,RadwinChain',
         'indexed' => 'true',
         'snmp' => {
+          'hsuIP' => {
+            'calculate' => 'my @values = split(/\\,/, $r);$r =join(".", unpack "C*", pack "H*", $values[1]);',
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+            'option' => 'nosave',
+            'sysObjectName' => 'hsuIP',
+            'title' => 'IP Address'
+          },
+          'hsuLocation' => {
+            'calculate' => 'my @values = split(/\\,/, $r);$r = $values[3];',
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+            'option' => 'nosave',
+            'sysObjectName' => 'hsuLocation',
+            'title' => 'Location'
+          },
+          'hsuName' => {
+            'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',
+            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
+            'option' => 'nosave',
+            'sysObjectName' => 'hsuName',
+            'title' => 'Name'
+          },
           'HbsAirLinkCompressedStatic' => {
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
             'option' => 'nosave',
@@ -359,27 +380,6 @@
             'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.6',
             'option' => 'gauge,U:U',
             'sysObjectName' => 'hbsesttput'
-          },
-          'hsuIP' => {
-            'calculate' => 'my @values = split(/\\,/, $r);$r =join(".", unpack "C*", pack "H*", $values[1]);',
-            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
-            'option' => 'nosave',
-            'sysObjectName' => 'hsuIP',
-            'title' => 'IP Address'
-          },
-          'hsuLocation' => {
-            'calculate' => 'my @values = split(/\\,/, $r);$r = $values[3];',
-            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
-            'option' => 'nosave',
-            'sysObjectName' => 'hsuLocation',
-            'title' => 'Location'
-          },
-          'hsuName' => {
-            'calculate' => 'my @values = split(/\\,/, $r);$r = $values[2];',
-            'oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
-            'option' => 'nosave',
-            'sysObjectName' => 'hsuName',
-            'title' => 'Name'
           },
           'hsu_chain1' => {
             'calculate' => '$r = unpack("c", pack("C", hex(substr($r, 132, 2))));',
@@ -500,7 +500,7 @@
     'sections' => 'HBS',
     'sys' => {
       'HBS' => {
-        'headers' => 'hsuID,hsuName,hsuIP,hsuLocation,linkhbsrss,linkhsurss',
+        'headers' => 'index,hsuID,hsuName,hsuIP,hsuLocation,linkhbsrss,linkhsurss',
         'index_oid' => '1.3.6.1.4.1.4458.1000.3.1.7.2.1.23',
         'index_regex' => '\\.(\\d+)$',
         'indexed' => 'HbsAirLinkCompressedStatic',
