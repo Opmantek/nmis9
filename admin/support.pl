@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.6.0";
+our $VERSION = "1.6.1";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -450,6 +450,7 @@ sub collect_evidence
 
 	for my $oksubdir (qw(scripts nodeconf))
 	{
+		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
 		system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0
 				or warn "can't copy conf to $targetdir/conf/$oksubdir: $!\n";
 	}
