@@ -379,7 +379,7 @@ sub collect_evidence
 
 	# collect all defined log files
 	mkdir("$targetdir/logs");
-	my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
+	my @logfiles = grep(/^.+$/, (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf))));
 	if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
 	{
 		@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" }
