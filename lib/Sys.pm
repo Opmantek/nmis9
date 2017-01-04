@@ -1166,6 +1166,12 @@ sub loadModel
 		}
 		else
 		{
+			# prime the nodeModel property from the model's filename,
+			# ignoring whatever may be in the deprecated nodeModel property
+			# in the model file
+			my $shortname = $model; $shortname =~ s/^Model-//;
+			$self->{mdl}->{system}->{nodeModel} = $shortname;
+
 			# continue with loading common Models
 			foreach my $class (keys %{$self->{mdl}{'-common-'}{class}})
 			{
