@@ -4718,27 +4718,46 @@ sub runServer
 		$S->{reach}{cpu} = mean(@{$S->{reach}{cpuList}});
 	}
 
+	# keep the old storage data around a bit longer, as fallback if loadinfo fails
+	my $oldstorage = $NI->{storage};
 	delete $NI->{storage};
-	if ($M->{storage} ne '') {
-		# get storage info
+
+	if ($M->{storage} ne '')
+	{
 		my $disk_cnt = 1;
 		my $storageIndex = $SNMP->getindex('hrStorageIndex');
 		my $hrFSMountPoint = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable = undef;
-		foreach my $index (keys %{$storageIndex}) {
-			if ($S->loadInfo(class=>'storage',index=>$index,model=>$model)) {
-				my $D = $NI->{storage}{$index};
+
+		foreach my $index (keys %{$storageIndex})
+		{
+			# this saves any retrieved info under ni->{storage}
+			my $wasloadable = $S->loadInfo(class=>'storage',index=>$index,model=>$model);
+			if (!$wasloadable)
+			{
+				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
+				$NI->{storage}->{$index} ||= $oldstorage->{$index}; # and restore the old data, better than nothing
+			}
+			else
+			{
+				my $D = $NI->{storage}{$index}; # new data
 				info("storage $D->{hrStorageDescr} Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
-				if (($M->{storage}{nocollect}{Description} ne '' and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/ )
-							or $D->{hrStorageSize} <= 0) {
+
+				if (($M->{storage}{nocollect}{Description} ne ''
+						 and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/ )
+						or $D->{hrStorageSize} <= 0)
+				{
 					delete $NI->{storage}{$index};
-				} else {
+				}
+				else
+				{
 					if (
 						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4' # hrStorageFixedDisk
 						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10' # hrStorageNetworkDisk
-					) {
-						undef %Val;
+							)
+					{
+						my %Val;
 						my $hrStorageType = $D->{hrStorageType};
 						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
@@ -4749,7 +4768,8 @@ sub runServer
 						push(@{$S->{reach}{diskList}},$diskUtil);
 
 						$D->{hrStorageDescr} =~ s/,/ /g;	# lose any commas.
-						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrdisk",index=>$index))) {
+						if ((my $db = updateRRD(sys=>$S,data=>\%Val,type=>"hrdisk",index=>$index)))
+						{
 							$NI->{graphtype}{$index}{hrdisk} = "hrdisk";
 							$D->{hrStorageType} = 'Fixed Disk';
 							$D->{hrStorageIndex} = $index;
@@ -4761,7 +4781,8 @@ sub runServer
 							logMsg("ERROR updateRRD failed: ".getRRDerror());
 						}
 
-						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' ) {
+						if ( $hrStorageType eq '1.3.6.1.2.1.25.2.1.10' )
+						{
 							# only get this snmp once if we need to, and created an named index.
 							if ( not defined $fileSystemTable ) {
 								$hrFSMountPoint = $SNMP->getindex('hrFSMountPoint');
@@ -4779,7 +4800,7 @@ sub runServer
 					}
 					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2' or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20') { # Memory
-						undef %Val;
+						my %Val;
 						$Val{hrMemSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{hrMemUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
@@ -4799,7 +4820,7 @@ sub runServer
 					}
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.3') { # VirtualMemory
-						undef %Val;
+						my %Val;
 
 						my ($itemname,$typename)= ($D->{hrStorageDescr} =~ /Swap/i)?
 								(qw(hrSwapMem hrswapmem)):(qw(hrVMem hrvmem));
@@ -4829,7 +4850,7 @@ sub runServer
 					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.1'  # StorageOther
 									and $D->{hrStorageDescr} =~ /^(Memory buffers|Cached memory)$/i)
 					{
-							undef %Val;
+							my %Val;
 							my ($itemname,$typename) = ($D->{hrStorageDescr} =~ /^Memory buffers$/i)?
 									(qw(hrBufMem hrbufmem)) : (qw(hrCacheMem hrcachemem));
 
@@ -4849,6 +4870,7 @@ sub runServer
 								logMsg("ERROR updateRRD failed: ".getRRDerror());
 							}
 					}
+					# storage type not recognized?
 					else
 					{
 						delete $NI->{storage}{$index};
@@ -4866,13 +4888,15 @@ sub runServer
 		$S->{reach}{disk} = mean(@{$S->{reach}{diskList}});
 	}
 
-	# convert date value to readable string
-	sub snmp2date {
-		my @tt = unpack("C*", shift );
-		return eval(($tt[0] *256) + $tt[1])."-".$tt[2]."-".$tt[3].",".$tt[4].":".$tt[5].":".$tt[6].".".$tt[7];
-	}
 	info("Finished");
 } # end runServer
+
+# converts date value to readable string
+sub snmp2date
+{
+	my @tt = unpack("C*", shift );
+	return (($tt[0] *256) + $tt[1]) ."-".$tt[2]."-".$tt[3].",".$tt[4].":".$tt[5].":".$tt[6].".".$tt[7];
+}
 
 
 #=========================================================================================
