@@ -1,3 +1,8 @@
-#OPTIONS="-Lsd -p /var/run/snmptrapd.pid"
-#OPTIONS="-Lo -Lf /var/log/snmptrapd.log -p /var/run/snmptrapd.pid 
-OPTIONS="-p /var/run/snmptrapd.pid -m ALL -M /usr/local/nmis8/mibs/traps"
+# this is without dns resolution, with mib resolution from NMIS' sources,
+# and with logging to syslog (facility daemon) but only severities 0 to 5
+OPTIONS="-n -LS0-5d /var/run/snmptrapd.pid -m ALL -M /usr/local/nmis8/mibs/traps"
+
+# similar, but default log levels
+#OPTIONS="-Lsd -p /var/run/snmptrapd.pid -m ALL -M /usr/local/nmis8/mibs/traps"
+# similar but logging to stderror and a specific log file
+#OPTIONS="-Le -Lf /var/log/snmptrapd.log -p /var/run/snmptrapd.pid -m ALL -M /usr/local/nmis8/mibs/traps"
