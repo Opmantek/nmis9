@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.6.1";
+our $VERSION = "1.6.2";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -340,6 +340,8 @@ sub collect_evidence
 		system("top -b -n 2 > $targetdir/system_status/top");
 		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
 	}
+
+	system("date > $targetdir/system_status/date");
 
 	# copy /etc/hosts, /etc/resolv.conf, interface and route status
 	system("cp","/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf","$targetdir/system_status/") == 0
