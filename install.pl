@@ -1381,7 +1381,7 @@ printBanner("NMIS State ".($isnewinstall? "Initialisation":"Update"));
 
 # now offer to run an (initial) update to get nmis' state initialised
 # and/or updated
-if ( input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
+if ( !$noninteractive && input_yn("NMIS Update: This may take up to 30 seconds\n(or a very long time with MANY nodes)...\n
 Ok to run an NMIS type=update action?"))
 {
 	print "Update running, please be patient...\n";
@@ -1389,7 +1389,7 @@ Ok to run an NMIS type=update action?"))
 }
 else
 {
-	print "Ok, continuing without the update run as directed.\n\n
+	print "Continuing without the update run as directed.\n\n
 It's highly recommended to run nmis.pl type=update once initially
 and after every NMIS upgrade - you should do this manually.\n";
 	&input_ok;
