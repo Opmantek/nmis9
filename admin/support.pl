@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.6.0";
+our $VERSION = "1.6.2";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -341,6 +341,8 @@ sub collect_evidence
 		system("iostat -kx 1 5 > $targetdir/system_status/iostat");
 	}
 
+	system("date > $targetdir/system_status/date");
+
 	# copy /etc/hosts, /etc/resolv.conf, interface and route status
 	system("cp","/etc/hosts","/etc/resolv.conf","/etc/nsswitch.conf","$targetdir/system_status/") == 0
 			or warn "can't save dns configuration files: $!\n";
@@ -379,7 +381,7 @@ sub collect_evidence
 
 	# collect all defined log files
 	mkdir("$targetdir/logs");
-	my @logfiles = (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf)));
+	my @logfiles = grep(/^.+$/, (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf))));
 	if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
 	{
 		@logfiles = map { "$globalconf->{'<nmis_logs>'}/$_" }
@@ -450,6 +452,7 @@ sub collect_evidence
 
 	for my $oksubdir (qw(scripts nodeconf))
 	{
+		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
 		system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0
 				or warn "can't copy conf to $targetdir/conf/$oksubdir: $!\n";
 	}

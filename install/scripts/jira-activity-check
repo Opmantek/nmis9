@@ -68,7 +68,7 @@ elsif ($res->is_success)
 			print "API Access succeeded but query failed: $rdata->{errorMessages}\n";
 			exit 30;
 		}
-		if ($rdata->{total})
+		if (exists($rdata->{total}))
 		{
 			print "API Access and query successful.\nactivity_count=$rdata->{total}\n";
 			exit 100;
