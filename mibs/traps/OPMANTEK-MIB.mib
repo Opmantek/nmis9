@@ -14,7 +14,7 @@ IMPORTS
 		FROM SNMPv2-CONF;
      
 opmantek MODULE-IDENTITY
-	LAST-UPDATED "201702080000Z"
+	LAST-UPDATED "201702100000Z"
 	ORGANIZATION "Opmantek Ltd"
 	CONTACT-INFO
 		"Opmantek Ltd
@@ -32,6 +32,10 @@ opmantek MODULE-IDENTITY
 		"
 
  -- Revision log, in reverse chronological order
+
+	REVISION      "201702100000Z"
+	DESCRIPTION
+		"Added missing values to omkEvent, omkProbableCause and omkAlarmId."
 
 	REVISION      "201702080000Z"
 	DESCRIPTION
@@ -55,7 +59,7 @@ omkObjects OBJECT-IDENTITY
 	::= { opmantek 2 }
 
 omkEvent NOTIFICATION-TYPE
-	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEvent, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel }
+	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEvent, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId }
 	STATUS      current
 	DESCRIPTION 
 		"The Opmantek Event coming from opEvents with rich data about state and priority."
