@@ -4742,6 +4742,11 @@ sub runServer
 			else
 			{
 				my $D = $NI->{storage}{$index}; # new data
+
+				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer				
+				$D->{hrStorageSize} = unpack("I", pack("i", $D->{hrStorageSize}));
+				$D->{hrStorageUsed} = unpack("I", pack("i", $D->{hrStorageUsed}));
+
 				info("storage $D->{hrStorageDescr} Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}");
 
 				if (($M->{storage}{nocollect}{Description} ne ''
