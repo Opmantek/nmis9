@@ -39,10 +39,6 @@
 	},
 	'option' => {
 		'standard' => [
-					'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-
 			'DEF:input=$database:ifInOctets:AVERAGE',
 			'DEF:output=$database:ifOutOctets:AVERAGE',
 			'DEF:status=$database:ifOperStatus:AVERAGE',

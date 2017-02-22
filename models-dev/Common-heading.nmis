@@ -3,7 +3,7 @@
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
-#  This file is part of Network Management Information System (NMIS).
+#  This file is part of Network Management Information System (NMIS).
 #  
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@
       'numintf' => 'Number of Interfaces',
       'pix-conn' => 'Firewall Connections',
       'pkts' => 'Interface Packets/Second Utilisation',
-			'pkts_hc' => 'Interface Packets/Second Utilisation',
+      'pkts_hc' => 'Interface Packets/Second Utilisation',
 			'polltime' => "Collect and Update runtime",
       'pvc' => 'PVC Frame Relay Stats',
       'rbt-mem-proc' => 'Processor Memory Utilisation',
@@ -121,6 +121,7 @@
       'rbt_optimisation' => 'Optimisation',
       'response' => 'Response Time in milliseconds',
       'routenumber' => 'Number of Routes',
+      'rttMonLatestRtt' => 'RTT Monitor Stats',
       'sensorhum' => 'Humidity of sensor',
       'sensortemp' => 'Temperature of sensor',
       'service' => 'Service',
@@ -183,14 +184,33 @@
       'fortinet-mem' => 'Memory Usage',
       'fortinet-sessions' => 'Session Count',
       'NetFlowStats' => 'NetFlow Export Stats',
-      'rttMonLatestRtt' => 'RTT Monitor Stats',
-      'echoRtt' => 'ICMP Echo RTT Monitor Stats',
-      'jitterRttMon' => 'UDP Jitter RTT Monitor Stats',
-      'icmpjitterRtt' => 'ICMP Jitter RTT Monitor Stats',
-      'WindowsProcessor' => 'Windows Processor Stats',
+			'WindowsDiskBytes' => "Windows Logical Disk Stats",
       'WindowsPaging' => 'Windows Pagefile Stats',
       'WindowsDisk' => 'Windows Logical Disk Stats',
-      'WindowsDiskBytes' => 'Windows Logical Disk Stats',
+			'WindowsProcessor' => 'Windows Processor Stats',
+      'RadwinHSU' => 'Wireless In/Out Transmission',
+      'RadwinSignalStrength' => 'Wireless Signal Strength', 
+      'Radwintemp' => 'Device Temperature',
+      'RadwinRSSI' => 'Estimated Throughput',
+      'RadwinUtil' => 'Rx/Tx from HSU Lan Port',
+      'RadwinChain' => 'RSS per Chain',
+      'StaSignal' => 'Signal Strength',
+      'AirFiberPower' => 'Signal Strength',
+      'AirFiberCapacity' => 'Air Fiber Capacity',
+      'AirMax' => 'Air Max',
+      'LinkRate' => 'Link Rate',
+      'inDropPackets' => 'Dropped Packets',
+      'lockstat' => 'Modem Status',
+      'modemMSE' => 'Modem MSE',
+      'mimosaChain' => 'Radio Chain',
+      'mimosaStream' => 'MIMO Stream',
+      'Wlan' => 'WLAN Transmitted/Received',
+      'Radio' => 'Transmit Power',
+      'SignalPower' => 'Signal Power',
+      'alcoma-power' => 'Transmit Power',
+      'alcoma-linkrate' => 'Link Rate',
+      'alcoma-signal' => 'Quality',
+      'alcoma-throughput' => 'Throughput',
     }
   }
 );
