@@ -2,31 +2,31 @@
 ## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
@@ -165,6 +165,7 @@
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
       'Radwin' => '/nodes/$node/health/Radwin.rrd',
       'HBS' => '/nodes/$node/health/utilization-${hsuName}.rrd',
+			'HBS-Util' => '/nodes/$node/health/_removed_hbs.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
       'capacity'  => '/nodes/$node/health/ubnt-capacity-$index.rrd',
       'AirMax'  => '/nodes/$node/health/ubnt-airmax-$index.rrd',
@@ -176,10 +177,13 @@
       'AccessPoint' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
       'StationMode' => '/nodes/$node/interface/mtxrWlStat-$index.rrd',
       'Registration' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
+			'mtxrWlAp' => '/nodes/$node/interface/_removed_mtxrWlAp-$index.rrd',
+			'mtxrWlStat' => '/nodes/$node/interface/_removed_mtxrWlAp-$index.rrd',
+			'mtxrWlRtab' => '/nodes/$node/interface/_removed_mtxrWlRtab-$index.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
-      'Stream' => '/nodes/$node/health/Stream-$index.rrd',      
+      'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'throughput' => '/nodes/$node/health/throughput.rrd',
     }
   }

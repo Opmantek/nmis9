@@ -353,7 +353,7 @@ sub get_localtime
 	my ($time) = @_;
 	$time ||= time;
 
-	return POSIX::strftime("%a %b %H:%M:%S %Y %Z", localtime($time));
+	return POSIX::strftime("%a %b %d %H:%M:%S %Y %Z", localtime($time));
 }
 
 sub convertMonth {

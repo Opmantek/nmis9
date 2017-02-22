@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2017 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -28,80 +28,105 @@
 #
 # *****************************************************************************
 #
-# Intentionally left distant from NMIS Code, as we want it to run 
+# Intentionally left distant from NMIS Code, as we want it to run
 # really fast with minimal use statements.
 #
+our $VERSION="1.1.0";
+
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Socket;
+use Getopt::Std;
+use POSIX qw();
 
-my $trapfilter = qr/foobardiddly/;
+my %options;
+getopts("nf:t:", \%options) or die "Usage: $0 [-n] [-f filterregex] [-t targetfile]\n-n: disable dns lookups\-f regex: suppress traps matching this regex\n-t targetfile: write to this file, defualt: ../logs/nmis8/trap.log\n\n";
 
-# allow a logfile to be explicitely specified as first/only argument, 
-# but fall back to the 'usual' location
-my $filename = $ARGV[0] || "$FindBin::Bin/../logs/trap.log";
+my $filename = $options{t} || "$FindBin::RealBin/../logs/trap.log";
+my $trapfilter = $options{f}? qr/$options{f}/ : undef;
 
 # snmptrapd feeds us, one per line, this: the hostname and 'ip
 # address' of the sending party, and the var bindings in the form of
 # oid space value.
-# 
+#
 # note that: the ip address is not just the raw ip address, but a
 # connection string of the form 'UDP: [1.2.3.4]:33608->[5.6.7.8]',
 # where 1.2.3.4 is the other party and 5.6.7.8 is this box.
+#
+# newer snmptrapd versions (5.7 etc) provide a different connection string,
+# with ports included: 'UDP: [192.168.88.253]:50177->[192.168.88.7]:162'
+#
+# note: with traplogd running with -n (no dns), BOTH hostname and ipaddress lines
+# are of the connection string format!
 #
 # note also that the sending party may NOT be the originator if the
 # trap was forwarded, but merely indicates the last hop. it is
 # therefore necessary to check the variable
 # SNMP-COMMUNITY-MIB::snmpTrapAddress.0 as well, which holds the
 # originating agent's address.
-# 
+
 my @buffer;
 my $hostname = <STDIN>;
 my $ipaddress = <STDIN>;
 
 chomp ($hostname, $ipaddress);
 
-# Traps received without DNS PTR are coming as hostname <UNKNOWN>
-#2015-04-11T09:32:13	<UNKNOWN>	UDP: [192.168.1.249]:57047->[192.168.1.7]	SNMPv2-MIB::sysUpTime.0=38:13:55:01.68	SNMPv2-MIB::snmpTrapOID.0=CISCO-CONFIG-MAN-MIB::ciscoConfigManEvent	.......
-if ( $hostname eq "<UNKNOWN>" and $ipaddress =~ /\[(\d+\.\d+\.\d+\.\d+)\]/ ) {
-	$hostname = $1;
+# Traps received without DNS PTR can come in as hostname <UNKNOWN>
+# 2015-04-11T09:32:13	<UNKNOWN>	UDP: [192.168.1.249]:57047->[192.168.1.7]	SNMPv2-MIB::sysUpTime.0=38:13:55:01.68	SNMPv2-MIB::snmpTrapOID.0=...
+# furthermore, traps received with -n are coming in with both hostname
+# and ipaddress set to the 'connection string'
+
+if ( ($hostname eq "<UNKNOWN>" or $hostname =~ /^UDP:\s*/ )
+		 and $ipaddress =~ /^UDP:\s*\[(\d+\.\d+\.\d+\.\d+)\]/ )
+{
+	my $addr = $hostname = $1;		# address is better than raw string
+	my $newhostname = ($options{n}? undef : gethostbyaddr(inet_aton($addr),
+																												AF_INET));
+	if (defined $newhostname)
+	{
+		$hostname = $newhostname;
+		$ipaddress = $addr;
+	}
+}
+
+# the remainder is all variables
+while (my $line = <STDIN>)
+{
+	chomp $line;
+	$line = escapeHTML($line);
+
+	my ($varname,$rest) = split(/\s+/,$line,2);
+  # the one and only variable we're specially interested in: if the trap
+	# originator address doesn't match what snmptrapd reported as address,
+	# then we replace the address and the hostname with the trap originator's
+	# hostname (if we can find one)
+	if ($varname eq "SNMP-COMMUNITY-MIB::snmpTrapAddress.0"
+			and $ipaddress !~ /^(UDP:\s*\[$rest\].+|$rest$)/)
+	{
+		my $addrbin = inet_aton($rest);
+		$hostname = $rest;					# hostname being ip address is better than nothing
+		my $newhostname = ($options{n}? undef : gethostbyaddr($addrbin, AF_INET));
+		if (defined $newhostname)
+		{
+			$hostname = $newhostname;
+			$ipaddress = $rest;
+		}
+	}
+	push @buffer,"$varname=$rest";
 }
 
 $hostname = escapeHTML($hostname);
 $ipaddress = escapeHTML($ipaddress);
 
-# the remainder is all variables 
-while (my $line = <STDIN>) 
-{
-	chomp $line;
-	$line = escapeHTML($line);
-
-	my ($varname,$rest) = split(/\s+/,$line,2); 
-  # the one and only variable we're specially interested in: if the trap
-	# originator doesn't match what snmptrapd reports, then we replace 
-	# the hostname with the trap originator's hostname (if we can find one)
-	if ($varname eq "SNMP-COMMUNITY-MIB::snmpTrapAddress.0"
-			and $ipaddress !~ /^UDP:\s*\[$rest\]/)
-	{
-			my $addrbin = inet_aton($rest);
-			my $newhostname = gethostbyaddr($addrbin, AF_INET);
-			if (defined $newhostname)
-			{
-					$hostname = $newhostname;
-					$ipaddress = $rest;
-			}
-	}
-	push @buffer,"$varname=$rest";
-}
-
 my $out = join("\t",$hostname,$ipaddress,@buffer);
 
-if ( $out !~ /$trapfilter/ ) {
-		# Open output file for sending stuff to
-		open (DATA, ">>$filename") || die "Cannot open the file $filename: $!\n";
-		print DATA &returnDateStamp."\t$out\n";
-		close(DATA);
+# save the output if it's not filtered
+if ( !defined($trapfilter) || $out !~ $trapfilter )
+{
+	open (DATA, ">>$filename") || die "Cannot open the file $filename: $!\n";
+	print DATA &returnDateStamp."\t$out\n";
+	close(DATA);
 }
 
 exit 0;
@@ -121,35 +146,20 @@ sub escapeHTML
 	return $input;
 }
 
-#Function which returns the time
-sub returnDateStamp {
+# Function which returns the time, iso8601-formatted, NON-locale-capable
+sub returnDateStamp
+{
 	my $time = shift;
-	if ( $time == 0 ) { $time = time; }
-	my $SEP = "T";
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime($time);
-	# A Y2.07K problem
-	if ($year > 70) { $year=$year+1900; }
-	else { $year=$year+2000; }
-	#Increment Month!
-	++$mon;
-	if ($mon<10) {$mon = "0$mon";}
-	if ($mday<10) {$mday = "0$mday";}
-	if ($hour<10) {$hour = "0$hour";}
-	if ($min<10) {$min = "0$min";}
-	if ($sec<10) {$sec = "0$sec";}
+	$time ||= time;
 
-	# Do some sums to calculate the time date etc 2 days ago
-	$wday=('Sun','Mon','Tue','Wed','Thu','Fri','Sat')[$wday];
-
-	return "$year-$mon-$mday$SEP$hour:$min:$sec";
+	return POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($time));
 }
 
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
-# This is free software licensed under GNU GPL, and you are welcome to 
+# This is free software licensed under GNU GPL, and you are welcome to
 # redistribute it under certain conditions; see www.opmantek.com or email
 # contact@opmantek.com
 # *****************************************************************************
-

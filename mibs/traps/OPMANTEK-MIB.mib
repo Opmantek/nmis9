@@ -14,7 +14,7 @@ IMPORTS
 		FROM SNMPv2-CONF;
      
 opmantek MODULE-IDENTITY
-	LAST-UPDATED "201503160000Z"
+	LAST-UPDATED "201702100000Z"
 	ORGANIZATION "Opmantek Ltd"
 	CONTACT-INFO
 		"Opmantek Ltd
@@ -30,6 +30,16 @@ opmantek MODULE-IDENTITY
 		This module defines the Opmantek SNMP MIB root
 		and its primary subtrees.
 		"
+
+ -- Revision log, in reverse chronological order
+
+	REVISION      "201702100000Z"
+	DESCRIPTION
+		"Added missing values to omkEvent, omkProbableCause and omkAlarmId."
+
+	REVISION      "201702080000Z"
+	DESCRIPTION
+		"Added two new objects to the trap, omkProbableCause and omkAlarmId."
 
 	REVISION      "201503160000Z"
 	DESCRIPTION
@@ -49,7 +59,7 @@ omkObjects OBJECT-IDENTITY
 	::= { opmantek 2 }
 
 omkEvent NOTIFICATION-TYPE
-	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEvent, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel }
+	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEvent, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId }
 	STATUS      current
 	DESCRIPTION 
 		"The Opmantek Event coming from opEvents with rich data about state and priority."
@@ -61,7 +71,6 @@ nmisEvent NOTIFICATION-TYPE
 	DESCRIPTION 
 		"The NMIS Event with standard event properties."
 	::= { omkNotifications 2 }
-
 
 omkEventGroup OBJECT-GROUP
 	OBJECTS {
@@ -77,7 +86,9 @@ omkEventGroup OBJECT-GROUP
 		omkDetails,
 		omkType,
 		omkPriority,
-		omkLevel
+		omkLevel,
+		omkProbableCause,
+		omkAlarmId
 	} 
 	STATUS current
 	DESCRIPTION
@@ -188,7 +199,21 @@ omkLevel OBJECT-TYPE
 		"NMIS Event Level"
 	::= { omkEventGroup 13 }
 
-    
+omkProbableCause OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The Probable Cause carried from other possible sources"
+	::= { omkEventGroup 14 }
+
+omkAlarmId OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The AlarmID carried from other possible sources"
+	::= { omkEventGroup 15 }    
 
 nmisEventGroup OBJECT-GROUP
 	OBJECTS {
