@@ -38,6 +38,7 @@ use NMIS::Timing;
 use URI::Escape;
 use URI;
 use URI::QueryParam;
+use Net::SNMP qw(oid_lex_sort);
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -2942,7 +2943,7 @@ sub viewSystemHealth
 		$gotHeaders = 1;
 	}
 
-	foreach my $index (sort {$a <=> $b} keys %{$NI->{$section}} ) {
+	foreach my $index (oid_lex_sort(keys %{$NI->{$section}}) ) {
 		if( exists( $M->{systemHealth}{rrd}{$section}{control} ) &&
 				!$S->parseString(string=>"($M->{systemHealth}{rrd}{$section}{control}) ? 1:0", index=>$index, sect=>$section)) {
 			next;
