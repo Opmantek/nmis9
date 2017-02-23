@@ -8834,7 +8834,12 @@ sub doThreshold
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}))
 	{
 		my $polltime = $pollTimer->elapTime();
-		logMsg("Poll Time: $polltime");
+		if ( $name ) {
+			logMsg("Poll Time: $name, $polltime");
+		}
+		else {	
+			logMsg("Poll Time: $polltime");
+		}
 	}
 	func::update_operations_stamp(type => "threshold", start => $starttime, stop => Time::HiRes::time())
 			if ($type eq "threshold");	# not if part of collect

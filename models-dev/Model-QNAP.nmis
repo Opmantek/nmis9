@@ -185,7 +185,8 @@
         'snmp' => {
           'sysLocation' => {
             'replace' => {
-              '' => 'default'
+              '' => 'default',
+              'noSuchObject' => 'default'
             },
             'oid' => 'sysLocation',
             'title' => 'Location'
@@ -198,22 +199,30 @@
             'title' => 'Description'
           },
           'ifNumber' => {
-            'oid' => 'ifNumber',
-            'title' => 'Interfaces'
-          },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
+            'oid' => 'ifNumber'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+            'title' => 'System Name'
           },
           'sysContact' => {
             'replace' => {
-              '' => 'default'
+              '' => 'default',
+              'noSuchObject' => 'default'
             },
             'oid' => 'sysContact',
             'title' => 'Contact'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime'
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime'
           }
         }
       },
@@ -330,12 +339,13 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
-          'ifPhysAddress' => {
+					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
-            'title' => 'Physical Address'
+            'title' => 'Physical Address',
           },
+
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -355,7 +365,7 @@
           },
           'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -363,7 +373,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifType)'
           }
         }
       }
@@ -380,121 +390,6 @@
       'ifDescr' => 'null',
       'ifType' => 'other'
 	}
-  },
-  'systemHealth' => {
-    'sections' => 'diskIOTable,addressTable,tcpConn',
-    'sys' => {
-      'tcpConn' => {        
-        'indexed' => 'tcpConnState',
-        #'control' => 'CVAR=tcpConnState;$CVAR =~ /2/',
-        'index_oid' => '1.3.6.1.2.1.6.13.1.1',        
-        'index_regex' => '\.(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)$',        
-        'headers' => 'date,tcpConnState,tcpConnLocalAddress,tcpConnLocalPort,tcpConnRemAddress,tcpConnRemPort',
-        'snmp' => {
-          'tcpConnState' => {
-            'replace' => {
-              '1' => 'closed',
-              '2' => 'listen',
-              '3' => 'synSent',
-              '4' => 'synReceived',
-              '5' => 'established',
-              '6' => 'finWait1',
-              '7' => 'finWait2',
-              '8' => 'closeWait',
-              '9' => 'lastAck',
-              '10' => 'closing',
-              '11' => 'timeWait',
-              '12' => 'deleteTCB',
-            },
-            'oid' => 'tcpConnState',
-            'title' => 'TCP Connection State'
-          },
-          'tcpConnLocalAddress' => {
-            'oid' => 'tcpConnLocalAddress',
-            'title' => 'TCP Local Address'
-          },
-          'tcpConnLocalPort' => {
-            'oid' => 'tcpConnLocalPort',
-            'title' => 'TCP Local Port'
-          },
-          'tcpConnRemAddress' => {
-            'oid' => 'tcpConnRemAddress',
-            'title' => 'TCP Remote Address'
-          },
-          'tcpConnRemPort' => {
-            'oid' => 'tcpConnRemPort',
-            'title' => 'TCP Remote Port'
-          },
-        },
-      },      
-      'addressTable' => {
-        'headers' => 'ipNetToMediaIfIndex,ipNetToMediaPhysAddress,ipNetToMediaNetAddress,ipNetToMediaType',
-        'index_regex' => '\\.(\\d+\.\\d+\\.\\d+\\.\\d+\\.\\d+)$',
-        'indexed' => 'ipNetToMediaIfIndex',
-        'snmp' => {
-          'ipNetToMediaIfIndex' => {
-            'oid' => 'ipNetToMediaIfIndex',
-            'title' => 'ipNetToMediaIfIndex'
-          },
-          'ipNetToMediaPhysAddress' => {
-            'oid' => 'ipNetToMediaPhysAddress',
-            'title' => 'ipNetToMediaPhysAddress'
-          },
-          'ipNetToMediaNetAddress' => {
-            'oid' => 'ipNetToMediaNetAddress',
-            'title' => 'ipNetToMediaNetAddress'
-          },
-          'ipNetToMediaType' => {
-            'oid' => 'ipNetToMediaType',
-            'title' => 'ipNetToMediaType'
-          },
-        }
-      },
-      'diskIOTable' => {
-        'headers' => 'diskIODevice',
-        'index_oid' => '1.3.6.1.4.1.2021.13.15.1.1.1',
-        'indexed' => 'diskIOIndex',
-        'snmp' => {
-          'diskIODevice' => {
-            'oid' => 'diskIODevice',
-            'title' => 'IO Device Name'
-          },
-          'diskIOIndex' => {
-            'oid' => 'diskIOIndex',
-            'title' => 'IO Device Index'
-          },
-        }
-      }
-    },
-    'rrd' => {
-      'diskIOTable' => {
-        'control' => 'CVAR=diskIODevice;$CVAR =~ /^(sd|sr|disk|xvd|dm-)/',
-        'graphtype' => 'diskio-rw,diskio-rwbytes',
-        'indexed' => 'true',
-        'snmp' => {
-          'diskIONReadX' => {
-            'oid' => 'diskIONReadX',
-            'option' => 'counter,0:U',
-            'title' => 'The number of bytes read from this device since boot'
-          },
-          'diskIONWrittenX' => {
-            'oid' => 'diskIONWrittenX',
-            'option' => 'counter,0:U',
-            'title' => 'The number of bytes written from this device since boot'
-          },
-          'diskIOReads' => {
-            'oid' => 'diskIOReads',
-            'option' => 'counter,0:U',
-            'title' => 'The number of read accesses from this device since boot'
-          },
-          'diskIOWrites' => {
-            'oid' => 'diskIOWrites',
-            'option' => 'counter,0:U',
-            'title' => 'The number of write accesses to this device since boot'
-          }
-        }
-      }
-    },
   },
   'storage' => {
     'sys' => {

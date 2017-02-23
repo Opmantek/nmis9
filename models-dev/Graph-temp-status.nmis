@@ -45,7 +45,7 @@
 			'DEF:tempStatus=$database:tempValue:AVERAGE',
 			'LINE2:tempStatus#00ff00: Temp Status',
 			'GPRINT:tempStatus:AVERAGE:Avg. %1.2lf%%\\n',
-			'COMMENT:100% = Normal, 75% = Warning, 50% = Shutdown/NotPresent, 25%=NotFunctioning, 0%=Critical\\n'
+			'COMMENT:100% = Normal, 90% = NotPresent, 80% = Shutdown, 75% = Warning, 25%=NotFunctioning, 0%=Critical\\n'
 		],
 		'small' => [
 			'--upper-limit','100',
@@ -53,7 +53,7 @@
 			'--rigid',
 			'DEF:tempStatus=$database:tempValue:AVERAGE',
 			'LINE2:tempStatus#00ff00: Temp Status',
-			'GPRINT:tempStatus:AVERAGE:Avg. %1.2lf%%\\t',
+			'GPRINT:tempStatus:AVERAGE:Avg. %1.2lf%%\\n',
 		]
 	}
 );

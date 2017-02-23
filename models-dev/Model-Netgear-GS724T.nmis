@@ -50,19 +50,9 @@
       'event' => {
         'common-model' => 'event'
       },
-      'lldp' => {
-        'common-model' => 'lldp'
-      },
       'macTable' => {
         'common-model' => 'macTable'
       }
-    }
-  },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'true',
-      'ifLastChange' => 'false',
-      'ifTableLastChange' => 'false',
     }
   },
   'system' => {
@@ -104,7 +94,7 @@
           },
           'sysName' => {
             'oid' => 'sysName'
-          },
+          }
         }
       }
     },
@@ -199,15 +189,16 @@
           },
           'ifDescr' => {
             'oid' => 'ifDescr',
-            'title' => 'Name'
+            'title' => 'Name (ifDescr)'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
-          },
-          'ifPhysAddress' => {
-            'oid' => 'ifPhysAddress',
-            'title' => 'Physical Address'
           },
           'ifAdminStatus' => {
             'replace' => {
@@ -224,7 +215,7 @@
           },
           'ifType' => {
             'oid' => 'ifType',
-            'title' => 'Type'
+            'title' => 'Type (ifDescr)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
@@ -240,7 +231,7 @@
   				},
   				'Description' => {
             'oid' => 'ifAlias',
-            'title' => 'Description'
+            'title' => 'Description (ifAlias)'
           },
           'vlanPortVlan' => {
             'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',
@@ -254,18 +245,6 @@
       'interface' => {
         'indexed' => 'true',
         'snmp' => {
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '1' => 'up',
-              '4' => 'unknown',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus'
-          },
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -279,9 +258,6 @@
             'oid' => 'ifOperStatus',
             'option' => 'gauge,0:100'
           },
-          'ifLastChange' => {
-            'oid' => 'ifLastChange'
-          },
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
@@ -292,6 +268,18 @@
           'ifHCOutOctets' => {
             'oid' => 'ifHCOutOctets',
             'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
           },
           'ifOutOctets' => {
             'oid' => 'ifOutOctets',
@@ -378,43 +366,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'macTable,lldp',
-    #'sys' => {
-    #  'macTable' => {
-    #    'headers' => 'ifDescr,ifAlias,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
-    #    'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-    #    'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
-    #    'indexed' => 'dot1qTpFdbPort',
-    #    'snmp' => {
-    #      'dot1qTpFdbPort' => {
-    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
-    #        'sysObjectName' => 'dot1qTpFdbPort',
-    #        'title' => 'Port'
-    #      },
-    #      'dot1qTpFdbStatus' => {
-    #        'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
-    #        'sysObjectName' => 'dot1qTpFdbStatus',
-    #        'replace' => {
-    #          '1' => 'other',
-    #          '2' => 'invalid',
-    #          '3' => 'learned',
-    #          '4' => 'self',
-    #          '5' => 'mgmt',
-    #        },
-    #        'title' => 'Status'
-    #      },
-    #      'dot1qTpFdbAddress' => {
-    #        'title' => 'Address'
-    #      },
-    #      'vlan' => {
-    #        'title' => 'VLAN'
-    #      },
-    #      'ifAlias' => {
-    #        'title' => 'Description'
-    #      },
-    #    }
-    #  },
-    #}
+    'sections' => 'macTable',
   }
 );
-
