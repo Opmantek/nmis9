@@ -56,6 +56,7 @@
     'type' => {
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
       'ppxCardCPU' => '/nodes/$node/health/ppxCardCPU-$index.rrd',
+      'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
     }
   },
   'heading' => {
@@ -353,7 +354,7 @@
 	}
   },
   'systemHealth' => {
-    'sections' => 'ppxCardCPU,ppxAtm',
+    'sections' => 'ppxCardCPU,ppxCardMEM,ppxAtm',
     'rrd' => {
       'ppxCardCPU' => {
         'graphtype' => 'ppxCardCPU',
@@ -387,6 +388,34 @@
         }
       },
 
+      'ppxCardMEM' => {
+        'graphtype' => 'ppxCardMEM',
+        'indexed' => 'true',
+        'snmp' => {
+          #'ppxCardTimeInt' => {
+          #  'sysObjectName' => 'mscShelfCardTimeInterval',
+          #  'option' => 'gauge,0:U',
+          #},
+          #'ppxCardCpuUtil' => {
+          #  'sysObjectName' => 'mscShelfCardCpuUtil',
+          #  'option' => 'gauge,0:U',
+          #},
+          #'ppxCardCpuUtilAvg' => {
+          #  'sysObjectName' => 'mscShelfCardCpuUtilAvg',
+          #  'option' => 'gauge,0:U',
+          #},
+          #'ppxCardCpuUtilMin' => {
+          #  'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.14.1.4',
+          #  'sysObjectName' => 'mscShelfCardComponentName',
+          #  'option' => 'gauge,0:U',
+          #},
+          #'ppxCardCpuUtilMax' => {
+          #  'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.14.1.5',
+          #  'sysObjectName' => 'mscShelfCardCpuUtilAvgMax',
+          #  'option' => 'gauge,0:U',
+          #},
+        }
+      },
       'ppxAtm' => {
         'graphtype' => 'ppxAtmCells,ppxAtmUtil',
         'indexed' => 'true',
@@ -416,6 +445,19 @@
     },
     'sys' => {
       'ppxCardCPU' => {
+        'headers' => 'mscShelfCardComponentName',
+        'index_oid' => '1.3.6.1.4.1.562.36.2.1.13.2.1.1.2',
+        'index_regex' => '\\.(\\d+\.\\d+)$',
+        'indexed' => 'mscShelfCardComponentName',
+        'snmp' => {
+          'mscShelfCardComponentName' => {
+            'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.1.1.2',
+            'sysObjectName' => 'mscShelfCardComponentName',
+            'title' => 'Card Name'
+          },
+        }
+      },
+      'ppxCardMEM' => {
         'headers' => 'mscShelfCardComponentName',
         'index_oid' => '1.3.6.1.4.1.562.36.2.1.13.2.1.1.2',
         'index_regex' => '\\.(\\d+\.\\d+)$',
