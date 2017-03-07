@@ -2695,13 +2695,12 @@ sub viewCpuList {
 
   my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node);
 
-	if (defined $NI->{services}) {
+	if (my @cpus = $S->getTypeInstances(graphtype => "hrsmpcpu") ) {
 		print Tr(
 			td({class=>'header'},"CPU ID and Description"),
 			td({class=>'header'},"History"),
 		);
-		foreach my $index ( $S->getTypeInstances(graphtype => "hrsmpcpu")) {
-
+		foreach my $index ( @cpus ) {
 			print Tr(
 				td({class=>'lft Plain'},"Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})"),
 				td({class=>'info Plain'},htmlGraph(graphtype=>"hrsmpcpu",node=>$node,intf=>$index, width=>$smallGraphWidth,height=>$smallGraphHeight) )
