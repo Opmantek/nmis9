@@ -90,6 +90,11 @@ sub collect_plugin
 					'memUsageNormalRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageOid.$card.$normalRam"} },					
 					'memUsageSharedRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageOid.$card.$sharedRam"} },
 				};
+				
+				# save the results to the node file.
+				$NI->{ppxCardMEM}{$card}{'memCapFastRam'} = $snmpdata->{"$memCapacityOid.$card.$fastRam"};
+				$NI->{ppxCardMEM}{$card}{'memCapNormalRam'} = $snmpdata->{"$memCapacityOid.$card.$normalRam"};
+				$NI->{ppxCardMEM}{$card}{'memCapSharedRam'} = $snmpdata->{"$memCapacityOid.$card.$sharedRam"};
 	
 				my $filename = updateRRD(data=>$data, sys=>$S, type=>"ppxCardMEM", index => $card);
 				if (!$filename)

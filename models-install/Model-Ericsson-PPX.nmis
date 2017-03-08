@@ -64,6 +64,7 @@
       'ppxAtmCells' => 'PPX ATM Cells',
       'ppxAtmUtil' => 'PPX ATM Utilisation',
       'ppxCardCPU' => 'Card CPU',
+      'ppxCardMEM' => 'Card Memory Utilisation',
     }
   },
     
@@ -387,35 +388,6 @@
           },
         }
       },
-
-      'ppxCardMEM' => {
-        'graphtype' => 'ppxCardMEM',
-        'indexed' => 'true',
-        'snmp' => {
-          #'ppxCardTimeInt' => {
-          #  'sysObjectName' => 'mscShelfCardTimeInterval',
-          #  'option' => 'gauge,0:U',
-          #},
-          #'ppxCardCpuUtil' => {
-          #  'sysObjectName' => 'mscShelfCardCpuUtil',
-          #  'option' => 'gauge,0:U',
-          #},
-          #'ppxCardCpuUtilAvg' => {
-          #  'sysObjectName' => 'mscShelfCardCpuUtilAvg',
-          #  'option' => 'gauge,0:U',
-          #},
-          #'ppxCardCpuUtilMin' => {
-          #  'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.14.1.4',
-          #  'sysObjectName' => 'mscShelfCardComponentName',
-          #  'option' => 'gauge,0:U',
-          #},
-          #'ppxCardCpuUtilMax' => {
-          #  'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.14.1.5',
-          #  'sysObjectName' => 'mscShelfCardCpuUtilAvgMax',
-          #  'option' => 'gauge,0:U',
-          #},
-        }
-      },
       'ppxAtm' => {
         'graphtype' => 'ppxAtmCells,ppxAtmUtil',
         'indexed' => 'true',
@@ -458,7 +430,7 @@
         }
       },
       'ppxCardMEM' => {
-        'headers' => 'mscShelfCardComponentName',
+        'headers' => 'mscShelfCardComponentName,memCapFastRam,memCapNormalRam,memCapSharedRam',
         'index_oid' => '1.3.6.1.4.1.562.36.2.1.13.2.1.1.2',
         'index_regex' => '\\.(\\d+\.\\d+)$',
         'indexed' => 'mscShelfCardComponentName',
@@ -467,6 +439,15 @@
             'oid' => '1.3.6.1.4.1.562.36.2.1.13.2.1.1.2',
             'sysObjectName' => 'mscShelfCardComponentName',
             'title' => 'Card Name'
+          },
+          'memCapFastRam' => {
+            'title' => 'Fast RAM Capacity'
+          },
+          'memCapNormalRam' => {
+            'title' => 'Normal RAM Capacity'
+          },
+          'memCapSharedRam' => {
+            'title' => 'Shared RAM Capacity'
           },
         }
       },
