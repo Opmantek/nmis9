@@ -4070,7 +4070,7 @@ sub upgrade_nodeconf_structure
 	close $fh;
 	logMsg("INFO NMIS has successfully converted the nodeConf data structure, and the old nodeConf file was renamed to \"$oldncf.disabled\".");
 
-	return undef;
+	return;
 }
 
 # saves a given nodeconf data structure in the per-node nodeconf file
@@ -4092,53 +4092,52 @@ sub update_nodeconf
 	return "Cannot save nodeconf for $nodename, data is missing!"
 			if (!exists($args{data}));				# present but explicitely undef is ok
 
-	my $safenodename = lc($nodename);
-	$safenodename =~ s/[^a-z0-9_-]/_/g;
-	my $ncdirname = $C->{'<nmis_conf>'}."/nodeconf";
-	if (!-d $ncdirname)
-	{
-		func::createDir($ncdirname);
-		my $errmsg = func::setFileProtDiag(file => $ncdirname);
-		return $errmsg if ($errmsg);
-	}
-
-	my $ncfn = "$ncdirname/$safenodename.json";
+	my $nmisng = NMIS::new_nmisng;
+	
+	my $node = $nmisng->node( name => $nodename );
+	return if(!$node);
 
 	# the deletion case
 	if (!defined($data))
 	{
-		return "Could not remove nodeconf for $nodename: $!"
-				if (!unlink($ncfn));
+		$node->overrides( {} );
+		my $op = $node->save();
+		return "Could not remove nodeconf for $nodename"
+			if ($op < 1);
 	}
 	# we overwrite whatever may have been there
 	else
 	{
-		# ensure that the nodeconf data includes the nodename, as the filename might not!
-		$data->{name} ||= $nodename;
-
-		# unfortunately this doesn't return errors
-		writeHashtoFile(file => $ncfn, data => $data, json => 1);
+		delete $data->{name};
+		$node->overrides( $data );
+		my $op = $node->save();
+		return "Error saving nodeconf for $nodename"
+			if ($op < 1);		
 	}
-	return undef;
+	return;
 }
 
 # small helper that checks if a nodeconf record
 # exists for the given node.
 #
 # args: node (required)
-# returns: filename if it exists, 0 if not, undef if the args are dud
+# returns: 1 if it has nodeconf, 0 if not, undef if the args are dud
 sub has_nodeconf
 {
 	my (%args) = @_;
 	my $nodename = $args{node};
-	return undef if (!$nodename);
+	return if (!$nodename);
 
-	$nodename = lc($nodename);
-	$nodename =~ s/[^a-z0-9_-]/_/g;
+	my $nmisng = NMIS::new_nmisng;
+	
+	my $node = $nmisng->node( name => $nodename );
+	return if(!$node);
 
-	my $C = loadConfTable();			# likely cached
-	my $ncfn = $C->{'<nmis_conf>'}."/nodeconf/$nodename.json";
-	return (-f $ncfn? $ncfn : 0);
+	# overrides will always be a hashref
+	my $overrides = $node->overrides();
+	
+	my @confkeys = keys %$overrides;
+	return (@confkeys > 0) ? 1 : 0;
 }
 
 # returns the nodeconf record for one or all nodes
@@ -4150,43 +4149,41 @@ sub get_nodeconf
 {
 	my (%args) = @_;
 	my $nodename = $args{node};
-
+	my $nmisng = NMIS::new_nmisng;
+	
 	if (exists($args{node}))
 	{
 		return "Cannot get nodeconf for unnamed node!" if (!$nodename);
 
-		my $ncfn = has_nodeconf(node => $nodename);
-		return "No nodeconf exists for node $nodename!" if (!$ncfn);
+		my $node = $nmisng->node( name => $nodename );
+		my $overrides = $node->overrides();
+		my @confkeys = keys %$overrides;
+		return "No nodeconf exists for node $nodename!" if (@confkeys == 0);
 
-		my $data = readFiletoHash(file => $ncfn, json => 1);
+		my $data = $overrides;
 		return "Failed to read nodeconf for $nodename!"
 				if (ref($data) ne "HASH");
 
 		return (undef, $data );
 	}
 	else
-	{
-		# walk the dir
-		my $C = loadConfTable();			# likely cached
-		my $ncdir = $C->{'<nmis_conf>'}."/nodeconf";
-		opendir(D, $ncdir)
-				or return "Cannot open nodeconf dir: $!";
-		my @cands = grep(/^[a-z0-9_-]+\.json$/, readdir(D));
-		closedir(D);
-
+	{		
 		my %allofthem;
 
-		for my $maybe (@cands)
+		my $cands = $nmisng->get_node_uuids();
+		for my $uuid (@$cands)
 		{
-			my $data = readFiletoHash(file => "$ncdir/$maybe", json => 1);
-			if (ref($data) ne "HASH" or !keys %$data or !$data->{name})
+			my $node = $nmisng->node( uuid => $uuid );			
+			my $overrides = $node->overrides();
+
+			if (ref($overrides) ne "HASH" or !keys %$overrides )
 			{
-				logMsg("ERROR nodeconf $ncdir/$maybe had invalid data! Skipping.");
+				logMsg("ERROR nodeconf $uuid had invalid data! Skipping.");
 				next;
 			}
 
 			# structure is real_nodename => data for this node
-			$allofthem{$data->{name}} = $data;
+			$allofthem{$node->configuration()->{name}} = $overrides;
 		}
 		return (undef, \%allofthem);
 	}

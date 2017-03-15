@@ -169,9 +169,10 @@ sub load
 	my $entry = $cursor->next;
 	if ($entry)
 	{
-
 		if ( $no_options || $options{load_overrides} )
 		{
+			# return an empty hash if it's not defined
+			$entry->{overrides} //= {};
 			$self->{_overrides} = Clone::clone( $entry->{overrides} );
 			$self->_dirty( 0, 'overrides' );
 		}
@@ -212,7 +213,9 @@ sub overrides
 			$self->load( load_overrides => 1 );
 		}
 	}
-	return $self->{_overrides} // undef;
+	
+	# loading will set this to an empty hash if it's not defined
+	return $self->{_overrides};
 }
 
 # Save object to DB if it is dirty

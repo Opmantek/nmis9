@@ -216,13 +216,13 @@ sub get_nodes_model
 		}
 	);
 
-	my $modelData = [];
+	my $model_data = [];
 	if ( $args{paginate} )
 	{
 
 		# fudge up a dummy result to make it reflect the total number
 		my $count = NMISNG::DB::count( collection => $self->{db_nodes}, query => $q );
-		$modelData->[$count - 1] = {} if ($count);
+		$model_data->[$count - 1] = {} if ($count);
 	}
 
 	my $entries = NMISNG::DB::find(
@@ -237,11 +237,29 @@ sub get_nodes_model
 	while ( my $entry = $entries->next )
 	{
 		$self->_mergeaddresses($entry);
-		$modelData->[$index++] = $entry;
+		$model_data->[$index++] = $entry;
 	}
 
-	my $modelDataObj = NMISNG::ModelData->new( modelName => "nodes", data => $modelData );
-	return $modelDataObj;
+	my $model_data_object = NMISNG::ModelData->new( modelName => "nodes", data => $model_data );
+	return $model_data_object;
+}
+
+sub get_node_names
+{
+	my ( $self, %args ) = @_;
+	my $model_data = $self->get_nodes_model(%args);
+	my $data = $model_data->data();
+	my @node_names = map { $_->{name} } @$data;
+	return \@node_names;
+}
+
+sub get_node_uuids
+{
+	my ( $self, %args ) = @_;
+	my $model_data = $self->get_nodes_model(%args);
+	my $data = $model_data->data();
+	my @uuids = map { $_->{uuid} } @$data;
+	return \@uuids;
 }
 
 # returns this objects log object

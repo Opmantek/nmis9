@@ -1101,6 +1101,10 @@ sub writeHashtoFile {
 
 	my $conf_says_json = getbool($C_cache->{use_json});
 
+	# handle _id getting into system
+	$data->{system}{_id} = $data->{system}{_id}{value}
+		if( defined($data->{system}) && defined($data->{system}{_id}) && ref($data->{system}{_id}) eq 'MongoDB::OID');
+
 	# all files: use json if the arg says so
 	# var files: also use json if the config says so
 	# defaults: no json
