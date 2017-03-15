@@ -34,10 +34,12 @@
 package NMISNG::DB;
 use strict;
 
-BEGIN {
+BEGIN
+{
 	our ( $VERSION, $ABI, $MAGIC ) = ( "4.0.0", "2.0.0", "DEADCHICKEN" );
 
-	if ( scalar(@ARGV) == 1 && $ARGV[0] eq "--module-version" ) {
+	if ( scalar(@ARGV) == 1 && $ARGV[0] eq "--module-version" )
+	{
 		print __PACKAGE__. " version=$VERSION\n" . __PACKAGE__ . " abi=$ABI\n" . __PACKAGE__ . " magic=$MAGIC\n";
 		exit(0);
 	}
@@ -78,7 +80,8 @@ my $_no_auto_oid = "false";
 # so let's expose that as $OMK::DB::new_driver
 our $new_driver = ( version->parse($MongoDB::VERSION) >= version->parse("1.0.0") ) ? 1 : 0;
 
-if ( !$new_driver ) {
+if ( !$new_driver )
+{
 	die "MongoDB driver version 1.0.0 or greater required\n";
 }
 
@@ -108,14 +111,17 @@ sub aggregate
 	# this one option MUST be a boolean, 1/0 isn't good enough :-/
 	# it also MUST NOT be passed to a mongo older than 2.6.
 	my $aggoptions
-		= ( defined $arg{allowtempfiles} ) ? { allowDiskUse => ( $arg{allowtempfiles} ? true : false ) } : {};
-	if ( $arg{batch_size} ) {
-		if ($new_driver) {
+		= ( defined $arg{allowtempfiles} ) ? {allowDiskUse => ( $arg{allowtempfiles} ? true : false )} : {};
+	if ( $arg{batch_size} )
+	{
+		if ($new_driver)
+		{
 			$aggoptions->{batchSize} = $arg{batch_size};
 		}
-		else {
+		else
+		{
 			$cursor = 1;
-			$aggoptions->{cursor} = { batchSize => $arg{batch_size} };
+			$aggoptions->{cursor} = {batchSize => $arg{batch_size}};
 		}
 	}
 
@@ -129,42 +135,50 @@ sub aggregate
 	my $count = 0;
 
 	# count = before sort/skip/limit do a count because the system needs to know the total # of records
-	if ( $arg{count} ) {
+	if ( $arg{count} )
+	{
 
 		# run modified pipeline to get the count, which is a single document
 		my @count_pipeline = (@$pre_count_pipeline);
-		push( @count_pipeline, { '$group' => { '_id' => undef, count => { '$sum' => 1 } } } );
+		push( @count_pipeline, {'$group' => {'_id' => undef, count => {'$sum' => 1}}} );
 
 		# for some reason or another, BOTH the aggregate call AND the cursor accesses
 		# can throw  exceptions on timeout, independent of each other!
 		# eval{} didn't seem to cut it fully, might as well use try/catch...
 		my $err;
 
-		try {
+		try
+		{
 			my $result = $collection->aggregate( \@count_pipeline, $aggoptions );
-			if ($cursor) {
+			if ($cursor)
+			{
 				my $only = $result
 					->next;   # somehow using count() on cursor count_out doesn't work in v0.70X, always returns zero...
 				$count = $only->{count} if ( ref($only) eq "HASH" );
 			}
-			else {
+			else
+			{
 				$count = $result->[0]{count} if ( ref($result) eq "ARRAY" && @$result > 0 );
 			}
 		}
-		catch {
+		catch
+		{
 			$err = $_;
 		};
 		return ( [], undef, "pre-count aggregation failed: $err" ) if ($err);
 	}
 
-	if ( $arg{sort} ) {
-		push( @$post_count_pipeline, { '$sort' => $arg{sort} } );
+	if ( $arg{sort} )
+	{
+		push( @$post_count_pipeline, {'$sort' => $arg{sort}} );
 	}
-	if ( $arg{skip} ) {
-		push( @$post_count_pipeline, { '$skip' => $arg{skip} + 0 } );
+	if ( $arg{skip} )
+	{
+		push( @$post_count_pipeline, {'$skip' => $arg{skip} + 0} );
 	}
-	if ( $arg{limit} ) {
-		push( @$post_count_pipeline, { '$limit' => $arg{limit} + 0 } );
+	if ( $arg{limit} )
+	{
+		push( @$post_count_pipeline, {'$limit' => $arg{limit} + 0} );
 	}
 
 	my @pipeline = ();
@@ -173,17 +187,21 @@ sub aggregate
 
 	# see note above: both aggregate and cursor throw timeout exceptions, separately...
 	my ( $out, $err );
-	try {
+	try
+	{
 		my $result = $collection->aggregate( \@pipeline, $aggoptions );
-		if ($cursor) {
+		if ($cursor)
+		{
 			my @all = $result->all();
 			$out = \@all;
 		}
-		else {
+		else
+		{
 			$out = $result;
 		}
 	}
-	catch {
+	catch
+	{
 		$err = $_;
 	};
 	return ( [], undef, "post-count aggregation failed: $err" ) if ($err);
@@ -204,43 +222,52 @@ sub batch_insert
 
 	my $safe = $arg{safe} // 1;
 
-	return { error => "cannot batch-insert with invalid collection argument!" }
+	return {error => "cannot batch-insert with invalid collection argument!"}
 		if ( ref($collection) ne "MongoDB::Collection" );
 
-	return { error => "cannot batch-insert with invalid records argument!" }
+	return {error => "cannot batch-insert with invalid records argument!"}
 		if ( ref($records) ne "ARRAY" or !@$records );
 
-	my $result = { success => 1, ids => [] };    # we hope
+	my $result = {success => 1, ids => []};    # we hope
 
-	if ($new_driver) {
-		try {
+	if ($new_driver)
+	{
+		try
+		{
 			my @requests = ( insert_many => $records );
 			my $res = $collection->bulk_write( [@requests] );
-			if ( $res->acknowledged ) {
+			if ( $res->acknowledged )
+			{
 				my $inserted_ids_hash = $res->inserted_ids;
-				@{ $result->{ids} } = values(%$inserted_ids_hash);
+				@{$result->{ids}} = values(%$inserted_ids_hash);
 			}
 			$result->{success} = 1;
 		}
-		catch {
+		catch
+		{
 			$result->{success}    = 0;
 			$result->{error}      = $_->message;
 			$result->{error_type} = ref($_);
 		}
 	}
-	else {
-		try {
-			@{ $result->{ids} } = $collection->batch_insert( $records, { safe => $safe } );
+	else
+	{
+		try
+		{
+			@{$result->{ids}} = $collection->batch_insert( $records, {safe => $safe} );
 		}
-		catch {
+		catch
+		{
 			$result->{error}   = $_;
 			$result->{success} = 0;
 		};
 
-		if ($safe) {
+		if ($safe)
+		{
 			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
 			my $error = getLastError( db => $database, w => $safe );
-			if ( $error->{err} ) {
+			if ( $error->{err} )
+			{
 				$result->{error}   = $error->{err};
 				$result->{success} = 0;
 			}
@@ -280,20 +307,22 @@ sub count
 
 	my ( $errmsg, $result );
 
-	return $verbose ? { error => "cannot count without collection!" } : undef
+	return $verbose ? {error => "cannot count without collection!"} : undef
 		if ( !$collection );
 
-	try {
+	try
+	{
 		$result = $collection->count($query);
 	}
 
-	catch {
+	catch
+	{
 		$errmsg = $_;
 	};
 
 	return (
 		$verbose
-		? { error => $errmsg, count => $result, success => !$errmsg }
+		? {error => $errmsg, count => $result, success => !$errmsg}
 		: $result
 	);
 }
@@ -311,22 +340,24 @@ sub coll_stats
 	my $verbose    = $arg{verbose};
 	my $scale      = $arg{scale} || 1;
 
-	return { error => "db is required for collStats!" }         if ( ref($db) ne "MongoDB::Database" );
-	return { error => "collection is required for collStats!" } if ( !$collection );
+	return {error => "db is required for collStats!"}         if ( ref($db) ne "MongoDB::Database" );
+	return {error => "collection is required for collStats!"} if ( !$collection );
 
 	# old driver failure: error text. new driver: exception...
 	my $result;
-	try {
+	try
+	{
 		$result = $db->run_command(
 			[   collStats => $collection,
 				scale     => $scale,
 				verbose   => $verbose
 			]
 		);
-		$result = { ok => 0, error => $result } if ( !ref($result) );
+		$result = {ok => 0, error => $result} if ( !ref($result) );
 	}
-	catch {
-		$result = { error => $_ };
+	catch
+	{
+		$result = {error => $_};
 	};
 
 	$result->{success} = !$result->{error};
@@ -353,11 +384,13 @@ sub constrain_record
 
 	die "cannot enforce record constraint without record!\n" if ( !exists $arg{record} );
 
-	if ( ref($record) eq "ARRAY" ) {
+	if ( ref($record) eq "ARRAY" )
+	{
 		my @newarray;
 
 		# check every element for deeper structure
-		for my $idx ( 0 .. $#{$record} ) {
+		for my $idx ( 0 .. $#{$record} )
+		{
 			$newarray[$idx]
 				= ref( $record->[$idx] )
 				? constrain_record( record => $record->[$idx] )
@@ -365,11 +398,13 @@ sub constrain_record
 		}
 		return \@newarray;
 	}
-	elsif ( ref($record) eq "HASH" ) {
+	elsif ( ref($record) eq "HASH" )
+	{
 
 		# check all keys, rename if needed; then check deeper.
 		my %newhash;
-		foreach my $key ( keys %$record ) {
+		foreach my $key ( keys %$record )
+		{
 
 			# . is not allowd in key, globally replace with _
 			my $original_key = $key;
@@ -382,10 +417,12 @@ sub constrain_record
 		}
 		return \%newhash;
 	}
-	elsif ( ref($record) =~ /^JSON::(PP|XS)::Boolean$/ ) {
+	elsif ( ref($record) =~ /^JSON::(PP|XS)::Boolean$/ )
+	{
 		return ( boolean::boolean($record) );    # cast into the desired boolean type
 	}
-	else {
+	else
+	{
 		# any other stuff we pass through as is.
 		# we MUST NOT do a blanket stringify here, because there are legitimate cases
 		# for blessed things (e.g. mongo oid, mongo bson types etc)!
@@ -404,17 +441,17 @@ sub constrain_record
 sub create_capped_collection
 {
 	my (%arg) = @_;
-	my ( $conn, $db, $collection, $wantsize ) = @arg{ "connection", "db", "collection", "size" };
+	my ( $conn, $db, $collection, $wantsize ) = @arg{"connection", "db", "collection", "size"};
 
-	return { error => "cannot create capped collection with invalid connection argument!" }
+	return {error => "cannot create capped collection with invalid connection argument!"}
 		if ( ref($conn) ne "MongoDB::MongoClient" );
 
-	return { error => "cannot create capped collection with invalid db argument!" }
+	return {error => "cannot create capped collection with invalid db argument!"}
 		if ( ref($db) ne "MongoDB::Database" );
 
-	return { error => "cannot create capped collection without collection argument!" }
+	return {error => "cannot create capped collection without collection argument!"}
 		if ( !$collection );
-	return { error => "cannot create capped collection without size argument!" }
+	return {error => "cannot create capped collection without size argument!"}
 		if ( !$wantsize );
 
 	# desired wantsize: ensure its a multiple of 256, round up to nearest
@@ -428,19 +465,19 @@ sub create_capped_collection
 
 	my $cmdline = OMK::DB::run_command(
 		db      => $conn->get_database("admin"),
-		command => { "getCmdLineOpts" => 1 }
+		command => {"getCmdLineOpts" => 1}
 	);
 	my $db_location = $cmdline->{parsed}->{storage}->{dbPath} // $cmdline->{parsed}->{dbpath};
-	return { error => "db location could not be determined!" } if ( !$db_location or !-d $db_location );
+	return {error => "db location could not be determined!"} if ( !$db_location or !-d $db_location );
 
 	# figure out how much space the whole db takes right now
 	my $result = OMK::DB::run_command(
 		db      => $db,
-		command => [ dbStats => 1, scale => 1 ]
+		command => [dbStats => 1, scale => 1]
 	);
-	return { error => "dbStats failed: $result->{error}" } if ( !$result->{ok} );
+	return {error => "dbStats failed: $result->{error}"} if ( !$result->{ok} );
 	my $dbsize = $result->{storageSize};
-	return { error => "could not determine current db size!" } if ( !defined $dbsize );
+	return {error => "could not determine current db size!"} if ( !defined $dbsize );
 
 	# meh. parsing df isn't good. access to statfs or statvfs system call would be cleaner
 	$db_location =~ s/[`"'\$]//g;    # sanitize it at least
@@ -450,13 +487,14 @@ sub create_capped_collection
 	my $exitcode = $?;
 
 	# filesys totalblocks usedblocks freeblocks percent mountpoint
-	my ( $totalbytes, $freebytes ) = ( split( /\s+/, $dfout[1] ) )[ 1, 3 ];
-	if ( $^O eq "darwin" ) {
+	my ( $totalbytes, $freebytes ) = ( split( /\s+/, $dfout[1] ) )[1, 3];
+	if ( $^O eq "darwin" )
+	{
 		$freebytes  *= 1024;
 		$totalbytes *= 1024;
 	}
 
-	return { error => "could not determine free disk at $db_location: $!" }
+	return {error => "could not determine free disk at $db_location: $!"}
 
 		if ( $exitcode or $exitcode >> 8 or !$freebytes );
 
@@ -467,20 +505,24 @@ sub create_capped_collection
 	my ( $maxsize, $isempty, $iscapped );
 
 	# setup db timeouts - requires a new database (fixme: and also new connection for socket_timeout)
-	if ($new_driver) {
-		if ( $conn->max_time_ms ) {
+	if ($new_driver)
+	{
+		if ( $conn->max_time_ms )
+		{
 
 			# new driver doesn't let you set these on existing connections or databases :-(
-			my $blockingdb = eval { $conn->get_database( $db->name, { max_time_ms => 0 } ) };
-			return { error => "Failed to get database with suitable timeout!" } if ( !$blockingdb );
+			my $blockingdb = eval { $conn->get_database( $db->name, {max_time_ms => 0} ) };
+			return {error => "Failed to get database with suitable timeout!"} if ( !$blockingdb );
 			$db = $blockingdb;
 		}
 	}
-	else {
+	else
+	{
 		$conn->query_timeout(-1);
 	}
 
-	if ($alreadypresent) {
+	if ($alreadypresent)
+	{
 
 		# check if the collection is capped already, and get the current size
 		my $stats = OMK::DB::CollStats(
@@ -488,7 +530,7 @@ sub create_capped_collection
 			collection => $collection,
 			scale      => 1
 		);
-		return { error => "collstats failed: $stats->{error}" }
+		return {error => "collstats failed: $stats->{error}"}
 			if ( !$stats->{success} );
 
 		$maxsize = $stats->{maxSize} // 0;    #this is only defined if capped is true
@@ -510,8 +552,9 @@ sub create_capped_collection
 	) if ( $arg{simulate} );
 
 	# existent and capped and the same size? nothing to do
-	if ( $alreadypresent and $iscapped and $maxsize == $wantsize ) {
-		return { success => 1, %stats } if ( $arg{simulate} );
+	if ( $alreadypresent and $iscapped and $maxsize == $wantsize )
+	{
+		return {success => 1, %stats} if ( $arg{simulate} );
 		return {
 			success => 1,
 			size    => $wantsize,
@@ -521,7 +564,8 @@ sub create_capped_collection
 	}
 
 	# existent and not empty, and not capped or not the right size? convert if there is enough space
-	elsif ( $alreadypresent and !$isempty and ( $maxsize != $wantsize or !$iscapped ) ) {
+	elsif ( $alreadypresent and !$isempty and ( $maxsize != $wantsize or !$iscapped ) )
+	{
 
 		# when converting the collection is cloned (into $wantsize collection), then the old one deleted
 		# and the new one renamed to the old name, BUT nothing is freed!
@@ -546,7 +590,7 @@ sub create_capped_collection
 			}
 			if ( $wantsize > $freebytes );
 
-		return { success => 1, %stats } if ( $arg{simulate} );
+		return {success => 1, %stats} if ( $arg{simulate} );
 
 		$result = OMK::DB::run_command(
 			db      => $db,
@@ -555,7 +599,7 @@ sub create_capped_collection
 				size            => $wantsize
 			]
 		);
-		return { error => "Convert to capped failed: $result->{error}" } if ( !$result->{ok} );
+		return {error => "Convert to capped failed: $result->{error}"} if ( !$result->{ok} );
 
 		return {
 			success => 1,
@@ -564,9 +608,11 @@ sub create_capped_collection
 			notes   => "$collection converted to capped"
 		};
 	}
-	else {
+	else
+	{
 		# existent but empty and not capped? drop and create as capped if enough space
-		if ( $alreadypresent and $isempty ) {
+		if ( $alreadypresent and $isempty )
+		{
 
 			# maxsize bytes will be freed by the drop
 			return {
@@ -576,18 +622,19 @@ sub create_capped_collection
 				}
 				if ( $wantsize > $freebytes + $maxsize );
 
-			return { success => 1, %stats } if ( $arg{simulate} );
+			return {success => 1, %stats} if ( $arg{simulate} );
 
 			my $res = OMK::DB::run_command(
 				db      => $db,
-				command => { 'drop' => $collection }
+				command => {'drop' => $collection}
 			);
-			return { error => "Could not drop collection $collection: $res->{error}" } if ( !$res->{ok} );
+			return {error => "Could not drop collection $collection: $res->{error}"} if ( !$res->{ok} );
 			$alreadypresent = 0;
 		}
 
 		# non existent? create as capped if enough space
-		else {
+		else
+		{
 			return {
 				error =>
 					"Not enough free diskspace for capped collection. Desired size: $wantsize, Free space: $freebytes",
@@ -596,7 +643,7 @@ sub create_capped_collection
 				if ( $wantsize > $freebytes );
 		}
 
-		return { success => 1, %stats } if ( $arg{simulate} );
+		return {success => 1, %stats} if ( $arg{simulate} );
 
 		# fixme timeouts
 
@@ -608,11 +655,11 @@ sub create_capped_collection
 				"size"   => $wantsize
 			]
 		);
-		$result = { error => $result }
+		$result = {error => $result}
 			if ( ref($result) ne "HASH" );    # apparently this cmd can return a plain string, too.
-		return { error => "Creation of capped $collection failed: $result->{error}" } if ( !$result->{ok} );
+		return {error => "Creation of capped $collection failed: $result->{error}"} if ( !$result->{ok} );
 
-		return { success => 1, changed => 1, notes => "$collection (re)created as capped", size => $wantsize };
+		return {success => 1, changed => 1, notes => "$collection (re)created as capped", size => $wantsize};
 	}
 
 	# not reached
@@ -650,9 +697,11 @@ sub end_bulk
 	my $success = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 	my $result = {};
-	try {
+	try
+	{
 		my $res = $bulk->execute;
-		if ( $res->acknowledged ) {
+		if ( $res->acknowledged )
+		{
 			$result->{inserted_count} = $res->inserted_count;
 			$result->{upserted_count} = $res->upserted_count;
 			$result->{modified_count} = $res->modified_count;
@@ -660,12 +709,13 @@ sub end_bulk
 			$result->{matched_count}  = $res->matched_count;
 		}
 	}
-	catch {
+	catch
+	{
 		$success    = 0;
 		$error      = $_->message;
 		$error_type = ref($_);
 	};
-	return { success => $success, result => $result, error => $error, error_type => $error_type };
+	return {success => $success, result => $result, error => $error, error_type => $error_type};
 }
 
 # a wrapper around ensure_index that optionally removes unwanted indices
@@ -683,7 +733,7 @@ sub ensure_index
 {
 	my (%args) = @_;
 
-	my ( $db, $coll, $indexlist ) = @args{ "db", "collection", "indices" };
+	my ( $db, $coll, $indexlist ) = @args{"db", "collection", "indices"};
 	my $drop       = $args{drop_unwanted};
 	my $background = $args{background};
 
@@ -706,7 +756,8 @@ sub ensure_index
 	my ( @currentindices, %desiredindices );
 	@currentindices = $coll->get_indexes if ($drop);    # not needed if unwanteds are ignored
 
-	for my $oneidx (@$indexlist) {
+	for my $oneidx (@$indexlist)
+	{
 		return "cannot ensureIndex with invalid index specification!"
 			if (
 			ref($oneidx) ne "ARRAY" or !@$oneidx or @$oneidx > 2    # spec, options
@@ -722,7 +773,8 @@ sub ensure_index
 		return "ensure_index on $coll->{name} failed: $@" if ($@);
 
 		# mark the index as desired, go by the index name (= key_dir_key_dir)
-		if ($drop) {
+		if ($drop)
+		{
 			my $thisname = ( ref($spec) eq "Tie::IxHash" )
 				?
 
@@ -735,10 +787,13 @@ sub ensure_index
 		}
 	}
 
-	if ($drop) {
-		for my $maybe (@currentindices) {
+	if ($drop)
+	{
+		for my $maybe (@currentindices)
+		{
 			next if ( $maybe->{name} eq "_id_" );                   # always indexed and required
-			if ( !$desiredindices{ $maybe->{name} } ) {
+			if ( !$desiredindices{$maybe->{name}} )
+			{
 
 				# print STDERR "removing index $maybe->{name} from collection $coll->{name}\n";
 				eval { $coll->drop_index( $maybe->{name} ); };
@@ -765,32 +820,39 @@ sub find
 
 	# print "OMK::DB::Find skip: $arg{skip}, limit: $arg{limit}, sort: ".Dumper($arg{sort})."\n";
 
-	if ( ref($collection) ne "MongoDB::Collection" ) {
+	if ( ref($collection) ne "MongoDB::Collection" )
+	{
 		$error_string = "Cannot use Find with invalid collection argument!";
 		return;
 	}
 	my $retval;
 
-	try {
+	try
+	{
 		$retval = $collection->find($query);
 
-		if ( defined $arg{fields_hash} ) {
+		if ( defined $arg{fields_hash} )
+		{
 			$retval = $retval->fields( $arg{fields_hash} );
 		}
 
-		if ( defined $arg{sort} ) {
+		if ( defined $arg{sort} )
+		{
 			$retval = $retval->sort( $arg{sort} );
 		}
 
-		if ( defined $arg{skip} ) {
+		if ( defined $arg{skip} )
+		{
 			$retval = $retval->skip( $arg{skip} );
 		}
 
-		if ( defined $arg{limit} ) {
+		if ( defined $arg{limit} )
+		{
 			$retval = $retval->limit( $arg{limit} );
 		}
 	}
-	catch {
+	catch
+	{
 		$error_string = $_;
 	};
 
@@ -804,14 +866,16 @@ sub find
 sub get_collection
 {
 	my (%args) = @_;
-	my ( $db, $collname ) = @args{ "db", "name" };
+	my ( $db, $collname ) = @args{"db", "name"};
 
-	if ( ref($db) ne "MongoDB::Database" or !$collname ) {
+	if ( ref($db) ne "MongoDB::Database" or !$collname )
+	{
 		$error_string = "Invalid args passed to getCollection!";
 		return;
 	}
 	my $coll = eval { $db->get_collection($collname); };
-	if ($@) {
+	if ($@)
+	{
 		$error_string = $@;
 		return;
 	}
@@ -846,9 +910,9 @@ sub get_db_connection
 	my $app_key = $args{app_key} // '';
 	my $CONF    = $args{conf};
 
-	my $server   = $CONF->{db_server} // 'localhost';
-	my $port     = $CONF->{db_port} // '27017';
-	my $db_name  = $CONF->{db_name} // 'nmisng';
+	my $server  = $CONF->{db_server} // 'localhost';
+	my $port    = $CONF->{db_port}   // '27017';
+	my $db_name = $CONF->{db_name}   // 'nmisng';
 	my $username = $CONF->{db_username};
 	my $password = $CONF->{db_password};
 
@@ -880,30 +944,35 @@ sub get_db_connection
 			max_time_ms => ( $query_timeout > 0 ) ? $query_timeout : 0,
 
 			# if no timeout wanted -> set none, and ditch the socket timeout in that case, too
-			socket_timeout_ms => ( $query_timeout > 0 ) ? ( $query_timeout + 5000 ) : -1 ,
+			socket_timeout_ms => ( $query_timeout > 0 ) ? ( $query_timeout + 5000 ) : -1,
 			heartbeat_frequency_ms => 5000
 		);
 
 		# max_bson_size => 8 * 1024*1024) };
 	};
 
-	if ($@) {
+	if ($@)
+	{
 		$error_string = "Error Connecting to Database $server:$port: $@";
 		return;
 	}
 
-	if ($new_driver) {
-		try {
-			my $status = $new_conn->db('admin')->run_command( [ ismaster => 1 ] );
+	if ($new_driver)
+	{
+		try
+		{
+			my $status = $new_conn->db('admin')->run_command( [ismaster => 1] );
 		}
-		catch {
+		catch
+		{
 			$error_string = "Error Connecting to Database $server:$port: $_";
 		};
 		return if ($error_string);
 	}
 
 	# If we can't authenticate we must be using the new driver
-	if ( $username eq '' || !$new_conn->can("authenticate") ) {
+	if ( $username eq '' || !$new_conn->can("authenticate") )
+	{
 		return $new_conn;
 	}
 
@@ -912,13 +981,15 @@ sub get_db_connection
 
 	# print STDERR "AUTH: $auth".Dumper($auth);
 
-	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 ) {
+	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
+	{
 		$error_string = "Error authenticating to MongoDB admin database\n";
 		return;
 	}
 	$auth = $new_conn->authenticate( $db_name, $username, $password );
 
-	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 ) {
+	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
+	{
 		$error_string = "Error authenticating to MongoDB $db_name database\n";
 		return;
 	}
@@ -938,12 +1009,12 @@ sub get_last_error
 	my %args = @_;
 	my $db   = $args{db};
 
-	return { err => "cannot call last_error with invalid db argument!" }
+	return {err => "cannot call last_error with invalid db argument!"}
 		if ( ref($db) ne "MongoDB::Database" );
 
 	my $write_concern = $args{w} // 1;
 
-	return $db->last_error( { w => $write_concern } );
+	return $db->last_error( {w => $write_concern} );
 }
 
 # args: and_part, no_auto_oid, or_part
@@ -960,26 +1031,32 @@ sub get_query
 	my @or_hash;
 
 	my $no_auto_oid = $arg{no_auto_oid};
-	if ( defined($no_auto_oid) ) {
+	if ( defined($no_auto_oid) )
+	{
 		$_no_auto_oid = $no_auto_oid;
 		delete $arg{no_auto_oid};
 	}
 
-	while ( my ( $key, $value ) = each( %{ $arg{and_part} } ) ) {
+	while ( my ( $key, $value ) = each( %{$arg{and_part}} ) )
+	{
 		my $new_query_part = get_query_part( $key, $value );
-		if ( $new_query_part ne "" ) {
-			@ret_hash{ keys %{$new_query_part} } = values %{$new_query_part};
+		if ( $new_query_part ne "" )
+		{
+			@ret_hash{keys %{$new_query_part}} = values %{$new_query_part};
 		}
 	}
 
-	while ( my ( $key, $value ) = each( %{ $arg{or_part} } ) ) {
+	while ( my ( $key, $value ) = each( %{$arg{or_part}} ) )
+	{
 		my $new_query_part = get_query_part( $key, $value );
-		if ( $new_query_part ne "" ) {
+		if ( $new_query_part ne "" )
+		{
 			push( @or_hash, $new_query_part );
 		}
 	}
 
-	if ( @or_hash > 0 ) {
+	if ( @or_hash > 0 )
+	{
 		$ret_hash{"\$or"} = \@or_hash;
 	}
 
@@ -1005,47 +1082,60 @@ sub get_query_part
 	my $ret_val  = "";
 	my $ret_hash = {};
 
-	if ( $col_value eq "" ) {
+	if ( $col_value eq "" )
+	{
 
 		#don't add it
 		return "";
 	}
-	elsif ( ref($col_value) eq "HASH" ) {
+	elsif ( ref($col_value) eq "HASH" )
+	{
 		my %hash = ();
-		while ( my ( $key, $value ) = each( %{$col_value} ) ) {
-			if ( defined($value) && $value ne '' ) {
+		while ( my ( $key, $value ) = each( %{$col_value} ) )
+		{
+			if ( defined($value) && $value ne '' )
+			{
 				$hash{$key} = $value;
 			}
 		}
-		if ( scalar( keys %hash ) > 0 ) {
+		if ( scalar( keys %hash ) > 0 )
+		{
 			$ret_hash->{$col_name} = \%hash;
 		}
 	}
-	elsif ( ref($col_value) eq "ARRAY" ) {
-		$ret_hash->{$col_name} = { '$in' => $col_value };
+	elsif ( ref($col_value) eq "ARRAY" )
+	{
+		$ret_hash->{$col_name} = {'$in' => $col_value};
 	}
-	elsif ( $col_value =~ /regex:(.*)/ && $_no_regex ne "true" ) {
+	elsif ( $col_value =~ /regex:(.*)/ && $_no_regex ne "true" )
+	{
 		my $regex = $1;
-		$ret_hash->{$col_name} = { '$regex' => $regex, '$options' => 'i' };
+		$ret_hash->{$col_name} = {'$regex' => $regex, '$options' => 'i'};
 
 		# $ret_hash->{$col_name} = qr/$regex/;
 	}
-	elsif ( $col_value =~ /type:(.*)/ ) {
+	elsif ( $col_value =~ /type:(.*)/ )
+	{
 		my $type = $1;
-		$ret_hash->{$col_name} = { '$type' => $type + 0 };
+		$ret_hash->{$col_name} = {'$type' => $type + 0};
 	}
-	elsif ( $col_name eq "text_search" ) {
-		$ret_hash->{'$text'} = { '$search' => $col_value, '$language' => 'none' };
+	elsif ( $col_name eq "text_search" )
+	{
+		$ret_hash->{'$text'} = {'$search' => $col_value, '$language' => 'none'};
 	}
-	elsif ( $col_name eq "_id" && $_no_auto_oid eq "false" ) {
-		if ( ref($col_value) eq "MongoDB::OID" ) {
+	elsif ( $col_name eq "_id" && $_no_auto_oid eq "false" )
+	{
+		if ( ref($col_value) eq "MongoDB::OID" )
+		{
 			$ret_hash->{$col_name} = $col_value;
 		}
-		else {
+		else
+		{
 			$ret_hash->{$col_name} = MongoDB::OID->new( value => $col_value );
 		}
 	}
-	else {
+	else
+	{
 		$ret_hash->{$col_name} = $col_value;
 	}
 	return $ret_hash;
@@ -1068,21 +1158,27 @@ sub insert
 	my $success = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 
-	if ($new_driver) {
-		if ($bulk) {
+	if ($new_driver)
+	{
+		if ($bulk)
+		{
 			$bulk->insert_one($new_record);
 			$success = 1;
 			$id      = "bulk";
 		}
-		else {
-			try {
+		else
+		{
+			try
+			{
 				my $result = $collection->insert_one($new_record);
-				if ( $result->acknowledged ) {
+				if ( $result->acknowledged )
+				{
 					$id = $result->inserted_id;
 				}
 				$success = 1;
 			}
-			catch {
+			catch
+			{
 				$success    = 0;
 				$error      = $_->message;
 				$error_type = ref($_);
@@ -1097,26 +1193,31 @@ sub insert
 			};
 		}
 	}
-	else {
-		try {
-			$id = $collection->insert( $new_record, { safe => 0 } );
+	else
+	{
+		try
+		{
+			$id = $collection->insert( $new_record, {safe => 0} );
 			$success = 1;
 		}
-		catch {
+		catch
+		{
 			$success = 0;
 			$error   = $_;
 		};
-		if ($safe) {
+		if ($safe)
+		{
 			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
 			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} ) {
+			if ( $error_hash->{err} )
+			{
 				$success = 0;
 				$error = $error_hash->{errmsg} // $error_hash->{err};
 			}
 		}
 	}
 
-	return { success => $success, id => $id, error => $error, error_type => $error_type };
+	return {success => $success, id => $id, error => $error, error_type => $error_type};
 }
 
 # trivial wrapper around MongoDB::BSON::Binary, mainly
@@ -1155,13 +1256,16 @@ sub reget_db_connection
 
 	# Driver 1.X query_timeout is readonly, and it tries to handle reconnect itself
 	# TODO: until more testing can be done just assume it's working
-	if ( ref($maybelive) eq "MongoDB::MongoClient" && $new_driver ) {
+	if ( ref($maybelive) eq "MongoDB::MongoClient" && $new_driver )
+	{
 		my $status = undef;
-		try {
+		try
+		{
 			# new driver lets us set a timeout per database
-			$status = $maybelive->get_database( 'admin', { max_time_ms => $ping_to } )->run_command( { ping => 1 } );
+			$status = $maybelive->get_database( 'admin', {max_time_ms => $ping_to} )->run_command( {ping => 1} );
 		}
-		catch {
+		catch
+		{
 			my $exception = $_;
 			print STDERR "ReGetDbConnection: " . $exception->message . "\n";
 			warn "make sure admin is the correct databaes to be trying this on";
@@ -1188,13 +1292,15 @@ sub reget_db_connection
 	}
 
 	# old driver
-	elsif ( ref($maybelive) eq "MongoDB::MongoClient" ) {
+	elsif ( ref($maybelive) eq "MongoDB::MongoClient" )
+	{
 		my $finaltimeout = $args{query_timeout} // $maybelive->query_timeout;
-		my $status = try {
+		my $status = try
+		{
 
 			# optionally: wait less long for ping responses
 			$maybelive->query_timeout($ping_to) if ( $finaltimeout != $ping_to );
-			$maybelive->get_database('admin')->run_command( { ping => 1 } );
+			$maybelive->get_database('admin')->run_command( {ping => 1} );
 		};
 
 		# reset the timeout if required
@@ -1219,67 +1325,81 @@ sub remove
 	my $removed_records = 0;
 	my $success         = undef;
 	my ( $error, $error_type ) = ( undef, undef );
-	my $options = { safe => $safe };
+	my $options = {safe => $safe};
 	$options->{just_one} = 1 if ( $arg{just_one} );
 
-	if ($new_driver) {
+	if ($new_driver)
+	{
 
 		# NOTE: safe does not apply here
-		try {
+		try
+		{
 			my $result;
-			if ( $options->{just_one} ) {
+			if ( $options->{just_one} )
+			{
 				$result = $collection->delete_one($query);
 			}
-			else {
+			else
+			{
 				$result = $collection->delete_many($query);
 			}
-			if ( $result->acknowledged ) {
+			if ( $result->acknowledged )
+			{
 				$removed_records = $result->deleted_count;
 			}
 			$success = 1;
 		}
-		catch {
+		catch
+		{
 			$success    = 0;
 			$error      = $_->message;
 			$error_type = ref($_);
 		}
 
 	}
-	else {
-		try {
+	else
+	{
+		try
+		{
 			$return_info = $collection->remove( $query, $options );
 
 			# return # of rows removed if safe is 1 (which it could be depending on the write
 			# concern in the connection)
-			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) ) {
+			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) )
+			{
 				$removed_records = $return_info->{n};
 			}
-			else {
+			else
+			{
 				# if $safe is set the error check below will return the # of records, if not
 				# set something here as we can only assume
 				$removed_records = 1;
 			}
 			$success = 1;
 		}
-		catch {
+		catch
+		{
 			$success = 0;
 			$error   = $_;
 		};
 
-		if ($safe) {
+		if ($safe)
+		{
 			my $database = $collection->_database();
 			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} ) {
+			if ( $error_hash->{err} )
+			{
 				$success = 0;
 				$error = $error_hash->{errmsg} // $error_hash->{err};
 			}
-			else {
+			else
+			{
 				$removed_records = $error_hash->{n};
 			}
 		}
 	}
 
-	return { success => $success, removed_records => $removed_records, error => $error, error_type => $error_type };
+	return {success => $success, removed_records => $removed_records, error => $error, error_type => $error_type};
 }
 
 # a thin wrapper around run_command
@@ -1291,12 +1411,14 @@ sub remove
 sub run_command
 {
 	my (%args) = @_;
-	return { ok => 0, errmsg => "Insufficient arguments" } if ( !$args{db} or !$args{command} );
+	return {ok => 0, errmsg => "Insufficient arguments"} if ( !$args{db} or !$args{command} );
 	my $result;
-	try {
+	try
+	{
 		$result = $args{db}->run_command( $args{command} );
 	}
-	catch {
+	catch
+	{
 		my $gotcha = $_;
 		$result = {
 			ok     => 0,
@@ -1306,9 +1428,10 @@ sub run_command
 
 	# success with new driver -> hash, failure -> exception
 	# success with old  driver -> hash, failure -> ERROR TEXT!
-	$result = { ok => 0, errmsg => $result } if ( !ref($result) );
+	$result = {ok => 0, errmsg => $result} if ( !ref($result) );
 
-	if ( ref($result) eq "HASH" ) {
+	if ( ref($result) eq "HASH" )
+	{
 		my $theerror = $result->{errmsg} || $result->{err} || $result->{error};
 		$result->{err} = $result->{errmsg} = $result->{error} = $theerror;
 	}
@@ -1341,57 +1464,71 @@ sub update
 	my ( $error, $error_type ) = ( undef, undef );
 	my $upsert   = $arg{upsert}   || 0;
 	my $multiple = $arg{multiple} || 0;
-	my $updates = ( $arg{freeform} ) ? $new_record : { '$set' => $new_record };
+	my $updates = ( $arg{freeform} ) ? $new_record : {'$set' => $new_record};
 
-	if ($new_driver) {
-		try {
+	if ($new_driver)
+	{
+		try
+		{
 			my $result;
-			if ($multiple) {
-				$result = $collection->update_many( $query, $updates, { upsert => $upsert } );
+			if ($multiple)
+			{
+				$result = $collection->update_many( $query, $updates, {upsert => $upsert} );
 			}
-			else {
-				$result = $collection->update_one( $query, $updates, { upsert => $upsert } );
+			else
+			{
+				$result = $collection->update_one( $query, $updates, {upsert => $upsert} );
 			}
-			if ( $result->acknowledged ) {
+			if ( $result->acknowledged )
+			{
 				$updated_records = $result->modified_count;
 			}
 			$success = 1;
 		}
-		catch {
+		catch
+		{
 			my $result = $_;
 			$success    = 0;
 			$error      = $result->message;
 			$error_type = ref($_);
 		}
 	}
-	else {
-		try {
+	else
+	{
+		try
+		{
 			$return_info
-				= $collection->update( $query, $updates, { upsert => $upsert, multiple => $multiple, safe => 0 } );
+				= $collection->update( $query, $updates, {upsert => $upsert, multiple => $multiple, safe => 0} );
 
 			# return # of rows updated if safe is 1 (which it could be depending on the write concern in the connection)
-			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) ) {
+			if ( ref($return_info) eq "HASH" && defined( $return_info->{n} ) )
+			{
 				$updated_records = $return_info->{n};
 			}
-			else {
+			else
+			{
    # if $safe is set the error check below will return the # of records, if not set something here as we can only assume
 				$updated_records = 1;
 			}
 			$success = 1;
 		}
-		catch {
+		catch
+		{
 			$success = 0;
 			$error   = $_;
 		};
 
-		if ($safe) {
+		if ($safe)
+		{
 			my $database = $collection->can("database") ? $collection->database() : $collection->_database();
 			my $error_hash = get_last_error( db => $database, w => $safe );
-			if ( $error_hash->{err} ) {
+			if ( $error_hash->{err} )
+			{
 				$success = 0;
 				$error = $error_hash->{errmsg} // $error_hash->{err};
 			}
-			else {
+			else
+			{
 				$updated_records = $error_hash->{n};
 			}
 		}

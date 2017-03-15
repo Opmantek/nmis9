@@ -248,7 +248,7 @@ sub get_node_names
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model(%args);
-	my $data = $model_data->data();
+	my $data       = $model_data->data();
 	my @node_names = map { $_->{name} } @$data;
 	return \@node_names;
 }
@@ -257,8 +257,8 @@ sub get_node_uuids
 {
 	my ( $self, %args ) = @_;
 	my $model_data = $self->get_nodes_model(%args);
-	my $data = $model_data->data();
-	my @uuids = map { $_->{uuid} } @$data;
+	my $data       = $model_data->data();
+	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;
 }
 

@@ -32,12 +32,11 @@ package NMISNG::Util;
 use strict;
 our $VERSION = "1.0.0";
 
-
 sub TODO
 {
 	# TODO: find a better way to enable/disabling this, !?!
 	my $show_todos = 0;
-	print "TODO: ".shift."\n" if($show_todos);
+	print "TODO: " . shift . "\n" if ($show_todos);
 }
 
 # like getargs, but arrayify multiple occurrences of a parameter
@@ -50,20 +49,20 @@ sub get_args_multi
 
 	for my $item (@argue)
 	{
-		if ($item !~ /^.+=/)
+		if ( $item !~ /^.+=/ )
 		{
 			print STDERR "Invalid command argument \"$item\"\n";
 			next;
 		}
 
-		my ($name, $value) = split(/\s*=\s*/, $item, 2);
-		if (ref($hash{$name}) eq "ARRAY")
+		my ( $name, $value ) = split( /\s*=\s*/, $item, 2 );
+		if ( ref( $hash{$name} ) eq "ARRAY" )
 		{
 			push @{$hash{$name}}, $value;
 		}
-		elsif (exists $hash{$name})
+		elsif ( exists $hash{$name} )
 		{
-			my @list = ($hash{$name}, $value);
+			my @list = ( $hash{$name}, $value );
 			$hash{$name} = \@list;
 		}
 		else

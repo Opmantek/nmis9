@@ -51,7 +51,7 @@ sub new
 	my ( $class, %args ) = @_;
 
 	return if ( !$args{collection} );    #"collection required"
-	return if ( !$args{uuid} );         #"uuid required"
+	return if ( !$args{uuid} );          #"uuid required"
 
 	my $self = {
 		_dirty     => {},
@@ -145,8 +145,7 @@ sub is_new
 
 	# print "id".Dumper($configuration);
 	my $has_id = ( defined($configuration) && defined( $configuration->{_id} ) );
-	return ($has_id) ? 0 : 1
-	;
+	return ($has_id) ? 0 : 1;
 }
 
 # load data for this node from the database
@@ -169,6 +168,7 @@ sub load
 	my $entry = $cursor->next;
 	if ($entry)
 	{
+
 		if ( $no_options || $options{load_overrides} )
 		{
 			# return an empty hash if it's not defined
@@ -213,7 +213,7 @@ sub overrides
 			$self->load( load_overrides => 1 );
 		}
 	}
-	
+
 	# loading will set this to an empty hash if it's not defined
 	return $self->{_overrides};
 }
@@ -253,8 +253,8 @@ sub save
 	{
 		$result = NMISNG::DB::update(
 			collection => $self->_collection,
-			query  => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
-			record => $entry
+			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
+			record     => $entry
 		);
 		assert( $result->{success}, "Record updated successfully" );
 

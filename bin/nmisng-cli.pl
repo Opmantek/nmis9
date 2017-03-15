@@ -90,8 +90,8 @@ if ( $Q->{act} eq "import-nodes-from-nodes-file" )
 }
 if ( $Q->{act} eq "import-nodeconf-from-files" )
 {
-	$logger->info("Starting ".$Q->{act});
-	
+	$logger->info( "Starting " . $Q->{act} );
+
 	# this is highly inpired by "get_nodeconf"
 	# walk the dir
 	my $C     = loadConfTable();                     # likely cached
@@ -125,7 +125,7 @@ if ( $Q->{act} eq "import-nodeconf-from-files" )
 		my $op = $node->save();
 		$logger->debug( "$node_name overrides saved to database, op:" . $op );
 	}
-	$logger->info("Done ".$Q->{act});
+	$logger->info( "Done " . $Q->{act} );
 }
 
 1;

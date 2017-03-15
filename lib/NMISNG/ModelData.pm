@@ -37,21 +37,22 @@ use Data::Dumper;
 
 sub new
 {
-	my ($class, %args) = @_;
+	my ( $class, %args ) = @_;
 
-	die "Data must be array if defined" if( $args{data} && ref($args{data}) ne "ARRAY" );
-	my $self = bless({
-		_modelName => $args{modelName} // undef,
-		_data => $args{data} // undef
-		}, $class
+	die "Data must be array if defined" if ( $args{data} && ref( $args{data} ) ne "ARRAY" );
+	my $self = bless(
+		{   _modelName => $args{modelName} // undef,
+			_data      => $args{data}      // undef
+		},
+		$class
 	);
 	return $self;
 }
 
 sub data
 {
-	my ($self,$newvalue) = @_;
-	if( defined($newvalue) )
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
 	{
 		$self->{_data} = $newvalue;
 	}
@@ -62,12 +63,12 @@ sub data
 sub count
 {
 	my ($self) = @_;
-	my $count = 0;
-	my $data = $self->data();
-	
-	if( ref($data) eq 'ARRAY' )
+	my $count  = 0;
+	my $data   = $self->data();
+
+	if ( ref($data) eq 'ARRAY' )
 	{
-		$count = scalar( @$data );
+		$count = scalar(@$data);
 	}
 	return $count;
 }
