@@ -27,12 +27,13 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.1G";
+use strict;
+
+our $VERSION = "9.0.0A";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
 
-use strict;
 use RRDs;
 use Time::ParseDate;
 use Time::Local;
@@ -54,6 +55,8 @@ use Fcntl qw(:DEFAULT :flock);
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
+
+use NMISNG;
 
 use vars qw(@ISA @EXPORT);
 use Exporter;
@@ -179,6 +182,24 @@ my $SRC_modtime;
 # preset kernel name
 my $kernel = $^O;
 
+# todo: how to set debug=> and info=> into logger
+sub new_nmisng
+{
+	my $C = loadConfTable();
+
+	my $level = $C->{log_level};
+	my $debug = func::getDebug();
+	# debug = 1 means log to file but with debug, anything above means log to stdout
+	$debug = undef if( $debug == 1 );
+	my $logger = NMISNG::Log->new(level => $debug, debug => $debug, path => $C->{'<nnis_logs>'}."/nmisng.log" );
+
+	my $nmisng = NMISNG->new(
+		config => $C,
+		log => $logger,
+	);
+	return $nmisng;
+}
+
 sub loadLinkDetails {
 	my $C = loadConfTable();
 	my %linkTable = &loadCSV($C->{Links_Table},$C->{Links_Key},"\t");
@@ -188,12 +209,12 @@ sub loadLinkDetails {
 
 # load local node table and store also in cache
 sub loadLocalNodeTable {
-	my $C = loadConfTable();
-	if (getbool($C->{db_nodes_sql})) {
-		return DBfunc::->select(table=>'Nodes');
-	} else {
-		return loadTable(dir=>'conf',name=>'Nodes');
-	}
+	my $nmisng = new_nmisng();
+	# get all nodes
+	my $modelData = $nmisng->get_nodes_model();
+	my $data = $modelData->data();
+	my %map = map { $_->{name} => $_ } @$data;
+	return \%map;	
 }
 
 sub loadNodeTable {
@@ -4205,27 +4226,26 @@ sub rename_node
 
 	my $C = loadConfTable();
 
-	my $nodeinfo = loadLocalNodeTable();
-	my $oldnoderec = $nodeinfo->{$old};
-	return (1, "Old node $old does not exist!") if (!$oldnoderec);
+	my $nmisng = NMIS::new_nmisng;
+	# do the rename just baed on name
+	my $node = $nmisng->node( name => $old );
+
+	return (1, "Old node $old does not exist!") if (!$node);
 
 	# fixme: less picky? spaces required?
 	return(1, "Invalid node name \"$new\"")	if ($new =~ /[^a-zA-Z0-9_-]/);
 
-	my $newnoderec = $nodeinfo->{$new};
-	return(1, "New node $new already exists, NOT overwriting!")
-			if ($newnoderec);
-
-	$newnoderec = { %$oldnoderec  };
-	$newnoderec->{name} = $new;
-	$nodeinfo->{$new} = $newnoderec;
-
+	# merge the new name into the existing config
+	my $configuration = $node->configuration();
+	$configuration->{name} = $new;
+	$node->configuration($configuration);
+	
 	# now write out the new nodes file, so that the new node becomes
 	# workable (with sys etc)
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a
 	#different write function
 	print STDERR "Saving new name in Nodes table\n" if ($wantdiag);
-	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+	$node->save();
 
 	# then hardlink the var files - do not delete anything yet!
 	my @todelete;
@@ -4295,14 +4315,6 @@ sub rename_node
 		print STDERR "Deleting file $relfn, no longer required\n" if ($wantdiag);
 		unlink($fn);
 	}
-
-	# now, finally reread the nodes table and remove the old node
-	print STDERR "Deleting old node $old from Nodes table\n" if ($wantdiag);
-	my $newnodeinfo = loadLocalNodeTable();
-	delete $newnodeinfo->{$old};
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a
-	# different write function
-	writeTable(dir => 'conf', name => "Nodes", data => $newnodeinfo);
 
 	# now clear all events for old node
 	print STDERR "Removing events for old node\n" if ($wantdiag);

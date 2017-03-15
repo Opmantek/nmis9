@@ -187,11 +187,17 @@ elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # includ
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
 elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
+elsif ( $type eq 'list_nodes' ) { list_nodes() }
 else { checkArgs(); }
 
 exit;
 
 #=========================================================================================
+sub list_nodes
+{
+	my $lnt = NMIS::loadLocalNodeTable();
+	print "Nodes:".Dumper($lnt);
+}
 
 # run collection-type functions, possibly spread across multiple processes
 sub	runThreads

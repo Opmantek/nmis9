@@ -111,13 +111,19 @@ sub loadReqTable {
 
 	my $T;
 
-	my $db = "db_".lc($table)."_sql";
-	if (getbool($C->{$db})) {
-		$T = DBfunc::->select(table=>$table); # full table
-	} else {
-		$T = loadTable(dir=>'conf',name=>$table);
+	if( $table eq 'Nodes' )
+	{
+		$T = loadLocalNodeTable();
 	}
-
+	else 
+	{		
+		my $db = "db_".lc($table)."_sql";
+		if (getbool($C->{$db})) {
+			$T = DBfunc::->select(table=>$table); # full table
+		} else {
+			$T = loadTable(dir=>'conf',name=>$table);
+		}
+	}
 	if (!$T and !getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
 		return;
@@ -615,30 +621,23 @@ sub doeditTable
 		# keep the new_name from being written to the config file
 		$new_name = $thisentry->{new_name};
 		delete $thisentry->{new_name};
-	}
 
-	my $db = "db_".lc($table)."_sql";
-	if ( getbool($C->{$db}) ) {
-		my $stat;
-		$V->{index} = $key; # add this column
-		if ($Q->{act} =~ /doadd/) {
-			$stat = DBfunc::->insert(table=>$table,data=>$V);
-		} else {
-			$stat = DBfunc::->update(table=>$table,data=>$V,index=>$key);
-		}
-		if (!$stat) {
-			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} , escapeHTML(DBfunc::->error())));
-			return 0;
-		}
-	} else {
-		writeTable(dir=>'conf',name=>$table, data=>$T);
-	}
+		my $nmisng = NMIS::new_nmisng;
+		# set create if addding
+		my $node = $nmisng->node( uuid => $thisentry->{uuid}, create => ($Q->{act} =~ /doadd/) ? 1 : 0 );
+		
+		# NOTE, this is going to remove entries that NMIS is not asking about!!!
+		# NEED TO add a merge option or do the merge		
+		my $configuration = $node->configuration();
+		
+		# do merge manually for now
+		map { $configuration->{$_} = $thisentry->{$_} } keys( %$thisentry );
 
+		# set the new configuration and save the changes
+		$node->configuration( $thisentry );
+		$node->save();
 
-	# further special handling for nodes: rename and general update
-	if ($table eq 'Nodes')
-	{
+		# further special handling for nodes: rename and general update
 		# handle the renaming case
 		if ($new_name && $new_name ne $thisentry->{name})
 		{
@@ -660,6 +659,27 @@ sub doeditTable
 			doNodeUpdate(node=>$key);
 			return 0;
 		}
+	}
+	else
+	{
+		my $db = "db_".lc($table)."_sql";
+		if ( getbool($C->{$db}) ) {
+			my $stat;
+			$V->{index} = $key; # add this column
+			if ($Q->{act} =~ /doadd/) {
+				$stat = DBfunc::->insert(table=>$table,data=>$V);
+			} else {
+				$stat = DBfunc::->update(table=>$table,data=>$V,index=>$key);
+			}
+			if (!$stat) {
+				print header({-type=>"text/html",-expires=>'now'});
+				print Tr(td({class=>'error'} , escapeHTML(DBfunc::->error())));
+				return 0;
+			}
+		} else {
+			writeTable(dir=>'conf',name=>$table, data=>$T);
+		}
+
 	}
 
 	return 1;

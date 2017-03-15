@@ -36,7 +36,7 @@ our $VERSION = "1.0.0";
 sub TODO
 {
 	# TODO: find a better way to enable/disabling this, !?!
-	my $show_todos = 1;
+	my $show_todos = 0;
 	print "TODO: ".shift."\n" if($show_todos);
 }
 

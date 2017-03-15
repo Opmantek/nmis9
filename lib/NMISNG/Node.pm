@@ -145,7 +145,8 @@ sub is_new
 
 	# print "id".Dumper($configuration);
 	my $has_id = ( defined($configuration) && defined( $configuration->{_id} ) );
-	return ($has_id) ? 0 : 1;
+	return ($has_id) ? 0 : 1
+	;
 }
 
 # load data for this node from the database
@@ -226,6 +227,7 @@ sub save
 	return -1 if ( !$self->validate() );
 
 	my $result;
+	my $op;
 
 	my $entry = $self->configuration();
 	$entry->{overrides} = $self->overrides();
@@ -242,10 +244,12 @@ sub save
 
 		$self->_dirty( 0, 'configuration' );
 		$self->_dirty( 0, 'overrides' );
+		$op = 1;
 	}
 	else
 	{
 		$result = NMISNG::DB::update(
+			collection => $self->_collection,
 			query  => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
 			record => $entry
 		);
@@ -253,8 +257,9 @@ sub save
 
 		$self->_dirty( 0, 'configuration' );
 		$self->_dirty( 0, 'overrides' );
+		$op = 2;
 	}
-	return $result->{success};
+	return ( $result->{success} ) ? $op : undef;
 }
 
 # get the nodes UUID

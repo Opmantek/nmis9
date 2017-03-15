@@ -37,11 +37,34 @@ my $LEVEL = { debug9 => 1, debug8 => 2, debug7 => 3, debug6 => 4, debug5 => 5, d
 	debug => 9, info => 10, warn => 11, error => 12, fatal => 13 };
 
 # Do any extra new stuff in here
+# if debug=1-9 are set then level is set to debug[1-9] and output goes to stderr
+# if info=X is set then output goes to stderr, level is set to info (for now, doesn't seem quite right)
 sub new 
 {
 	my $class = shift;
 	my (%args) = @_;
-	my $self = $class->SUPER::new(@_);
+	my %callArgs = ();
+
+	my $show_in_stdout = 0;
+	my $level = $args{level};
+	# caller doesn't set level but does set debug=1..9
+	if( !$level && $args{debug} )
+	{
+		$show_in_stdout = 1;
+		my $debug = $args{debug};
+		$level = "debug";
+		$level .= $debug if( $debug =~ /^[1-9]$/ );
+	}
+	elsif( !$level && $args{info} )
+	{
+		$show_in_stdout = 1;
+		$level = "info";
+	}
+
+	$args{level} = $level;
+	delete $args{path} if( $show_in_stdout );
+	
+	my $self = $class->SUPER::new( %args );
 	
 	return $self;
 }
