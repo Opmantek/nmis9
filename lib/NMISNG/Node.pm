@@ -35,47 +35,42 @@ use strict;
 
 our $VERSION = "1.0.0";
 
+use Module::Load 'none';
 use Carp::Assert;
 use Clone;    # for copying overrides out of the record
 use Data::Dumper;
 
 use NMISNG::DB;
+use NMISNG::Inventory;
 
 # params:
-#   uuid - required
-#   collection - collection object from DB
-#   config - system configuration hash
-#   log - NMISNG::Log
+#   id - required
+#   nmisng - NMISNG object, required for model loading, config and log
 sub new
 {
 	my ( $class, %args ) = @_;
 
-	return if ( !$args{collection} );    #"collection required"
-	return if ( !$args{uuid} );          #"uuid required"
+	return if ( !$args{nmisng} );    #"collection nmisng"
+	return if ( !$args{uuid} );      #"uuid required"
 
 	my $self = {
-		_dirty     => {},
-		_uuid      => $args{uuid},
-		collection => $args{collection},
-		config     => $args{config},
-		log        => $args{log}
+		_dirty  => {},
+		_nmisng => $args{nmisng},
+		_id     => $args{_id} // $args{id} // undef,
+		uuid    => $args{uuid}		
 	};
 	bless( $self, $class );
+
+	# weaken the reference to nmisx to avoid circular reference problems
+	# not sure if the check for isweak is required
+	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
+
 	return $self;
 }
 
 ###########
 # Private:
 ###########
-
-# return the collection the node belongs in
-# dies if requested and does not exist
-sub _collection
-{
-	my ($self) = @_;
-	die if ( !$self->{collection} );
-	return $self->{collection};
-}
 
 # tell the object that it's been changed so if save is
 # called something needs to be done
@@ -101,6 +96,13 @@ sub _dirty
 # Public:
 ###########
 
+sub cluster_id
+{
+	my ($self) = @_;
+	my $configuration = $self->configuration();
+	return $configuration->{cluster_id};
+}
+
 # get/set the configuration for this node
 # setting data means the configuration is dirty and will
 #  be saved next time save is called, even if it is identical to what
@@ -116,7 +118,7 @@ sub configuration
 
 	if ( defined($newvalue) )
 	{
-		$self->log->warn("NMISNG::Node::configuration given new config with uuid that does not match")
+		$self->nmisng->log->warn("NMISNG::Node::configuration given new config with uuid that does not match")
 			if ( $newvalue->{uuid} && $newvalue->{uuid} ne $self->uuid );
 
 		# UUID cannot be changed
@@ -129,10 +131,65 @@ sub configuration
 	# if there is no config try and load it
 	if ( !defined( $self->{_configuration} ) )
 	{
-		$self->load( load_configuration => 1 );
+		$self->load_part( load_configuration => 1 );
 	}
 
 	return $self->{_configuration};
+}
+
+# find or create inventory object based on arguments
+# object returned will have base class NMISNG::Inventory but will be a
+# subclass of it specific to it's concept, if no specific implementation is found
+# the DefaultInventory class will be used/returned.
+sub inventory
+{
+	my ( $self, %args ) = @_;
+	my $create = $args{create};
+	delete $args{create};
+	my ( $inventory, $class ) = ( undef, undef );
+
+	$args{node_uuid} = $self->uuid;
+
+	# if the concept is provided we can find the path, which is how we search for an inventory entry
+	#  if the id isn't given
+	if ( $args{concept} && !( $args{id} || $args{_id} ) )
+	{
+		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
+		Module::Load::load $class;
+		
+		my $path = $class->make_path( data => $args{data}, partial => 0 );
+		$args{path} = $path if ( ref($path) eq 'ARRAY' );
+	}
+	my $modeldata = $self->nmisng->get_inventory_model(%args);
+
+	if ( $modeldata->count() > 0 )
+	{
+		my $model = $modeldata->data()->[0];
+		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
+
+		# use the model as arguments because everything is in the right place		
+		$model->{nmisng} = $self->nmisng;
+
+		Module::Load::load $class;
+		$inventory = $class->new(%$model);
+	}
+	elsif ($create)
+	{
+		# concept must be supplied, for now, "leftovers" may end up being a concept,
+		$self->nmisng->log->error("Creating Inventory without conecept") if ( !$args{concept} );
+		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
+
+		Module::Load::load $class;
+		$inventory = $class->new(
+			cluster_id => $args{cluster_id} // $self->cluster_id(),
+			concept    => $args{concept},
+			data       => $args{data},
+			node_uuid  => $self->uuid,
+			nmisng     => $self->nmisn			
+		);		
+	}
+
+	return $inventory;
 }
 
 # returns 0/1 if the object is new or not.
@@ -148,13 +205,14 @@ sub is_new
 	return ($has_id) ? 0 : 1;
 }
 
-# load data for this node from the database
+# load data for this node from the database, named load_part because the module Module::Load has load which clashes
+# and i don't know how else to resolve the issue
 # params:
 #  options - hash, if not set or present all data for the node is loaded
 #    load_overrides => 1 will load overrides
 #    load_configuration => 1 will load overrides
 # no return value
-sub load
+sub load_part
 {
 	my ( $self, %options ) = @_;
 	my @options_keys = keys %options;
@@ -162,7 +220,7 @@ sub load
 
 	my $query = NMISNG::DB::get_query( and_part => {uuid => $self->uuid} );
 	my $cursor = NMISNG::DB::find(
-		collection => $self->_collection(),
+		collection => $self->nmisng->nodes_collection(),
 		query      => $query
 	);
 	my $entry = $cursor->next;
@@ -210,7 +268,7 @@ sub overrides
 	{
 		if ( !$self->is_new && $self->uuid )
 		{
-			$self->load( load_overrides => 1 );
+			$self->load_part( load_overrides => 1 );
 		}
 	}
 
@@ -219,15 +277,15 @@ sub overrides
 }
 
 # Save object to DB if it is dirty
-# returns 0 if no saving required, -1 if node is not valid, >0 if all good
+# returns tuple, 0 if no saving required ($sucess,$error_message), -1 if node is not valid, >0 if all good
 # TODO: error checking just uses assert right now, we may want
 #   a differnent way of doing this
 sub save
 {
 	my ($self) = @_;
 
-	return 0  if ( !$self->_dirty() );
-	return -1 if ( !$self->validate() );
+	return ( 0,  undef )          if ( !$self->_dirty() );
+	return ( -1, "node invalid" ) if ( !$self->validate() );
 
 	my $result;
 	my $op;
@@ -235,11 +293,14 @@ sub save
 	my $entry = $self->configuration();
 	$entry->{overrides} = $self->overrides();
 
+	# make 100% certain we've got the uuid correct
+	$entry->{uuid} = $self->uuid;
+
 	if ( $self->is_new() )
 	{
 		# could maybe be upsert?
 		$result = NMISNG::DB::insert(
-			collection => $self->_collection,
+			collection => $self->nmisng->nodes_collection(),
 			record     => $entry,
 		);
 		assert( $result->{success}, "Record inserted successfully" );
@@ -252,7 +313,7 @@ sub save
 	else
 	{
 		$result = NMISNG::DB::update(
-			collection => $self->_collection,
+			collection => $self->nmisng->nodes_collection(),
 			query      => NMISNG::DB::get_query( and_part => {uuid => $self->uuid} ),
 			record     => $entry
 		);
@@ -262,14 +323,21 @@ sub save
 		$self->_dirty( 0, 'overrides' );
 		$op = 2;
 	}
-	return ( $result->{success} ) ? $op : undef;
+	return ( $result->{success} ) ? ( $op, undef ) : ( -2, $result->{error} );
 }
 
-# get the nodes UUID
+# return nmisng object this node is using
+sub nmisng
+{
+	my ($self) = @_;
+	return $self->{_nmisng};
+}
+
+# get the nodes id (which is it's UUID)
 sub uuid
 {
 	my ($self) = @_;
-	return $self->{_uuid};
+	return $self->{uuid};
 }
 
 # returns 0/1 if the node is valid

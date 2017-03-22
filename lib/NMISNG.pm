@@ -78,21 +78,36 @@ sub new
 	}
 
 	my $nodecoll = NMISNG::DB::get_collection( db => $db, name => "nodes" );
-	$self->log( "fatal", "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
+	$self->fatal( "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
 	my $ipcoll = NMISNG::DB::get_collection( db => $db, name => "ip" );
-	$self->log( "fatal", "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll );
+	$self->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll );
 
-	NMISNG::Util::TODO("figure out how indices will work");
+	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
+	$self->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) if ( !$inventorycoll );
+
+	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 	my $err = NMISNG::DB::ensure_index(
 		collection    => $nodecoll,
 		drop_unwanted => $args{drop_unwanted_indices},
 		indices       => [[{"uuid" => 1}, {unique => 1}]]
 	);
 
+	$err = NMISNG::DB::ensure_index(
+		collection    => $inventorycoll,
+		drop_unwanted => $args{drop_unwanted_indices},
+		indices       => [
+			[{"concept"    => 1}, {unique => 0}],
+			[{"lastupdate" => 1}, {unique => 0}],
+			[{"path"       => 1}, {unique => 0}],
+			[{"node_uuid"  => 1}, {unique => 0}],
+		]
+	);
+
 	# now park the db handles in the object
-	$self->{_db}      = $db;
-	$self->{db_nodes} = $nodecoll;
-	$self->{db_ip}    = $ipcoll;
+	$self->{_db} = $db;
+	$self->nodes_collection($nodecoll);
+	$self->inventory_collection($inventorycoll);
+	$self->ip_collection($ipcoll);
 
 	return $self;
 }
@@ -116,7 +131,7 @@ sub _mergeaddresses
 
 		# find this node's ip addresses (if any)
 		my $ipcursor = NMISNG::DB::find(
-			collection  => $self->{db_ip},
+			collection  => $self->ip_collection,
 			query       => {"node" => $noderecord->{_id}},
 			fields_hash => {"_id" => 1}
 		);
@@ -129,13 +144,6 @@ sub _mergeaddresses
 		}
 	}
 	return $noderecord;
-}
-
-# Internal helper to return nodes collection
-sub _nodes_collection
-{
-	my ($self) = @_;
-	return $self->{db_nodes};
 }
 
 ###########
@@ -156,39 +164,66 @@ sub get_db
 	return $self->{_db};
 }
 
-# get an NMISNG::Node object given arguments that will make it unique
-# the first node found matching all arguments is provided (if >1 is found)
-# arg: create => 0/1, if 1 and node is not found a new one will be returned, it is
-#   not persisted into the db until the object has it's save method called
-sub node
+#helper to get/set inventory collection
+sub inventory_collection
+{
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
+	{
+		$self->{db_inventory} = $newvalue;
+	}
+	return $self->{db_inventory};
+}
+
+# helper to get/set ip collection
+sub ip_collection
+{
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
+	{
+		$self->{db_ip} = $newvalue;
+	}
+	return $self->{db_ip};
+}
+
+# note: should _id use args{id}? or _id?
+sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
-	my $create = $args{create};
-	delete $args{create};
 
-	my $node;
-	my $modeldata = $self->get_nodes_model(%args);
-	if ( $modeldata->count() > 0 )
+	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
+	my $q = NMISNG::DB::get_query(
+		and_part => {
+			'_id'       => $args{_id},         # this is a bit inconsistent
+			'node_uuid' => $args{node_uuid},
+			'concept'   => $args{concept},
+		}
+	);
+
+	my $model_data = [];
+	if ( $args{paginate} )
 	{
-		my $model = $modeldata->data()->[0];
-		$node = NMISNG::Node->new(
-			uuid       => $model->{uuid},
-			collection => $self->_nodes_collection,
-			config     => $self->config,
-			log        => $self->log
-		);
-	}
-	elsif ($create)
-	{
-		$node = NMISNG::Node->new(
-			uuid       => $args{uuid},
-			collection => $self->_nodes_collection,
-			config     => $self->config,
-			log        => $self->log
-		);
+		# fudge up a dummy result to make it reflect the total number
+		my $count = NMISNG::DB::count( collection => $self->_inventory_collection, query => $q );
+		$model_data->[$count - 1] = {} if ($count);
 	}
 
-	return $node;
+	my $entries = NMISNG::DB::find(
+		collection => $self->inventory_collection,
+		query      => $q,
+		sort       => $args{sort},
+		limit      => $args{limit},
+		skip       => $args{skip}
+	);
+
+	my $index = 0;
+	while ( my $entry = $entries->next )
+	{
+		$model_data->[$index++] = $entry;
+	}
+
+	my $model_data_object = NMISNG::ModelData->new( modelName => "inventory", data => $model_data );
+	return $model_data_object;
 }
 
 # returns selection of nodes, as array of hashes
@@ -206,7 +241,6 @@ sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
 
-	# no_auto_oid needed as nodes collection uses straight node name as _id
 	my $q = NMISNG::DB::get_query(
 		and_part => {
 			'uuid'  => $args{uuid},
@@ -221,12 +255,12 @@ sub get_nodes_model
 	{
 
 		# fudge up a dummy result to make it reflect the total number
-		my $count = NMISNG::DB::count( collection => $self->{db_nodes}, query => $q );
+		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
 		$model_data->[$count - 1] = {} if ($count);
 	}
 
 	my $entries = NMISNG::DB::find(
-		collection => $self->{db_nodes},
+		collection => $self->nodes_collection,
 		query      => $q,
 		sort       => $args{sort},
 		limit      => $args{limit},
@@ -260,6 +294,49 @@ sub get_node_uuids
 	my $data       = $model_data->data();
 	my @uuids      = map { $_->{uuid} } @$data;
 	return \@uuids;
+}
+
+# get an NMISNG::Node object given arguments that will make it unique
+# the first node found matching all arguments is provided (if >1 is found)
+# arg: create => 0/1, if 1 and node is not found a new one will be returned, it is
+#   not persisted into the db until the object has it's save method called
+sub node
+{
+	my ( $self, %args ) = @_;
+	my $create = $args{create};
+	delete $args{create};
+
+	my $node;
+	my $modeldata = $self->get_nodes_model(%args);
+	if ( $modeldata->count() > 0 )
+	{
+		my $model = $modeldata->data()->[0];
+		$node = NMISNG::Node->new(
+			_id    => $model->{_id},
+			uuid  => $model->{uuid},			
+			nmisng => $self
+		);
+	}
+	elsif ($create)
+	{
+		$node = NMISNG::Node->new(
+			uuid   => $args{uuid},			
+			nmisng => $self
+		);
+	}
+
+	return $node;
+}
+
+# helper to get/set nodes collection
+sub nodes_collection
+{
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
+	{
+		$self->{db_nodes} = $newvalue;
+	}
+	return $self->{db_nodes};
 }
 
 # returns this objects log object

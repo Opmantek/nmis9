@@ -75,7 +75,7 @@ if ( $Q->{act} eq "import-nodes-from-nodes-file" )
 	foreach my $node_name_key ( keys %$node_table )
 	{
 		my $node_configuration = $node_table->{$node_name_key};
-		my $node = $nmisng->node( uuid => $node_configuration->{uuid}, create => 1 );
+		my $node = $nmisng->node( id => $node_configuration->{uuid}, create => 1 );
 
 		# set the configuration
 		if ( $node->is_new )
@@ -84,7 +84,8 @@ if ( $Q->{act} eq "import-nodes-from-nodes-file" )
 		}
 
 		# save
-		my $op = $node->save();
+		my ($op,$error) = $node->save();
+		$logger->error("Error saving node:",$error) if($error);
 		$logger->debug( "$node_name_key saved to database, op:", $op );
 	}
 }
@@ -122,7 +123,8 @@ if ( $Q->{act} eq "import-nodeconf-from-files" )
 		# don't bother saving the name in it
 		delete $data->{name};
 		$node->overrides($data);
-		my $op = $node->save();
+		my ($op,$error) = $node->save();
+		$logger->error("Error saving node:",$error) if($error);
 		$logger->debug( "$node_name overrides saved to database, op:" . $op );
 	}
 	$logger->info( "Done " . $Q->{act} );

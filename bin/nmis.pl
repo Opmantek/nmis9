@@ -5647,6 +5647,35 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		$status{$service}->{last_run} ||= time;
 
 		my $error = saveServiceStatus(service => $status{$service});
+		my $nmisng = NMIS::new_nmisng;
+	
+		my $node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+		if(!$node)
+		{
+			logMsg("ERROR: service status saving failed: could not find node:$node, skipping");
+			next;
+		}
+
+		my $data = {
+			description => $status{$service}->{description},
+			name => $status{$service}->{name},
+			server => $status{$service}->{server},
+			service => $status{$service}->{service},			
+			uuid => $status{$service}->{uuid}
+		};
+
+		my $inventory = $node->inventory(			
+			concept => "service",
+			data => $data,
+			create => 1
+		);
+		if( $inventory )
+		{
+			print "saving inventory\n";
+			my ($op,$error) = $inventory->save();
+			print "save op returned:$op,$error\n";
+		}
+
 		logMsg("ERROR: service status saving failed: $error") if ($error);
 	}
 
