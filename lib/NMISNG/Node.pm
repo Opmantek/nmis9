@@ -57,7 +57,7 @@ sub new
 		_dirty  => {},
 		_nmisng => $args{nmisng},
 		_id     => $args{_id} // $args{id} // undef,
-		uuid    => $args{uuid}		
+		uuid    => $args{uuid}
 	};
 	bless( $self, $class );
 
@@ -141,6 +141,8 @@ sub configuration
 # object returned will have base class NMISNG::Inventory but will be a
 # subclass of it specific to it's concept, if no specific implementation is found
 # the DefaultInventory class will be used/returned.
+# if searching by path then it needs to be passed in, caller will know what type of 
+# inventory class they want so they can call the appropriate make_path function
 sub inventory
 {
 	my ( $self, %args ) = @_;
@@ -148,18 +150,13 @@ sub inventory
 	delete $args{create};
 	my ( $inventory, $class ) = ( undef, undef );
 
-	$args{node_uuid} = $self->uuid;
 
-	# if the concept is provided we can find the path, which is how we search for an inventory entry
-	#  if the id isn't given
-	if ( $args{concept} && !( $args{id} || $args{_id} ) )
-	{
-		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
-		Module::Load::load $class;
-		
-		my $path = $class->make_path( data => $args{data}, partial => 0 );
-		$args{path} = $path if ( ref($path) eq 'ARRAY' );
-	}
+	# fix the search to this node
+	my $path = $args{path} // [];
+	# it sucks hard coding this to 1, please find a better way
+	$path->[1] = $self->uuid;
+
+	# what happens when an error happens here?
 	my $modeldata = $self->nmisng->get_inventory_model(%args);
 
 	if ( $modeldata->count() > 0 )
@@ -167,7 +164,7 @@ sub inventory
 		my $model = $modeldata->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
 
-		# use the model as arguments because everything is in the right place		
+		# use the model as arguments because everything is in the right place
 		$model->{nmisng} = $self->nmisng;
 
 		Module::Load::load $class;
@@ -175,21 +172,19 @@ sub inventory
 	}
 	elsif ($create)
 	{
+		print "no inventory found, create set, creating inventory\n";
+		$args{data}->{node_uuid} = $self->uuid;
+
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
 		$self->nmisng->log->error("Creating Inventory without conecept") if ( !$args{concept} );
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
-
+		print "creating class:$class\n";
+		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
-		$inventory = $class->new(
-			cluster_id => $args{cluster_id} // $self->cluster_id(),
-			concept    => $args{concept},
-			data       => $args{data},
-			node_uuid  => $self->uuid,
-			nmisng     => $self->nmisn			
-		);		
+		$inventory = $class->new(%args);
 	}
 
-	return $inventory;
+	return ($inventory,undef);
 }
 
 # returns 0/1 if the object is new or not.

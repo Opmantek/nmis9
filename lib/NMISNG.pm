@@ -339,6 +339,15 @@ sub nodes_collection
 	return $self->{db_nodes};
 }
 
+# TODO!!!
+# collection per concept
+# Inventory subclass can provide extra key information
+# indexes by: time, inventory_id
+sub pit_collection
+{
+
+}
+
 # returns this objects log object
 sub log
 {

@@ -34,6 +34,8 @@ use strict;
 
 our $VERSION = "1.0.0";
 
+use Data::Dumper;
+
 use NMISNG::DB;
 
 # based on the concept decide which class to create
@@ -58,25 +60,27 @@ sub get_inventory_class
 }
 
 # params:
-#.  cluster_id - server/cluster info
 #   concept - type of inventory
-#.  data - hash of data for this thing, whatever is required
+#   data - hash of data for this thing, whatever is required, must include cluster_id and node_uuid
 #   id - the _id of this thing if it's not new
-#   node_uuid - node this inventory is for
 #   nmisng - NMISNG object, parent, config/log as well as model loading
+#   path_keys - keys from data used to make the path, this does not include things that are automatically adde
+#    this isn't necessarily needed if make_path is overridden
 sub new
 {
 	my ( $class, %args ) = @_;
 
-	return if ( !$args{nmisng} );    #"nmisng required"
+	my $data = $args{data};
+	return if ( !$args{nmisng} );          #required"
+	return if ( !$data->{cluster_id} );    # required"
+	return if ( !$data->{node_uuid} );     # required"
 
 	my $self = {
-		_cluster_id => $args{cluster_id} // 'getcurrentclusteridfromconfig',
-		_concept    => $args{concept},
-		_data       => $args{data},
-		_id => $args{id} // $args{_id},    # this has to be possible in order to create new ones
-		_node_uuid => $args{node_uuid},
-		_nmisng    => $args{nmisng}		
+		_concept   => $args{concept},
+		_data      => $args{data},
+		_id        => $args{id} // $args{_id},    # this has to be possible in order to create new ones from modeldata
+		_nmisng    => $args{nmisng},
+		_path_keys => $args{path_keys},
 	};
 	bless( $self, $class );
 	return $self;
@@ -90,25 +94,69 @@ sub new
 # Protected:
 ###########
 
+# keys default is here so tests can work
+sub make_path_from_keys
+{
+	my (%args)        = @_;
+	my $concept       = $args{concept};
+	my $data_original = $args{data};
+	my $keys = $args{path_keys} // [];
+	my $partial = $args{partial};
+
+	return if ( ref($keys) ne 'ARRAY' );
+
+	my $path;
+
+	# copy data so we can put concept into it
+	my $data = {%$data_original};
+	$data->{concept} = $concept;
+
+	unshift @$keys, 'cluster_id', 'node_uuid', 'concept';
+	foreach my $key (@$keys)
+	{
+		return if ( !$partial && !defined( $data->{$key} ) );
+		push @$path, $data->{$key};
+	}
+	return $path;
+}
+
 # subclasses should implement this, it is not a member function, it's a class one
 # this is so that paths can be calculated without a whole object being created
 # (which is handy for searching)
 # it should fill out the path value
-# it hsould return undef if it does not have enough data to create the path
-# if partial is 1 then part of a path will be returned, which could be handy for searching
+# it should use this implementation as it's 'base' path and add to it
+# it should return undef if it does not have enough data to create the path
+# if partial is 1 then part of a path will be returned, which could be handy for searching (maybe?)
+# param - data, hash holding place to find keys
+# param - keys, array holding keys from data to put into the path
 sub make_path
 {
+	# make up for object deref invocation being passed in as first argument
+	# expecting a hash which has even # of inputs
+	shift if(! ($#_ % 2) );
 	my (%args) = @_;
-	return;
+	
+	return make_path_from_keys(%args);
 }
 
 ###########
 # Public:
 ###########
+
+# TODO!!!
+sub add_pit
+{
+	my ($self) = @_;
+
+	# take time, data, add in this _inventory_id and then save it
+	# saving is assumed
+	# can't add to unsaved inventory, or it autosaves
+}
+
 sub cluster_id
 {
 	my ($self) = @_;
-	return $self->{_cluster_id};
+	return $self->data()->{cluster_id};
 }
 
 sub concept
@@ -137,9 +185,6 @@ sub is_new
 {
 	my ($self) = @_;
 
-	my $configuration = $self->configuration();
-
-	# print "id".Dumper($configuration);
 	my $has_id = $self->id();
 	return ($has_id) ? 0 : 1;
 }
@@ -159,39 +204,48 @@ sub nmisng
 sub node_uuid
 {
 	my ($self) = @_;
-	return $self->{_node_uuid};
+	return $self->data()->{node_uuid};
 }
 
 # make the path and return it
 # path is made by Class method
 sub path
 {
-	my ($self) = @_;
-	my $class = ref($self);
-	my $path = $class->make_path( data => $self->data(), partial => 0 );
+	my ( $self ) = @_;
+
+	# make_path will ignore the first arg here
+	# so calling it on self is safe, we are aiming to call the 
+	# subclasses make_path (or ours if not overloaded)
+	my $path  = $self->make_path(
+		concept   => $self->concept,
+		data      => $self->data,
+		partial   => 0,
+		path_keys => $self->{_path_keys}
+	);
+
 	$self->nmisng->log->error("Path must be an array") if ( ref($path) ne "ARRAY" );
 	return $path;
 }
 
 # provide lastupdate time if desired
+# lastupdate is currently not added to object but is stored in db
 sub save
 {
 	my ( $self, $lastupdate ) = @_;
+	$lastupdate //= time;
 
-	return -1 if ( !$self->validate() );
+	my ( $valid, $validation_error ) = $self->validate();
+	return ( -1, $validation_error ) if ( !$valid );
 
 	my $result;
 	my $op;
 
-
 	# path is calculated but must be stored so it can be queried
 	my $record = {
-		cluster_id => $self->cluster_id(),
-		concept    => $self->concept(),
-		data       => $self->data(),
-		node_uuid  => $self->node_uuid(),
-		path       => $self->path(),
-		lastupdate => $lastupdate // time
+		concept => $self->concept(),
+		data    => $self->data(),
+		path    => $self->path(),
+		lastupdate => $lastupdate
 	};
 
 	if ( $self->is_new() )
@@ -215,6 +269,8 @@ sub save
 
 		$op = 2;
 	}
+
+	# TODO: set lastupdate into object?
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
 
@@ -223,12 +279,14 @@ sub validate
 {
 	my ($self) = @_;
 
+	my $path = $self->path();
+
 	# must have, alphabetical for now, make cheapest first later?
-	return 0 if ( !$self->cluster_id );
-	return 0 if ( !$self->concept );
-	return 0 if ( !ref( $self->data() ) ne 'ARRAY' );
-	return 0 if ( !$self->path || @{$self->path} < 1 );
-	return 0 if ( !$self->node_uuid );
+	return ( 0, "invalid cluster_id" ) if ( !$self->cluster_id );
+	return ( 0, "invalid concept" )    if ( !$self->concept );
+	return ( 0, "invalid data" )       if ( ref( $self->data() ) ne 'HASH' );
+	return ( 0, "invalid path" )       if ( !$path || @$path < 1 );
+	return ( 0, "invalid node_uuid" )  if ( !$self->node_uuid );
 
 	return 1;
 }

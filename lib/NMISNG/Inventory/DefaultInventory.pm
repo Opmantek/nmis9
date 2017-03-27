@@ -28,7 +28,7 @@
 # *****************************************************************************
 
 # Service Inventory Class
-package NMISNG::Inventory::ServiceInventory;
+package NMISNG::Inventory::DefaultInventory;
 use parent 'NMISNG::Inventory';
 use strict;
 
@@ -42,11 +42,10 @@ sub new
 
 	# validate data section
 	my $data = $args{data};
-	return if ( !$data->{description} );
-	return if ( !$data->{name} );
-	return if ( !$data->{server} );
-	return if ( !$data->{service} );
-	return if ( !$data->{uuid} );
+	return if ( !$data );
+	return if ( !$args{path_keys} );
+
+	# TODY: more error checks for error
 
 	my $self = $class->SUPER::new(%args);
 	return $self;
@@ -55,11 +54,37 @@ sub new
 # overload make path and generate it based on
 # this path is not good, needs to make sense, a bunch of overlapping
 #  concepts in it currently, maybe that's ok?
+# partial tells us that a partial path is ok helpful for searching, maybe
 sub make_path
 {
-	my (%args) = @_;
-	$args{keys} = ['service','uuid'];
-	my $path = make_path_from_keys( %args) ;
-	
+	my (%args)  = @_;
+	my $data    = $args{data};
+	my $keys    = $args{path_keys};
+	my $partial = $args{partial};
+	my $path;
+
+	return if ( ref($keys) ne 'ARRAY' );
+	foreach my $key (@$keys)
+	{
+		return if ( !$partial && !defined( $data->{$key} ) );
+		push @$path, $data->{$key};
+	}
+
 	return $path;
+}
+
+# override parents implementation because our make path requires more info
+sub path
+{
+	my ($self) = @_;
+	my $class = ref($self);
+	my $path = $class->make_path( data => $self->data(), partial => 0, path_keys => $self->path_keys);
+	$self->nmisng->log->error("Path must be an array") if ( ref($path) ne "ARRAY" );
+	return $path;
+}
+
+sub path_keys
+{
+	my ($self) = @_;
+	return $self->{path_keys};
 }
