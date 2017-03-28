@@ -233,6 +233,7 @@ sub node_uuid
 # unless recalculate is specified.
 # param recalculate - [0/1]
 # path is made by Class method corresponding to the this objects concept
+# NOTE: the use of path keys below breaks convention,
 sub path
 {
 	my ( $self, %args ) = @_;
@@ -251,12 +252,15 @@ sub path
 		# make_path will ignore the first arg here
 		# so calling it on self is safe, we are aiming to call the
 		# subclasses make_path (or ours if not overloaded)
-		$path = $self->make_path(
-			concept   => $self->concept,
-			data      => $self->data,
-			partial   => 0,
-			path_keys => $self->{_path_keys}
-		);
+		$args{concept} = $self->concept();
+		$args{data}    = $self->data();
+
+		# this is breaking convention and not really for any good reason
+		$args{path_keys} = $self->{_path_keys} if ( defined( $self->{_path_keys} ) );
+		$path = $self->make_path(%args);
+
+		# always store the path, it may be re-calculated next time but that's fine
+		# if we don't store here recalculate/save won't work
 		$self->{_path} = $path;
 
 	}
