@@ -38,24 +38,19 @@ use Data::Dumper;
 
 use NMISNG::DB;
 
-# based on the concept decide which class to create
+# based on the concept, decide which class to create
+# - or return the fallback/default class
 # path is made every time it is requested, caching can be done later, I don't think it will
 #  be called so often that caching will be necessary
 sub get_inventory_class
 {
 	my ($concept) = @_;
-	my $class = 'DefaultInventory';
-	$concept = lc($concept);
-	if ( $concept eq 'service' )
-	{
-		$class = 'ServiceInventory';
-	}
-	elsif ( $concept eq 'NeedsToBeMade' )
-	{
-		$class = 'MakeMeYouLazyBum';
-	}
+	my %knownclasses = ( 'default' => 'DefaultInventory', # the fallback
+											 'service' => "ServiceInventory",
+											 "NeedsToBeMade" => "MakeMeYouLazyBum",
+			);
 
-	$class = "NMISNG::Inventory::" . $class;
+	my $class =  "NMISNG::Inventory::" . ($knownclasses{$concept} // $knownclasses{default});
 	return $class;
 }
 
