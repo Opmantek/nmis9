@@ -38,17 +38,20 @@ our $VERSION = "1.0.0";
 
 # double check the arguments required were provided
 # then get our parent to make us
+# path_keys is required unless the object is not new (has _id), if it is not
+#   specified then the path cannot be re-calculated
 sub new
 {
 	my ( $class, %args ) = @_;
 
 	my $nmisng = $args{nmisng};
-	return if ( !$nmisng ); # check this so we can use it to log
-	
+	return if ( !$nmisng );    # check this so we can use it to log
+
 	# validate data section
 	my $data = $args{data};
 	$nmisng->log->error("DefaultInventory cannot be created without data") && return if ( !$data );
-	$nmisng->log->error("DefaultInventory cannot be created without path_keys") && return if ( !$args{path_keys} );
+	$nmisng->log->error("DefaultInventory cannot be created without path_keys") && return
+		if ( !$args{path_keys} && !$args{_id} );
 
 	my $self = $class->SUPER::new(%args);
 	return $self;

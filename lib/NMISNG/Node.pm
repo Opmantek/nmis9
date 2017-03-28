@@ -173,15 +173,13 @@ sub inventory
 		$model->{nmisng} = $self->nmisng;
 
 		# some Inventory classes require extra params, assume they have been passed in and need to go to new
-		map { $model->{$_} = $args{$_} if( !defined($model->{$_}) ) } keys %args;
-		
+		map { $model->{$_} = $args{$_} if ( !defined( $model->{$_} ) ) } keys %args;
+
 		Module::Load::load $class;
 		$inventory = $class->new(%$model);
 	}
 	elsif ($create)
 	{
-		$args{data}->{node_uuid} = $self->uuid;
-
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
 		$self->nmisng->log->error("Creating Inventory without conecept") if ( !$args{concept} );
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
@@ -194,8 +192,8 @@ sub inventory
 	return ( $inventory, undef );
 }
 
-# create the correct path for an inventory item, calling the correct
-# class the it is created properly
+# create the correct path for an inventory item, calling the make_path
+# method on the class that relates to the specified concept
 # args must contain concept and data, along with any other info required
 # to make that path (probably path_keys)
 sub inventory_path
