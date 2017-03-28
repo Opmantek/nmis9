@@ -26,80 +26,84 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
-# NMISNG log, adds extra functionality on top of Mojo log
+#
+# NMISNG log: adds extra functionality on top of Mojo log
+# supports mojo's log levels (debug, info, warn, error and fatal)
+# plus our more fine-grained debug1==debug, and debug2 to debug9
 package NMISNG::Log;
 use Mojo::Base 'Mojo::Log';
 use strict;
 
-# Re-define Supported log levels
-my $LEVEL = {
-	debug9 => 1,
-	debug8 => 2,
-	debug7 => 3,
-	debug6 => 4,
-	debug5 => 5,
-	debug4 => 6,
-	debug3 => 7,
-	debug2 => 8,
-	debug  => 9,
-	info   => 10,
-	warn   => 11,
-	error  => 12,
-	fatal  => 13
-};
 
-# Do any extra new stuff in here
-# if debug=1-9 are set then level is set to debug[1-9] and output goes to stderr
-# if info=X is set then output goes to stderr, level is set to info (for now, doesn't seem quite right)
+# extra attribute to distinguish between debug levels 1 to 9
+__PACKAGE__->attr('detaillevel');
+
+# args: all attributes from mojo::log (i.e. path, level, format, handle),
+# also extra level values.
+# level: debug, info, warn, error, fatal, or 1..9.
+# also accepts t(rue),  y(es) - both meaning debug==1, and verbose == 9
+#
+# to log to stderr: pass no path and no handle argument
+# to log to stdout: pass no path but \*STDOUT as handle.
 sub new
 {
-	my $class    = shift;
-	my (%args)   = @_;
-	my %callArgs = ();
+	my ($class, %args) = @_;
+	my $level = $args{level};
+	my $detaillevel = 0;
 
-	my $show_in_stdout = 0;
-	my $level          = $args{level};
-
-	# caller doesn't set level but does set debug=1..9
-	if ( !$level && $args{debug} )
+	# transform extra level arguments into extra knowledge
+	# our default is 'info', not 'debug'
+	if (!defined($level) or $level eq '')
 	{
-		$show_in_stdout = 1;
-		my $debug = $args{debug};
-		$level = "debug";
-		$level .= $debug if ( $debug =~ /^[1-9]$/ );
+		$args{level} = 'info';
 	}
-	elsif ( !$level && $args{info} )
+	elsif ($level eq 'verbose')
 	{
-		$show_in_stdout = 1;
-		$level          = "info";
+		$args{level} = 'debug';
+		$detaillevel = 9;
+	}
+	elsif ($level =~ /^[1-9]$/)
+	{
+		$args{level} = 'debug';
+		$detaillevel = $level;
+	}
+	elsif ($level =~ /^(debug|y|yes|t|true)$/i)
+	{
+		$args{level} = 'debug';
+		$detaillevel = 1;
 	}
 
-	$args{level} = $level;
-	delete $args{path} if ($show_in_stdout);
-
-	my $self = $class->SUPER::new(%args);
-
+	my $self = bless($class->SUPER::new(%args), $class);
+	$self->detaillevel($detaillevel);
 	return $self;
 }
 
-# add in our new extra debug levels
-sub debug9 { shift->_log( debug9 => @_ ) }
-sub debug8 { shift->_log( debug8 => @_ ) }
-sub debug7 { shift->_log( debug7 => @_ ) }
-sub debug6 { shift->_log( debug6 => @_ ) }
-sub debug5 { shift->_log( debug5 => @_ ) }
-sub debug4 { shift->_log( debug4 => @_ ) }
-sub debug3 { shift->_log( debug3 => @_ ) }
-sub debug2 { shift->_log( debug2 => @_ ) }
+# our extra detaillevels for debug
+sub debug9 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 9); }
+sub debug8 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 8); }
+sub debug7 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 7); }
+sub debug6 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 6); }
+sub debug5 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 5); }
+sub debug4 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 4); }
+sub debug3 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 3); }
+sub debug2 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 2); }
+sub debug1 { shift->log(debug => @_); };
 
-# similar to is_* or is_level (in the newer mojo), $module not used yet
-# TODO: add in module level checks via config or cli, so that NMISNG::Node could be set to a higher level?
-#  note: to make that work more overloading will have to be done as _message checks the current level
-sub check_level
+# wrapper arount super's is_level
+# understands: debug,info,warn,error,fatal, plus numeric 1..9
+# returns true if the given level is same or higher than logger's configured level
+# higher means here: verbosity. ie. debug3 includes debug2, debug, info, and all above.
+sub is_level
 {
-	my ( $self, $level, $module ) = @_;
-	return ( $LEVEL->{$level} >= $self->level );
+	my ($self, $level) = @_;
+	if ($level =~ /^[1-9]$/)
+	{
+		return ($level <= $self->detaillevel && $self->SUPER::is_level('debug'));
+	}
+	else
+	{
+		return $self->SUPER::is_level($level);
+	}
 }
 
 1;
