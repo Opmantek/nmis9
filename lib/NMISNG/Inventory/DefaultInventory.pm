@@ -38,7 +38,8 @@ our $VERSION = "1.0.0";
 
 # double check the arguments required were provided
 # then get our parent to make us
-# path_keys is required unless the object is not new (has _id)
+# path_keys is required unless the object is not new (has _id), if it is not
+#   specified then the path cannot be re-calculated
 sub new
 {
 	my ( $class, %args ) = @_;
