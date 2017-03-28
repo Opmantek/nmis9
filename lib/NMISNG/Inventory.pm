@@ -28,6 +28,8 @@
 # *****************************************************************************
 
 # Inventory Class
+# Base class which specific Inventory implementions should inherit from
+# Provides basic structure and saving
 
 package NMISNG::Inventory;
 use strict;
@@ -67,8 +69,6 @@ sub get_inventory_class
 #   nmisng - NMISNG object, parent, config/log as well as model loading
 #   path - used if provided, not required, can be calculated on save if enough info is present,
 #     basically required for existing inventory objects
-#   path_keys - keys from data used to make the path, this does not include things that are automatically adde
-#    this isn't necessarily needed if make_path is overridden
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -83,12 +83,11 @@ sub new
 		if ( !$data->{node_uuid} );     # required"
 
 	my $self = {
-		_concept   => $args{concept},
-		_data      => $args{data},
-		_id        => $args{id} // $args{_id},    # this has to be possible in order to create new ones from modeldata
-		_nmisng    => $args{nmisng},
-		_path      => $args{path},
-		_path_keys => $args{path_keys},
+		_concept => $args{concept},
+		_data    => $args{data},
+		_id      => $args{id} // $args{_id},    # this has to be possible in order to create new ones from modeldata
+		_nmisng  => $args{nmisng},
+		_path    => $args{path},
 	};
 	bless( $self, $class );
 
@@ -105,7 +104,11 @@ sub new
 # Protected:
 ###########
 
-# keys default is here so tests can work
+# take data and a set of keys (path_keys, which index the provided data) and create
+# a path out of them.  This is a generic function that can work with any class
+# it just needs to provide the params, this is why it exists here. DefaultInventory
+# relies on this implementation to work, if your subclass does not need to do anything
+# fancy (like morph/tranlate data in keys) then it should probably use this implementation
 sub make_path_from_keys
 {
 	my (%args)        = @_;
@@ -118,11 +121,12 @@ sub make_path_from_keys
 
 	my $path = [];
 
-	# copy data so we can put concept into it
-	my $data = {%$data_original};
+	# deep copy data so we can put concept into it
+	my $data = Clone::clone($data_original);
 	$data->{concept} = $concept;
 
 	# copy keys (because user may pass in same ref several times) and add prereqs
+	# shallow ok here
 	my $keys = [@$keys_original];
 	unshift @$keys, 'cluster_id', 'node_uuid', 'concept';
 
@@ -138,11 +142,9 @@ sub make_path_from_keys
 # this is so that paths can be calculated without a whole object being created
 # (which is handy for searching)
 # it should fill out the path value
-# it should use this implementation as it's 'base' path and add to it
 # it should return undef if it does not have enough data to create the path
 # if partial is 1 then part of a path will be returned, which could be handy for searching (maybe?)
-# param - data, hash holding place to find keys
-# param - keys, array holding keys from data to put into the path
+# param - data, hash holding place to build path from
 sub make_path
 {
 	# make up for object deref invocation being passed in as first argument
@@ -167,12 +169,14 @@ sub add_pit
 	# can't add to unsaved inventory, or it autosaves
 }
 
+# RO, returns cluster_id of this Inventory
 sub cluster_id
 {
 	my ($self) = @_;
 	return $self->data()->{cluster_id};
 }
 
+# RO, returns concept of this Inventory
 sub concept
 {
 	my ($self) = @_;
@@ -193,6 +197,7 @@ sub data
 
 # get the id (_id), readonly
 # save adjusts this so is_new returns properly
+# may be undef if is_new
 sub id
 {
 	my ($self) = @_;
@@ -209,11 +214,6 @@ sub is_new
 	return ($has_id) ? 0 : 1;
 }
 
-sub load
-{
-	my ( $self, %options ) = @_;
-}
-
 # return nmisng object this node is using
 sub nmisng
 {
@@ -221,6 +221,7 @@ sub nmisng
 	return $self->{_nmisng};
 }
 
+# return this Inventories node uuid
 sub node_uuid
 {
 	my ($self) = @_;
@@ -255,8 +256,6 @@ sub path
 		$args{concept} = $self->concept();
 		$args{data}    = $self->data();
 
-		# this is breaking convention and not really for any good reason
-		$args{path_keys} = $self->{_path_keys} if ( defined( $self->{_path_keys} ) );
 		$path = $self->make_path(%args);
 
 		# always store the path, it may be re-calculated next time but that's fine
@@ -270,6 +269,8 @@ sub path
 
 # provide lastupdate time if desired
 # lastupdate is currently not added to object but is stored in db
+# returns ($op,$error), op is 1 for insert, 2 for save, error is string if there was an error
+# on save _id and _path are refreshed, lastupdate is set to save time if not supplied
 sub save
 {
 	my ( $self, %args ) = @_;

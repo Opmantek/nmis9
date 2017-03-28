@@ -40,6 +40,9 @@ our $VERSION = "1.0.0";
 # then get our parent to make us
 # path_keys is required unless the object is not new (has _id), if it is not
 #   specified then the path cannot be re-calculated
+#   keys from data used to make the path, this does not include things that are automatically added
+#    this isn't necessarily needed if make_path is overridden
+
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -54,13 +57,30 @@ sub new
 		if ( !$args{path_keys} && !$args{_id} );
 
 	my $self = $class->SUPER::new(%args);
+
+	$self->path_keys($args{path_keys}) if ( $args{path_keys} );
+
 	return $self;
+}
+
+# making a path can be done even on !new objects, in that case we may not have
+# path keys so allow passing them in, overriding what is there if you want
+sub path
+{
+	my ( $self, %args ) = @_;
+
+	$args{path_keys} = $self->path_keys if ( !defined( $args{_path_keys} ) );
+	$self->SUPER::path(%args);
 }
 
 sub path_keys
 {
-	my ($self) = @_;
-	return $self->{path_keys};
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
+	{
+		$self->{_path_keys} = $newvalue;
+	}
+	return $self->{_path_keys};
 }
 
 1;
