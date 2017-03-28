@@ -34,6 +34,7 @@ use strict;
 
 our $VERSION = "1.0.0";
 
+use Clone;    # for copying data section
 use Data::Dumper;
 
 use NMISNG::DB;
@@ -64,6 +65,8 @@ sub get_inventory_class
 #   data - hash of data for this thing, whatever is required, must include cluster_id and node_uuid
 #   id - the _id of this thing if it's not new
 #   nmisng - NMISNG object, parent, config/log as well as model loading
+#   path - used if provided, not required, can be calculated on save if enough info is present,
+#     basically required for existing inventory objects
 #   path_keys - keys from data used to make the path, this does not include things that are automatically adde
 #    this isn't necessarily needed if make_path is overridden
 sub new
@@ -84,9 +87,13 @@ sub new
 		_data      => $args{data},
 		_id        => $args{id} // $args{_id},    # this has to be possible in order to create new ones from modeldata
 		_nmisng    => $args{nmisng},
+		_path      => $args{path},
 		_path_keys => $args{path_keys},
 	};
 	bless( $self, $class );
+
+	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
+
 	return $self;
 }
 
@@ -172,10 +179,16 @@ sub concept
 	return $self->{_concept};
 }
 
+# returns a copy of the data
+# to change data call and set a new value
 sub data
 {
-	my ($self) = @_;
-	return $self->{_data};
+	my ( $self, $newvalue ) = @_;
+	if ( defined($newvalue) )
+	{
+		$self->{_data} = $newvalue;
+	}
+	return Clone::clone( $self->{_data} );
 }
 
 # get the id (_id), readonly
@@ -214,22 +227,39 @@ sub node_uuid
 	return $self->data()->{node_uuid};
 }
 
-# make the path and return it
-# path is made by Class method
+# make or get the path and return it
+# new objects will recalculate their path on each call, specifiying recalculate makes no difference
+# objects which are not new should already have a path and that value will be returned
+# unless recalculate is specified.
+# param recalculate - [0/1]
+# path is made by Class method corresponding to the this objects concept
 sub path
 {
-	my ($self) = @_;
+	my ( $self, %args ) = @_;
 
-	# make_path will ignore the first arg here
-	# so calling it on self is safe, we are aiming to call the
-	# subclasses make_path (or ours if not overloaded)
-	my $path = $self->make_path(
-		concept   => $self->concept,
-		data      => $self->data,
-		partial   => 0,
-		path_keys => $self->{_path_keys}
-	);
+	my $path;
+	if ( !$self->is_new() && !$self->{_path} && !$args{recalculate} )
+	{
+		$self->nmisng->log->error("Saved inventory should already have a path");
+	}
+	elsif ( !$self->is_new() && $self->{_path} && !$args{recalculate} )
+	{
+		$path = $self->{_path};
+	}
+	else
+	{
+		# make_path will ignore the first arg here
+		# so calling it on self is safe, we are aiming to call the
+		# subclasses make_path (or ours if not overloaded)
+		$path = $self->make_path(
+			concept   => $self->concept,
+			data      => $self->data,
+			partial   => 0,
+			path_keys => $self->{_path_keys}
+		);
+		$self->{_path} = $path;
 
+	}
 	$self->nmisng->log->error("Path must be an array") if ( ref($path) ne "ARRAY" );
 	return $path;
 }
@@ -238,8 +268,8 @@ sub path
 # lastupdate is currently not added to object but is stored in db
 sub save
 {
-	my ( $self, $lastupdate ) = @_;
-	$lastupdate //= time;
+	my ( $self, %args ) = @_;
+	my $lastupdate = $args{lastupdate} // time;
 
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( -1, $validation_error ) if ( !$valid );
@@ -262,8 +292,6 @@ sub save
 			collection => $self->nmisng->inventory_collection,
 			record     => $record,
 		);
-		$self->{_id} = $result->{id} if ( $result->{success} );
-
 		$op = 1;
 	}
 	else
@@ -275,6 +303,13 @@ sub save
 		);
 
 		$op = 2;
+	}
+
+	# refresh some values on success
+	if ( $result->{success} )
+	{
+		$self->{_id}   = $result->{id};
+		$self->{_path} = $record->{path};
 	}
 
 	# TODO: set lastupdate into object?
