@@ -27,7 +27,9 @@
 #
 # *****************************************************************************
 
-# Service Inventory Class
+# Default Inventory Class, convers everything that does not have a specific type
+# works by using path_keys to define it's path. the keys must be in the data section
+# The parent does these by default, this class is almost not needed.
 package NMISNG::Inventory::DefaultInventory;
 use parent 'NMISNG::Inventory';
 use strict;
@@ -40,47 +42,16 @@ sub new
 {
 	my ( $class, %args ) = @_;
 
+	my $nmisng = $args{nmisng};
+	return if ( !$nmisng ); # check this so we can use it to log
+	
 	# validate data section
 	my $data = $args{data};
-	return if ( !$data );
-	return if ( !$args{path_keys} );
-
-	# TODY: more error checks for error
+	$nmisng->log->error("DefaultInventory cannot be created without data") && return if ( !$data );
+	$nmisng->log->error("DefaultInventory cannot be created without path_keys") && return if ( !$args{path_keys} );
 
 	my $self = $class->SUPER::new(%args);
 	return $self;
-}
-
-# overload make path and generate it based on
-# this path is not good, needs to make sense, a bunch of overlapping
-#  concepts in it currently, maybe that's ok?
-# partial tells us that a partial path is ok helpful for searching, maybe
-sub make_path
-{
-	my (%args)  = @_;
-	my $data    = $args{data};
-	my $keys    = $args{path_keys};
-	my $partial = $args{partial};
-	my $path;
-
-	return if ( ref($keys) ne 'ARRAY' );
-	foreach my $key (@$keys)
-	{
-		return if ( !$partial && !defined( $data->{$key} ) );
-		push @$path, $data->{$key};
-	}
-
-	return $path;
-}
-
-# override parents implementation because our make path requires more info
-sub path
-{
-	my ($self) = @_;
-	my $class = ref($self);
-	my $path = $class->make_path( data => $self->data(), partial => 0, path_keys => $self->path_keys);
-	$self->nmisng->log->error("Path must be an array") if ( ref($path) ne "ARRAY" );
-	return $path;
 }
 
 sub path_keys
@@ -88,3 +59,5 @@ sub path_keys
 	my ($self) = @_;
 	return $self->{path_keys};
 }
+
+1;

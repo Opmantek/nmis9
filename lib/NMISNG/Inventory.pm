@@ -70,10 +70,14 @@ sub new
 {
 	my ( $class, %args ) = @_;
 
+	my $nmisng = $args{nmisng};
+	return if ( !$nmisng );    # check this so we can use it to log
+
 	my $data = $args{data};
-	return if ( !$args{nmisng} );          #required"
-	return if ( !$data->{cluster_id} );    # required"
-	return if ( !$data->{node_uuid} );     # required"
+	$nmisng->log->error("DefaultInventory cannot be created without cluster_id") && return
+		if ( !$data->{cluster_id} );    # required"
+	$nmisng->log->error("DefaultInventory cannot be created without node_uuid") && return
+		if ( !$data->{node_uuid} );     # required"
 
 	my $self = {
 		_concept   => $args{concept},
@@ -100,18 +104,21 @@ sub make_path_from_keys
 	my (%args)        = @_;
 	my $concept       = $args{concept};
 	my $data_original = $args{data};
-	my $keys = $args{path_keys} // [];
+	my $keys_original = $args{path_keys} // [];
 	my $partial = $args{partial};
 
-	return if ( ref($keys) ne 'ARRAY' );
+	return if ( ref($keys_original) ne 'ARRAY' );
 
-	my $path;
+	my $path = [];
 
 	# copy data so we can put concept into it
 	my $data = {%$data_original};
 	$data->{concept} = $concept;
 
+	# copy keys (because user may pass in same ref several times) and add prereqs
+	my $keys = [@$keys_original];
 	unshift @$keys, 'cluster_id', 'node_uuid', 'concept';
+
 	foreach my $key (@$keys)
 	{
 		return if ( !$partial && !defined( $data->{$key} ) );
@@ -133,9 +140,9 @@ sub make_path
 {
 	# make up for object deref invocation being passed in as first argument
 	# expecting a hash which has even # of inputs
-	shift if(! ($#_ % 2) );
+	shift if ( !( $#_ % 2 ) );
 	my (%args) = @_;
-	
+
 	return make_path_from_keys(%args);
 }
 
@@ -211,12 +218,12 @@ sub node_uuid
 # path is made by Class method
 sub path
 {
-	my ( $self ) = @_;
+	my ($self) = @_;
 
 	# make_path will ignore the first arg here
-	# so calling it on self is safe, we are aiming to call the 
+	# so calling it on self is safe, we are aiming to call the
 	# subclasses make_path (or ours if not overloaded)
-	my $path  = $self->make_path(
+	my $path = $self->make_path(
 		concept   => $self->concept,
 		data      => $self->data,
 		partial   => 0,
@@ -242,9 +249,9 @@ sub save
 
 	# path is calculated but must be stored so it can be queried
 	my $record = {
-		concept => $self->concept(),
-		data    => $self->data(),
-		path    => $self->path(),
+		concept    => $self->concept(),
+		data       => $self->data(),
+		path       => $self->path(),
 		lastupdate => $lastupdate
 	};
 

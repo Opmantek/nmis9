@@ -141,7 +141,7 @@ sub configuration
 # object returned will have base class NMISNG::Inventory but will be a
 # subclass of it specific to it's concept, if no specific implementation is found
 # the DefaultInventory class will be used/returned.
-# if searching by path then it needs to be passed in, caller will know what type of 
+# if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function
 sub inventory
 {
@@ -150,9 +150,14 @@ sub inventory
 	delete $args{create};
 	my ( $inventory, $class ) = ( undef, undef );
 
+	# force these arguments to be for this node
+	my $data = $args{data};
+	$data->{cluster_id} = $self->cluster_id();
+	$data->{node_uuid}  = $self->uuid();
 
 	# fix the search to this node
 	my $path = $args{path} // [];
+
 	# it sucks hard coding this to 1, please find a better way
 	$path->[1] = $self->uuid;
 
@@ -167,24 +172,45 @@ sub inventory
 		# use the model as arguments because everything is in the right place
 		$model->{nmisng} = $self->nmisng;
 
+		# some Inventory classes require extra params, assume they have been passed in and need to go to new
+		map { $model->{$_} = $args{$_} if( !defined($model->{$_}) ) } keys %args;
+		
 		Module::Load::load $class;
 		$inventory = $class->new(%$model);
 	}
 	elsif ($create)
 	{
-		print "no inventory found, create set, creating inventory\n";
 		$args{data}->{node_uuid} = $self->uuid;
 
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
 		$self->nmisng->log->error("Creating Inventory without conecept") if ( !$args{concept} );
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
-		print "creating class:$class\n";
+
 		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
 		$inventory = $class->new(%args);
 	}
 
-	return ($inventory,undef);
+	return ( $inventory, undef );
+}
+
+# create the correct path for an inventory item, calling the correct
+# class the it is created properly
+# args must contain concept and data, along with any other info required
+# to make that path (probably path_keys)
+sub inventory_path
+{
+	my ( $self, %args ) = @_;
+	my $concept = $args{concept};
+	my $data    = $args{data};
+	$data->{cluster_id} = $self->cluster_id();
+	$data->{node_uuid}  = $self->uuid();
+
+	# ask the correct class to make the inventory
+	my $class = NMISNG::Inventory::get_inventory_class($concept);
+
+	my $path = $class->make_path(%args);
+	return $path;
 }
 
 # returns 0/1 if the object is new or not.
@@ -342,6 +368,7 @@ sub validate
 	my $configuration = $self->configuration();
 
 	return 0 if ( !$configuration->{name} );
+	return 0 if ( !$configuration->{cluster_id} );
 	return 1;
 }
 
