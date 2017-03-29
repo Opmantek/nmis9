@@ -146,6 +146,10 @@ sub configuration
 sub inventory
 {
 	my ( $self, %args ) = @_;
+
+	# before trying anything make sure we are ok
+	return (undef,"Node invalid") if( !$self->validate() );
+
 	my $create = $args{create};
 	delete $args{create};
 	my ( $inventory, $class ) = ( undef, undef );
@@ -166,6 +170,7 @@ sub inventory
 
 	if ( $modeldata->count() > 0 )
 	{
+		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
 		my $model = $modeldata->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
 
@@ -181,6 +186,7 @@ sub inventory
 	elsif ($create)
 	{
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
+		$self->nmisng->log->debug("Creating Inventory for conecept:$args{concept}");
 		$self->nmisng->log->error("Creating Inventory without conecept") if ( !$args{concept} );
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
 
@@ -199,6 +205,7 @@ sub inventory
 sub inventory_path
 {
 	my ( $self, %args ) = @_;
+
 	my $concept = $args{concept};
 	my $data    = $args{data};
 	$data->{cluster_id} = $self->cluster_id();
@@ -207,6 +214,7 @@ sub inventory_path
 	# ask the correct class to make the inventory
 	my $class = NMISNG::Inventory::get_inventory_class($concept);
 
+	Module::Load::load $class;
 	my $path = $class->make_path(%args);
 	return $path;
 }

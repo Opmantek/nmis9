@@ -43,17 +43,16 @@ use NMISNG::DB;
 
 # based on the concept, decide which class to create
 # - or return the fallback/default class
-# path is made every time it is requested, caching can be done later, I don't think it will
-#  be called so often that caching will be necessary
 sub get_inventory_class
 {
 	my ($concept) = @_;
-	my %knownclasses = ( 'default' => 'DefaultInventory', # the fallback
-											 'service' => "ServiceInventory",
-											 "NeedsToBeMade" => "MakeMeYouLazyBum",
-			);
+	my %knownclasses = (
+		'default'       => 'DefaultInventory',    # the fallback
+		'service'       => "ServiceInventory",
+		"NeedsToBeMade" => "MakeMeYouLazyBum",
+	);
 
-	my $class =  "NMISNG::Inventory::" . ($knownclasses{$concept} // $knownclasses{default});
+	my $class = "NMISNG::Inventory::" . ( $knownclasses{$concept} // $knownclasses{default} );
 	return $class;
 }
 
@@ -179,13 +178,18 @@ sub concept
 }
 
 # returns a copy of the data
-# to change data call and set a new value
+# to change data call and set a new value, does
+# not allow overriding
+# currently does not allow changing the clusterid or nodeuuid, this may change
 sub data
 {
 	my ( $self, $newvalue ) = @_;
 	if ( defined($newvalue) )
 	{
-		$self->{_data} = $newvalue;
+		my ( $cluster_id, $node_uuid ) = ( $self->cluster_id, $self->node_uuid );
+		$newvalue->{cluster_id} = $cluster_id;
+		$newvalue->{node_uuid}  = $node_uuid;
+		$self->{_data}          = $newvalue;
 	}
 	return Clone::clone( $self->{_data} );
 }
@@ -207,6 +211,20 @@ sub is_new
 
 	my $has_id = $self->id();
 	return ($has_id) ? 0 : 1;
+}
+
+# load/reload from db, handy for testing to make sure update has been successful
+sub load
+{
+	my ($self) = @_;
+	if( !$self->is_new )
+	{		
+		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
+		my $newme = $modeldata->data()->[0];
+		$self->{_concept} = $newme->{concept};
+		$self->data( $newme->{data} );		
+		$self->{_path} = $newme->{path};
+	}
 }
 
 # return nmisng object this node is using
@@ -293,24 +311,23 @@ sub save
 			record     => $record,
 		);
 		$op = 1;
+
+		# _id is set on insert, grab it so we know we're not knew
+		$self->{_id} = $result->{id} if ( $result->{success} );
 	}
 	else
 	{
+		$record->{_id} = $self->id();
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			query      => NMISNG::DB::get_query( and_part => {_id => $record->{_id}} ),
 			record     => $record
 		);
-
 		$op = 2;
 	}
 
-	# refresh some values on success
-	if ( $result->{success} )
-	{
-		$self->{_id}   = $result->{id};
-		$self->{_path} = $record->{path};
-	}
+	# reset path to what was saved, probably the same but safe
+	$self->{_path} = $record->{path} if ( $result->{success} );
 
 	# TODO: set lastupdate into object?
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );

@@ -189,7 +189,7 @@ sub ip_collection
 # note: should _id use args{id}? or _id?
 sub get_inventory_model
 {
-	my ( $self, %args ) = @_;
+	my ( $self, %args ) = @_;	
 
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
 	my $q = NMISNG::DB::get_query(
@@ -197,8 +197,18 @@ sub get_inventory_model
 			'_id'       => $args{_id},         # this is a bit inconsistent
 			'node_uuid' => $args{node_uuid},
 			'concept'   => $args{concept},
+			'path'      => $args{path}
 		}
 	);
+
+	# fix up path, each entry at each index must match
+	my $path = $args{path};
+	if( $path )
+	{
+		delete $q->{path};
+		my $len = @$path - 1;
+		map { $q->{"path.$_"} = $path->[$_] } (0..$len);
+	}
 
 	my $model_data = [];
 	if ( $args{paginate} )
@@ -313,14 +323,14 @@ sub node
 		my $model = $modeldata->data()->[0];
 		$node = NMISNG::Node->new(
 			_id    => $model->{_id},
-			uuid  => $model->{uuid},			
+			uuid   => $model->{uuid},
 			nmisng => $self
 		);
 	}
 	elsif ($create)
 	{
 		$node = NMISNG::Node->new(
-			uuid   => $args{uuid},			
+			uuid   => $args{uuid},
 			nmisng => $self
 		);
 	}

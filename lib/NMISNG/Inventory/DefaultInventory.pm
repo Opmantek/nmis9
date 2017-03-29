@@ -42,6 +42,7 @@ our $VERSION = "1.0.0";
 #   specified then the path cannot be re-calculated
 #   keys from data used to make the path, this does not include things that are automatically added
 #    this isn't necessarily needed if make_path is overridden
+use Data::Dumper;
 
 sub new
 {
@@ -57,10 +58,16 @@ sub new
 		if ( !$args{path_keys} && !$args{_id} );
 
 	my $self = $class->SUPER::new(%args);
+	$nmisng->log->error("DefaultInventory failed to get parent new") && return if ( !$self );
 
-	$self->path_keys($args{path_keys}) if ( $args{path_keys} );
+	$self->path_keys( $args{path_keys} ) if ( $args{path_keys} );
 
 	return $self;
+}
+
+sub make_path
+{
+	return NMISNG::Inventory::make_path(@_);
 }
 
 # making a path can be done even on !new objects, in that case we may not have

@@ -191,7 +191,11 @@ sub new_nmisng
 	my $debug = func::getDebug();
 	# debug = 1 means log to file but with debug, anything above means log to stdout
 	$debug = undef if( $debug == 1 );
-	my $logger = NMISNG::Log->new(level => $debug, debug => $debug, path => $C->{'<nnis_logs>'}."/nmisng.log" );
+	my $logger = NMISNG::Log->new(
+		level => $debug // $C->{log_level},
+		path  => $C->{'<nnis_logs>'} . "/nmisng.log"
+	);
+	my $logger = NMISNG::Log->new(level => $debug, debug => $debug, path => $C->{'<nmis_logs>'}."/nmisng.log" );
 
 	my $nmisng = NMISNG->new(
 		config => $C,
