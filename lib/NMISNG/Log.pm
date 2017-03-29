@@ -106,4 +106,21 @@ sub is_level
 	}
 }
 
+# this method forces the log handle to be reopened
+sub reopen
+{
+	my ($self) = @_;
+	return if (!$self->SUPER::path); # is it using an unnamed handle? can't reopen anything in this case
+
+	# depending on what version of mojo::log you're using, it may or may not 
+	# support closing/reopening handles at all.
+	my $oldhandle = $self->SUPER::handle;
+	close $oldhandle if ($oldhandle);
+	# this is a workaround borrowed from Mojo::Log::Clearable
+	delete $self->{handle};	 # ugly, but using the accessor to blank this DOES NOT WORK. (ie. $self->SUPER::handle(undef);)
+	# reason: mojo::base runs the has/attr callback only if there is NO value. undef is a value.
+	return;
+}
+
+
 1;
