@@ -187,27 +187,42 @@ sub ip_collection
 }
 
 # note: should _id use args{id}? or _id?
+# all arguments that are used in the beginning of the path will be put
+# into the path for you, so specificying path[1,2] and cluster_id=>3 will chagne
+# the path to path[3,2]
 sub get_inventory_model
 {
-	my ( $self, %args ) = @_;	
+	my ( $self, %args ) = @_;
 
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
+
+	my $path;
+
 	my $q = NMISNG::DB::get_query(
 		and_part => {
-			'_id'       => $args{_id},         # this is a bit inconsistent
-			'node_uuid' => $args{node_uuid},
-			'concept'   => $args{concept},
-			'path'      => $args{path}
+			'_id' => $args{_id},    # this is a bit inconsistent
 		}
 	);
 
-	# fix up path, each entry at each index must match
-	my $path = $args{path};
-	if( $path )
+	# translate the
+	if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 	{
-		delete $q->{path};
+		$path = $args{path} // [];
+
+		# fill in starting args if given
+		my $index = 0;
+		foreach my $arg_name (qw(cluster_id node_uuid concept))
+		{
+			if ( $args{$arg_name} )
+			{
+				$path->[$index] = $args{$arg_name};
+				delete $args{$arg_name};
+			}
+			$index++;
+		}
+
 		my $len = @$path - 1;
-		map { $q->{"path.$_"} = $path->[$_] } (0..$len);
+		map { $q->{"path.$_"} = $path->[$_] if ( defined( $path->[$_] ) ) } ( 0 .. $len );
 	}
 
 	my $model_data = [];

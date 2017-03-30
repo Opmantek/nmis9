@@ -194,6 +194,29 @@ sub data
 	return Clone::clone( $self->{_data} );
 }
 
+# remove this inventory entry from the db
+# can't delete if its new, or if it's already been deleted or if it doesn't have an id
+#  (which is_new checks but not a bad idea to double check)
+sub delete
+{
+	my ($self) = @_;
+
+	if ( !$self->is_new && !$self->{_deleted} && $self->id() )
+	{
+		my $result = NMISNG::DB::remove(
+			collection => $self->nmisng->inventory_collection,
+			query      => NMISNG::DB::get_query( and_part => {_id => $self->id()} ),
+			just_one   => 1
+		);
+		$self->{_deleted} = 1 if ( $result->{success} );
+		return ( $result->{success}, $result->{error} );
+	}
+	else
+	{
+		return ( undef, "Inventory did not meet criteria for deleting" );
+	}
+}
+
 # get the id (_id), readonly
 # save adjusts this so is_new returns properly
 # may be undef if is_new
@@ -201,6 +224,13 @@ sub id
 {
 	my ($self) = @_;
 	return $self->{_id};
+}
+
+# has this inventory object been deleted from the db
+sub is_deleted
+{
+	my ($self) = @_;
+	return ( $self->{_deleted} == 1 );
 }
 
 # returns 0/1 if the object is new or not.
@@ -217,12 +247,12 @@ sub is_new
 sub load
 {
 	my ($self) = @_;
-	if( !$self->is_new )
-	{		
+	if ( !$self->is_new )
+	{
 		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
 		my $newme = $modeldata->data()->[0];
 		$self->{_concept} = $newme->{concept};
-		$self->data( $newme->{data} );		
+		$self->data( $newme->{data} );
 		$self->{_path} = $newme->{path};
 	}
 }

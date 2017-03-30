@@ -2088,7 +2088,8 @@ sub getIntfInfo
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
 
-		my ( $error, $override ) = get_nodeconf( node => $nodename )
+		my ( $error, $override ) = (undef,undef);
+		( $error, $override ) = get_nodeconf( node => $nodename )
 			if ( has_nodeconf( node => $nodename ) );
 		logMsg("ERROR $error") if ($error);
 		$override ||= {};
@@ -3214,10 +3215,11 @@ sub getSystemHealthInfo
 	);
 	for my $section (@healthSections)
 	{
+		# TODO:
+		NMISNG::Util::TODO("Does deleting all of the inventory for a section and then re-building them make sense?");
+		# answer: I think no because PIT data will point back to it, need to find a way to mark it as unused?
 		delete $NI->{$section};
 
-		# TODO: delete Inventory?!?!
-		NMISNG::Util::TODO("Delete all inventory for section in database??");
 		next
 			if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
 
@@ -3328,6 +3330,9 @@ sub getSystemHealthInfo
 				);
 
 				# then get all data for this indexvalue
+				# Inventory note: for now Sys will populate the nodeinfo section it cares about
+				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
+				# the location we want the data to go
 				if ($S->loadInfo(
 						class     => 'systemHealth',
 						section   => $section,
@@ -3339,6 +3344,12 @@ sub getSystemHealthInfo
 					)
 				{
 					info("section=$section index=$indexvalue read and stored");
+					# the above will put data into inventory, so save
+					my ( $op, $error ) = $inventory->save();
+					$nmisng->log->error(
+						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+						if ($error);
+					delete $NI->{$section}{$indexvalue};
 				}
 				else
 				{
@@ -3401,8 +3412,7 @@ sub getSystemHealthInfo
 
 				my $data      = {$index_var => $index};
 				my $path_keys = [$index_var];
-				my $path      = $node->inventory_path( concept => $section, data => $data, path_keys => $path_keys );
-				print "path:" . Dumper($path);
+				my $path      = $node->inventory_path( concept => $section, data => $data, path_keys => $path_keys );				
 				my ( $inventory, $error ) = $node->inventory(
 					concept   => $section,
 					data      => $data,
@@ -3412,6 +3422,9 @@ sub getSystemHealthInfo
 				);
 				$nmisng->log->error("Failed to create inventory, error:$error") if ( !$inventory || $error );
 
+				# Inventory note: for now Sys will populate the nodeinfo section it cares about
+				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
+				# the location we want the data to go				
 				if ($S->loadInfo(
 						class     => 'systemHealth',
 						section   => $section,
@@ -3426,12 +3439,10 @@ sub getSystemHealthInfo
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
-					print "SAVE OP:$op\n";
-					print "data:" . Dumper( $inventory->data() );
-					print "inventoryid" . Dumper( $inventory->id() );
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);
+					delete $NI->{$section}{$index};
 				}
 				else
 				{
@@ -3445,6 +3456,8 @@ sub getSystemHealthInfo
 				}
 			}
 		}
+		# Inventory note: to make sure we don't leave any NI info behind remove the section again
+		delete $NI->{$section};
 	}
 	info("Finished");
 	return 1;
@@ -3464,6 +3477,10 @@ sub getSystemHealthData
 
 	my $C = loadConfTable();
 
+	# create the node here for now, this should be passed in as a param in the future
+	my $nmisng = NMIS::new_nmisng;
+	my $node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+
 	info("Starting");
 	info("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
@@ -3480,26 +3497,31 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
-
+		my $ids = $node->get_inventory_ids( concept => $section );						
+		
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
 		next
-			if ( !exists( $NI->{$section} )
+			if ( @$ids < 1
 			or !exists( $M->{systemHealth}->{rrd} )
 			or ref( $M->{systemHealth}->{rrd}->{$section} ) ne "HASH" );
 
 		# that's instance index value
-		for my $index ( sort keys %{$NI->{$section}} )
+		foreach my $id (@$ids)
 		{
-			# sanity-check the inputs: an indexed section must always have an index property, which must be eq hash key.
-			my $thissection = $NI->{$section}->{$index};
+			my ($inventory,$error) = $node->inventory( _id => $id );
+			$node->nmisng->log->error("Faield to get inventory with id:$id, error:$error") && next if(!$inventory);
 
-			if (   ref($thissection) ne "HASH"
+			my $data = $inventory->data();			
+			my $thissection = $data;
+
+			# sanity check the data
+			if (ref($thissection) ne "HASH"
 				or !keys %$thissection
-				or !exists( $thissection->{index} )
-				or $index ne $thissection->{index} )
+				or !exists( $thissection->{index} ))
 			{
+				my $index = $data->{index} // 'noindex';
 				logMsg(
 					"ERROR invalid data for section $section and index $index, cannot collect systemHealth data for this index!"
 				);
@@ -3508,9 +3530,11 @@ sub getSystemHealthData
 				);
 
 				# clean it up as well, it's utterly broken as it is.
-				delete $NI->{$section}->{$index};
+				$inventory->delete();
 				next;
 			}
+
+			my $index = $data->{index};
 
 			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, debug => $model );
 			my $howdiditgo = $S->status;
@@ -3529,9 +3553,9 @@ sub getSystemHealthData
 					{
 						++$count;
 						dbg(      "updating node info $section $index $item: old "
-								. $NI->{$section}{$index}{$item}
+								. $data->{$item}
 								. " new $D->{$item}{value}" );
-						$NI->{$section}{$index}{$item} = $D->{$item}{value};
+						$data->{$item} = $D->{$item}{value};
 					}
 
 					# RRD Database update and remember filename;
@@ -3541,7 +3565,7 @@ sub getSystemHealthData
 						data   => $D,
 						type   => $sect,
 						index  => $index,
-						extras => $NI->{$section}->{$index}
+						extras => $data
 					);
 					if ( !$db )
 					{
@@ -3549,6 +3573,10 @@ sub getSystemHealthData
 					}
 				}
 				info("section=$section index=$index read and stored $count values");
+
+				# put the new values into the inventory and save
+				$inventory->data( $data );
+				$inventory->save();
 			}
 			else
 			{

@@ -137,6 +137,26 @@ sub configuration
 	return $self->{_configuration};
 }
 
+# get a list of id's for inventory related to this node,
+# useful for iterating through all inventory
+# filters/arguments:
+#  concept
+
+sub get_inventory_ids
+{
+	my ( $self, %args ) = @_;
+
+	# what happens when an error happens here?
+	$args{cluster_id} = $self->cluster_id;
+	$args{node_uuid}  = $self->uuid();
+
+	my $model_data = $self->nmisng->get_inventory_model(%args);
+
+	my $data = $model_data->data();
+	my @ids = map { $_->{_id}{value} } @$data;
+	return \@ids;
+}
+
 # find or create inventory object based on arguments
 # object returned will have base class NMISNG::Inventory but will be a
 # subclass of it specific to it's concept, if no specific implementation is found
@@ -148,7 +168,7 @@ sub inventory
 	my ( $self, %args ) = @_;
 
 	# before trying anything make sure we are ok
-	return (undef,"Node invalid") if( !$self->validate() );
+	return ( undef, "Node invalid" ) if ( !$self->validate() );
 
 	my $create = $args{create};
 	delete $args{create};
