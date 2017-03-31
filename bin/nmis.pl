@@ -2037,9 +2037,15 @@ sub getIntfInfo
 	my $C        = loadConfTable();
 	my $nodename = $NI->{system}->{name};
 
+	# create the node here for now, this should be passed in as a param in the future
+	my $nmisng = NMIS::new_nmisng;
+	my $nmisng_node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days
 		= $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
+
+	my $target_table = {};
 
 	# fixme: hardcoded section name 'standard'
 	if ( defined $S->{mdl}{interface}{sys}{standard}
@@ -2083,6 +2089,7 @@ sub getIntfInfo
 		if ( not $singleInterface )
 		{
 			delete $NI->{interface};
+			# TODO: inventory, do we want to do this?
 		}
 
 		# load interface types (IANA). number => name
@@ -2097,6 +2104,7 @@ sub getIntfInfo
 		# get interface Index table
 		my @ifIndexNum;
 		my $ifIndexTable;
+		my $ifIndexMap = {};
 
 		if ($singleInterface)
 		{
@@ -2114,6 +2122,7 @@ sub getIntfInfo
 						$ifIndexTable->{$oid} = unpack( "I", pack( "i", $ifIndexTable->{$oid} ) );
 					}
 					push @ifIndexNum, $ifIndexTable->{$oid};
+					$ifIndexMap->{$ifIndexTable->{$oid}} = 1;
 				}
 			}
 			else
@@ -2136,25 +2145,24 @@ sub getIntfInfo
 
 			# remove unknown interfaces, found in previous runs, from table
 			### possible vivification
-			for my $i ( keys %{$IF} )
+			my $ids = $nmisng_node->get_inventory_ids( concept => 'interface');
+			foreach my $id (@$ids)
 			{
-				if ( ( not grep { $i eq $_ } @ifIndexNum ) )
+				# we may want a faster way to do this, perhaps ask for the ids along with some data?
+				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $id);
+				$nmisng->log->warn("Failed to get Inventory for interface:$id, error:$error_message") && next;
+
+				my $index = $$inventory->data()->{index};
+			
+				if ( !defined($ifIndexMap->{$index} ) )
 				{
-					delete $IF->{$i};
-					if ( defined $NI->{graphtype}{$i}{interface} )
+					$inventory->delete();					
+					foreach my $graphtype (qw(interface pkts pkts_hc))
 					{
-						delete $NI->{graphtype}{$i}{interface};
+						delete $NI->{graphtype}{$index}{$graphtype} if ( defined $NI->{graphtype}{$index}{$graphtype} );						
 					}
-					if ( defined $NI->{graphtype}{$i}{pkts} )
-					{
-						delete $NI->{graphtype}{$i}{pkts};
-					}
-					if ( defined $NI->{graphtype}{$i}{pkts_hc} )
-					{
-						delete $NI->{graphtype}{$i}{pkts_hc};
-					}
-					dbg("Interface ifIndex=$i removed from table");
-					logMsg("INFO ($S->{name}) Interface ifIndex=$i removed from table");    # test info
+					dbg("Interface ifIndex=$index removed from table");
+					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
 				}
 			}
 			delete $V->{interface};    # rebuild interface view table
@@ -2167,21 +2175,23 @@ sub getIntfInfo
 		{
 			next if ( $singleInterface and $intf_one ne $index );    # only one interface
 
+			$target_table->{$index} = {};
+			my $target = $target_table->{$index};
 			if ($S->loadInfo(
 					class  => 'interface',
 					index  => $index,
 					model  => $model,
-					target => $NI->{interface}{$index}
+					target => $target
 				)
 				)
 			{
 				# note: nodeconf overrides are NOT applied at this point!
-				checkIntfInfo( sys => $S, index => $index, iftype => $IFT );
+				checkIntfInfo( sys => $S, index => $index, iftype => $IFT, target => $target );
 
 				my $keepInterface = 1;
 				if (    defined $S->{mdl}{custom}{interface}{skipIfType}
 					and $S->{mdl}{custom}{interface}{skipIfType} ne ""
-					and $IF->{$index}{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ )
+					and $target->{ifType} =~ /$S->{mdl}{custom}{interface}{skipIfType}/ )
 				{
 					$keepInterface = 0;
 					info(
@@ -2190,7 +2200,7 @@ sub getIntfInfo
 				}
 				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
 					and $S->{mdl}{custom}{interface}{skipIfDescr} ne ""
-					and $IF->{$index}{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ )
+					and $target->{ifDescr} =~ /$S->{mdl}{custom}{interface}{skipIfDescr}/ )
 				{
 					$keepInterface = 0;
 					info(
@@ -2201,7 +2211,7 @@ sub getIntfInfo
 				if ( not $keepInterface )
 				{
 					# not easy.
-					foreach my $key ( keys %{$IF->{$index}} )
+					foreach my $key ( keys %$target )
 					{
 						if ( exists $V->{interface}{"${index}_${key}_title"} )
 						{
@@ -2213,16 +2223,16 @@ sub getIntfInfo
 						}
 					}
 
-					# easy!
+					# easy!					
 					delete $IF->{$index};
+					delete $target_table->{$index};
 				}
 				else
-				{
-					$IF = $S->ifinfo;    # renew pointer
+				{					
 					logMsg("INFO ($S->{name}) ifadminstatus is empty for index=$index")
-						if $IF->{$index}{ifAdminStatus} eq "";
+						if $target->{ifAdminStatus} eq "";
 					info(
-						"ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType} ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} ifSpeed=$IF->{$index}{ifSpeed}"
+						"ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType} ifAdminStatus=$target->{ifAdminStatus} ifOperStatus=$target->{ifOperStatus} ifSpeed=$target->{ifSpeed}"
 					);
 					push( @ifIndexNumManage, $index );
 				}
@@ -2250,12 +2260,13 @@ sub getIntfInfo
 			foreach my $index (@ifIndexNum)
 			{
 				next if ( $singleInterface and $intf_one ne $index );
+				my $target = $target_table->{$index};
 
 				# get the VLAN info: table is indexed by port.portnumber
-				if ( $IF->{$index}{ifDescr} =~ /\d{1,2}\/(\d{1,2})$/i )
+				if ( $target->{ifDescr} =~ /\d{1,2}\/(\d{1,2})$/i )
 				{    # FastEthernet0/1
 					my $port = '1.' . $1;
-					if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\/\d{1,2}\/(\d{1,2})$/i )
+					if ( $target->{ifDescr} =~ /(\d{1,2})\/\d{1,2}\/(\d{1,2})$/i )
 					{    # FastEthernet1/0/0
 						$port = $1 . '.' . $2;
 					}
@@ -2265,23 +2276,23 @@ sub getIntfInfo
 							port   => $port,
 							table  => 'interface',
 							model  => $model,
-							target => $NI->{interface}{$index}
+							target => $target
 						)
 						)
 					{
 						#
 						last if $IF->{$index}{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
 						$V->{interface}{"${index}_portAdminSpeed_value"}
-							= convertIfSpeed( $IF->{$index}{portAdminSpeed} );
-						dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
-						dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}"
+							= convertIfSpeed( $target->{portAdminSpeed} );
+						dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
+						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}"
 						);
 					}
 				}
 				else
 				{
 					my $port;
-					if ( $IF->{$index}{ifDescr} =~ /(\d{1,2})\D(\d{1,2})$/ )
+					if ( $target->{ifDescr} =~ /(\d{1,2})\D(\d{1,2})$/ )
 					{                                                 # 0-0 Catalyst
 						$port = $1 . '.' . $2;
 					}
@@ -2291,16 +2302,16 @@ sub getIntfInfo
 							port   => $port,
 							table  => 'interface',
 							model  => $model,
-							target => $NI->{interface}{$index}
+							target => $target
 						)
 						)
 					{
 						#
-						last if $IF->{$index}{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
+						last if $target->{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
 						$V->{interface}{"${index}_portAdminSpeed_value"}
-							= convertIfSpeed( $IF->{$index}{portAdminSpeed} );
-						dbg("get VLAN details: index=$index, ifDescr=$IF->{$index}{ifDescr}");
-						dbg("portNumber: $port, VLan: $IF->{$index}{vlanPortVlan}, AdminSpeed: $IF->{$index}{portAdminSpeed}"
+							= convertIfSpeed( $target->{portAdminSpeed} );
+						dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
+						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}"
 						);
 					}
 				}
@@ -2328,11 +2339,13 @@ sub getIntfInfo
 						my $index = $ifAdEntTable->{$addr};
 						next if ( $singleInterface and $intf_one ne $index );
 						$ifCnt{$index} += 1;
+						my $target = $target_table->{$index};
 						info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
-						$IF->{$index}{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
-						$IF->{$index}{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
-						(   $IF->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
-							$IF->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}
+						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
+						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
+						# NOTE: inventory, breaks index convention here! not a big deal but it happens
+						(   $target_table->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
+							$target_table->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}
 						) = ipSubnet( address => $addr, mask => $ifMaskTable->{$addr} );
 						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_title"} = 'IP address / mask';
 						$V->{interface}{"$ifAdEntTable->{$addr}_ipAdEntAddr$ifCnt{$index}_value"}
@@ -2438,20 +2451,21 @@ sub getIntfInfo
 		my $ifDescrIndx;
 		foreach my $i (@ifIndexNum)
 		{
+			my $target = $target_table->{$i};
 			#foreach my $i (keys %{$IF}) {
 			# ifDescr must always be filled
-			if ( $IF->{$i}{ifDescr} eq "" ) { $IF->{$i}{ifDescr} = $i; }
+			$target->{ifDescr} ||= $i;
 
-			if ( exists $ifDescrIndx->{$IF->{$i}{ifDescr}} and $ifDescrIndx->{$IF->{$i}{ifDescr}} ne "" )
+			if ( exists $ifDescrIndx->{$target->{ifDescr}} and $ifDescrIndx->{$target->{ifDescr}} ne "" )
 			{
 				# ifDescr is duplicated.
-				$IF->{$i}{ifDescr} = "$IF->{$i}{ifDescr}-$i";                  # add index to string
-				$V->{interface}{"${i}_ifDescr_value"} = $IF->{$i}{ifDescr};    # update
-				info("Interface ifDescr changed to $IF->{$i}{ifDescr}");
+				$target->{ifDescr} = "$target->{ifDescr}-$i";                  # add index to string
+				$V->{interface}{"${i}_ifDescr_value"} = $target->{ifDescr};    # update
+				info("Interface ifDescr changed to $target->{ifDescr}");
 			}
 			else
 			{
-				$ifDescrIndx->{$IF->{$i}{ifDescr}} = $i;
+				$ifDescrIndx->{$target->{ifDescr}} = $i;
 			}
 		}
 		info("Completed duplicate ifDescr processing");
@@ -2460,16 +2474,16 @@ sub getIntfInfo
 		foreach my $index (@ifIndexNum)
 		{
 			next if ( $singleInterface and $intf_one ne $index );
-
-			my $thisintf = $IF->{$index};
-			my $ifDescr  = $thisintf->{ifDescr};
+			my $target = $target_table->{$index};
+			
+			my $ifDescr  = $target->{ifDescr};
 			$intfTotal++;
 
 			# count total number of real interfaces
-			if (    $thisintf->{ifType} !~ /$qr_no_collect_ifType_gen/
-				and $thisintf->{ifDescr} !~ /$qr_no_collect_ifDescr_gen/ )
+			if (    $target->{ifType} !~ /$qr_no_collect_ifType_gen/
+				and $target->{ifDescr} !~ /$qr_no_collect_ifDescr_gen/ )
 			{
-				$thisintf->{real} = 'true';
+				$target->{real} = 'true';
 			}
 
 			### add in anything we find from nodeConf - allows manual updating of interface variables
@@ -2480,14 +2494,14 @@ sub getIntfInfo
 
 				if ( $thisintfover->{Description} )
 				{
-					$thisintf->{nc_Description} = $thisintf->{Description};                       # save
-					$thisintf->{Description}    = $V->{interface}{"${index}_Description_value"}
+					$target->{nc_Description} = $target->{Description};                       # save
+					$target->{Description}    = $V->{interface}{"${index}_Description_value"}
 						= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
 				}
 				if ( $thisintfover->{display_name} )
 				{
-					$thisintf->{display_name} = $V->{interface}->{"${index}_display_name_value"}
+					$target->{display_name} = $V->{interface}->{"${index}_display_name_value"}
 						= $thisintfover->{display_name};
 					$V->{interface}->{"${index}_display_name_title"} = "Display Name";
 
@@ -2498,163 +2512,163 @@ sub getIntfInfo
 				{
 					if ( $thisintfover->{$speedname} )
 					{
-						$thisintf->{"nc_$speedname"} = $thisintf->{$speedname};    # save
-						$thisintf->{$speedname} = $thisintfover->{$speedname};
+						$target->{"nc_$speedname"} = $target->{$speedname};    # save
+						$target->{$speedname} = $thisintfover->{$speedname};
 
 						### 2012-10-09 keiths, fixing ifSpeed to be shortened when using nodeConf
-						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed( $thisintf->{$speedname} );
+						$V->{interface}{"${index}_${speedname}_value"} = convertIfSpeed( $target->{$speedname} );
 						info("Manual update of $speedname by nodeConf");
 					}
 				}
 
 				if ( $thisintfover->{setlimits} && $thisintfover->{setlimits} =~ /^(normal|strict|off)$/ )
 				{
-					$thisintf->{setlimits} = $thisintfover->{setlimits};
+					$target->{setlimits} = $thisintfover->{setlimits};
 				}
 			}
 
 			# set default for the speed  limit enforcement
-			$thisintf->{setlimits} ||= 'normal';
+			$target->{setlimits} ||= 'normal';
 
 			# set default for collect, event and threshold: on, possibly overridden later
-			$thisintf->{collect}   = "true";
-			$thisintf->{event}     = "true";
-			$thisintf->{threshold} = "true";
-			$thisintf->{nocollect} = "Collecting: Collection Policy";
+			$target->{collect}   = "true";
+			$target->{event}     = "true";
+			$target->{threshold} = "true";
+			$target->{nocollect} = "Collecting: Collection Policy";
 		  #
 		  #Decide if the interface is one that we can do stats on or not based on Description and ifType and AdminStatus
 		  # If the interface is admin down no statistics
 			### 2012-03-14 keiths, collecting override based on interface description.
 			if (    $qr_collect_ifAlias_gen
-				and $thisintf->{Description} =~ /$qr_collect_ifAlias_gen/i )
+				and $target->{Description} =~ /$qr_collect_ifAlias_gen/i )
 			{
-				$thisintf->{collect}   = "true";
-				$thisintf->{nocollect} = "Collecting: found $1 in Description";    # reason
+				$target->{collect}   = "true";
+				$target->{nocollect} = "Collecting: found $1 in Description";    # reason
 			}
 			elsif ( $qr_collect_ifDescr_gen
-				and $thisintf->{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
+				and $target->{ifDescr} =~ /$qr_collect_ifDescr_gen/i )
 			{
-				$thisintf->{collect}   = "true";
-				$thisintf->{nocollect} = "Collecting: found $1 in ifDescr";
+				$target->{collect}   = "true";
+				$target->{nocollect} = "Collecting: found $1 in ifDescr";
 			}
-			elsif ( $thisintf->{ifAdminStatus} =~ /down|testing|null/ )
+			elsif ( $target->{ifAdminStatus} =~ /down|testing|null/ )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{event}     = "false";
-				$thisintf->{nocollect} = "ifAdminStatus eq down|testing|null";     # reason
-				$thisintf->{noevent}   = "ifAdminStatus eq down|testing|null";     # reason
+				$target->{collect}   = "false";
+				$target->{event}     = "false";
+				$target->{nocollect} = "ifAdminStatus eq down|testing|null";     # reason
+				$target->{noevent}   = "ifAdminStatus eq down|testing|null";     # reason
 			}
-			elsif ( $thisintf->{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i )
+			elsif ( $target->{ifDescr} =~ /$qr_no_collect_ifDescr_gen/i )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{nocollect} = "Not Collecting: found $1 in ifDescr";    # reason
+				$target->{collect}   = "false";
+				$target->{nocollect} = "Not Collecting: found $1 in ifDescr";    # reason
 			}
-			elsif ( $thisintf->{ifType} =~ /$qr_no_collect_ifType_gen/i )
+			elsif ( $target->{ifType} =~ /$qr_no_collect_ifType_gen/i )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{nocollect} = "Not Collecting: found $1 in ifType";     # reason
+				$target->{collect}   = "false";
+				$target->{nocollect} = "Not Collecting: found $1 in ifType";     # reason
 			}
-			elsif ( $thisintf->{Description} =~ /$qr_no_collect_ifAlias_gen/i )
+			elsif ( $target->{Description} =~ /$qr_no_collect_ifAlias_gen/i )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{nocollect} = "Not Collecting: found $1 in Description";    # reason
+				$target->{collect}   = "false";
+				$target->{nocollect} = "Not Collecting: found $1 in Description";    # reason
 			}
-			elsif ( $thisintf->{Description} eq "" and $noDescription eq 'true' )
+			elsif ( $target->{Description} eq "" and $noDescription eq 'true' )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{nocollect} = "Not Collecting: no Description (ifAlias)";    # reason
+				$target->{collect}   = "false";
+				$target->{nocollect} = "Not Collecting: no Description (ifAlias)";    # reason
 			}
-			elsif ( $thisintf->{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i )
+			elsif ( $target->{ifOperStatus} =~ /$qr_no_collect_ifOperStatus_gen/i )
 			{
-				$thisintf->{collect}   = "false";
-				$thisintf->{nocollect} = "Not Collecting: found $1 in ifOperStatus";    # reason
+				$target->{collect}   = "false";
+				$target->{nocollect} = "Not Collecting: found $1 in ifOperStatus";    # reason
 			}
 
 			# if the interface has been down for too many days to be in use now.
-			elsif ( $thisintf->{ifAdminStatus} =~ /up/
-				and $thisintf->{ifOperStatus} =~ /down/
-				and ( $NI->{system}{sysUpTimeSec} - $thisintf->{ifLastChangeSec} ) / 86400
+			elsif ( $target->{ifAdminStatus} =~ /up/
+				and $target->{ifOperStatus} =~ /down/
+				and ( $NI->{system}{sysUpTimeSec} - $target->{ifLastChangeSec} ) / 86400
 				> $nocollect_interface_down_days )
 			{
-				$thisintf->{collect} = "false";
-				$thisintf->{nocollect}
+				$target->{collect} = "false";
+				$target->{nocollect}
 					= "Not Collecting: interface down for more than $nocollect_interface_down_days days";    # reason
 			}
 
 			# send events ?
-			if ( $thisintf->{Description} =~ /$qr_no_event_ifAlias_gen/i )
+			if ( $target->{Description} =~ /$qr_no_event_ifAlias_gen/i )
 			{
-				$thisintf->{event}   = "false";
-				$thisintf->{noevent} = "found $1 in ifAlias";                                                # reason
+				$target->{event}   = "false";
+				$target->{noevent} = "found $1 in ifAlias";                                                # reason
 			}
-			elsif ( $thisintf->{ifType} =~ /$qr_no_event_ifType_gen/i )
+			elsif ( $target->{ifType} =~ /$qr_no_event_ifType_gen/i )
 			{
-				$thisintf->{event}   = "false";
-				$thisintf->{noevent} = "found $1 in ifType";                                                 # reason
+				$target->{event}   = "false";
+				$target->{noevent} = "found $1 in ifType";                                                 # reason
 			}
-			elsif ( $thisintf->{ifDescr} =~ /$qr_no_event_ifDescr_gen/i )
+			elsif ( $target->{ifDescr} =~ /$qr_no_event_ifDescr_gen/i )
 			{
-				$thisintf->{event}   = "false";
-				$thisintf->{noevent} = "found $1 in ifDescr";                                                # reason
+				$target->{event}   = "false";
+				$target->{noevent} = "found $1 in ifDescr";                                                # reason
 			}
 
 			# convert interface name
-			$thisintf->{interface} = convertIfName( $thisintf->{ifDescr} );
-			$thisintf->{ifIndex}   = $index;
+			$target->{interface} = convertIfName( $target->{ifDescr} );
+			$target->{ifIndex}   = $index;
 
 			# modify by node Config ?
 			if ( ref( $override->{$ifDescr} ) eq "HASH" )
 			{
 				my $thisintfover = $override->{$ifDescr};
 
-				if ( $thisintfover->{collect} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr} )
+				if ( $thisintfover->{collect} and $thisintfover->{ifDescr} eq $target->{ifDescr} )
 				{
-					$thisintf->{nc_collect} = $thisintf->{collect};
-					$thisintf->{collect}    = $thisintfover->{collect};
+					$target->{nc_collect} = $target->{collect};
+					$target->{collect}    = $thisintfover->{collect};
 					info("Manual update of Collect by nodeConf");
 
 					### 2014-04-28 keiths, fixing info for GUI
-					if ( getbool( $thisintf->{collect}, "invert" ) )
+					if ( getbool( $target->{collect}, "invert" ) )
 					{
-						$thisintf->{nocollect} = "Not Collecting: Manual update by nodeConf";
+						$target->{nocollect} = "Not Collecting: Manual update by nodeConf";
 					}
 					else
 					{
-						$thisintf->{nocollect} = "Collecting: Manual update by nodeConf";
+						$target->{nocollect} = "Collecting: Manual update by nodeConf";
 					}
 				}
 
-				if ( $thisintfover->{event} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr} )
+				if ( $thisintfover->{event} and $thisintfover->{ifDescr} eq $target->{ifDescr} )
 				{
-					$thisintf->{nc_event} = $thisintf->{event};
-					$thisintf->{event}    = $thisintfover->{event};
-					$thisintf->{noevent}  = "Manual update by nodeConf"
-						if ( getbool( $thisintf->{event}, "invert" ) );    # reason
+					$target->{nc_event} = $target->{event};
+					$target->{event}    = $thisintfover->{event};
+					$target->{noevent}  = "Manual update by nodeConf"
+						if ( getbool( $target->{event}, "invert" ) );    # reason
 					info("Manual update of Event by nodeConf");
 				}
 
-				if ( $thisintfover->{threshold} and $thisintfover->{ifDescr} eq $thisintf->{ifDescr} )
+				if ( $thisintfover->{threshold} and $thisintfover->{ifDescr} eq $target->{ifDescr} )
 				{
-					$thisintf->{nc_threshold} = $thisintf->{threshold};
-					$thisintf->{threshold}    = $thisintfover->{threshold};
-					$thisintf->{nothreshold}  = "Manual update by nodeConf"
-						if ( getbool( $thisintf->{threshold}, "invert" ) );    # reason
+					$target->{nc_threshold} = $target->{threshold};
+					$target->{threshold}    = $thisintfover->{threshold};
+					$target->{nothreshold}  = "Manual update by nodeConf"
+						if ( getbool( $target->{threshold}, "invert" ) );    # reason
 					info("Manual update of Threshold by nodeConf");
 				}
 			}
 
 			# interface now up or down, check and set or clear outstanding event.
-			if (    getbool( $thisintf->{collect} )
-				and $thisintf->{ifAdminStatus} =~ /up|ok/
-				and $thisintf->{ifOperStatus} !~ /up|ok|dormant/ )
+			if (    getbool( $target->{collect} )
+				and $target->{ifAdminStatus} =~ /up|ok/
+				and $target->{ifOperStatus} !~ /up|ok|dormant/ )
 			{
-				if ( getbool( $thisintf->{event} ) )
+				if ( getbool( $target->{event} ) )
 				{
 					notify(
 						sys     => $S,
 						event   => "Interface Down",
-						element => $thisintf->{ifDescr},
-						details => $thisintf->{Description},
+						element => $target->{ifDescr},
+						details => $target->{Description},
 						context => {type => "interface"},
 					);
 				}
@@ -2665,12 +2679,12 @@ sub getIntfInfo
 					sys     => $S,
 					event   => "Interface Down",
 					level   => "Normal",
-					element => $thisintf->{ifDescr},
-					details => $thisintf->{Description}
+					element => $target->{ifDescr},
+					details => $target->{Description}
 				);
 			}
 
-			if ( getbool( $thisintf->{collect}, "invert" ) )
+			if ( getbool( $target->{collect}, "invert" ) )
 			{
 				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
 				my @types = qw(pkts pkts_hc interface);
@@ -2685,8 +2699,8 @@ sub getIntfInfo
 			}
 
 			# number of interfaces collected with collect and event on
-			$intfCollect++ if ( getbool( $thisintf->{collect} )
-				&& getbool( $thisintf->{event} ) );
+			$intfCollect++ if ( getbool( $target->{collect} )
+				&& getbool( $target->{event} ) );
 
 			# save values only if all interfaces are updated
 			if ( $intf_one eq '' )
@@ -2696,31 +2710,31 @@ sub getIntfInfo
 			}
 
 			# prepare values for web page
-			$V->{interface}{"${index}_event_value"} = $thisintf->{event};
+			$V->{interface}{"${index}_event_value"} = $target->{event};
 			$V->{interface}{"${index}_event_title"} = 'Event on';
 
 			$V->{interface}{"${index}_threshold_value"}
-				= !getbool( $NC->{node}{threshold} ) ? 'false' : $thisintf->{threshold};
+				= !getbool( $NC->{node}{threshold} ) ? 'false' : $target->{threshold};
 			$V->{interface}{"${index}_threshold_title"} = 'Threshold on';
 
-			$V->{interface}{"${index}_collect_value"} = $thisintf->{collect};
+			$V->{interface}{"${index}_collect_value"} = $target->{collect};
 			$V->{interface}{"${index}_collect_title"} = 'Collect on';
 
-			$V->{interface}{"${index}_nocollect_value"} = $thisintf->{nocollect};
+			$V->{interface}{"${index}_nocollect_value"} = $target->{nocollect};
 			$V->{interface}{"${index}_nocollect_title"} = 'Reason';
 
 			# collect status
-			if ( getbool( $thisintf->{collect} ) )
+			if ( getbool( $target->{collect} ) )
 			{
-				info("$thisintf->{ifDescr} ifIndex $index, collect=true");
+				info("$target->{ifDescr} ifIndex $index, collect=true");
 			}
 			else
 			{
-				info("$thisintf->{ifDescr} ifIndex $index, collect=false, $thisintf->{nocollect}");
+				info("$target->{ifDescr} ifIndex $index, collect=false, $target->{nocollect}");
 
 				# if  collect is of then disable event and threshold (clearly not applicable)
-				$thisintf->{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
-				$thisintf->{event}     = $V->{interface}{"${index}_event_value"}     = 'false';
+				$target->{threshold} = $V->{interface}{"${index}_threshold_value"} = 'false';
+				$target->{event}     = $V->{interface}{"${index}_event_value"}     = 'false';
 			}
 
 			# get color depending of state
@@ -2732,24 +2746,24 @@ sub getIntfInfo
 			$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
 
 			# at this point every thing is ready for the rrd speed limit enforcement
-			my $desiredlimit = $thisintf->{setlimits};
+			my $desiredlimit = $target->{setlimits};
 
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
 				&& $desiredlimit =~ /^(normal|strict|off)$/
-				&& $thisintf->{ifSpeed}
-				&& getbool( $thisintf->{collect} ) )
+				&& $target->{ifSpeed}
+				&& getbool( $target->{collect} ) )
 			{
 				info(
 					"performing rrd speed limit tuning for $ifDescr, limit enforcement: $desiredlimit, interface speed is "
-						. convertIfSpeed( $thisintf->{ifSpeed} )
-						. " ($thisintf->{ifSpeed})" );
+						. convertIfSpeed( $target->{ifSpeed} )
+						. " ($target->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
 				my $maxbytes
 					= $desiredlimit eq "off"    ? "U"
-					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
-					:                             int( $thisintf->{ifSpeed} / 8 );
+					: $desiredlimit eq "normal" ? int( $target->{ifSpeed} / 4 )
+					:                             int( $target->{ifSpeed} / 8 );
 				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
 				for (
@@ -2795,6 +2809,21 @@ sub getIntfInfo
 					}
 				}
 			}
+			# For now, create inventory at the very end
+			# get the inventory object for this, path_keys required as we don't know what type it will be			
+			my $path_keys = ['index']; # for now use this, loadInfo guarnatees it will exist
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );
+			my ( $inventory, $error ) = $nmisng_node->inventory(
+				concept   => 'interface',
+				data      => $target,
+				path      => $path,
+				path_keys => $path_keys,
+				create    => 1
+			);
+			my ( $op, $error ) = $inventory->save();
+			$nmisng->log->error(
+				"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+				if ($error);
 		}
 
 		info("Finished");
@@ -2807,6 +2836,7 @@ sub getIntfInfo
 	{
 		info("Skipping, interfaces not defined in Model");
 	}
+	delete $NI->{interface};
 	return 1;
 }    # end getIntfInfo
 
@@ -2823,11 +2853,10 @@ sub checkIntfInfo
 	my $index      = $args{index};
 	my $ifTypeDefs = $args{iftype};
 
-	my $IF = $S->ifinfo;
-	my $NI = $S->ndinfo;
+	my $target = $args{target};
 	my $V  = $S->view;
 
-	my $thisintf = $IF->{$index};
+	my $thisintf = $target;
 	if ( $thisintf->{ifDescr} eq "" ) { $thisintf->{ifDescr} = "null"; }
 
 	# remove bad chars from interface descriptions
@@ -4001,6 +4030,10 @@ sub getIntfData
 		if ( has_nodeconf( node => $nodename ) );
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
+
+	# create the node here for now, this should be passed in as a param in the future
+	my $nmisng = NMIS::new_nmisng;
+	my $nmisng_node = $nmisng->node( uuid => $NI->{system}->{uuid} );
 
 	my $createdone = "false";
 
@@ -6844,8 +6877,7 @@ sub HandleNodeDown
 		context => {type => "node"}
 	);
 
-	my $NI = $S->ndinfo;
-	$NI->{system}{"${typeofdown}down"} = $goingup ? 'false' : 'true';
+	$S->ndinfo->{system}{"${typeofdown}down"} = $goingup ? 'false' : 'true';
 
 	return;
 }
