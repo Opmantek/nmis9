@@ -452,6 +452,7 @@ sub copyModelCfgInfo
 # debug (aka model; optional, just a debug flag!)
 #
 # returns 0 if retrieval was a _total_ failure, 1 if it worked (at least somewhat),
+#  if successful target will be filled in
 # also sets details for status()
 sub loadInfo
 {
@@ -466,8 +467,13 @@ sub loadInfo
 	my $wantdebug = $args{debug};
 	my $dmodel    = $args{model};             # if separate model printfs are wanted
 
-	# NOTE: this probably doens't need to be a param
-	my $inventory = $args{inventory};
+	my $target = $args{target};
+	if ( !$target )
+	{
+		$self->{error} = "loadInfo failed for $self->{name}: target not provided!";
+		dbg("loadInfo failed for $self->{name}: target not provided!");
+		return 0;
+	}
 
 	# pull from the class' sys section, NOT its rrd section (if any)
 	my ( $result, $status ) = $self->getValues(
@@ -499,7 +505,7 @@ sub loadInfo
 
 		dbg("MODEL loadInfo $self->{name} class=$class") if $wantdebug;
 
-		my $target = $self->{info}->{$table} ||= {};
+		# my $target = $self->{info}->{$table} ||= {};
 
 # this takes each section returned and merges them together (all writes to output data do not mention the $section or $sect )
 		foreach my $sect ( keys %{$result} )
@@ -517,13 +523,13 @@ sub loadInfo
 				dbg("MODEL section=$sect") if $wantdebug;
 				print "  MODEL section=$sect\n" if $dmodel;
 				### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
-				if ( $target->{$index}{index} eq "" )
+				if ( !$target->{index} )
 				{
-					$target->{$index}{index} = $index;
+					$target->{index} = $index;
 				}
 				foreach my $ds ( keys %{$result->{$sect}{$index}} )
 				{
-					my $thisval = $target->{$index}{$ds} = $result->{$sect}{$index}{$ds}{value};    # store in {info}
+					my $thisval = $target->{$ds} = $result->{$sect}{$index}{$ds}{value};    # store in {info}
 					      # if getvalues provided a title for this thing, store that in view
 					if ( exists( $result->{$sect}->{$index}->{$ds}->{title} ) )
 					{
@@ -553,7 +559,7 @@ sub loadInfo
 			{
 				foreach my $ds ( keys %{$result->{$sect}} )
 				{
-					my $thisval = $self->{info}{$class}{$ds} = $result->{$sect}{$ds}{value};    # store in {info}
+					my $thisval = $target->{$ds} = $result->{$sect}{$ds}{value};    # store in {info}
 					      # if getvalues provided a title for this thing, store that in view
 					if ( exists( $result->{$sect}->{$ds}->{title} ) )
 					{
@@ -578,10 +584,6 @@ sub loadInfo
 			}
 		}
 
-		# TODO: checking for $inventory should not be here, everything should supply it
-		$inventory->data( $target->{$index} ) if ($inventory);
-
-		# print "target".Dumper($target);
 		return 1;    # we're happy(ish) - snmp or wmi worked
 	}
 }
@@ -595,7 +597,8 @@ sub loadNodeInfo
 	my %args = @_;
 
 	my $C = loadConfTable();
-	my $exit = $self->loadInfo( class => 'system' );    # sets status
+
+	my $exit = $self->loadInfo( class => 'system', target => $self->ndinfo->{system} );    # sets status
 
 	# check if nbarpd is possible: wanted by model, snmp configured, no snmp problems in last load
 	if ( getbool( $self->{mdl}{system}{nbarpd_check} ) && $self->{snmp} && !$self->{snmp_error} )
@@ -1334,10 +1337,11 @@ sub loadModel
 				{
 					my ( $sourcename, $propname ) = ( $1, $2 );
 
-					my $value
-						= ( $proppath eq "node.nodeModel"
+					my $value = (
+						  $proppath eq "node.nodeModel"
 						? $model
-						: ( $sourcename eq "config" ? $C : $self->{info}->{system} )->{$propname} );
+						: ( $sourcename eq "config" ? $C : $self->{info}->{system} )->{$propname}
+					);
 					$value = '' if ( !defined($value) );
 
 					# choices can be: regex, or fixed string, or array of fixed strings

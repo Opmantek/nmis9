@@ -320,7 +320,7 @@ sub save
 	my $lastupdate = $args{lastupdate} // time;
 
 	my ( $valid, $validation_error ) = $self->validate();
-	return ( -1, $validation_error ) if ( !$valid );
+	return ( $valid, $validation_error ) if ( !$valid );
 
 	my $result;
 	my $op;
@@ -332,6 +332,13 @@ sub save
 		path       => $self->path(),
 		lastupdate => $lastupdate
 	};
+
+	# numify anything in path
+	my $path = $record->{path};
+	for(my $i = 0; $i < @$path; $i++)
+	{
+		$path->[$i] = NMISNG::Util::numify($path->[$i])
+	}
 
 	if ( $self->is_new() )
 	{
@@ -371,11 +378,16 @@ sub validate
 	my $path = $self->path();
 
 	# must have, alphabetical for now, make cheapest first later?
-	return ( 0, "invalid cluster_id" ) if ( !$self->cluster_id );
-	return ( 0, "invalid concept" )    if ( !$self->concept );
-	return ( 0, "invalid data" )       if ( ref( $self->data() ) ne 'HASH' );
-	return ( 0, "invalid path" )       if ( !$path || @$path < 1 );
-	return ( 0, "invalid node_uuid" )  if ( !$self->node_uuid );
+	return ( -1, "invalid cluster_id" ) if ( !$self->cluster_id );
+	return ( -2, "invalid concept" )    if ( !$self->concept );
+	return ( -3, "invalid data" )       if ( ref( $self->data() ) ne 'HASH' );
+	return ( -4, "invalid path" )       if ( !$path || @$path < 1 );
+	return ( -5, "invalid node_uuid" )  if ( !$self->node_uuid );
+
+	foreach my $entry (@$path)
+	{
+		return ( 6, "invalid, empty path entries not allowed" ) if ( !$entry );
+	}
 
 	return 1;
 }

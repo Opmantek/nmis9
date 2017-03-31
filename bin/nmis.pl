@@ -2088,7 +2088,7 @@ sub getIntfInfo
 		# load interface types (IANA). number => name
 		my $IFT = loadifTypesTable();
 
-		my ( $error, $override ) = (undef,undef);
+		my ( $error, $override ) = ( undef, undef );
 		( $error, $override ) = get_nodeconf( node => $nodename )
 			if ( has_nodeconf( node => $nodename ) );
 		logMsg("ERROR $error") if ($error);
@@ -2167,7 +2167,13 @@ sub getIntfInfo
 		{
 			next if ( $singleInterface and $intf_one ne $index );    # only one interface
 
-			if ( $S->loadInfo( class => 'interface', index => $index, model => $model ) )
+			if ($S->loadInfo(
+					class  => 'interface',
+					index  => $index,
+					model  => $model,
+					target => $NI->{interface}{$index}
+				)
+				)
 			{
 				# note: nodeconf overrides are NOT applied at this point!
 				checkIntfInfo( sys => $S, index => $index, iftype => $IFT );
@@ -2254,11 +2260,12 @@ sub getIntfInfo
 						$port = $1 . '.' . $2;
 					}
 					if ($S->loadInfo(
-							class => 'port',
-							index => $index,
-							port  => $port,
-							table => 'interface',
-							model => $model
+							class  => 'port',
+							index  => $index,
+							port   => $port,
+							table  => 'interface',
+							model  => $model,
+							target => $NI->{interface}{$index}
 						)
 						)
 					{
@@ -2279,11 +2286,12 @@ sub getIntfInfo
 						$port = $1 . '.' . $2;
 					}
 					if ($S->loadInfo(
-							class => 'port',
-							index => $index,
-							port  => $port,
-							table => 'interface',
-							model => $model
+							class  => 'port',
+							index  => $index,
+							port   => $port,
+							table  => 'interface',
+							model  => $model,
+							target => $NI->{interface}{$index}
 						)
 						)
 					{
@@ -3071,7 +3079,8 @@ sub getEnvInfo
 					section => $section,
 					index   => $index,
 					table   => $section,
-					model   => $model
+					model   => $model,
+					target  => $NI->{$section}{$index}
 				)
 				)
 			{
@@ -3191,8 +3200,9 @@ sub getSystemHealthInfo
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	$nmisng->log->error("getSystemHealthInfo cannot run on invalid node") && return 0
-		if ( !$node->validate() );
+	my ( $valid, $invalid_message ) = $node->validate();
+	$nmisng->log->error("getSystemHealthInfo cannot run on invalid node:$invalid_message") && return 0
+		if ( $valid < 1 );
 
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
@@ -3217,6 +3227,7 @@ sub getSystemHealthInfo
 	{
 		# TODO:
 		NMISNG::Util::TODO("Does deleting all of the inventory for a section and then re-building them make sense?");
+
 		# answer: I think no because PIT data will point back to it, need to find a way to mark it as unused?
 		delete $NI->{$section};
 
@@ -3279,8 +3290,7 @@ sub getSystemHealthInfo
 
 			# query can come from -common- or from the index var's own section
 			my $query = (
-				exists( $indexsection->{query} )
-				? $indexsection->{query}
+				exists( $indexsection->{query} ) ? $indexsection->{query}
 				: ( ref( $wmisection->{"-common-"} ) eq "HASH"
 						&& exists( $wmisection->{"-common-"}->{query} ) ) ? $wmisection->{"-common-"}->{query}
 				: undef
@@ -3315,35 +3325,38 @@ sub getSystemHealthInfo
 				dbg("section=$section index=$index_var, found value=$indexvalue");
 
 				# save the seen index value
-				$NI->{$section}->{$indexvalue}->{$index_var} = $indexvalue;
+				my $target = {$index_var => $indexvalue};
 
-				# get the inventory object for this, path_keys required as we don't know what type it will be
-				my $data      = {$index_var => $indexvalue};
-				my $path_keys = [$index_var];
-				my $path      = $node->inventory_path( concept => $section, data => $data, path_keys => $path_keys );
-				my ( $inventory, $error ) = $node->inventory(
-					concept   => $section,
-					data      => $data,
-					path      => $path,
-					path_keys => $path_keys,
-					create    => 1
-				);
+				# $NI->{$section}->{$indexvalue}->{} = $indexvalue;
 
 				# then get all data for this indexvalue
 				# Inventory note: for now Sys will populate the nodeinfo section it cares about
 				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
 				# the location we want the data to go
 				if ($S->loadInfo(
-						class     => 'systemHealth',
-						section   => $section,
-						index     => $indexvalue,
-						table     => $section,
-						model     => $model,
-						inventory => $inventory
+						class   => 'systemHealth',
+						section => $section,
+						index   => $indexvalue,
+						table   => $section,
+						model   => $model,
+						target  => $target
 					)
 					)
 				{
 					info("section=$section index=$indexvalue read and stored");
+
+					# get the inventory object for this, path_keys required as we don't know what type it will be
+					my $data = {$index_var => $indexvalue};
+					my $path_keys = [$index_var];
+					my $path = $node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+					my ( $inventory, $error ) = $node->inventory(
+						concept   => $section,
+						data      => $target,
+						path      => $path,
+						path_keys => $path_keys,
+						create    => 1
+					);
+
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
@@ -3369,6 +3382,7 @@ sub getSystemHealthInfo
 			info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
 			my ( %healthIndexNum, $healthIndexTable );
 
+			my $target = {};
 			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
@@ -3381,9 +3395,9 @@ sub getSystemHealthInfo
 					}
 					$healthIndexNum{$index} = $index;
 					dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
+					$target->{$index_var} = $healthIndexTable->{$oid};
 
-					$NI->{$section}->{$index}->{$index_var} = $healthIndexTable->{$oid};
-					print "calculated index:" . $healthIndexTable->{$oid} . "\n";
+					# $NI->{$section}->{$index}->{$index_var} = $healthIndexTable->{$oid};
 				}
 			}
 			else
@@ -3407,35 +3421,42 @@ sub getSystemHealthInfo
 			# Loop to get information, will be stored in {info}{$section} table
 			foreach my $index ( sort keys %healthIndexNum )
 			{
-				# get the inventory object for this, path_keys required as we don't know what type it will be
-				NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
-
-				my $data      = {$index_var => $index};
-				my $path_keys = [$index_var];
-				my $path      = $node->inventory_path( concept => $section, data => $data, path_keys => $path_keys );				
-				my ( $inventory, $error ) = $node->inventory(
-					concept   => $section,
-					data      => $data,
-					path      => $path,
-					path_keys => $path_keys,
-					create    => 1
-				);
-				$nmisng->log->error("Failed to create inventory, error:$error") if ( !$inventory || $error );
-
 				# Inventory note: for now Sys will populate the nodeinfo section it cares about
 				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
-				# the location we want the data to go				
+				# the location we want the data to go
 				if ($S->loadInfo(
-						class     => 'systemHealth',
-						section   => $section,
-						index     => $index,
-						table     => $section,
-						model     => $model,
-						inventory => $inventory
+						class   => 'systemHealth',
+						section => $section,
+						index   => $index,
+						table   => $section,
+						model   => $model,
+						target  => $target
 					)
 					)
 				{
 					info("section=$section index=$index read and stored");
+
+					# get the inventory object for this, path_keys required as we don't know what type it will be
+					NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
+
+		# NOTE: loadInfo always sets the key {index} to the index value, some of these things end up using an $index_var
+		#   that is blank which breaks the path, so for now use "index", later we could check to see if the $index_var
+		#   has a value
+					my $data = {$index_var => $index};
+					my $path_keys = [$index_var];
+					my $path = $node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+
+					# NOTE: systemHealth requires {index} => $index to be set, it
+					my ( $inventory, $error ) = $node->inventory(
+						concept   => $section,
+						data      => $target,
+						path      => $path,
+						path_keys => $path_keys,
+						create    => 1
+					);
+					$nmisng->log->error("Failed to create inventory, error:$error") if ( !$inventory || $error );
+					print "created new inventory for path" . Dumper($path) . Dumper( $inventory->path_keys )
+						if ( $inventory->is_new );
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
@@ -3456,6 +3477,7 @@ sub getSystemHealthInfo
 				}
 			}
 		}
+
 		# Inventory note: to make sure we don't leave any NI info behind remove the section again
 		delete $NI->{$section};
 	}
@@ -3487,7 +3509,7 @@ sub getSystemHealthData
 	if ( !exists( $M->{systemHealth} ) )
 	{
 		dbg("No class 'systemHealth' declared in Model");
-		return 1;             # nothing there means all ok
+		return 1;    # nothing there means all ok
 	}
 
 	# config sets default sections, model overrides
@@ -3497,8 +3519,8 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
-		my $ids = $node->get_inventory_ids( concept => $section );						
-		
+		my $ids = $node->get_inventory_ids( concept => $section );
+
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
@@ -3507,19 +3529,21 @@ sub getSystemHealthData
 			or !exists( $M->{systemHealth}->{rrd} )
 			or ref( $M->{systemHealth}->{rrd}->{$section} ) ne "HASH" );
 
+		my $thissection = $M->{systemHealth}{sys}{$section};
+		my $index_var   = $thissection->{indexed};
+
 		# that's instance index value
 		foreach my $id (@$ids)
 		{
-			my ($inventory,$error) = $node->inventory( _id => $id );
-			$node->nmisng->log->error("Faield to get inventory with id:$id, error:$error") && next if(!$inventory);
+			my ( $inventory, $error ) = $node->inventory( _id => $id );
+			$node->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
 
-			my $data = $inventory->data();			
-			my $thissection = $data;
+			my $data = $inventory->data();
 
 			# sanity check the data
-			if (ref($thissection) ne "HASH"
-				or !keys %$thissection
-				or !exists( $thissection->{index} ))
+			if (   ref($data) ne "HASH"
+				or !keys %$data
+				or !exists( $data->{index} ) )
 			{
 				my $index = $data->{index} // 'noindex';
 				logMsg(
@@ -3534,7 +3558,8 @@ sub getSystemHealthData
 				next;
 			}
 
-			my $index = $data->{index};
+			# value should be in $index_var, loadInfo also puts it in {index} so fall back to that
+			my $index = $data->{$index_var} // $data->{index};
 
 			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, debug => $model );
 			my $howdiditgo = $S->status;
@@ -3575,7 +3600,7 @@ sub getSystemHealthData
 				info("section=$section index=$index read and stored $count values");
 
 				# put the new values into the inventory and save
-				$inventory->data( $data );
+				$inventory->data($data);
 				$inventory->save();
 			}
 			else
@@ -3624,7 +3649,7 @@ sub updateNodeInfo
 	my $sysUpTime    = $NI->{system}{sysUpTime};
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
-	my $loadsuccess = $S->loadInfo( class => 'system', model => $model );
+	my $loadsuccess = $S->loadInfo( class => 'system', model => $model, target => $NI->{system} );
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
@@ -4462,8 +4487,13 @@ sub getCBQoSdata
 					dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 					#
 					# update RRD
-					my $db = updateRRD( sys => $S, data => $D, type => "cbqos-$direction", index => $intf,
-						item => $CMName );
+					my $db = updateRRD(
+						sys   => $S,
+						data  => $D,
+						type  => "cbqos-$direction",
+						index => $intf,
+						item  => $CMName
+					);
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -4930,8 +4960,12 @@ sub getCallsdata
 	{
 		my $port = $CALLS->{$index}{intfoid};
 
-		my $rrdData = $S->getData( class => 'calls', index => $CALLS->{$index}{parentintfIndex}, port => $port,
-			model => $model );
+		my $rrdData = $S->getData(
+			class => 'calls',
+			index => $CALLS->{$index}{parentintfIndex},
+			port  => $port,
+			model => $model
+		);
 		my $howdiditgo = $S->status;
 		my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
@@ -5385,15 +5419,15 @@ sub runServer
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
-		$S->loadInfo( class => 'device', model => $model );    # get cpu load without index
+		$S->loadInfo( class => 'device', model => $model, target => $NI->{device} );    # get cpu load without index
 		foreach my $index ( keys %{$deviceIndex} )
 		{
-			if ( $S->loadInfo( class => 'device', index => $index, model => $model ) )
+			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $NI->{device}{$index} ) )
 			{
 				my $D = $NI->{device}{$index};
 				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
-				{                                              # hrDeviceProcessor
+				{                                                                       # hrDeviceProcessor
 					( $hrCpuLoad, $D->{hrDeviceDescr} )
 						= $SNMP->getarray( "hrProcessorLoad.${index}", "hrDeviceDescr.${index}" );
 					dbg("CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}");
@@ -5448,7 +5482,8 @@ sub runServer
 		foreach my $index ( keys %{$storageIndex} )
 		{
 			# this saves any retrieved info under ni->{storage}
-			my $wasloadable = $S->loadInfo( class => 'storage', index => $index, model => $model );
+			my $wasloadable = $S->loadInfo( class => 'storage', index => $index, model => $model,
+				target => $NI->{storage}{$index} );
 			if ( !$wasloadable )
 			{
 				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");

@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
@@ -61,7 +62,7 @@ my $logger = NMISNG::Log->new(
 	debug => $Q->{debug},
 	info  => $Q->{info},
 	level => $C->{log_level},
-	path  => $C->{'<nnis_logs>'} . "/nmisng-cli.log"
+	path  => $C->{'<nmis_logs>'} . "/nmisng-cli.log"
 );
 
 my $nmisng = NMISNG->new(
@@ -75,11 +76,13 @@ if ( $Q->{act} eq "import-nodes-from-nodes-file" )
 	foreach my $node_name_key ( keys %$node_table )
 	{
 		my $node_configuration = $node_table->{$node_name_key};
-		my $node = $nmisng->node( id => $node_configuration->{uuid}, create => 1 );
+		my $node = $nmisng->node( uuid => $node_configuration->{uuid}, create => 1 );
 
 		# set the configuration
-		if ( $node->is_new )
+ 		if ( $node->is_new )
 		{
+			# make sure cluster_id is set
+			$node_configuration->{cluster_id} ||= $C->{server_name} // 'localhost';
 			$node->configuration($node_configuration);
 		}
 

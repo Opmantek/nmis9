@@ -90,4 +90,13 @@ sub path_keys
 	return $self->{_path_keys};
 }
 
+# sub validate
+# {
+# 	my ($self) = @_;
+# 	my ($valid,$reason) = $self->SUPER::validate();
+# 	return ($valid,$reason) if(!$valid);
+
+	
+# }
+
 1;
