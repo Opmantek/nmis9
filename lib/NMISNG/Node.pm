@@ -140,8 +140,8 @@ sub configuration
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
 # filters/arguments:
-#  concept
-
+#  cluster_id,node_uuid,concept
+# needs to always return array, not sure if it currently does
 sub get_inventory_ids
 {
 	my ( $self, %args ) = @_;
@@ -168,7 +168,8 @@ sub inventory
 	my ( $self, %args ) = @_;
 
 	# before trying anything make sure we are ok
-	return ( undef, "Node invalid" ) if ( !$self->validate() );
+	my ($valid,$invalid_message) = $self->validate();
+	return ( undef, "Node Invalid:".$invalid_message ) if ( !$valid );
 
 	my $create = $args{create};
 	delete $args{create};
@@ -190,7 +191,8 @@ sub inventory
 
 	if ( $modeldata->count() > 0 )
 	{
-		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!");
+		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args)) 
+			if($modeldata->count() > 1);
 		my $model = $modeldata->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
 
@@ -213,6 +215,7 @@ sub inventory
 		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
 		$inventory = $class->new(%args);
+
 	}
 
 	return ( $inventory, undef );
@@ -332,7 +335,9 @@ sub save
 	my ($self) = @_;
 
 	return ( 0,  undef )          if ( !$self->_dirty() );
-	return ( -1, "node invalid" ) if ( !$self->validate() );
+
+	my ( $valid, $validation_error ) = $self->validate();
+	return ( $valid, $validation_error ) if ( $valid < 1 );
 
 	my $result;
 	my $op;
@@ -393,9 +398,9 @@ sub validate
 	my ($self) = @_;
 	my $configuration = $self->configuration();
 
-	return 0 if ( !$configuration->{name} );
-	return 0 if ( !$configuration->{cluster_id} );
-	return 1;
+	return (-1, "node requires name") if ( !$configuration->{name} );
+	return (-2, "node requires cluster_id") if ( !$configuration->{cluster_id} );
+	return (1,undef);
 }
 
 1;

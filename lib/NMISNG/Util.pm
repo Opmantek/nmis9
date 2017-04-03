@@ -73,4 +73,20 @@ sub get_args_multi
 	return \%hash;
 }
 
+# this small helper forces anything that looks like a number
+# into a number. json::xs needs that distinction, ditto mongodb.
+# args: a single input, should be a string or a number.
+#
+# returns: original thing if not number or ref or other unwanted stuff,
+# numberified thing otherwise.
+sub numify
+{
+	my ($maybe) = @_;
+
+	return $maybe if ref($maybe);
+
+	# integer or full ieee floating point with optional exponent notation
+	return ( $maybe =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ ) ? ( $maybe + 0 ) : $maybe;
+}
+
 1;

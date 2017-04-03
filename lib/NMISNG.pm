@@ -81,10 +81,15 @@ sub new
 	my $nodecoll = NMISNG::DB::get_collection( db => $db, name => "nodes" );
 	$self->log->fatal( "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
 	my $ipcoll = NMISNG::DB::get_collection( db => $db, name => "ip" );
-	$self->log->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll );
-
-	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
+	$self->log->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
 	$self->log->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) if ( !$inventorycoll );
+
+	# tell everything to prefer numberic
+	my $collections = [$nodecoll, $ipcoll, $inventorycoll];
+	for my $collection (@$collections)
+	{
+		$collection = $collection->with_codec( prefer_numeric => 1 );
+	}
 
 	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 	my $err = NMISNG::DB::ensure_index(
@@ -99,8 +104,7 @@ sub new
 		indices       => [
 			[{"concept"    => 1}, {unique => 0}],
 			[{"lastupdate" => 1}, {unique => 0}],
-			[{"path"       => 1}, {unique => 0}],
-			[{"node_uuid"  => 1}, {unique => 0}],
+			[{"path"       => 1}, {unique => 0}],		# can't make this unique, mongo does not like
 		]
 	);
 
@@ -223,7 +227,7 @@ sub get_inventory_model
 		}
 
 		my $len = @$path - 1;
-		map { $q->{"path.$_"} = $path->[$_] if ( defined( $path->[$_] ) ) } ( 0 .. $len );
+		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $len );
 	}
 
 	my $model_data = [];
@@ -233,7 +237,7 @@ sub get_inventory_model
 		my $count = NMISNG::DB::count( collection => $self->_inventory_collection, query => $q );
 		$model_data->[$count - 1] = {} if ($count);
 	}
-
+	# print "get_inventory_model: q:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
 		query      => $q,

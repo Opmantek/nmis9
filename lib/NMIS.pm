@@ -2439,6 +2439,7 @@ sub createHrButtons
 	my $widget = $args{widget};
 	my $AU = $args{AU};
 	my $confname = $args{conf};
+	my $nmisng_node = $args{nmisng_node};
 
 	return "" if (!$node);
 	$refresh = "false" if (!getbool($refresh));
@@ -2509,11 +2510,12 @@ sub createHrButtons
 		if ( defined $S->{mdl}{systemHealth}{sys} )
 		{
     	my @systemHealth = split(",",$S->{mdl}{systemHealth}{sections});
-			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
+			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";			
 			foreach my $sysHealth (@systemHealth)
 			{
+				my $ids = $nmisng_node->get_inventory_ids( concept => $sysHealth );				
 				# don't show spurious blank entries
-				if (ref($NI->{$sysHealth}) eq "HASH" and keys(%{$NI->{$sysHealth}}))
+				if ( @$ids > 0 )
 				{
 					push @out, CGI::li(CGI::a({ class=>'wht',  href=>"network.pl?conf=$confname&act=network_system_health_view&section=$sysHealth&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"}, $sysHealth));
 				}
