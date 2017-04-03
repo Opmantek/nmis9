@@ -45,8 +45,9 @@ use NMISNG::Node;
 
 # params:
 #  config - hash containing object
-#  [debug] - 0/1 should debug be on, defaults to 0, TODO: is this required? can log not do this?
-#  log - NMISNG::Log object to log to
+#  log - NMISNG::Log object to log to, required.
+#  db - mongodb database object, optional.
+#  drop_unwanted_indices - optional, ignored  if 
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -71,19 +72,19 @@ sub new
 		if ( !$conn )
 		{
 			my $errmsg = NMISNG::DB::get_error_string;
-			$self->log( "fatal", "cannot connect to MongoDB: $errmsg" );
+			$self->log->fatal("cannot connect to MongoDB: $errmsg" );
 			die "cannot connect to MongoDB: $errmsg\n";
 		}
 		$db = $conn->get_database( $self->config->{db_name} );
 	}
 
 	my $nodecoll = NMISNG::DB::get_collection( db => $db, name => "nodes" );
-	$self->fatal( "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
+	$self->log->fatal( "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
 	my $ipcoll = NMISNG::DB::get_collection( db => $db, name => "ip" );
-	$self->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll );
+	$self->log->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll );
 
 	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
-	$self->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) if ( !$inventorycoll );
+	$self->log->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) if ( !$inventorycoll );
 
 	NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
 	my $err = NMISNG::DB::ensure_index(
