@@ -36,57 +36,84 @@ use strict;
 
 our $VERSION = "1.0.0";
 
-use Clone;    # for copying data section
+use Clone;											# for copying data and other r/o sections
+use Scalar::Util;								# for weaken
 use Data::Dumper;
+
 
 use NMISNG::DB;
 
-# based on the concept, decide which class to create
-# - or return the fallback/default class
+# based on the concept, decide which class to create - or return the fallback/default class
+# args: concept
+# returns: class name
 sub get_inventory_class
 {
 	my ($concept) = @_;
 	my %knownclasses = (
-		'default'       => 'DefaultInventory',    # the fallback
+		'default'       => 'DefaultInventory',    # the fallback, must be present
 		'service'       => "ServiceInventory",
-		"NeedsToBeMade" => "MakeMeYouLazyBum",
+		# ...
 	);
 
 	my $class = "NMISNG::Inventory::" . ( $knownclasses{$concept} // $knownclasses{default} );
 	return $class;
 }
 
-# params:
-#   concept - type of inventory
-#   data - hash of data for this thing, whatever is required, must include cluster_id and node_uuid
-#   id - the _id of this thing if it's not new
-#   nmisng - NMISNG object, parent, config/log as well as model loading
-#   path - used if provided, not required, can be calculated on save if enough info is present,
-#     basically required for existing inventory objects
+# create a new inventory manager object
+# note: the object is always strictly associated with a node_uuid and a cluster_id
+# this method is expected to be subclassed!
+#
+# params: concept (=class name, type of inventory), 
+#  nmisng (parent object), node_uuid, cluster_id, 
+#  data - all required
+# optional: id  (alias _id, the db _id of this thing if it's not new), 
+#  path (used if provided, not required, normally can be calculated on save),
+#  enabled (1/0, "nmis does something with this inventory item"),
+#  historic (not present or 0, or anything else)
+#  storage (hash of subconcept name -> path to the rrd file for this thing, relative to database_root),
+#  path_key (must be arrayref if present - used for simplest path computation, ie. with listed keys from data)
 sub new
 {
 	my ( $class, %args ) = @_;
 
 	my $nmisng = $args{nmisng};
-	return if ( !$nmisng );    # check this so we can use it to log
+	return undef if ( !$nmisng );   # check this early so we can use it to log
 
+	for my $musthave (qw(concept cluster_id node_uuid))
+	{
+		if (!defined $args{$musthave})
+		{
+			$nmisng->log->fatal("Inventory object cannot be created without $musthave!");
+			return undef;
+		}
+	}
+	
 	my $data = $args{data};
-	$nmisng->log->error("DefaultInventory cannot be created without cluster_id") && return
-		if ( !$data->{cluster_id} );    # required"
-	$nmisng->log->error("DefaultInventory cannot be created without node_uuid") && return
-		if ( !$data->{node_uuid} );     # required"
+	if (ref($data) ne "HASH")
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid data argument!");
+		return undef;
+	}
+	if (exists($args{storage}) && ref($args{storage}) ne "HASH")
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid storage argument!");
+		return undef;
+	}
+	if (exists($args{path_keys}) && ref($args{path_keys} ne "ARRAY"))
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid path_keys argument!");
+		return undef;
+	}
+	
+	# compat issue, we *may* get _id
+	$args{id} //= $args{_id};
+	
+	my $self = bless( {
+		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng 
+path path_keys enabled historic storage))) }, $class);
+	# in addition to these, there's also on-demand _deleted
 
-	my $self = {
-		_concept => $args{concept},
-		_data    => $args{data},
-		_id      => $args{id} // $args{_id},    # this has to be possible in order to create new ones from modeldata
-		_nmisng  => $args{nmisng},
-		_path    => $args{path},
-	};
-	bless( $self, $class );
-
-	Scalar::Util::weaken $self->{_nmisng} if ( $self->{_nmisng} && !Scalar::Util::isweak( $self->{_nmisng} ) );
-
+	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
 }
 
@@ -98,55 +125,72 @@ sub new
 # Protected:
 ###########
 
+# compute path from data and selection args.
+# note: this is a generic class function, not object method!
+#
 # take data and a set of keys (path_keys, which index the provided data) and create
-# a path out of them.  This is a generic function that can work with any class
-# it just needs to provide the params, this is why it exists here. DefaultInventory
-# relies on this implementation to work, if your subclass does not need to do anything
+# a path out of them. This is a generic function that can work with any class;
+# you just need to provide the params, this is why it exists here. 
+#
+# DefaultInventory relies on this implementation to work, if your subclass does not need to do anything
 # fancy (like morph/tranlate data in keys) then it should probably use this implementation
+# args: cluster_id, node_uuid, concept, data, path_keys (all required), partial (optional, default: 0)
+# returns error message or path arrayref if ok
 sub make_path_from_keys
 {
-	my (%args)        = @_;
-	my $concept       = $args{concept};
-	my $data_original = $args{data};
-	my $keys_original = $args{path_keys} // [];
-	my $partial = $args{partial};
+	my (%args) = @_;
 
-	return if ( ref($keys_original) ne 'ARRAY' );
-
-	my $path = [];
-
-	# deep copy data so we can put concept into it
-	my $data = Clone::clone($data_original);
-	$data->{concept} = $concept;
-
-	# copy keys (because user may pass in same ref several times) and add prereqs
-	# shallow ok here
-	my $keys = [@$keys_original];
-	unshift @$keys, 'cluster_id', 'node_uuid', 'concept';
-
-	foreach my $key (@$keys)
+	my $keys = $args{"path_keys"};
+	return "make_path_from_keys cannot work without path_keys!"
+			if (ref($keys) ne "ARRAY");
+	return "make_path_from_keys has invalid data argument: ".ref($args{data})
+			if (exists($args{data}) && ref($args{data}) ne "HASH");
+	
+	my @path;
+	# to make the path globally unique
+	for my $prefixelem ("cluster_id","node_uuid","concept")
 	{
-		return if ( !$partial && !defined( $data->{$key} ) );
-		push @$path, $data->{$key};
+		if (!$args{partial} && !defined($args{$prefixelem}))
+		{
+			return "make_path_from_keys is missing $prefixelem argument!";
+		}
+		push @path, $args{$prefixelem};
 	}
-	return $path;
+	# now go through the given path_keys
+	foreach my $pathelem (@$keys)
+	{
+		if (!$args{partial} && !defined($args{data}->{$pathelem}))
+		{
+			return("make_path_from_keys is missing $pathelem data!");
+		}
+		push @path, $args{data}->{$pathelem};
+	}
+	return \@path;
 }
 
-# subclasses should implement this, it is not a member function, it's a class one
-# this is so that paths can be calculated without a whole object being created
-# (which is handy for searching)
-# it should fill out the path value
-# it should return undef if it does not have enough data to create the path
+# (re)compute path from instance data - BUT also create path WITHOUT instance!
+# note: MUST NOT be instance method, but a class function, ie. NO SELF!
+# this is so that paths can be calculated without a whole object being created (which is handy for searching,
+# used from Node.pm)
+#
+# subclasses MUST implement this. 
+# 
+# args: cluster_id, node_uuid, concept, data, (all required),
+# path_keys (required for a simple class using make_path_from_keys); partial (optional)
+#
+# it should fill out the path value (arrayref),
+# it MUST construct the path with cluster_id, node_uuid and concept as the first three elements,
+# it should return an error message if it does not have enough data to create the path
 # if partial is 1 then part of a path will be returned, which could be handy for searching (maybe?)
-# param - data, hash holding place to build path from
+#
+# returns error message or path array ref
 sub make_path
 {
 	# make up for object deref invocation being passed in as first argument
 	# expecting a hash which has even # of inputs
 	shift if ( !( $#_ % 2 ) );
-	my (%args) = @_;
 
-	return make_path_from_keys(%args);
+	die(__PACKAGE__."::make_path must be implemented by subclass!");
 }
 
 ###########
@@ -163,11 +207,18 @@ sub add_pit
 	# can't add to unsaved inventory, or it autosaves
 }
 
+# RO, returns nmisng object that this inventory object is using
+sub nmisng
+{
+	my ($self) = @_;
+	return $self->{_nmisng};
+}
+
 # RO, returns cluster_id of this Inventory
 sub cluster_id
 {
 	my ($self) = @_;
-	return $self->data()->{cluster_id};
+	return $self->{_cluster_id};
 }
 
 # RO, returns concept of this Inventory
@@ -177,19 +228,93 @@ sub concept
 	return $self->{_concept};
 }
 
-# returns a copy of the data
-# to change data call and set a new value, does
-# not allow overriding
-# currently does not allow changing the clusterid or nodeuuid, this may change
-sub data
+# RO, returns node_uuid of the owning node
+sub node_uuid
+{
+	my ($self) = @_;
+	return $self->{_node_uuid};
+}
+
+# returns the enabled status, optionally sets a new status
+# args: newstatus
+sub enabled
+{
+	my ($self,$newstatus) = @_;
+	if (@_ == 2)									# ie. even if undef
+	{
+		$self->{_enabled} = $newstatus;
+	}
+	return $self->{_enabled};
+}
+
+# returns the historic status (ie. when the inventory object was marked as deprecated/superseded/dead),
+#  optionally sets a new status 
+# args: newstatus
+sub historic
+{
+	my ($self,$newstatus) = @_;
+	if (@_ == 2)									# ie. even if undef
+	{
+		$self->{_historic} = $newstatus;
+	}
+	return $self->{_historic};
+}
+
+# returns the storage structure, optionally replaces it (all of it)
+# to modify: call first to get, modify the copy, then call with the updated copy to set
+# args: optional new storage info (hashref)
+# returns: clone of storage info, logs on error
+sub storage
+{
+	my ($self, $newstorage) = @_;
+	if (@_ == 2)									# ie. even if undef
+	{
+		if (defined($newstorage) && ref($newstorage) ne "HASH")
+		{
+			$self->nmisng->log->error("storage accessor called with invalid argument, type ".ref($newstorage));
+		}
+		else
+		{
+			$self->{_storage} = $newstorage;
+		}
+	}
+	return Clone::clone($self->{_storage});
+}
+
+# returns the path keys list, optionally replaces it
+# args: new path_keys (arrayref)
+# returns: clone of path_keys
+# note: not possible to delete path_keys.
+sub path_keys
 {
 	my ( $self, $newvalue ) = @_;
 	if ( defined($newvalue) )
 	{
-		my ( $cluster_id, $node_uuid ) = ( $self->cluster_id, $self->node_uuid );
-		$newvalue->{cluster_id} = $cluster_id;
-		$newvalue->{node_uuid}  = $node_uuid;
-		$self->{_data}          = $newvalue;
+		$self->{_path_keys} = $newvalue;
+	}
+	return Clone::clone($self->{_path_keys});
+}
+
+# returns a copy of the data component of this inventory object, optionally replaces data (all of it)
+# (i.e. the parts possibly specific to this instance class)
+# 
+# to change data: call first to get, modify the copy, then call with the updated copy to set
+# args: optional data (hashref),
+# returns: clone of data, logs on error
+sub data
+{
+	my ( $self, $newvalue ) = @_;
+
+	if ( defined($newvalue) )
+	{
+		if (ref($newvalue) ne "HASH")
+		{
+			$self->nmisng->log->error("data accessor called with invalid argument ".ref($newvalue));
+		}
+		else
+		{
+			$self->{_data} = $newvalue;
+		}
 	}
 	return Clone::clone( $self->{_data} );
 }
@@ -243,39 +368,45 @@ sub is_new
 	return ($has_id) ? 0 : 1;
 }
 
-# load/reload from db, handy for testing to make sure update has been successful
-sub load
+# reload this object from db, handy for testing to make sure update has been successful
+# args: none, just needs self's id
+# returns: undef or error message
+sub reload
 {
 	my ($self) = @_;
+	
 	if ( !$self->is_new )
 	{
 		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
+		return "no inventory object with id ".$self->id." in database!" if (!$modeldata->count);
 		my $newme = $modeldata->data()->[0];
-		$self->{_concept} = $newme->{concept};
-		$self->data( $newme->{data} );
-		$self->{_path} = $newme->{path};
+
+		# some things are ro/no settergetter, path MUST be set directly, its accessor gets confused by id/is_new!
+		for my $copyable (qw(cluster_id node_uuid concept path lastupdate))
+		{
+			$self->{"_$copyable"} = $newme->{$copyable};
+		}
+		# others are supposed to be settable via accessor
+		for my $settable (qw(data storage historic enabled path_keys))
+		{
+			$self->$settable($newme->{$settable});
+		}
 	}
+	else
+	{
+		return "cannot reload unsaved inventory object!";
+	}
+	return undef;
 }
 
-# return nmisng object this node is using
-sub nmisng
-{
-	my ($self) = @_;
-	return $self->{_nmisng};
-}
 
-# return this Inventories node uuid
-sub node_uuid
-{
-	my ($self) = @_;
-	return $self->data()->{node_uuid};
-}
-
-# make or get the path and return it
+# (re)make or get the path and return it
+# args: recalculate - [0/1], optional (default 0)
+# returns: arrayref
+#
 # new objects will recalculate their path on each call, specifiying recalculate makes no difference
 # objects which are not new should already have a path and that value will be returned
 # unless recalculate is specified.
-# param recalculate - [0/1]
 # path is made by Class method corresponding to the this objects concept
 # NOTE: the use of path keys below breaks convention,
 sub path
@@ -285,7 +416,7 @@ sub path
 	my $path;
 	if ( !$self->is_new() && !$self->{_path} && !$args{recalculate} )
 	{
-		$self->nmisng->log->error("Saved inventory should already have a path");
+		$self->nmisng->log->error("Saved inventory should already have a path!");
 	}
 	elsif ( !$self->is_new() && $self->{_path} && !$args{recalculate} )
 	{
@@ -293,27 +424,29 @@ sub path
 	}
 	else
 	{
-		# make_path will ignore the first arg here
-		# so calling it on self is safe, we are aiming to call the
-		# subclasses make_path (or ours if not overloaded)
-		$args{concept} = $self->concept();
-		$args{data}    = $self->data();
-
-		$path = $self->make_path(%args);
+		# make_path itself will ignore the first arg here, but finding the right subclass's
+		# make_path does require it.
+		$path = $self->make_path(cluster_id => $self->cluster_id,
+														 node_uuid => $self->node_uuid,
+														 concept => $self->concept,
+														 path_keys => $self->path_keys, # possibly nonex, up to subclass to worry about
+														 data => $self->data);
 
 		# always store the path, it may be re-calculated next time but that's fine
 		# if we don't store here recalculate/save won't work
 		$self->{_path} = $path;
-
 	}
-	$self->nmisng->log->error("Path must be an array") if ( ref($path) ne "ARRAY" );
+	$self->nmisng->log->error("Path must be an array!") if ( ref($path) ne "ARRAY" );
+	
 	return $path;
 }
 
-# provide lastupdate time if desired
-# lastupdate is currently not added to object but is stored in db
+# save the inventory obj in the database
+# args: lastupdate, optional, defaults to now
+#
+# note: lastupdate is currently not added to object but is stored in db only
+# the object's _id and _path are refreshed
 # returns ($op,$error), op is 1 for insert, 2 for save, error is string if there was an error
-# on save _id and _path are refreshed, lastupdate is set to save time if not supplied
 sub save
 {
 	my ( $self, %args ) = @_;
@@ -322,19 +455,28 @@ sub save
 	my ( $valid, $validation_error ) = $self->validate();
 	return ( $valid, $validation_error ) if ( !$valid );
 
-	my $result;
-	my $op;
+	my ($result, $op);
 
-	# path is calculated but must be stored so it can be queried
+
 	my $record = {
+		cluster_id => $self->cluster_id,
+		node_uuid => $self->node_uuid,
 		concept    => $self->concept(),
+		path       => $self->path(), 	# path is calculated but must be stored so it can be queried
+		path_keys => $self->path_keys(), # could be empty, kept in db for selfcontainment and convenience
+		
 		data       => $self->data(),
-		path       => $self->path(),
-		lastupdate => $lastupdate
+		storage => $self->storage(),
+
+		enabled => $self->enabled(),
+		historic => $self->historic(),
+
+		lastupdate => $lastupdate,
 	};
 
 	# numify anything in path
 	my $path = $record->{path};
+
 	for(my $i = 0; $i < @$path; $i++)
 	{
 		$path->[$i] = NMISNG::Util::numify($path->[$i])
@@ -349,7 +491,7 @@ sub save
 		);
 		$op = 1;
 
-		# _id is set on insert, grab it so we know we're not knew
+		# _id is set on insert, grab it so we know we're not new
 		$self->{_id} = $result->{id} if ( $result->{success} );
 	}
 	else
@@ -374,8 +516,8 @@ sub save
 sub validate
 {
 	my ($self) = @_;
-
 	my $path = $self->path();
+	my $storage = $self->storage;
 
 	# must have, alphabetical for now, make cheapest first later?
 	return ( -1, "invalid cluster_id" ) if ( !$self->cluster_id );
@@ -383,6 +525,7 @@ sub validate
 	return ( -3, "invalid data" )       if ( ref( $self->data() ) ne 'HASH' );
 	return ( -4, "invalid path" )       if ( !$path || @$path < 1 );
 	return ( -5, "invalid node_uuid" )  if ( !$self->node_uuid );
+	return (-6, "invalid storage structure") if  (defined($storage) && ref($storage) ne "HASH");
 
 	foreach my $entry (@$path)
 	{

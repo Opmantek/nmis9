@@ -40,6 +40,9 @@ sub new
 {
 	my ( $class, %args ) = @_;
 
+	my $nmisng = $args{nmisng};
+	return if ( !$nmisng );    # check this so we can use it to log
+
 	# validate data section
 	my $data = $args{data};
 	return if ( !$data->{description} );
@@ -49,17 +52,33 @@ sub new
 	return if ( !$data->{uuid} );
 
 	my $self = $class->SUPER::new(%args);
+	$nmisng->log->error(__PACKAGE__." failed to get parent new!") && return
+			if (!ref($self));
+	
+	bless($self, $class);
 	return $self;
 }
 
-# overload make path and generate it based on
-# this path is not good, needs to make sense, a bunch of overlapping
-#  concepts in it currently, maybe that's ok?
+# make a path suitable for service-type inventory
+# attention: MUST be a class function, NOT an instance method! no self!
+# args: cluster_id, node_uuid, concept, data, (all required),
+# path_keys (ignored if given, we set it here), partial (optional)
+# returns; path ref or error message
 sub make_path
 {
-	my (%args) = @_;
-	$args{keys} = ['service','uuid'];
-	my $path = make_path_from_keys( %args) ;
+	# make up for object deref invocation being passed in as first argument
+	# expecting a hash which has even # of inputs
+	shift if ( !( $#_ % 2 ) );
 	
+	my (%args) = @_;
+	
+	my $path = NMISNG::Inventory::make_path_from_keys(
+		cluster_id => $args{cluster_id},
+		node_uuid => $args{node_uuid},
+		concept => $args{concept},
+		path_keys => ['service'],		# override
+		data => $args{data},
+		partial => $args{partial});
+
 	return $path;
 }
