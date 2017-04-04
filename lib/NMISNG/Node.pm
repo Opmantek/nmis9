@@ -107,7 +107,8 @@ sub cluster_id
 # setting data means the configuration is dirty and will
 #  be saved next time save is called, even if it is identical to what
 #  is in the database
-# getting will load the configuration if it's not already loaded
+# getting will load the configuration if it's not already loaded and return a copy so
+#   any changes made will not affect this object until they are put back (set) using this function
 # params:
 #  newvalue - if set will replace what is currently loaded for the config
 #   and set the object to be dirty
@@ -134,7 +135,7 @@ sub configuration
 		$self->load_part( load_configuration => 1 );
 	}
 
-	return $self->{_configuration};
+	return Clone::clone( $self->{_configuration} );
 }
 
 # get a list of id's for inventory related to this node,
