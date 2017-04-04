@@ -94,12 +94,12 @@ sub new
 		$nmisng->log->fatal("Inventory object cannot be created with invalid data argument!");
 		return undef;
 	}
-	if (exists($args{storage}) && ref($args{storage}) ne "HASH")
+	if (defined($args{storage}) && ref($args{storage}) ne "HASH")
 	{
 		$nmisng->log->fatal("Inventory object cannot be created with invalid storage argument!");
 		return undef;
 	}
-	if (exists($args{path_keys}) && ref($args{path_keys} ne "ARRAY"))
+	if (defined($args{path_keys}) && ref($args{path_keys} ne "ARRAY"))
 	{
 		$nmisng->log->fatal("Inventory object cannot be created with invalid path_keys argument!");
 		return undef;
