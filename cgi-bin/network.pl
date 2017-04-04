@@ -4107,7 +4107,8 @@ sub viewSystemHealth
 			&& !$S->parseString(
 				string => "($M->{systemHealth}{rrd}{$section}{control}) ? 1:0",
 				index  => $index,
-				sect   => $section
+				sect   => $section,
+				eval => 1
 			)
 			)
 		{

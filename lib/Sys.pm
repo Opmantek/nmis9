@@ -71,6 +71,8 @@ sub new
 			debug        => 0,
 			update       => 0,      # flag for update vs collect operation - attention: read by others!
 			cache_models => 1,      # json caching for model files default on
+
+			_nmisng_node => undef #
 		},
 		$class
 	);
@@ -91,6 +93,44 @@ sub ndcfg     { my $self = shift; return $self->{cfg} };                   # my 
 sub envinfo   { my $self = shift; return $self->{info}{environment} };     # my $ENV = $S->envinfo
 sub syshealth { my $self = shift; return $self->{info}{systemHealth} };    # my $SH = $S->syshealth
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
+
+# these don't create on access because re-running init is supposed to reset the object
+sub nmisng         { my $self = shift; return $self->{_nmisng} };
+sub nmisng_node    { my $self = shift; return $self->{_nmisng_node} };
+
+# arguments required:
+#  concept
+# optional arguments:
+#  anything to specifically find the inventory object you need, $index is likely needed
+# this assumes that a data section with a single entry 'index' is enough to find what is needed
+# or that no index is necessary at all
+sub inventory
+{
+	my ($self,%args) = @_;
+	my $node = $self->nmisng_node;
+	my ($concept,$index) = @args{'concept','index'};
+	return if(!$node);
+	return if(!$concept);	
+
+	my ($data,$path_keys);
+	if( $index )
+	{
+		$data->{index} = $index;
+		$path_keys = ['index'];
+	}
+	my $path = $node->inventory_path(concept => $concept, data => $data, path_keys => $path_keys);
+	my ($inventory,$error_message);
+	if( $path )
+	{
+		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path);
+		$self->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory || $error_message);
+	}
+	else
+	{
+		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index");
+	}	
+	return $inventory;
+}
 
 #===================================================================
 
@@ -152,6 +192,9 @@ sub init
 		$self->{error} = "failed to load configuration table!";
 		return 0;
 	}
+
+	$self->{_nmisng} = NMIS::new_nmisng();
+	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
 	# caching can be chosen with argument cache_models here.
@@ -227,12 +270,9 @@ sub init
 	if (    !$self->{error}
 		and ( $snmp or $wantwmi )
 		and $self->{name} ne "" )
-	{
-		# fixme: this uses NMIS module code. very unclean separation.
-		my $lnt      = NMIS::loadLocalNodeTable();
-		my $safename = NMIS::checkNodeName( $self->{name} );
-		$self->{cfg}->{node} = Clone::clone( $lnt->{$safename} )
-			if ( ref($lnt) eq "HASH" && $safename );
+	{		
+		$self->{cfg}->{node} = $self->nmisng_node->configuration()
+			if ( $self->nmisng_node );
 
 		if ( $self->{cfg}->{node} )
 		{
@@ -781,7 +821,8 @@ sub getValues
 			if (!$self->parseString(
 					string => "($thissection->{control}) ? 1:0",
 					index  => $index,
-					sect   => $sectionname
+					sect   => $sectionname,
+					eval => 1
 				)
 				)
 			{
@@ -1487,6 +1528,83 @@ sub getTitle
 	return undef;
 }
 
+# add a whole bunch of variables to the extras hash that parseString added so are now
+# required for backwards compat
+sub prep_extras_with_system_globals
+{
+	my ($self, %args) = @_;
+	my $extras = $args{extras};
+	my $index = $args{index};
+	my $item = $args{item};
+	my $str = $args{str};
+	
+	# create a fallback to old system
+	my $data = $self->{info}{system}; 
+	# if new one is there use it
+	my $system_global_inventory = $self->inventory(concept => "system_global");
+	if( $system_global_inventory )
+	{
+		$data = $system_global_inventory->data;
+	}
+	$extras->{node} = $self->{node};
+
+	foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
+	{
+		$extras->{$key} = $data->{$key} // $self->{info}{system}
+	}
+	$extras->{InstalledModems} //= 0;
+	
+	# if I am wanting a storage thingy, then lets populate the variables I need.
+	if ( $index ne ''
+		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
+	{
+		my $data = $self->{info}{storage}{$index};
+		my $storage_inventory = $self->inventory(concept => 'storage', index => $index);
+		if( $storage_inventory )
+		{
+			$data = $storage_inventory->data();
+		}
+		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
+		{
+			$extras->{$key} = $data->{$key}
+		}		
+		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
+		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
+		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
+	}
+
+	my $interface_inventory;
+	$interface_inventory = $self->inventory(concept => 'interface', index => $index) if($index);
+	if ( $interface_inventory )
+	{
+		# no fallback to info section as interface update is running
+		# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
+		$data = $interface_inventory->data();
+		foreach my $key (qw(ifAlias Description ifDescr ifType ifSpeed))
+		{
+			$extras->{$key} = $data->{$key}
+		}
+		$extras->{ifDescr} = convertIfName( $extras->{ifDescr} );
+		$extras->{ifMaxOctets} = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 8 ) : 'U';
+		$extras->{maxBytes}    = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 4 ) : 'U';
+		$extras->{maxPackets}  = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 50 ) : 'U';
+
+		$data = {};
+		$data = $self->{info}{entPhysicalDescr}{$index} if( defined $self->{info}{entPhysicalDescr} && defined $self->{info}{entPhysicalDescr}{$index} );
+		my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index);
+		$data = $entPhysicalDescr_inventory->data() if($entPhysicalDescr_inventory);
+		$extras->{entPhysicalDescr} = $data->{entPhysicalDescr} // undef;		
+	}
+	else
+	{
+		$extras->{ifDescr} = $extras->{ifType}      = '';
+		$extras->{ifSpeed} = $extras->{ifMaxOctets} = 'U';
+	}
+	
+	$extras->{item}            = $item;
+	$extras->{index}           = $index;
+}
+
 #===================================================================
 # parse string to replace scalars or evaluate string and return result
 # args: self=sys, string (required),
@@ -1502,182 +1620,80 @@ sub parseString
 {
 	my ( $self, %args ) = @_;
 
-	my ( $str, $indx, $itm, $sect, $type, $extras ) = @args{"string", "index", "item", "sect", "type", "extras"};
+	my ( $str, $indx, $itm, $sect, $type, $extras, $eval ) = @args{"string", "index", "item", "sect", "type", "extras", "eval"};
 
 	dbg( "parseString:: string to parse '$str'", 3 );
 
+	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value	
+	my $data;
+	$data = $self->{info}->{$sect} if( defined($self->{info}->{$sect}));
+	$data = $data->{$indx} if( defined($indx) && defined($self->{info}->{$sect}->{$indx}) );
+
+	my $inventory = $self->inventory(concept => $sect, index => $indx);
+	if ( $sect )
 	{
-		no strict;    # *shudder*
-		map { undef ${"CVAR$_"} } ( '', 0 .. 9 );    # *twitch* but better than reusing old cvar values...
+		$data = $inventory->data if($inventory);
+		my $consumeme = $str;
+		my $rebuilt;
 
-		if ( $self->{info} )
+		# nongreedy consumption up to the first CVAR assignment
+		while ( $consumeme =~ s/^(.*?)CVAR(\d)?=(\w+);// )
 		{
-			# find custom variables CVAR[n]=thing; in section, and substitute $CVAR[n] with the value
-			if (   $sect
-				&& ref( $self->{info}->{$sect} ) eq "HASH"
-				&& ref( $self->{info}->{$sect}->{$indx} ) eq "HASH" )
-			{
-				my $consumeme = $str;
-				my $rebuilt;
+			my ( $number, $thing ) = ( $2, $3 );
+			$rebuilt .= $1;
+			$number = '' if ( !defined $number );    # let's support CVAR, CVAR0 .. CVAR9, all separate
+	
+			logMsg("ERROR: $thing not a known property in section $sect!")
+				if ( !exists $data->{$thing} );
 
-				# nongreedy consumption up to the first CVAR assignment
-				while ( $consumeme =~ s/^(.*?)CVAR(\d)?=(\w+);// )
-				{
-					my ( $number, $thing ) = ( $2, $3 );
-					$rebuilt .= $1;
-					$number = '' if ( !defined $number );    # let's support CVAR, CVAR0 .. CVAR9, all separate
-
-					if ( !defined($indx) or $indx eq '' )
-					{
-						logMsg("ERROR: $thing not a known property in section $sect!")
-							if ( !exists $self->{info}->{$sect}->{$thing} );
-
-						# let's set the global CVAR or CVARn to whatever value from the node info section
-						${"CVAR$number"} = $self->{info}->{$sect}->{$thing};
-					}
-					else
-					{
-						logMsg("ERROR: $thing not a known property in section $sect, index $indx!")
-							if ( !exists $self->{info}->{$sect}->{$indx}->{$thing} );
-
-						# let's set the global CVAR or CVARn to whatever value from the node info section
-						${"CVAR$number"} = $self->{info}->{$sect}->{$indx}->{$thing};
-					}
-					dbg( "found assignment for CVAR$number, $thing, value " . ${"CVAR$number"}, 3 );
-				}
-				$rebuilt .= $consumeme;    # what's left after looking for CVAR assignments
-
-				dbg("var extraction transformed \"$str\" into \"$rebuilt\"\nvariables: "
-						. join( ", ", map { "CVAR$_=" . ${"CVAR$_"}; } ( "", 0 .. 9 ) ),
-					3
-				);
-
-				$str = $rebuilt;
-			}
-
-			$name          = $self->{info}{system}{name};
-			$node          = $self->{node};
-			$host          = $self->{info}{system}{host};
-			$group         = $self->{info}{system}{group};
-			$roleType      = $self->{info}{system}{roleType};
-			$nodeModel     = $self->{info}{system}{nodeModel};
-			$nodeType      = $self->{info}{system}{nodeType};
-			$nodeVendor    = $self->{info}{system}{nodeVendor};
-			$sysDescr      = $self->{info}{system}{sysDescr};
-			$sysObjectName = $self->{info}{system}{sysObjectName};
-			$location      = $self->{info}{system}{location};
-
-			# if I am wanting a storage thingy, then lets populate the variables I need.
-			if (    $indx ne ''
-				and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
-			{
-				$hrStorageDescr = $self->{info}{storage}{$indx}{hrStorageDescr};
-				$hrStorageType  = $self->{info}{storage}{$indx}{hrStorageType};
-				$hrStorageUnits = $self->{info}{storage}{$indx}{hrStorageUnits};
-				$hrStorageSize  = $self->{info}{storage}{$indx}{hrStorageSize};
-				$hrStorageUsed  = $self->{info}{storage}{$indx}{hrStorageUsed};
-				$hrDiskSize     = $hrStorageSize * $hrStorageUnits;
-				$hrDiskUsed     = $hrStorageUsed * $hrStorageUnits;
-				$hrDiskFree     = $hrDiskSize - $hrDiskUsed;
-			}
-
-			# fixing auto-vivification bug!
-			if ( $indx ne '' and exists $self->{info}{interface}{$indx} )
-			{
-				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
-				$ifAlias     = $self->{info}{interface}{$indx}{Description};
-				$Description = $self->{info}{interface}{$indx}{Description};
-				###
-				$ifDescr     = convertIfName( $self->{info}{interface}{$indx}{ifDescr} );
-				$ifType      = $self->{info}{interface}{$indx}{ifType};
-				$ifSpeed     = $self->{info}{interface}{$indx}{ifSpeed};
-				$ifMaxOctets = ( $ifSpeed ne 'U' ) ? int( $ifSpeed / 8 ) : 'U';
-				$maxBytes    = ( $ifSpeed ne 'U' ) ? int( $ifSpeed / 4 ) : 'U';
-				$maxPackets  = ( $ifSpeed ne 'U' ) ? int( $ifSpeed / 50 ) : 'U';
-				if ( defined $self->{info}{entPhysicalDescr}
-					and $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} ne "" )
-				{
-					$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
-				}
-			}
-			else
-			{
-				$ifDescr = $ifType      = '';
-				$ifSpeed = $ifMaxOctets = 'U';
-			}
-			$InstalledModems = $self->{info}{system}{InstalledModems} || 0;
-			$item            = '';
-			$item            = $itm;
-			$index           = $indx;
+			# let's set the global CVAR or CVARn to whatever value from the node info section
+			$extras->{"CVAR$number"} = $data->{$thing};
+					
+			dbg( "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"}, 3 );
 		}
+		$rebuilt .= $consumeme;    # what's left after looking for CVAR assignments
 
-		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n"
-				. "\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",
+		dbg("var extraction transformed \"$str\" into \"$rebuilt\"\nvariables: "
+				. join( ", ", map { "CVAR$_=" . $extras->{"CVAR$_"}; } ( "", 0 .. 9 ) ),
 			3
 		);
 
-		# massage the string and replace any available variables from extras,
-		# but ONLY WHERE no compatibility hardcoded variable is present.
-		#
-		# if the extras substitution were to be done first, then the identically named
-		# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
-		if ( ref($extras) eq "HASH" )
-		{
-			for my $maybe ( sort keys %$extras )
-			{
-				# note: the $$maybe works ONLY because this is under no strict
-				if ( defined($$maybe) && $$maybe ne $extras->{$maybe} )
-				{
-					dbg( "ignoring '$maybe' from extras: '$extras->{$maybe}' clashes with legacy '$$maybe'", 3 );
-					next;
-				}
-				my $presubst = $str;
-
-				# this substitutes $varname and ${varname},
-				# the latter is safer b/c the former has trouble with varnames sharing a prefix.
-				# no look-ahead assertion is possible, we don't know what the string is used for...
-				if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
-				{
-					dbg( "substituted '$maybe', str before '$presubst', after '$str'", 3 );
-				}
-			}
-		}
-
-		if ( $str =~ /\?/ )
-		{
-			# format of $str is ($scalar =~ /regex/) ? "1" : "0"
-			my $check = $str;
-			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-
-			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			if ( $check =~ /ERROR/ )
-			{
-				dbg($check);
-				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str, $check";
-				logMsg($str);
-			}
-			else
-			{
-				# fixme: this is a substantial security risk, because backtics are also evaluated!
-				$str =~ s{(.+)}{eval $1}eg;    # execute expression
-			}
-			dbg( "result of eval is $str", 3 );
-		}
-		else
-		{
-			my $s = $str;                      # copy
-			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-
-			# $str =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			if ( $str =~ /ERROR/ )
-			{
-				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, $str");
-				$str = undef;
-			}
-		}
-		dbg( "parseString:: result is str=$str", 3 );
-		return $str;
+		$str = $rebuilt;
 	}
+	else
+	{
+		logMsg("No inventory found for concept:$sect")
+	}
+	$self->prep_extras_with_system_globals( extras => $extras, index => $indx, item => $itm, str => $str);
+
+	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
+	
+	# massage the string and replace any available variables from extras,
+	# but ONLY WHERE no compatibility hardcoded variable is present.
+	#
+	# if the extras substitution were to be done first, then the identically named
+	# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
+	if ( ref($extras) eq "HASH" )
+	{
+		for my $maybe ( sort keys %$extras )
+		{	
+			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			my $presubst = $str;
+
+			# this substitutes $varname and ${varname},
+			# the latter is safer b/c the former has trouble with varnames sharing a prefix.
+			# no look-ahead assertion is possible, we don't know what the string is used for...
+			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
+			{
+				dbg( "substituted '$maybe', str before '$presubst', after '$str'", 3 );
+			}
+		}
+	}
+	die Dumper($str,$extras) if( !$eval && $str =~ /\$/);
+	my $product = ($eval) ? eval $str : $str;
+	logMsg("parseString failed for str:$str, error:$@") if($@);
+	dbg( "parseString:: result is str=$product", 3 );
+	return $product;
 }
 
 # returns a hash of graphtype -> rrd section name for this node
@@ -1875,7 +1891,7 @@ sub graphHeading
 
 	if ($header)
 	{
-		$header = $self->parseString( string => $header, index => $index, item => $item );
+		$header = $self->parseString( string => $header, index => $index, item => $item, eval => 0 );
 	}
 	else
 	{

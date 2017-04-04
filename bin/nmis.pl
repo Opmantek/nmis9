@@ -2089,6 +2089,7 @@ sub getIntfInfo
 		if ( not $singleInterface )
 		{
 			delete $NI->{interface};
+
 			# TODO: inventory, do we want to do this?
 		}
 
@@ -2145,21 +2146,21 @@ sub getIntfInfo
 
 			# remove unknown interfaces, found in previous runs, from table
 			### possible vivification
-			my $ids = $nmisng_node->get_inventory_ids( concept => 'interface');
+			my $ids = $nmisng_node->get_inventory_ids( concept => 'interface' );
 			foreach my $id (@$ids)
 			{
 				# we may want a faster way to do this, perhaps ask for the ids along with some data?
-				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $id);
+				my ( $inventory, $error_message ) = $nmisng_node->inventory( _id => $id );
 				$nmisng->log->warn("Failed to get Inventory for interface:$id, error:$error_message") && next;
 
 				my $index = $$inventory->data()->{index};
-			
-				if ( !defined($ifIndexMap->{$index} ) )
+
+				if ( !defined( $ifIndexMap->{$index} ) )
 				{
-					$inventory->delete();					
+					$inventory->delete();
 					foreach my $graphtype (qw(interface pkts pkts_hc))
 					{
-						delete $NI->{graphtype}{$index}{$graphtype} if ( defined $NI->{graphtype}{$index}{$graphtype} );						
+						delete $NI->{graphtype}{$index}{$graphtype} if ( defined $NI->{graphtype}{$index}{$graphtype} );
 					}
 					dbg("Interface ifIndex=$index removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
@@ -2223,12 +2224,12 @@ sub getIntfInfo
 						}
 					}
 
-					# easy!					
+					# easy!
 					delete $IF->{$index};
 					delete $target_table->{$index};
 				}
 				else
-				{					
+				{
 					logMsg("INFO ($S->{name}) ifadminstatus is empty for index=$index")
 						if $target->{ifAdminStatus} eq "";
 					info(
@@ -2285,8 +2286,7 @@ sub getIntfInfo
 						$V->{interface}{"${index}_portAdminSpeed_value"}
 							= convertIfSpeed( $target->{portAdminSpeed} );
 						dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
-						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}"
-						);
+						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}" );
 					}
 				}
 				else
@@ -2311,8 +2311,7 @@ sub getIntfInfo
 						$V->{interface}{"${index}_portAdminSpeed_value"}
 							= convertIfSpeed( $target->{portAdminSpeed} );
 						dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
-						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}"
-						);
+						dbg("portNumber: $port, VLan: $target->{vlanPortVlan}, AdminSpeed: $target->{portAdminSpeed}" );
 					}
 				}
 			}
@@ -2343,6 +2342,7 @@ sub getIntfInfo
 						info("ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
 						$target->{"ipAdEntAddr$ifCnt{$index}"}    = $addr;
 						$target->{"ipAdEntNetMask$ifCnt{$index}"} = $ifMaskTable->{$addr};
+
 						# NOTE: inventory, breaks index convention here! not a big deal but it happens
 						(   $target_table->{$ifAdEntTable->{$addr}}{"ipSubnet$ifCnt{$index}"},
 							$target_table->{$ifAdEntTable->{$addr}}{"ipSubnetBits$ifCnt{$index}"}
@@ -2452,6 +2452,7 @@ sub getIntfInfo
 		foreach my $i (@ifIndexNum)
 		{
 			my $target = $target_table->{$i};
+
 			#foreach my $i (keys %{$IF}) {
 			# ifDescr must always be filled
 			$target->{ifDescr} ||= $i;
@@ -2475,8 +2476,8 @@ sub getIntfInfo
 		{
 			next if ( $singleInterface and $intf_one ne $index );
 			my $target = $target_table->{$index};
-			
-			my $ifDescr  = $target->{ifDescr};
+
+			my $ifDescr = $target->{ifDescr};
 			$intfTotal++;
 
 			# count total number of real interfaces
@@ -2494,7 +2495,7 @@ sub getIntfInfo
 
 				if ( $thisintfover->{Description} )
 				{
-					$target->{nc_Description} = $target->{Description};                       # save
+					$target->{nc_Description} = $target->{Description};                         # save
 					$target->{Description}    = $V->{interface}{"${index}_Description_value"}
 						= $thisintfover->{Description};
 					info("Manual update of Description by nodeConf");
@@ -2599,17 +2600,17 @@ sub getIntfInfo
 			if ( $target->{Description} =~ /$qr_no_event_ifAlias_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifAlias";                                                # reason
+				$target->{noevent} = "found $1 in ifAlias";                                                  # reason
 			}
 			elsif ( $target->{ifType} =~ /$qr_no_event_ifType_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifType";                                                 # reason
+				$target->{noevent} = "found $1 in ifType";                                                   # reason
 			}
 			elsif ( $target->{ifDescr} =~ /$qr_no_event_ifDescr_gen/i )
 			{
 				$target->{event}   = "false";
-				$target->{noevent} = "found $1 in ifDescr";                                                # reason
+				$target->{noevent} = "found $1 in ifDescr";                                                  # reason
 			}
 
 			# convert interface name
@@ -2809,9 +2810,10 @@ sub getIntfInfo
 					}
 				}
 			}
+
 			# For now, create inventory at the very end
-			# get the inventory object for this, path_keys required as we don't know what type it will be			
-			my $path_keys = ['index']; # for now use this, loadInfo guarnatees it will exist
+			# get the inventory object for this, path_keys required as we don't know what type it will be
+			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
 			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );
 			my ( $inventory, $error ) = $nmisng_node->inventory(
 				concept   => 'interface',
@@ -2821,8 +2823,7 @@ sub getIntfInfo
 				create    => 1
 			);
 			my ( $op, $error ) = $inventory->save();
-			$nmisng->log->error(
-				"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+			$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 				if ($error);
 		}
 
@@ -2854,7 +2855,7 @@ sub checkIntfInfo
 	my $ifTypeDefs = $args{iftype};
 
 	my $target = $args{target};
-	my $V  = $S->view;
+	my $V      = $S->view;
 
 	my $thisintf = $target;
 	if ( $thisintf->{ifDescr} eq "" ) { $thisintf->{ifDescr} = "null"; }
@@ -4041,6 +4042,18 @@ sub getIntfData
 
 	$RI->{intfUp} = $RI->{intfColUp} = 0;    # reset counters of interface Up and interface collected Up
 
+	# find all id's that are needed for the first section of searching
+	my $model_data = $nmisng->get_inventory_model(
+		'concept' => 'interface', 
+		'cluster_id' => $nmisng_node->cluster_id,
+		'node_uuid' => $nmisng_node->uuid, 
+		fields_hash => { '_id' => 1, 'data.ifIndex' => 1,'data.ifAdminStatus' => 1,'data.ifLastChange' => 1}
+	);
+	# create a map by ifindex so we can look them up easily
+	my $data = $model_data->data();
+	my %if_map = map { $_->{data}{ifIndex} => $_->{data} } (@$data);
+	print "ifmap:".Dumper(\%if_map);
+
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
 		or ref( $S->{mdl}{custom}->{interface} ) ne "HASH"
@@ -4054,14 +4067,14 @@ sub getIntfData
 
 		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
-			$ifOperTable = $SNMP->getindex('ifOperStatus');
+			$ifOperTable = $SNMP->getindex('ifOperStatus');			
 			for my $index ( keys %{$ifAdminTable} )
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table")
-					if not exists $IF->{$index}{ifAdminStatus};
+					if( !exists $if_map{$index}->{ifAdminStatus} );
 
-				if (   ( $ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up' )
-					or ( $ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up' ) )
+				if ( ( $ifAdminTable->{$index} == 1 and $if_map{$index}{ifAdminStatus} ne 'up' )
+					or ( $ifAdminTable->{$index} != 1 and $if_map{$index}{ifAdminStatus} eq 'up' ) )
 				{
 					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
 					getIntfInfo( sys => $S, index => $index );    # update this interface
@@ -5515,8 +5528,12 @@ sub runServer
 		foreach my $index ( keys %{$storageIndex} )
 		{
 			# this saves any retrieved info under ni->{storage}
-			my $wasloadable = $S->loadInfo( class => 'storage', index => $index, model => $model,
-				target => $NI->{storage}{$index} );
+			my $wasloadable = $S->loadInfo(
+				class  => 'storage',
+				index  => $index,
+				model  => $model,
+				target => $NI->{storage}{$index}
+			);
 			if ( !$wasloadable )
 			{
 				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
@@ -6636,7 +6653,8 @@ sub runAlerts
 							string => "($CA->{$sect}{$alrt}{control}) ? 1:0",
 							index  => $index,
 							type   => $sect,
-							sect   => $sect
+							sect   => $sect,
+							eval => 1
 						);
 						dbg("control_result sect=$sect index=$index control_result=$control_result");
 						next if not $control_result;
@@ -6809,7 +6827,7 @@ sub runCheckValues
 		if ( my $control = $M->{system}{sys}{$sect}{control} )    # check if skipped by control
 		{
 			dbg( "control=$control found for section=$sect", 2 );
-			if ( !$S->parseString( string => "($control) ? 1:0", sect => $sect ) )
+			if ( !$S->parseString( string => "($control) ? 1:0", sect => $sect, eval => 1 ) )
 			{
 				dbg("checkvalues of section $sect skipped by control=$control");
 				next;
@@ -10032,7 +10050,7 @@ sub doThreshold
 					)
 				{
 					dbg( "control found:$control for section=$s type=$type, non-indexed", 1 );
-					if ( !$S->parseString( string => "($control) ? 1:0", sect => $type ) )
+					if ( !$S->parseString( string => "($control) ? 1:0", sect => $type, eval => 1 ) )
 					{
 						dbg("threshold of type $type skipped by control=$control");
 						next;
@@ -10081,7 +10099,7 @@ sub doThreshold
 						if ($control)
 						{
 							dbg( "control found:$control for s=$s type=$type, index=$index", 1 );
-							if ( !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index ) )
+							if ( !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, eval => 1 ) )
 							{
 								dbg("threshold of type $type, index $index skipped by control=$control");
 								next;
@@ -10368,7 +10386,7 @@ sub runThrHld
 		);
 
 		# get 'Proactive ....' string of Model
-		my $event = $S->parseString( string => $M->{threshold}{name}{$nm}{event}, index => $index );
+		my $event = $S->parseString( string => $M->{threshold}{name}{$nm}{event}, index => $index, eval => 0 );
 
 		my $details = "";
 		my $spacer  = "";
@@ -10437,7 +10455,7 @@ sub getThresholdLevel
 	foreach my $thr ( sort { $a <=> $b } keys %{$T} )
 	{
 		next if $thr eq 'default';    # skip now the default values
-		if ( ( $S->parseString( string => "($T->{$thr}{control})?1:0", index => $index, item => $item ) ) )
+		if ( ( $S->parseString( string => "($T->{$thr}{control})?1:0", index => $index, item => $item, eval => 1 ) ) )
 		{
 			$val = $T->{$thr}{value};
 			dbg("found threshold=$thrname entry=$thr");

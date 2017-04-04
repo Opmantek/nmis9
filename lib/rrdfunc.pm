@@ -456,7 +456,7 @@ sub getFileName
 
 		if ($dir = $S->parseString(string=>$string, type=>$safetype,
 															 index=>$safeindex, item=>$safeitem,
-															 extras => \%safeextras ))
+															 extras => \%safeextras, eval => 0 ))
 		{
 			$dir = $C->{database_root}.$dir; # full specification
 			dbg("filename of type=$type is $dir");
@@ -699,7 +699,8 @@ sub optionsRRD
 			($source,$range,$heartbeat) = split (/\,/,$data->{$id}{option});
 
 			# no CVARs as no section given
-			$range = $S->parseString(string=>$range, type=>$type, index=>$index) if $S ne "";
+			# not a full expression so no eval
+			$range = $S->parseString(string=>$range, type=>$type, index=>$index, eval => 0) if $S ne "";
 			$source = uc $source;
 		}
 		$source ||= "GAUGE";
