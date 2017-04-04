@@ -149,6 +149,7 @@ sub get_inventory_ids
 	# what happens when an error happens here?
 	$args{cluster_id} = $self->cluster_id;
 	$args{node_uuid}  = $self->uuid();
+	$args{fields_hash} = {'_id' => 1};
 
 	my $model_data = $self->nmisng->get_inventory_model(%args);
 

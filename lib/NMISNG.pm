@@ -195,6 +195,11 @@ sub ip_collection
 # all arguments that are used in the beginning of the path will be put
 # into the path for you, so specificying path[1,2] and cluster_id=>3 will chagne
 # the path to path[3,2]
+# arguments:
+#.   path - array
+#.   cluster_id,node_uuid,concept - will all be put into the path, overriding what is there
+#.   data - hash, will match up whatever has been added - not indexed so be careful
+#.   [fields_hash] - which fields should be returned, if not provided the whole record is returned
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
@@ -240,10 +245,11 @@ sub get_inventory_model
 	# print "get_inventory_model: q:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
-		query      => $q,
+		query      => $q,		
 		sort       => $args{sort},
 		limit      => $args{limit},
-		skip       => $args{skip}
+		skip       => $args{skip},
+		fields_hash => $args{fields_hash},
 	);
 
 	my $index = 0;
