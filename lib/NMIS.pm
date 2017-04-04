@@ -182,21 +182,18 @@ my $SRC_modtime;
 # preset kernel name
 my $kernel = $^O;
 
-# todo: how to set debug=> and info=> into logger
 sub new_nmisng
 {
 	my $C = loadConfTable();
-
-	my $level = $C->{log_level};
 	my $debug = func::getDebug();
-	# debug = 1 means log to file but with debug, anything above means log to stdout
-	$debug = undef if( $debug == 1 );
+
+	# log level is controlled by debug (from commandline or config file),
+	# output is stderr if debug came from command line, log file otherwise
 	my $logger = NMISNG::Log->new(
 		level => $debug // $C->{log_level},
-		path  => $C->{'<nnis_logs>'} . "/nmisng.log"
-	);
-	my $logger = NMISNG::Log->new(level => $debug, debug => $debug, path => $C->{'<nmis_logs>'}."/nmisng.log" );
-
+		path  =>  ($debug? undef :  $C->{'<nmis_logs>'} . "/nmisng.log")
+			);
+	
 	my $nmisng = NMISNG->new(
 		config => $C,
 		log => $logger,

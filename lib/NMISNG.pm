@@ -81,8 +81,11 @@ sub new
 	my $nodecoll = NMISNG::DB::get_collection( db => $db, name => "nodes" );
 	$self->log->fatal( "Could not get collection nodes: " . NMISNG::DB::get_error_string ) if ( !$nodecoll );
 	my $ipcoll = NMISNG::DB::get_collection( db => $db, name => "ip" );
-	$self->log->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) if ( !$ipcoll	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
-	$self->log->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) if ( !$inventorycoll );
+	$self->log->fatal( "Could not get collection ip: " . NMISNG::DB::get_error_string ) 
+			if ( !$ipcoll	);
+	my $inventorycoll = NMISNG::DB::get_collection( db => $db, name => "inventory" );
+	$self->log->fatal( "Could not get collection inventorycoll: " . NMISNG::DB::get_error_string ) 
+			if ( !$inventorycoll );
 
 	# tell everything to prefer numberic
 	my $collections = [$nodecoll, $ipcoll, $inventorycoll];

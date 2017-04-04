@@ -58,37 +58,43 @@ sub new
 		if ( !$args{path_keys} && !$args{_id} );
 
 	my $self = $class->SUPER::new(%args);
-	$nmisng->log->error("DefaultInventory failed to get parent new") && return if ( !$self );
-
-	$self->path_keys( $args{path_keys} ) if ( $args{path_keys} );
-
+	$nmisng->log->error(__PACKAGE__." failed to get parent new!") && return
+			if (!ref($self));
+	
+	bless($self, $class);
 	return $self;
 }
 
+# creates path from data and path key selection
+# attention: must be a class function, NOT instance method! no self.
+# args: cluster_id, node_uuid, concept, path_keys, data (all required), partial (optional)
+# returns: path arrayref or error message
 sub make_path
 {
-	return NMISNG::Inventory::make_path(@_);
+	# make up for object deref invocation being passed in as first argument
+	# expecting a hash which has even # of inputs
+	shift if ( !( $#_ % 2 ) );
+	
+	my (%args) = @_;
+	return NMISNG::Inventory::make_path_from_keys(cluster_id => $args{cluster_id},
+																								node_uuid => $args{node_uuid},
+																								concept => $args{concept},
+																								data => $args{data},
+																								path_keys => $args{path_keys},
+																								
+																								partial => $args{partial});
 }
 
 # making a path can be done even on !new objects, in that case we may not have
 # path keys so allow passing them in, overriding what is there if you want
+# args: just recalculate
 sub path
 {
 	my ( $self, %args ) = @_;
 
-	$args{path_keys} = $self->path_keys if ( !defined( $args{_path_keys} ) );
-	$self->SUPER::path(%args);
+	$self->SUPER::path(recalculate => $args{recalculate});
 }
 
-sub path_keys
-{
-	my ( $self, $newvalue ) = @_;
-	if ( defined($newvalue) )
-	{
-		$self->{_path_keys} = $newvalue;
-	}
-	return $self->{_path_keys};
-}
 
 # sub validate
 # {
