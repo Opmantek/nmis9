@@ -120,14 +120,14 @@ sub inventory
 	}
 	my $path = $node->inventory_path(concept => $concept, data => $data, path_keys => $path_keys);
 	my ($inventory,$error_message);
-	if( $path )
+	if( ref($path) eq 'ARRAY' )
 	{
 		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path);
-		$self->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory || $error_message);
+		$self->nmisng->log->error("Failed to get inventory, concept:$concept error_message:$error_message, path:".join(',', @$path)) if(!$inventory);
 	}
 	else
 	{
-		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index");
+		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path");
 	}	
 	return $inventory;
 }

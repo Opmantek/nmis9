@@ -2038,9 +2038,9 @@ sub getIntfInfo
 	my $nodename = $NI->{system}->{name};
 
 	# create the node here for now, this should be passed in as a param in the future
-	my $nmisng = NMIS::new_nmisng;
-	my $nmisng_node = $nmisng->node( uuid => $NI->{system}->{uuid} );
-
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
+	
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days
 		= $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
@@ -2814,17 +2814,26 @@ sub getIntfInfo
 			# For now, create inventory at the very end
 			# get the inventory object for this, path_keys required as we don't know what type it will be
 			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );
-			my ( $inventory, $error ) = $nmisng_node->inventory(
-				concept   => 'interface',
-				data      => $target,
-				path      => $path,
-				path_keys => $path_keys,
-				create    => 1
-			);
-			my ( $op, $error ) = $inventory->save();
-			$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-				if ($error);
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );			
+			if( ref($path) eq 'ARRAY')
+			{
+				my ( $inventory, $error ) = $nmisng_node->inventory(
+					concept   => 'interface',
+					data      => $target,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
+				);
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				$inventory->path( recalculate => 1 );
+				my ( $op, $error ) = $inventory->save();
+				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);
+			}
+			else 
+			{
+				$nmisng->log->error("Failed to create path for inventory, error:$path");
+			}
 		}
 
 		info("Finished");
@@ -3224,8 +3233,8 @@ sub getSystemHealthInfo
 	my $C    = loadConfTable();
 
 	# create the node here for now, this should be passed in as a param in the future
-	my $nmisng = NMIS::new_nmisng;
-	my $node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
 
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -3386,7 +3395,9 @@ sub getSystemHealthInfo
 						path_keys => $path_keys,
 						create    => 1
 					);
-
+					$nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+					$inventory->path( recalculate => 1 );
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
@@ -3484,7 +3495,9 @@ sub getSystemHealthInfo
 						path_keys => $path_keys,
 						create    => 1
 					);
-					$nmisng->log->error("Failed to create inventory, error:$error") if ( !$inventory || $error );
+					$nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+					$inventory->path( recalculate => 1 );
 					print "created new inventory for path" . Dumper($path) . Dumper( $inventory->path_keys )
 						if ( $inventory->is_new );
 
@@ -3530,8 +3543,8 @@ sub getSystemHealthData
 	my $C = loadConfTable();
 
 	# create the node here for now, this should be passed in as a param in the future
-	my $nmisng = NMIS::new_nmisng;
-	my $node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
 
 	info("Starting");
 	info("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
@@ -3628,7 +3641,7 @@ sub getSystemHealthData
 					}
 				}
 				info("section=$section index=$index read and stored $count values");
-
+				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
 				$inventory->save();
@@ -4032,9 +4045,9 @@ sub getIntfData
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
-	# create the node here for now, this should be passed in as a param in the future
-	my $nmisng = NMIS::new_nmisng;
-	my $nmisng_node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+	# load the node here for now, this should be passed in as a param in the future
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
 
 	my $createdone = "false";
 
@@ -4047,12 +4060,20 @@ sub getIntfData
 		'concept' => 'interface', 
 		'cluster_id' => $nmisng_node->cluster_id,
 		'node_uuid' => $nmisng_node->uuid, 
-		fields_hash => { '_id' => 1, 'data.ifIndex' => 1,'data.ifAdminStatus' => 1,'data.ifLastChange' => 1}
+		fields_hash => { 
+			'_id' => 1, 
+			'data.collect' => 1,
+			'data.ifAdminStatus' => 1,
+			'data.ifDescr' => 1,
+			'data.ifIndex' => 1,			
+			'data.ifLastChange' => 1,
+		}
 	);
-	# create a map by ifindex so we can look them up easily
+	
 	my $data = $model_data->data();
-	my %if_map = map { $_->{data}{ifIndex} => $_->{data} } (@$data);
-	print "ifmap:".Dumper(\%if_map);
+	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
+	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+	print "ifmap:".Dumper(\%if_data_map);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
@@ -4071,10 +4092,10 @@ sub getIntfData
 			for my $index ( keys %{$ifAdminTable} )
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table")
-					if( !exists $if_map{$index}->{ifAdminStatus} );
+					if( !exists $if_data_map{$index}->{ifAdminStatus} );
 
-				if ( ( $ifAdminTable->{$index} == 1 and $if_map{$index}{ifAdminStatus} ne 'up' )
-					or ( $ifAdminTable->{$index} != 1 and $if_map{$index}{ifAdminStatus} eq 'up' ) )
+				if ( ( $ifAdminTable->{$index} == 1 and $if_data_map{$index}->{ifAdminStatus} ne 'up' )
+					or ( $ifAdminTable->{$index} != 1 and $if_data_map{$index}->{ifAdminStatus} eq 'up' ) )
 				{
 					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
 					getIntfInfo( sys => $S, index => $index );    # update this interface
@@ -4103,61 +4124,58 @@ sub getIntfData
 		{
 			for my $index ( sort { $a <=> $b } ( keys %{$ifLastChangeTable} ) )
 			{
-				logMsg("INFO ($S->{name}) entry ifLastChange for index=$index not found in interface table")
-					if not exists $IF->{$index}{ifLastChange};
 				my $ifLastChangeSec = int( $ifLastChangeTable->{$index} / 100 );
-				if ( not exists $IF->{$index} )
-				{
-				# updateNodeInfo should have already run a getIntfInfo unless {custom}{interface}{ifNumber} set to false
-					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
-					getIntfInfo( sys => $S, index => $index );    # add this interface
-				}
-				elsif ( $ifLastChangeSec != $IF->{$index}{ifLastChangeSec} )
-				{
-					info(
-						"$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}"
-					);
-					getIntfInfo( sys => $S, index => $index );    # update this interface
-					$IF->{$index}{ifLastChangeSec} = $ifLastChangeSec;
-				}
-				else
+				if( exists($if_data_map{$index}) && $ifLastChangeSec == $if_data_map{$index}->{ifLastChange} )
 				{
 					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 				}
+				else
+				{
+					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec") if( !exists($if_data_map{$index}) );
+					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}") 
+						if($ifLastChangeSec != $if_data_map{$index}->{ifLastChangeSec}); # don't care about vivify here
+					getIntfInfo( sys => $S, index => $index );    # add/update this interface
+					# $IF->{$index}{ifLastChangeSec} = $ifLastChangeSec; # the update should do this automatically
+				}
 			}
 		}
-
 		# check for deleted interfaces
-		foreach my $index ( sort { $a <=> $b } keys %{$IF} )
+		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
 		{
 			if ( not exists $ifLastChangeTable->{$index} )
 			{
-				info("$IF->{$index}{ifDescr}: Interface Removed ifIndex=$index");
-				delete $IF->{$index};
+				my $data = $if_data_map{$index};
+				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
+				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
 			}
 		}
 	}
 
 	info("Processing Interface Table");
-	foreach my $index ( sort { $a <=> $b } keys %{$IF} )
+	foreach my $index ( sort { $a <=> $b } keys %if_data_map )
 	{
+		# don't bother loading up interface inventory object until we know we need it
+		my $data = $if_data_map{$index};
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
-		if (   !getbool( $IF->{$index}->{collect} )
-			or !defined( $IF->{$index}->{ifDescr} )
-			or $IF->{$index}->{ifDescr} eq "" )
+		if ( !getbool( $data->{collect} )	or !defined( $data->{ifDescr} )	or $data->{ifDescr} eq "" )
 		{
 			dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}"
 			);
 			next;
 		}
+		my ($inventory,$error_message) = $nmisng_node->inventory( _id => $data->{_id} );
+		$nmisng->log->error("Failed to get inventory, _id:$data->{_id}, error_message:$error_message") if(!$inventory);
+		# replace minimal data with all data known
+		my $inventory_data = $inventory->data();
 
 		info(
-			"$IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, was => OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Collect=$IF->{$index}{collect}"
+			"$data->{ifDescr}: ifIndex=$data->{ifIndex}, was => OperStatus=$data->{ifOperStatus}, ifAdminStatus=$data->{ifAdminStatus}, Collect=$data->{collect}"
 		);
 
 		dbg("collect interface index=$index");
 
+		# this is safe from using {info}{interface}, uses graphtype data a lot
 		my $rrdData    = $S->getData( class => 'interface', index => $index, model => $model );
 		my $howdiditgo = $S->status;
 		my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
@@ -4231,20 +4249,21 @@ sub getIntfData
 							# interface now up or down, check and set or clear outstanding event.
 							dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}"
 							);
-							$IF->{$index}{ifAdminStatus} = $D->{ifAdminStatus}{value};
-							$IF->{$index}{ifOperStatus}  = $D->{ifOperStatus}{value};
+							$inventory_data->{ifAdminStatus} = $D->{ifAdminStatus}{value};
+							$inventory_data->{ifOperStatus}  = $D->{ifOperStatus}{value};
 
-							if (    getbool( $IF->{$index}{collect} )
-								and $IF->{$index}{ifAdminStatus} =~ /up|ok/
-								and $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/ )
+							# checking for collect here is pointless, we already know it's on or we wouldn't be here!
+							if (    getbool( $inventory_data->{collect} )
+								and $inventory_data->{ifAdminStatus} =~ /up|ok/
+								and $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
 							{
-								if ( getbool( $IF->{$index}{event} ) )
+								if ( getbool( $inventory_data->{event} ) )
 								{
 									notify(
 										sys     => $S,
 										event   => "Interface Down",
-										element => $IF->{$index}{ifDescr},
-										details => $IF->{$index}{Description},
+										element => $inventory_data->{ifDescr},
+										details => $inventory_data->{Description},
 										context => {type => "interface"}
 									);
 								}
@@ -4255,8 +4274,8 @@ sub getIntfData
 									sys     => $S,
 									event   => "Interface Down",
 									level   => "Normal",
-									element => $IF->{$index}{ifDescr},
-									details => $IF->{$index}{Description}
+									element => $inventory_data->{ifDescr},
+									details => $inventory_data->{Description}
 								);
 							}
 						}
@@ -4266,7 +4285,7 @@ sub getIntfData
 							);
 							if ( $D->{ifOperStatus}{value} eq 'down' )
 							{
-								if ( $IF->{$index}{ifOperStatus} =~ /up|ok/ )
+								if ( $inventory_data->{ifOperStatus} =~ /up|ok/ )
 								{
 									# going down
 									getIntfInfo( sys => $S, index => $index );    # update this interface
@@ -4277,7 +4296,7 @@ sub getIntfData
 							else
 							{
 								# Check if the status changed
-								if ( $IF->{$index}{ifOperStatus} !~ /up|ok|dormant/ )
+								if ( $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
 								{
 									# going up
 									getIntfInfo( sys => $S, index => $index );    # update this interface
@@ -4288,20 +4307,21 @@ sub getIntfData
 						# If new ifDescr is different from old ifDescr rebuild interface info table
 						# check if nodeConf modified this inteface
 						my $node    = $NI->{system}{name};
-						my $ifDescr = $IF->{$index}{ifDescr};
+						my $ifDescr = $inventory_data->{ifDescr};
 
 						# nodeconf override for the ifDescr?
-						my $have_overridden_ifdescr = 1
+						my $have_overridden_ifdescr;
+						$have_overridden_ifdescr = 1
 							if ( ref( $override->{$ifDescr} ) eq "HASH"
 							and $override->{$ifDescr}->{ifDescr} );
 
 						if (   !$have_overridden_ifdescr
 							and $D->{ifDescr}{value} ne ''
-							and $D->{ifDescr}{value} ne $IF->{$index}{ifDescr} )
+							and $D->{ifDescr}{value} ne $inventory_data->{ifDescr} )
 						{
 							# Reload the interface config won't get that one right but should get the next one right
 							logMsg(
-								"INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$IF->{$index}{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"
+								"INFO ($S->{name}) ifIndex=$index - ifDescr has changed - old=$inventory_data->{ifDescr} new=$D->{ifDescr}{value} - updating Interface Table"
 							);
 							getIntfInfo( sys => $S, index => $index );    # update this interface
 						}
@@ -4312,9 +4332,9 @@ sub getIntfData
 						if ( exists $D->{ifLastChange}{value} )
 						{
 							# convert time integer to time string
-							$V->{interface}{"${index}_ifLastChange_value"} = $IF->{$index}{ifLastChange}
-								= convUpTime( $IF->{$index}{ifLastChangeSec} = int( $D->{ifLastChange}{value} / 100 ) );
-							dbg("last change time=$IF->{$index}{ifLastChange}, timesec=$IF->{$index}{ifLastChangeSec}");
+							$V->{interface}{"${index}_ifLastChange_value"} = $inventory_data->{ifLastChange}
+								= convUpTime( $inventory_data->{ifLastChangeSec} = int( $D->{ifLastChange}{value} / 100 ) );
+							dbg("last change time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
 						}
 						delete $D->{ifLastChange};
 
@@ -4325,13 +4345,13 @@ sub getIntfData
 						$D->{ifOperStatus}{value} = $operStatus;    # store real value in rrd
 
 						# While updating start calculating the total availability of the node, depends on events set
-						my $opstatus = getbool( $IF->{$index}{event} ) ? $operStatus : 100;
+						my $opstatus = getbool( $inventory_data->{event} ) ? $operStatus : 100;
 						$RI->{operStatus} = $RI->{operStatus} + $opstatus;
 						$RI->{operCount}  = $RI->{operCount} + 1;
 
 						# count total number of collected interfaces up ( if events are set on)
 						$RI->{intfColUp} += $operStatus / 100
-							if getbool( $IF->{$index}{event} );
+							if getbool( $inventory_data->{event} );
 					}
 					else
 					{
@@ -4371,12 +4391,12 @@ sub getIntfData
 				dbg("Updating view with ifAdminStatus=$IFCACHE->{$index}{ifAdminStatus} and ifOperStatus=$IFCACHE->{$index}{ifOperStatus}"
 				);
 				$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(
-					collect       => $IF->{$index}{collect},
+					collect       => $inventory_data->{collect},
 					ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus},
 					ifOperStatus  => $IFCACHE->{$index}{ifOperStatus}
 				);
 				$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(
-					collect       => $IF->{$index}{collect},
+					collect       => $inventory_data->{collect},
 					ifAdminStatus => $IFCACHE->{$index}{ifAdminStatus},
 					ifOperStatus  => $IFCACHE->{$index}{ifOperStatus}
 				);
@@ -4386,15 +4406,15 @@ sub getIntfData
 
 			### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 			### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-			if ( eventExist( $node, "Interface Down", $IF->{$index}{ifDescr} )
-				and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ )
+			if ( eventExist( $node, "Interface Down", $inventory_data->{ifDescr} )
+				and $inventory_data->{ifOperStatus} =~ /up|ok|dormant/ )
 			{
 				checkEvent(
 					sys     => $S,
 					event   => "Interface Down",
 					level   => "Normal",
-					element => $IF->{$index}{ifDescr},
-					details => $IF->{$index}{Description}
+					element => $inventory_data->{ifDescr},
+					details => $inventory_data->{Description}
 				);
 			}
 		}
@@ -4406,10 +4426,10 @@ sub getIntfData
 			$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
 
 			# interface problems but no usable data, don't make an event
-			if ( getbool( $IF->{$index}{event} ) )
+			if ( getbool( $inventory_data->{event} ) )
 			{
 				logMsg(
-					"ERROR: Interface SNMP Data: ifAdminStatus=$IF->{$index}{ifAdminStatus} ifOperStatus=$IF->{$index}{ifOperStatus} collect=$IF->{$index}{collect}"
+					"ERROR: Interface SNMP Data: ifAdminStatus=$inventory_data->{ifAdminStatus} ifOperStatus=$inventory_data->{ifOperStatus} collect=$inventory_data->{collect}"
 				);
 			}
 		}
@@ -4419,10 +4439,10 @@ sub getIntfData
 		$V->{interface}{"${index}_totalUtil_title"} = $C->{interface_util_label} || 'Util. 6hrs';    # backwards compat
 
 		# check escalation if event is on
-		if ( getbool( $IF->{$index}{event} ) )
+		if ( getbool( $inventory_data->{event} ) )
 		{
 			my $escalate = 'none';
-			if ( my $event_exist = eventExist( $S->{node}, "Interface Down", $IF->{$index}{ifDescr} ) )
+			if ( my $event_exist = eventExist( $S->{node}, "Interface Down", $inventory_data->{ifDescr} ) )
 			{
 				my $erec = eventLoad( filename => $event_exist );
 				$escalate = $erec->{escalate} if ( $erec and defined( $erec->{escalate} ) );
@@ -4430,7 +4450,10 @@ sub getIntfData
 			$V->{interface}{"${index}_escalate_title"} = 'Esc.';
 			$V->{interface}{"${index}_escalate_value"} = $escalate;
 		}
-
+		# don't recalculate path, that should happen in update, any place where we find
+		# the interface has changed enough runs update code anyway. I believe not doing this is correct
+		$inventory->data( $inventory_data );
+		$inventory->save();
 	}
 	info("Finished");
 }
@@ -7429,6 +7452,8 @@ sub runReach
 
 #=========================================================================================
 
+# this generates the data for nmis-interfaces.json, 
+# NOTE: this should not be required for NMISNG
 sub getIntfAllInfo
 {
 	my $index;
@@ -7447,61 +7472,64 @@ sub getIntfAllInfo
 
 	dbg("Getting Interface Info from all nodes");
 
-	my $NT = loadLocalNodeTable();
-
+	my $nmisng = NMIS::new_nmisng();
+	my $node_names = $nmisng->get_node_names();
 	# Write a node entry for each node
-	foreach my $node ( sort keys %{$NT} )
+	foreach my $node_name ( sort @$node_names )
 	{
-		if ( getbool( $NT->{$node}{active} ) and getbool( $NT->{$node}{collect} ) )
+		my $nmisng_node = $nmisng->node( name => $node_name );
+		my $configuration = $nmisng_node->configuration;
+		if ( getbool( $configuration->{active} ) and getbool( $configuration->{collect} ) )
 		{
-			my $info = loadNodeInfoTable($node);
-			dbg( "ADD node=$node", 3 );
-			if ( exists $info->{interface} )
+			my $ids = $nmisng_node->get_inventory_ids(concept => 'interface');
+			dbg( "ADD node=$node_name", 3 );
+			logMsg("INFO empty interface info file of node $node_name") if(!$ids || @$ids < 1);
+			foreach my $id ( @$ids )
 			{
-				foreach my $intf ( keys %{$info->{interface}} )
+				my ($inventory,$error_message) = $nmisng_node->inventory( _id => $id );				
+						
+				$nmisng->log->error("Failed to get inventory, error_message:$error_message") && next
+					if(!$inventory);					
+
+				my $data = $inventory->data();
+				$tmpDesc = &convertIfName( $data->{ifDescr} );
+
+				$intHash = "$node_name-$tmpDesc";
+
+				dbg( "$node_name $tmpDesc hash=$intHash $data->{ifDescr}", 3 );
+
+				if ( $data->{ifDescr} ne "" )
 				{
+					dbg( "Add node=$node_name interface=$data->{ifDescr}", 2 );
+					my $source = $data;
+					my $dest = $interfaceInfo{$intHash} ||= {};
 
-					$tmpDesc = &convertIfName( $info->{interface}{$intf}{ifDescr} );
+					$dest->{node} = $node_name;
+					# TODO: revive this if we still need this function
+					# $dest->{sysName} = $info->{system}->{sysName};
 
-					$intHash = "$node-$tmpDesc";
-
-					dbg( "$node $tmpDesc hash=$intHash $info->{$intf}{ifDescr}", 3 );
-
-					if ( $info->{interface}{$intf}{ifDescr} ne "" )
+					for my $copyme (
+						qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
+						ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
+						portSpantreeFastStart vlanPortVlan portAdminSpeed)
+						)
 					{
-						dbg( "Add node=$node interface=$info->{interface}{$intf}{ifDescr}", 2 );
-						my $source = $info->{interface}->{$intf};
-						my $dest = $interfaceInfo{$intHash} ||= {};
+						$dest->{$copyme} = $source->{$copyme};
+					}
 
-						$dest->{node}    = $node;
-						$dest->{sysName} = $info->{system}->{sysName};
-
-						for my $copyme (
-							qw(ifIndex ifDescr collect real ifType ifSpeed ifAdminStatus
-							ifOperStatus ifLastChange Description display_name portModuleIndex portIndex portDuplex portIfIndex
-							portSpantreeFastStart vlanPortVlan portAdminSpeed)
-							)
+					my $cnt = 1;
+					while ( defined( $source->{"ipAdEntAddr$cnt"} ) )
+					{
+						for my $copymeprefix (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
 						{
+							my $copyme = $copymeprefix . $cnt;
 							$dest->{$copyme} = $source->{$copyme};
 						}
-
-						my $cnt = 1;
-						while ( defined( $source->{"ipAdEntAddr$cnt"} ) )
-						{
-							for my $copymeprefix (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
-							{
-								my $copyme = $copymeprefix . $cnt;
-								$dest->{$copyme} = $source->{$copyme};
-							}
-							$cnt++;
-						}
+						$cnt++;
 					}
 				}
 			}
-			else
-			{
-				logMsg("INFO empty interface info file of node $node");
-			}
+		
 		}
 	}    # foreach $linkname
 	     # Write the interface table out.

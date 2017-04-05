@@ -179,8 +179,8 @@ sub inventory
 
 	# force these arguments to be for this node
 	my $data = $args{data};
-	$data->{cluster_id} = $self->cluster_id();
-	$data->{node_uuid}  = $self->uuid();
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
 
 	# fix the search to this node
 	my $path = $args{path} // [];
@@ -233,8 +233,8 @@ sub inventory_path
 
 	my $concept = $args{concept};
 	my $data    = $args{data};
-	$data->{cluster_id} = $self->cluster_id();
-	$data->{node_uuid}  = $self->uuid();
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
 
 	# ask the correct class to make the inventory
 	my $class = NMISNG::Inventory::get_inventory_class($concept);
