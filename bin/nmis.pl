@@ -3239,10 +3239,6 @@ sub getSystemHealthInfo
 	info("Starting");
 	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
 
-	my ( $valid, $invalid_message ) = $node->validate();
-	$nmisng->log->error("getSystemHealthInfo cannot run on invalid node:$invalid_message") && return 0
-		if ( $valid < 1 );
-
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
 		dbg("No class 'systemHealth' declared in Model.");
@@ -3387,8 +3383,8 @@ sub getSystemHealthInfo
 					# get the inventory object for this, path_keys required as we don't know what type it will be
 					my $data = {$index_var => $indexvalue};
 					my $path_keys = [$index_var];
-					my $path = $node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
-					my ( $inventory, $error ) = $node->inventory(
+					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+					my ( $inventory, $error ) = $nmisng_node->inventory(
 						concept   => $section,
 						data      => $target,
 						path      => $path,
@@ -3485,10 +3481,10 @@ sub getSystemHealthInfo
 		#   has a value
 					my $data = {$index_var => $index};
 					my $path_keys = [$index_var];
-					my $path = $node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 
 					# NOTE: systemHealth requires {index} => $index to be set, it
-					my ( $inventory, $error ) = $node->inventory(
+					my ( $inventory, $error ) = $nmisng_node->inventory(
 						concept   => $section,
 						data      => $target,
 						path      => $path,
@@ -3562,7 +3558,7 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
-		my $ids = $node->get_inventory_ids( concept => $section );
+		my $ids = $nmisng_node->get_inventory_ids( concept => $section );
 
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
@@ -3578,8 +3574,8 @@ sub getSystemHealthData
 		# that's instance index value
 		foreach my $id (@$ids)
 		{
-			my ( $inventory, $error ) = $node->inventory( _id => $id );
-			$node->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
+			my ( $inventory, $error ) = $nmisng_node->inventory( _id => $id );
+			$nmisng_node->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next if ( !$inventory );
 
 			my $data = $inventory->data();
 
@@ -6596,14 +6592,9 @@ sub runServices
 		$status{$service}->{last_run} ||= time;
 
 		my $error = saveServiceStatus( service => $status{$service} );
-		my $nmisng = NMIS::new_nmisng;
+		my $nmisng = $S->nmisng;
 
-		my $node = $nmisng->node( uuid => $NI->{system}->{uuid} );
-		if ( !$node )
-		{
-			logMsg("ERROR: service status saving failed: could not find node:$node, skipping");
-			next;
-		}
+		my $nmisng_node = $S->nmisng_node();
 
 		my $data = {
 			description => $status{$service}->{description},
@@ -6613,7 +6604,7 @@ sub runServices
 			uuid        => $status{$service}->{uuid}
 		};
 
-		my $inventory = $node->inventory(
+		my $inventory = $nmisng_node->inventory(
 			concept => "service",
 			data    => $data,
 			create  => 1
