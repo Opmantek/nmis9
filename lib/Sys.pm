@@ -72,7 +72,8 @@ sub new
 			update       => 0,      # flag for update vs collect operation - attention: read by others!
 			cache_models => 1,      # json caching for model files default on
 
-			_nmisng_node => undef #
+			_nmisng_node => undef,
+			_inventory_cache => {} # inventories that need re-use are kept in here, managed by inventory function
 		},
 		$class
 	);
@@ -98,21 +99,28 @@ sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my 
 sub nmisng         { my $self = shift; return $self->{_nmisng} };
 sub nmisng_node    { my $self = shift; return $self->{_nmisng_node} };
 
-# arguments required:
-#  concept
-# optional arguments:
-#  anything to specifically find the inventory object you need, $index is likely needed
+# return an inventory object for the node
 # this assumes that a data section with a single entry 'index' is enough to find what is needed
 # or that no index is necessary at all
+# arguments:
+#  concept
+#  [index]
+# NOTE: for now this caches the catchall/global inventory object because it's used all over the place
+#  and needs to have a longer life
 sub inventory
 {
 	my ($self,%args) = @_;
 	my $node = $self->nmisng_node;
-	my ($concept,$index) = @args{'concept','index'};
+	my ($concept,$index,$nolog) = @args{'concept','index','nolog'};
 	return if(!$node);
-	return if(!$concept);	
+	return if(!$concept);
 
-	my ($data,$path_keys);
+	# re-use cached object for catchall
+	return $self->{_inventory_cache}{$concept}
+		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );
+
+
+	my ($data,$path_keys) = ({},[]);
 	if( $index )
 	{
 		$data->{index} = $index;
@@ -123,12 +131,22 @@ sub inventory
 	if( ref($path) eq 'ARRAY' )
 	{
 		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path);
-		$self->nmisng->log->error("Failed to get inventory, concept:$concept error_message:$error_message, path:".join(',', @$path)) if(!$inventory);
+		if( !$inventory && $concept eq 'catchall' )
+		{
+			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it 
+			# instead of having one magic place that makes it and that has to be run first
+			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);			
+		}
+		$self->nmisng->log->error("Failed to get inventory, concept:$concept error_message:$error_message, path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
 	else
 	{
 		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path");
-	}	
+	}
+
+	$self->{_inventory_cache}{$concept} = $inventory
+		if($concept eq 'catchall');
+
 	return $inventory;
 }
 
@@ -195,6 +213,7 @@ sub init
 
 	$self->{_nmisng} = NMIS::new_nmisng();
 	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
+	my $catchall_data;
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
 	# caching can be chosen with argument cache_models here.
@@ -223,32 +242,39 @@ sub init
 	# otherwise load the 'generic' sys object
 	if ( $self->{name} )
 	{
+		my $catchall = $self->inventory( concept => 'catchall' );
 		# if force is off, load the existing node info
 		# if on, ignore that information and start from scratch (to bypass optimisations)
 		if ( $self->{update} && getbool( $args{force} ) )
 		{
+			$catchall->data( {} );
+			$catchall_data = $catchall->data_live();
 			dbg("Not loading info of node=$self->{name}, force means start from scratch");
 		}
-
-		# load the saved node info data
-		elsif ( ref( $self->{info} = loadTable( dir => 'var', name => "$self->{node}-node" ) ) eq "HASH"
-			&& keys %{$self->{info}} )
+		else
 		{
-			if ( getbool( $self->{debug} ) )
+			$catchall_data = $catchall->data_live();
+			$self->{info} = loadTable( dir => 'var', name => "$self->{node}-node" );		
+			# load the saved node info data
+			if ( ref( $self->{info} ) eq "HASH"
+				&& keys %{$self->{info}} )
 			{
-				foreach my $k ( keys %{$self->{info}} )
+				if ( getbool( $self->{debug} ) )
 				{
-					dbg( "Node=$self->{name} info $k=$self->{info}{$k}", 3 );
+					NMISNG::Util::TODO("Recreate this debug output, possibly need a way to ask a node for it's concepts/sections?")
+					# foreach my $k ( keys %{$self->{info}} )
+					# {
+					# 	dbg( "Node=$self->{name} info $k=$self->{info}{$k}", 3 );
+					# }
 				}
+				dbg("info of node=$self->{name} loaded");
 			}
-			dbg("info of node=$self->{name} loaded");
-		}
-
-		# or bail out if this is not an update operation, all gigo if we continued w/o.
-		elsif ( !$self->{update} )
-		{
-			$self->{error} = "Failed to load node info file for $self->{node}!";
-			return 0;
+			# or bail out if this is not an update operation, all gigo if we continued w/o.
+			elsif ( !$self->{update} )
+			{
+				$self->{error} = "Failed to load node info file for $self->{node}!";
+				return 0;
+			}
 		}
 	}
 
@@ -256,7 +282,7 @@ sub init
 	if ( ( my $info = loadTable( dir => 'var', name => "nmis-system" ) ) )
 	{
 		# unwanted legacy gunk?
-		delete $info->{system} if ( ref($info) eq "HASH" and ref( $info->{system} ) eq "HASH" );
+		delete $info->{system} if ( ref($info) eq "HASH" );
 
 		$self->_mergeHash( $self->{info}, $info );    # let's consider this nonterminal
 	}
@@ -291,7 +317,7 @@ sub init
 
 	# load Model of node or the base Model, or give up
 	my $thisnodeconfig = $self->{cfg}->{node};
-	my $curmodel       = $self->{info}{system}{nodeModel};
+	my $curmodel       = $catchall_data->{nodeModel};
 	my $loadthis       = "Model";
 
 	# get the specific model
@@ -380,9 +406,10 @@ sub open
 
 	# prime config for snmp, based mostly on cfg->node - cloned to not leak any of the updated bits
 	my $snmpcfg = Clone::clone( $self->{cfg}->{node} );
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = ( $self->{info}{system}{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
+	$snmpcfg->{host} = ( $catchall_data->{host_addr} || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
 	$snmpcfg->{timeout}         = $args{timeout}         || 5;
 	$snmpcfg->{retries}         = $args{retries}         || 1;
 	$snmpcfg->{oidpkt}          = $args{oidpkt}          || 10;
@@ -397,7 +424,7 @@ sub open
 		)
 	);
 
-	$self->{info}{system}{snmpVer} = $self->{snmp}->version;    # get back actual info
+	$catchall_data->{snmpVer} = $self->{snmp}->version;    # get back actual info
 	return 1;
 }
 
@@ -458,14 +485,16 @@ sub copyModelCfgInfo
 	my ( $self, %args ) = @_;
 	my $type = $args{type};
 
+	my $catchall_data = $self->inventory(concept => 'catchall')->data_live();	
+
 	# copy all node info, with the exception of auth-related fields
 	my $dontcopy = qr/^(wmi(username|password)|community|(auth|priv)(key|password|protocol))$/;
 	if ( ref( $self->{cfg}->{node} ) eq "HASH" )
 	{
-		for my $fn ( keys %{$self->{cfg}->{node}} )
+		for my $entry ( keys %{$self->{cfg}->{node}} )
 		{
-			next if ( $fn =~ $dontcopy );
-			$self->{info}->{system}->{$fn} = $self->{cfg}->{node}->{$fn};
+			next if ( $entry =~ $dontcopy );
+			$catchall_data->{$entry} = $self->{cfg}->{node}->{$entry};
 		}
 	}
 
@@ -477,11 +506,11 @@ sub copyModelCfgInfo
 		);
 
 		# make the changes unconditionally if overwrite requested, otherwise only if not present
-		$self->{info}{system}{nodeModel} = $self->{mdl}{system}{nodeModel}
-			if ( !$self->{info}{system}{nodeModel} or $mustoverwrite );
-		$self->{info}{system}{nodeType} = $self->{mdl}{system}{nodeType}
-			if ( !$self->{info}{system}{nodeType} or $mustoverwrite );
-	}
+		$catchall_data->{nodeModel} = $self->{mdl}{system}{nodeModel}
+			if ( !$catchall_data->{nodeModel} or $mustoverwrite );
+		$catchall_data->{nodeType} = $self->{mdl}{system}{nodeType}
+			if ( !$catchall_data->{nodeType} or $mustoverwrite );
+	}	
 }
 
 # get info from node, using snmp and/or wmi
@@ -530,7 +559,7 @@ sub loadInfo
 	if ( !keys %$result )
 	{
 		$self->{error} = "loadInfo failed for $self->{name}: $result->{error}";
-		print "MODEL ERROR: ($self->{info}{system}{name}) on loadInfo, $result->{error}\n" if $dmodel;
+		print "MODEL ERROR: ($self->{name}) on loadInfo, $result->{error}\n" if $dmodel;
 		return 0;
 	}
 	elsif ( $result->{skipped} )    # nothing to report because model said skip these items, apparently all of them...
@@ -631,25 +660,27 @@ sub loadInfo
 # get node info (subset) as defined by Model. Values are stored in table {info}
 # args: none
 # returns: 1 if worked (at least somewhat), 0 otherwise - check status() for details
+# NOTE: inventory keeping this around for now because whole node file not completely replaced yet
 sub loadNodeInfo
 {
 	my $self = shift;
 	my %args = @_;
 
 	my $C = loadConfTable();
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
-	my $exit = $self->loadInfo( class => 'system', target => $self->ndinfo->{system} );    # sets status
+	my $exit = $self->loadInfo( class => 'system', target => $catchall_data );    # sets status
 
 	# check if nbarpd is possible: wanted by model, snmp configured, no snmp problems in last load
 	if ( getbool( $self->{mdl}{system}{nbarpd_check} ) && $self->{snmp} && !$self->{snmp_error} )
 	{
 		# find a value for max-repetitions: this controls how many OID's will be in a single request.
 		# note: no last-ditch default; if not set we let the snmp module do its thing
-		my $max_repetitions = $self->{info}{system}{max_repetitions} || $C->{snmp_max_repetitions};
+		my $max_repetitions = $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions};
 		my %tmptable = $self->{snmp}->gettable( 'cnpdStatusTable', $max_repetitions );
 
-		$self->{info}{system}{nbarpd} = keys %tmptable ? "true" : "false";
-		dbg("NBARPD is $self->{info}{system}{nbarpd} on this node");
+		$catchall_data->{nbarpd} = keys %tmptable ? "true" : "false";
+		dbg("NBARPD is $catchall_data->{nbarpd} on this node");
 	}
 	return $exit;
 }
@@ -676,12 +707,12 @@ sub getData
 	if ( !$class )
 	{
 		dbg("ERROR ($self->{name}) no class name given!");
-		return undef;
+		return;
 	}
 	if ( ref( $self->{mdl}->{$class} ) ne "HASH" or ref( $self->{mdl}->{$class}->{rrd} ) ne "HASH" )
 	{
 		dbg("ERROR ($self->{name}) no rrd section for class $class!");
-		return undef;
+		return;
 	}
 
 	$self->{info}{graphtype} ||= {};
@@ -709,7 +740,7 @@ sub getData
 			{
 				if ( $sec =~ /interface|pkts/ )
 				{
-					print "  section=$sec index=$index $self->{info}{interface}{$index}{ifDescr}\n";
+					print "  section=$sec index=$index used to print ifDescr, pass it in as a param!!!\n";
 				}
 				else
 				{
@@ -973,7 +1004,7 @@ sub getValues
 		my @rawsnmp = $self->{snmp}->getarray( map { $todos{$_}->{oid} } (@haveoid) );
 		if ( my $error = $self->{snmp}->error )
 		{
-			dbg("ERROR ($self->{info}{system}{name}) on get values by snmp: $error");
+			dbg("ERROR ($self->{name}) on get values by snmp: $error");
 			$status{snmp_error} = $error;
 		}
 		else
@@ -1017,7 +1048,7 @@ sub getValues
 				}
 				if ($error)
 				{
-					dbg("ERROR ($self->{info}{system}{name}) on get values by wmi: $error");
+					dbg("ERROR ($self->{name}) on get values by wmi: $error");
 					$status{wmi_error} = $error;
 				}
 				else
@@ -1157,7 +1188,7 @@ sub getValues
 	if ( !%data && !$status{skipped} )
 	{
 		my $sections = join( ", ", $section, @todosections );
-		$status{error} = "ERROR ($self->{info}{system}{name}): no values collected for $sections!";
+		$status{error} = "ERROR ($self->{name}): no values collected for $sections!";
 	}
 	dbg(      "loaded "
 			. ( keys %todos || 0 )
@@ -1241,8 +1272,9 @@ sub eval_string
 sub selectNodeModel
 {
 	my ( $self, %args ) = @_;
-	my $vendor = $self->{info}{system}{nodeVendor};
-	my $descr  = $self->{info}{system}{sysDescr};
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+	my $vendor = $catchall_data->{nodeVendor};
+	my $descr  = $catchall_data->{sysDescr};
 
 	foreach my $vndr ( sort keys %{$self->{mdl}{models}} )
 	{
@@ -1278,6 +1310,7 @@ sub loadModel
 	my $model = $args{model};
 	my $exit  = 1;
 	my ( $name, $mdl );
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();    # needed to determine the correct dir; generally cached and a/v anyway
 
@@ -1381,7 +1414,7 @@ sub loadModel
 					my $value = (
 						  $proppath eq "node.nodeModel"
 						? $model
-						: ( $sourcename eq "config" ? $C : $self->{info}->{system} )->{$propname}
+						: ( $sourcename eq "config" ? $C : $catchall_data )->{$propname}
 					);
 					$value = '' if ( !defined($value) );
 
@@ -1530,7 +1563,7 @@ sub getTitle
 
 # add a whole bunch of variables to the extras hash that parseString added so are now
 # required for backwards compat
-sub prep_extras_with_system_globals
+sub prep_extras_with_catchalls
 {
 	my ($self, %args) = @_;
 	my $extras = $args{extras};
@@ -1538,14 +1571,8 @@ sub prep_extras_with_system_globals
 	my $item = $args{item};
 	my $str = $args{str};
 	
-	# create a fallback to old system
-	my $data = $self->{info}{system}; 
 	# if new one is there use it
-	my $system_global_inventory = $self->inventory(concept => "system_global");
-	if( $system_global_inventory )
-	{
-		$data = $system_global_inventory->data;
-	}
+	my $data = $self->inventory(concept => "catchall")->data_live();	
 	$extras->{node} = $self->{node};
 
 	foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
@@ -1574,7 +1601,8 @@ sub prep_extras_with_system_globals
 	}
 
 	my $interface_inventory;
-	$interface_inventory = $self->inventory(concept => 'interface', index => $index) if($index);
+	# nolog here because there is 0 checking to see if this is actually a valid index or what section we are after at all!@!!
+	$interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1) if($index);
 	if ( $interface_inventory )
 	{
 		# no fallback to info section as interface update is running
@@ -1664,7 +1692,7 @@ sub parseString
 	{
 		logMsg("No inventory found for concept:$sect")
 	}
-	$self->prep_extras_with_system_globals( extras => $extras, index => $indx, item => $itm, str => $str);
+	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, str => $str);
 
 	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 	
@@ -1758,7 +1786,7 @@ sub getTypeName
 	# fall back to rrd section named the same as the graphtype
 	return $graphtype if ( exists( $self->{mdl}->{database}->{type}->{$graphtype} ) );
 
-	logMsg("ERROR ($self->{info}{system}{name}) type=$graphtype index=$index not found in graphtype table")
+	logMsg("ERROR ($self->{name}) type=$graphtype index=$index not found in graphtype table")
 		if ( !getbool($check) );
 	return undef;    # not found
 }
@@ -1863,7 +1891,7 @@ sub getDBName
 	if ( !defined $db )
 	{
 		logMsg(
-			"ERROR ($self->{info}{system}{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, sect=$sect"
+			"ERROR ($self->{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, sect=$sect"
 		) if ( !$suppress );
 		return undef;
 	}

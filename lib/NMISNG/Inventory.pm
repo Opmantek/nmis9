@@ -39,7 +39,7 @@ our $VERSION = "1.0.0";
 use Clone;											# for copying data and other r/o sections
 use Scalar::Util;								# for weaken
 use Data::Dumper;
-
+use Carp;
 
 use NMISNG::DB;
 
@@ -275,7 +275,7 @@ sub storage
 		}
 		else
 		{
-			$self->{_storage} = $newstorage;
+			$self->{_storage} = Clone::clone( $newstorage );
 		}
 	}
 	return Clone::clone($self->{_storage});
@@ -288,9 +288,9 @@ sub storage
 sub path_keys
 {
 	my ( $self, $newvalue ) = @_;
-	if ( defined($newvalue) )
+	if ( defined($newvalue) && ref($newvalue) eq 'ARRAY' )
 	{
-		$self->{_path_keys} = $newvalue;
+		$self->{_path_keys} = Clone::clone( $newvalue );
 	}
 	return Clone::clone($self->{_path_keys});
 }
@@ -305,18 +305,44 @@ sub data
 {
 	my ( $self, $newvalue ) = @_;
 
+	if( $self->{_live} )	
+	{
+		# in some instances this makes sense or all places will need to learn to check live, that might make sense
+		# not sure right now so this has been added
+		return $self->data_live();		
+	}
+
 	if ( defined($newvalue) )
 	{
-		if (ref($newvalue) ne "HASH")
+		
+		if( $self->{_live} )
 		{
-			$self->nmisng->log->error("data accessor called with invalid argument ".ref($newvalue));
+			$self->nmisng->log->fatal("Accessing/saving data to this inventory, concept:".$self->concept." is not allowed because it's live\n".Carp::longmess());
 		}
-		else
+		else 
 		{
-			$self->{_data} = $newvalue;
+			if (ref($newvalue) ne "HASH")
+			{
+				$self->nmisng->log->error("data accessor called with invalid argument ".ref($newvalue));
+			}
+			else
+			{
+				$self->{_data} = Clone::clone( $newvalue );
+			}
 		}
 	}
 	return Clone::clone( $self->{_data} );
+}
+
+# returns a ref to the data, after doing this the object cannot be accessed via normal data fnction
+# returns: clone of data, logs on error
+sub data_live
+{
+	my ( $self ) = @_;
+
+	$self->{_live} = 1;
+	
+	return $self->{_data};
 }
 
 # remove this inventory entry from the db
