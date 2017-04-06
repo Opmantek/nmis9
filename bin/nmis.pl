@@ -608,6 +608,9 @@ sub runThreads
 		if ( getbool( $C->{'nmis_summary_poll_cycle'} ) or !getbool( $C->{'nmis_summary_poll_cycle'}, "invert" ) )
 		{
 			dbg("Starting nmisSummary");
+
+			# NOTE!!! catchall needs to be written before this runs as it' loads the data
+			# locally, it has no $S 
 			nmisSummary() if getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
 		}
 		else
@@ -1855,9 +1858,9 @@ sub checkPower
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	info("Starting");
 
 	my $attr = $args{attr};
@@ -1866,12 +1869,12 @@ sub checkPower
 
 	delete $V->{system}{"${attr}_value"};
 
-	info("Power check attribute=$attr value=$NI->{system}{$attr}");
-	if ( $NI->{system}{$attr} ne '' and $NI->{system}{$attr} !~ /noSuch/ )
+	info("Power check attribute=$attr value=$catchall_data->{$attr}");
+	if ( $catchall_data->{$attr} ne '' and $catchall_data->{$attr} !~ /noSuch/ )
 	{
-		$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
+		$V->{system}{"${attr}_value"} = $catchall_data->{$attr};
 
-		if ( $NI->{system}{$attr} =~ /normal|unknown|notPresent/ )
+		if ( $catchall_data->{$attr} =~ /normal|unknown|notPresent/ )
 		{
 			checkEvent(
 				sys     => $S,
@@ -1905,9 +1908,10 @@ sub checkNodeConfiguration
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
 	info("Starting");
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
@@ -1915,20 +1919,20 @@ sub checkNodeConfiguration
 	# create previous values if they don't exist
 	for my $attr (@updatePrevValues)
 	{
-		if (   defined( $NI->{system}{$attr} )
-			&& $NI->{system}{$attr} ne ''
-			&& !defined( $NI->{system}{"${attr}_prev"} ) )
+		if (   defined( $catchall_data->{$attr} )
+			&& $catchall_data->{$attr} ne ''
+			&& !defined( $catchall_data->{"${attr}_prev"} ) )
 		{
-			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+			$catchall_data->{"${attr}_prev"} = $catchall_data->{$attr};
 		}
 	}
 
-	my $configLastChanged = $NI->{system}{configLastChanged} if defined $NI->{system}{configLastChanged};
-	my $configLastViewed  = $NI->{system}{configLastSaved}   if defined $NI->{system}{configLastSaved};
-	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged}
-		if defined $NI->{system}{bootConfigLastChanged};
-	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev}
-		if defined $NI->{system}{configLastChanged_prev};
+	my $configLastChanged = $catchall_data->{configLastChanged} if defined $catchall_data->{configLastChanged};
+	my $configLastViewed  = $catchall_data->{configLastSaved}   if defined $catchall_data->{configLastSaved};
+	my $bootConfigLastChanged = $catchall_data->{bootConfigLastChanged}
+		if defined $catchall_data->{bootConfigLastChanged};
+	my $configLastChanged_prev = $catchall_data->{configLastChanged_prev}
+		if defined $catchall_data->{configLastChanged_prev};
 
 	if ( defined $configLastViewed && defined $bootConfigLastChanged )
 	{
@@ -1978,8 +1982,8 @@ sub checkNodeConfiguration
 	### If it is newer, someone changed it!
 	if ( $configLastChanged > $configLastChanged_prev )
 	{
-		$NI->{system}{configChangeCount}++;
-		$V->{system}{configChangeCount_value} = $NI->{system}{configChangeCount};
+		$catchall_data->{configChangeCount}++;
+		$V->{system}{configChangeCount_value} = $catchall_data->{configChangeCount};
 		$V->{system}{configChangeCount_title} = "Configuration change count";
 
 		notify(
@@ -1989,15 +1993,15 @@ sub checkNodeConfiguration
 			details => "Changed at " . $V->{system}{configLastChanged_value},
 			context => {type => "node"},
 		);
-		logMsg("checkNodeConfiguration configuration change detected on $NI->{system}{name}, creating event");
+		logMsg("checkNodeConfiguration configuration change detected on $S->{name}, creating event");
 	}
 
 	#update previous values to be out current values
 	for my $attr (@updatePrevValues)
 	{
-		if ( defined $NI->{system}{$attr} ne '' && $NI->{system}{$attr} ne '' )
+		if ( defined $catchall_data->{$attr} ne '' && $catchall_data->{$attr} ne '' )
 		{
-			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+			$catchall_data->{"${attr}_prev"} = $catchall_data->{$attr};
 		}
 	}
 
@@ -6969,13 +6973,13 @@ sub runAlerts
 sub runCheckValues
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
 
-	if ( getbool( $NI->{system}{nodedown} ) )    #  don't bother with dead nodes
+	if ( getbool( $catchall_data->{nodedown} ) )    #  don't bother with dead nodes
 
 		#			 and !getbool($NI->{system}{snmpdown}) # snmp not dead
 		#			 and $S->status->{snmp_enabled} )			 # snmp still known to be enabled
@@ -7074,10 +7078,10 @@ sub runReach
 	my $S              = $args{sys};                      # system object
 	my $donotupdaterrd = getbool( $args{delayupdate} );
 
-	my $NI = $S->ndinfo;                                  # node info
 	my $IF = $S->ifinfo;                                  # interface info
 	my $RI = $S->reach;                                   # reach info
 	my $C  = loadConfTable();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $cpuWeight;
 	my $diskWeight;
@@ -7120,12 +7124,12 @@ sub runReach
 
 	my %reach;
 
-	info("Starting node $S->{name}, type=$NI->{system}{nodeType}");
+	info("Starting node $S->{name}, type=$catchall_data->{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
-	$RI->{memused} = ( $RI->{memused} - $RI->{memfree} ) if $NI->{nodeModel} =~ /FoundrySwitch/;
+	$RI->{memused} = ( $RI->{memused} - $RI->{memfree} ) if $catchall_data->{nodeModel} =~ /FoundrySwitch/;
 
-	if ( $NI->{nodeModel} =~ /Riverstone/ )
+	if ( $catchall_data->{nodeModel} =~ /Riverstone/ )
 	{
 		# Math hackery to convert Riverstone CPU memory usage into appropriate values
 		$RI->{memfree} = ( $RI->{memfree} - $RI->{memused} );
@@ -7189,8 +7193,8 @@ sub runReach
 	$reach{operCount}  = $RI->{operCount};
 
 	# number of interfaces
-	$reach{intfTotal}   = $NI->{system}{intfTotal} eq 0 ? 'U' : $NI->{system}{intfTotal};    # from run update
-	$reach{intfCollect} = $NI->{system}{intfCollect};                                        # from run update
+	$reach{intfTotal}   = $catchall_data->{intfTotal} eq 0 ? 'U' : $catchall_data->{intfTotal};    # from run update
+	$reach{intfCollect} = $catchall_data->{intfCollect};                                        # from run update
 	$reach{intfUp}      = $RI->{intfUp} ne '' ? $RI->{intfUp} : 0;                           # from run collect
 	$reach{intfColUp}   = $RI->{intfColUp};                                                  # from run collect
 
@@ -7201,7 +7205,7 @@ sub runReach
 	);
 
 	# Things which don't do collect get 100 for availability
-	if ( $reach{availability} eq "" and !getbool( $NI->{system}{collect} ) )
+	if ( $reach{availability} eq "" and !getbool( $catchall_data->{collect} ) )
 	{
 		$reach{availability} = "100";
 	}
@@ -7224,7 +7228,7 @@ sub runReach
 		if ( $reach{reachability} > 100 ) { $reach{reachability} = 100; }
 		( $reach{responsetime}, $responseWeight ) = weightResponseTime( $reach{responsetime} );
 
-		if ( getbool( $NI->{system}{collect} ) and $reach{cpu} ne "" )
+		if ( getbool( $catchall_data->{collect} ) and $reach{cpu} ne "" )
 		{
 			if    ( $reach{cpu} <= 10 )  { $cpuWeight = 100; }
 			elsif ( $reach{cpu} <= 20 )  { $cpuWeight = 90; }
@@ -7277,7 +7281,7 @@ sub runReach
 			elsif ( $reach{mem} >= 5 )  { $memWeight = 25; }
 			elsif ( $reach{mem} >= 0 )  { $memWeight = 1; }
 		}
-		elsif ( getbool( $NI->{system}{collect} ) and $NI->{system}{nodeModel} eq "Generic" )
+		elsif ( getbool( $catchall_data->{collect} ) and $catchall_data->{nodeModel} eq "Generic" )
 		{
 			$cpuWeight = 100;
 			$memWeight = 100;
@@ -7299,7 +7303,7 @@ sub runReach
 		}
 
 		# Makes 3Com memory health weighting always 100, and CPU, and Interface availibility
-		if ( $NI->{system}{nodeModel} =~ /SSII 3Com/i )
+		if ( $catchall_data->{nodeModel} =~ /SSII 3Com/i )
 		{
 			$cpuWeight           = 100;
 			$memWeight           = 100;
@@ -7309,7 +7313,7 @@ sub runReach
 
 		# Makes CatalystIOS memory health weighting always 100.
 		# Add Baystack and Accelar
-		if ( $NI->{system}{nodeModel} =~ /CatalystIOS|Accelar|BayStack|Redback|FoundrySwitch|Riverstone/i )
+		if ( $catchall_data->{nodeModel} =~ /CatalystIOS|Accelar|BayStack|Redback|FoundrySwitch|Riverstone/i )
 		{
 			$memWeight = 100;
 		}
@@ -7319,7 +7323,7 @@ sub runReach
 		);
 		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");
 
-		if ( getbool( $NI->{system}{collect} ) and defined $S->{mdl}{interface}{nocollect}{ifDescr} )
+		if ( getbool( $catchall_data->{collect} ) and defined $S->{mdl}{interface}{nocollect}{ifDescr} )
 		{
 			dbg("Getting Interface Utilisation Health");
 			$intcount   = 0;
@@ -7452,7 +7456,7 @@ sub runReach
 	}
 
 	# the node is collect=false and was pingable
-	elsif ( !getbool( $NI->{system}{collect} ) and $pingresult == 100 )
+	elsif ( !getbool( $catchall_data->{collect} ) and $pingresult == 100 )
 	{
 		$reach{reachability} = 100;
 		$reach{availability} = 100;
@@ -7493,7 +7497,7 @@ sub runReach
 	}
 
 	dbg("Reachability and Metric Stats Summary");
-	dbg("collect=$NI->{system}{collect} (Node table)");
+	dbg("collect=$catchall_data->{collect} (Node table)");
 	dbg("ping=$pingresult (normalised)");
 	dbg("cpuWeight=$cpuWeight (normalised)");
 	dbg("memWeight=$memWeight (normalised)");
@@ -7572,17 +7576,17 @@ sub runReach
 			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 		}
 	}
-	if ( $NI->{system}{nodeModel} eq 'PingOnly' )
+	if ( $catchall_data->{nodeModel} eq 'PingOnly' )
 	{
-		$NI->{graphtype}{health} = "health-ping,response";
+		$S->ndinfo->{graphtype}{health} = "health-ping,response";
 	}
-	elsif ( $NI->{system}{nodeModel} eq 'ServiceOnly' )
+	elsif ( $catchall_data->{nodeModel} eq 'ServiceOnly' )
 	{
-		$NI->{graphtype}{health} = "";
+		$S->ndinfo->{graphtype}{health} = "";
 	}
 	else
 	{
-		$NI->{graphtype}{health} = "health,kpi,response,numintf,polltime";
+		$S->ndinfo->{graphtype}{health} = "health,kpi,response,numintf,polltime";
 	}
 	info("Finished");
 
@@ -7892,14 +7896,14 @@ sub summaryCache
 	my $end         = $args{end};
 	my %summaryHash = ();
 	my $NT          = loadLocalNodeTable();
-	my $NI;
+
 
 	foreach my $node ( keys %{$NT} )
 	{
 		if ( getbool( $NT->{$node}{active} ) )
 		{
 			$S->init( name => $node, snmp => 'false' );
-			$NI = $S->ndinfo;
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			$summaryHash{$node}{reachable}   = 'NaN';
 			$summaryHash{$node}{response}    = 'NaN';
@@ -7910,14 +7914,11 @@ sub summaryCache
 			$summaryHash{$node}{intfColUp}   = 0;
 			my $stats;
 
-			if ((   $stats
-					= getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $node )
-				)
-				)
+			if ( $stats = getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $node ) )
 			{
 				%summaryHash = ( %summaryHash, %{$stats} );
 			}
-			if ( getbool( $NI->{system}{nodedown} ) )
+			if ( getbool( $catchall_data->{nodedown} ) )
 			{
 				$summaryHash{$node}{nodedown} = 'true';
 			}
@@ -10024,11 +10025,10 @@ sub doSummaryBuild
 				next if ( !$S->init( name => $nd, snmp => 'false' ) );
 			}
 
-			my $M  = $S->mdl;       # model ref
-			my $NI = $S->ndinfo;    # node info
-			my $IF = $S->ifinfo;    # interface info
+			my $M  = $S->mdl;       # model ref			
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-			next if getbool( $NI->{system}{nodedown} );
+			next if getbool( $catchall_data->{nodedown} );
 
 			# oke, look for requests in summary of Model
 			foreach my $tp ( keys %{$M->{summary}{statstype}} )
@@ -10062,19 +10062,19 @@ sub doSummaryBuild
 
 						foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
 						{
-							$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{Description}
-								= $NI->{label}{$tp}{$i};    # descr
+							$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{Description}
+								=  "WHAT GOES HERE? NI->label makes no sense";#$NI->{label}{$tp}{$i};    # descr
 							    # check if threshold level available, thresholdname must be equal to type
 							if ( exists $M->{threshold}{name}{$tp} )
 							{
-								( $stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level}, undef, undef )
+								( $stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{level}, undef, undef )
 									= getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => $i );
 							}
 
 							# save values
 							foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
 							{
-								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
+								$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
 								dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}"
 								);
 							}
@@ -10096,14 +10096,14 @@ sub doSummaryBuild
 						# check if threshold level available, thresholdname must be equal to type
 						if ( exists $M->{threshold}{name}{$tp} )
 						{
-							( $stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"}, undef, undef )
+							( $stshlth{ $catchall_data->{nodeType} }{$nd}{"${tp}_level"}, undef, undef )
 								= getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => '' );
 						}
 						foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
 						{
 							foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
 							{
-								$stshlth{$NI->{system}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
+								$stshlth{ $catchall_data->{nodeType} }{$nd}{$stsname} = $sts->{$stsname};
 								dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
 							}
 						}
@@ -10120,10 +10120,15 @@ sub doSummaryBuild
 					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
 				}
 
+				# this could maybe use the model and get collect right away as that's 
+				# all it seems to be used for right now
+				my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
 				# get all collected interfaces
-				foreach my $index ( keys %{$IF} )
+				foreach my $id (@$ids)
 				{
-					next unless getbool( $IF->{$index}{collect} );
+					my $data = $S->nmisng_node->inventory( _id => $id )->data();
+					my $index = $data->{index};
+					next unless getbool( $data->{collect} );
 					my $sts = getSummaryStats(
 						sys   => $S,
 						type  => $tp,

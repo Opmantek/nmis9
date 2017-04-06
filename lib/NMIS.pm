@@ -831,7 +831,7 @@ sub loadNodeSummary {
 # file cannot be guaranteed to be up to date if that happens.
 sub nodeStatus {
 	my %args = @_;
-	my $NI = $args{NI};
+	my $catchall_data = $args{catchall_data};
 	my $C = loadConfTable();
 
 	# 1 for reachable
@@ -844,21 +844,21 @@ sub nodeStatus {
 	my $wmi_down_event = "WMI Down";
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
-	if (getbool($NI->{system}{ping},"invert")
-			 and ( eventExist($NI->{system}{name}, $snmp_down, "")
-						 or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	if (getbool($catchall_data->{ping},"invert")
+			 and ( eventExist($catchall_data->{name}, $snmp_down, "")
+						 or eventExist($catchall_data->{name}, $wmi_down_event, "")))
 	{
 		$status = 0;
 	}
 	# ping enabled, but unpingable -> down
-	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
+	elsif ( eventExist($catchall_data->{name}, $node_down, "") ) {
 		$status = 0;
 	}
 	# ping enabled, pingable but dead snmp or dead wmi -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
-	elsif ( getbool($NI->{system}{collect}) and
-					( eventExist($NI->{system}{name}, $snmp_down, "")
-						or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+	elsif ( getbool($catchall_data->{collect}) and
+					( eventExist($catchall_data->{name}, $snmp_down, "")
+						or eventExist($catchall_data->{name}, $wmi_down_event, "")))
 	{
 		$status = -1;
 	}
@@ -866,10 +866,10 @@ sub nodeStatus {
 	elsif (
 		defined $C->{node_status_uses_status_summary}
 		and getbool($C->{node_status_uses_status_summary})
-		and defined $NI->{system}{status_summary}
-		and defined $NI->{system}{status_updated}
-		and $NI->{system}{status_summary} <= 99
-		and $NI->{system}{status_updated} > time - 500
+		and defined $catchall_data->{status_summary}
+		and defined $catchall_data->{status_updated}
+		and $catchall_data->{status_summary} <= 99
+		and $catchall_data->{status_updated} > time - 500
 	) {
 		$status = -1;
 	}
@@ -1041,16 +1041,15 @@ sub getSummaryStats
 	my $end = $args{end};
 
 	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
 	my $M  = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
-	if (getbool($C->{server_master}) and $NI->{system}{server}
-			and lc($NI->{system}{server}) ne lc($C->{server_name}))
+	if (getbool($C->{server_master}) and $catchall_data->{server}
+			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
 		# send request to remote server
-		dbg("serverConnect to $NI->{system}{server} for node=$S->{node}");
+		dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
 		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
 		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
 	}
@@ -1074,7 +1073,7 @@ sub getSummaryStats
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$type} eq "") {
-		logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
+		logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$catchall_data->{nodeModel}");
 		return;
 	}
 
@@ -1103,18 +1102,22 @@ sub getSummaryStats
 	{
 		no strict;
 		$database = $db; # global
-		$speed = $IF->{$index}{ifSpeed} if $index ne "";
-		$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-		$outSpeed = $IF->{$index}{ifSpeed} if $index ne "";
-		$inSpeed = $IF->{$index}{ifSpeedIn} if $index ne "" and $IF->{$index}{ifSpeedIn};
-		$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
-
+		my $inventory = $S->inventory( concept => "interface", index => $index );
+		if( $inventory )
+		{
+			my $data = $inventory->data();
+			$speed = $data->{ifSpeed} if $index ne "";
+			$inSpeed = $data->{ifSpeed} if $index ne "";
+			$outSpeed = $data->{ifSpeed} if $index ne "";
+			$inSpeed = $data->{ifSpeedIn} if $index ne "" and $data->{ifSpeedIn};
+			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
+		}
 		# read from Model and translate variable ($database etc.) rrd options
 		foreach my $str (@{$M->{stats}{type}{$type}}) {
 			my $s = $str;
 			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
-				logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
+				logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} type=$type ($str) in expanding variables, $s");
 				return; # error
 			}
 			push @option, $s;
@@ -1130,7 +1133,7 @@ sub getSummaryStats
 	if (($ERROR = RRDs::error)) {
 		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 	} else {
-		##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
+		##logMsg("INFO result type=$type, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
 		if ( scalar(@$graphret) ) {
 			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
 			foreach my $line ( @$graphret ) {
@@ -1160,6 +1163,7 @@ sub getNodeSummary {
 	my $NT = loadLocalNodeTable();
 	my $OT = loadOutageTable();
 	my %nt;
+	my $nmisng = NMIS::new_nmisng();
 
 	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
 	my $node_summary_field_list = "customer,businessService";
@@ -1172,28 +1176,35 @@ sub getNodeSummary {
 	foreach my $nd (keys %{$NT}) {
 		next if (!getbool($NT->{$nd}{active}));
 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
+		
+		# could use name here I guess
+		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
+		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
+		$nmisng->log->error("Failed to get catchall inventory for node:$nd, error:$error") && next
+			if(!$inventory);
 
-		my $NI = loadNodeInfoTable($nd);
+		# we know the data here isn't changing so no need to use live data
+		my $catchall_data->$inventory->data();
 
-		$nt{$nd}{name} = $NI->{system}{name};
-		$nt{$nd}{group} = $NI->{system}{group};
-		$nt{$nd}{collect} = $NI->{system}{collect};
+		$nt{$nd}{name} = $catchall_data->{name};
+		$nt{$nd}{group} = $catchall_data->{group};
+		$nt{$nd}{collect} = $catchall_data->{collect};
 		$nt{$nd}{active} = $NT->{$nd}{active};
 		$nt{$nd}{ping} = $NT->{$nd}{ping};
-		$nt{$nd}{netType} = $NI->{system}{netType};
-		$nt{$nd}{roleType} = $NI->{system}{roleType};
-		$nt{$nd}{nodeType} = $NI->{system}{nodeType};
-		$nt{$nd}{nodeModel} = $NI->{system}{nodeModel};
-		$nt{$nd}{nodeVendor} = $NI->{system}{nodeVendor};
-		$nt{$nd}{lastUpdateSec} = $NI->{system}{lastUpdateSec};
-		$nt{$nd}{sysName} = $NI->{system}{sysName} ;
+		$nt{$nd}{netType} = $catchall_data->{netType};
+		$nt{$nd}{roleType} = $catchall_data->{roleType};
+		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
+		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
+		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
+		$nt{$nd}{lastUpdateSec} = $catchall_data->{lastUpdateSec};
+		$nt{$nd}{sysName} = $catchall_data->{sysName};
 		$nt{$nd}{server} = $C->{'server_name'};
 
 		foreach my $property (@node_summary_properties) {
-			$nt{$nd}{$property} = $NI->{system}{$property};
+			$nt{$nd}{$property} = $catchall_data->{$property};
 		}
 
-		$nt{$nd}{nodedown} = $NI->{system}{nodedown};
+		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
 		# find out if a node down event exists, and if so store
 		# its escalate setting
 		my $curescalate = undef;
@@ -1206,7 +1217,7 @@ sub getNodeSummary {
 
 		### adding node_status to the summary data
 		# check status from event db
-		my $nodestatus = nodeStatus(NI => $NI);
+		my $nodestatus = nodeStatus(catchall_data => $catchall_data);
 		if ( not $nodestatus ) {
 			$nt{$nd}{nodestatus} = "unreachable";
 		}
@@ -1229,10 +1240,10 @@ sub getNodeSummary {
 		$nt{$nd}{outageText} = $outageText;
 
 		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
-		my $sysLocation = $NI->{system}{sysLocation};
-		if (($NI->{system}{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
+		my $sysLocation = $catchall_data->{sysLocation};
+		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
 			# Node has sysLocation that is formatted for Geo Data
-			( my $lat, my $long, my $alt, $sysLocation) = split(',',$NI->{system}{sysLocation});
+			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
 		}
 		$nt{$nd}{sysLocation} = $sysLocation ;
 	}
@@ -2443,12 +2454,15 @@ sub createHrButtons
 
 	my @out;
 
-	my $NI = loadNodeInfoTable($node);
+	# still need this for things not switched over, like 'status'
+	my $NI = loadNodeInfoTable($node); 
+	# note, not using live data beause this isn't used in collect/update
+	my $catchall_data = $S->inventory( concept => 'catchall')->data();
 	my $C = loadConfTable();
 
-	return unless $AU->InGroup($NI->{system}{group});
+	return unless $AU->InGroup($catchall_data->{group});
 
-	my $server = getbool($C->{server_master}) ? '' : $NI->{system}{server};
+	my $server = getbool($C->{server_master}) ? '' : $catchall_data->{server};
 	my $urlsafenode = uri_escape($node);
 
 	push @out, "<table class='table'><tr>\n";
@@ -2470,7 +2484,7 @@ sub createHrButtons
 			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"services"));
 	}
 
-	if (getbool($NI->{system}{collect})) {
+	if (getbool($catchall_data->{collect})) {
 		push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_status_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"status"))
 				if defined $NI->{status} and defined $C->{display_status_summary}
@@ -2481,19 +2495,26 @@ sub createHrButtons
 		push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
-		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}})
+
+		# this should potentially be querying for active/not-historic
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
+		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
-		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
+		# this should potentially be querying for active/not-historic		
+		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
+		if ( @$ids > 0 )
 		{
 			push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_storage_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"storage"));
 		}
-
+		# this should potentially be querying for active/not-historic
+		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		# adding services list support, but hide the tab if the snmp service collection isn't working
-		if (defined $NI->{services} && keys %{$NI->{services}}) {
+		if ( @$ids > 0 )
+		{
 					push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
@@ -2520,6 +2541,7 @@ sub createHrButtons
 			push @out, "</ul></li></ul></td>";
 		}
 
+		# NOTE: Inventory, what do we do with this?
 		### 2012-12-13 keiths, adding generic temp support
 		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
 			push @out, CGI::td({class=>'header litehead'},
@@ -2551,13 +2573,13 @@ sub createHrButtons
 	# and let's combine these in a 'diagnostic' menu as well
 	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
 
-	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
+	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$catchall_data->{host}",target=>'_blank'},"telnet"))
 			if (getbool($C->{view_telnet}));
 
 	if (getbool($C->{view_ssh})) {
 		my $ssh_url = $C->{ssh_url} ? $C->{ssh_url} : "ssh://";
 		my $ssh_port = $C->{ssh_port} ? ":$C->{ssh_port}" : "";
-		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$NI->{system}{host}$ssh_port",
+		push @out, CGI::li(CGI::a({class=>'wht',href=>"$ssh_url$catchall_data->{host}$ssh_port",
 										 target=>'_blank'},"ssh"));
 	}
 
@@ -2576,18 +2598,18 @@ sub createHrButtons
 			if getbool($C->{view_lft});
 
 	push @out, CGI::li(CGI::a({class=>'wht',
-									 href=>"http://$NI->{system}{host}",target=>'_blank'},"http"))
-			if getbool($NI->{system}{webserver});
+									 href=>"http://$catchall_data->{host}",target=>'_blank'},"http"))
+			if getbool($catchall_data->{webserver});
 	# end of diagnostic menu
 	push @out, "</ul></li></ul></td>";
 
-	if ($NI->{system}{server} eq $C->{server_name}) {
+	if ($catchall_data->{server} eq $C->{server_name}) {
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
-					if $NI->{system}{sysContact} ne '';
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($catchall_data->{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
+					if $catchall_data->{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
-					if $NI->{system}{sysLocation} ne '';
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($catchall_data->{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+					if $catchall_data->{sysLocation} ne '';
 	}
 
 	push @out, "</tr></table>";
