@@ -1584,13 +1584,11 @@ sub prep_extras_with_catchalls
 	# if I am wanting a storage thingy, then lets populate the variables I need.
 	if ( $index ne ''
 		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
-	{
-		my $data = $self->{info}{storage}{$index};
+	{		
+		my $data;
 		my $storage_inventory = $self->inventory(concept => 'storage', index => $index);
-		if( $storage_inventory )
-		{
-			$data = $storage_inventory->data();
-		}
+		$data = $storage_inventory->data() if( $storage_inventory );
+		
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
 			$extras->{$key} = $data->{$key}

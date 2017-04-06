@@ -5561,7 +5561,6 @@ sub runServer
 	my %args = @_;
 	my $S    = $args{sys};
 	
-	my $device_target = $S->ndinfo->{device};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $graphtypes = $S->ndinfo->{graphtype};
@@ -5575,23 +5574,35 @@ sub runServer
 	my $M    = $S->mdl;
 	my $SNMP = $S->snmp;
 
-	my ( $result, %Val, %ValMeM, $hrCpuLoad );
+	my ( $result, %Val, %ValMeM, $hrCpuLoad, $op, $error );
 
 	info("Starting server device/storage collection, node $S->{name}");
 
 	# clean up node file
 	NMISNG::Util::TODO("Need a cleanup/historic checker");
 	delete $S->ndinfo->{device};
+	
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
+		my $overall_target = {};
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
-		$S->loadInfo( class => 'device', model => $model, target => $device_target );    # get cpu load without index
+		$S->loadInfo( class => 'device_global', model => $model, target => $overall_target );    # get cpu load without index
+
+		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => [], data => $overall_target, create => 1 );
+		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);
+		($op,$error) = $inventory->save() if($inventory);
+		$S->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
+
 		foreach my $index ( keys %{$deviceIndex} )
 		{
-			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $device_target->{$index} ) )
+			# create a new target for each index
+			my $device_target = {};
+			my $historic = 0;
+			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $device_target ) )
 			{
-				my $D = $device_target->{$index};
+				my $D = $device_target;
 				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
 				{                                                                       # hrDeviceProcessor
@@ -5602,11 +5613,11 @@ sub runServer
 					### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
 					push( @{$S->{reach}{cpuList}}, $hrCpuLoad );
 
-					$device_target->{$index}{hrCpuLoad}
-						= ( $hrCpuLoad =~ /noSuch/i ) ? $device_target->{hrCpuLoad} : $hrCpuLoad;
-					info("cpu Load=$device_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
+					$device_target->{hrCpuLoad}
+						= ( $hrCpuLoad =~ /noSuch/i ) ? $overall_target->{hrCpuLoad} : $hrCpuLoad;
+					info("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
-					$Val{hrCpuLoad}{value} = $device_target->{$index}{hrCpuLoad} || 0;
+					$Val{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
 					if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrsmpcpu", index => $index ) ) )
 					{
 						$graphtypes->{$index}{hrsmpcpu} = "hrsmpcpu";
@@ -5615,13 +5626,20 @@ sub runServer
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+
+					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
+					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
+					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
+					($op,$error) = $inventory->save() if($inventory);
+					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if(!$error);
 				}
-				else
-				{
-					delete $device_target->{$index};
-				}
+				# else
+				# {
+				# 	delete $device_target->{$index};
+				# }
 			}
 		}
+		NMISNG::Util::TODO("Need to clean up device/devices here and mark unused historic");
 	}
 	else
 	{
@@ -5645,10 +5663,16 @@ sub runServer
 		my $hrFSMountPoint       = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable      = undef;
-
+print "doing storage\n";
 		foreach my $index ( keys %{$storageIndex} )
 		{
-			my $storage_target = $S->ndinfo->{storage};	
+			# look for existing data for this as 'fallback'
+			my $oldstorage;
+			my $inventory = $S->nmisng_node->inventory( concept => 'storage', index => $index, nolog => 1);
+			$oldstorage = $inventory->data() if($inventory);
+			my $storage_target = {};
+			my $historic = 0;
+
 			# this saves any retrieved info under ni->{storage}
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
@@ -5656,12 +5680,7 @@ sub runServer
 				model  => $model,
 				target => $storage_target
 			);
-			if ( !$wasloadable )
-			{
-				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
-				$storage_target->{$index} ||= $oldstorage->{$index};    # and restore the old data, better than nothing
-			}
-			else
+			if ( $wasloadable )
 			{
 				my $D = $storage_target;                        # new data
 
@@ -5680,7 +5699,7 @@ sub runServer
 					)
 				{
 					NMISNG::Util::TODO("Need an inventory object and mark it historic?");
-					delete $S->ndinfo->{storage}{$index};
+					$inventory->historic(1) if($inventory);
 				}
 				else
 				{
@@ -5816,13 +5835,33 @@ sub runServer
 							logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 						}
 					}
-
 					# storage type not recognized?
 					else
-					{
-						# delete $NI->{storage}{$index};
+					{						
+						$inventory->historic(1) if($inventory);
 					}
 				}
+				if( !$inventory )
+				{
+					print "storage_target".Dumper($storage_target);
+					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
+					($inventory,$error) = $S->nmisng_node->inventory( 
+						concept => 'storage', 
+						data => $storage_target,
+						path => $path, 
+						path_keys => ['index'],
+						create => 1 
+					);
+					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
+				}				
+				($op,$error) = $inventory->save() if($inventory);
+				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
+			}
+			elsif( $oldstorage )
+			{
+				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
+				# nothing needs to be done here, storage target is the data from last time so it's already in db				
+				# maybe mark it historic?
 			}
 		}
 	}
