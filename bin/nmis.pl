@@ -5560,7 +5560,6 @@ sub runServer
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $graphtypes = $S->ndinfo->{graphtype};
@@ -5581,7 +5580,7 @@ sub runServer
 	# clean up node file
 	NMISNG::Util::TODO("Need a cleanup/historic checker");
 	delete $S->ndinfo->{device};
-	
+
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
@@ -5663,7 +5662,7 @@ sub runServer
 		my $hrFSMountPoint       = undef;
 		my $hrFSRemoteMountPoint = undef;
 		my $fileSystemTable      = undef;
-print "doing storage\n";
+
 		foreach my $index ( keys %{$storageIndex} )
 		{
 			# look for existing data for this as 'fallback'
@@ -5843,7 +5842,6 @@ print "doing storage\n";
 				}
 				if( !$inventory )
 				{
-					print "storage_target".Dumper($storage_target);
 					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
 					($inventory,$error) = $S->nmisng_node->inventory( 
 						concept => 'storage', 
@@ -6784,8 +6782,7 @@ sub runServices
 sub runAlerts
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $M    = $S->mdl;
 	my $CA   = $S->alerts;
 
@@ -6798,159 +6795,166 @@ sub runAlerts
 
 	foreach my $sect ( keys %{$CA} )
 	{
-		if ( defined $NI->{$sect} and keys %{$NI->{$sect}} )
+		# only use inventory that already exists
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect );
+		info("Custom Alerts for $sect");
+		foreach my $id ( @$ids )
 		{
-			info("Custom Alerts for $sect");
-			foreach my $index ( keys %{$NI->{$sect}} )
+			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
+			$S->nmisng->log->error("Failed to get inventory, concept:$sect, _id:$id, error_message:$error_message") && next
+				if(!$inventory);
+			my $data = $inventory->data();
+			my $index = $data->{index};
+			foreach my $alrt ( keys %{$CA->{$sect}} )
 			{
-				foreach my $alrt ( keys %{$CA->{$sect}} )
+				if ( defined( $CA->{$sect}{$alrt}{control} ) and $CA->{$sect}{$alrt}{control} ne '' )
 				{
-					if ( defined( $CA->{$sect}{$alrt}{control} ) and $CA->{$sect}{$alrt}{control} ne '' )
+					my $control_result = $S->parseString(
+						string => "($CA->{$sect}{$alrt}{control}) ? 1:0",
+						index  => $index,
+						type   => $sect,
+						sect   => $sect,
+						extras => $data, # <- this isn't really needed, it's going to look this up for cvars anyway
+						eval => 1
+					);
+					dbg("control_result sect=$sect index=$index control_result=$control_result");
+					next if not $control_result;
+				}
+
+				# perform CVARn substitution for these two types of ops
+				NMISNG::Util::TODO("Why can't this run through parseString?");
+				if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
+				{
+					my ( $test, $value, $alert, $test_value, $test_result );
+
+					# do this for test and value
+					for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
 					{
-						my $control_result = $S->parseString(
-							string => "($CA->{$sect}{$alrt}{control}) ? 1:0",
-							index  => $index,
-							type   => $sect,
-							sect   => $sect,
-							eval => 1
+						my ( $key, $target ) = @$thingie;
+
+						my $origexpr = $CA->{$sect}{$alrt}{$key};
+						my ( $rebuilt, @CVAR );
+
+						# rip apart expression, rebuild it with var substitutions
+						while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
+						{
+							$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
+							my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
+
+							if ( defined $varnum )                              # cvar declaration
+							{
+								$CVAR[$varnum] = $data->{$decl};
+								logMsg(   "ERROR: CVAR$varnum references unknown object \"$decl\" in \""
+										. $CA->{$sect}{$alrt}{$key}
+										. '"' )
+									if ( !exists $data->{$decl} );
+							}
+							elsif ( defined $varuse )                           # cvar use
+							{
+								logMsg(   "ERROR: CVAR$varuse used but not defined in test \""
+										. $CA->{$sect}{$alrt}{$key}
+										. '"' )
+									if ( !exists $CVAR[$varuse] );
+
+								$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
+							}
+							else                                                # shouldn't be reached, ever
+							{
+								logMsg( "ERROR: CVAR parsing failure for \"" . $CA->{$sect}{$alrt}{$key} . '"' );
+								$rebuilt = $origexpr = '';
+								last;
+							}
+						}
+						$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
+
+						$$target = eval { eval $rebuilt; };
+						dbg("substituted $key sect=$sect index=$index, orig=\""
+								. $CA->{$sect}{$alrt}{$key}
+								. "\", expr=\"$rebuilt\", result=$$target",
+							2
 						);
-						dbg("control_result sect=$sect index=$index control_result=$control_result");
-						next if not $control_result;
 					}
 
-					# perform CVARn substitution for these two types of ops
-					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
+					if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
 					{
-						my ( $test, $value, $alert, $test_value, $test_result );
-
-						# do this for test and value
-						for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
-						{
-							my ( $key, $target ) = @$thingie;
-
-							my $origexpr = $CA->{$sect}{$alrt}{$key};
-							my ( $rebuilt, @CVAR );
-
-							# rip apart expression, rebuild it with var substitutions
-							while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
-							{
-								$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
-								my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
-
-								if ( defined $varnum )                              # cvar declaration
-								{
-									$CVAR[$varnum] = $NI->{$sect}->{$index}->{$decl};
-									logMsg(   "ERROR: CVAR$varnum references unknown object \"$decl\" in \""
-											. $CA->{$sect}{$alrt}{$key}
-											. '"' )
-										if ( !exists $NI->{$sect}->{$index}->{$decl} );
-								}
-								elsif ( defined $varuse )                           # cvar use
-								{
-									logMsg(   "ERROR: CVAR$varuse used but not defined in test \""
-											. $CA->{$sect}{$alrt}{$key}
-											. '"' )
-										if ( !exists $CVAR[$varuse] );
-
-									$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
-								}
-								else                                                # shouldn't be reached, ever
-								{
-									logMsg( "ERROR: CVAR parsing failure for \"" . $CA->{$sect}{$alrt}{$key} . '"' );
-									$rebuilt = $origexpr = '';
-									last;
-								}
-							}
-							$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
-
-							$$target = eval { eval $rebuilt; };
-							dbg("substituted $key sect=$sect index=$index, orig=\""
-									. $CA->{$sect}{$alrt}{$key}
-									. "\", expr=\"$rebuilt\", result=$$target",
-								2
-							);
-						}
-
-						if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
-						{
-							$test_value = sprintf( "%.2f", $test_value );
-						}
-
-						my $level = $CA->{$sect}{$alrt}{level};
-
-						# check the thresholds
-						# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
-						if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
-						{
-							if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
-							{
-								if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} )
-								{
-									$test_result = 0;
-									$level       = "Normal";
-								}
-								else
-								{
-									my @levels = qw(Fatal Critical Major Minor Warning);
-									foreach my $lvl (@levels)
-									{
-										if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} )
-										{
-											$test_result = 1;
-											$level       = $lvl;
-											last;
-										}
-									}
-								}
-							}
-							elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
-							{
-								if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} )
-								{
-									$test_result = 0;
-									$level       = "Normal";
-								}
-								else
-								{
-									my @levels = qw(Warning Minor Major Critical Fatal);
-									foreach my $lvl (@levels)
-									{
-										if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} )
-										{
-											$test_result = 1;
-											$level       = $lvl;
-											last;
-										}
-									}
-								}
-							}
-							info(
-								"alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",
-								2
-							);
-						}
-
-					   # and now save the result, for both tests and thresholds (source of level is the only difference)
-						$alert->{type}  = $CA->{$sect}{$alrt}{type};    # threshold or test or whatever
-						$alert->{test}  = $CA->{$sect}{$alrt}{value};
-						$alert->{name}  = $S->{name};                   # node name, not much good here
-						$alert->{unit}  = $CA->{$sect}{$alrt}{unit};
-						$alert->{event} = $CA->{$sect}{$alrt}{event};
-						$alert->{level} = $level;
-						$alert->{ds}          = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
-						$alert->{test_result} = $test_result;
-						$alert->{value}       = $test_value;
-
-						# also ensure that section, index and alertkey are known for the event context
-						$alert->{section} = $sect;
-						$alert->{alert}   = $alrt;                      # the key, good enough
-						$alert->{index}   = $index;
-
-						push( @{$S->{alerts}}, $alert );
+						$test_value = sprintf( "%.2f", $test_value );
 					}
+
+					my $level = $CA->{$sect}{$alrt}{level};
+
+					# check the thresholds
+					# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
+					if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
+					{
+						if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
+						{
+							if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} )
+							{
+								$test_result = 0;
+								$level       = "Normal";
+							}
+							else
+							{
+								my @levels = qw(Fatal Critical Major Minor Warning);
+								foreach my $lvl (@levels)
+								{
+									if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} )
+									{
+										$test_result = 1;
+										$level       = $lvl;
+										last;
+									}
+								}
+							}
+						}
+						elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
+						{
+							if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} )
+							{
+								$test_result = 0;
+								$level       = "Normal";
+							}
+							else
+							{
+								my @levels = qw(Warning Minor Major Critical Fatal);
+								foreach my $lvl (@levels)
+								{
+									if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} )
+									{
+										$test_result = 1;
+										$level       = $lvl;
+										last;
+									}
+								}
+							}
+						}
+						info(
+							"alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",
+							2
+						);
+					}
+
+				   # and now save the result, for both tests and thresholds (source of level is the only difference)
+					$alert->{type}  = $CA->{$sect}{$alrt}{type};    # threshold or test or whatever
+					$alert->{test}  = $CA->{$sect}{$alrt}{value};
+					$alert->{name}  = $S->{name};                   # node name, not much good here
+					$alert->{unit}  = $CA->{$sect}{$alrt}{unit};
+					$alert->{event} = $CA->{$sect}{$alrt}{event};
+					$alert->{level} = $level;
+					$alert->{ds}          = $data->{ $CA->{$sect}{$alrt}{element} };
+					$alert->{test_result} = $test_result;
+					$alert->{value}       = $test_value;
+
+					# also ensure that section, index and alertkey are known for the event context
+					$alert->{section} = $sect;
+					$alert->{alert}   = $alrt;                      # the key, good enough
+					$alert->{index}   = $index;
+
+					push( @{$S->{alerts}}, $alert );
 				}
 			}
 		}
+	
 	}
 
 	processAlerts( S => $S );

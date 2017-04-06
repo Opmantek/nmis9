@@ -502,7 +502,7 @@ sub copyModelCfgInfo
 	{
 		my $mustoverwrite = ( $type eq 'overwrite' );
 
-		dbg("DEBUG: nodeType=$self->{info}{system}{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$self->{info}{system}{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}"
+		dbg("DEBUG: nodeType=$catchall_data->{nodeType} nodeType(mdl)=$self->{mdl}{system}{nodeType} nodeModel=$catchall_data->{nodeModel} nodeModel(mdl)=$self->{mdl}{system}{nodeModel}"
 		);
 
 		# make the changes unconditionally if overwrite requested, otherwise only if not present
@@ -1569,6 +1569,7 @@ sub prep_extras_with_catchalls
 	my $extras = $args{extras};
 	my $index = $args{index};
 	my $item = $args{item};
+	my $section = $args{section};
 	my $str = $args{str};
 	
 	# if new one is there use it
@@ -1577,7 +1578,7 @@ sub prep_extras_with_catchalls
 
 	foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
 	{
-		$extras->{$key} = $data->{$key} // $self->{info}{system}
+		$extras->{$key} = $data->{$key};
 	}
 	$extras->{InstalledModems} //= 0;
 	
@@ -1598,28 +1599,30 @@ sub prep_extras_with_catchalls
 		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
 	}
 
-	my $interface_inventory;
-	# nolog here because there is 0 checking to see if this is actually a valid index or what section we are after at all!@!!
-	$interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1) if($index);
-	if ( $interface_inventory )
+	
+	if ( $index && ($section eq 'interface' || $section eq 'pkts' || $section eq 'pkts_hc') )
 	{
-		# no fallback to info section as interface update is running
-		# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
-		$data = $interface_inventory->data();
-		foreach my $key (qw(ifAlias Description ifDescr ifType ifSpeed))
+		my $interface_inventory = $self->inventory(concept => 'interface', index => $index);
+		if( $interface_inventory )
 		{
-			$extras->{$key} = $data->{$key}
-		}
-		$extras->{ifDescr} = convertIfName( $extras->{ifDescr} );
-		$extras->{ifMaxOctets} = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 8 ) : 'U';
-		$extras->{maxBytes}    = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 4 ) : 'U';
-		$extras->{maxPackets}  = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 50 ) : 'U';
+			# no fallback to info section as interface update is running
+			# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
+			$data = $interface_inventory->data();
+			foreach my $key (qw(ifAlias Description ifDescr ifType ifSpeed))
+			{
+				$extras->{$key} = $data->{$key}
+			}
+			$extras->{ifDescr} = convertIfName( $extras->{ifDescr} );
+			$extras->{ifMaxOctets} = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 8 ) : 'U';
+			$extras->{maxBytes}    = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 4 ) : 'U';
+			$extras->{maxPackets}  = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 50 ) : 'U';
 
-		$data = {};
-		$data = $self->{info}{entPhysicalDescr}{$index} if( defined $self->{info}{entPhysicalDescr} && defined $self->{info}{entPhysicalDescr}{$index} );
-		my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index);
-		$data = $entPhysicalDescr_inventory->data() if($entPhysicalDescr_inventory);
-		$extras->{entPhysicalDescr} = $data->{entPhysicalDescr} // undef;		
+			$data = {};
+			$data = $self->{info}{entPhysicalDescr}{$index} if( defined $self->{info}{entPhysicalDescr} && defined $self->{info}{entPhysicalDescr}{$index} );
+			my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index);
+			$data = $entPhysicalDescr_inventory->data() if($entPhysicalDescr_inventory);
+			$extras->{entPhysicalDescr} = $data->{entPhysicalDescr} // undef;
+		}
 	}
 	else
 	{
@@ -1651,10 +1654,7 @@ sub parseString
 	dbg( "parseString:: string to parse '$str'", 3 );
 
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value	
-	my $data;
-	$data = $self->{info}->{$sect} if( defined($self->{info}->{$sect}));
-	$data = $data->{$indx} if( defined($indx) && defined($self->{info}->{$sect}->{$indx}) );
-
+	my $data = {};
 	my $inventory = $self->inventory(concept => $sect, index => $indx);
 	if ( $sect )
 	{
@@ -1690,7 +1690,7 @@ sub parseString
 	{
 		logMsg("No inventory found for concept:$sect")
 	}
-	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, str => $str);
+	$self->prep_extras_with_catchalls( extras => $extras, section => $sect, index => $indx, item => $itm, str => $str);
 
 	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 	
