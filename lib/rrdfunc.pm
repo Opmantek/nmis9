@@ -38,12 +38,12 @@ use vars qw(@ISA @EXPORT);
 
 use Exporter;
 
-use RRDs 1.000.490; # from Tobias
+use RRDs 1.000.490;
+use File::Basename;
 use Statistics::Lite;
 use POSIX qw();									# for strftime
 
 use func;
-use Sys;
 
 @ISA = qw(Exporter);
 
@@ -76,32 +76,21 @@ sub getUpdateStats
 }
 
 # returns the rrd data for a given rrd type as a hash
+# args: database (both required), optional: hours_from and hours_to (default: no restriction)
 # this uses the Sys object to translate between graphtype and rrd section (Sys::getTypeName)
 # returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
 # metadata hash: actual begin and end as per rrd, and step
 #
-# optional: hours_from and hours_to (default: no restriction)
 sub getRRDasHash
 {
 	my %args = @_;
-	my $S = $args{sys};
-	my $graphtype = $args{graphtype};
-	my $index = $args{index};
-	my $item = $args{item};
+	my $db = $args{database};
+	die "getRRDasHash requires database argument!\n" if (!$db);
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
 	my $mustcheckhours = ($minhr != 0  and $maxhr != 24);
 	my $invertperiod = $minhr > $maxhr;
-
-	if (!$S) {
-		$S = Sys::->new(); # get base Model containing database info
-		$S->init;
-	}
-
-	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
 
 	my ($begin,$step,$name,$data) = RRDs::fetch($db, $args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
@@ -157,8 +146,7 @@ sub getRRDasHash
 
 
 # retrieves rrd data and computes a number of descriptive stats
-# this uses the sys object to translate from graphtype to section (Sys::getTypeName)
-# args: hour_from hour_to define the daily period [from,to].
+# args: database, required; hour_from hour_to define the daily period [from,to].
 # if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
 # for midnight use either 0 or 24, depending on whether you want the inside or outside interval
 #
@@ -172,7 +160,9 @@ sub getRRDasHash
 sub getRRDStats
 {
 	my %args = @_;
-	my $S = $args{sys};
+	my $db = $args{database};
+	die "getRRDStats requires database argument!\n" if (!$db);
+
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
 	my $item = $args{item};
@@ -183,14 +173,6 @@ sub getRRDStats
 
 	my $invertperiod = $minhr > $maxhr;
 
-	if (!$S) {
-		$S = Sys::->new(); # get base Model containing database info
-		$S->init;
-	}
-
-	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
 
 	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
 	if ( -r $db ) {
@@ -245,11 +227,12 @@ sub getRRDStats
 sub addDStoRRD
 {
 	my ($rrd, @ds) = @_ ;
+	die "addDStoRRD requires rrd argument!\n" if (!$rrd);
 
 	dbg("update $rrd with @ds");
 
 	my $rrdtool = "rrdtool";
-	if ($NMIS::kernel =~ /win32/i) {
+	if ($^O =~ /win32/i) {
 		$rrdtool = "rrdtool.exe";
 	}
 	my $info = `$rrdtool`;
@@ -412,69 +395,14 @@ sub addDStoRRD
 	}
 }
 
-# determine the rrd file name from the node's model, the common-database
-# and the input parameters like name/type/item/index; also extras (optional),
-# and nmis4 (optional, for backwards compat expansion)
-#
-# attention: this low-level function does NOT translate from graphtype instances to
-# sections (e.g. graphtype cpu and many others is covered by nodehealth section),
-# the caller must have made that translation (using Sys::getTypeName) already!
-# therefore the argument name is type (meaning rrd section) and NOT graphtype.
-#
-# attention: this function name clashes with the function from func.pm, and is therefore
-# not exported!
-sub getFileName
-{
-	my %args = @_;
-
-	my ($S,$type,$index,$item,$extras,$nmis4) =
-			@args{"sys","type","index","item","extras","nmis4"};
-
-	my $C = loadConfTable();
-
-	if (!$S) {
-		$S = Sys::->new(); # get base Model containing database info
-		$S->init;
-	}
-
-	my $dir;
-
-	# get the rule in Model to find the database file
-	if ($S->{mdl}{database}{type}{$type})
-	{
-		my $string = $S->{mdl}{database}{type}{$type};
-		$string =~ s/\$node\b/\$host/g if getbool($nmis4);
-
-		# note: no CVARs as no section given
-		# also, all optional inputs must be safeguarded, as indices (for example) can easily contain '/'
-		# and at least these /s must be removed
-		my $safetype = $type; $safetype =~ s!/!_!g;
-		my $safeindex = $index; $safeindex =~ s!/!_!g;
-		my $safeitem = $item; $safeitem =~ s!/!_!g;
-		my %safeextras = ref($extras) eq "HASH"? %{$extras} :  ();
-		map { $safeextras{$_} =~ s!/!_!g; } (keys %safeextras);
-
-		if ($dir = $S->parseString(string=>$string, type=>$safetype,
-															 index=>$safeindex, item=>$safeitem,
-															 extras => \%safeextras, eval => 0 ))
-		{
-			$dir = $C->{database_root}.$dir; # full specification
-			dbg("filename of type=$type is $dir");
-		}
-	}
-	else
-	{
-		logMsg("ERROR, ($S->{name}) no type=$type found in class=database of model=$S->{mdl}{system}{nodeModel}");
-		$stats{error} = "($S->{name}) no type=$type found in class=database of model=$S->{mdl}{system}{nodeModel}";
-	}
-	return $dir;
-}
-
 # this function takes in a set of data items and updates the relevant rrd file
-# arsg: sys, data (absolutely required), type/index/item (more or less required), extras (optional),
-# database (optional, if set overrides the internal file naming logic)
+# arsg: sys, database, data (absolutely required), type/index/item (more or less required), extras (optional),
 #
-# returns: the database file name; sets the internal error indicator
+# the sys object is for the catch-22 issue of optionsRRD requiring knowledge from the model(s),
+# plus there's the fixme: node-reset and nodeinfo reliance!
+# fixme: the logic for node-reset and so on needs rework and likely needs doing elsewhere
+#
+# returns: the database file name or undef; sets the internal error indicator
 sub updateRRD
 {
 	my %args = @_;
@@ -482,19 +410,15 @@ sub updateRRD
 	my ($S,$data,$type,$index,$item,$database,$extras) =
 			@args{"sys","data","type","index","item","database","extras"};
 
-	my $NI = $S->{info};
-	my $IF = $S->{intf};
+	# fixme cannot work with the new inventory infrastructure
+	my $NI = $S->ndinfo;
 
 	++ $stats{nodes}->{$S->{name}};
-	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
-
-	# use heuristic or given database?
-	$database = getFileName(sys=>$S, type=>$type, index=>$index, item=>$item, extras => $extras)
-			if (!defined $database);
+	dbg("Starting RRD Update Process, db=$database, type=$type, index=$index, item=$item");
 
 	if (!$database)
 	{
-		$stats{error} = "No RRD file found!";
+		$stats{error} = "No RRD file given!";
 		logMsg("ERROR, $stats{error}");
 		return;
 	}
@@ -514,21 +438,6 @@ sub updateRRD
 	}
 	else 												# no db file exists
 	{
-		# fall back to nmis4 format if requested to
-		my $C = loadConfTable();
-		if (getbool($C->{nmis4_compatibility}))
-		{
-			dbg("file=$database not found, try nmis4 format");
-			my $database4 = getFileName(sys=>$S, type=>$type, index=>$index,
-																	item=>$item, nmis4=>'true');
-			if ($database4 and -f $database4
-					and -r $database4 and -w $database4 )
-			{
-				$database = $database4;
-				dbg("database $database exists and is R/W");
-			}
-		}
-
 		# nope, create new file
 		if (! createRRD(data=>$data, sys=>$S, type=>$type, database=>$database,
 										index=>$index))
@@ -541,6 +450,7 @@ sub updateRRD
 	my (@options, @ds);
 	my @values = ("N");							# that's 'reading is for Now'
 
+	# fixme: broken with inventory
 	dbg("node was reset, inserting U values") if ($NI->{system}->{node_was_reset});
 	foreach my $var (keys %{$data})
 	{
@@ -592,6 +502,7 @@ sub updateRRD
 	dbg("DS $theds, $points");
 	dbg("value $thevalue, $bytes bytes");
 
+	# fixme NI broken
 	logPolling("$type,$NI->{system}{name},$index,$item,$theds,$thevalue");
 
 	if ( @options)
@@ -638,31 +549,25 @@ sub updateRRD
 	dbg("Finished");
 } # end updateRRD
 
-#
 # define the DataSource configuration for RRD
-#
+# args: sys (required, for finding model data), data, type, index(optional);
+# 
 sub optionsRRD
 {
 	my %args = @_;
-	my $S = $args{sys}; # optional,needed for parsing range
+	my $S = my $M = $args{sys};
 	my $data = $args{data};
 	my $type = $args{type};
 	my $index = $args{index}; # optional
 
-	my $time  = 30*int(time/30);
+	my $time  = 30*int(time/30);	# (time - (time % 30)) would be faster.
 	my $START = $time;
 	my @options;
 
+	die "optionsRRD cannot work without Sys argument!\n" if (!$S);
 	dbg("type $type");
 
-	my $M;
-	if ($S eq "") {
-		$M = Sys::->new(); # load base model
-		$M->init;
-	} else {
-		$M = $S;
-	}
-
+	# fixme autovivify
 	# rrd step, from model database or our standard 5min
 	my $RRD_poll = $M->{mdl}{database}{db}{poll} || 300;
 	# rrd heartbeat, either from model database or 3 times the step
@@ -712,6 +617,7 @@ sub optionsRRD
 	}
 
 	my $DB;
+	# fixme autovivifies
 	if (exists $M->{mdl}{database}{db}{size}{$type}) {
 		$DB = $M->{mdl}{database}{db}{size}{$type};
 	} elsif (exists $M->{mdl}{database}{db}{size}{default}) {
@@ -745,14 +651,14 @@ sub optionsRRD
 } # end optionsRRD
 
 
-### createRRRDB now checks if RRD exists and only creates if doesn't exist.
+### createRRD now checks if RRD exists and only creates if doesn't exist.
 ### also add node directory create for node directories, if rrd is not found
-### note that the function does NOT create an rrd file if
-### $main::selftest_dbdir_status is 0 (not undef)
+### note that the function does NOT create an rrd file if $main::selftest_dbdir_status is 0 (not undef)
+# args: sys, data, database, type,  index - all required
 sub createRRD
 {
 	my %args = @_;
-	my $S = $args{sys}; # optional
+	my $S = $args{sys};
 	my $data = $args{data};
 	my $type = $args{type};
 	my $index = $args{index};
@@ -785,34 +691,11 @@ sub createRRD
 		logMsg("ERROR: Not creating $database, as database filesystem is (almost) full!");
 		return 0;
 	}
-	# It doesn't so create it
+	# create new rrd file, maybe dir structure too
 	else
 	{
-		my @x = $database =~ /\//g; # until last slash
-		my $dir = $`; # before last slash
-
-		if ( not -d "$dir" and not -r "$dir" )
-		{
-			my $permission = "0770"; # default
-			if ( $C->{'os_execperm'} ne "" ) {
-				$permission = $C->{'os_execperm'} ;
-			}
-
-			my @comps = split(m!/!,$dir);
-			for my $idx (1..$#comps)
-			{
-				my $parentdir = join("/",@comps[0..$idx]);
-				if (!-d $parentdir)
-				{
-					dbg("creating database directory $parentdir, $permission");
-
-					my $umask = umask(0);
-					mkdir($parentdir, oct($permission)) or warn "Cannot mkdir $parentdir: $!\n";
-					umask($umask);
-					setFileProt($parentdir);
-				}
-			}
-		}
+		my $dir = dirname($database);
+		func::createDir($dir) if (!-d $dir);
 
 		my @options = optionsRRD(data=>$data,sys=>$S,type=>$type,index=>$index);
 
@@ -832,7 +715,7 @@ sub createRRD
 				$exit = 0;
 			}
 			# set file owner and permission, default: nmis, 0775.
-			setFileProt($database); # Cologne, Jan 2005
+			setFileProt($database);
 			# Double check created OK for this user
 			if ( -f $database and -r $database and -w $database )
 			{
