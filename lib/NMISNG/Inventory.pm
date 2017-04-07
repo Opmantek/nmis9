@@ -281,6 +281,61 @@ sub storage
 	return Clone::clone($self->{_storage});
 }
 
+# small accessor that looks up a storage subconcept 
+# and returns the requested storage type info for it
+#
+# args: subconcept (required), type (optional, default rrd)
+# returns: undef or rhs of the type record (for rrd that's normally a path)
+sub find_subconcept_type_storage
+{
+	my ($self, %args) = @_;
+	my $type = $args{type} || 'rrd';
+	my $subconcept = $args{subconcept};
+	return undef if (!$subconcept
+									 or ref($self->{_storage}) ne "HASH"
+									 or ref($self->{_storage}->{$subconcept}) ne "HASH" # better than pure existence check
+									 or !exists($self->{_storage}->{$subconcept}->{$type}));
+
+	return $self->{_storage}->{$subconcept}->{$type}; # no cloning needed until this becomes a deep structure
+}
+
+# small helper to update a storage subconcept
+# note: this does update the inventory's storage object!
+#
+# args: subconcept (=name), type (optional, default rrd), data (= new value, undef to delete, anything else to update)
+# returns: nothing
+sub set_subconcept_type_storage
+{
+	my ($self, %args) = @_;
+	my ($subconcept,$type,$data)= @args{"subconcept","type","data"};
+	$type //= "rrd";
+
+	# already empty, no-op.
+	return if (!defined($self->{_storage}) && !defined($data));
+	$self->{_storage} //= {};
+
+	if (defined $data)
+	{
+		$self->{_storage}->{$subconcept}->{$type} = $data;
+	}
+	else
+	{
+		delete $self->{_storage}->{$subconcept}->{$type};
+		delete $self->{_storage}->{$subconcept} 
+		if (!keys %{$self->{_storage}->{$subconcept}}); # if nothing else left
+	}
+	return;
+}
+
+
+
+	
+	
+	
+	
+
+	
+
 # returns the path keys list, optionally replaces it
 # args: new path_keys (arrayref)
 # returns: clone of path_keys
