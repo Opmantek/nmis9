@@ -193,7 +193,7 @@ elsif ( $type eq "apache24" )   { printApache24(); }
 elsif ( $type eq "crontab" )    { printCrontab(); }
 elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # included in type=collect
 elsif ( $type eq "rme" )        { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" )  { runThreshold($node); printRunTime(); }                   # included in type=collect
+elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # included in type=collect
 elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # included in type=collect
 elsif ( $type eq "groupsync" )  { sync_groups(); }
 elsif ( $type eq "purge" )      { my $error = purge_files(); die "$error\n" if $error; }
@@ -629,7 +629,8 @@ sub runThreads
 			if ( !getbool( $C->{threshold_poll_cycle}, "invert" ) )
 			{
 				dbg("Starting runThreshold (for all selected nodes)");
-				runThreshold($node_select);
+				# the 0 here tells it that it's running in a collect cycle
+				runThreshold($node_select,0);
 			}
 			else
 			{
@@ -2165,7 +2166,10 @@ sub getIntfInfo
 
 				if ( !defined( $ifIndexMap->{$index} ) )
 				{
-					$inventory->delete();
+					$inventory->historic(1);
+					$inventory->save();
+					info( "saved ".join(',', @$path)." op: $op");
+
 					foreach my $graphtype (qw(interface pkts pkts_hc))
 					{
 						delete $graphtypes->{$index}{$graphtype} if ( defined $graphtypes->{$index}{$graphtype} );
@@ -2757,6 +2761,38 @@ sub getIntfInfo
 			# at this point every thing is ready for the rrd speed limit enforcement
 			my $desiredlimit = $target->{setlimits};
 
+			# write if inventory data now. the speed limit/checking code requires the entries to exist in order to correctly find them in parseString/etc
+
+
+			# For now, create inventory at the very end
+			# get the inventory object for this, path_keys required as we don't know what type it will be
+			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );			
+			if( ref($path) eq 'ARRAY')
+			{
+				my ( $inventory, $error_message ) = $nmisng_node->inventory(
+					concept   => 'interface',
+					data      => $target,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
+				);
+				$S->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				$inventory->path( recalculate => 1 );
+				$inventory->historic(0);				
+				my ( $op, $error ) = $inventory->save();
+				info( "saved ".join(',', @$path)." op: $op");
+				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);
+			}
+			else 
+			{
+				$nmisng->log->error("Failed to create path for inventory, error:$path");
+			}
+
+			# the following don't modify $target so no extra saving required
+
 			# no limit or dud limit or dud speed or non-collected interface?
 			if (   $desiredlimit
 				&& $desiredlimit =~ /^(normal|strict|off)$/
@@ -2819,29 +2855,6 @@ sub getIntfInfo
 				}
 			}
 
-			# For now, create inventory at the very end
-			# get the inventory object for this, path_keys required as we don't know what type it will be
-			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );			
-			if( ref($path) eq 'ARRAY')
-			{
-				my ( $inventory, $error ) = $nmisng_node->inventory(
-					concept   => 'interface',
-					data      => $target,
-					path      => $path,
-					path_keys => $path_keys,
-					create    => 1
-				);
-				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-				$inventory->path( recalculate => 1 );
-				my ( $op, $error ) = $inventory->save();
-				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-					if ($error);
-			}
-			else 
-			{
-				$nmisng->log->error("Failed to create path for inventory, error:$path");
-			}
 		}
 
 		info("Finished");
@@ -3134,20 +3147,21 @@ sub getEnvInfo
 				my $data = { index => $index};
 				my $path_keys = ['index'];
 				my $path = $S->nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
-				my ( $inventory, $error ) = $S->nmisng_node->inventory(
+				my ( $inventory, $error_message ) = $S->nmisng_node->inventory(
 					concept   => $section,
 					data      => $target,
 					path      => $path,
 					path_keys => $path_keys,
 					create    => 1
 				);
-				$S->nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+				$S->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
-
+				$inventory->historic(0);
 				# the above will put data into inventory, so save
 				my ( $op, $error ) = $inventory->save();
+				info( "saved ".join(',', @$path)." op: $op");
 				$S->nmisng->log->error(
 					"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 					if ($error);					
@@ -3411,18 +3425,20 @@ sub getSystemHealthInfo
 					my $data = {$index_var => $indexvalue};
 					my $path_keys = [$index_var];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
-					my ( $inventory, $error ) = $nmisng_node->inventory(
+					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => $section,
 						data      => $target,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
 					);
-					$nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
+					$inventory->historic(0);
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
+					info( "saved ".join(',', @$path)." op: $op");
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);					
@@ -3510,21 +3526,21 @@ sub getSystemHealthInfo
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 
 					# NOTE: systemHealth requires {index} => $index to be set, it
-					my ( $inventory, $error ) = $nmisng_node->inventory(
+					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => $section,
 						data      => $target,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
 					);
-					$nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
-					print "created new inventory for path" . Dumper($path) . Dumper( $inventory->path_keys )
-						if ( $inventory->is_new );
+					$inventory->historic(0);
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
+					info( "saved ".join(',', @$path)." op: $op");
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 						if ($error);					
@@ -3663,6 +3679,7 @@ sub getSystemHealthData
 				# put the new values into the inventory and save
 				$inventory->data($data);
 				$inventory->save();
+				info( "saved ".join(',', @$path)." op: $op");
 			}
 			else
 			{
@@ -4475,6 +4492,7 @@ sub getIntfData
 		# the interface has changed enough runs update code anyway. I believe not doing this is correct
 		$inventory->data( $inventory_data );
 		$inventory->save();
+		info( "saved ".join(',', @$path)." op: $op");
 	}
 	info("Finished");
 }
@@ -4514,41 +4532,42 @@ sub getCBQoS
 # the priming/update function getCBQoSwalk doesn't.
 sub getCBQoSdata
 {
-	my %args  = @_;
+	my (%args)  = @_;
 	my $S     = $args{sys};	
-		
-	my $ids = $S->nmisng_node->get_inventory_ids(concept => 'cbqos');
-	return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
-
-	# oke, we have get now the PolicyIndex and ObjectsIndex directly
-	foreach my $id ( @$ids )
+	
+	foreach my $direction ( "in", "out" )
 	{
-		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
-		$S->nmisng->log->error("Failed to get inventory for id:$id, concept:cbqos, error_message:$error_message") && next
-			if(!$inventory);
+		my $ids = $S->nmisng_node->get_inventory_ids(concept => "cbqos-$direction");
+		return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
 
-		# NOTE: $data does not appear to ever be modified so it does not need saving
-		my $data = $inventory->data();
-		# for now ifIndex is stored in the index attribute
-		my $intf = $data->{index};
-		my $CB = $data;
-		foreach my $direction ( "in", "out" )
+		# oke, we have get now the PolicyIndex and ObjectsIndex directly
+		foreach my $id ( @$ids )
 		{
-			next if ( !exists $CB->{$direction}{'PolicyMap'}{'Name'} );
+			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
+			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:cbqos-$direction, error_message:$error_message") && next
+				if(!$inventory);
+
+			# note, this is not saved because it doesn't appear to be changed, 
+			my $data = $inventory->data();
+			# for now ifIndex is stored in the index attribute
+			my $intf = $data->{index};
+			my $CB = $data;
+
+			next if ( !exists $CB->{'PolicyMap'}{'Name'} );
 
 			# check if Policymap name contains no collect info
-			if ( $CB->{$direction}{'PolicyMap'}{'Name'} =~ /$S->{mdl}{system}{cbqos}{nocollect}/i )
+			if ( $CB->{'PolicyMap'}{'Name'} =~ /$S->{mdl}{system}{cbqos}{nocollect}/i )
 			{
-				dbg("no collect for interface $intf $direction ($CB->{$direction}{'Interface'}{'Descr'}) by control ($S->{mdl}{system}{cbqos}{nocollect}) at Policymap $CB->{$direction}{'PolicyMap'}{'Name'}"
+				dbg("no collect for interface $intf $direction ($CB->{'Interface'}{'Descr'}) by control ($S->{mdl}{system}{cbqos}{nocollect}) at Policymap $CB->{'PolicyMap'}{'Name'}"
 				);
 				next;
 			}
 
-			my $PIndex = $CB->{$direction}{'PolicyMap'}{'Index'};
-			foreach my $key ( keys %{$CB->{$direction}{'ClassMap'}} )
+			my $PIndex = $CB->{'PolicyMap'}{'Index'};
+			foreach my $key ( keys %{$CB->{'ClassMap'}} )
 			{
-				my $CMName = $CB->{$direction}{'ClassMap'}{$key}{'Name'};
-				my $OIndex = $CB->{$direction}{'ClassMap'}{$key}{'Index'};
+				my $CMName = $CB->{'ClassMap'}{$key}{'Name'};
+				my $OIndex = $CB->{'ClassMap'}{$key}{'Index'};
 				info("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
 
 				# get the number of bytes/packets transfered and dropped
@@ -4600,7 +4619,11 @@ sub getCBQoSdata
 					return 0;
 				}
 			}
+			# I don't believe anythign has changed data/CB so no saving for now
+			# $inventory->data($data);
+			# $inventory->save();	
 		}
+		
 	}
 	return 1;
 }
@@ -4612,9 +4635,8 @@ sub getCBQoSdata
 # returns: 1 if ok
 sub getCBQoSwalk
 {
-	my %args = @_;
+	my (%args) = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 
 	if ( !$S->status->{snmp_enabled} )
 	{
@@ -4638,7 +4660,6 @@ sub getCBQoSwalk
 	# read qos interface table
 	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex') )
 	{
-
 		# grab all the interface data required to run this function
 		# no writing back to the IF information is done so plain models
 		# are good
@@ -4661,10 +4682,9 @@ sub getCBQoSwalk
 			}
 		);
 		
-		my $data = $model_data->data();
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
+		my $data = $model_data->data();
 		my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
-		print "ifmap:".Dumper(\%if_data_map);
 
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
@@ -4938,40 +4958,17 @@ sub getCBQoSwalk
 			}
 		
 		}
-		delete $S->{info}{cbqos};    # remove old info
+		
 		if ( scalar( keys %{$ifIndexTable} ) )
 		{
 			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
-			
-			# $S->{info}{cbqos} = \%cbQosTable;
-
 			# cbqos info structure is a tad different from interfaces, but the rrds also need tuning
 
 			# that's an ifindex
 			for my $index ( keys %cbQosTable )
 			{
 				my $thisqosinfo = $cbQosTable{$index};
-				$thisqosinfo->{index} = $index;
-				
-				# create inventory entry, data is not changed below so do it here,
-				# add index entry for now, may want to modify this later, or create a specialised Inventory class
-				my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-				my $path = $nmisng_node->inventory_path( concept => 'cbqos', data => $thisqosinfo, path_keys => $path_keys );			
-				if( ref($path) eq 'ARRAY')
-				{
-					my ( $inventory, $error ) = $nmisng_node->inventory(
-						concept   => 'cbqos',
-						data      => $thisqosinfo,
-						path      => $path,
-						path_keys => $path_keys,
-						create    => 1
-					);
-					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-					$inventory->path( recalculate => 1 );
-					my ( $op, $error ) = $inventory->save();
-					$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
-				}
+				# we rely on index to be there for the path key (right now)				
 
 				my $if_data = $if_data_map{$index};
 				next
@@ -4998,13 +4995,43 @@ sub getCBQoSwalk
 
 				for my $direction (qw(in out))
 				{
-					foreach my $class ( keys %{$thisqosinfo->{$direction}->{ClassMap}} )
+
+
+					# save the QoS Data, do it before tuning so inventory can be found when looking for name
+					NMISNG::Util::TODO("Subclass Inventory for CBQoS");
+					my $data = $thisqosinfo->{$direction};
+					$data->{index} = $index;
+					
+					# create inventory entry, data is not changed below so do it here,
+					# add index entry for now, may want to modify this later, or create a specialised Inventory class
+					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
+					if( ref($path) eq 'ARRAY')
+					{
+						my ( $inventory, $error_message ) = $nmisng_node->inventory(
+							concept   => "cbqos-$direction",
+							data      => $data,
+							path      => $path,
+							path_keys => $path_keys,
+							create    => 1
+						);
+						$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+						# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+						$inventory->path( recalculate => 1 );
+						$inventory->historic(0);
+						my ( $op, $error ) = $inventory->save();
+						info( "saved ".join(',', @$path)." op: $op");
+						$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+							if ($error);
+					}
+
+					foreach my $class ( keys %{$data->{ClassMap}} )
 					{
 						# rrd file exists and readable?
 						if (-r (my $rrdfile = $S->getDBName(
 									graphtype => "cbqos-$direction",
 									index     => $index,
-									item      => $thisqosinfo->{$direction}->{ClassMap}->{$class}->{Name}
+									item      => $data->{ClassMap}->{$class}->{Name}
 								)
 							)
 							)
@@ -5036,6 +5063,7 @@ sub getCBQoSwalk
 							}
 						}
 					}
+				
 				}
 			}
 		}
@@ -5086,20 +5114,25 @@ sub getCallsdata
 	my $S     = $args{sys};
 	my $NI    = $S->ndinfo;
 	my $IF    = $S->ifinfo;
-	my $CALLS = $S->callsinfo;
-
+	
 	my %totalsTable;
-	return 1 if ( !keys %{$CALLS} );
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'calls' );
+	return 1 if ( @$ids < 1 );
 
 	# get the old index values
 	# the layout of the record is: channel intf intfDescr intfindex parentintfDescr parentintfindex port slot
-	foreach my $index ( keys %{$CALLS} )
+	foreach my $id ( @$ids )
 	{
-		my $port = $CALLS->{$index}{intfoid};
+		my $inventory = $S->nmisng_node->inventory(_id => $id);
+		next if(!$inventory);
+
+		# NOTE: this is never saved back because it's not modified
+		my $data = $inventory->data();
+		my $port = $data->{intfoid};
 
 		my $rrdData = $S->getData(
 			class => 'calls',
-			index => $CALLS->{$index}{parentintfIndex},
+			index => $data->{parentintfIndex},
 			port  => $port,
 			model => $model
 		);
@@ -5111,7 +5144,7 @@ sub getCallsdata
 		{
 			processAlerts( S => $S );
 
-			my $parentIndex = $CALLS->{$index}{parentintfIndex};
+			my $parentIndex = $data->{parentintfIndex};
 			my $D           = $rrdData->{calls}{$parentIndex};
 
 			# check indexes
@@ -5132,7 +5165,7 @@ sub getCallsdata
 			}
 			$totalsTable{$parentIndex}{'TotalCallCount'} += $D->{'cpmCallCount'}{value};
 			$totalsTable{$parentIndex}{'parentintfIndex'} = $parentIndex;
-			$totalsTable{$parentIndex}{'parentintfDescr'} = $CALLS->{$index}{'parentintfDescr'};
+			$totalsTable{$parentIndex}{'parentintfDescr'} = $data->{'parentintfDescr'};
 
 			# populate totals for DS0 call types
 			# total idle ports
@@ -5178,6 +5211,43 @@ sub getCallsdata
 			}
 			if ( $D->{'cpmAvailableCallCount'}{value} eq "" ) { $D->{'cpmAvailableCallCount'} = 0; }
 			if ( $D->{'cpmCallCount'} eq "" ) { $D->{'cpmCallCount'} = 0; }
+
+			# add into rrd now instead of in a separate loop
+			my $intfindex = $parentIndex;
+			dbg("Total intf $intfindex, PortName $totalsTable{$intfindex}{'parentintfDescr'}");
+			if ( $totalsTable{'TotalCallCount'} eq "" ) { $totalsTable{'TotalCallCount'} = 0; }
+
+			dbg("Total idle DS0 ports  $totalsTable{$intfindex}{'totalIdle'}");
+			dbg("Total unknown DS0 ports  $totalsTable{$intfindex}{'totalUnknown'}");
+			dbg("Total analog DS0 ports  $totalsTable{$intfindex}{'totalAnalog'}");
+			dbg("Total digital DS0 ports  $totalsTable{$intfindex}{'totalDigital'}");
+			dbg("Total v110 DS0 ports  $totalsTable{$intfindex}{'totalV110'}");
+			dbg("Total v120 DS0 ports  $totalsTable{$intfindex}{'totalV120'}");
+			dbg("Total voice DS0 ports  $totalsTable{$intfindex}{'totalVoice'}");
+			dbg("Total DS0 ports available  $totalsTable{$intfindex}{'TotalDS0'}");
+			dbg("Total DS0 calls  $totalsTable{$intfindex}{'TotalCallCount'}");
+			my %snmpVal;
+			$snmpVal{'totalIdle'}{value}          = $totalsTable{$intfindex}{'totalIdle'};
+			$snmpVal{'totalUnknown'}{value}       = $totalsTable{$intfindex}{'totalUnknown'};
+			$snmpVal{'totalAnalog'}{value}        = $totalsTable{$intfindex}{'totalAnalog'};
+			$snmpVal{'totalDigital'}{value}       = $totalsTable{$intfindex}{'totalDigital'};
+			$snmpVal{'totalV110'}{value}          = $totalsTable{$intfindex}{'totalV110'};
+			$snmpVal{'totalV120'}{value}          = $totalsTable{$intfindex}{'totalV120'};
+			$snmpVal{'totalVoice'}{value}         = $totalsTable{$intfindex}{'totalVoice'};
+			$snmpVal{'AvailableCallCount'}{value} = $totalsTable{$intfindex}{'TotalDS0'};
+			$snmpVal{'CallCount'}{value}          = $totalsTable{$intfindex}{'TotalCallCount'};
+
+			#
+			# Store data
+			my $db = updateRRD( data => \%snmpVal, sys => $S, type => "calls", index => $intfindex );
+			if ( !$db )
+			{
+				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
+			}
+
+			# DISABLED because data is not modifed
+			# $inventory->data($data);
+			# $inventory->save();
 		}
 		else
 		{
@@ -5191,41 +5261,6 @@ sub getCallsdata
 		}
 	}
 
-	#
-	# Second loop to populate RRD tables for totals
-	foreach my $intfindex ( keys %totalsTable )
-	{
-		dbg("Total intf $intfindex, PortName $totalsTable{$intfindex}{'parentintfDescr'}");
-		if ( $totalsTable{'TotalCallCount'} eq "" ) { $totalsTable{'TotalCallCount'} = 0; }
-
-		dbg("Total idle DS0 ports  $totalsTable{$intfindex}{'totalIdle'}");
-		dbg("Total unknown DS0 ports  $totalsTable{$intfindex}{'totalUnknown'}");
-		dbg("Total analog DS0 ports  $totalsTable{$intfindex}{'totalAnalog'}");
-		dbg("Total digital DS0 ports  $totalsTable{$intfindex}{'totalDigital'}");
-		dbg("Total v110 DS0 ports  $totalsTable{$intfindex}{'totalV110'}");
-		dbg("Total v120 DS0 ports  $totalsTable{$intfindex}{'totalV120'}");
-		dbg("Total voice DS0 ports  $totalsTable{$intfindex}{'totalVoice'}");
-		dbg("Total DS0 ports available  $totalsTable{$intfindex}{'TotalDS0'}");
-		dbg("Total DS0 calls  $totalsTable{$intfindex}{'TotalCallCount'}");
-		my %snmpVal;
-		$snmpVal{'totalIdle'}{value}          = $totalsTable{$intfindex}{'totalIdle'};
-		$snmpVal{'totalUnknown'}{value}       = $totalsTable{$intfindex}{'totalUnknown'};
-		$snmpVal{'totalAnalog'}{value}        = $totalsTable{$intfindex}{'totalAnalog'};
-		$snmpVal{'totalDigital'}{value}       = $totalsTable{$intfindex}{'totalDigital'};
-		$snmpVal{'totalV110'}{value}          = $totalsTable{$intfindex}{'totalV110'};
-		$snmpVal{'totalV120'}{value}          = $totalsTable{$intfindex}{'totalV120'};
-		$snmpVal{'totalVoice'}{value}         = $totalsTable{$intfindex}{'totalVoice'};
-		$snmpVal{'AvailableCallCount'}{value} = $totalsTable{$intfindex}{'TotalDS0'};
-		$snmpVal{'CallCount'}{value}          = $totalsTable{$intfindex}{'TotalCallCount'};
-
-		#
-		# Store data
-		my $db = updateRRD( data => \%snmpVal, sys => $S, type => "calls", index => $intfindex );
-		if ( !$db )
-		{
-			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
-		}
-	}
 	return 1;
 }
 
@@ -5235,8 +5270,7 @@ sub getCallsdata
 sub getCallswalk
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
@@ -5276,7 +5310,6 @@ sub getCallswalk
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
-	print "ifmap:".Dumper(\%if_data_map);
 
 	# double check if any call interfaces on this node.
 	# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
@@ -5358,26 +5391,44 @@ sub getCallswalk
 					delete $callsTable{$callsintf};
 				}
 			}
+		}
+		# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
+		my $InstalledVoice;
+		foreach my $callsintf ( keys %callsTable )
+		{
+			my $data = $callsTable{$callsintf};
+			( $data->{'intfDescr'}, $data->{'parentintfDescr'} ) = $SNMP->getarray(
+				'ifDescr' . ".$callsTable{$callsintf}{'intfindex'}",
+				'ifDescr' . ".$callsTable{$callsintf}{'parentintfIndex'}",
+			);
+			$InstalledVoice++;
 
-			# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
-			my $InstalledVoice;
-			foreach my $callsintf ( keys %callsTable )
+			# NOTE: for now we rely on the specail index key
+			$data->{index} = $callsintf;
+			# Create/find inventory 
+			# get the inventory object for this, path_keys required as we don't know what type it will be
+			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+			my $path = $nmisng_node->inventory_path( concept => 'calls', data => $data, path_keys => $path_keys );			
+			if( ref($path) eq 'ARRAY')
 			{
-				( $callsTable{$callsintf}{'intfDescr'}, $callsTable{$callsintf}{'parentintfDescr'} ) = $SNMP->getarray(
-					'ifDescr' . ".$callsTable{$callsintf}{'intfindex'}",
-					'ifDescr' . ".$callsTable{$callsintf}{'parentintfIndex'}",
+				my ( $inventory, $error_message ) = $nmisng_node->inventory(
+					concept   => 'calls',
+					data      => $data,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
 				);
-				$InstalledVoice++;
+				$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				$inventory->path( recalculate => 1 );
+				$inventory->historic(0);
+				my ( $op, $error ) = $inventory->save();
+				info( "saved ".join(',', @$path)." op: $op");
+				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);
 			}
 
-			# create $nodes-calls.xxxx file which contains interface mapping and descirption data
-			delete $S->{info}{calls};
-			if (%callsTable)
-			{
-				# callsTable has some values, so write it out
-				$S->{info}{calls}             = \%callsTable;
-				$catchall_data->{InstalledVoice} = "$InstalledVoice";
-			}
+			$catchall_data->{InstalledVoice} = "$InstalledVoice";
 		}
 	}
 	return 1;
@@ -5594,8 +5645,14 @@ sub runServer
 
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => [], data => $overall_target, create => 1 );
-		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);
-		($op,$error) = $inventory->save() if($inventory);
+		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);	
+		if($inventory) 
+		{
+			$inventory->historic(0);
+			($op,$error) = $inventory->save();
+			info( "saved ".join(',', @$path)." op: $op");
+		}
+		
 		$S->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
 
 		foreach my $index ( keys %{$deviceIndex} )
@@ -5633,7 +5690,13 @@ sub runServer
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
 					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
-					($op,$error) = $inventory->save() if($inventory);
+					if($inventory)
+					{
+						$inventory->historic(0);
+						($op,$error) = $inventory->save();
+						info( "saved ".join(',', @$path)." op: $op");
+					}
+					
 					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if(!$error);
 				}
 				# else
@@ -5695,6 +5758,8 @@ sub runServer
 					"storage $D->{hrStorageDescr} Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}"
 				);
 
+				# set not historic, further down it may be set
+				$inventory->historic(1) if($inventory);
 				if ((       $M->{storage}{nocollect}{Description} ne ''
 						and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/
 					)
@@ -5857,6 +5922,7 @@ sub runServer
 					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
 				}				
 				($op,$error) = $inventory->save() if($inventory);
+				info( "saved ".join(',', @$path)." op: $op");
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
 			elsif( $oldstorage )
@@ -9972,11 +10038,13 @@ command line options are:
 #=========================================================================================
 
 # run threshold calculation operation on all or one node, in a single loop
-# args: node (optional)
+# args: 
+#   node - (optional), 
+#   running_independently - set to 1 if not in collect/outer loop that will do saves
 # returns: nothing
 sub runThreshold
 {
-	my $node = shift;
+	my ($node,$running_independently) = @_;
 
 	# check global_threshold not explicitely set to false
 	if ( !getbool( $C->{global_threshold}, "invert" ) )
@@ -9987,7 +10055,7 @@ sub runThreshold
 			die "Invalid node=$node: No node of that name\n"
 				if ( !( $node_select = checkNodeName($node) ) );
 		}
-		doThreshold( name => $node_select, table => doSummaryBuild( name => $node_select ) );
+		doThreshold( name => $node_select, table => doSummaryBuild( name => $node_select ), running_independently => $running_independently );		
 	}
 	else
 	{
@@ -10002,7 +10070,7 @@ sub runThreshold
 # returns: summary stats hash
 sub doSummaryBuild
 {
-	my %args = @_;
+	my (%args) = @_;
 	my $node = $args{name};
 	my $S    = $node && $args{sys} ? $args{sys} : undef;    # use given sys object only with this node
 
@@ -10173,10 +10241,13 @@ sub doThreshold
 	my $name = $args{name};
 	my $sts  = $args{table};    # pointer to data built up by doSummaryBuild
 	my $S    = $args{sys};
+	my $running_independently = $args{running_independently};
 
 	dbg("Starting");
+	
 	func::update_operations_stamp( type => "threshold", start => $starttime, stop => undef )
-		if ( $type eq "threshold" );    # not if part of collect
+		if( $running_independently );
+
 	my $pollTimer = NMIS::Timing->new;
 
 	my $events_config = loadTable( dir => 'conf', name => 'Events' );
@@ -10194,12 +10265,14 @@ sub doThreshold
 			next if ( !$S->init( name => $onenode, snmp => 'false' ) );
 		}
 
-		my $NI = $S->ndinfo;    # pointer to node info table
+		# my $NI = $S->ndinfo;    # pointer to node info table
 		my $M  = $S->mdl;       # pointer to Model table
-		my $IF = $S->ifinfo;
+		# my $IF = $S->ifinfo;
+		my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+		my $status_table = $S->ndinfo->{status};
 
 		# skip if node down
-		if ( getbool( $NI->{system}{nodedown} ) )
+		if ( getbool( $catchall_data->{nodedown} ) )
 		{
 			info("Node down, skipping thresholding for $S->{name}");
 			next;
@@ -10258,14 +10331,19 @@ sub doThreshold
 
 					for my $index (@instances)
 					{
-		   # instances that don't have a valid nodeinfo section mustn't be touched
-		   # however logic only works in some cases: some model source sections don't have nodeinfo sections associated.
-						if ($s eq "systemHealth"
-							and (  ref( $NI->{$type} ) ne "HASH"
-								or ( !keys %{$NI->{$type}} )
-								or ref( $NI->{$type}->{$index} ) ne "HASH"
-								or $index ne $NI->{$type}->{$index}->{index} )
-							)
+				  	# instances that don't have a valid nodeinfo section mustn't be touched
+				  	# however logic only works in some cases: some model source sections don't have nodeinfo sections associated.
+
+				  	# NOTE: getting interface data for cbqos here
+				  	my $concept = $type;
+				  	$concept = 'interface' if ( $type =~ /cbqos|interface|pkts/ );
+
+		   			my $inventory = $S->inventory( concept => $type, index => $index );
+		   			my $data = ($inventory) ? $inventory->data() : {};
+						if ($s eq "systemHealth" && !$inventory)
+							# and (  ref( $NI->{$type} ) ne "HASH" or ( !keys %{$NI->{$type}} )
+							# 	or ref( $NI->{$type}->{$index} ) ne "HASH"
+							# 	or $index ne $NI->{$type}->{$index}->{index} )							
 						{
 							logMsg(
 								"ERROR invalid data for section $type and index $index, cannot run threshold for this index!"
@@ -10288,14 +10366,12 @@ sub doThreshold
 						}
 
 						# thresholds can be selectively disabled for individual interfaces
-						if ( $type =~ /interface|pkts|pkts_hc/ )
+						if ( $type =~ /interface|pkts/ )
 						{
-							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo
-							if (    ref( $NI->{"interface"} ) eq "HASH"
-								and ref( $NI->{"interface"}{$index} ) eq "HASH"
-								and exists( $NI->{"interface"}{$index}{threshold} ) )
+							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo							
+							if ( $data && $data->{threshold} )
 							{
-								if ( getbool( $NI->{"interface"}{$index}{threshold} ) )
+								if ( getbool( $data->{threshold} ) )
 								{
 									runThrHld(
 										sys     => $S,
@@ -10312,24 +10388,23 @@ sub doThreshold
 								}
 							}
 						}
-						elsif ( $type =~ /cbqos/
-							and defined $NI->{'interface'}
-							and defined $NI->{'interface'}{$index}
-							and defined $NI->{'interface'}{$index}{threshold}
-							and $NI->{'interface'}{$index}{threshold} eq "true" )
-						{
+						# this autovivifies but it does not matter
+						elsif ( $type =~ /cbqos/ and defined $data->{threshold} eq 'true')
+						{							
 							my ( $cbqos, $direction ) = split( /\-/, $type );
+							$inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
+							$data = $inventory->data();
 							dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
-							foreach my $class ( keys %{$NI->{$cbqos}{$index}{$direction}{ClassMap}} )
+							foreach my $class ( keys %{$data->{ClassMap}} )
 							{
-								dbg("  CBQOS class=$class $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name}");
+								dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
 								runThrHld(
 									sys     => $S,
 									table   => $sts,
 									type    => $type,
 									thrname => $thrname,
 									index   => $index,
-									item    => $NI->{$cbqos}{$index}{$direction}{ClassMap}{$class}{Name},
+									item    => $data->{ClassMap}{$class}{Name},
 									class   => $class
 								);
 							}
@@ -10358,35 +10433,35 @@ sub doThreshold
 		#},
 		my $count   = 0;
 		my $countOk = 0;
-		foreach my $statusKey ( sort keys %{$S->{info}{status}} )
+		foreach my $statusKey ( sort keys %$status_table )
 		{
-			my $eventKey = $S->{info}{status}{$statusKey}{event};
+			my $eventKey = $status_table->{$statusKey}{event};
 			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
-				if $S->{info}{status}{$statusKey}{method} eq "Alert";
+				if $status_table->{$statusKey}{method} eq "Alert";
 
 			# event control is as configured or all true.
 			my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
 
 			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
-			if ( $S->{info}{status}{$statusKey}{updated} < time - 500 )
+			if ( $status_table->{$statusKey}{updated} < time - 500 )
 			{
-				delete $S->{info}{status}{$statusKey};
+				delete $status_table->{$statusKey};
 			}
 
 			# in case of Status being off for this event, we don't have to include it in the calculations
 			elsif ( not getbool( $thisevent_control->{Status} ) )
 			{
-				dbg("Status Summary Ignoring: event=$S->{info}{status}{$statusKey}{event}, Status=$thisevent_control->{Status}",
+				dbg("Status Summary Ignoring: event=$status_table->{$statusKey}{event}, Status=$thisevent_control->{Status}",
 					1
 				);
-				$S->{info}{status}{$statusKey}{status} = "ignored";
+				$status_table->{$statusKey}{status} = "ignored";
 				++$count;
 				++$countOk;
 			}
 			else
 			{
 				++$count;
-				if ( $S->{info}{status}{$statusKey}{status} eq "ok" )
+				if ( $status_table->{$statusKey}{status} eq "ok" )
 				{
 					++$countOk;
 				}
@@ -10396,27 +10471,29 @@ sub doThreshold
 		{
 			my $perOk = sprintf( "%.2f", $countOk / $count * 100 );
 			info("Status Summary = $perOk, $count, $countOk\n");
-			$NI->{system}{status_summary} = $perOk;
-			$NI->{system}{status_updated} = time();
+			$catchall_data->{status_summary} = $perOk;
+			$catchall_data->{status_updated} = time();
 
 			# cache the current nodestatus for use in the dash
-			my $nodestatus = nodeStatus( NI => $NI );
+			my $nodestatus = nodeStatus( catchall_data => $catchall_data );
+			$catchall_data->{nodestatus} = "reachable";
 			if ( not $nodestatus )
 			{
-				$NI->{system}{nodestatus} = "unreachable";
+				$catchall_data->{nodestatus} = "unreachable";
 			}
 			elsif ( $nodestatus == -1 )
 			{
-				$NI->{system}{nodestatus} = "degraded";
-			}
-			else
-			{
-				$NI->{system}{nodestatus} = "reachable";
-			}
+				$catchall_data->{nodestatus} = "degraded";
+			}			
 		}
 
 		# Save the new status results, but only if run standalone
-		$S->writeNodeInfo() if ( $type eq "threshold" );
+		if( $running_independently )
+		{
+			$S->writeNodeInfo();
+			$catchall_data->save();	
+		}
+		
 	}
 
 	dbg("Finished");
@@ -10433,7 +10510,7 @@ sub doThreshold
 		}
 	}
 	func::update_operations_stamp( type => "threshold", start => $starttime, stop => Time::HiRes::time() )
-		if ( $type eq "threshold" );    # not if part of collect
+		if( $running_independently );
 }
 
 # performs the threshold value checking and event raising for
@@ -10450,7 +10527,6 @@ sub runThrHld
 	my $M    = $S->mdl;
 	my $IF   = $S->ifinfo;
 	my $ET   = $S->{info}{env_temp};
-	my $DISK = $S->{info}{storage};
 
 	my $sts     = $args{table};
 	my $type    = $args{type};
@@ -10493,6 +10569,8 @@ sub runThrHld
 	}
 
 	# get name of element
+	my ($inventory,$data);
+
 	if ( $index eq '' )
 	{
 		$element = '';
@@ -10506,29 +10584,29 @@ sub runThrHld
 		$element = "CPU $index";
 	}
 	elsif ( $index ne '' and $thrname =~ /^hrdisk/ )
-	{
-		$element = "$DISK->{$index}{hrStorageDescr}";
+	{		
+		$inventory = $S->inventory( concept => 'storage', index => $index );
+		$data = ( $inventory ) ? $inventory->data : {};
+		$element = "$data->{hrStorageDescr}";
 	}
-	elsif ( $type =~ /cbqos/
-		and defined $IF->{$index}{ifDescr}
-		and $IF->{$index}{ifDescr} ne "" )
+	elsif ( $type =~ /cbqos|interface|pkts/ )
 	{
-		$element = "$IF->{$index}{ifDescr}: $item";
-	}
-	elsif ( defined $IF->{$index}{ifDescr} and $IF->{$index}{ifDescr} ne "" )
-	{
-		$element = $IF->{$index}{ifDescr};
-	}
+		my $inventory = $S->inventory( concept => 'interface', index => $index )->data();
+		$data = ( $inventory ) ? $inventory->data : {};
+		if( $data->{ifDescr} )
+		{
+			$element = $data->{ifDescr};
+			$element = "$data->{ifDescr}: $item" if($type =~ /cbqos/);
+		}		
+	}	
 	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
 		and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
 	{
+		NMISNG::Util::TODO("Inventory migration not complete here (and below)");
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
-		if (    ref( $NI->{$type} ) eq "HASH" && ref( $NI->{$type}->{$index} ) eq "HASH"
-			and defined( $NI->{$type}->{$index}->{$elementVar} )
-			and $NI->{$type}{$index}{$elementVar} ne "" )
-		{
-			$element = $NI->{$type}{$index}{$elementVar};
-		}
+		$inventory = $S->inventory( concept => $type, index => $index );
+		$data = ($inventory) ? $inventory->data() : {};
+		$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );		
 	}
 	if ( $element eq "" )
 	{
@@ -10572,26 +10650,26 @@ sub runThrHld
 		my $details = "";
 		my $spacer  = "";
 
-		if ( $type =~ /interface|pkts/ and $IF->{$index}{Description} ne "" )
+		if ( $type =~ /interface|pkts/ &&  $data->{Description} ne "" )
 		{
-			$details = $IF->{$index}{Description};
+			$details = $data->{Description};
 			$spacer  = " ";
 		}
 
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
 		if (    getbool( $C->{global_events_bandwidth} )
 			and $type =~ /interface|pkts/
-			and $IF->{$index}{ifSpeed} ne "" )
+			and $data->{ifSpeed} ne "" )
 		{
-			my $ifSpeed = $IF->{$index}->{ifSpeed};
+			my $ifSpeed = $data->{ifSpeed};
 
-			if ( $event =~ /Input/ and exists $IF->{$index}{ifSpeedIn} and $IF->{$index}{ifSpeedIn} )
+			if ( $event =~ /Input/ and exists $data->{ifSpeedIn} and $data->{ifSpeedIn} )
 			{
-				$ifSpeed = $IF->{$index}->{ifSpeedIn};
+				$ifSpeed = $data->{ifSpeedIn};
 			}
-			elsif ( $event =~ /Output/ and exists $IF->{$index}{ifSpeedOut} and $IF->{$index}{ifSpeedOut} )
+			elsif ( $event =~ /Output/ and exists $data->{ifSpeedOut} and $data->{ifSpeedOut} )
 			{
-				$ifSpeed = $IF->{$index}->{ifSpeedOut};
+				$ifSpeed = $data->{ifSpeedOut};
 			}
 			$details .= $spacer . "Bandwidth=" . convertIfSpeed($ifSpeed);
 		}
@@ -10616,9 +10694,9 @@ sub runThrHld
 sub getThresholdLevel
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $thrname = $args{thrname};
 	my $stats   = $args{stats};      # value of items
@@ -10652,7 +10730,7 @@ sub getThresholdLevel
 	}
 	if ( $val eq "" )
 	{
-		logMsg("ERROR, no threshold=$thrname entry found in Model=$NI->{system}{nodeModel}");
+		logMsg("ERROR, no threshold=$thrname entry found in Model=$catchall_data->{nodeModel}");
 		return;
 	}
 
@@ -10736,7 +10814,7 @@ sub getThresholdLevel
 	if ( $level eq "" )
 	{
 		logMsg(
-			"ERROR no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$NI->{system}{nodeModel} section threshold"
+			"ERROR no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$catchall_data->{nodeModel} section threshold"
 		);
 		$level = "Normal";
 	}
@@ -10861,7 +10939,7 @@ sub sync_groups
 		close $fh;
 	}
 
-	return undef;
+	return;
 }
 
 # this is a maintenance command for removing old, broken or unwanted files,
@@ -10997,7 +11075,7 @@ sub purge_files
 		}
 	}
 	info("Purging complete");
-	return undef;
+	return;
 }
 
 # sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
@@ -11010,23 +11088,23 @@ sub purge_files
 sub makesysuptime
 {
 	my ($sys) = @_;
-	my $info = $sys->ndinfo->{system};
+	my $catchall_data = $sys->inventory( concept => 'catchall' )->data_live();
 
-	return if ( ref($info) ne "HASH" or !keys %$info );
+	return if ( !$catchall_data );
 
 	# if this is wmi, we need to make a sysuptime first. these are seconds
 	# who should own sysUpTime, this needs to only happen if SNMP not available OMK-3223
-	#if ($info->{wintime} && $info->{winboottime})
+	#if ($catchall_data->{wintime} && $catchall_data->{winboottime})
 	#{
-	#	$info->{sysUpTime} = 100 * ($info->{wintime}-$info->{winboottime});
+	#	$catchall_data->{sysUpTime} = 100 * ($catchall_data->{wintime}-$catchall_data->{winboottime});
 	#}
 
 	# pre-mangling it's a number, maybe fractional, in 1/100s ticks
 	# post-manging it is text, and we can't do a damn thing anymore
-	if ( defined( $info->{sysUpTime} ) && $info->{sysUpTime} =~ /^\d+(\.\d*)?$/ )
+	if ( defined( $catchall_data->{sysUpTime} ) && $catchall_data->{sysUpTime} =~ /^\d+(\.\d*)?$/ )
 	{
-		$info->{sysUpTimeSec} = int( $info->{sysUpTime} / 100 );              # save away
-		$info->{sysUpTime}    = func::convUpTime( $info->{sysUpTimeSec} );    # seconds into text
+		$catchall_data->{sysUpTimeSec} = int( $catchall_data->{sysUpTime} / 100 );              # save away
+		$catchall_data->{sysUpTime}    = func::convUpTime( $catchall_data->{sysUpTimeSec} );    # seconds into text
 	}
 	return;
 }
