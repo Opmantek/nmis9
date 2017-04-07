@@ -608,6 +608,9 @@ sub runThreads
 		if ( getbool( $C->{'nmis_summary_poll_cycle'} ) or !getbool( $C->{'nmis_summary_poll_cycle'}, "invert" ) )
 		{
 			dbg("Starting nmisSummary");
+
+			# NOTE!!! catchall needs to be written before this runs as it' loads the data
+			# locally, it has no $S 
 			nmisSummary() if getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
 		}
 		else
@@ -804,21 +807,29 @@ sub doUpdate
 	                     # loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	                     # and primes the sys object for snmp/wmi ops
 
+
 	if ( !$S->init( name => $name, update => 'true', force => $nvp{force} ) )
 	{
 		logMsg( "ERROR ($name) init failed: " . $S->status->{error} );    # fixme: why isn't this terminal?
 	}
+
+	# this is the first time catchall is accessed, handle error here, all others will assume it works
+	my $catchall_inventory = $S->inventory(concept => 'catchall');
+	$S->nmisng->log->fatal("Failed to load catchall inventory for node:$node") && return if(!$catchall_inventory);
+	# catchall uses 'live' data which is a direct reference to the data because it's too easy to 
+	# end up with stale/wrong data with all the functions using it
+	my $catchall_data = $catchall_inventory->data_live();
+
 	dbg("node=$name "
 			. join( " ",
-			( map { "$_=" . $S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
+			( map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ),
 			( map { "$_=" . $S->status->{$_} } (qw(snmp_enabled wmi_enabled)) ) )
 	);
 
 	# this uses the node config loaded by init, and updates the node info table
-	# (model and nodetype set only if missing)
+	# (model and nodetype set only if missing)	
 	$S->copyModelCfgInfo( type => 'all' );
-
-	my $NI = $S->ndinfo;
+	
 	my $NC = $S->ndcfg;
 
 	if ( !getbool( $nvp{force} ) )
@@ -827,9 +838,9 @@ sub doUpdate
 	}
 
 	# prime default values, overridden if we can find anything better
-	$NI->{system}{nodeModel} ||= 'Generic';
-	$NI->{system}{nodeType}  ||= 'generic';
-
+	$catchall_data->{nodeModel} ||= 'Generic';
+	$catchall_data->{nodeType}  ||= 'generic';
+	
 	# if reachable then we can update the model and get rid of the default we got from init above
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if ( runPing( sys => $S ) )
@@ -842,10 +853,10 @@ sub doUpdate
 			max_msg_size => $C->{snmp_max_msg_size},
 
 			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			max_repetitions => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
 
 			# how many oids per simple get request (for getarray), or default (no guessing)
-			oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10
+			oidpkt => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || 10
 		) if ( $S->status->{snmp_enabled} );
 
 		# failed already?
@@ -864,17 +875,17 @@ sub doUpdate
 			{
 				if ( getIntfInfo( sys => $S ) )
 				{
-					dbg("node=$S->{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
-					dbg("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}"
+					dbg("node=$S->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType}");
+					dbg("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}"
 					);
 
 					if ($model)
 					{
 						print
-							"MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
-						print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
+							"MODEL $S->{name}: role=$catchall_data->{roleType} type=$catchall_data->{nodeType} sysObjectID=$catchall_data->{sysObjectID} sysObjectName=$catchall_data->{sysObjectName}\n";
+						print "MODEL $S->{name}: sysDescr=$catchall_data->{sysDescr}\n";
 						print
-							"MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
+							"MODEL $S->{name}: vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}\n";
 					}
 				}
 
@@ -892,7 +903,7 @@ sub doUpdate
 			}
 		}
 		$S->close;    # close snmp session if one is open
-		$NI->{system}{lastUpdatePoll} = time();
+		$catchall_inventory->{lastUpdatePoll} = time();
 	}
 
 	my $reachdata
@@ -957,8 +968,10 @@ sub doUpdate
 	if ( defined $C->{log_polling_time} and getbool( $C->{log_polling_time} ) )
 	{
 
-		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $updatetime");
+		logMsg("Poll Time: $name, $catchall_inventory->{nodeModel}, $updatetime");
 	}
+
+	$catchall_inventory->save();
 
 	info("Finished");
 	return;
@@ -1286,18 +1299,19 @@ sub doCollect
 # returns: 1 if pingable, 0 otherwise
 sub runPing
 {
-	my %args = @_;
+	my %args = @_;	
 	my $S    = $args{sys};
 	my $NI   = $S->ndinfo;    # node info
 	my $V    = $S->view;      # web view
 	my $RI   = $S->reach;     # reach table
 	my $NC   = $S->ndcfg;     # node config
-
+	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
+	
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult );
 
 	# setup log filter for getNodeInfo() - fixme why is that done here?
 	$S->snmp->logFilterOut(qr/no response from/)
-		if ( $S->snmp && getbool( $NI->{system}{snmpdown} ) );
+		if ( $S->snmp && getbool( $catchall_data->{snmpdown} ) );
 
 	# preset view of node status
 	$V->{system}{status_value} = 'unknown';
@@ -1357,7 +1371,7 @@ sub runPing
 			{
 				# up
 				# are the nodedown status and event db out of sync?
-				if ( not getbool( $NI->{system}{nodedown} ) and eventExist( $NI->{system}{name}, "Node Down", "" ) )
+				if ( not getbool( $catchall_data->{nodedown} ) and eventExist( $catchall_data->{name}, "Node Down", "" ) )
 				{
 					my $result = checkEvent(
 						sys     => $S,
@@ -1384,7 +1398,7 @@ sub runPing
 			else
 			{
 				# down - log if not already down
-				logMsg("ERROR ($S->{name}) ping failed") if ( !getbool( $NI->{system}{nodedown} ) );
+				logMsg("ERROR ($S->{name}) ping failed") if ( !getbool( $catchall_data->{nodedown} ) );
 				HandleNodeDown( sys => $S, type => "node", details => "Ping failed" );
 			}
 		}
@@ -1396,7 +1410,7 @@ sub runPing
 		# info for web page
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec}   = time();
+		$catchall_data->{lastUpdateSec}   = time();
 	}
 	else
 	{
@@ -1410,21 +1424,22 @@ sub runPing
 	{
 		$V->{system}{status_value} = 'reachable' if ( getbool( $NC->{node}{ping} ) );
 		$V->{system}{status_color} = '#0F0';
-		$NI->{system}{nodedown}    = 'false';
+		$catchall_data->{nodedown}    = 'false';
 	}
 	else
 	{
 		$V->{system}{status_value} = 'unreachable';
 		$V->{system}{status_color} = 'red';
-		$NI->{system}{nodedown}    = 'true';
+		$catchall_data->{nodedown}    = 'true';
 
 		# workaround for opCharts not using right data
-		$NI->{system}{nodestatus} = 'unreachable';
+		$catchall_data->{nodestatus} = 'unreachable';
 	}
 
 	info(     "Finished with exit="
 			. ( $pingresult ? 1 : 0 )
-			. ", nodedown=$NI->{system}{nodedown} nodestatus=$NI->{system}{nodestatus}" );
+			. ", nodedown=$catchall_data->{nodedown} nodestatus=$catchall_data->{nodestatus}" );
+	
 	return ( $pingresult ? 1 : 0 );
 }
 
@@ -1440,8 +1455,7 @@ sub runPing
 # fixme: this thing is an utter mess logic-wise and urgently needs a rewrite
 sub getNodeInfo
 {
-	my %args = @_;
-
+	my (%args) = @_;
 	my $S    = $args{sys};
 	my $NI   = $S->ndinfo;         # node info table
 	my $RI   = $S->reach;          # reach table
@@ -1450,6 +1464,8 @@ sub getNodeInfo
 	my $NC   = $S->ndcfg;          # node config
 	my $SNMP = $S->snmp;           # snmp object
 	my $C    = loadConfTable();    # system config
+
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $exit = 0;                  # assume failure by default
 	$RI->{snmpresult} = $RI->{wmiresult} = 0;
@@ -1495,73 +1511,73 @@ sub getNodeInfo
 		{
 
 			# snmp: continue processing if at least a couple of entries are valid.
-			if ( $NI->{system}{sysDescr} and $NI->{system}{sysObjectID} )
+			if ( $catchall_data->{sysDescr} and $catchall_data->{sysObjectID} )
 			{
 				my $enterpriseTable = loadEnterpriseTable();    # table is already cached
 
 				# if the vendors product oid file is loaded, this will give product name.
-				$NI->{system}{sysObjectName} = oid2name( $NI->{system}{sysObjectID} );
+				$catchall_data->{sysObjectName} = oid2name( $catchall_data->{sysObjectID} );
 
-				info("sysObjectId=$NI->{system}{sysObjectID}, sysObjectName=$NI->{system}{sysObjectName}");
-				info("sysDescr=$NI->{system}{sysDescr}");
+				info("sysObjectId=$catchall_data->{sysObjectID}, sysObjectName=$catchall_data->{sysObjectName}");
+				info("sysDescr=$catchall_data->{sysDescr}");
 
 				# Decide on vendor name.
-				my @x = split( /\./, $NI->{system}{sysObjectID} );
+				my @x = split( /\./, $catchall_data->{sysObjectID} );
 				my $i = $x[6];
 
 				# Special handling for devices with bad sysObjectID, e.g. Trango
 				if ( not $i )
 				{
-					$i = $NI->{system}{sysObjectID};
+					$i = $catchall_data->{sysObjectID};
 				}
 
 				if ( $enterpriseTable->{$i}{Enterprise} ne "" )
 				{
-					$NI->{system}{nodeVendor} = $enterpriseTable->{$i}{Enterprise};
+					$catchall_data->{nodeVendor} = $enterpriseTable->{$i}{Enterprise};
 				}
 				else
 				{
-					$NI->{system}{nodeVendor} = "Universal";
+					$catchall_data->{nodeVendor} = "Universal";
 				}
-				dbg("oid index $i, Vendor is $NI->{system}{nodeVendor}");
+				dbg("oid index $i, Vendor is $catchall_data->{nodeVendor}");
 			}
 
 			# iff snmp is a dud, look at some wmi properties
-			elsif ( $NI->{system}->{winbuild} && $NI->{system}->{winosname} && $NI->{system}->{winversion} )
+			elsif ( $catchall_data->{winbuild} && $catchall_data->{winosname} && $catchall_data->{winversion} )
 			{
-				info("winosname=$NI->{system}->{winosname} winversion=$NI->{system}->{winversion}");
+				info("winosname=$catchall_data->{winosname} winversion=$catchall_data->{winversion}");
 
 				# synthesize something compatible with what win boxes spit out via snmp:
 				# i'm too lazy to also wmi-poll Manufacturer and strip off the 'corporation'
-				$NI->{system}->{nodeVendor} = "Microsoft";
+				$catchall_data->{nodeVendor} = "Microsoft";
 
 				# the winosname is not the same/enough
-				$NI->{system}->{sysDescr}
-					= $NI->{system}->{winosname} . " Windows Version " . $NI->{system}->{winversion};
-				$NI->{system}->{sysName} = $NI->{system}->{winsysname};
+				$catchall_data->{sysDescr}
+					= $catchall_data->{winosname} . " Windows Version " . $catchall_data->{winversion};
+				$catchall_data->{sysName} = $catchall_data->{winsysname};
 			}
 
 			# but if neither worked, do not continue processing anything model-related!
-			if ( $NI->{system}{sysDescr} or !$NI->{system}->{nodeVendor} )
+			if ( $catchall_data->{sysDescr} or !$catchall_data->{nodeVendor} )
 			{
 				# fixme: the auto-model decision should be made FIRST, before doing any loadinfo(),
 				# this function's logic needs a complete rewrite
 				if ( $NC->{node}{model} eq 'automatic' || $NC->{node}{model} eq "" )
 				{
 					# get nodeModel based on nodeVendor and sysDescr (real or synthetic)
-					$NI->{system}{nodeModel} = $S->selectNodeModel();    # select and save name in node info table
-					info("selectNodeModel returned model=$NI->{system}{nodeModel}");
+					$catchall_data->{nodeModel} = $S->selectNodeModel();    # select and save name in node info table
+					info("selectNodeModel returned model=$catchall_data->{nodeModel}");
 
-					$NI->{system}{nodeModel} ||= 'Default';              # fixme why default and not generic?
+					$catchall_data->{nodeModel} ||= 'Default';              # fixme why default and not generic?
 				}
 				else
 				{
-					$NI->{system}{nodeModel} = $NC->{node}{model};
-					info("node model=$NI->{system}{nodeModel} set by node config");
+					$catchall_data->{nodeModel} = $NC->{node}{model};
+					info("node model=$catchall_data->{nodeModel} set by node config");
 				}
 
-				dbg("about to loadModel model=$NI->{system}{nodeModel}");
-				$S->loadModel( model => "Model-$NI->{system}{nodeModel}" );
+				dbg("about to loadModel model=$catchall_data->{nodeModel}");
+				$S->loadModel( model => "Model-$catchall_data->{nodeModel}" );
 
 				# now we know more about the host, nodetype and model have been positively determined,
 				# so we'll force-overwrite those values
@@ -1573,36 +1589,36 @@ sub getNodeInfo
 				$V->{system}{status_value}  = 'reachable';
 				$V->{system}{status_title}  = 'Node Status';
 				$V->{system}{status_color}  = '#0F0';
-				$V->{system}{sysName_value} = $NI->{system}{sysName};
+				$V->{system}{sysName_value} = $catchall_data->{sysName};
 				$V->{system}{sysName_title} = 'System Name';
 
-				$V->{system}{sysObjectName_value}   = $NI->{system}{sysObjectName};
+				$V->{system}{sysObjectName_value}   = $catchall_data->{sysObjectName};
 				$V->{system}{sysObjectName_title}   = 'Object Name';
-				$V->{system}{nodeVendor_value}      = $NI->{system}{nodeVendor};
+				$V->{system}{nodeVendor_value}      = $catchall_data->{nodeVendor};
 				$V->{system}{nodeVendor_title}      = 'Vendor';
-				$V->{system}{group_value}           = $NI->{system}{group};
+				$V->{system}{group_value}           = $catchall_data->{group};
 				$V->{system}{group_title}           = 'Group';
-				$V->{system}{customer_value}        = $NI->{system}{customer};
+				$V->{system}{customer_value}        = $catchall_data->{customer};
 				$V->{system}{customer_title}        = 'Customer';
-				$V->{system}{location_value}        = $NI->{system}{location};
+				$V->{system}{location_value}        = $catchall_data->{location};
 				$V->{system}{location_title}        = 'Location';
-				$V->{system}{businessService_value} = $NI->{system}{businessService};
+				$V->{system}{businessService_value} = $catchall_data->{businessService};
 				$V->{system}{businessService_title} = 'Business Service';
-				$V->{system}{serviceStatus_value}   = $NI->{system}{serviceStatus};
+				$V->{system}{serviceStatus_value}   = $catchall_data->{serviceStatus};
 				$V->{system}{serviceStatus_title}   = 'Service Status';
-				$V->{system}{notes_value}           = $NI->{system}{notes};
+				$V->{system}{notes_value}           = $catchall_data->{notes};
 				$V->{system}{notes_title}           = 'Notes';
 
 				# make sure any required data from network_viewNode_field_list gets added.
 				my @viewNodeFields = split( ",", $C->{network_viewNode_field_list} );
 				foreach my $field (@viewNodeFields)
 				{
-					if ( defined $NI->{system}{$field}
+					if ( defined $catchall_data->{$field}
 						and
 						( not defined $V->{system}{"${field}_value"} or not defined $V->{system}{"${field}_title"} ) )
 					{
 						$V->{system}{"${field}_title"} = $field;
-						$V->{system}{"${field}_value"} = $NI->{system}{$field};
+						$V->{system}{"${field}_value"} = $catchall_data->{$field};
 					}
 				}
 
@@ -1622,12 +1638,12 @@ sub getNodeInfo
 					# sysuptime is only a/v if snmp, with wmi we have synthesize it as wintime-winboottime
 					# it's also mangled on the go
 					makesysuptime($S);
-					$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
+					$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 
-					$NI->{system}{server} = $C->{server_name};
+					$catchall_data->{server} = $C->{server_name};
 
 					# pull / from VPN3002 system descr
-					$NI->{system}{sysDescr} =~ s/\// /g;
+					$catchall_data->{sysDescr} =~ s/\// /g;
 
 					# collect DNS location info.
 					getDNSloc( sys => $S );
@@ -1650,7 +1666,7 @@ sub getNodeInfo
 		else                      # fixme unclear why this reaction to failed getnodeinfo?
 		{
 			# load the model prev found
-			$S->loadModel( model => "Model-$NI->{system}{nodeModel}" ) if ( $NI->{system}{nodeModel} ne '' );
+			$S->loadModel( model => "Model-$NI->{system}{nodeModel}" ) if ( $catchall_data->{nodeModel} ne '' );
 		}
 	}
 	else
@@ -1660,7 +1676,7 @@ sub getNodeInfo
 	}
 
 	# get and apply any nodeconf override if such exists for this node
-	my $nodename = $NI->{system}->{name};
+	my $nodename = $catchall_data->{name};
 	my ( $errmsg, $override ) = get_nodeconf( node => $nodename )
 		if ( has_nodeconf( node => $nodename ) );
 	logMsg("ERROR $errmsg") if $errmsg;
@@ -1668,33 +1684,23 @@ sub getNodeInfo
 
 	if ( $override->{sysLocation} )
 	{
-		$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
-		$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
+		$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};		
 		info("Manual update of sysLocation by nodeConf");
 	}
-	else
-	{
-		$NI->{system}{sysLocation} = $NI->{system}{sysLocation};
-	}
-
+	
 	if ( $override->{sysContact} )
 	{
-		$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
-		$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
+		$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};		
 		dbg("Manual update of sysContact by nodeConf");
 	}
-	else
-	{
-		$NI->{system}{sysContact} = $NI->{system}{sysContact};
-	}
-
+	
 	if ( $override->{nodeType} )
 	{
-		$NI->{system}->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
+		$catchall_data->{nodeType} = $override->{nodeType};
 	}
 	else
 	{
-		delete $NI->{nodeconf}->{nodeType};
+		delete $catchall_data->{nodeType};
 	}
 
 	# process the overall results, set node states etc.
@@ -1732,28 +1738,28 @@ sub getNodeInfo
 	if ($exit)
 	{
 		# add web page info
-		$V->{system}{timezone_value}  = $NI->{system}{timezone};
+		$V->{system}{timezone_value}  = $catchall_data->{timezone};
 		$V->{system}{timezone_title}  = 'Time Zone';
-		$V->{system}{nodeModel_value} = $NI->{system}{nodeModel};
+		$V->{system}{nodeModel_value} = $catchall_data->{nodeModel};
 		$V->{system}{nodeModel_title} = 'Model';
-		$V->{system}{nodeType_value}  = $NI->{system}{nodeType};
+		$V->{system}{nodeType_value}  = $catchall_data->{nodeType};
 		$V->{system}{nodeType_title}  = 'Type';
-		$V->{system}{roleType_value}  = $NI->{system}{roleType};
+		$V->{system}{roleType_value}  = $catchall_data->{roleType};
 		$V->{system}{roleType_title}  = 'Role';
-		$V->{system}{netType_value}   = $NI->{system}{netType};
+		$V->{system}{netType_value}   = $catchall_data->{netType};
 		$V->{system}{netType_title}   = 'Net';
 
 		# get the current ip address if the host property was a name
-		if ( ( my $addr = resolveDNStoAddr( $NI->{system}{host} ) ) )
+		if ( ( my $addr = resolveDNStoAddr( $catchall_data->{host} ) ) )
 		{
-			$NI->{system}{host_addr}      = $addr;    # cache it
+			$catchall_data->{host_addr}      = $addr;    # cache it
 			$V->{system}{host_addr_value} = $addr;
-			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ( $addr ne $NI->{system}{host} );
+			$V->{system}{host_addr_value} .= " ($catchall_data->{host})" if ( $addr ne $catchall_data->{host} );
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
 		else
 		{
-			$NI->{system}->{host_addr}    = '';
+			$catchall_data->{host_addr}    = '';
 			$V->{system}{host_addr_value} = "N/A";
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
@@ -1775,7 +1781,7 @@ sub getNodeInfo
 	}
 
 	info( "Finished with exit=$exit "
-			. join( " ", map { "$_=" . $S->ndinfo->{system}->{$_} } (qw(nodedown snmpdown wmidown)) ) );
+			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(nodedown snmpdown wmidown)) ) );
 
 	return $exit;
 }
@@ -1784,14 +1790,14 @@ sub getDNSloc
 {
 	my %args = @_;
 	my $S    = $args{sys};        # node object
-	my $NI   = $S->ndinfo;        # node info
 	my $C    = loadConfTable();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	dbg("Starting");
 
 	# collect DNS location info. Update this info every update pass.
-	$NI->{system}{loc_DNSloc} = "unknown";
-	my $tmphostname = $NI->{system}{host};
+	$catchall_data->{loc_DNSloc} = "unknown";
+	my $tmphostname = $catchall_data->{host};
 	if ( getbool( $C->{loc_from_DNSloc} ) and $C->{netDNS} )
 	{
 		my ( $rr, $lat, $lon );
@@ -1823,8 +1829,8 @@ sub getDNSloc
 			{
 				next unless $rr->type eq "LOC";
 				( $lat, $lon ) = $rr->latlon;
-				$NI->{system}{loc_DNSloc} = $lat . "," . $lon . "," . $rr->altitude;
-				dbg("Location from DNS LOC query is $NI->{system}{loc_DNSloc}");
+				$catchall_data->{loc_DNSloc} = $lat . "," . $lon . "," . $rr->altitude;
+				dbg("Location from DNS LOC query is $catchall_data->{loc_DNSloc}");
 			}
 		}
 		else
@@ -1834,12 +1840,12 @@ sub getDNSloc
 	}    # end DNSLoc
 	     # if no DNS based location information found - look at sysLocation in router.....
 	     # longitude,latitude,altitude,location-text
-	if ( getbool( $C->{loc_from_sysLoc} ) and $NI->{system}{loc_DNSloc} eq "unknown" )
+	if ( getbool( $C->{loc_from_sysLoc} ) and $catchall_data->{loc_DNSloc} eq "unknown" )
 	{
-		if ( $NI->{system}{sysLocation} =~ /$C->{loc_sysLoc_format}/ )
+		if ( $catchall_data->{sysLocation} =~ /$C->{loc_sysLoc_format}/ )
 		{
-			$NI->{system}{loc_DNSloc} = $NI->{system}{sysLocation};
-			dbg("Location from device sysLocation is $NI->{system}{loc_DNSloc}");
+			$catchall_data->{loc_DNSloc} = $catchall_data->{sysLocation};
+			dbg("Location from device sysLocation is $catchall_data->{loc_DNSloc}");
 		}
 	}    # end sysLoc
 	dbg("Finished");
@@ -1852,9 +1858,9 @@ sub checkPower
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	info("Starting");
 
 	my $attr = $args{attr};
@@ -1863,12 +1869,12 @@ sub checkPower
 
 	delete $V->{system}{"${attr}_value"};
 
-	info("Power check attribute=$attr value=$NI->{system}{$attr}");
-	if ( $NI->{system}{$attr} ne '' and $NI->{system}{$attr} !~ /noSuch/ )
+	info("Power check attribute=$attr value=$catchall_data->{$attr}");
+	if ( $catchall_data->{$attr} ne '' and $catchall_data->{$attr} !~ /noSuch/ )
 	{
-		$V->{system}{"${attr}_value"} = $NI->{system}{$attr};
+		$V->{system}{"${attr}_value"} = $catchall_data->{$attr};
 
-		if ( $NI->{system}{$attr} =~ /normal|unknown|notPresent/ )
+		if ( $catchall_data->{$attr} =~ /normal|unknown|notPresent/ )
 		{
 			checkEvent(
 				sys     => $S,
@@ -1902,9 +1908,10 @@ sub checkNodeConfiguration
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
 	info("Starting");
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
@@ -1912,20 +1919,20 @@ sub checkNodeConfiguration
 	# create previous values if they don't exist
 	for my $attr (@updatePrevValues)
 	{
-		if (   defined( $NI->{system}{$attr} )
-			&& $NI->{system}{$attr} ne ''
-			&& !defined( $NI->{system}{"${attr}_prev"} ) )
+		if (   defined( $catchall_data->{$attr} )
+			&& $catchall_data->{$attr} ne ''
+			&& !defined( $catchall_data->{"${attr}_prev"} ) )
 		{
-			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+			$catchall_data->{"${attr}_prev"} = $catchall_data->{$attr};
 		}
 	}
 
-	my $configLastChanged = $NI->{system}{configLastChanged} if defined $NI->{system}{configLastChanged};
-	my $configLastViewed  = $NI->{system}{configLastSaved}   if defined $NI->{system}{configLastSaved};
-	my $bootConfigLastChanged = $NI->{system}{bootConfigLastChanged}
-		if defined $NI->{system}{bootConfigLastChanged};
-	my $configLastChanged_prev = $NI->{system}{configLastChanged_prev}
-		if defined $NI->{system}{configLastChanged_prev};
+	my $configLastChanged = $catchall_data->{configLastChanged} if defined $catchall_data->{configLastChanged};
+	my $configLastViewed  = $catchall_data->{configLastSaved}   if defined $catchall_data->{configLastSaved};
+	my $bootConfigLastChanged = $catchall_data->{bootConfigLastChanged}
+		if defined $catchall_data->{bootConfigLastChanged};
+	my $configLastChanged_prev = $catchall_data->{configLastChanged_prev}
+		if defined $catchall_data->{configLastChanged_prev};
 
 	if ( defined $configLastViewed && defined $bootConfigLastChanged )
 	{
@@ -1975,8 +1982,8 @@ sub checkNodeConfiguration
 	### If it is newer, someone changed it!
 	if ( $configLastChanged > $configLastChanged_prev )
 	{
-		$NI->{system}{configChangeCount}++;
-		$V->{system}{configChangeCount_value} = $NI->{system}{configChangeCount};
+		$catchall_data->{configChangeCount}++;
+		$V->{system}{configChangeCount_value} = $catchall_data->{configChangeCount};
 		$V->{system}{configChangeCount_title} = "Configuration change count";
 
 		notify(
@@ -1986,15 +1993,15 @@ sub checkNodeConfiguration
 			details => "Changed at " . $V->{system}{configLastChanged_value},
 			context => {type => "node"},
 		);
-		logMsg("checkNodeConfiguration configuration change detected on $NI->{system}{name}, creating event");
+		logMsg("checkNodeConfiguration configuration change detected on $S->{name}, creating event");
 	}
 
 	#update previous values to be out current values
 	for my $attr (@updatePrevValues)
 	{
-		if ( defined $NI->{system}{$attr} ne '' && $NI->{system}{$attr} ne '' )
+		if ( defined $catchall_data->{$attr} ne '' && $catchall_data->{$attr} ne '' )
 		{
-			$NI->{system}{"${attr}_prev"} = $NI->{system}{$attr};
+			$catchall_data->{"${attr}_prev"} = $catchall_data->{$attr};
 		}
 	}
 
@@ -2013,21 +2020,21 @@ sub getIntfInfo
 {
 	my %args     = @_;
 	my $S        = $args{sys};      # object
-	my $intf_one = $args{index};    # index for single interface update
-	my $NI       = $S->ndinfo;      # node info table
+	my $intf_one = $args{index};    # index for single interface update	
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getIntfInfo for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getIntfInfo for $S->{name}: SNMP not enabled for this node");
 		return 0;                   # no interfaces collected, treat this as error
 	}
 
 	my $V    = $S->view;
 	my $M    = $S->mdl;             # node model table
-	my $SNMP = $S->snmp;
-	my $IF   = $S->ifinfo;          # interface info table
+	my $SNMP = $S->snmp;	
 	my $NC   = $S->ndcfg;           # node config table
-
+	my $graphtypes = $S->ndinfo->{graphtype};
+	
 	my $singleInterface = 0;
 	if ( defined $intf_one and $intf_one ne "" )
 	{
@@ -2035,7 +2042,7 @@ sub getIntfInfo
 	}
 
 	my $C        = loadConfTable();
-	my $nodename = $NI->{system}->{name};
+	my $nodename = $catchall_data->{name};
 
 	# create the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
@@ -2049,7 +2056,7 @@ sub getIntfInfo
 
 	# fixme: hardcoded section name 'standard'
 	if ( defined $S->{mdl}{interface}{sys}{standard}
-		and $NI->{system}{ifNumber} <= $interface_max_number )
+		and $catchall_data->{ifNumber} <= $interface_max_number )
 	{
 		# Check if the ifTableLastChange has changed.  If it has not changed, the
 		# interface table has had no interfaces added or removed, no need to go any further.
@@ -2058,21 +2065,21 @@ sub getIntfInfo
 			and my $result = $SNMP->get("ifTableLastChange.0") )
 		{
 			$result = $result->{"1.3.6.1.2.1.31.1.5.0"};
-			if ( defined $result and not defined $NI->{system}{ifTableLastChange} )
+			if ( defined $result and not defined $catchall_data->{ifTableLastChange} )
 			{
-				info("$NI->{system}{name} using ifTableLastChange for interface updates");
-				$NI->{system}{ifTableLastChange} = $result;
+				info("$catchall_data->{name} using ifTableLastChange for interface updates");
+				$catchall_data->{ifTableLastChange} = $result;
 			}
-			elsif ( $NI->{system}{ifTableLastChange} != $result )
+			elsif ( $catchall_data->{ifTableLastChange} != $result )
 			{
 				info(
-					"$NI->{system}{name} ifTableLastChange has changed old=$NI->{system}{ifTableLastChange} new=$result"
+					"$catchall_data->{name} ifTableLastChange has changed old=$catchall_data->{ifTableLastChange} new=$result"
 				);
-				$NI->{system}{ifTableLastChange} = $result;
+				$catchall_data->{ifTableLastChange} = $result;
 			}
 			else
 			{
-				info("$NI->{system}{name} ifTableLastChange NO change, skipping ");
+				info("$catchall_data->{name} ifTableLastChange NO change, skipping ");
 
 				# returning 1 as we can do the rest of the updates.
 				return 1;
@@ -2082,15 +2089,15 @@ sub getIntfInfo
 		# else node may not have this variable so keep on doing in the hard way.
 
 		info("Starting");
-		info("Get Interface Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+		info("Get Interface Info of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 		# lets delete what we have in memory and start from scratch.
 		# BUT only if this is for all interfaces
 		if ( not $singleInterface )
 		{
-			delete $NI->{interface};
-
-			# TODO: inventory, do we want to do this?
+			# delete $NI->{interface};
+			NMISNG::Util::TODO("Need to mark interfaces as historic!");
+			delete $S->ndinfo->{inteface}; # keep this for now so NI get's cleaned up
 		}
 
 		# load interface types (IANA). number => name
@@ -2151,16 +2158,17 @@ sub getIntfInfo
 			{
 				# we may want a faster way to do this, perhaps ask for the ids along with some data?
 				my ( $inventory, $error_message ) = $nmisng_node->inventory( _id => $id );
-				$nmisng->log->warn("Failed to get Inventory for interface:$id, error:$error_message") && next;
+				$nmisng->log->warn("Failed to get Inventory for interface:$id, error:$error_message") && next
+					if(!$inventory);
 
-				my $index = $$inventory->data()->{index};
+				my $index = $inventory->data()->{index};
 
 				if ( !defined( $ifIndexMap->{$index} ) )
 				{
 					$inventory->delete();
 					foreach my $graphtype (qw(interface pkts pkts_hc))
 					{
-						delete $NI->{graphtype}{$index}{$graphtype} if ( defined $NI->{graphtype}{$index}{$graphtype} );
+						delete $graphtypes->{$index}{$graphtype} if ( defined $graphtypes->{$index}{$graphtype} );
 					}
 					dbg("Interface ifIndex=$index removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
@@ -2196,7 +2204,7 @@ sub getIntfInfo
 				{
 					$keepInterface = 0;
 					info(
-						"SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}"
+						"SKIP Interface ifType matched skipIfType ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
 					);
 				}
 				elsif ( defined $S->{mdl}{custom}{interface}{skipIfDescr}
@@ -2205,7 +2213,7 @@ sub getIntfInfo
 				{
 					$keepInterface = 0;
 					info(
-						"SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$IF->{$index}{ifDescr} ifType=$IF->{$index}{ifType}"
+						"SKIP Interface ifDescr matched skipIfDescr ifIndex=$index ifDescr=$target->{ifDescr} ifType=$target->{ifType}"
 					);
 				}
 
@@ -2225,8 +2233,8 @@ sub getIntfInfo
 					}
 
 					# easy!
-					delete $IF->{$index};
 					delete $target_table->{$index};
+					NMISNG::Util::TODO("Should this info be kept but marked disabled?");
 				}
 				else
 				{
@@ -2282,7 +2290,7 @@ sub getIntfInfo
 						)
 					{
 						#
-						last if $IF->{$index}{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
+						last if $target->{vlanPortVlan} eq "";    # model does not support CISCO-STACK-MIB
 						$V->{interface}{"${index}_portAdminSpeed_value"}
 							= convertIfSpeed( $target->{portAdminSpeed} );
 						dbg("get VLAN details: index=$index, ifDescr=$target->{ifDescr}");
@@ -2588,7 +2596,7 @@ sub getIntfInfo
 			# if the interface has been down for too many days to be in use now.
 			elsif ( $target->{ifAdminStatus} =~ /up/
 				and $target->{ifOperStatus} =~ /down/
-				and ( $NI->{system}{sysUpTimeSec} - $target->{ifLastChangeSec} ) / 86400
+				and ( $catchall_data->{sysUpTimeSec} - $target->{ifLastChangeSec} ) / 86400
 				> $nocollect_interface_down_days )
 			{
 				$target->{collect} = "false";
@@ -2691,10 +2699,10 @@ sub getIntfInfo
 				my @types = qw(pkts pkts_hc interface);
 				foreach my $type (@types)
 				{
-					if ( exists $NI->{graphtype}{$index}{$type} )
+					if ( exists $graphtypes->{$index}{$type} )
 					{
 						logMsg("Interface not collecting, removing graphtype $type for interface $index");
-						delete $NI->{graphtype}{$index}{$type};
+						delete $graphtypes->{$index}{$type};
 					}
 				}
 			}
@@ -2706,8 +2714,8 @@ sub getIntfInfo
 			# save values only if all interfaces are updated
 			if ( $intf_one eq '' )
 			{
-				$NI->{system}{intfTotal}   = $intfTotal;
-				$NI->{system}{intfCollect} = $intfCollect;
+				$catchall_data->{intfTotal}   = $intfTotal;
+				$catchall_data->{intfCollect} = $intfCollect;
 			}
 
 			# prepare values for web page
@@ -2838,15 +2846,15 @@ sub getIntfInfo
 
 		info("Finished");
 	}
-	elsif ( $NI->{system}{ifNumber} > $interface_max_number )
+	elsif ( $catchall_data->{ifNumber} > $interface_max_number )
 	{
-		info("Skipping, interface count $NI->{system}{ifNumber} exceeds configured maximum $interface_max_number");
+		info("Skipping, interface count $catchall_data->{ifNumber} exceeds configured maximum $interface_max_number");
 	}
 	else
 	{
 		info("Skipping, interfaces not defined in Model");
 	}
-	delete $NI->{interface};
+
 	return 1;
 }    # end getIntfInfo
 
@@ -2910,11 +2918,11 @@ sub checkPIX
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing PIX Failover check for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing PIX Failover check for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
@@ -2932,7 +2940,7 @@ sub checkPIX
 	# if HardwareStatusDetail is blank ( ne 'Failover Off' ) then
 	# HardwareStatusValue will have 'active' or 'standby'
 
-	if ( $NI->{system}{nodeModel} eq "CiscoPIX" )
+	if ( $catchall_data->{nodeModel} eq "CiscoPIX" )
 	{
 		dbg("checkPIX, Getting Cisco PIX Failover Status");
 		if ($result = $SNMP->get(
@@ -2979,8 +2987,8 @@ sub checkPIX
 				# fixme also fails if we've switched to updating this node on the go!
 				if ( !getbool( $S->{update} ) )
 				{
-					if (   $result->{'cfwHardwareStatusValue.6'} ne $NI->{system}{pixPrimary}
-						or $result->{'cfwHardwareStatusValue.7'} ne $NI->{system}{pixSecondary} )
+					if (   $result->{'cfwHardwareStatusValue.6'} ne $catchall_data->{pixPrimary}
+						or $result->{'cfwHardwareStatusValue.7'} ne $catchall_data->{pixSecondary} )
 					{
 						dbg("PIX failover occurred");
 
@@ -2990,17 +2998,17 @@ sub checkPIX
 							event   => "Node Failover",
 							element => 'PIX',
 							details =>
-								"Primary now: $NI->{system}{pixPrimary}  Secondary now: $NI->{system}{pixSecondary}"
+								"Primary now: $catchall_data->{pixPrimary}  Secondary now: $catchall_data->{pixSecondary}"
 						);
 					}
 				}
-				$NI->{system}{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
-				$NI->{system}{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
+				$catchall_data->{pixPrimary}   = $result->{'cfwHardwareStatusValue.6'};    # remember
+				$catchall_data->{pixSecondary} = $result->{'cfwHardwareStatusValue.7'};
 
 				$V->{system}{firewall_title} = "Failover Status";
-				$V->{system}{firewall_value} = "Pri: $NI->{system}{pixPrimary} Sec: $NI->{system}{pixSecondary}";
-				if (    $NI->{system}{pixPrimary} =~ /Failover Off|Active/i
-					and $NI->{system}{pixSecondary} =~ /Failover Off|Standby/i )
+				$V->{system}{firewall_value} = "Pri: $catchall_data->{pixPrimary} Sec: $catchall_data->{pixSecondary}";
+				if (    $catchall_data->{pixPrimary} =~ /Failover Off|Active/i
+					and $catchall_data->{pixSecondary} =~ /Failover Off|Standby/i )
 				{
 					$V->{system}{firewall_color} = "#00BB00";                           #normal
 				}
@@ -3027,11 +3035,11 @@ sub getEnvInfo
 {
 	my %args = @_;
 	my $S    = $args{sys};    # object
-	my $NI   = $S->ndinfo;    # node info table
-
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getEnvInfo for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getEnvInfo for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
@@ -3041,7 +3049,7 @@ sub getEnvInfo
 	my $C    = loadConfTable();
 
 	dbg("Starting");
-	dbg("Get Environment Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	dbg("Get Environment Info of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 	if ( !exists( $M->{environment} ) )
 	{
@@ -3052,11 +3060,11 @@ sub getEnvInfo
 	# fixme hardcoded model names are bad
 	my @wantsections = ('env_temp');
 
-	if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i )
+	if ( $catchall_data->{nodeModel} =~ /AKCP-Sensor/i )
 	{
 		@wantsections = ( 'akcp_temp', 'akcp_hum' );
 	}
-	elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i )
+	elsif ( $catchall_data->{nodeModel} =~ /CiscoCSS/i )
 	{
 		@wantsections = ( 'cssgroup', 'csscontent' );
 	}
@@ -3065,8 +3073,6 @@ sub getEnvInfo
 	{
 		next if ( !exists( $M->{environment}{sys}{$section} ) );
 		next if ( !defined( $M->{environment}->{sys}->{$section}->{snmp} ) );    # wmi doesn't work yet
-
-		delete $NI->{$section};
 
 		# get Index table
 		my $index_var = $M->{environment}{sys}{$section}{indexed};
@@ -3113,24 +3119,46 @@ sub getEnvInfo
 		# Loop to get information, will be stored in {info}{$section} table
 		foreach my $index ( sort keys %envIndexNum )
 		{
+			my $target = {};
 			if ($S->loadInfo(
 					class   => 'environment',
 					section => $section,
 					index   => $index,
 					table   => $section,
 					model   => $model,
-					target  => $NI->{$section}{$index}
+					target  => $target
 				)
 				)
 			{
 				dbg("sensor section=$section index=$index read and stored");
+				my $data = { index => $index};
+				my $path_keys = ['index'];
+				my $path = $S->nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
+				my ( $inventory, $error ) = $S->nmisng_node->inventory(
+					concept   => $section,
+					data      => $target,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
+				);
+				$S->nmisng->log->error("Failed to create inventory, error:$error") && next if ( !$inventory );
+
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				$inventory->path( recalculate => 1 );
+
+				# the above will put data into inventory, so save
+				my ( $op, $error ) = $inventory->save();
+				$S->nmisng->log->error(
+					"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);					
 			}
 			else
 			{
 				my $error = $S->status->{snmp_error};
 				HandleNodeDown( sys => $S, type => "snmp", details => "get environment table index $index" );
 			}
-		}
+		}		
+		NMISNG::Util::TODO('# NEED TO DISABLE / CLEAN UP UNUSED HERE');
 	}
 
 	dbg("Finished");
@@ -3225,19 +3253,19 @@ sub getSystemHealthInfo
 {
 	my %args = @_;
 	my $S    = $args{sys};    # object
-
-	my $NI   = $S->ndinfo;        # node info table
+	
 	my $V    = $S->view;
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
 	my $C    = loadConfTable();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	# create the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
 
 	info("Starting");
-	info("Get systemHealth Info of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	info("Get systemHealth Info of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 	if ( ref( $M->{systemHealth} ) ne "HASH" )
 	{
@@ -3261,10 +3289,9 @@ sub getSystemHealthInfo
 	for my $section (@healthSections)
 	{
 		# TODO:
-		NMISNG::Util::TODO("Does deleting all of the inventory for a section and then re-building them make sense?");
-
-		# answer: I think no because PIT data will point back to it, need to find a way to mark it as unused?
-		delete $NI->{$section};
+		NMISNG::Util::TODO("Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");		
+		# make sure NI is cleaned up
+		delete $S->ndinfo->{$section};
 
 		next
 			if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
@@ -3398,8 +3425,7 @@ sub getSystemHealthInfo
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
-					delete $NI->{$section}{$indexvalue};
+						if ($error);					
 				}
 				else
 				{
@@ -3501,8 +3527,7 @@ sub getSystemHealthInfo
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);
-					delete $NI->{$section}{$index};
+						if ($error);					
 				}
 				else
 				{
@@ -3516,9 +3541,6 @@ sub getSystemHealthInfo
 				}
 			}
 		}
-
-		# Inventory note: to make sure we don't leave any NI info behind remove the section again
-		delete $NI->{$section};
 	}
 	info("Finished");
 	return 1;
@@ -4018,11 +4040,10 @@ sub getIntfData
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;    # node info
-
+	
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getIntfData for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getIntfData for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
@@ -4035,7 +4056,7 @@ sub getIntfData
 	my $C = loadConfTable();
 
 	# get any nodeconf overrides if such exists for this node
-	my $nodename = $NI->{system}->{name};
+	my $nodename = $S->{name};
 	my ( $errmsg, $override ) = get_nodeconf( node => $nodename )
 		if ( has_nodeconf( node => $nodename ) );
 	logMsg("ERROR $errmsg") if $errmsg;
@@ -4150,23 +4171,27 @@ sub getIntfData
 	info("Processing Interface Table");
 	foreach my $index ( sort { $a <=> $b } keys %if_data_map )
 	{
-		# don't bother loading up interface inventory object until we know we need it
-		my $data = $if_data_map{$index};
+		# load up the full inventory object here because the data data may have been updated above
+		# eventually this could be done only if it's updated
+		my $_id = $if_data_map{$index}->{_id};
+		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $_id );
+		$nmisng->log->error("Failed to get inventory, _id:$_id, error_message:$error_message") if(!$inventory);
+		# replace minimal data with all data known
+		my $inventory_data = $inventory->data();
+
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
-		if ( !getbool( $data->{collect} )	or !defined( $data->{ifDescr} )	or $data->{ifDescr} eq "" )
+		if ( !getbool( $inventory_data->{collect} )	or !defined( $inventory_data->{ifDescr} )	or $inventory_data->{ifDescr} eq "" )
 		{
 			dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}"
 			);
 			next;
 		}
-		my ($inventory,$error_message) = $nmisng_node->inventory( _id => $data->{_id} );
-		$nmisng->log->error("Failed to get inventory, _id:$data->{_id}, error_message:$error_message") if(!$inventory);
-		# replace minimal data with all data known
-		my $inventory_data = $inventory->data();
-
+		
+		
+		
 		info(
-			"$data->{ifDescr}: ifIndex=$data->{ifIndex}, was => OperStatus=$data->{ifOperStatus}, ifAdminStatus=$data->{ifAdminStatus}, Collect=$data->{collect}"
+			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was => OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
 		);
 
 		dbg("collect interface index=$index");
@@ -4302,7 +4327,7 @@ sub getIntfData
 
 						# If new ifDescr is different from old ifDescr rebuild interface info table
 						# check if nodeConf modified this inteface
-						my $node    = $NI->{system}{name};
+						my $node    = $S->{name};
 						my $ifDescr = $inventory_data->{ifDescr};
 
 						# nodeconf override for the ifDescr?
@@ -4416,7 +4441,7 @@ sub getIntfData
 		}
 		else
 		{
-			logMsg("ERROR ($NI->{system}{name}) on getIntfData of interface=$index, $anyerror");
+			logMsg("ERROR ($S->{name}) on getIntfData of interface=$index, $anyerror");
 
 			$V->{interface}{"${index}_operAvail_value"} = 'N/A';
 			$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
@@ -4458,14 +4483,12 @@ sub getIntfData
 sub getCBQoS
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
-	my $M    = $S->mdl;
+	my $S    = $args{sys};	
 	my $NC   = $S->ndcfg;
 
 	if ( $NC->{node}{cbqos} !~ /true|input|output|both/ )
 	{
-		info("no collecting ($NC->{node}{cbqos}) for node $NI->{system}{name}");
+		info("no collecting ($NC->{node}{cbqos}) for node $S->{name}");
 		return;
 	}
 
@@ -4492,21 +4515,23 @@ sub getCBQoS
 sub getCBQoSdata
 {
 	my %args  = @_;
-	my $S     = $args{sys};
-	my $NI    = $S->ndinfo;
-	my $IF    = $S->ifinfo;
-	my $CBQOS = $S->cbinfo;
-
-	my %qosIntfTable;
-	my @arrOID;
-	my %cbQosTable;
-
-	return 1 if ( !scalar keys %{$CBQOS} );    # nothing to be done
+	my $S     = $args{sys};	
+		
+	my $ids = $S->nmisng_node->get_inventory_ids(concept => 'cbqos');
+	return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
 
 	# oke, we have get now the PolicyIndex and ObjectsIndex directly
-	foreach my $intf ( keys %{$CBQOS} )
+	foreach my $id ( @$ids )
 	{
-		my $CB = $CBQOS->{$intf};
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
+		$S->nmisng->log->error("Failed to get inventory for id:$id, concept:cbqos, error_message:$error_message") && next
+			if(!$inventory);
+
+		# NOTE: $data does not appear to ever be modified so it does not need saving
+		my $data = $inventory->data();
+		# for now ifIndex is stored in the index attribute
+		my $intf = $data->{index};
+		my $CB = $data;
 		foreach my $direction ( "in", "out" )
 		{
 			next if ( !exists $CB->{$direction}{'PolicyMap'}{'Name'} );
@@ -4543,7 +4568,7 @@ sub getCBQoSdata
 					if ( $D->{'PrePolicyByte'} eq "noSuchInstance" )
 					{
 						logMsg("ERROR mismatch of indexes in getCBQoSdata, run walk");
-						return undef;
+						return;
 					}
 
 					# oke, store the data
@@ -4566,7 +4591,7 @@ sub getCBQoSdata
 				}
 				else
 				{
-					logMsg("ERROR ($NI->{system}{name}) on getCBQoSdata, $anyerror");
+					logMsg("ERROR ($S->{name}) on getCBQoSdata, $anyerror");
 					HandleNodeDown( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 						if ( $howdiditgo->{snmp_error} );
 					HandleNodeDown( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
@@ -4593,11 +4618,10 @@ sub getCBQoSwalk
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getCBQoSwalk for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getCBQoSwalk for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
-	my $IF   = $S->ifinfo;
 	my $NC   = $S->ndcfg;
 	my $SNMP = $S->snmp;
 
@@ -4614,287 +4638,312 @@ sub getCBQoSwalk
 	# read qos interface table
 	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex') )
 	{
+
+		# grab all the interface data required to run this function
+		# no writing back to the IF information is done so plain models
+		# are good
+		my $nmisng = $S->nmisng;
+		my $nmisng_node = $S->nmisng_node;
+		my $model_data = $nmisng->get_inventory_model(
+			'concept' => 'interface', 
+			'cluster_id' => $nmisng_node->cluster_id,
+			'node_uuid' => $nmisng_node->uuid, 
+			fields_hash => { 
+				'_id' => 1, 
+				'data.collect' => 1,
+				'data.ifAdminStatus' => 1,
+				'data.ifDescr' => 1,
+				'data.ifIndex' => 1,
+				'data.ifSpeed' => 1,
+				'data.ifSpeedIn' => 1,
+				'data.ifSpeedOut' => 1,
+				'data.setlimits' => 1
+			}
+		);
+		
+		my $data = $model_data->data();
+		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
+		my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+		print "ifmap:".Dumper(\%if_data_map);
+
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
 			my $intf = $ifIndexTable->{$PIndex};    # the interface number from the snmp qos table
 			info("CBQoS, scan interface $intf");
-
-			# is this an active interface
-			if ( exists $IF->{$intf} )
+			$nmisng->log->warn("CBQoS ifIndex $intf found which is not in inventory") && next 
+				if( !defined($if_data_map{$intf}) );
+			my $if_data = $if_data_map{$intf};
+			
+			### 2014-03-27 keiths, skipping CBQoS if not collecting data
+			if ( getbool( $if_data->{collect}, "invert" ) )
 			{
-				### 2014-03-27 keiths, skipping CBQoS if not collecting data
-				if ( getbool( $IF->{$intf}{collect}, "invert" ) )
+				dbg("Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf");
+				next;
+			}
+
+			# oke, go
+			my $answer;
+			my %CMValues;
+			my $direction;
+
+			# check direction of qos with node table
+			( $answer->{'cbQosPolicyDirection'} ) = $SNMP->getarray("cbQosPolicyDirection.$PIndex");
+			dbg("direction of policy is $answer->{'cbQosPolicyDirection'}, Node table $NC->{node}{cbqos}");
+
+			if (   ( $answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/ )
+				or ( $answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/ ) )
+			{
+				# interface found with QoS input or output configured
+
+				$direction = ( $answer->{'cbQosPolicyDirection'} == 1 ) ? "in" : "out";
+				info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+
+				my $ifSpeedIn    = $if_data->{ifSpeedIn}  ? $if_data->{ifSpeedIn}  : $if_data->{ifSpeed};
+				my $ifSpeedOut   = $if_data->{ifSpeedOut} ? $if_data->{ifSpeedOut} : $if_data->{ifSpeed};
+				my $inoutIfSpeed = $direction eq "in"       ? $ifSpeedIn               : $ifSpeedOut;
+
+				# get the policy config table for this interface
+				my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
+
+				if ( $C->{debug} > 5 )
 				{
-					dbg("Skipping CBQoS, No collect on interface $IF->{$intf}{ifDescr} ifIndex=$intf");
-					next;
+					print Dumper ($qosIndexTable);
 				}
 
-				# oke, go
-				my $answer;
-				my %CMValues;
-				my $direction;
-
-				# check direction of qos with node table
-				( $answer->{'cbQosPolicyDirection'} ) = $SNMP->getarray("cbQosPolicyDirection.$PIndex");
-				dbg("direction of policy is $answer->{'cbQosPolicyDirection'}, Node table $NC->{node}{cbqos}");
-
-				if (   ( $answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/ )
-					or ( $answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/ ) )
+				# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
+			BLOCK2:
+				foreach my $OIndex ( keys %{$qosIndexTable} )
 				{
-					# interface found with QoS input or output configured
+					# look for the Object type for each
+					( $answer->{'cbQosObjectsType'} ) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
+					dbg("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
+					if ( $answer->{'cbQosObjectsType'} eq 1 )
+					{
+						# it's a policy-map object, is it the primairy
+						( $answer->{'cbQosParentObjectsIndex'} )
+							= $SNMP->getarray("cbQosParentObjectsIndex.$PIndex.$OIndex");
+						if ( $answer->{'cbQosParentObjectsIndex'} eq 0 )
+						{
+							# this is the primairy policy-map object, get the name
+							( $answer->{'cbQosPolicyMapName'} )
+								= $SNMP->getarray("cbQosPolicyMapName.$qosIndexTable->{$OIndex}");
+							dbg("policymap - name is $answer->{'cbQosPolicyMapName'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
+							);
+						}
+					}
+					elsif ( $answer->{'cbQosObjectsType'} eq 2 )
+					{
+						# it's a classmap, ask the name and the parent ID
+						( $answer->{'cbQosCMName'}, $answer->{'cbQosParentObjectsIndex'} )
+							= $SNMP->getarray( "cbQosCMName.$qosIndexTable->{$OIndex}",
+							"cbQosParentObjectsIndex.$PIndex.$OIndex" );
+						dbg("classmap - name is $answer->{'cbQosCMName'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
+						);
 
-					$direction = ( $answer->{'cbQosPolicyDirection'} == 1 ) ? "in" : "out";
-					info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
+						$answer->{'cbQosParentObjectsIndex2'} = $answer->{'cbQosParentObjectsIndex'};
+						my $cnt = 0;
 
-					my $ifSpeedIn    = $IF->{$intf}{ifSpeedIn}  ? $IF->{$intf}{ifSpeedIn}  : $IF->{$intf}{ifSpeed};
-					my $ifSpeedOut   = $IF->{$intf}{ifSpeedOut} ? $IF->{$intf}{ifSpeedOut} : $IF->{$intf}{ifSpeed};
-					my $inoutIfSpeed = $direction eq "in"       ? $ifSpeedIn               : $ifSpeedOut;
+					  #KS 2011-10-27 Redundant model object not in use: getbool($M->{system}{cbqos}{collect_all_cm})
+						while ( !getbool( $C->{'cbqos_cm_collect_all'}, "invert" )
+							and $answer->{'cbQosParentObjectsIndex2'} ne 0
+							and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex
+							and $cnt++ lt 5 )
+						{
+							( $answer->{'cbQosConfigIndex'} )
+								= $SNMP->getarray("cbQosConfigIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+							if ( $C->{debug} > 5 )
+							{
+								print "Dumping cbQosConfigIndex\n";
+								print Dumper ( $answer->{'cbQosConfigIndex'} );
+							}
 
-					# get the policy config table for this interface
-					my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
+							# it is not the first level, get the parent names
+							( $answer->{'cbQosObjectsType2'} )
+								= $SNMP->getarray("cbQosObjectsType.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
+							if ( $C->{debug} > 5 )
+							{
+								print "Dumping cbQosObjectsType2\n";
+								print Dumper ( $answer->{'cbQosObjectsType2'} );
+							}
+
+							dbg("look for parent of ObjectsType $answer->{'cbQosObjectsType2'}");
+							if ( $answer->{'cbQosObjectsType2'} eq 1 )
+							{
+								# it is a policymap name
+								( $answer->{'cbQosName'}, $answer->{'cbQosParentObjectsIndex2'} )
+									= $SNMP->getarray( "cbQosPolicyMapName.$answer->{'cbQosConfigIndex'}",
+									"cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}" );
+								dbg("parent policymap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}"
+								);
+								if ( $C->{debug} > 5 )
+								{
+									print "Dumping cbQosName\n";
+									print Dumper ( $answer->{'cbQosName'} );
+									print "Dumping cbQosParentObjectsIndex2\n";
+									print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
+								}
+
+							}
+							elsif ( $answer->{'cbQosObjectsType2'} eq 2 )
+							{
+								# it is a classmap name
+								( $answer->{'cbQosName'}, $answer->{'cbQosParentObjectsIndex2'} )
+									= $SNMP->getarray( "cbQosCMName.$answer->{'cbQosConfigIndex'}",
+									"cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}" );
+								dbg("parent classmap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}"
+								);
+								if ( $C->{debug} > 5 )
+								{
+									print "Dumping cbQosName\n";
+									print Dumper ( $answer->{'cbQosName'} );
+									print "Dumping cbQosParentObjectsIndex2\n";
+									print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
+								}
+							}
+							elsif ( $answer->{'cbQosObjectsType2'} eq 3 )
+							{
+								dbg("skip - this class-map is part of a match statement");
+								next BLOCK2;    # skip this class-map, is part of a match statement
+							}
+
+							# concatenate names
+							if ( $answer->{'cbQosParentObjectsIndex2'} ne 0 )
+							{
+								$answer->{'cbQosCMName'} = "$answer->{'cbQosName'}--$answer->{'cbQosCMName'}";
+							}
+						}
+
+						# collect all levels of classmaps or only the first level
+						# KS 2011-10-27: by default collect hierarchical QoS
+						if ( !getbool( $C->{'cbqos_cm_collect_all'}, "invert" )
+							or $answer->{'cbQosParentObjectsIndex'} eq $PIndex )
+						{
+							#
+							$CMValues{"H" . $OIndex}{'CMName'}  = $answer->{'cbQosCMName'};
+							$CMValues{"H" . $OIndex}{'CMIndex'} = $OIndex;
+						}
+					}
+					elsif ( $answer->{'cbQosObjectsType'} eq 4 )
+					{
+						my $CMRate;
+
+						# it's a queueing object, look for the bandwidth
+						(   $answer->{'cbQosQueueingCfgBandwidth'},
+							$answer->{'cbQosQueueingCfgBandwidthUnits'},
+							$answer->{'cbQosParentObjectsIndex'}
+							)
+							= $SNMP->getarray(
+							"cbQosQueueingCfgBandwidth.$qosIndexTable->{$OIndex}",
+							"cbQosQueueingCfgBandwidthUnits.$qosIndexTable->{$OIndex}",
+							"cbQosParentObjectsIndex.$PIndex.$OIndex"
+							);
+						if ( $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1 )
+						{
+							$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * 1000;
+						}
+						elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2
+							or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 )
+						{
+							$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed / 100;
+						}
+						if ( $CMRate eq 0 ) { $CMRate = "undef"; }
+						dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},"
+								. "rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}" );
+						$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate;
+					}
+					elsif ( $answer->{'cbQosObjectsType'} eq 6 )
+					{
+						# traffic shaping
+						( $answer->{'cbQosTSCfgRate'}, $answer->{'cbQosParentObjectsIndex'} )
+							= $SNMP->getarray( "cbQosTSCfgRate.$qosIndexTable->{$OIndex}",
+							"cbQosParentObjectsIndex.$PIndex.$OIndex" );
+						dbg("shaping - rate $answer->{'cbQosTSCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
+						);
+						$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMTSCfgRate'}
+							= $answer->{'cbQosPoliceCfgRate'};
+
+					}
+					elsif ( $answer->{'cbQosObjectsType'} eq 7 )
+					{
+						# police
+						( $answer->{'cbQosPoliceCfgRate'}, $answer->{'cbQosParentObjectsIndex'} )
+							= $SNMP->getarray(
+							"cbQosPoliceCfgRate.$qosIndexTable->{$OIndex}",
+							"cbQosParentObjectsIndex.$PIndex.$OIndex"
+							);
+						dbg("police - rate $answer->{'cbQosPoliceCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
+						);
+						$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMPoliceCfgRate'}
+							= $answer->{'cbQosPoliceCfgRate'};
+					}
 
 					if ( $C->{debug} > 5 )
 					{
-						print Dumper ($qosIndexTable);
+						print Dumper ($answer);
 					}
 
-					# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
-				BLOCK2:
-					foreach my $OIndex ( keys %{$qosIndexTable} )
-					{
-						# look for the Object type for each
-						( $answer->{'cbQosObjectsType'} ) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
-						dbg("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
-						if ( $answer->{'cbQosObjectsType'} eq 1 )
-						{
-							# it's a policy-map object, is it the primairy
-							( $answer->{'cbQosParentObjectsIndex'} )
-								= $SNMP->getarray("cbQosParentObjectsIndex.$PIndex.$OIndex");
-							if ( $answer->{'cbQosParentObjectsIndex'} eq 0 )
-							{
-								# this is the primairy policy-map object, get the name
-								( $answer->{'cbQosPolicyMapName'} )
-									= $SNMP->getarray("cbQosPolicyMapName.$qosIndexTable->{$OIndex}");
-								dbg("policymap - name is $answer->{'cbQosPolicyMapName'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
-								);
-							}
-						}
-						elsif ( $answer->{'cbQosObjectsType'} eq 2 )
-						{
-							# it's a classmap, ask the name and the parent ID
-							( $answer->{'cbQosCMName'}, $answer->{'cbQosParentObjectsIndex'} )
-								= $SNMP->getarray( "cbQosCMName.$qosIndexTable->{$OIndex}",
-								"cbQosParentObjectsIndex.$PIndex.$OIndex" );
-							dbg("classmap - name is $answer->{'cbQosCMName'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
-							);
-
-							$answer->{'cbQosParentObjectsIndex2'} = $answer->{'cbQosParentObjectsIndex'};
-							my $cnt = 0;
-
-						  #KS 2011-10-27 Redundant model object not in use: getbool($M->{system}{cbqos}{collect_all_cm})
-							while ( !getbool( $C->{'cbqos_cm_collect_all'}, "invert" )
-								and $answer->{'cbQosParentObjectsIndex2'} ne 0
-								and $answer->{'cbQosParentObjectsIndex2'} ne $PIndex
-								and $cnt++ lt 5 )
-							{
-								( $answer->{'cbQosConfigIndex'} )
-									= $SNMP->getarray("cbQosConfigIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-								if ( $C->{debug} > 5 )
-								{
-									print "Dumping cbQosConfigIndex\n";
-									print Dumper ( $answer->{'cbQosConfigIndex'} );
-								}
-
-								# it is not the first level, get the parent names
-								( $answer->{'cbQosObjectsType2'} )
-									= $SNMP->getarray("cbQosObjectsType.$PIndex.$answer->{'cbQosParentObjectsIndex2'}");
-								if ( $C->{debug} > 5 )
-								{
-									print "Dumping cbQosObjectsType2\n";
-									print Dumper ( $answer->{'cbQosObjectsType2'} );
-								}
-
-								dbg("look for parent of ObjectsType $answer->{'cbQosObjectsType2'}");
-								if ( $answer->{'cbQosObjectsType2'} eq 1 )
-								{
-									# it is a policymap name
-									( $answer->{'cbQosName'}, $answer->{'cbQosParentObjectsIndex2'} )
-										= $SNMP->getarray( "cbQosPolicyMapName.$answer->{'cbQosConfigIndex'}",
-										"cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}" );
-									dbg("parent policymap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}"
-									);
-									if ( $C->{debug} > 5 )
-									{
-										print "Dumping cbQosName\n";
-										print Dumper ( $answer->{'cbQosName'} );
-										print "Dumping cbQosParentObjectsIndex2\n";
-										print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
-									}
-
-								}
-								elsif ( $answer->{'cbQosObjectsType2'} eq 2 )
-								{
-									# it is a classmap name
-									( $answer->{'cbQosName'}, $answer->{'cbQosParentObjectsIndex2'} )
-										= $SNMP->getarray( "cbQosCMName.$answer->{'cbQosConfigIndex'}",
-										"cbQosParentObjectsIndex.$PIndex.$answer->{'cbQosParentObjectsIndex2'}" );
-									dbg("parent classmap - name is $answer->{'cbQosName'}, parent ID $answer->{'cbQosParentObjectsIndex2'}"
-									);
-									if ( $C->{debug} > 5 )
-									{
-										print "Dumping cbQosName\n";
-										print Dumper ( $answer->{'cbQosName'} );
-										print "Dumping cbQosParentObjectsIndex2\n";
-										print Dumper ( $answer->{'cbQosParentObjectsIndex2'} );
-									}
-								}
-								elsif ( $answer->{'cbQosObjectsType2'} eq 3 )
-								{
-									dbg("skip - this class-map is part of a match statement");
-									next BLOCK2;    # skip this class-map, is part of a match statement
-								}
-
-								# concatenate names
-								if ( $answer->{'cbQosParentObjectsIndex2'} ne 0 )
-								{
-									$answer->{'cbQosCMName'} = "$answer->{'cbQosName'}--$answer->{'cbQosCMName'}";
-								}
-							}
-
-							# collect all levels of classmaps or only the first level
-							# KS 2011-10-27: by default collect hierarchical QoS
-							if ( !getbool( $C->{'cbqos_cm_collect_all'}, "invert" )
-								or $answer->{'cbQosParentObjectsIndex'} eq $PIndex )
-							{
-								#
-								$CMValues{"H" . $OIndex}{'CMName'}  = $answer->{'cbQosCMName'};
-								$CMValues{"H" . $OIndex}{'CMIndex'} = $OIndex;
-							}
-						}
-						elsif ( $answer->{'cbQosObjectsType'} eq 4 )
-						{
-							my $CMRate;
-
-							# it's a queueing object, look for the bandwidth
-							(   $answer->{'cbQosQueueingCfgBandwidth'},
-								$answer->{'cbQosQueueingCfgBandwidthUnits'},
-								$answer->{'cbQosParentObjectsIndex'}
-								)
-								= $SNMP->getarray(
-								"cbQosQueueingCfgBandwidth.$qosIndexTable->{$OIndex}",
-								"cbQosQueueingCfgBandwidthUnits.$qosIndexTable->{$OIndex}",
-								"cbQosParentObjectsIndex.$PIndex.$OIndex"
-								);
-							if ( $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 1 )
-							{
-								$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * 1000;
-							}
-							elsif ($answer->{'cbQosQueueingCfgBandwidthUnits'} eq 2
-								or $answer->{'cbQosQueueingCfgBandwidthUnits'} eq 3 )
-							{
-								$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed / 100;
-							}
-							if ( $CMRate eq 0 ) { $CMRate = "undef"; }
-							dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},"
-									. "rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}" );
-							$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate;
-						}
-						elsif ( $answer->{'cbQosObjectsType'} eq 6 )
-						{
-							# traffic shaping
-							( $answer->{'cbQosTSCfgRate'}, $answer->{'cbQosParentObjectsIndex'} )
-								= $SNMP->getarray( "cbQosTSCfgRate.$qosIndexTable->{$OIndex}",
-								"cbQosParentObjectsIndex.$PIndex.$OIndex" );
-							dbg("shaping - rate $answer->{'cbQosTSCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
-							);
-							$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMTSCfgRate'}
-								= $answer->{'cbQosPoliceCfgRate'};
-
-						}
-						elsif ( $answer->{'cbQosObjectsType'} eq 7 )
-						{
-							# police
-							( $answer->{'cbQosPoliceCfgRate'}, $answer->{'cbQosParentObjectsIndex'} )
-								= $SNMP->getarray(
-								"cbQosPoliceCfgRate.$qosIndexTable->{$OIndex}",
-								"cbQosParentObjectsIndex.$PIndex.$OIndex"
-								);
-							dbg("police - rate $answer->{'cbQosPoliceCfgRate'}, parent ID $answer->{'cbQosParentObjectsIndex'}"
-							);
-							$CMValues{"H" . $answer->{'cbQosParentObjectsIndex'}}{'CMPoliceCfgRate'}
-								= $answer->{'cbQosPoliceCfgRate'};
-						}
-
-						if ( $C->{debug} > 5 )
-						{
-							print Dumper ($answer);
-						}
-
-					}
-
-					if ( $answer->{'cbQosPolicyMapName'} eq "" )
-					{
-						$answer->{'cbQosPolicyMapName'} = 'default';
-						dbg("policymap - name is blank, so setting to default");
-					}
-
-					$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $IF->{$intf}{'ifDescr'};
-					$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'}  = $answer->{'cbQosPolicyMapName'};
-					$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex;
-
-					# combine CM name and bandwidth
-					foreach my $index ( keys %CMValues )
-					{
-						# check if CM name does exist
-						if ( exists $CMValues{$index}{'CMName'} )
-						{
-
-							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Name'}  = $CMValues{$index}{'CMName'};
-							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Index'} = $CMValues{$index}{'CMIndex'};
-
-							# lets print the just type
-							if ( exists $CMValues{$index}{'CMCfgRate'} )
-							{
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
-									= $CMValues{$index}{'CMCfgRate'};
-							}
-							elsif ( exists $CMValues{$index}{'CMTSCfgRate'} )
-							{
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Traffic shaping";
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
-									= $CMValues{$index}{'CMTSCfgRate'};
-							}
-							elsif ( exists $CMValues{$index}{'CMPoliceCfgRate'} )
-							{
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Police";
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
-									= $CMValues{$index}{'CMPoliceCfgRate'};
-							}
-							else
-							{
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
-								$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef";
-							}
-
-						}
-					}
 				}
-				else
+
+				if ( $answer->{'cbQosPolicyMapName'} eq "" )
 				{
-					dbg("No collect requested in Node table");
+					$answer->{'cbQosPolicyMapName'} = 'default';
+					dbg("policymap - name is blank, so setting to default");
+				}
+
+				$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $if_data->{'ifDescr'};
+				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'}  = $answer->{'cbQosPolicyMapName'};
+				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex;
+
+				# combine CM name and bandwidth
+				foreach my $index ( keys %CMValues )
+				{
+					# check if CM name does exist
+					if ( exists $CMValues{$index}{'CMName'} )
+					{
+
+						$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Name'}  = $CMValues{$index}{'CMName'};
+						$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Index'} = $CMValues{$index}{'CMIndex'};
+
+						# lets print the just type
+						if ( exists $CMValues{$index}{'CMCfgRate'} )
+						{
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
+								= $CMValues{$index}{'CMCfgRate'};
+						}
+						elsif ( exists $CMValues{$index}{'CMTSCfgRate'} )
+						{
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Traffic shaping";
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
+								= $CMValues{$index}{'CMTSCfgRate'};
+						}
+						elsif ( exists $CMValues{$index}{'CMPoliceCfgRate'} )
+						{
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Police";
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'}
+								= $CMValues{$index}{'CMPoliceCfgRate'};
+						}
+						else
+						{
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef";
+						}
+
+					}
 				}
 			}
 			else
 			{
-				dbg("Interface $intf does not exist");
+				dbg("No collect requested in Node table");
 			}
+		
 		}
 		delete $S->{info}{cbqos};    # remove old info
 		if ( scalar( keys %{$ifIndexTable} ) )
 		{
 			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
-			$S->{info}{cbqos} = \%cbQosTable;
+			
+			# $S->{info}{cbqos} = \%cbQosTable;
 
 			# cbqos info structure is a tad different from interfaces, but the rrds also need tuning
 
@@ -4902,14 +4951,37 @@ sub getCBQoSwalk
 			for my $index ( keys %cbQosTable )
 			{
 				my $thisqosinfo = $cbQosTable{$index};
+				$thisqosinfo->{index} = $index;
+				
+				# create inventory entry, data is not changed below so do it here,
+				# add index entry for now, may want to modify this later, or create a specialised Inventory class
+				my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+				my $path = $nmisng_node->inventory_path( concept => 'cbqos', data => $thisqosinfo, path_keys => $path_keys );			
+				if( ref($path) eq 'ARRAY')
+				{
+					my ( $inventory, $error ) = $nmisng_node->inventory(
+						concept   => 'cbqos',
+						data      => $thisqosinfo,
+						path      => $path,
+						path_keys => $path_keys,
+						create    => 1
+					);
+					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+					$inventory->path( recalculate => 1 );
+					my ( $op, $error ) = $inventory->save();
+					$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+						if ($error);
+				}
+
+				my $if_data = $if_data_map{$index};
 				next
-					if ( ref( $IF->{$index} ) ne "HASH"
-					or !$IF->{$index}->{ifSpeed}
-					or $IF->{$index}->{setlimits} !~ /^(normal|strict|off)$/
-					or !getbool( $IF->{$index}{collect} ) )
+					if ( ref( $if_data_map{$index} ) ne "HASH"
+					or !$if_data->{ifSpeed}
+					or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+					or !getbool( $if_data->{collect} ) )
 					;    # don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
 
-				my $thisintf     = $IF->{$index};
+				my $thisintf     = $if_data;
 				my $desiredlimit = $thisintf->{setlimits};
 
 				info(
@@ -4969,7 +5041,7 @@ sub getCBQoSwalk
 		}
 		else
 		{
-			dbg("no entries found in QoS table of node $NI->{name}");
+			dbg("no entries found in QoS table of node $S->{name}");
 		}
 	}
 	return 1;
@@ -4987,11 +5059,11 @@ sub getCalls
 
 	if ( !getbool( $NC->{node}{calls} ) )
 	{
-		dbg("no collecting for node $NI->{system}{name}");
+		dbg("no collecting for node $S->{name}");
 		return;
 	}
 
-	dbg("Starting Calls for node $NI->{system}{name}");
+	dbg("Starting Calls for node $S->{name}");
 
 	## oke,lets go
 	if ( getbool( $S->{update} ) )    # fixme unclean access to internal property
@@ -5109,7 +5181,7 @@ sub getCallsdata
 		}
 		else
 		{
-			logMsg("ERROR ($NI->{system}{name}) on getCallsdata, $anyerror");
+			logMsg("ERROR ($S->{name}) on getCallsdata, $anyerror");
 			HandleNodeDown( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 				if ( $howdiditgo->{snmp_error} );
 			HandleNodeDown( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
@@ -5165,33 +5237,61 @@ sub getCallswalk
 	my %args = @_;
 	my $S    = $args{sys};
 	my $NI   = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getCallswalk for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getCallswalk for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
-	my $IF   = $S->ifinfo;
 	my $SNMP = $S->snmp;
 
 	my ( %seen, %callsTable, %mappingTable, $intfindex, $parentintfIndex, $IntfIndexTable, $IntfStatusTable );
 
 	dbg("Starting Calls ports collection");
 
+	# get all the interfaces we know about
+	# grab all the interface data required to run this function
+	# no writing back to the IF information is done so plain models
+	# are good
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
+	my $model_data = $nmisng->get_inventory_model(
+		'concept' => 'interface', 
+		'cluster_id' => $nmisng_node->cluster_id,
+		'node_uuid' => $nmisng_node->uuid, 
+		fields_hash => { 
+			'_id' => 1, 
+			'data.collect' => 1,
+			'data.ifAdminStatus' => 1,
+			'data.ifDescr' => 1,
+			'data.ifIndex' => 1,			
+			'data.ifSpeed' => 1,
+			'data.ifSpeedIn' => 1,
+			'data.ifSpeedOut' => 1,
+			'data.setlimits' => 1
+		}
+	);
+	my $data = $model_data->data();
+	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
+	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+	print "ifmap:".Dumper(\%if_data_map);
+
 	# double check if any call interfaces on this node.
 	# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
 	# only collect on interfaces that are defined and that are Admin UP
-	foreach ( keys %{$IF} )
+	foreach my $ifIndex ( keys %if_data_map )
 	{
-		if ( $IF->{$_}{ifAdminStatus} eq "up" )
+		my $data = $if_data_map{$ifIndex};
+		if ( $data->{ifAdminStatus} eq "up" )
 		{
-			$seen{$_} = $_;
+			$seen{$ifIndex} = $ifIndex;
 		}
 	}
 	if ( !%seen )
 	{
-		dbg("$NI->{system}{name} does not have any call ports or no collect or port down - Call ports collection aborted"
+		dbg("$S->{name} does not have any call ports or no collect or port down - Call ports collection aborted"
 		);
 		return;    # fixme: is that an error or not? i think not, so return 1
 	}
@@ -5252,7 +5352,7 @@ sub getCallswalk
 				}
 
 				# check if parent interface is also up
-				if ( $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifAdminStatus} ne "up" )
+				if ( $if_data_map{$callsTable{$callsintf}{'parentintfIndex'}}->{ifAdminStatus} ne "up" )
 				{
 					##	print returnTime." Calls: parent interface $IF->{$callsTable{$callsintf}{'parentintfIndex'}}{ifDescr} is not up\n" if $debug;
 					delete $callsTable{$callsintf};
@@ -5276,7 +5376,7 @@ sub getCallswalk
 			{
 				# callsTable has some values, so write it out
 				$S->{info}{calls}             = \%callsTable;
-				$NI->{system}{InstalledVoice} = "$InstalledVoice";
+				$catchall_data->{InstalledVoice} = "$InstalledVoice";
 			}
 		}
 	}
@@ -5295,11 +5395,11 @@ sub getPVC
 	my %args = @_;
 
 	my $S  = $args{sys};
-	my $NI = $S->ndinfo;
-
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $graphtypes = $S->ndinfo->{graphtype};
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing getPVC for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing getPVC for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
@@ -5334,7 +5434,7 @@ sub getPVC
 	}
 	if ( !%seen )
 	{    # nothing to do
-		dbg("$NI->{system}{name} does not have any frame ports or no collect or port down");
+		dbg("$S->{name} does not have any frame ports or no collect or port down");
 		return;    # fixme error or not? i think not, return 1 instead
 	}
 
@@ -5363,7 +5463,7 @@ sub getPVC
 		}
 
 		# fixme hardcoded model name is bad
-		if ( $NI->{system}{nodeModel} =~ /CiscoRouter/ )
+		if ( $catchall_data->{nodeModel} =~ /CiscoRouter/ )
 		{
 			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName') )
 			{
@@ -5415,7 +5515,7 @@ sub getPVC
 					) ne ""
 					)
 				{
-					$NI->{graphtype}{$key}{pvc} = 'pvc';
+					$graphtypes->{$key}{pvc} = 'pvc';
 				}
 				else
 				{
@@ -5464,32 +5564,48 @@ sub runServer
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+	my $graphtypes = $S->ndinfo->{graphtype};
 
 	if ( !$S->status->{snmp_enabled} )
 	{
-		info("Not performing server collection for $NI->{system}->{name}: SNMP not enabled for this node");
+		info("Not performing server collection for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
 	my $M    = $S->mdl;
 	my $SNMP = $S->snmp;
 
-	my ( $result, %Val, %ValMeM, $hrCpuLoad );
+	my ( $result, %Val, %ValMeM, $hrCpuLoad, $op, $error );
 
-	info("Starting server device/storage collection, node $NI->{system}{name}");
+	info("Starting server device/storage collection, node $S->{name}");
+
+	# clean up node file
+	NMISNG::Util::TODO("Need a cleanup/historic checker");
+	delete $S->ndinfo->{device};
 
 	# get cpu info
-	delete $NI->{device};
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
+		my $overall_target = {};
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
-		$S->loadInfo( class => 'device', model => $model, target => $NI->{device} );    # get cpu load without index
+		$S->loadInfo( class => 'device_global', model => $model, target => $overall_target );    # get cpu load without index
+
+		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => [], data => $overall_target, create => 1 );
+		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);
+		($op,$error) = $inventory->save() if($inventory);
+		$S->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
+
 		foreach my $index ( keys %{$deviceIndex} )
 		{
-			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $NI->{device}{$index} ) )
+			# create a new target for each index
+			my $device_target = {};
+			my $historic = 0;
+			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $device_target ) )
 			{
-				my $D = $NI->{device}{$index};
+				my $D = $device_target;
 				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
 				{                                                                       # hrDeviceProcessor
@@ -5500,30 +5616,37 @@ sub runServer
 					### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
 					push( @{$S->{reach}{cpuList}}, $hrCpuLoad );
 
-					$NI->{device}{$index}{hrCpuLoad}
-						= ( $hrCpuLoad =~ /noSuch/i ) ? $NI->{device}{hrCpuLoad} : $hrCpuLoad;
-					info("cpu Load=$NI->{device}{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
+					$device_target->{hrCpuLoad}
+						= ( $hrCpuLoad =~ /noSuch/i ) ? $overall_target->{hrCpuLoad} : $hrCpuLoad;
+					info("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
-					$Val{hrCpuLoad}{value} = $NI->{device}{$index}{hrCpuLoad} || 0;
+					$Val{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
 					if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrsmpcpu", index => $index ) ) )
 					{
-						$NI->{graphtype}{$index}{hrsmpcpu} = "hrsmpcpu";
+						$graphtypes->{$index}{hrsmpcpu} = "hrsmpcpu";
 					}
 					else
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+
+					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
+					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
+					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
+					($op,$error) = $inventory->save() if($inventory);
+					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if(!$error);
 				}
-				else
-				{
-					delete $NI->{device}{$index};
-				}
+				# else
+				# {
+				# 	delete $device_target->{$index};
+				# }
 			}
 		}
+		NMISNG::Util::TODO("Need to clean up device/devices here and mark unused historic");
 	}
 	else
 	{
-		dbg("Class=device not defined in model=$NI->{system}{nodeModel}");
+		dbg("Class=device not defined in model=$catchall_data->{nodeModel}");
 	}
 
 	### 2012-12-20 keiths, adding Server CPU load to Health Calculations.
@@ -5532,9 +5655,9 @@ sub runServer
 		$S->{reach}{cpu} = mean( @{$S->{reach}{cpuList}} );
 	}
 
-	# keep the old storage data around a bit longer, as fallback if loadinfo fails
-	my $oldstorage = $NI->{storage};
-	delete $NI->{storage};
+	# # keep the old storage data around a bit longer, as fallback if loadinfo fails
+	my $oldstorage = $S->ndinfo->{storage};
+	# delete $NI->{storage};
 
 	if ( $M->{storage} ne '' )
 	{
@@ -5546,21 +5669,23 @@ sub runServer
 
 		foreach my $index ( keys %{$storageIndex} )
 		{
+			# look for existing data for this as 'fallback'
+			my $oldstorage;
+			my $inventory = $S->nmisng_node->inventory( concept => 'storage', index => $index, nolog => 1);
+			$oldstorage = $inventory->data() if($inventory);
+			my $storage_target = {};
+			my $historic = 0;
+
 			# this saves any retrieved info under ni->{storage}
 			my $wasloadable = $S->loadInfo(
 				class  => 'storage',
 				index  => $index,
 				model  => $model,
-				target => $NI->{storage}{$index}
+				target => $storage_target
 			);
-			if ( !$wasloadable )
+			if ( $wasloadable )
 			{
-				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
-				$NI->{storage}->{$index} ||= $oldstorage->{$index};    # and restore the old data, better than nothing
-			}
-			else
-			{
-				my $D = $NI->{storage}{$index};                        # new data
+				my $D = $storage_target;                        # new data
 
 				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer
 				$D->{hrStorageSize} = unpack( "I", pack( "i", $D->{hrStorageSize} ) );
@@ -5576,7 +5701,8 @@ sub runServer
 					or $D->{hrStorageSize} <= 0
 					)
 				{
-					delete $NI->{storage}{$index};
+					NMISNG::Util::TODO("Need an inventory object and mark it historic?");
+					$inventory->historic(1) if($inventory);
 				}
 				else
 				{
@@ -5599,7 +5725,7 @@ sub runServer
 						$D->{hrStorageDescr} =~ s/,/ /g;    # lose any commas.
 						if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrdisk", index => $index ) ) )
 						{
-							$NI->{graphtype}{$index}{hrdisk} = "hrdisk";
+							$graphtypes->{$index}{hrdisk} = "hrdisk";
 							$D->{hrStorageType}              = 'Fixed Disk';
 							$D->{hrStorageIndex}             = $index;
 							$D->{hrStorageGraph}             = "hrdisk";
@@ -5643,7 +5769,7 @@ sub runServer
 
 						if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrmem" ) ) )
 						{
-							$NI->{graphtype}{hrmem} = "hrmem";
+							$graphtypes->{hrmem} = "hrmem";
 							$D->{hrStorageType}     = 'Memory';
 							$D->{hrStorageGraph}    = "hrmem";
 						}
@@ -5673,7 +5799,7 @@ sub runServer
 
 						if ( my $db = updateRRD( sys => $S, data => \%Val, type => $typename ) )
 						{
-							$NI->{graphtype}{$typename} = $typename;
+							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = $D->{hrStorageDescr};    # i.e. virtual memory or swap space
 							$D->{hrStorageGraph}        = $typename;
 						}
@@ -5703,7 +5829,7 @@ sub runServer
 
 						if ( my $db = updateRRD( sys => $S, data => \%Val, type => $typename ) )
 						{
-							$NI->{graphtype}{$typename} = $typename;
+							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = 'Other Memory';
 							$D->{hrStorageGraph}        = $typename;
 						}
@@ -5712,19 +5838,38 @@ sub runServer
 							logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 						}
 					}
-
 					# storage type not recognized?
 					else
-					{
-						delete $NI->{storage}{$index};
+					{						
+						$inventory->historic(1) if($inventory);
 					}
 				}
+				if( !$inventory )
+				{
+					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
+					($inventory,$error) = $S->nmisng_node->inventory( 
+						concept => 'storage', 
+						data => $storage_target,
+						path => $path, 
+						path_keys => ['index'],
+						create => 1 
+					);
+					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
+				}				
+				($op,$error) = $inventory->save() if($inventory);
+				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
+			}
+			elsif( $oldstorage )
+			{
+				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
+				# nothing needs to be done here, storage target is the data from last time so it's already in db				
+				# maybe mark it historic?
 			}
 		}
 	}
 	else
 	{
-		dbg("Class=storage not defined in Model=$NI->{system}{nodeModel}");
+		dbg("Class=storage not defined in Model=$catchall_data->{nodeModel}");
 	}
 
 	### 2012-12-20 keiths, adding Server Disk Usage to Health Calculations.
@@ -5767,13 +5912,14 @@ sub runServices
 	my $C    = loadConfTable();
 	my $NT   = loadLocalNodeTable();
 	my $SNMP = $S->snmp;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	# don't attempt anything silly if this is a wmi-only node
 	my $snmp_allowed = getbool( $args{snmp} ) && $S->status->{snmp_enabled};
 
-	my $node = $NI->{system}{name};
+	my $node = $S->{name};
 
-	info("Starting Services stats, node=$NI->{system}{name}, nodeType=$NI->{system}{nodeType}");
+	info("Starting Services stats, node=$S->{name}, nodeType=$catchall_data->{nodeType}");
 
 	my $cpu;
 	my $memory;
@@ -5795,7 +5941,7 @@ sub runServices
 		and getbool( $NT->{$node}{active} )
 		and getbool( $NT->{$node}{collect} )
 		and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
-			split( /,/, $NT->{$NI->{system}{name}}->{services} ) )
+			split( /,/, $NT->{$node}->{services} ) )
 		)
 	{
 		info("node has SNMP services to check");
@@ -5862,7 +6008,7 @@ sub runServices
 			$NI->{services} = \%services;
 
 			# now clear events that applied to processes that no longer exist
-			my %nodeevents = loadAllEvents( node => $NI->{system}->{name} );
+			my %nodeevents = loadAllEvents( node => $S->{name} );
 			for my $eventkey ( keys %nodeevents )
 			{
 				my $thisevent = $nodeevents{$eventkey};
@@ -5891,7 +6037,7 @@ sub runServices
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	# note that this also covers the snmp-based services
 	my $didRunServices = 0;
-	for my $service ( split /,/, $NT->{$NI->{system}{name}}{services} )
+	for my $service ( split /,/, $NT->{$S->{name}}{services} )
 	{
 		# check for invalid service table data
 		next if ( $service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i );
@@ -5967,7 +6113,7 @@ sub runServices
 			{
 				dbg("Service_Name for $NI->{system}{host} must be a FQDN or IP address");
 				logMsg(
-					"ERROR, ($NI->{system}{name}) Service_name for service=$service must contain an FQDN or IP address"
+					"ERROR, ($S->{name}) Service_name for service=$service must contain an FQDN or IP address"
 				);
 				next;
 			}
@@ -6066,7 +6212,7 @@ sub runServices
 				{
 					dbg("ERROR, Both Service_Name and Service_Parameters are empty");
 					logMsg(
-						"ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Parameters are empty!");
+						"ERROR, ($S->{name}) service=$service Service_Name and Service_Parameters are empty!");
 					next;
 				}
 
@@ -6640,8 +6786,7 @@ sub runServices
 sub runAlerts
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $M    = $S->mdl;
 	my $CA   = $S->alerts;
 
@@ -6650,163 +6795,170 @@ sub runAlerts
 	my %ValMeM;
 	my $hrCpuLoad;
 
-	info("Running Custom Alerts for node $NI->{system}{name}");
+	info("Running Custom Alerts for node $S->{name}");
 
 	foreach my $sect ( keys %{$CA} )
 	{
-		if ( defined $NI->{$sect} and keys %{$NI->{$sect}} )
+		# only use inventory that already exists
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect );
+		info("Custom Alerts for $sect");
+		foreach my $id ( @$ids )
 		{
-			info("Custom Alerts for $sect");
-			foreach my $index ( keys %{$NI->{$sect}} )
+			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
+			$S->nmisng->log->error("Failed to get inventory, concept:$sect, _id:$id, error_message:$error_message") && next
+				if(!$inventory);
+			my $data = $inventory->data();
+			my $index = $data->{index};
+			foreach my $alrt ( keys %{$CA->{$sect}} )
 			{
-				foreach my $alrt ( keys %{$CA->{$sect}} )
+				if ( defined( $CA->{$sect}{$alrt}{control} ) and $CA->{$sect}{$alrt}{control} ne '' )
 				{
-					if ( defined( $CA->{$sect}{$alrt}{control} ) and $CA->{$sect}{$alrt}{control} ne '' )
+					my $control_result = $S->parseString(
+						string => "($CA->{$sect}{$alrt}{control}) ? 1:0",
+						index  => $index,
+						type   => $sect,
+						sect   => $sect,
+						extras => $data, # <- this isn't really needed, it's going to look this up for cvars anyway
+						eval => 1
+					);
+					dbg("control_result sect=$sect index=$index control_result=$control_result");
+					next if not $control_result;
+				}
+
+				# perform CVARn substitution for these two types of ops
+				NMISNG::Util::TODO("Why can't this run through parseString?");
+				if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
+				{
+					my ( $test, $value, $alert, $test_value, $test_result );
+
+					# do this for test and value
+					for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
 					{
-						my $control_result = $S->parseString(
-							string => "($CA->{$sect}{$alrt}{control}) ? 1:0",
-							index  => $index,
-							type   => $sect,
-							sect   => $sect,
-							eval => 1
+						my ( $key, $target ) = @$thingie;
+
+						my $origexpr = $CA->{$sect}{$alrt}{$key};
+						my ( $rebuilt, @CVAR );
+
+						# rip apart expression, rebuild it with var substitutions
+						while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
+						{
+							$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
+							my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
+
+							if ( defined $varnum )                              # cvar declaration
+							{
+								$CVAR[$varnum] = $data->{$decl};
+								logMsg(   "ERROR: CVAR$varnum references unknown object \"$decl\" in \""
+										. $CA->{$sect}{$alrt}{$key}
+										. '"' )
+									if ( !exists $data->{$decl} );
+							}
+							elsif ( defined $varuse )                           # cvar use
+							{
+								logMsg(   "ERROR: CVAR$varuse used but not defined in test \""
+										. $CA->{$sect}{$alrt}{$key}
+										. '"' )
+									if ( !exists $CVAR[$varuse] );
+
+								$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
+							}
+							else                                                # shouldn't be reached, ever
+							{
+								logMsg( "ERROR: CVAR parsing failure for \"" . $CA->{$sect}{$alrt}{$key} . '"' );
+								$rebuilt = $origexpr = '';
+								last;
+							}
+						}
+						$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
+
+						$$target = eval { eval $rebuilt; };
+						dbg("substituted $key sect=$sect index=$index, orig=\""
+								. $CA->{$sect}{$alrt}{$key}
+								. "\", expr=\"$rebuilt\", result=$$target",
+							2
 						);
-						dbg("control_result sect=$sect index=$index control_result=$control_result");
-						next if not $control_result;
 					}
 
-					# perform CVARn substitution for these two types of ops
-					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
+					if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
 					{
-						my ( $test, $value, $alert, $test_value, $test_result );
-
-						# do this for test and value
-						for my $thingie ( ['test', \$test_result], ['value', \$test_value] )
-						{
-							my ( $key, $target ) = @$thingie;
-
-							my $origexpr = $CA->{$sect}{$alrt}{$key};
-							my ( $rebuilt, @CVAR );
-
-							# rip apart expression, rebuild it with var substitutions
-							while ( $origexpr =~ s/^(.*?)(CVAR(\d)=(\w+);|\$CVAR(\d))// )
-							{
-								$rebuilt .= $1;    # the unmatched, non-cvar stuff at the begin
-								my ( $varnum, $decl, $varuse ) = ( $3, $4, $5 );    # $2 is the whole |-group
-
-								if ( defined $varnum )                              # cvar declaration
-								{
-									$CVAR[$varnum] = $NI->{$sect}->{$index}->{$decl};
-									logMsg(   "ERROR: CVAR$varnum references unknown object \"$decl\" in \""
-											. $CA->{$sect}{$alrt}{$key}
-											. '"' )
-										if ( !exists $NI->{$sect}->{$index}->{$decl} );
-								}
-								elsif ( defined $varuse )                           # cvar use
-								{
-									logMsg(   "ERROR: CVAR$varuse used but not defined in test \""
-											. $CA->{$sect}{$alrt}{$key}
-											. '"' )
-										if ( !exists $CVAR[$varuse] );
-
-									$rebuilt .= $CVAR[$varuse];                     # sub in the actual value
-								}
-								else                                                # shouldn't be reached, ever
-								{
-									logMsg( "ERROR: CVAR parsing failure for \"" . $CA->{$sect}{$alrt}{$key} . '"' );
-									$rebuilt = $origexpr = '';
-									last;
-								}
-							}
-							$rebuilt .= $origexpr;    # and the non-CVAR-containing remainder.
-
-							$$target = eval { eval $rebuilt; };
-							dbg("substituted $key sect=$sect index=$index, orig=\""
-									. $CA->{$sect}{$alrt}{$key}
-									. "\", expr=\"$rebuilt\", result=$$target",
-								2
-							);
-						}
-
-						if ( $test_value =~ /^[\+-]?\d+\.\d+$/ )
-						{
-							$test_value = sprintf( "%.2f", $test_value );
-						}
-
-						my $level = $CA->{$sect}{$alrt}{level};
-
-						# check the thresholds
-						# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
-						if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
-						{
-							if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
-							{
-								if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} )
-								{
-									$test_result = 0;
-									$level       = "Normal";
-								}
-								else
-								{
-									my @levels = qw(Fatal Critical Major Minor Warning);
-									foreach my $lvl (@levels)
-									{
-										if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} )
-										{
-											$test_result = 1;
-											$level       = $lvl;
-											last;
-										}
-									}
-								}
-							}
-							elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
-							{
-								if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} )
-								{
-									$test_result = 0;
-									$level       = "Normal";
-								}
-								else
-								{
-									my @levels = qw(Warning Minor Major Critical Fatal);
-									foreach my $lvl (@levels)
-									{
-										if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} )
-										{
-											$test_result = 1;
-											$level       = $lvl;
-											last;
-										}
-									}
-								}
-							}
-							info(
-								"alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",
-								2
-							);
-						}
-
-					   # and now save the result, for both tests and thresholds (source of level is the only difference)
-						$alert->{type}  = $CA->{$sect}{$alrt}{type};    # threshold or test or whatever
-						$alert->{test}  = $CA->{$sect}{$alrt}{value};
-						$alert->{name}  = $S->{name};                   # node name, not much good here
-						$alert->{unit}  = $CA->{$sect}{$alrt}{unit};
-						$alert->{event} = $CA->{$sect}{$alrt}{event};
-						$alert->{level} = $level;
-						$alert->{ds}          = $NI->{$sect}{$index}{$CA->{$sect}{$alrt}{element}};
-						$alert->{test_result} = $test_result;
-						$alert->{value}       = $test_value;
-
-						# also ensure that section, index and alertkey are known for the event context
-						$alert->{section} = $sect;
-						$alert->{alert}   = $alrt;                      # the key, good enough
-						$alert->{index}   = $index;
-
-						push( @{$S->{alerts}}, $alert );
+						$test_value = sprintf( "%.2f", $test_value );
 					}
+
+					my $level = $CA->{$sect}{$alrt}{level};
+
+					# check the thresholds
+					# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
+					if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
+					{
+						if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
+						{
+							if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} )
+							{
+								$test_result = 0;
+								$level       = "Normal";
+							}
+							else
+							{
+								my @levels = qw(Fatal Critical Major Minor Warning);
+								foreach my $lvl (@levels)
+								{
+									if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} )
+									{
+										$test_result = 1;
+										$level       = $lvl;
+										last;
+									}
+								}
+							}
+						}
+						elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
+						{
+							if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} )
+							{
+								$test_result = 0;
+								$level       = "Normal";
+							}
+							else
+							{
+								my @levels = qw(Warning Minor Major Critical Fatal);
+								foreach my $lvl (@levels)
+								{
+									if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} )
+									{
+										$test_result = 1;
+										$level       = $lvl;
+										last;
+									}
+								}
+							}
+						}
+						info(
+							"alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",
+							2
+						);
+					}
+
+				   # and now save the result, for both tests and thresholds (source of level is the only difference)
+					$alert->{type}  = $CA->{$sect}{$alrt}{type};    # threshold or test or whatever
+					$alert->{test}  = $CA->{$sect}{$alrt}{value};
+					$alert->{name}  = $S->{name};                   # node name, not much good here
+					$alert->{unit}  = $CA->{$sect}{$alrt}{unit};
+					$alert->{event} = $CA->{$sect}{$alrt}{event};
+					$alert->{level} = $level;
+					$alert->{ds}          = $data->{ $CA->{$sect}{$alrt}{element} };
+					$alert->{test_result} = $test_result;
+					$alert->{value}       = $test_value;
+
+					# also ensure that section, index and alertkey are known for the event context
+					$alert->{section} = $sect;
+					$alert->{alert}   = $alrt;                      # the key, good enough
+					$alert->{index}   = $index;
+
+					push( @{$S->{alerts}}, $alert );
 				}
 			}
 		}
+	
 	}
 
 	processAlerts( S => $S );
@@ -6821,13 +6973,13 @@ sub runAlerts
 sub runCheckValues
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $S    = $args{sys};	
 	my $M    = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
 
-	if ( getbool( $NI->{system}{nodedown} ) )    #  don't bother with dead nodes
+	if ( getbool( $catchall_data->{nodedown} ) )    #  don't bother with dead nodes
 
 		#			 and !getbool($NI->{system}{snmpdown}) # snmp not dead
 		#			 and $S->status->{snmp_enabled} )			 # snmp still known to be enabled
@@ -6885,9 +7037,9 @@ sub runCheckValues
 sub HandleNodeDown
 {
 	my %args = @_;
-
 	my ( $S, $typeofdown, $details, $goingup ) = @args{"sys", "type", "details", "up"};
 	return if ( ref($S) ne "Sys" or $typeofdown !~ /^(snmp|wmi|node)$/ );
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	$goingup = getbool($goingup);
 
@@ -6909,7 +7061,7 @@ sub HandleNodeDown
 		context => {type => "node"}
 	);
 
-	$S->ndinfo->{system}{"${typeofdown}down"} = $goingup ? 'false' : 'true';
+	$catchall_data->{"${typeofdown}down"} = $goingup ? 'false' : 'true';
 
 	return;
 }
@@ -6926,10 +7078,10 @@ sub runReach
 	my $S              = $args{sys};                      # system object
 	my $donotupdaterrd = getbool( $args{delayupdate} );
 
-	my $NI = $S->ndinfo;                                  # node info
 	my $IF = $S->ifinfo;                                  # interface info
 	my $RI = $S->reach;                                   # reach info
 	my $C  = loadConfTable();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $cpuWeight;
 	my $diskWeight;
@@ -6972,12 +7124,12 @@ sub runReach
 
 	my %reach;
 
-	info("Starting node $NI->{system}{name}, type=$NI->{system}{nodeType}");
+	info("Starting node $S->{name}, type=$catchall_data->{nodeType}");
 
 	# Math hackery to convert Foundry CPU memory usage into appropriate values
-	$RI->{memused} = ( $RI->{memused} - $RI->{memfree} ) if $NI->{nodeModel} =~ /FoundrySwitch/;
+	$RI->{memused} = ( $RI->{memused} - $RI->{memfree} ) if $catchall_data->{nodeModel} =~ /FoundrySwitch/;
 
-	if ( $NI->{nodeModel} =~ /Riverstone/ )
+	if ( $catchall_data->{nodeModel} =~ /Riverstone/ )
 	{
 		# Math hackery to convert Riverstone CPU memory usage into appropriate values
 		$RI->{memfree} = ( $RI->{memfree} - $RI->{memused} );
@@ -7041,8 +7193,8 @@ sub runReach
 	$reach{operCount}  = $RI->{operCount};
 
 	# number of interfaces
-	$reach{intfTotal}   = $NI->{system}{intfTotal} eq 0 ? 'U' : $NI->{system}{intfTotal};    # from run update
-	$reach{intfCollect} = $NI->{system}{intfCollect};                                        # from run update
+	$reach{intfTotal}   = $catchall_data->{intfTotal} eq 0 ? 'U' : $catchall_data->{intfTotal};    # from run update
+	$reach{intfCollect} = $catchall_data->{intfCollect};                                        # from run update
 	$reach{intfUp}      = $RI->{intfUp} ne '' ? $RI->{intfUp} : 0;                           # from run collect
 	$reach{intfColUp}   = $RI->{intfColUp};                                                  # from run collect
 
@@ -7053,7 +7205,7 @@ sub runReach
 	);
 
 	# Things which don't do collect get 100 for availability
-	if ( $reach{availability} eq "" and !getbool( $NI->{system}{collect} ) )
+	if ( $reach{availability} eq "" and !getbool( $catchall_data->{collect} ) )
 	{
 		$reach{availability} = "100";
 	}
@@ -7076,7 +7228,7 @@ sub runReach
 		if ( $reach{reachability} > 100 ) { $reach{reachability} = 100; }
 		( $reach{responsetime}, $responseWeight ) = weightResponseTime( $reach{responsetime} );
 
-		if ( getbool( $NI->{system}{collect} ) and $reach{cpu} ne "" )
+		if ( getbool( $catchall_data->{collect} ) and $reach{cpu} ne "" )
 		{
 			if    ( $reach{cpu} <= 10 )  { $cpuWeight = 100; }
 			elsif ( $reach{cpu} <= 20 )  { $cpuWeight = 90; }
@@ -7129,7 +7281,7 @@ sub runReach
 			elsif ( $reach{mem} >= 5 )  { $memWeight = 25; }
 			elsif ( $reach{mem} >= 0 )  { $memWeight = 1; }
 		}
-		elsif ( getbool( $NI->{system}{collect} ) and $NI->{system}{nodeModel} eq "Generic" )
+		elsif ( getbool( $catchall_data->{collect} ) and $catchall_data->{nodeModel} eq "Generic" )
 		{
 			$cpuWeight = 100;
 			$memWeight = 100;
@@ -7151,7 +7303,7 @@ sub runReach
 		}
 
 		# Makes 3Com memory health weighting always 100, and CPU, and Interface availibility
-		if ( $NI->{system}{nodeModel} =~ /SSII 3Com/i )
+		if ( $catchall_data->{nodeModel} =~ /SSII 3Com/i )
 		{
 			$cpuWeight           = 100;
 			$memWeight           = 100;
@@ -7161,7 +7313,7 @@ sub runReach
 
 		# Makes CatalystIOS memory health weighting always 100.
 		# Add Baystack and Accelar
-		if ( $NI->{system}{nodeModel} =~ /CatalystIOS|Accelar|BayStack|Redback|FoundrySwitch|Riverstone/i )
+		if ( $catchall_data->{nodeModel} =~ /CatalystIOS|Accelar|BayStack|Redback|FoundrySwitch|Riverstone/i )
 		{
 			$memWeight = 100;
 		}
@@ -7171,7 +7323,7 @@ sub runReach
 		);
 		info("REACH Values: CPU reach=$reach{cpu} weight=$cpuWeight, MEM reach=$reach{mem} weight=$memWeight");
 
-		if ( getbool( $NI->{system}{collect} ) and defined $S->{mdl}{interface}{nocollect}{ifDescr} )
+		if ( getbool( $catchall_data->{collect} ) and defined $S->{mdl}{interface}{nocollect}{ifDescr} )
 		{
 			dbg("Getting Interface Utilisation Health");
 			$intcount   = 0;
@@ -7193,7 +7345,7 @@ sub runReach
 					);
 					if ( $util->{$index}{inputUtil} eq 'NaN' or $util->{$index}{outputUtil} eq 'NaN' )
 					{
-						dbg("SummaryStats for interface=$index of node $NI->{system}{name} skipped because value is NaN"
+						dbg("SummaryStats for interface=$index of node $S->{name} skipped because value is NaN"
 						);
 						next;
 					}
@@ -7304,7 +7456,7 @@ sub runReach
 	}
 
 	# the node is collect=false and was pingable
-	elsif ( !getbool( $NI->{system}{collect} ) and $pingresult == 100 )
+	elsif ( !getbool( $catchall_data->{collect} ) and $pingresult == 100 )
 	{
 		$reach{reachability} = 100;
 		$reach{availability} = 100;
@@ -7345,7 +7497,7 @@ sub runReach
 	}
 
 	dbg("Reachability and Metric Stats Summary");
-	dbg("collect=$NI->{system}{collect} (Node table)");
+	dbg("collect=$catchall_data->{collect} (Node table)");
 	dbg("ping=$pingresult (normalised)");
 	dbg("cpuWeight=$cpuWeight (normalised)");
 	dbg("memWeight=$memWeight (normalised)");
@@ -7424,17 +7576,17 @@ sub runReach
 			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 		}
 	}
-	if ( $NI->{system}{nodeModel} eq 'PingOnly' )
+	if ( $catchall_data->{nodeModel} eq 'PingOnly' )
 	{
-		$NI->{graphtype}{health} = "health-ping,response";
+		$S->ndinfo->{graphtype}{health} = "health-ping,response";
 	}
-	elsif ( $NI->{system}{nodeModel} eq 'ServiceOnly' )
+	elsif ( $catchall_data->{nodeModel} eq 'ServiceOnly' )
 	{
-		$NI->{graphtype}{health} = "";
+		$S->ndinfo->{graphtype}{health} = "";
 	}
 	else
 	{
-		$NI->{graphtype}{health} = "health,kpi,response,numintf,polltime";
+		$S->ndinfo->{graphtype}{health} = "health,kpi,response,numintf,polltime";
 	}
 	info("Finished");
 
@@ -7744,14 +7896,14 @@ sub summaryCache
 	my $end         = $args{end};
 	my %summaryHash = ();
 	my $NT          = loadLocalNodeTable();
-	my $NI;
+
 
 	foreach my $node ( keys %{$NT} )
 	{
 		if ( getbool( $NT->{$node}{active} ) )
 		{
 			$S->init( name => $node, snmp => 'false' );
-			$NI = $S->ndinfo;
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			$summaryHash{$node}{reachable}   = 'NaN';
 			$summaryHash{$node}{response}    = 'NaN';
@@ -7762,14 +7914,11 @@ sub summaryCache
 			$summaryHash{$node}{intfColUp}   = 0;
 			my $stats;
 
-			if ((   $stats
-					= getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $node )
-				)
-				)
+			if ( $stats = getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $node ) )
 			{
 				%summaryHash = ( %summaryHash, %{$stats} );
 			}
-			if ( getbool( $NI->{system}{nodedown} ) )
+			if ( getbool( $catchall_data->{nodedown} ) )
 			{
 				$summaryHash{$node}{nodedown} = 'true';
 			}
@@ -7805,6 +7954,8 @@ sub runEscalate
 	my $C  = loadConfTable();
 	my $NT = loadLocalNodeTable();
 
+	my $nmisng = NMIS::new_nmisng();
+
 	my $outage_time;
 	my $planned_outage;
 	my $event_hash;
@@ -7831,6 +7982,7 @@ sub runEscalate
 	my $serial    = 0;
 	my $serial_ns = 0;
 	my %seen;
+
 
 	dbg("Starting");
 	func::update_operations_stamp( type => "escalate", start => $starttime, stop => undef )
@@ -8290,16 +8442,22 @@ LABEL_ESC:
 			# when escalation hits 10 they could auto delete?
 			# core, distrib and access could escalate at different rates.
 
-			# note - all sent to lowercase here to get a match
-			my $NI = loadNodeInfoTable( $thisevent->{node}, suppress_errors => 1 );
-			$group = lc( $NI->{system}{group} );
-			$role  = lc( $NI->{system}{roleType} );
-			$type  = lc( $NI->{system}{nodeType} );
+			# note - all sent to lowercase here to get a match			
+			# my $NI = loadNodeInfoTable( $thisevent->{node}, suppress_errors => 1 );
+
+			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
+			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
+			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message")
+				if(!$catchall_inventory);
+			my $catchall_data = $catchall_inventory->data_live();
+			$group = lc( $catchall_data->{group} );
+			$role  = lc( $$catchall_data->{roleType} );
+			$type  = lc( $catchall_data->{nodeType} );
 			$event = lc( $thisevent->{event} );
 
 			dbg("looking for Event to Escalation Table match for Event[ Node:$thisevent->{node} Event:$event Element:$thisevent->{element} ]"
 			);
-			dbg("and node values node=$NI->{system}{name} group=$group role=$role type=$type");
+			dbg("and node values node=$thisevent->{node} group=$group role=$role type=$type");
 
 			# Escalation_Key=Group:Role:Type:Event
 			my @keylist = (
@@ -8413,10 +8571,10 @@ LABEL_ESC:
 									# if sysContact, use device syscontact as key into the contacts table hash
 									if ( $contact eq "syscontact" )
 									{
-										if ( $NI->{sysContact} ne '' )
+										if ( $catchall_data->{sysContact} ne '' )
 										{
-											$contact = lc $NI->{sysContact};
-											dbg("Using node $thisevent->{node} sysContact $NI->{sysContact}");
+											$contact = lc $catchall_data->{sysContact};
+											dbg("Using node $thisevent->{node} sysContact $catchall_data->{sysContact}");
 										}
 										else
 										{
@@ -9867,11 +10025,10 @@ sub doSummaryBuild
 				next if ( !$S->init( name => $nd, snmp => 'false' ) );
 			}
 
-			my $M  = $S->mdl;       # model ref
-			my $NI = $S->ndinfo;    # node info
-			my $IF = $S->ifinfo;    # interface info
+			my $M  = $S->mdl;       # model ref			
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-			next if getbool( $NI->{system}{nodedown} );
+			next if getbool( $catchall_data->{nodedown} );
 
 			# oke, look for requests in summary of Model
 			foreach my $tp ( keys %{$M->{summary}{statstype}} )
@@ -9905,19 +10062,19 @@ sub doSummaryBuild
 
 						foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
 						{
-							$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{Description}
-								= $NI->{label}{$tp}{$i};    # descr
+							$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{Description}
+								=  "WHAT GOES HERE? NI->label makes no sense";#$NI->{label}{$tp}{$i};    # descr
 							    # check if threshold level available, thresholdname must be equal to type
 							if ( exists $M->{threshold}{name}{$tp} )
 							{
-								( $stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level}, undef, undef )
+								( $stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{level}, undef, undef )
 									= getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => $i );
 							}
 
 							# save values
 							foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
 							{
-								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
+								$stshlth{ $catchall_data->{nodeType} }{$nd}{$nm}{$i}{$stsname} = $sts->{$i}{$stsname};
 								dbg("stored summary health node=$nd type=$tp name=$stsname index=$i value=$sts->{$i}{$stsname}"
 								);
 							}
@@ -9939,14 +10096,14 @@ sub doSummaryBuild
 						# check if threshold level available, thresholdname must be equal to type
 						if ( exists $M->{threshold}{name}{$tp} )
 						{
-							( $stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"}, undef, undef )
+							( $stshlth{ $catchall_data->{nodeType} }{$nd}{"${tp}_level"}, undef, undef )
 								= getThresholdLevel( sys => $S, thrname => $tp, stats => $sts, index => '' );
 						}
 						foreach my $nm ( keys %{$M->{summary}{statstype}{$tp}{sumname}} )
 						{
 							foreach my $stsname ( @{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}} )
 							{
-								$stshlth{$NI->{system}{nodeType}}{$nd}{$stsname} = $sts->{$stsname};
+								$stshlth{ $catchall_data->{nodeType} }{$nd}{$stsname} = $sts->{$stsname};
 								dbg("stored summary health node=$nd type=$tp name=$stsname value=$sts->{$stsname}");
 							}
 						}
@@ -9963,10 +10120,15 @@ sub doSummaryBuild
 					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
 				}
 
+				# this could maybe use the model and get collect right away as that's 
+				# all it seems to be used for right now
+				my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
 				# get all collected interfaces
-				foreach my $index ( keys %{$IF} )
+				foreach my $id (@$ids)
 				{
-					next unless getbool( $IF->{$index}{collect} );
+					my $data = $S->nmisng_node->inventory( _id => $id )->data();
+					my $index = $data->{index};
+					next unless getbool( $data->{collect} );
 					my $sts = getSummaryStats(
 						sys   => $S,
 						type  => $tp,

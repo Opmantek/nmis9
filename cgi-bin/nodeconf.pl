@@ -225,14 +225,14 @@ sub displayNodeConf
 					} else { return ""; }
 				}));
 
-	my $NCT_sysContact = $NI->{nodeconf}{sysContact} || $NI->{system}{sysContact};
+	my $NCT_sysContact = $NI->{system}{sysContact};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Contact"),
 			td({class=>'header3'}, $NCT_sysContact),
 	td({class=>"Plain"},textfield(-name=>"contact",-override=>1,
 																-style => 'width: 95%',
 																-value => $override->{sysContact}||''));
 
-	my $NCT_sysLocation = $NI->{nodeconf}{sysLocation} || $NI->{system}{sysLocation};
+	my $NCT_sysLocation = $NI->{system}{sysLocation};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Location"),
 			td({class=>'header3'}, $NCT_sysLocation),
 	td({class=>"Plain"},textfield(-name=>"location",-override=>1,
@@ -244,7 +244,7 @@ sub displayNodeConf
 				td({class=>'header'},'disabled'));
 	}
 
-	my $NCT_nodetype = $NI->{nodeconf}->{nodeType} || $NI->{system}->{nodeType};
+	my $NCT_nodetype = $NI->{system}->{nodeType};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Node Type"),
 	td({class=>'header3'}, $NCT_nodetype),
 	td({class=>"Plain"},
