@@ -2168,8 +2168,7 @@ sub getIntfInfo
 				{
 					$inventory->historic(1);
 					$inventory->save();
-					info( "saved ".join(',', @$path)." op: $op");
-
+					
 					foreach my $graphtype (qw(interface pkts pkts_hc))
 					{
 						delete $graphtypes->{$index}{$graphtype} if ( defined $graphtypes->{$index}{$graphtype} );
@@ -3675,8 +3674,7 @@ sub getSystemHealthData
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save();
-				info( "saved ".join(',', @$path)." op: $op");
+				$inventory->save();				
 			}
 			else
 			{
@@ -4489,7 +4487,6 @@ sub getIntfData
 		# the interface has changed enough runs update code anyway. I believe not doing this is correct
 		$inventory->data( $inventory_data );
 		$inventory->save();
-		info( "saved ".join(',', @$path)." op: $op");
 	}
 	info("Finished");
 }
@@ -5915,7 +5912,6 @@ sub runServer
 					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
 				}				
 				($op,$error) = $inventory->save() if($inventory);
-				info( "saved ".join(',', @$path)." op: $op");
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
 			elsif( $oldstorage )
