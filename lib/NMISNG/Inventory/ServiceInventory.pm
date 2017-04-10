@@ -44,11 +44,12 @@ sub new
 	return if ( !$nmisng );    # check this so we can use it to log
 
 	# validate data section
+	# services must be named (in property service), must mention the server name and have a uuid.
+	# anything else is optional
 	my $data = $args{data};
-	return if ( !$data->{description} );
-	return if ( !$data->{name} );
-	return if ( !$data->{server} );
+
 	return if ( !$data->{service} );
+	return if ( !$data->{server} );
 	return if ( !$data->{uuid} );
 
 	my $self = $class->SUPER::new(%args);

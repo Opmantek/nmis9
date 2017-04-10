@@ -55,7 +55,7 @@ use NMIS::Connect;
 use NMIS::Timing;
 use NMIS::UUID;
 use csv;
-use rrdfunc;    # main entry point is updateRRD
+use rrdfunc;
 use func;
 use ip;
 use sapi;
@@ -659,7 +659,7 @@ sub runThreads
 			value  => $maxprocs
 		};
 
-		if ( ( my $db = updateRRD( data => $D, sys => $S, type => "nmis" ) ) )
+		if ( ( my $db = $S->create_update_rrd( data => $D, type => "nmis" ) ) )
 		{
 			$NI->{graphtype}{nmis} = 'nmis';
 			$NI->{graphtype}->{network}->{metrics} = 'metrics';
@@ -951,14 +951,14 @@ sub doUpdate
 
 	# parrot the previous reading's poll time
 	my $prevval = "U";
-	if ( my $rrdfilename = $S->getDBName( type => "health" ) )
+	if ( my $rrdfilename = $S->makeRRDname( graphtype => "health" ) )
 	{
 		my $infohash = RRDs::info($rrdfilename);
 		$prevval = $infohash->{'ds[polltime].last_ds'} if ( defined $infohash->{'ds[polltime].last_ds'} );
 	}
 	$reachdata->{polltime} = {value => $prevval, option => "gauge,0:U,"};
 
-	if ( !updateRRD( sys => $S, data => $reachdata, type => "health" ) )
+	if ( !$S->create_update_rrd( data => $reachdata, type => "health" ) )
 	{
 		logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 	}
@@ -1272,14 +1272,14 @@ sub doCollect
 
 	# parrot the previous reading's update time
 	my $prevval = "U";
-	if ( my $rrdfilename = $S->getDBName( type => "health" ) )
+	if ( my $rrdfilename = $S->makeRRDname( graphtype => "health" ) )
 	{
 		my $infohash = RRDs::info($rrdfilename);
 		$prevval = $infohash->{'ds[updatetime].last_ds'} if ( defined $infohash->{'ds[updatetime].last_ds'} );
 	}
 	$reachdata->{updatetime} = {value => $prevval, option => "gauge,0:U," . ( 86400 * 3 )};
 
-	if ( !updateRRD( sys => $S, data => $reachdata, type => "health" ) )
+	if ( !$S->create_update_rrd( data => $reachdata, type => "health" ) )
 	{
 		logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 	}
@@ -2824,7 +2824,7 @@ sub getIntfInfo
 					my ( $datatype, $dsregex ) = @$_;
 
 					# rrd file exists and readable?
-					if ( -r ( my $rrdfile = $S->getDBName( graphtype => $datatype, index => $index ) ) )
+					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype, index => $index ) ) )
 					{
 						my $fileinfo = RRDs::info($rrdfile);
 						for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
@@ -3236,7 +3236,7 @@ sub getEnvData
 					my $D = $rrdData->{$sect}{$index};
 
 					# RRD Database update and remember filename
-					my $db = updateRRD( sys => $S, data => $D, type => $sect, index => $index );
+					my $db = $S->create_update_rrd( data => $D, type => $sect, index => $index );
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -3662,13 +3662,10 @@ sub getSystemHealthData
 
 					# RRD Database update and remember filename;
 					# also feed in the section data for filename expansion
-					my $db = updateRRD(
-						sys    => $S,
-						data   => $D,
-						type   => $sect,
-						index  => $index,
-						extras => $data
-					);
+					my $db = $S->create_update_rrd( data   => $D,
+																					type   => $sect,
+																					index  => $index,
+																					extras => $data );
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -3992,7 +3989,7 @@ sub getNodeData
 			{
 				dbg( "rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}", 2 );
 			}
-			my $db = updateRRD( sys => $S, data => $D, type => $sect );
+			my $db = $S->create_update_rrd( data => $D, type => $sect );
 			if ( !$db )
 			{
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -4407,7 +4404,7 @@ sub getIntfData
 
 				# RRD Database update and remember filename
 				info( "updateRRD type$sect index=$index", 2 );
-				my $db = updateRRD( sys => $S, data => $D, type => $sect, index => $index );
+				my $db = $S->create_update_rrd( data => $D, type => $sect, index => $index );
 				if ( !$db )
 				{
 					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -4596,13 +4593,10 @@ sub getCBQoSdata
 					dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 					#
 					# update RRD
-					my $db = updateRRD(
-						sys   => $S,
-						data  => $D,
-						type  => "cbqos-$direction",
-						index => $intf,
-						item  => $CMName
-					);
+					my $db = $S->create_update_rrd( data  => $D,
+																					type  => "cbqos-$direction",
+																					index => $intf,
+																					item  => $CMName );
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -5028,7 +5022,7 @@ sub getCBQoSwalk
 					foreach my $class ( keys %{$data->{ClassMap}} )
 					{
 						# rrd file exists and readable?
-						if (-r (my $rrdfile = $S->getDBName(
+						if (-r (my $rrdfile = $S->makeRRDname(
 									graphtype => "cbqos-$direction",
 									index     => $index,
 									item      => $data->{ClassMap}->{$class}->{Name}
@@ -5239,7 +5233,7 @@ sub getCallsdata
 
 			#
 			# Store data
-			my $db = updateRRD( data => \%snmpVal, sys => $S, type => "calls", index => $intfindex );
+			my $db = $S->create_update_rrd( data => \%snmpVal, type => "calls", index => $intfindex );
 			if ( !$db )
 			{
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -5561,10 +5555,9 @@ sub getPVC
 				$snmpTable{$port}{$pvc}{State}{option}          = "gauge,0:U";
 				my $key = "${port}-${pvc}";
 
-				if ((   my $db
-						= updateRRD( data => \%{$snmpTable{$port}{$pvc}}, sys => $S, type => "pvc", item => $key )
-					) ne ""
-					)
+				if (my $db = $S->create_update_rrd( data => \%{$snmpTable{$port}{$pvc}}, 
+																						type => "pvc", 
+																						item => $key ))
 				{
 					$graphtypes->{$key}{pvc} = 'pvc';
 				}
@@ -5678,7 +5671,7 @@ sub runServer
 					info("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
 					$Val{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
-					if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrsmpcpu", index => $index ) ) )
+					if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index ) ) )
 					{
 						$graphtypes->{$index}{hrsmpcpu} = "hrsmpcpu";
 					}
@@ -5788,7 +5781,7 @@ sub runServer
 						push( @{$S->{reach}{diskList}}, $diskUtil );
 
 						$D->{hrStorageDescr} =~ s/,/ /g;    # lose any commas.
-						if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrdisk", index => $index ) ) )
+						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrdisk", index => $index ) ) )
 						{
 							$graphtypes->{$index}{hrdisk} = "hrdisk";
 							$D->{hrStorageType}              = 'Fixed Disk';
@@ -5832,7 +5825,7 @@ sub runServer
 						$S->{reach}{memfree} = $Val{hrMemSize}{value} - $Val{hrMemUsed}{value};
 						$S->{reach}{memused} = $Val{hrMemUsed}{value};
 
-						if ( ( my $db = updateRRD( sys => $S, data => \%Val, type => "hrmem" ) ) )
+						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrmem" ) ) )
 						{
 							$graphtypes->{hrmem} = "hrmem";
 							$D->{hrStorageType}     = 'Memory';
@@ -5862,7 +5855,7 @@ sub runServer
 
 						#print Dumper $S->{reach};
 
-						if ( my $db = updateRRD( sys => $S, data => \%Val, type => $typename ) )
+						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename ) )
 						{
 							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = $D->{hrStorageDescr};    # i.e. virtual memory or swap space
@@ -5892,7 +5885,7 @@ sub runServer
 						$Val{$itemname . "Size"}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{$itemname . "Used"}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
-						if ( my $db = updateRRD( sys => $S, data => \%Val, type => $typename ) )
+						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename ) )
 						{
 							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = 'Other Memory';
@@ -6748,79 +6741,101 @@ sub runServices
 			push @servicegraphs, (qw(service-mem service-cpu));
 		}
 
-		if ( ( my $db = updateRRD( data => \%Val, sys => $S, type => "service", item => $service ) ) )
-		{
-			# check what custom graphs exist for this service
-			# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
-			# and servicename gets lowercased and reduced to [a-z0-9\._]
-			# note: this schema is known here, and in cgi-bin/services.pl
-			my $safeservice = lc($service);
-			$safeservice =~ s/[^a-z0-9\._]//g;
-
-			opendir( D, $C->{'<nmis_models>'} ) or die "cannot open models dir: $!\n";
-			my @cands = grep( /^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D) );
-			closedir(D);
-
-			map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
-			dbg( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
-
-			$status{$service}->{customgraphs} = \@cands;
-			push @servicegraphs, @cands;
-
-			# and now set up the resulting graph list
-			$NI->{graphtype}{$service}{service} = join( ",", @servicegraphs );
-			if ($gotMemCpu)
-			{
-		 # pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
-		 # rrd stores delta * (interval last update - aggregation time) as .value
-		 # http://serverfault.com/questions/476925/rrd-pdp-status-value
-				my $infohash = RRDs::info($db);
-				if ( defined( my $cpuval = $infohash->{'ds[cpu].value'} ) )
-				{
-					my $stepsize   = $infohash->{step};
-					my $lastupdate = $infohash->{last_update};
-
-					$status{$service}->{cpu} = $cpuval / ( $lastupdate % $stepsize ) if ( $lastupdate % $stepsize );
-				}
-			}
-		}
-		else
-		{
-			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
-		}
-
-		# now update the per-service status file
 		$status{$service}->{service} ||= $service;    # service and node are part of the fn, but possibly mangled...
 		$status{$service}->{node} ||= $node;
-		$status{$service}->{name}
-			||= $ST->{$service}->{Name};    # that can be all kinds of stuff, depending on the service type
-		                                    # save our server name with the service status, for distributed setups
+		$status{$service}->{name} ||= $ST->{$service}->{Name};    # that can be all kinds of stuff, depending on the service type
+		# save our server name with the service status, for distributed setups
 		$status{$service}->{server} = $C->{server_name};
 
 		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service, $NI->{system}->{uuid} );
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service, 
+																															$NI->{system}->{uuid} );
 
 		$status{$service}->{description} ||= $ST->{$service}->{Description};    # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
-		my $error = saveServiceStatus( service => $status{$service} );
+		# where does this go? get inventory, rrd information, then update accordingly
 		my $nmisng = $S->nmisng;
-
 		my $nmisng_node = $S->nmisng_node();
 
 		my $data = {
 			description => $status{$service}->{description},
-			name        => $status{$service}->{name},
 			server      => $status{$service}->{server},
 			service     => $status{$service}->{service},
-			uuid        => $status{$service}->{uuid}
+			uuid        => $status{$service}->{uuid},
+			node => $status{$service}->{node}, # not required but doesn't hurt
 		};
-
-		my $inventory = $nmisng_node->inventory(
+		
+		my ($inventory, $error) = $nmisng_node->inventory(
 			concept => "service",
 			data    => $data,
 			create  => 1
-		);
+				);
+		die "failed to create or load inventory!\n" if (!$inventory);
+
+		
+		my $fullpath = $S->create_update_rrd( data => \%Val, 
+																					type => "service", 
+																					item => $service,
+																					inventory => $inventory );
+		logMsg( "ERROR updateRRD failed: " . getRRDerror() ) if (!$fullpath);
+
+		# known/available graphs go into storage, as subconcept => rrd => fn
+		# rrd file for this should now be present and a/v, we want relative path,
+		# not $fullpath as returned by create_update_rrd...
+		my $dbname = $inventory->find_subconcept_type_storage(subconcept => "service",
+																													type => "rrd");
+		
+		# check what custom graphs exist for this service
+		# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
+		# and servicename gets lowercased and reduced to [a-z0-9\._]
+		# note: this schema is known here, and in cgi-bin/services.pl
+		my $safeservice = lc($service);
+		$safeservice =~ s/[^a-z0-9\._]//g;
+		
+		opendir( D, $C->{'<nmis_models>'} ) or die "cannot open models dir: $!\n";
+		my @cands = grep( /^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D) );
+		closedir(D);
+		
+		map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
+		dbg( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
+		
+		$status{$service}->{customgraphs} = \@cands;
+		push @servicegraphs, @cands;
+		
+		# now record the right storage subconcept-to-filename set in the inventory
+		my $knownones = $inventory->storage; # there's at least the main subconcept 'service'
+		for my $maybegone (keys %$knownones)
+		{
+			next if ($maybegone eq "service" # that must remain
+							 or grep($_ eq $maybegone, @servicegraphs)); # or a known one
+			# ditch
+			$inventory->set_subconcept_type_storage(type => "rrd", subconcept => $maybegone, data => undef);
+		}
+		for my $maybenew (@servicegraphs)
+		{
+			# add or update
+			$inventory->set_subconcept_type_storage(type => "rrd", subconcept => $maybenew, data => $dbname);
+		}
+		
+		if ($gotMemCpu)
+		{
+			# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
+			# rrd stores delta * (interval last update - aggregation time) as .value
+			# http://serverfault.com/questions/476925/rrd-pdp-status-value
+			my $infohash = RRDs::info($fullpath);
+			if ( defined( my $cpuval = $infohash->{'ds[cpu].value'} ) )
+			{
+				my $stepsize   = $infohash->{step};
+				my $lastupdate = $infohash->{last_update};
+				
+				$status{$service}->{cpu} = $cpuval / ( $lastupdate % $stepsize ) if ( $lastupdate % $stepsize );
+			}
+		}
+	
+		# now update the per-service status file
+		my $error = saveServiceStatus( service => $status{$service} );
+		# and update the inventory data
 		if ($inventory)
 		{
 			print "saving inventory\n";
@@ -7636,7 +7651,7 @@ sub runReach
 	# update the rrd or leave it to a caller?
 	if ( !$donotupdaterrd )
 	{
-		my $db = updateRRD( sys => $S, data => \%reachVal, type => "health" );    # database name is normally 'reach'
+		my $db = $S->create_update_rrd( data => \%reachVal, type => "health" );    # database name is normally 'reach'
 		if ( !$db )
 		{
 			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -9296,7 +9311,7 @@ sub runMetrics
 	dbg("Doing Network Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}"
 	);
 
-	my $db = updateRRD( data => $data, sys => $S, type => "metrics", item => 'network' );
+	my $db = $S->create_update_rrd( data => $data, type => "metrics", item => 'network' );
 	if ( !$db )
 	{
 		logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -9319,7 +9334,7 @@ sub runMetrics
 		dbg("Doing group=$group Metrics database reach=$data->{reachability}{value} avail=$data->{availability}{value} resp=$data->{responsetime}{value} health=$data->{health}{value} status=$data->{status}{value}"
 		);
 		#
-		$db = updateRRD( data => $data, sys => $S, type => "metrics", item => $group );
+		$db = $S->create_update_rrd( data => $data, type => "metrics", item => $group );
 		if ( !$db )
 		{
 			logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -10153,7 +10168,7 @@ sub doSummaryBuild
 				# non-indexed
 				else
 				{
-					my $dbname = $S->getDBName( graphtype => $tp );
+					my $dbname = $S->makeRRDname( graphtype => $tp );
 					if ( $dbname && -r $dbname )
 					{
 						my $sts = getSummaryStats( sys => $S, type => $tp, start => $threshold_period, end => 'now' );

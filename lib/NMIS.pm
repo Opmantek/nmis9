@@ -1060,7 +1060,8 @@ sub getSummaryStats
 	dbg("Start type=$type, index=$index, start=$start, end=$end");
 
 	# check if type exist in nodeInfo
-	if (!($db = $S->getDBName(graphtype=>$type,index=>$index,item=>$item)))
+	# fixme this cannot work - must CHECK existence, not make path blindly
+	if (!($db = $S->makeRRDname(graphtype=>$type, index=>$index, item=>$item)))
 	{
 		# fixme: should this be logged as error? likely not, as common-bla models set
 		# up all kinds of things that don't work everywhere...
@@ -4303,7 +4304,7 @@ sub rename_node
 				if ($subsection =~ /^cbqos-(in|out)$/)
 				{
 					my $dir = $1;
-					# need to find the qos classes and hand them to getdbname as item
+					# need to find the qos classes and hand them to the renamer as item
 					for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
 					{
 						my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
@@ -4359,9 +4360,9 @@ sub renameRRD
 
 	my $C = loadConfTable();
 
-	my $oldfilename = $args{old}->getDBName(graphtype => $args{graphtype},
-																			 index => $args{index},
-																			 item => $args{item});
+	my $oldfilename = $args{old}->makeRRDname(graphtype => $args{graphtype},
+																						index => $args{index},
+																						item => $args{item});
 	# don't try to rename a file more than once...
 	return undef if $args{seen}->{$oldfilename};
 	$args{seen}->{$oldfilename}=1;
@@ -4369,9 +4370,9 @@ sub renameRRD
 	my $wantdiag = func::setDebug($args{debug})
 			|| func::setDebug($args{info}); # don't care about the actual values
 
-	my $newfilename = $args{new}->getDBName(graphtype => $args{graphtype},
-																			 index => $args{index},
-																			 item => $args{item});
+	my $newfilename = $args{new}->makeRRDname(graphtype => $args{graphtype},
+																						index => $args{index},
+																						item => $args{item});
 	return undef if ($newfilename eq $oldfilename);
 
 	if (!$newfilename or !$oldfilename)

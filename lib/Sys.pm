@@ -33,8 +33,8 @@ use strict;
 use lib "../../lib";
 
 use func;          # common functions
-use rrdfunc;       # for getFileName
 use snmp 1.1.0;    # ensure the new infrastructure is in place
+use rrdfunc;
 use WMI;
 
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
@@ -51,7 +51,8 @@ sub new
 	my ( $class, %args ) = @_;
 
 	my $self = bless(
-		{   name => undef,    # name of node
+		{   
+			name => undef,    # name of node
 			node => undef,    # node name is lc of name
 			mdl  => undef,    # ref Model modified
 
@@ -61,9 +62,10 @@ sub new
 			info   => {},     # node info table
 			view   => {},     # view info table
 			cfg    => {},     # configuration of node
-			rrd    => {},     # RRD table for loading - fixme unused
 			reach  => {},     # tmp reach table
 			alerts => [],     # getValues() saves stuff there, nmis.pl consumes
+
+			graphtype2subconcept => {}, # cache of relationships, for lookups starting with graphtype
 
 			error      => undef,    # last internal error
 			wmi_error  => undef,    # last wmi accessor error
@@ -1303,7 +1305,9 @@ sub selectNodeModel
 	return 'Default';
 }
 
-# load requested Model into this object
+# load requested Model into this object, 
+# also updates the graph-subconcept relationship cache
+#
 # args: model, required
 #
 # returns: 1 if ok, 0 if not; sets internal error status for status().
@@ -1312,6 +1316,7 @@ sub loadModel
 	my ( $self, %args ) = @_;
 	my $model = $args{model};
 	my $exit  = 1;
+
 	my ( $name, $mdl );
 	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
 
@@ -1366,8 +1371,8 @@ sub loadModel
 			# continue with loading common Models
 			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
 			{
-				$name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
-				$mdl = loadTable( dir => 'models', name => $name );
+				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
+				my $mdl = loadTable( dir => 'models', name => $name );
 				if ( !$mdl )
 				{
 					$self->{error} = "ERROR ($self->{name}) failed to read Model file from models/${name}.$ext!";
@@ -1394,6 +1399,7 @@ sub loadModel
 	}
 
 	# if the loading has succeeded (cache or from source), optionally amend with rules from the policy
+	# and record what subconcepts are involved in providing what graphs
 	if ($exit)
 	{
 		# find the first matching policy rule
@@ -1451,7 +1457,6 @@ sub loadModel
 				}
 				next NEXTRULE if ( !$rulematches );    # all IF clauses must match
 			}
-
 			dbg( "policy rule $polnr matched", 2 );
 
 			# policy rule has matched, let's apply the settings
@@ -1493,6 +1498,48 @@ sub loadModel
 				}
 			}
 			last NEXTRULE;    # the first match terminates
+		}
+
+		# populate the graphtype to subconcept relationship cache
+		# this is needed to find instances that can serve graphtype X
+		my $gt2sc = $self->{graphtype2subconcept} //= {};
+		for my $toplevel (values %{$self->{mdl}})
+		{
+			# rrd section is where graphtypes may be, and that is always just under the toplevel
+			next if (ref($toplevel->{rrd}) ne "HASH"); 
+
+			my $section = $toplevel->{rrd};
+			for my $concept (keys %{$section})
+			{
+				next if (!defined($section->{$concept}->{graphtype}));
+				for my $onegt (split(/\s*,\s*/, $section->{$concept}->{graphtype}))
+				{
+					die "invalid model $model: graphtype $onegt associated with two sections, $concept and $gt2sc->{$onegt}\n"
+							if (defined $gt2sc->{$onegt});
+					$gt2sc->{$onegt} = $concept;
+				}
+			}
+		}
+
+		# also handle the special case for service monitoring: graphtypes for services
+		# are not modelled but determined dynamically. at least the graphtype to storage type is mostly static.
+		my $fixedsubconcept = "service";
+		if (ref($self->{mdl}->{database}) eq "HASH" && ref($self->{mdl}->{database}->{type}) eq "HASH")
+		{
+			for my $onegt (grep(/^service/, keys %{$self->{mdl}->{database}->{type}}))
+			{
+				die "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
+							if (defined($gt2sc->{$onegt}) && $gt2sc->{$onegt} ne $fixedsubconcept);
+				$gt2sc->{$onegt} = $fixedsubconcept;
+			}
+		}
+		# and another special case: health section isn't modelled fully/properly
+		$fixedsubconcept = "health";
+		for my $onegt (qw(health kpi response numintf polltime))
+		{
+			die "invalid model $model: graphtype $onegt associated with two sections, $fixedsubconcept and $gt2sc->{$onegt}\n"
+					if (defined($gt2sc->{$onegt}) && $gt2sc->{$onegt} ne $fixedsubconcept);
+			$gt2sc->{$onegt} = $fixedsubconcept;
 		}
 	}
 	return $exit;
@@ -1731,72 +1778,17 @@ sub parseString
 	return $product;
 }
 
-# returns a hash of graphtype -> rrd section name for this node
-# this hash is inverted compared to the raw grapthype data in the node info,
-# and it doesn't report indices.
-#
-# keys are clearly unique, values are not: often multiple graphs are sourced
-# from one rrd section.
-#
-# fixme: the index argument is ignored, all graphs are listed.
+
+# fixme: left for backwards-compatibility only!
+# returns a r/o hash of graphtype -> subconcept (=rrd section) name for this node
+# args: none
+# returns: hashref
 sub loadGraphTypeTable
 {
-	my ( $self, %args ) = @_;
-	my $index = $args{index};
-
-	# graphtype => type/rrd/section name
-	my %result;
-
-	foreach my $i ( keys %{$self->{info}{graphtype}} )
-	{
-		my $thissection = $self->{info}->{graphtype}->{$i};
-
-		if ( ref($thissection) eq 'HASH' )
-		{
-			foreach my $tp ( keys %{$thissection} )
-			{
-				foreach ( split( /,/, $thissection->{$tp} ) )
-				{
-					#next if $index ne "" and $index != $i;
-					$result{$_} = $tp if $_ ne "";
-				}
-			}
-		}
-		else
-		{
-			foreach ( split( /,/, $thissection ) )
-			{
-				$result{$_} = $i if $_ ne "";
-			}
-		}
-	}
-	dbg( "found " . ( scalar keys %result ) . " graphtypes", 3 );
-	return \%result;
+	my ($self) = @_;
+	return Clone::clone($self->{graphtype2subconcept});
 }
 
-# get type name based on graphtype name or type name (checked)
-# it's either nodefile -> graphtype ->WANTTHIS -> INPUT,INPUT...
-# or nodefile -> graphtype -> WANTTHIS (if the INPUT is not present but the model has
-# an rrd section named WANTTHIS)
-# optional check = true means suppress error messages (default no suppression)
-# fixme: index argument is ignored by loadGraphTypeTable and unnecessary here as well
-sub getTypeName
-{
-	my ( $self, %args ) = @_;
-	my $graphtype = $args{graphtype} || $args{type};
-	my $index     = $args{index};
-	my $check     = $args{check};
-
-	my $h = $self->loadGraphTypeTable( index => $index );
-	return $h->{$graphtype} if ( defined( $h->{$graphtype} ) );
-
-	# fall back to rrd section named the same as the graphtype
-	return $graphtype if ( exists( $self->{mdl}->{database}->{type}->{$graphtype} ) );
-
-	logMsg("ERROR ($self->{name}) type=$graphtype index=$index not found in graphtype table")
-		if ( !getbool($check) );
-	return undef;    # not found
-}
 
 # find instances of a particular graphtype
 # this function returns the indices (and thus the list) of instances/things for a
@@ -1809,6 +1801,9 @@ sub getTypeName
 # a plain section will NOT match without the section argument.
 #
 # returns: list of matching indices
+#
+# fixme: this needs rewriting for inventory!
+#
 sub getTypeInstances
 {
 	my ( $self, %args ) = @_;
@@ -1849,68 +1844,156 @@ sub getTypeInstances
 	return @instances;
 }
 
-# ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type,
-# index and item, possibly also node info; and certainly the information
-# in the node's model and common-database.
-# args: graphtype or type (required), index, item (mostly required),
-# optional argument suppress_errors makes getdbname not print error messages
-# returns: rrd file name or undef
-sub getDBName
+# compute the rrd file path for this graphtype+node+index/item
+# which is based on graphtype -> subsection/rrd name,
+# index and item; and certainly the information in the node's model and common-database.
+#
+# args: type or graphtype, index, item (mostly required), extras (optional, hash), nmis4 (optional),
+# relative (optional, default false - if set, path is relative to database_root)
+#
+# if graphtype is given, a translation from that to rrd section name is performed (e.g. abits => interface)
+# if that doesn't work, graphtype is tried as-is. 
+# if type is given, then it's assumed to hold the rrd type name directly (e.g. pkts remains pkts)
+#
+# returns: rrd file path (relative to database_root or absolute) or undef
+sub makeRRDname
 {
 	my ( $self, %args ) = @_;
 
-	my $graphtype = $args{graphtype} || $args{type};
+	my $type = $args{type};
+	my $graphtype = $args{graphtype};
+	
 	my $index     = $args{index};
 	my $item      = $args{item};
-	my $suppress  = getbool( $args{suppress_errors} );
-	my ( $section, $db );
+
+	my $extras = $args{extras};
+	my $wantrelative = getbool($args{relative});
+	my $C = loadConfTable if (!$wantrelative); # only needed for database_root
+
+	# if necessary, find the subconcept that belongs to this graphtype  - this 
+	# is the same as the rrd section name, and thus the database type name
+	my $sectionname = $type;
+	if (!defined $type)
+	{
+		$sectionname = $self->{graphtype2subconcept}->{$graphtype};
+		# this is a pretty ugly fallback for compatibility purposes...
+		# everything called the predecessor getdbname with graphtype, whether it was a graphtype 
+		# or a sectionname...
+		$sectionname = $graphtype if (!defined $sectionname);
+	}
+																	
+	if (!defined $sectionname)
+	{
+		logMsg("ERROR no rrd section known for graphtype=$graphtype, type=$type");
+		return undef;
+	}
+
+	my $template = (ref($self->{mdl}->{database}) eq "HASH"
+									&& ref($self->{mdl}->{database}->{type}) eq "HASH")? 
+									$self->{mdl}->{database}->{type}->{$sectionname} : undef;
+	if (!defined $template)
+	{
+		logMsg("ERROR ($self->{name}) database name not found for graphtype=$graphtype, type=$type, index=$index, item=$item, sect=$sectionname");
+		return undef;
+	}
+
+	# nmis4 compatibility requested? 
+	if (getbool($args{nmis4_compatibility}))
+	{
+		# nmis4 knows host, not node
+		$template =~ s/\$node\b/\$host/g;
+	}
 
 	# if we have no index but item: fall back to that, and vice versa
 	if ( defined $item && $item ne '' && ( !defined $index || $index eq '' ) )
 	{
-		dbg( "synthetic index from item for graphtype=$graphtype, item=$item", 2 );
+		dbg( "synthetic index from item for type=$type, item=$item", 2 );
 		$index = $item;
 	}
 	elsif ( defined $index && $index ne '' && ( !defined $item || $item eq '' ) )
 	{
-		dbg( "synthetic item from index for graphtype=$graphtype, index=$index", 2 );
+		dbg( "synthetic item from index for type=$type, index=$index", 2 );
 		$item = $index;
 	}
 
-	# first do the 'reverse lookup' from graph name to rrd section name
-	if ( defined( $section = $self->getTypeName( graphtype => $graphtype, index => $index ) ) )
+	# expand the $xyz strings in the template
+	# also, all optional inputs must be safeguarded, as indices (for example) can easily contain '/'
+	# and at least these /s must be removed
+	my $safetype = $graphtype // $type; 
+	$safetype =~ s!/!_!g;
+	my $safeindex = $index; $safeindex =~ s!/!_!g;
+	my $safeitem = $item; $safeitem =~ s!/!_!g;
+	my %safeextras = ref($extras) eq "HASH"? %{$extras} :  ();
+	map { $safeextras{$_} =~ s!/!_!g; } (keys %safeextras);
+
+	my $dbpath = $self->parseString(string => $template,
+																	type => $safetype,
+																	index => $safeindex, item => $safeitem,
+																	extras => \%safeextras,
+																	'eval' => 0); # only expand, no expression to evaluate
+	if (!$dbpath)
 	{
-		my $inventory = $self->inventory( concept => $section, index => $index );
-		my $data = ($inventory) ? $inventory->data() : {};
-
-		# indexed and section exists? pass that for extra variable expansions
-		# unindexed? pass nothing
-		my $extras = ( defined($index) && $index ne '' ? $data : undef );
-
-		$db = rrdfunc::getFileName(
-			sys    => $self,
-			type   => $section,
-			index  => $index,
-			item   => $item,
-			extras => $extras
-		);
+		logMsg("ERROR, expansion of $template failed!");
+		return undef;
 	}
-
-	if ( !defined $db )
-	{
-		logMsg(
-			"ERROR ($self->{name}) database name not found for graphtype=$graphtype, index=$index, item=$item, section=$section"
-		) if ( !$suppress );
-		return;
-	}
-
-	dbg("returning database name=$db for section=$section, index=$index, item=$item");
-
-	return $db;
+	$dbpath = $C->{database_root}."/".$dbpath if (!$wantrelative);
+	dbg("filename for graphtype=$graphtype, type=$type is $dbpath");
+	return $dbpath;
 }
 
-#===================================================================
+# high-level wrapper for handling rrd updates
+# 
+# this takes care of filenames, extra logic that's based on knowledge in sys,
+# and then delegates the work to module rrdfunc.
+# args: self, data, type/item/index - mostly required,
+# inventory (optional, if given it's checked for known rrd file - note 
+# that it MUST be the matching object for this particular instance!),
+# extras (optional hash of extra substitutables for naming)
+# returns: the database file name or undef, logs errors
+sub create_update_rrd
+{
+	my ($self, %args) = @_;
+	my ($inventory,$type,$item,$index,$data,$extras) = @args{qw(inventory type item index data extras)};
 
+	my $C = loadConfTable;
+	my $dbname;
+	
+	# inventory? then check for a known name
+	if (ref($inventory))
+	{
+		$dbname = $inventory->find_subconcept_type_storage(subconcept => $type, type => "rrd");
+	}
+	# no success, then generate the name the oldfashioned way from common-database
+	$dbname ||= $self->makeRRDname(type => $type, 
+																 index => $index, 
+																 item => $item, 
+																 relative => 1);
+
+	if (!$dbname)
+	{
+		logMsg("ERROR cannot find or determine rrd file for type=$type, index=$index, item=$item");
+		return undef;
+	}
+	# update the inventory if we can
+	if (ref($inventory))
+	{
+		$inventory->set_subconcept_type_storage(subconcept => $type, type => 'rrd',
+																						data => $dbname);
+	}
+
+	my $result = rrdfunc::updateRRD( database => $C->{database_root} . $dbname,
+																	 data => $data,
+																	 # rest is only needed if the rrd file must be created/ds-extended
+																	 sys => $self,
+																	 type => $type,
+																	 item => $item,
+																	 index => $index,
+																	 extras => $extras );
+
+	logMsg("ERROR updateRRD failed: ".rrdfunc::getRRDerror) if (!$result);
+	return $result;
+}
+	
 # get header based on graphtype
 # args graphtype, type, index, item
 # returns header or undef
