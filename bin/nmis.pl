@@ -4102,7 +4102,6 @@ sub getIntfData
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
-	print "ifmap:".Dumper(\%if_data_map);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
@@ -4187,7 +4186,7 @@ sub getIntfData
 		# eventually this could be done only if it's updated
 		my $_id = $if_data_map{$index}->{_id};
 		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $_id );
-		$nmisng->log->error("Failed to get inventory, _id:$_id, error_message:$error_message") if(!$inventory);
+		$nmisng->log->error("Failed to get interface inventory, index $index, _id:$_id, error_message:$error_message") && next if(!$inventory);
 		# replace minimal data with all data known
 		my $inventory_data = $inventory->data();
 
@@ -6166,14 +6165,14 @@ sub runServices
 			my $lookfor = $ST->{$service}{Service_Name};
 			if ( !$lookfor )
 			{
-				dbg("Service_Name for $NI->{system}{host} must be a FQDN or IP address");
+				dbg("Service_Name for $catchall_data->{host} must be a FQDN or IP address");
 				logMsg(
 					"ERROR, ($S->{name}) Service_name for service=$service must contain an FQDN or IP address"
 				);
 				next;
 			}
 			my $res = Net::DNS::Resolver->new;
-			$res->nameserver( $NI->{system}{host} );
+			$res->nameserver( $catchall_data->{host} );
 			$res->udp_timeout(10);    # don't waste more than 10s on dud dns
 			$res->usevc(0);           # force to udp (default)
 			$res->debug(1) if $C->{debug} > 3;    # set this to 1 for debug
@@ -6182,12 +6181,12 @@ sub runServices
 			if ( !defined $packet )
 			{
 				$ret = 0;
-				dbg("ERROR Unable to lookup $lookfor on DNS server $NI->{system}{host}");
+				dbg("ERROR Unable to lookup $lookfor on DNS server $catchall_data->{host}");
 			}
 			else
 			{
 				$ret = 1;
-				dbg( "DNS data for $lookfor from $NI->{system}{host} was " . $packet->string );
+				dbg( "DNS data for $lookfor from $catchall_data->{host} was " . $packet->string );
 			}
 		}    # end DNS
 
@@ -6200,8 +6199,8 @@ sub runServices
 
 			my $nmap = (
 				$scan =~ /^udp$/i
-				? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
-				: "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
+				? "nmap -sU --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
+				: "nmap -sT --host_timeout 3000 -p $port -oG - $catchall_data->{host}"
 			);
 
 			# fork and read from pipe
@@ -6252,12 +6251,12 @@ sub runServices
 			# snmp not allowed also includes the case of snmp having failed just now
 			next if ( !$snmp_allowed );
 
-			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$NI->{system}{snmpdown} nodedown=$NI->{system}{nodedown}"
+			dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$catchall_data->{snmpdown} nodedown=$catchall_data->{nodedown}"
 			);
 			if (getbool( $C->{snmp_stop_polling_on_error}, "invert" )
 				or (    getbool( $C->{snmp_stop_polling_on_error} )
-					and !getbool( $NI->{system}{snmpdown} )
-					and !getbool( $NI->{system}{nodedown} ) )
+					and !getbool( $catchall_data->{snmpdown} )
+					and !getbool( $catchall_data->{nodedown} ) )
 				)
 			{
 				my $wantedprocname = $ST->{$service}{Service_Name};
@@ -6358,7 +6357,7 @@ sub runServices
 
 				my $timeout = ( $ST->{$service}->{Max_Runtime} > 0 ) ? $ST->{$service}->{Max_Runtime} : 3;
 
-				( $ret, $msg ) = sapi( $NI->{system}{host}, $ST->{$service}{Port}, $scripttext, $timeout );
+				( $ret, $msg ) = sapi( $catchall_data->{host}, $ST->{$service}{Port}, $scripttext, $timeout );
 				dbg("Results of $service is $ret, msg is $msg");
 			}
 		}
@@ -6387,7 +6386,7 @@ sub runServices
 
 				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
 				# or if there's a nonword char before node.xyz.
-				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
+				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$catchall_data->{$3}/g;
 				dbg("external program args were $svc->{Args}, now $finalargs");
 			}
 
@@ -6745,7 +6744,7 @@ sub runServices
 
 		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
 		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service, 
-																															$NI->{system}->{uuid} );
+																															$catchall_data->{uuid} );
 
 		$status{$service}->{description} ||= $ST->{$service}->{Description};    # but that's free-form
 		$status{$service}->{last_run} ||= time;
@@ -6834,9 +6833,7 @@ sub runServices
 		# and update the inventory data
 		if ($inventory)
 		{
-			print "saving inventory\n";
 			my ( $op, $error ) = $inventory->save();
-			print "save op returned:$op,$error\n";
 		}
 
 		logMsg("ERROR: service status saving failed: $error") if ($error);
@@ -6850,7 +6847,7 @@ sub runServices
 		{
 			$S->{info}{service_status}->{$newinfo} = $status{$newinfo};
 		}
-		$NI->{system}{lastServicesPoll} = time();
+		$catchall_data->{lastServicesPoll} = time();
 	}
 
 	info("Finished");
@@ -8524,11 +8521,12 @@ LABEL_ESC:
 
 			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
 			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
-			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message")
+			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message") && next
 				if(!$catchall_inventory);
+			# in this case we have no guarantee that we have catchall and if we don't creating it is pointless.
 			my $catchall_data = $catchall_inventory->data_live();
 			$group = lc( $catchall_data->{group} );
-			$role  = lc( $$catchall_data->{roleType} );
+			$role  = lc( $catchall_data->{roleType} );
 			$type  = lc( $catchall_data->{nodeType} );
 			$event = lc( $thisevent->{event} );
 
