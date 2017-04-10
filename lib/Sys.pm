@@ -1649,10 +1649,9 @@ sub prep_extras_with_catchalls
 		my $data;
 		my $storage_inventory = $self->inventory(concept => 'storage', index => $index);
 		$data = $storage_inventory->data() if( $storage_inventory );
-		
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
-			$extras->{$key} = $data->{$key}
+			$extras->{$key} = $data->{$key};
 		}		
 		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
@@ -1692,6 +1691,8 @@ sub prep_extras_with_catchalls
 	
 	$extras->{item}            = $item;
 	$extras->{index}           = $index;
+
+	return $extras;
 }
 
 #===================================================================
@@ -1745,10 +1746,11 @@ sub parseString
 
 		$str = $rebuilt;
 	}
-	
+
+	$extras //= {};
 	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
 
-	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
+	dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 	
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
@@ -1773,6 +1775,7 @@ sub parseString
 	}
 	die Dumper($str,$extras) if( !$eval && $str =~ /\$/);
 	my $product = ($eval) ? eval $str : $str;
+
 	logMsg("parseString failed for str:$str, error:$@") if($@);
 	dbg( "parseString:: result is str=$product", 3 );
 	return $product;

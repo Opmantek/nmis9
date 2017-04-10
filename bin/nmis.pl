@@ -10602,7 +10602,7 @@ sub runThrHld
 	}
 	elsif ( $type =~ /cbqos|interface|pkts/ )
 	{
-		my $inventory = $S->inventory( concept => 'interface', index => $index )->data();
+		my $inventory = $S->inventory( concept => 'interface', index => $index );
 		$data = ( $inventory ) ? $inventory->data : {};
 		if( $data->{ifDescr} )
 		{

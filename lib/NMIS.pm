@@ -1096,7 +1096,7 @@ sub getSummaryStats
 
 	# escape any : chars which might be in the database name, e.g handling C: in the RPN
 	$db =~ s/:/\\:/g;
-
+	if( $index )
 	{
 		no strict;
 		$database = $db; # global
