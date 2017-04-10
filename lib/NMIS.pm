@@ -2445,8 +2445,7 @@ sub createHrButtons
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
 	my $AU = $args{AU};
-	my $confname = $args{conf};
-	my $nmisng_node = $args{nmisng_node};
+	my $confname = $args{conf};	
 
 	return "" if (!$node);
 	$refresh = "false" if (!getbool($refresh));
@@ -2457,6 +2456,8 @@ sub createHrButtons
 	my $NI = loadNodeInfoTable($node); 
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
+	my $nmisng_node = $S->nmisng_node;
+	
 	my $C = loadConfTable();
 
 	return unless $AU->InGroup($catchall_data->{group});
