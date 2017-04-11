@@ -1111,29 +1111,32 @@ sub doCollect
 		info("Finished update instead of collect");
 		return;                          # collect has to wait until a next run
 	}
+
+	my $configuration = $S->nmisng_node->configuration();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
 	dbg( "node=$name "
-			. join( " ", map { "$_=" . $S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
+			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
 
 	# update node info data, merge in the node's configuration (which was loaded by sys' init)
+	
 	$S->copyModelCfgInfo( type => 'all' );
-
-	my $NI = $S->ndinfo;
-	my $NC = $S->ndcfg;
+	
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# run an update if no update poll time is known
-	if ( !exists( $NI->{system}{lastUpdatePoll} ) or !$NI->{system}{lastUpdatePoll} )
+	if ( !exists( $catchall_data->{lastUpdatePoll} ) or !$catchall_data->{lastUpdatePoll} )
 	{
 		info("no cached node data available, running an update now");
 		doUpdate( name => $name );
 		info("update done, continue with collect");
 	}
 
-	info("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
-	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
+	info("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType}");
+	info("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
 	# are we meant to and able to talk to the node?
-	if ( runPing( sys => $S ) && getbool( $NC->{node}{collect} ) )
+	if ( runPing( sys => $S ) && getbool( $configuration->{collect} ) )
 	{
 	# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(
@@ -1142,10 +1145,10 @@ sub doCollect
 			max_msg_size => $C->{snmp_max_msg_size},
 
 			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
 
 			# how many oids per simple get request for getarray, or default (no guessing)
-			oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10
+			oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10
 		) if ( $S->status->{snmp_enabled} );
 
 		# failed already?
@@ -1163,11 +1166,11 @@ sub doCollect
 	# NOT just snmp. otherwise a wmi-only node would never be polled.
 	# fixme: likely needs companion wmi_stop_polling_on_error, and both criteria would need to be satisfied for stopping
 		if (    getbool( $C->{snmp_stop_polling_on_error} )
-			and getbool( $NI->{system}{snmpdown} )
-			and getbool( $NI->{system}{wmidown} ) )
+			and getbool( $catchall_data->{snmpdown} )
+			and getbool( $catchall_data->{wmidown} ) )
 		{
 			logMsg(
-				"Polling stopped for $NI->{system}{name} because SNMP and WMI had errors, snmpdown=$NI->{system}{snmpdown} wmidown=$NI->{system}{wmidown}"
+				"Polling stopped for $catchall_data->{name} because SNMP and WMI had errors, snmpdown=$catchall_data->{snmpdown} wmidown=$catchall_data->{wmidown}"
 			);
 		}
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
@@ -1175,10 +1178,10 @@ sub doCollect
 			if ( $model or $C->{info} )
 			{
 				print
-					"MODEL $S->{name}: role=$NI->{system}{roleType} type=$NI->{system}{nodeType} sysObjectID=$NI->{system}{sysObjectID} sysObjectName=$NI->{system}{sysObjectName}\n";
-				print "MODEL $S->{name}: sysDescr=$NI->{system}{sysDescr}\n";
+					"MODEL $S->{name}: role=$catchall_data->{roleType} type=$catchall_data->{nodeType} sysObjectID=$catchall_data->{sysObjectID} sysObjectName=$catchall_data->{sysObjectName}\n";
+				print "MODEL $S->{name}: sysDescr=$catchall_data->{sysDescr}\n";
 				print
-					"MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
+					"MODEL $S->{name}: vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}\n";
 			}
 
 			# at this point we need to tell sys that dead sources are to be ignored
@@ -1196,7 +1199,8 @@ sub doCollect
 			getNodeData( sys => $S );
 
 			# get intf data and store in rrd
-			getIntfData( sys => $S ) if defined $S->{info}{interface};
+			my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
+			getIntfData( sys => $S ) if( @$ids > 0);
 			getSystemHealthData( sys => $S );
 			getEnvData( sys => $S );
 			getCBQoS( sys => $S );
@@ -1209,7 +1213,7 @@ sub doCollect
 			runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
 
 			# remember when the collect poll last completed successfully
-			$NI->{system}{lastCollectPoll} = time();
+			$catchall_data->{lastCollectPoll} = time();
 		}
 		else
 		{
@@ -1222,7 +1226,7 @@ sub doCollect
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
 	# but try snmp services only if snmp is actually ok
-	runServices( sys => $S, snmp => getbool( $NI->{system}->{snmpdown} ) ? 'false' : 'true' );
+	runServices( sys => $S, snmp => getbool( $catchall_data->{snmpdown} ) ? 'false' : 'true' );
 
 	runCheckValues( sys => $S );
 
@@ -1289,7 +1293,7 @@ sub doCollect
 
 	if ( getbool( $C->{log_polling_time} ) )
 	{
-		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $polltime");
+		logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $polltime");
 	}
 	info("Finished");
 	return;
