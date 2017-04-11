@@ -832,6 +832,7 @@ sub loadNodeSummary {
 sub nodeStatus {
 	my %args = @_;
 	my $catchall_data = $args{catchall_data};
+	die "nodeStatus requires catchall_data" if (!$catchall_data);
 	my $C = loadConfTable();
 
 	# 1 for reachable
@@ -890,10 +891,10 @@ sub PreciseNodeStatus
 	my $S = $args{system};
 	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "Sys");
 
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $C = loadConfTable();
 
-	my $nisys = $S->ndinfo->{system};
-	my $nodename = $nisys->{name};
+	my $nodename = $catchall_data->{name};
 
 	# reason for looking for events (instead of wmidown/snmpdown markers):
 	# underlying events state can change asynchronously (eg. fpingd), and the per-node status from the node
@@ -902,9 +903,9 @@ sub PreciseNodeStatus
 	# HOWEVER the markers snmpdown and wmidown are present iff the source was enabled at the last collect,
 	# and if collect was true as well.
 	my %precise = ( overall => 1, # 1 reachable, 0 unreachable, -1 degraded
-									snmp_enabled =>  defined($nisys->{snmpdown})||0,
-									wmi_enabled => defined($nisys->{wmidown})||0,
-									ping_enabled => getbool($nisys->{ping}),
+									snmp_enabled =>  defined($catchall_data->{snmpdown})||0,
+									wmi_enabled => defined($catchall_data->{wmidown})||0,
+									ping_enabled => getbool($catchall_data->{ping}),
 									snmp_status => undef,
 									wmi_status => undef,
 									ping_status => undef );
@@ -935,10 +936,10 @@ sub PreciseNodeStatus
 	# let NMIS use the status summary calculations, if recently updated
 	elsif ( defined $C->{node_status_uses_status_summary}
 					and getbool($C->{node_status_uses_status_summary})
-					and defined $nisys->{status_summary}
-					and defined $nisys->{status_updated}
-					and $nisys->{status_summary} <= 99
-					and $nisys->{status_updated} > time - 500 )
+					and defined $catchall_data->{status_summary}
+					and defined $catchall_data->{status_updated}
+					and $catchall_data->{status_summary} <= 99
+					and $catchall_data->{status_updated} > time - 500 )
 	{
 		$precise{overall} = -1;
 	}
@@ -963,18 +964,19 @@ sub logConfigEvent {
 sub getLevelLogEvent {
 	my %args = @_;
 	my $S = $args{sys};
-	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
 	my $event = $args{event};
 	my $level = $args{level};
+
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $mdl_level;
 	my $log = 'true';
 	my $syslog = 'true';
 	my $pol_event;
 
-	my $role = $NI->{system}{roleType} || 'access' ;
-	my $type = $NI->{system}{nodeType} || 'router' ;
+	my $role = $catchall_data->{roleType} || 'access' ;
+	my $type = $catchall_data->{nodeType} || 'router' ;
 
 	# Get the event policy and the rest is easy.
 	if ( $event !~ /^Proactive|^Alert/i ) {
@@ -999,7 +1001,7 @@ sub getLevelLogEvent {
 		else {
 			$mdl_level = 'Major';
 			# not found, use default
-			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}");
+			logMsg("node=$catchall_data->{name}, event=$event, role=$role not found in class=event of model=$catchall_data->{nodeModel}");
 		}
 	}
 	elsif ( $event =~ /^Alert/i ) {
@@ -1026,11 +1028,6 @@ sub getLevelLogEvent {
 	return ($level,$log,$syslog);
 }
 
-
-
-
-
-
 sub getSummaryStats
 {
 	my %args = @_;
@@ -1050,7 +1047,7 @@ sub getSummaryStats
 	{
 		# send request to remote server
 		dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
-		#return serverConnect(server=>$NI->{system}{server},type=>'send',func=>'summary',node=>$S->{node},
+		#return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
 		#		gtype=>$type,start=>$start,end=>$end,index=>$index,item=>$item);
 	}
 
@@ -1099,7 +1096,7 @@ sub getSummaryStats
 
 	# escape any : chars which might be in the database name, e.g handling C: in the RPN
 	$db =~ s/:/\\:/g;
-
+	if( $index )
 	{
 		no strict;
 		$database = $db; # global
@@ -1665,26 +1662,27 @@ sub getAdminColor {
 
 #=========================================================================================
 
+# get color stuff, determined from collect/{admin|oper}Status
+# args:
+#   S,index - if provided interface status info will be looked up from it
+#   if S not provided then status/collect must be provided in arguments
 sub getOperColor {
-	my %args = @_;
-	my ($S,$NI,$index,$IF);
-	if ( exists $args{sys} ) {
-		$S = $args{sys};
-		$index = $args{index};
-		$IF = $S->ifinfo;
-	}
+	my (%args) = @_;
+	my ($S,$index) = @args{'sys','index'};
+	my ($ifAdminStatus,$ifOperStatus,$collect) = @args{'ifAdminStatus','ifOperStatus','collect'};
+
 	my $operColor;
-
-	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
-	my $ifOperStatus = $IF->{$index}{ifOperStatus};
-	my $collect = $IF->{$index}{collect};
-
-	if ( $index eq "" ) {
-		$ifAdminStatus = $args{ifAdminStatus};
-		$ifOperStatus = $args{ifOperStatus};
-		$collect = $args{collect};
+	 
+	if( defined($S) && defined($index) )
+	{
+		my $inventory = $S->inventory( concept => 'interface', index => $index );
+		# if data not found use args
+		my $data = ($inventory) ? $inventory->data : \%args;
+		$ifAdminStatus = $data->{ifAdminStatus};
+		$ifOperStatus = $data->{ifOperStatus};
+		$collect = $data->{collect};
 	}
-
+	
 	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or !getbool($collect)) {
 		$operColor="#ffffff"; # white
 	} else {
@@ -1700,7 +1698,7 @@ sub getOperColor {
 }
 
 sub colorHighGood {
-	my $threshold = shift;
+	my ($threshold) = @_;
 	my $color = "";
 
 	if ( ( $threshold =~ /^[a-zA-Z]/ ) || ( $threshold eq "") )  { $color = "#FFFFFF"; }
@@ -2447,8 +2445,7 @@ sub createHrButtons
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
 	my $AU = $args{AU};
-	my $confname = $args{conf};
-	my $nmisng_node = $args{nmisng_node};
+	my $confname = $args{conf};	
 
 	return "" if (!$node);
 	$refresh = "false" if (!getbool($refresh));
@@ -2459,6 +2456,8 @@ sub createHrButtons
 	my $NI = loadNodeInfoTable($node); 
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
+	my $nmisng_node = $S->nmisng_node;
+	
 	my $C = loadConfTable();
 
 	return unless $AU->InGroup($catchall_data->{group});
@@ -2705,7 +2704,7 @@ sub loadServerCode {
 }
 
 sub loadTenantCode {
-	my %args = @_;
+	my (%args) = @_;
 	my $conf = $args{conf};
 	my $C = loadConfTable();
 
@@ -3833,9 +3832,8 @@ sub notify
 {
 	my %args = @_;
 	my $S = $args{sys};
-	my $NI = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $M = $S->mdl;
-
 	my $event = $args{event};
 	my $element = $args{element};
 	my $details = $args{details};
@@ -3914,7 +3912,7 @@ sub notify
 				and getbool($thisevent_control->{Log}))
 		{
 			logConfigEvent(dir => $C->{config_logs}, node=>$node, event=>$event, level=>$level,
-										 element=>$element, details=>$details, host => $NI->{system}{host},
+										 element=>$element, details=>$details, host => $catchall_data->{host},
 										 nmis_server => $C->{nmis_host} );
 		}
 	}

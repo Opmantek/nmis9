@@ -43,6 +43,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 use List::Util;
 use Clone;
+use Carp qw(longmess);
 
 # the sys constructor does next to nothing, just roughly setup the structure
 sub new
@@ -119,8 +120,10 @@ sub inventory
 
 	# re-use cached object for catchall
 	return $self->{_inventory_cache}{$concept}
-		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );
+		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );		
 
+	# for now map pkts into interface
+	$concept = 'interface' if( $concept =~ /pkts/ );
 
 	my ($data,$path_keys) = ({},[]);
 	if( $index )
@@ -1610,6 +1613,12 @@ sub getTitle
 
 # add a whole bunch of variables to the extras hash that parseString added so are now
 # required for backwards compat
+# NOTE: if section is empty sometimes type has it ( getFileName from RRDfunc does this, interface comes through as, the type)
+#.  and sometimes neither have antyhing useful! (Like cbqos telling us the class name, useless!!!!
+#   Instead of blindly trying to load the interface everytime we will only do it when it makes sense, except we can't do this yet! :(
+#.  we need to be tell us when that is!
+# so for now if the section|type are interface|pkts, or the $str has interface in it (assuming we are making a filename) and we have
+# a valid index then load interface info
 sub prep_extras_with_catchalls
 {
 	my ($self, %args) = @_;
@@ -1618,7 +1627,11 @@ sub prep_extras_with_catchalls
 	my $item = $args{item};
 	my $section = $args{section};
 	my $str = $args{str};
+	my $type = $args{type};	
 
+	# so sadly this is not enough to make interface work right now
+	$section ||= $type;
+	
 	# if new one is there use it
 	my $data = $self->inventory(concept => "catchall")->data_live();
 	$extras->{node} = $self->{node};
@@ -1639,16 +1652,16 @@ sub prep_extras_with_catchalls
 
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
-			$extras->{$key} = $data->{$key}
-		}
+			$extras->{$key} = $data->{$key};
+		}		
 		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
 		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
 	}
 
-
-	if ( $index && ($section eq 'interface' || $section eq 'pkts' || $section eq 'pkts_hc') )
-	{
+	# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
+	if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
+	{		
 		my $interface_inventory = $self->inventory(concept => 'interface', index => $index);
 		if( $interface_inventory )
 		{
@@ -1679,6 +1692,8 @@ sub prep_extras_with_catchalls
 
 	$extras->{item}            = $item;
 	$extras->{index}           = $index;
+
+	return $extras;
 }
 
 #===================================================================
@@ -1698,14 +1713,13 @@ sub parseString
 
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval ) = @args{"string", "index", "item", "sect", "type", "extras", "eval"};
 
-	dbg( "parseString:: string to parse '$str'", 3 );
+	dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
 
-	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
-	my $data = {};
-	my $inventory = $self->inventory(concept => $sect, index => $indx);
+	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value		
 	if ( $sect )
 	{
-		$data = $inventory->data if($inventory);
+		my $inventory = $self->inventory( concept => $sect, index => $indx );
+		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;
 
@@ -1733,14 +1747,12 @@ sub parseString
 
 		$str = $rebuilt;
 	}
-	else
-	{
-		logMsg("No inventory found for concept:$sect")
-	}
-	$self->prep_extras_with_catchalls( extras => $extras, section => $sect, index => $indx, item => $itm, str => $str);
 
-	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
+	$extras //= {};
+	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
 
+	dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
+	
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
 	#
@@ -1764,6 +1776,7 @@ sub parseString
 	}
 	die Dumper($str,$extras) if( !$eval && $str =~ /\$/);
 	my $product = ($eval) ? eval $str : $str;
+
 	logMsg("parseString failed for str:$str, error:$@") if($@);
 	dbg( "parseString:: result is str=$product", 3 );
 	return $product;
@@ -1903,6 +1916,7 @@ sub makeRRDname
 
 	my $index     = $args{index};
 	my $item      = $args{item};
+
 	my $extras = $args{extras};
 	my $wantrelative = getbool($args{relative});
 	my $C = loadConfTable if (!$wantrelative); # only needed for database_root
@@ -1952,7 +1966,6 @@ sub makeRRDname
 		dbg( "synthetic item from index for type=$type, index=$index", 2 );
 		$item = $index;
 	}
-
 
 	# expand the $xyz strings in the template
 	# also, all optional inputs must be safeguarded, as indices (for example) can easily contain '/'
