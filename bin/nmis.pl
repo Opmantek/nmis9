@@ -3425,9 +3425,12 @@ sub getSystemHealthInfo
 				{
 					info("section=$section index=$indexvalue read and stored");
 
-					# get the inventory object for this, path_keys required as we don't know what type it will be
-					my $data = {$index_var => $indexvalue};
-					my $path_keys = [$index_var];
+					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
+					# so use 'index' for now.
+					# loadInfo always sets {index}, sadly it doesn't always come out of loadInfo correct so do it again
+					$target->{index} = $target->{$index_var};
+					# my $path_keys = [$index_var];
+					my $path_keys = ['index'];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => $section,
@@ -3521,12 +3524,13 @@ sub getSystemHealthInfo
 
 					# get the inventory object for this, path_keys required as we don't know what type it will be
 					NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
-
-		# NOTE: loadInfo always sets the key {index} to the index value, some of these things end up using an $index_var
-		#   that is blank which breaks the path, so for now use "index", later we could check to see if the $index_var
-		#   has a value
-					my $data = {$index_var => $index};
-					my $path_keys = [$index_var];
+		
+					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
+					# so use 'index' for now.
+					# loadInfo always sets {index}, sadly it doesn't always come out of loadInfo correct so do it again
+					$target->{index} = $target->{$index_var};
+					# my $path_keys = [$index_var];
+					my $path_keys = ['index'];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 
 					# NOTE: systemHealth requires {index} => $index to be set, it

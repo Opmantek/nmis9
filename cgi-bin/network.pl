@@ -4064,7 +4064,9 @@ sub viewSystemHealth
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $M  = $S->mdl;
+	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
@@ -4099,14 +4101,13 @@ sub viewSystemHealth
 	}
 
 	my $ids = $nmisng_node->get_inventory_ids( concept => $section );
-	$nmisng->log->debug( "viewSystemHealth got ids" . Dumper($ids) );
 
 	# TODO, bring back oid_lex_sort
 	# foreach my $index (oid_lex_sort(keys %{$NI->{$section}}) ) {
 	foreach my $id (@$ids)
 	{
 		my ( $inventory, $error ) = $nmisng_node->inventory( _id => $id );
-		$nmisng_node->nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next
+		$nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next
 			if ( !$inventory );
 		my $data  = $inventory->data();
 		my $index = $data->{index};
@@ -4123,10 +4124,7 @@ sub viewSystemHealth
 			next;
 		}
 
-		# TODO: figure out graphs here!!!
-		my $NI = $S->ndinfo;
-		my $graphtype = $NI->{graphtype}{$index}{$section};
-		my $D         = $data;
+		my $D = $data;
 
 		# get the header from the node informaiton first.
 		if ( not $headerDone )
@@ -4153,7 +4151,7 @@ sub viewSystemHealth
 				push( @cells, $cell );
 				++$colspan;
 			}
-			push( @cells, td( {class => 'header'}, "History" ) ) if $graphtype;
+			push( @cells, td( {class => 'header'}, "History" ) ) if $inventory;
 			++$colspan;
 
 			if ( !$status{overall} )
@@ -4168,12 +4166,12 @@ sub viewSystemHealth
 
 				print Tr(
 					td( {class => 'Warning', colspan => $colspan},
-						"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+						"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 					)
 				);
 			}
 
-			print Tr( th( {class => 'title', colspan => $colspan}, "$section of node $NI->{system}{name}" ) );
+			print Tr( th( {class => 'title', colspan => $colspan}, "$section of node $catchall_data->{name}" ) );
 
 			my $row = join( " ", @cells );
 			print Tr($row);
@@ -4222,13 +4220,13 @@ sub viewSystemHealth
 			push( @cells, $cell );
 		}
 
-		if ($graphtype)
+		if ($inventory)
 		{
 			# use 2/3 width so fits a little better.
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
 
 			# fixme: this code does nothing: split /,/, $M->{system}{nodegraph};
-			my @graphtypes = split /,/, $graphtype;
+			my @graphtypes = split /,/, $M->{systemHealth}{rrd}{$section}{graphtype};
 
 			push( @cells, start_td );
 			foreach my $GT (@graphtypes)
