@@ -114,8 +114,7 @@ sub rrdDraw
 
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$nodename, snmp=>'false');
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	### 2012-02-06 keiths, handling default graph length
 	# default is hours!
@@ -162,7 +161,7 @@ sub rrdDraw
 	} 
 	else 
 	{
-		if (!($db = $S->getDBName(graphtype=>$graphtype,index=>$intf,item=>$item)) ) { # get database name from node info
+		if (!($db = $S->makeRRDname(graphtype=>$graphtype,index=>$intf,item=>$item)) ) { # get database name from node info
 			error();
 			return 0;
 		}
@@ -246,25 +245,27 @@ sub rrdDraw
 		no strict;									# *shudder*
 		if ($intf ne "") 
 		{
-			$indx = $intf;
-			$ifDescr = $IF->{$intf}{ifDescr};
-			$ifSpeed = $IF->{$intf}{ifSpeed};
-			$ifSpeedIn = $IF->{$intf}{ifSpeed};
-			$ifSpeedOut = $IF->{$intf}{ifSpeed};
-			$ifSpeedIn = $IF->{$intf}{ifSpeedIn} if $IF->{$intf}{ifSpeedIn};
-			$ifSpeedOut = $IF->{$intf}{ifSpeedOut} if $IF->{$intf}{ifSpeedOut};
+			my $inventory = $S->inventory( concept => 'interface', index => $intf );
+			my $data = ($inventory) ? $inventory->data : {};
+			
+			$ifDescr = $data->{ifDescr};
+			$ifSpeed = $data->{ifSpeed};
+			$ifSpeedIn = $data->{ifSpeed};
+			$ifSpeedOut = $data->{ifSpeed};
+			$ifSpeedIn = $data->{ifSpeedIn} if $data->{ifSpeedIn};
+			$ifSpeedOut = $data->{ifSpeedOut} if $data->{ifSpeedOut};
 			if ($ifSpeed eq "auto" ) {
 				$ifSpeed = 10000000;
 			}
 
-			if ( $IF->{$intf}{ifSpeedIn} and $IF->{$intf}{ifSpeedOut} ) {
+			if ( $data->{ifSpeedIn} and $data->{ifSpeedOut} ) {
 				$speed = "IN\\: ". convertIfSpeed($ifSpeedIn) ." OUT\\: ". convertIfSpeed($ifSpeedOut);
 			}
 			else {
 				$speed = convertIfSpeed($ifSpeed);
 			}
 		}
-		$node = $NI->{system}{name};
+		$node = $catchall_data->{name};
 		$datestamp_start = returnDateStamp($start);
 		$datestamp_end = returnDateStamp($end);
 		$datestamp = returnDateStamp(time);

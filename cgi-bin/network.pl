@@ -1921,7 +1921,7 @@ sub viewNode
 	my $M    = $S->mdl;
 	my $time = time;
 
-	my $nmisng_node = $nmisng->node(  name => $node );
+	my $nmisng_node = $S->nmisng_node;
 	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
@@ -2485,11 +2485,11 @@ EO_HTML
 			}
 		}
 	}
-
 	if (   getbool( $catchall_data->{collect} )
 		or getbool( $catchall_data->{ping} ) )
 	{
 		my $GTT    = $S->loadGraphTypeTable();             # translate graphtype to type
+		print STDERR "GTT".Dumper($GTT);
 		my $cnt    = 0;
 		my @graphs = split /,/, $M->{system}{nodegraph};
 
@@ -2761,7 +2761,7 @@ sub viewInterface
 	# regardless of current collection status.
 	my $dbname;
 	if ( exists $V->{interface}{"${intf}_collect_value"}
-		&& -f ( $dbname = $S->getDBName( graphtype => "autil", index => $intf, suppress_errors => 1 ) ) )
+		&& -f ( $dbname = $S->makeRRDname( graphtype => "autil", index => $intf, suppress_errors => 1 ) ) )
 	{
 		print Tr( td( {class => 'header'}, "Utilization" ) ),
 			Tr(
@@ -2908,10 +2908,9 @@ sub viewAllIntf
 
 	my $S = Sys::->new;                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	my $nmisng_node = $S->nmisng_node;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -2976,7 +2975,7 @@ sub viewAllIntf
 
 		print Tr(
 			td( {class => 'Warning'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
@@ -3017,6 +3016,9 @@ sub viewAllIntf
 
 				foreach my $k (@hd)
 				{
+					my $inventory = $S->inventory( concept => 'interface', index => $intf );
+					my $data = ($inventory) ? $inventory->data : {};
+
 					my $color
 						= getbool( $view{$intf}{collect}{value} )
 						? ( $view{$intf}{$k}{color} ne "" )
@@ -3062,7 +3064,7 @@ sub viewAllIntf
 							}
 							elsif ( $k eq "ifLastChange" )
 							{
-								$line = convUpTime( $NI->{system}{sysUpTimeSec} - $IF->{$intf}{ifLastChangeSec} );
+								$line = convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
 							}
 							else
 							{
@@ -3109,10 +3111,10 @@ sub viewActivePort
 
 	my $S = Sys::->new;                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
-	my $NI = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $M  = $S->mdl;
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3186,12 +3188,12 @@ sub viewActivePort
 
 		print Tr(
 			td( {class => 'Warning'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
 
-	print Tr( th( {class => 'title', width => '100%'}, "Interface Table of node $NI->{system}{name}" ) );
+	print Tr( th( {class => 'title', width => '100%'}, "Interface Table of node $catchall_data->{name}" ) );
 
 	### 2013-12-17 keiths, added dynamic building of the graph types
 	my @graphtypes = ('');
@@ -3303,7 +3305,7 @@ sub viewActivePort
 						}
 					);
 				}
-				if ((   $S->getDBName(
+				if ((   $S->makeRRDname(
 							graphtype       => $graphtype,
 							index           => $intf,
 							suppress_errors => 'true'
@@ -3788,7 +3790,11 @@ sub viewStatus
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
+
+	my $NI = $S->ndinfo(); # still needed for status section
+	my $nmisng_node = $S->nmisng_node;
+	my $configuration = $nmisng_node->configuration();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
@@ -3826,16 +3832,16 @@ sub viewStatus
 
 		print Tr(
 			td( {class => 'Warning', colspan => $colspan},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
 
-	my $color = colorPercentHi( $NI->{system}{status_summary} ) if $NI->{system}{status_summary};
+	my $color = colorPercentHi( $catchall_data->{status_summary} ) if $catchall_data->{status_summary};
 
 	#print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>$colspan},'Status Summary'));
 
-	print Tr( th( {class => 'title', colspan => $colspan}, "Status Summary for node $NI->{system}{name}" ) );
+	print Tr( th( {class => 'title', colspan => $colspan}, "Status Summary for node $catchall_data->{name}" ) );
 
 	#  "ssCpuRawWait--0" : {
 	#     "status" : "Threshold",
@@ -3897,7 +3903,7 @@ sub viewStatus
 	}
 	else
 	{
-		print Tr( th( {class => 'title', colspan => $colspan}, "No Status Summary found for $NI->{system}{name}" ) );
+		print Tr( th( {class => 'title', colspan => $colspan}, "No Status Summary found for $catchall_data->{name}" ) );
 	}
 	print end_table;
 	pageEnd() if ( !$wantwidget );
@@ -4056,10 +4062,9 @@ sub viewSystemHealth
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-	my $M  = $S->mdl;
 
-	my $nmisng_node = $nmisng->node( uuid => $NI->{system}->{uuid} );
+	my $M  = $S->mdl;
+	my $nmisng_node = $S->nmisng_node;
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
@@ -4118,6 +4123,8 @@ sub viewSystemHealth
 			next;
 		}
 
+		# TODO: figure out graphs here!!!
+		my $NI = $S->ndinfo;
 		my $graphtype = $NI->{graphtype}{$index}{$section};
 		my $D         = $data;
 
