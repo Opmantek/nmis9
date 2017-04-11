@@ -854,10 +854,10 @@ sub doUpdate
 			max_msg_size => $C->{snmp_max_msg_size},
 
 			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
 
 			# how many oids per simple get request (for getarray), or default (no guessing)
-			oidpkt => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || 10
+			oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10
 		) if ( $S->status->{snmp_enabled} );
 
 		# failed already?
@@ -904,13 +904,14 @@ sub doUpdate
 			}
 		}
 		$S->close;    # close snmp session if one is open
-		$catchall_inventory->{lastUpdatePoll} = time();
+		$catchall_data->{lastUpdatePoll} = time();
 	}
 
 	my $reachdata
 		= runReach( sys => $S, delayupdate => 1 );    # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo;                                # save node info in file var/$NI->{name}-node.xxxx
+	$catchall_inventory->save();											# ensure the plugins don't end up with utterly stale data
 
 	# done with the standard work, now run any plugins that offer update_plugin()
 	for my $plugin (@active_plugins)
@@ -934,6 +935,7 @@ sub doUpdate
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
 			$S->writeNodeInfo;
+			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
@@ -964,16 +966,14 @@ sub doUpdate
 	}
 	$S->close;
 
+	$catchall_inventory->save();
 	releasePollLock( handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name );
 
 	if ( defined $C->{log_polling_time} and getbool( $C->{log_polling_time} ) )
 	{
 
-		logMsg("Poll Time: $name, $catchall_inventory->{nodeModel}, $updatetime");
+		logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $updatetime");
 	}
-
-	$catchall_inventory->save();
-
 	info("Finished");
 	return;
 }
@@ -1113,7 +1113,8 @@ sub doCollect
 	}
 
 	my $configuration = $S->nmisng_node->configuration();
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $catchall_data = $catchall_inventory->data_live();
 
 	dbg( "node=$name "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
@@ -1241,6 +1242,7 @@ sub doCollect
 
 	$S->writeNodeView;
 	$S->writeNodeInfo;
+	$catchall_inventory->save();
 
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin (@active_plugins)
@@ -1264,6 +1266,7 @@ sub doCollect
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
 			$S->writeNodeInfo;
+			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
@@ -1289,6 +1292,7 @@ sub doCollect
 	}
 	$S->close;
 
+	$catchall_inventory->save();
 	releasePollLock( handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name );
 
 	if ( getbool( $C->{log_polling_time} ) )
@@ -1352,19 +1356,10 @@ sub runPing
 			my $host = $NC->{node}{host};          # ip name/adress of node
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
-
-			# fixme: invalid condition, root is generally NOT required for ping anymore!
-			if ($<)
-			{
-				# not root and update, assume called from www interface
-				$pingresult = 100;
-				dbg("SKIPPING Pinging as we are NOT running with root privileges");
-			}
-			else
-			{
-				( $ping_min, $ping_avg, $ping_max, $ping_loss ) = ext_ping( $host, $packet, $retries, $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
-			}
+			
+			( $ping_min, $ping_avg, $ping_max, $ping_loss ) = ext_ping( $host, $packet, $retries, $timeout );
+			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
+			
 		}
 
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
@@ -5642,7 +5637,7 @@ sub runServer
 		$S->loadInfo( class => 'device_global', model => $model, target => $overall_target );    # get cpu load without index
 
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
-		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => [], data => $overall_target, create => 1 );
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device_global', path => $path, path_keys => [], data => $overall_target, create => 1 );
 		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);	
 		if($inventory) 
 		{
@@ -6838,7 +6833,7 @@ sub runServices
 		}
 
 		# now update the per-service status file
-		my $error = saveServiceStatus( service => $status{$service} );
+		$error = saveServiceStatus( service => $status{$service} );
 		# and update the inventory data
 		if ($inventory)
 		{
