@@ -50,7 +50,7 @@ sub new
 	my ( $class, %args ) = @_;
 
 	my $self = bless(
-		{   
+		{
 			name => undef,    # name of node
 			node => undef,    # node name is lc of name
 			mdl  => undef,    # ref Model modified
@@ -135,9 +135,9 @@ sub inventory
 		($inventory,$error_message) = $node->inventory(concept => $concept, path => $path);
 		if( !$inventory && $concept eq 'catchall' )
 		{
-			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it 
+			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it
 			# instead of having one magic place that makes it and that has to be run first
-			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);			
+			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);
 		}
 		$self->nmisng->log->error("Failed to get inventory, concept:$concept error_message:$error_message, path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
@@ -256,7 +256,7 @@ sub init
 		else
 		{
 			$catchall_data = $catchall->data_live();
-			$self->{info} = loadTable( dir => 'var', name => "$self->{node}-node" );		
+			$self->{info} = loadTable( dir => 'var', name => "$self->{node}-node" );
 			# load the saved node info data
 			if ( ref( $self->{info} ) eq "HASH"
 				&& keys %{$self->{info}} )
@@ -298,7 +298,7 @@ sub init
 	if (    !$self->{error}
 		and ( $snmp or $wantwmi )
 		and $self->{name} ne "" )
-	{		
+	{
 		$self->{cfg}->{node} = $self->nmisng_node->configuration()
 			if ( $self->nmisng_node );
 
@@ -487,7 +487,7 @@ sub copyModelCfgInfo
 	my ( $self, %args ) = @_;
 	my $type = $args{type};
 
-	my $catchall_data = $self->inventory(concept => 'catchall')->data_live();	
+	my $catchall_data = $self->inventory(concept => 'catchall')->data_live();
 
 	# copy all node info, with the exception of auth-related fields
 	my $dontcopy = qr/^(wmi(username|password)|community|(auth|priv)(key|password|protocol))$/;
@@ -512,7 +512,7 @@ sub copyModelCfgInfo
 			if ( !$catchall_data->{nodeModel} or $mustoverwrite );
 		$catchall_data->{nodeType} = $self->{mdl}{system}{nodeType}
 			if ( !$catchall_data->{nodeType} or $mustoverwrite );
-	}	
+	}
 }
 
 # get info from node, using snmp and/or wmi
@@ -1302,7 +1302,7 @@ sub selectNodeModel
 	return 'Default';
 }
 
-# load requested Model into this object, 
+# load requested Model into this object,
 # also updates the graph-subconcept relationship cache
 #
 # args: model, required
@@ -1503,7 +1503,7 @@ sub loadModel
 		for my $toplevel (values %{$self->{mdl}})
 		{
 			# rrd section is where graphtypes may be, and that is always just under the toplevel
-			next if (ref($toplevel->{rrd}) ne "HASH"); 
+			next if (ref($toplevel->{rrd}) ne "HASH");
 
 			my $section = $toplevel->{rrd};
 			for my $concept (keys %{$section})
@@ -1512,7 +1512,7 @@ sub loadModel
 				for my $onegt (split(/\s*,\s*/, $section->{$concept}->{graphtype}))
 				{
 					die "invalid model $model: graphtype $onegt associated with two sections, $concept and $gt2sc->{$onegt}\n"
-							if (defined $gt2sc->{$onegt});
+							if (defined $gt2sc->{$onegt} && $gt2sc->{$onegt} ne $concept);
 					$gt2sc->{$onegt} = $concept;
 				}
 			}
@@ -1618,9 +1618,9 @@ sub prep_extras_with_catchalls
 	my $item = $args{item};
 	my $section = $args{section};
 	my $str = $args{str};
-	
+
 	# if new one is there use it
-	my $data = $self->inventory(concept => "catchall")->data_live();	
+	my $data = $self->inventory(concept => "catchall")->data_live();
 	$extras->{node} = $self->{node};
 
 	foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
@@ -1628,25 +1628,25 @@ sub prep_extras_with_catchalls
 		$extras->{$key} = $data->{$key};
 	}
 	$extras->{InstalledModems} //= 0;
-	
+
 	# if I am wanting a storage thingy, then lets populate the variables I need.
 	if ( $index ne ''
 		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
-	{		
+	{
 		my $data;
 		my $storage_inventory = $self->inventory(concept => 'storage', index => $index);
 		$data = $storage_inventory->data() if( $storage_inventory );
-		
+
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
 			$extras->{$key} = $data->{$key}
-		}		
+		}
 		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
 		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
 	}
 
-	
+
 	if ( $index && ($section eq 'interface' || $section eq 'pkts' || $section eq 'pkts_hc') )
 	{
 		my $interface_inventory = $self->inventory(concept => 'interface', index => $index);
@@ -1676,7 +1676,7 @@ sub prep_extras_with_catchalls
 		$extras->{ifDescr} = $extras->{ifType}      = '';
 		$extras->{ifSpeed} = $extras->{ifMaxOctets} = 'U';
 	}
-	
+
 	$extras->{item}            = $item;
 	$extras->{index}           = $index;
 }
@@ -1700,7 +1700,7 @@ sub parseString
 
 	dbg( "parseString:: string to parse '$str'", 3 );
 
-	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value	
+	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	my $data = {};
 	my $inventory = $self->inventory(concept => $sect, index => $indx);
 	if ( $sect )
@@ -1715,13 +1715,13 @@ sub parseString
 			my ( $number, $thing ) = ( $2, $3 );
 			$rebuilt .= $1;
 			$number = '' if ( !defined $number );    # let's support CVAR, CVAR0 .. CVAR9, all separate
-	
+
 			logMsg("ERROR: $thing not a known property in section $sect!")
 				if ( !exists $data->{$thing} );
 
 			# let's set the global CVAR or CVARn to whatever value from the node info section
 			$extras->{"CVAR$number"} = $data->{$thing};
-					
+
 			dbg( "found assignment for CVAR$number, $thing, value " . $extras->{"CVAR$number"}, 3 );
 		}
 		$rebuilt .= $consumeme;    # what's left after looking for CVAR assignments
@@ -1740,7 +1740,7 @@ sub parseString
 	$self->prep_extras_with_catchalls( extras => $extras, section => $sect, index => $indx, item => $itm, str => $str);
 
 	dbg( Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
-	
+
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
 	#
@@ -1749,7 +1749,7 @@ sub parseString
 	if ( ref($extras) eq "HASH" )
 	{
 		for my $maybe ( sort keys %$extras )
-		{	
+		{
 			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 			my $presubst = $str;
 
@@ -1781,20 +1781,24 @@ sub loadGraphTypeTable
 }
 
 
-# find instances of a particular graphtype
-# this function returns the indices (and thus the list) of instances/things for a
+# find instances of a particular (graph)type/
+#
+# fixme: this is for backwards-compat ONLY, needs to be be replaced by
+# direct inventory searching
+# (why? because this assumes that everything
+# is sorta-indexed with a particular identifier, which isn't true with inventory)
+#
+# this function returns the indices of instances/things for a
 # particular graphtype, eg. all the known disk indices when asked for graphtype=hrdisk,
 # or all interface indices when asked for section=interface.
 #
-# arguments: graphtype or section; if both are given then either matching section or
-# matching graphtype will cause an instance to match.
+# arguments: graphtype(=subconcept for inventory) or section (=concept);
+# if both are given, then inventory instances that match either will be returned
+# fixme: if both graphtype and section are given, but the graphtype doesn't
+# belong to that section, then highly misleading data will be returned!
 #
-# a plain section will NOT match without the section argument.
-#
-# returns: list of matching indices
-#
-# fixme: this needs rewriting for inventory!
-#
+# returns: list of matching indices - for indexed stuff the data.index property,
+# for services the data.service name.
 sub getTypeInstances
 {
 	my ( $self, %args ) = @_;
@@ -1802,33 +1806,76 @@ sub getTypeInstances
 	my $section   = $args{section};
 	my @instances;
 
-	my $gtt = $self->{info}{graphtype};
-	for my $maybe ( keys %{$gtt} )
+	# query the inventory model for concept same as section (if section was given)...
+	if (defined $section)
 	{
-		# graphtype element can be flat, ie. health => health,response,numintf
-		# in which case we ignore it - there are no instances
-		next if ( ref( $gtt->{$maybe} ) ne "HASH" );
-
-		# otherwise it's expected to be dbtype => sometype,othertype; one or more of these
-		# first see if we have a section match, e.g. interface
-		if ( defined $section && $section ne '' && defined $gtt->{$maybe}->{$section} )
+		# in case of indexed, return the index; for service return the service name
+		my $modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																											 node_uuid => $self->nmisng_node->uuid,
+																											 concept => $section,
+																											 fields_hash => { "data.index" => 1,
+																																				"data.service" => 1 });
+		if ($modeldata->count)
 		{
-			push @instances, $maybe;
-			next;
+			for my $entry (@{$modeldata->data})
+			{
+				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
+			}
+		}
+	}
+	# if a graphtype is given, infer the concept from that via graphtype2subconcept,
+	# subconcept == concept for anything but concept service (has more), and concept
+	# interface (has subconcepts pkts, pkts_hc, interface).
+	# then look for actual instances, via storage!
+	if (defined $graphtype)
+	{
+		my $subconcept = $self->{graphtype2subconcept}->{$graphtype};
+		my $concept;
+		# this is to handle custom graph types, e.g. for services - these are not known to the model,
+		# hence not hin graphtype2subconcept; there the subconcept == graphtype.
+		if ($graphtype =~ /^service/)
+		{
+			$subconcept = $graphtype;
+			$concept = "service"
+		}
+		else
+		{
+			#
+			# other backwards compat mess: section names are historically ALSO fed in as graphtype,
+			# never mind that there are no such graphs...
+			$subconcept ||= $graphtype;
+			# and here's  interfaces, multiple subconcepts for concept interface
+			$concept = ($subconcept =~ /^(pkts|pkts_hc|interface)$/)? 'interface' : $subconcept;
 		}
 
-		# otherwise collect all the sometype,othertype,anothertype  values and look
-		# for a match. this is for finding the parent of
-		# interface => 'autil,util,abits,bits,maxbits via maxbits for example.
-		if ( defined $graphtype && $graphtype ne '' )
+		# fixme harsh, but better we see gotchas now...
+		die "error: no subconcept known for graptype $graphtype!"
+				if (!$subconcept);
+		die "error: no concept known for graptype $graphtype!"
+				if (!$concept);
+
+		# graphtype ALSO given but same as (handled) section or points to that section,
+		# and we have instances? then ignore the graphtype,  or we'll get duplicates
+		if (@instances && defined($section) && (($section eq $concept) || ($section eq $graphtype)))
 		{
-			for my $subsection ( keys %{$gtt->{$maybe}} )
+			dbg("covered section $section, not looking up graphtype $graphtype",2);
+			return @instances;
+		}
+
+		# and ask ONLY for the ones where a suitable storage element is present!
+		# note: doesn't check deeper, ie. for rrd key. storage knowledge embedded here is not ideal,
+		# but at least only the agreed-upon 'subconcept will have a key if available' is required
+		my $modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																											 node_uuid => $self->nmisng_node->uuid,
+																											 concept => $concept,
+																											 filter => { "storage.$subconcept" => { '$exists' => 1 }},
+																											 fields_hash => { "data.index" => 1,
+																																				"data.service" => 1, });
+		if ($modeldata->count)
+		{
+			for my $entry (@{$modeldata->data})
 			{
-				if ( grep( $graphtype eq $_, split( /,/, $gtt->{$maybe}->{$subsection} ) ) )
-				{
-					push @instances, $maybe;
-					last;    # done with this index
-				}
+				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 			}
 		}
 	}
@@ -1843,7 +1890,7 @@ sub getTypeInstances
 # relative (optional, default false - if set, path is relative to database_root)
 #
 # if graphtype is given, a translation from that to rrd section name is performed (e.g. abits => interface)
-# if that doesn't work, graphtype is tried as-is. 
+# if that doesn't work, graphtype is tried as-is.
 # if type is given, then it's assumed to hold the rrd type name directly (e.g. pkts remains pkts)
 #
 # returns: rrd file path (relative to database_root or absolute) or undef
@@ -1853,25 +1900,25 @@ sub makeRRDname
 
 	my $type = $args{type};
 	my $graphtype = $args{graphtype};
-	
+
 	my $index     = $args{index};
 	my $item      = $args{item};
 	my $extras = $args{extras};
 	my $wantrelative = getbool($args{relative});
 	my $C = loadConfTable if (!$wantrelative); # only needed for database_root
 
-	# if necessary, find the subconcept that belongs to this graphtype  - this 
+	# if necessary, find the subconcept that belongs to this graphtype  - this
 	# is the same as the rrd section name, and thus the database type name
 	my $sectionname = $type;
 	if (!defined $type)
 	{
 		$sectionname = $self->{graphtype2subconcept}->{$graphtype};
 		# this is a pretty ugly fallback for compatibility purposes...
-		# everything called the predecessor getdbname with graphtype, whether it was a graphtype 
+		# everything called the predecessor getdbname with graphtype, whether it was a graphtype
 		# or a sectionname...
 		$sectionname = $graphtype if (!defined $sectionname);
 	}
-																	
+
 	if (!defined $sectionname)
 	{
 		logMsg("ERROR no rrd section known for graphtype=$graphtype, type=$type");
@@ -1879,7 +1926,7 @@ sub makeRRDname
 	}
 
 	my $template = (ref($self->{mdl}->{database}) eq "HASH"
-									&& ref($self->{mdl}->{database}->{type}) eq "HASH")? 
+									&& ref($self->{mdl}->{database}->{type}) eq "HASH")?
 									$self->{mdl}->{database}->{type}->{$sectionname} : undef;
 	if (!defined $template)
 	{
@@ -1887,7 +1934,7 @@ sub makeRRDname
 		return undef;
 	}
 
-	# nmis4 compatibility requested? 
+	# nmis4 compatibility requested?
 	if (getbool($args{nmis4_compatibility}))
 	{
 		# nmis4 knows host, not node
@@ -1906,11 +1953,11 @@ sub makeRRDname
 		$item = $index;
 	}
 
-	
+
 	# expand the $xyz strings in the template
 	# also, all optional inputs must be safeguarded, as indices (for example) can easily contain '/'
 	# and at least these /s must be removed
-	my $safetype = $graphtype // $type; 
+	my $safetype = $graphtype // $type;
 	$safetype =~ s!/!_!g;
 	my $safeindex = $index; $safeindex =~ s!/!_!g;
 	my $safeitem = $item; $safeitem =~ s!/!_!g;
@@ -1933,11 +1980,11 @@ sub makeRRDname
 }
 
 # high-level wrapper for handling rrd updates
-# 
+#
 # this takes care of filenames, extra logic that's based on knowledge in sys,
 # and then delegates the work to module rrdfunc.
 # args: self, data, type/item/index - mostly required,
-# inventory (optional, if given it's checked for known rrd file - note 
+# inventory (optional, if given it's checked for known rrd file - note
 # that it MUST be the matching object for this particular instance!),
 # extras (optional hash of extra substitutables for naming)
 # returns: the database file name or undef, logs errors
@@ -1948,16 +1995,16 @@ sub create_update_rrd
 
 	my $C = loadConfTable;
 	my $dbname;
-	
+
 	# inventory? then check for a known name
 	if (ref($inventory))
 	{
 		$dbname = $inventory->find_subconcept_type_storage(subconcept => $type, type => "rrd");
 	}
 	# no success, then generate the name the oldfashioned way from common-database
-	$dbname ||= $self->makeRRDname(type => $type, 
-																 index => $index, 
-																 item => $item, 
+	$dbname ||= $self->makeRRDname(type => $type,
+																 index => $index,
+																 item => $item,
 																 relative => 1);
 
 	if (!$dbname)
@@ -1984,7 +2031,7 @@ sub create_update_rrd
 	logMsg("ERROR updateRRD failed: ".rrdfunc::getRRDerror) if (!$result);
 	return $result;
 }
-	
+
 # get header based on graphtype
 # args graphtype, type, index, item
 # returns header or undef

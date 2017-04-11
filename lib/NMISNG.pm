@@ -47,7 +47,7 @@ use NMISNG::Node;
 #  config - hash containing object
 #  log - NMISNG::Log object to log to, required.
 #  db - mongodb database object, optional.
-#  drop_unwanted_indices - optional, ignored  if 
+#  drop_unwanted_indices - optional, ignored  if
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -199,23 +199,26 @@ sub ip_collection
 # arguments:
 #.   path - array
 #.   cluster_id,node_uuid,concept - will all be put into the path, overriding what is there
-#.   data - hash, will match up whatever has been added - not indexed so be careful
+#. or _id, overriding all of the above
+#
+#. filter - hashref, will be added to the query
 #.   [fields_hash] - which fields should be returned, if not provided the whole record is returned
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
 
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
-
 	my $path;
 
-	my $q = NMISNG::DB::get_query(
-		and_part => {
-			'_id' => $args{_id},    # this is a bit inconsistent
-		}
-	);
+	# start with a plain query; with _id that'll be enough already
+	my %queryinputs = (	'_id' => $args{_id} );    # this is a bit inconsistent
+	if ($args{filter})
+	{
+		map { $queryinputs{$_} = $args{filter}->{$_}; } (keys %{$args{filter}});
+	}
+	my $q = NMISNG::DB::get_query( and_part => \%queryinputs );
 
-	# translate the
+	# translate the path components into the lookup path
 	if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 	{
 		$path = $args{path} // [];
@@ -231,9 +234,7 @@ sub get_inventory_model
 			}
 			$index++;
 		}
-
-		my $len = @$path - 1;
-		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $len );
+		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
 	}
 
 	my $model_data = [];
@@ -246,7 +247,7 @@ sub get_inventory_model
 	# print "get_inventory_model: q:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
-		query      => $q,		
+		query      => $q,
 		sort       => $args{sort},
 		limit      => $args{limit},
 		skip       => $args{skip},

@@ -30,7 +30,6 @@
 # are viewable at http://opmantek.com/licensing
 #
 #*****************************************************************************
-
 package NMISNG::DB;
 use strict;
 
@@ -55,16 +54,6 @@ use Time::Moment;    # opCharts needs times (for TTL) and using this is much fas
 
 use version 0.77;    # needed to check driver version
 
-# see the comments re file::changenotify in opeventsd, opconfigd, nmisd
-# the 0.x mongo driver required moose, the new one doesn't. even with moose compiled into this via --add (as it is),
-# opconfigd, opevents, nmisd CRASH with 'cannot load moose.so' even though perlapp reports moose.so is there
-# i suspect it's an issue with ordering of the module import routines and perlapp.
-# hence, to make the file::changenotify users work again when compiled, THEY or a module of theirs must
-# use moose (--add is not enough). can't recompile existing and deployed opconfigd, opeventsd so this is it.
-# hopefully this issue will go away when we update the file::changenotify module to a non-moose version
-use Moose;    # enables warnings which we DON'T want
-no warnings;
-
 # this is a little bit unfriendly, but required because mongo uses boolean::true or ::false,
 # and json::xs's silly REQUIREMENT that bools be JSON::XS::true or ::false. very annoying.
 #
@@ -73,8 +62,6 @@ no warnings;
 *boolean::TO_JSON = sub { my $x = shift; return ( boolean($x)->isTrue ? JSON::XS::true : JSON::XS::false ); };
 
 my $error_string;
-my $_no_regex    = "false";
-my $_no_auto_oid = "false";
 
 # in some spots (TTL indices) downstream code must distinguish between driver flavours,
 # so let's expose that as $OMK::DB::new_driver
@@ -1017,8 +1004,9 @@ sub get_last_error
 	return $db->last_error( {w => $write_concern} );
 }
 
-# args: and_part, no_auto_oid, or_part
+# args: and_part, no_auto_oid, no_regex, or_part
 # no_auto_oid: if true then _id is not transformed into a mongodb::oid object (e.g. in nodes collection where name used as _id)
+# if no_regex is 'true', then "regex:" is not treated specially as a column value
 #
 # ATTENTION: getquery cannot produce ORs anywhere except as a subclause of a set of ANDs!
 # so (a AND b) OR (c AND d) cannot be created! see OMK-887 for details.
@@ -1026,20 +1014,17 @@ sub get_last_error
 # returns: query structure, sanitized (blank parts are omitted)
 sub get_query
 {
-	my %arg = @_;
-	my %ret_hash;
-	my @or_hash;
-
-	my $no_auto_oid = $arg{no_auto_oid};
-	if ( defined($no_auto_oid) )
-	{
-		$_no_auto_oid = $no_auto_oid;
-		delete $arg{no_auto_oid};
-	}
+	my (%arg) = @_;
+	my (%ret_hash, @or_hash);
+	# set defaults
+	my %options = ( no_auto_oid => $arg{no_auto_oid} // 'false',
+									no_regex => $arg{no_regex} // 'false' );
+	delete $arg{no_auto_oid};
+	delete $arg{no_regex};
 
 	while ( my ( $key, $value ) = each( %{$arg{and_part}} ) )
 	{
-		my $new_query_part = get_query_part( $key, $value );
+		my $new_query_part = get_query_part( $key, $value, \%options);
 		if ( $new_query_part ne "" )
 		{
 			@ret_hash{keys %{$new_query_part}} = values %{$new_query_part};
@@ -1048,7 +1033,7 @@ sub get_query
 
 	while ( my ( $key, $value ) = each( %{$arg{or_part}} ) )
 	{
-		my $new_query_part = get_query_part( $key, $value );
+		my $new_query_part = get_query_part( $key, $value, \%options );
 		if ( $new_query_part ne "" )
 		{
 			push( @or_hash, $new_query_part );
@@ -1060,78 +1045,87 @@ sub get_query
 		$ret_hash{"\$or"} = \@or_hash;
 	}
 
-	$_no_auto_oid = "false";
-
 	return \%ret_hash;
 }
 
 # break down each key/value pair (column name and value) and map it into
-# a hash that can be passed to a query
-#  if value is not defined then the column is not added to the hash
-#  if the value is a hash, each value is checked and the ones that exist are added
-#    as a hash to that column
-# if the value is an array column is set to $in all values
-# if the column value starts with regex: then a case insenstive regex is created unless _no_regex is set
-# if the column value starts with type: then $type is used for that column
+# a hash that works as a mongodb query
+# args: name (string), value (anything), options (a hashref with no_regex, no_auto_oid )
+# returns: empty string (for omit) or a hashref
+#
+# if value is not defined or empty, then the column is not added to the hash.
+#
+# if the value is a hash, each value is checked, and the ones that exist are
+# added as a hash for that column. exception: if the key is called '$exists' or '$ne',
+# then that value is passed through as-is.
+#
+# if the value is an array, then the query is set to $in all array values
+#
+# if the value starts with "regex:" then a case insenstive regex is created unless _no_regex is set
+#
+# if the column value starts with type: then the query is rewritten as $type for that column
+#
 # if the column name is text_search then a text search for that value is run
+#
 # if column name is _id the value is turned into an oid object, unless _no_auto_oid is set
-# else key/value is used as it is
+#
+# all other cases: key/value is used as it is
+#
 sub get_query_part
 {
-	my ( $col_name, $col_value ) = @_;
-	my $ret_val  = "";
+	my ($col_name, $col_value, $options) = @_;
+	my $ret_val = "";
 	my $ret_hash = {};
+	$options ||= {};
 
-	if ( $col_value eq "" )
+	if (!defined($col_value) or  $col_value eq "" )
 	{
-
-		#don't add it
+		# don't add this column to the query
 		return "";
 	}
-	elsif ( ref($col_value) eq "HASH" )
+	elsif( ref($col_value) eq "HASH" )
 	{
-		my %hash = ();
-		while ( my ( $key, $value ) = each( %{$col_value} ) )
+		my %definedones = ();
+		while( my ($key, $value) = each(%{$col_value}) )
 		{
-			if ( defined($value) && $value ne '' )
+			# special cases for $exists and $ne: pass-through, value defined or not
+			if (($key =~ m!^\$(exists|ne)$!)
+					or (defined($value) and $value ne ''))
 			{
-				$hash{$key} = $value;
+				$definedones{$key} = $value;
 			}
 		}
-		if ( scalar( keys %hash ) > 0 )
+		if( scalar(keys %definedones) > 0 )
 		{
-			$ret_hash->{$col_name} = \%hash;
+			$ret_hash->{$col_name} = \%definedones
 		}
 	}
-	elsif ( ref($col_value) eq "ARRAY" )
+	elsif( ref($col_value) eq "ARRAY" )
 	{
-		$ret_hash->{$col_name} = {'$in' => $col_value};
+		$ret_hash->{$col_name} = { '$in' => $col_value } ;
 	}
-	elsif ( $col_value =~ /regex:(.*)/ && $_no_regex ne "true" )
+	elsif ( $col_value =~ /regex:(.*)/ && $options->{no_regex} ne "true" )
 	{
 		my $regex = $1;
-		$ret_hash->{$col_name} = {'$regex' => $regex, '$options' => 'i'};
-
+		$ret_hash->{$col_name} = { '$regex' => $regex , '$options' => 'i' } ;
 		# $ret_hash->{$col_name} = qr/$regex/;
 	}
 	elsif ( $col_value =~ /type:(.*)/ )
 	{
 		my $type = $1;
-		$ret_hash->{$col_name} = {'$type' => $type + 0};
+		$ret_hash->{$col_name} = { '$type' => $type+0 } ;
 	}
 	elsif ( $col_name eq "text_search" )
 	{
-		$ret_hash->{'$text'} = {'$search' => $col_value, '$language' => 'none'};
+		$ret_hash->{'$text'} = { '$search' => $col_value, '$language' => 'none' } ;
 	}
-	elsif ( $col_name eq "_id" && $_no_auto_oid eq "false" )
+	elsif ( $col_name eq "_id" && $options->{no_auto_oid} eq "false" )
 	{
-		if ( ref($col_value) eq "MongoDB::OID" )
-		{
+		if( ref($col_value) eq "MongoDB::OID" ) {
 			$ret_hash->{$col_name} = $col_value;
 		}
-		else
-		{
-			$ret_hash->{$col_name} = MongoDB::OID->new( value => $col_value );
+		else {
+			$ret_hash->{$col_name} = MongoDB::OID->new(value => $col_value);
 		}
 	}
 	else
@@ -1140,6 +1134,8 @@ sub get_query_part
 	}
 	return $ret_hash;
 }
+
+
 
 # args: constraints is optional, by default it will constrain, IFF given and 0 then no record munging is performed.
 # 	otherwise the record is sanitized by renaming all keys with "."

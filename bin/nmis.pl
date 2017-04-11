@@ -610,7 +610,7 @@ sub runThreads
 			dbg("Starting nmisSummary");
 
 			# NOTE!!! catchall needs to be written before this runs as it' loads the data
-			# locally, it has no $S 
+			# locally, it has no $S
 			nmisSummary() if getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
 		}
 		else
@@ -816,7 +816,7 @@ sub doUpdate
 	# this is the first time catchall is accessed, handle error here, all others will assume it works
 	my $catchall_inventory = $S->inventory(concept => 'catchall');
 	$S->nmisng->log->fatal("Failed to load catchall inventory for node:$node") && return if(!$catchall_inventory);
-	# catchall uses 'live' data which is a direct reference to the data because it's too easy to 
+	# catchall uses 'live' data which is a direct reference to the data because it's too easy to
 	# end up with stale/wrong data with all the functions using it
 	my $catchall_data = $catchall_inventory->data_live();
 
@@ -827,9 +827,9 @@ sub doUpdate
 	);
 
 	# this uses the node config loaded by init, and updates the node info table
-	# (model and nodetype set only if missing)	
+	# (model and nodetype set only if missing)
 	$S->copyModelCfgInfo( type => 'all' );
-	
+
 	my $NC = $S->ndcfg;
 
 	if ( !getbool( $nvp{force} ) )
@@ -840,7 +840,7 @@ sub doUpdate
 	# prime default values, overridden if we can find anything better
 	$catchall_data->{nodeModel} ||= 'Generic';
 	$catchall_data->{nodeType}  ||= 'generic';
-	
+
 	# if reachable then we can update the model and get rid of the default we got from init above
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if ( runPing( sys => $S ) )
@@ -1299,14 +1299,14 @@ sub doCollect
 # returns: 1 if pingable, 0 otherwise
 sub runPing
 {
-	my %args = @_;	
+	my %args = @_;
 	my $S    = $args{sys};
 	my $NI   = $S->ndinfo;    # node info
 	my $V    = $S->view;      # web view
 	my $RI   = $S->reach;     # reach table
 	my $NC   = $S->ndcfg;     # node config
 	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
-	
+
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult );
 
 	# setup log filter for getNodeInfo() - fixme why is that done here?
@@ -1439,7 +1439,7 @@ sub runPing
 	info(     "Finished with exit="
 			. ( $pingresult ? 1 : 0 )
 			. ", nodedown=$catchall_data->{nodedown} nodestatus=$catchall_data->{nodestatus}" );
-	
+
 	return ( $pingresult ? 1 : 0 );
 }
 
@@ -1684,16 +1684,16 @@ sub getNodeInfo
 
 	if ( $override->{sysLocation} )
 	{
-		$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};		
+		$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 		info("Manual update of sysLocation by nodeConf");
 	}
-	
+
 	if ( $override->{sysContact} )
 	{
-		$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};		
+		$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
 		dbg("Manual update of sysContact by nodeConf");
 	}
-	
+
 	if ( $override->{nodeType} )
 	{
 		$catchall_data->{nodeType} = $override->{nodeType};
@@ -2020,7 +2020,7 @@ sub getIntfInfo
 {
 	my %args     = @_;
 	my $S        = $args{sys};      # object
-	my $intf_one = $args{index};    # index for single interface update	
+	my $intf_one = $args{index};    # index for single interface update
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
@@ -2031,10 +2031,10 @@ sub getIntfInfo
 
 	my $V    = $S->view;
 	my $M    = $S->mdl;             # node model table
-	my $SNMP = $S->snmp;	
+	my $SNMP = $S->snmp;
 	my $NC   = $S->ndcfg;           # node config table
 	my $graphtypes = $S->ndinfo->{graphtype};
-	
+
 	my $singleInterface = 0;
 	if ( defined $intf_one and $intf_one ne "" )
 	{
@@ -2047,7 +2047,7 @@ sub getIntfInfo
 	# create the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
-	
+
 	my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
 	my $nocollect_interface_down_days
 		= $C->{global_nocollect_interface_down_days} ? $C->{global_nocollect_interface_down_days} : 30;
@@ -2822,7 +2822,7 @@ sub getIntfInfo
 			# For now, create inventory at the very end
 			# get the inventory object for this, path_keys required as we don't know what type it will be
 			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );			
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );
 			if( ref($path) eq 'ARRAY')
 			{
 				my ( $inventory, $error ) = $nmisng_node->inventory(
@@ -2838,7 +2838,7 @@ sub getIntfInfo
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 					if ($error);
 			}
-			else 
+			else
 			{
 				$nmisng->log->error("Failed to create path for inventory, error:$path");
 			}
@@ -3036,7 +3036,7 @@ sub getEnvInfo
 	my %args = @_;
 	my $S    = $args{sys};    # object
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	
+
 	if ( !$S->status->{snmp_enabled} )
 	{
 		info("Not performing getEnvInfo for $S->{name}: SNMP not enabled for this node");
@@ -3150,14 +3150,14 @@ sub getEnvInfo
 				my ( $op, $error ) = $inventory->save();
 				$S->nmisng->log->error(
 					"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-					if ($error);					
+					if ($error);
 			}
 			else
 			{
 				my $error = $S->status->{snmp_error};
 				HandleNodeDown( sys => $S, type => "snmp", details => "get environment table index $index" );
 			}
-		}		
+		}
 		NMISNG::Util::TODO('# NEED TO DISABLE / CLEAN UP UNUSED HERE');
 	}
 
@@ -3253,7 +3253,7 @@ sub getSystemHealthInfo
 {
 	my %args = @_;
 	my $S    = $args{sys};    # object
-	
+
 	my $V    = $S->view;
 	my $SNMP = $S->snmp;
 	my $M    = $S->mdl;           # node model table
@@ -3289,7 +3289,7 @@ sub getSystemHealthInfo
 	for my $section (@healthSections)
 	{
 		# TODO:
-		NMISNG::Util::TODO("Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");		
+		NMISNG::Util::TODO("Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");
 		# make sure NI is cleaned up
 		delete $S->ndinfo->{$section};
 
@@ -3425,7 +3425,7 @@ sub getSystemHealthInfo
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);					
+						if ($error);
 				}
 				else
 				{
@@ -3527,7 +3527,7 @@ sub getSystemHealthInfo
 					my ( $op, $error ) = $inventory->save();
 					$nmisng->log->error(
 						"Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-						if ($error);					
+						if ($error);
 				}
 				else
 				{
@@ -4037,7 +4037,7 @@ sub getIntfData
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	
+
 	if ( !$S->status->{snmp_enabled} )
 	{
 		info("Not performing getIntfData for $S->{name}: SNMP not enabled for this node");
@@ -4071,19 +4071,19 @@ sub getIntfData
 
 	# find all id's that are needed for the first section of searching
 	my $model_data = $nmisng->get_inventory_model(
-		'concept' => 'interface', 
+		'concept' => 'interface',
 		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid, 
-		fields_hash => { 
-			'_id' => 1, 
+		'node_uuid' => $nmisng_node->uuid,
+		fields_hash => {
+			'_id' => 1,
 			'data.collect' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifDescr' => 1,
-			'data.ifIndex' => 1,			
+			'data.ifIndex' => 1,
 			'data.ifLastChange' => 1,
 		}
 	);
-	
+
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
@@ -4102,7 +4102,7 @@ sub getIntfData
 
 		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
-			$ifOperTable = $SNMP->getindex('ifOperStatus');			
+			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index ( keys %{$ifAdminTable} )
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table")
@@ -4146,7 +4146,7 @@ sub getIntfData
 				else
 				{
 					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec") if( !exists($if_data_map{$index}) );
-					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}") 
+					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}")
 						if($ifLastChangeSec != $if_data_map{$index}->{ifLastChangeSec}); # don't care about vivify here
 					getIntfInfo( sys => $S, index => $index );    # add/update this interface
 					# $IF->{$index}{ifLastChangeSec} = $ifLastChangeSec; # the update should do this automatically
@@ -4184,9 +4184,9 @@ sub getIntfData
 			);
 			next;
 		}
-		
-		
-		
+
+
+
 		info(
 			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was => OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
 		);
@@ -4480,7 +4480,7 @@ sub getIntfData
 sub getCBQoS
 {
 	my %args = @_;
-	my $S    = $args{sys};	
+	my $S    = $args{sys};
 	my $NC   = $S->ndcfg;
 
 	if ( $NC->{node}{cbqos} !~ /true|input|output|both/ )
@@ -4512,8 +4512,8 @@ sub getCBQoS
 sub getCBQoSdata
 {
 	my %args  = @_;
-	my $S     = $args{sys};	
-		
+	my $S     = $args{sys};
+
 	my $ids = $S->nmisng_node->get_inventory_ids(concept => 'cbqos');
 	return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
 
@@ -4639,11 +4639,11 @@ sub getCBQoSwalk
 		my $nmisng = $S->nmisng;
 		my $nmisng_node = $S->nmisng_node;
 		my $model_data = $nmisng->get_inventory_model(
-			'concept' => 'interface', 
+			'concept' => 'interface',
 			'cluster_id' => $nmisng_node->cluster_id,
-			'node_uuid' => $nmisng_node->uuid, 
-			fields_hash => { 
-				'_id' => 1, 
+			'node_uuid' => $nmisng_node->uuid,
+			fields_hash => {
+				'_id' => 1,
 				'data.collect' => 1,
 				'data.ifAdminStatus' => 1,
 				'data.ifDescr' => 1,
@@ -4654,7 +4654,7 @@ sub getCBQoSwalk
 				'data.setlimits' => 1
 			}
 		);
-		
+
 		my $data = $model_data->data();
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
@@ -4664,10 +4664,10 @@ sub getCBQoSwalk
 		{
 			my $intf = $ifIndexTable->{$PIndex};    # the interface number from the snmp qos table
 			info("CBQoS, scan interface $intf");
-			$nmisng->log->warn("CBQoS ifIndex $intf found which is not in inventory") && next 
+			$nmisng->log->warn("CBQoS ifIndex $intf found which is not in inventory") && next
 				if( !defined($if_data_map{$intf}) );
 			my $if_data = $if_data_map{$intf};
-			
+
 			### 2014-03-27 keiths, skipping CBQoS if not collecting data
 			if ( getbool( $if_data->{collect}, "invert" ) )
 			{
@@ -4930,13 +4930,13 @@ sub getCBQoSwalk
 			{
 				dbg("No collect requested in Node table");
 			}
-		
+
 		}
 		delete $S->{info}{cbqos};    # remove old info
 		if ( scalar( keys %{$ifIndexTable} ) )
 		{
 			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
-			
+
 			# $S->{info}{cbqos} = \%cbQosTable;
 
 			# cbqos info structure is a tad different from interfaces, but the rrds also need tuning
@@ -4946,11 +4946,11 @@ sub getCBQoSwalk
 			{
 				my $thisqosinfo = $cbQosTable{$index};
 				$thisqosinfo->{index} = $index;
-				
+
 				# create inventory entry, data is not changed below so do it here,
 				# add index entry for now, may want to modify this later, or create a specialised Inventory class
 				my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-				my $path = $nmisng_node->inventory_path( concept => 'cbqos', data => $thisqosinfo, path_keys => $path_keys );			
+				my $path = $nmisng_node->inventory_path( concept => 'cbqos', data => $thisqosinfo, path_keys => $path_keys );
 				if( ref($path) eq 'ARRAY')
 				{
 					my ( $inventory, $error ) = $nmisng_node->inventory(
@@ -5252,15 +5252,15 @@ sub getCallswalk
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
 	my $model_data = $nmisng->get_inventory_model(
-		'concept' => 'interface', 
+		'concept' => 'interface',
 		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid, 
-		fields_hash => { 
-			'_id' => 1, 
+		'node_uuid' => $nmisng_node->uuid,
+		fields_hash => {
+			'_id' => 1,
 			'data.collect' => 1,
 			'data.ifAdminStatus' => 1,
 			'data.ifDescr' => 1,
-			'data.ifIndex' => 1,			
+			'data.ifIndex' => 1,
 			'data.ifSpeed' => 1,
 			'data.ifSpeedIn' => 1,
 			'data.ifSpeedOut' => 1,
@@ -5504,8 +5504,8 @@ sub getPVC
 				$snmpTable{$port}{$pvc}{State}{option}          = "gauge,0:U";
 				my $key = "${port}-${pvc}";
 
-				if (my $db = $S->create_update_rrd( data => \%{$snmpTable{$port}{$pvc}}, 
-																						type => "pvc", 
+				if (my $db = $S->create_update_rrd( data => \%{$snmpTable{$port}{$pvc}},
+																						type => "pvc",
 																						item => $key ))
 				{
 					$graphtypes->{$key}{pvc} = 'pvc';
@@ -5833,29 +5833,29 @@ sub runServer
 					}
 					# storage type not recognized?
 					else
-					{						
+					{
 						$inventory->historic(1) if($inventory);
 					}
 				}
 				if( !$inventory )
 				{
 					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
-					($inventory,$error) = $S->nmisng_node->inventory( 
-						concept => 'storage', 
+					($inventory,$error) = $S->nmisng_node->inventory(
+						concept => 'storage',
 						data => $storage_target,
-						path => $path, 
+						path => $path,
 						path_keys => ['index'],
-						create => 1 
+						create => 1
 					);
 					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
-				}				
+				}
 				($op,$error) = $inventory->save() if($inventory);
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
 			elsif( $oldstorage )
 			{
 				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
-				# nothing needs to be done here, storage target is the data from last time so it's already in db				
+				# nothing needs to be done here, storage target is the data from last time so it's already in db
 				# maybe mark it historic?
 			}
 		}
@@ -6682,7 +6682,7 @@ sub runServices
 		$status{$service}->{server} = $C->{server_name};
 
 		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service, 
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service,
 																															$NI->{system}->{uuid} );
 
 		$status{$service}->{description} ||= $ST->{$service}->{Description};    # but that's free-form
@@ -6699,7 +6699,7 @@ sub runServices
 			uuid        => $status{$service}->{uuid},
 			node => $status{$service}->{node}, # not required but doesn't hurt
 		};
-		
+
 		my ($inventory, $error) = $nmisng_node->inventory(
 			concept => "service",
 			data    => $data,
@@ -6707,9 +6707,9 @@ sub runServices
 				);
 		die "failed to create or load inventory!\n" if (!$inventory);
 
-		
-		my $fullpath = $S->create_update_rrd( data => \%Val, 
-																					type => "service", 
+
+		my $fullpath = $S->create_update_rrd( data => \%Val,
+																					type => "service",
 																					item => $service,
 																					inventory => $inventory );
 		logMsg( "ERROR updateRRD failed: " . getRRDerror() ) if (!$fullpath);
@@ -6719,24 +6719,24 @@ sub runServices
 		# not $fullpath as returned by create_update_rrd...
 		my $dbname = $inventory->find_subconcept_type_storage(subconcept => "service",
 																													type => "rrd");
-		
+
 		# check what custom graphs exist for this service
 		# file naming scheme: Graph-service-custom-<servicename>-<sometag>.nmis,
 		# and servicename gets lowercased and reduced to [a-z0-9\._]
 		# note: this schema is known here, and in cgi-bin/services.pl
 		my $safeservice = lc($service);
 		$safeservice =~ s/[^a-z0-9\._]//g;
-		
+
 		opendir( D, $C->{'<nmis_models>'} ) or die "cannot open models dir: $!\n";
 		my @cands = grep( /^Graph-service-custom-$safeservice-[a-z0-9\._-]+\.nmis$/, readdir(D) );
 		closedir(D);
-		
+
 		map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
 		dbg( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
-		
+
 		$status{$service}->{customgraphs} = \@cands;
 		push @servicegraphs, @cands;
-		
+
 		# now record the right storage subconcept-to-filename set in the inventory
 		my $knownones = $inventory->storage; # there's at least the main subconcept 'service'
 		for my $maybegone (keys %$knownones)
@@ -6751,7 +6751,7 @@ sub runServices
 			# add or update
 			$inventory->set_subconcept_type_storage(type => "rrd", subconcept => $maybenew, data => $dbname);
 		}
-		
+
 		if ($gotMemCpu)
 		{
 			# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
@@ -6762,11 +6762,11 @@ sub runServices
 			{
 				my $stepsize   = $infohash->{step};
 				my $lastupdate = $infohash->{last_update};
-				
+
 				$status{$service}->{cpu} = $cpuval / ( $lastupdate % $stepsize ) if ( $lastupdate % $stepsize );
 			}
 		}
-	
+
 		# now update the per-service status file
 		my $error = saveServiceStatus( service => $status{$service} );
 		# and update the inventory data
@@ -6801,7 +6801,7 @@ sub runServices
 sub runAlerts
 {
 	my %args = @_;
-	my $S    = $args{sys};	
+	my $S    = $args{sys};
 	my $M    = $S->mdl;
 	my $CA   = $S->alerts;
 
@@ -6973,7 +6973,7 @@ sub runAlerts
 				}
 			}
 		}
-	
+
 	}
 
 	processAlerts( S => $S );
@@ -6988,7 +6988,7 @@ sub runAlerts
 sub runCheckValues
 {
 	my %args = @_;
-	my $S    = $args{sys};	
+	my $S    = $args{sys};
 	my $M    = $S->mdl;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
@@ -7610,7 +7610,7 @@ sub runReach
 
 #=========================================================================================
 
-# this generates the data for nmis-interfaces.json, 
+# this generates the data for nmis-interfaces.json,
 # NOTE: this should not be required for NMISNG
 sub getIntfAllInfo
 {
@@ -7644,10 +7644,10 @@ sub getIntfAllInfo
 			logMsg("INFO empty interface info file of node $node_name") if(!$ids || @$ids < 1);
 			foreach my $id ( @$ids )
 			{
-				my ($inventory,$error_message) = $nmisng_node->inventory( _id => $id );				
-						
+				my ($inventory,$error_message) = $nmisng_node->inventory( _id => $id );
+
 				$nmisng->log->error("Failed to get inventory, error_message:$error_message") && next
-					if(!$inventory);					
+					if(!$inventory);
 
 				my $data = $inventory->data();
 				$tmpDesc = &convertIfName( $data->{ifDescr} );
@@ -7687,7 +7687,7 @@ sub getIntfAllInfo
 					}
 				}
 			}
-		
+
 		}
 	}    # foreach $linkname
 	     # Write the interface table out.
@@ -8457,7 +8457,7 @@ LABEL_ESC:
 			# when escalation hits 10 they could auto delete?
 			# core, distrib and access could escalate at different rates.
 
-			# note - all sent to lowercase here to get a match			
+			# note - all sent to lowercase here to get a match
 			# my $NI = loadNodeInfoTable( $thisevent->{node}, suppress_errors => 1 );
 
 			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
@@ -10040,7 +10040,7 @@ sub doSummaryBuild
 				next if ( !$S->init( name => $nd, snmp => 'false' ) );
 			}
 
-			my $M  = $S->mdl;       # model ref			
+			my $M  = $S->mdl;       # model ref
 			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 			next if getbool( $catchall_data->{nodedown} );
@@ -10059,6 +10059,7 @@ sub doSummaryBuild
 
 				# check whether this is an indexed section, ie. whether there are multiple instances with
 				# their own indices
+				# fixme: this is wrong, $tp should be either graphtype OR section
 				my @instances = $S->getTypeInstances( graphtype => $tp, section => $tp );
 				if (@instances)
 				{
@@ -10135,7 +10136,7 @@ sub doSummaryBuild
 					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
 				}
 
-				# this could maybe use the model and get collect right away as that's 
+				# this could maybe use the model and get collect right away as that's
 				# all it seems to be used for right now
 				my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
 				# get all collected interfaces
@@ -10267,7 +10268,8 @@ sub doThreshold
 				else
 				{
 			  # this can be misleading, b/c not everything updates the instance index -> graphtype association reliably,
-			  # so you could get an instance index that's long gone...
+					# so you could get an instance index that's long gone...
+					# fixme: this is wrong, type should be either given as graphtype or as section
 					my @instances = $S->getTypeInstances( graphtype => $type, section => $type );
 					dbg( "threshold instances=" . ( join( ", ", @instances ) || "none" ) );
 
