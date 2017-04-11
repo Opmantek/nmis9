@@ -911,6 +911,7 @@ sub doUpdate
 		= runReach( sys => $S, delayupdate => 1 );    # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
 	$S->writeNodeInfo;                                # save node info in file var/$NI->{name}-node.xxxx
+	$catchall_inventory->save();											# ensure the plugins don't end up with utterly stale data
 
 	# done with the standard work, now run any plugins that offer update_plugin()
 	for my $plugin (@active_plugins)
@@ -934,6 +935,7 @@ sub doUpdate
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
 			$S->writeNodeInfo;
+			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
@@ -1111,7 +1113,8 @@ sub doCollect
 	}
 
 	my $configuration = $S->nmisng_node->configuration();
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $catchall_data = $catchall_inventory->data_live();
 
 	dbg( "node=$name "
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
@@ -1239,6 +1242,7 @@ sub doCollect
 
 	$S->writeNodeView;
 	$S->writeNodeInfo;
+	$catchall_inventory->save();
 
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin (@active_plugins)
@@ -1262,6 +1266,7 @@ sub doCollect
 			dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
 			$S->writeNodeInfo;
+			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
