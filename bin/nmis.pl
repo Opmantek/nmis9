@@ -854,10 +854,10 @@ sub doUpdate
 			max_msg_size => $C->{snmp_max_msg_size},
 
 			# how many oids/pdus per bulk request, or let net::snmp guess a value
-			max_repetitions => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+			max_repetitions => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
 
 			# how many oids per simple get request (for getarray), or default (no guessing)
-			oidpkt => $catchall_inventory->{max_repetitions} || $C->{snmp_max_repetitions} || 10
+			oidpkt => $catchall_data->{max_repetitions} || $C->{snmp_max_repetitions} || 10
 		) if ( $S->status->{snmp_enabled} );
 
 		# failed already?
@@ -904,7 +904,7 @@ sub doUpdate
 			}
 		}
 		$S->close;    # close snmp session if one is open
-		$catchall_inventory->{lastUpdatePoll} = time();
+		$catchall_data->{lastUpdatePoll} = time();
 	}
 
 	my $reachdata
@@ -969,7 +969,7 @@ sub doUpdate
 	if ( defined $C->{log_polling_time} and getbool( $C->{log_polling_time} ) )
 	{
 
-		logMsg("Poll Time: $name, $catchall_inventory->{nodeModel}, $updatetime");
+		logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $updatetime");
 	}
 
 	$catchall_inventory->save();
@@ -1352,19 +1352,10 @@ sub runPing
 			my $host = $NC->{node}{host};          # ip name/adress of node
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
-
-			# fixme: invalid condition, root is generally NOT required for ping anymore!
-			if ($<)
-			{
-				# not root and update, assume called from www interface
-				$pingresult = 100;
-				dbg("SKIPPING Pinging as we are NOT running with root privileges");
-			}
-			else
-			{
-				( $ping_min, $ping_avg, $ping_max, $ping_loss ) = ext_ping( $host, $packet, $retries, $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
-			}
+			
+			( $ping_min, $ping_avg, $ping_max, $ping_loss ) = ext_ping( $host, $packet, $retries, $timeout );
+			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
+			
 		}
 
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
@@ -6832,7 +6823,7 @@ sub runServices
 		}
 
 		# now update the per-service status file
-		my $error = saveServiceStatus( service => $status{$service} );
+		$error = saveServiceStatus( service => $status{$service} );
 		# and update the inventory data
 		if ($inventory)
 		{

@@ -146,7 +146,7 @@ sub inventory
 	}
 	else
 	{
-		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path");
+		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path") if (!$nolog);
 	}
 
 	$self->{_inventory_cache}{$concept} = $inventory
@@ -1647,7 +1647,7 @@ sub prep_extras_with_catchalls
 		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
 	{
 		my $data;
-		my $storage_inventory = $self->inventory(concept => 'storage', index => $index);
+		my $storage_inventory = $self->inventory(concept => 'storage', index => $index, nolog => 1);
 		$data = $storage_inventory->data() if( $storage_inventory );
 
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
@@ -1662,7 +1662,7 @@ sub prep_extras_with_catchalls
 	# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 	if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
 	{		
-		my $interface_inventory = $self->inventory(concept => 'interface', index => $index);
+		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1);
 		if( $interface_inventory )
 		{
 			# no fallback to info section as interface update is running
@@ -1679,7 +1679,7 @@ sub prep_extras_with_catchalls
 
 			$data = {};
 			$data = $self->{info}{entPhysicalDescr}{$index} if( defined $self->{info}{entPhysicalDescr} && defined $self->{info}{entPhysicalDescr}{$index} );
-			my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index);
+			my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index, nolog => 1);
 			$data = $entPhysicalDescr_inventory->data() if($entPhysicalDescr_inventory);
 			$extras->{entPhysicalDescr} = $data->{entPhysicalDescr} // undef;
 		}
@@ -1718,7 +1718,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value		
 	if ( $sect )
 	{
-		my $inventory = $self->inventory( concept => $sect, index => $indx );
+		my $inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;
