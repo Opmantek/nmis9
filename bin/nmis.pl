@@ -964,6 +964,7 @@ sub doUpdate
 	}
 	$S->close;
 
+	$catchall_inventory->save();
 	releasePollLock( handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name );
 
 	if ( defined $C->{log_polling_time} and getbool( $C->{log_polling_time} ) )
@@ -971,9 +972,6 @@ sub doUpdate
 
 		logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $updatetime");
 	}
-
-	$catchall_inventory->save();
-
 	info("Finished");
 	return;
 }
@@ -1289,6 +1287,7 @@ sub doCollect
 	}
 	$S->close;
 
+	$catchall_inventory->save();
 	releasePollLock( handle => $lockHandle, type => "collect", conf => $C->{conf}, node => $name );
 
 	if ( getbool( $C->{log_polling_time} ) )
