@@ -1671,7 +1671,7 @@ sub getNodeInfo
 		else                      # fixme unclear why this reaction to failed getnodeinfo?
 		{
 			# load the model prev found
-			$S->loadModel( model => "Model-$NI->{system}{nodeModel}" ) if ( $catchall_data->{nodeModel} ne '' );
+			$S->loadModel( model => "Model-$catchall_data->{nodeModel}" ) if ( $catchall_data->{nodeModel} ne '' );
 		}
 	}
 	else
@@ -3190,11 +3190,12 @@ sub getEnvData
 	my $NI = $S->ndinfo;      # node info table
 	my $V  = $S->view;
 	my $M  = $S->mdl;         # node model table
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
 
 	dbg("Starting");
-	dbg("Get Environment Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	dbg("Get Environment Data of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 	if ( ref( $M->{environment} ) ne "HASH" or !keys %{$M->{environment}} )
 	{
@@ -3205,11 +3206,11 @@ sub getEnvData
 	# fixme hardcoded model names are bad
 	my @wantsections = ('env_temp');
 
-	if ( $NI->{system}{nodeModel} =~ /AKCP-Sensor/i )
+	if ( $catchall_data->{nodeModel} =~ /AKCP-Sensor/i )
 	{
 		@wantsections = ( 'akcp_temp', 'akcp_hum' );
 	}
-	elsif ( $NI->{system}{nodeModel} =~ /CiscoCSS/i )
+	elsif ( $catchall_data->{nodeModel} =~ /CiscoCSS/i )
 	{
 		@wantsections = ( 'cssgroup', 'csscontent' );
 	}
@@ -3248,7 +3249,7 @@ sub getEnvData
 			}
 			else
 			{
-				logMsg("ERROR ($NI->{system}{name}) on getEnvData, $anyerror");
+				logMsg("ERROR ($catchall_data->{name}) on getEnvData, $anyerror");
 				HandleNodeDown( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 					if ( $howdiditgo->{snmp_error} );
 				HandleNodeDown( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
@@ -3582,9 +3583,10 @@ sub getSystemHealthData
 	# create the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	info("Starting");
-	info("Get systemHealth Data of node $NI->{system}{name}, model $NI->{system}{nodeModel}");
+	info("Get systemHealth Data of node $catchall_data->{name}, model $catchall_data->{nodeModel}");
 
 	if ( !exists( $M->{systemHealth} ) )
 	{
@@ -3682,8 +3684,8 @@ sub getSystemHealthData
 			}
 			else
 			{
-				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
-				info("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
+				logMsg("ERROR ($catchall_data->{name}) on getSystemHealthData, $section, $index, $anyerror");
+				info("ERROR ($catchall_data->{name}) on getSystemHealthData, $section, $index, $anyerror");
 				HandleNodeDown( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 					if ( $howdiditgo->{snmp_error} );
 				HandleNodeDown( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} )
@@ -3713,20 +3715,21 @@ sub updateNodeInfo
 	my $M    = $S->mdl;
 	my $result;
 	my $exit = 1;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	info("Starting Update Node Info, node $S->{name}");
 
 	# clear the node reset indication from the last run
-	$NI->{system}->{node_was_reset} = 0;
+	$catchall_data->{node_was_reset} = 0;
 
 	# save what we need now for check of this node
-	my $sysObjectID  = $NI->{system}{sysObjectID};
-	my $ifNumber     = $NI->{system}{ifNumber};
-	my $sysUpTimeSec = $NI->{system}{sysUpTimeSec};
-	my $sysUpTime    = $NI->{system}{sysUpTime};
+	my $sysObjectID  = $catchall_data->{sysObjectID};
+	my $ifNumber     = $catchall_data->{ifNumber};
+	my $sysUpTimeSec = $catchall_data->{sysUpTimeSec};
+	my $sysUpTime    = $catchall_data->{sysUpTime};
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
-	my $loadsuccess = $S->loadInfo( class => 'system', model => $model, target => $NI->{system} );
+	my $loadsuccess = $S->loadInfo( class => 'system', model => $model, target => $catchall_data );
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
@@ -3756,10 +3759,10 @@ sub updateNodeInfo
 		# however, ensure this is not attempted if snmp wasn't configured or didn't work anyway
 		if (   $S->status->{snmp_enabled}
 			&& !$S->status->{snmp_error}
-			&& $sysObjectID ne $NI->{system}{sysObjectID} )
+			&& $sysObjectID ne $catchall_data->{sysObjectID} )
 		{
 			# fixme: who not a complete doUpdate?
-			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
+			logMsg("INFO ($catchall_data->{name}) Device type/model changed $sysObjectID now $catchall_data->{sysObjectID}");
 			$exit = getNodeInfo( sys => $S );
 			info("Finished with exit=$exit");
 			return $exit;
@@ -3774,10 +3777,10 @@ sub updateNodeInfo
 				&& !getbool( $S->{mdl}->{custom}->{interface}->{ifNumber} )
 		);
 
-		if ( $doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber} )
+		if ( $doIfNumberCheck and $ifNumber != $catchall_data->{ifNumber} )
 		{
 			logMsg(
-				"INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
+				"INFO ($catchall_data->{name}) Number of interfaces changed from $ifNumber now $catchall_data->{ifNumber}");
 			getIntfInfo( sys => $S );                                                      # get new interface table
 		}
 
@@ -3785,48 +3788,48 @@ sub updateNodeInfo
 		if ( $ifNumber > $interface_max_number )
 		{
 			info(
-				"INFO ($NI->{system}{name}) has $ifNumber interfaces, no interface data will be collected, to collect interface data increase the configured interface_max_number $interface_max_number, we recommend to test thoroughly"
+				"INFO ($catchall_data->{name}) has $ifNumber interfaces, no interface data will be collected, to collect interface data increase the configured interface_max_number $interface_max_number, we recommend to test thoroughly"
 			);
 		}
 
 		# make a sysuptime from the newly loaded data for testing
 		makesysuptime($S);
 
-		if ( defined $NI->{system}{snmpUpTime} )
+		if ( defined $catchall_data->{snmpUpTime} )
 		{
 			# add processing for SNMP Uptime- handle just like sysUpTime
-			$NI->{system}{snmpUpTimeSec}   = int( $NI->{system}{snmpUpTime} / 100 );
-			$NI->{system}{snmpUpTime}      = convUpTime( $NI->{system}{snmpUpTimeSec} );
-			$V->{system}{snmpUpTime_value} = $NI->{system}{snmpUpTime};
+			$catchall_data->{snmpUpTimeSec}   = int( $catchall_data->{snmpUpTime} / 100 );
+			$catchall_data->{snmpUpTime}      = convUpTime( $catchall_data->{snmpUpTimeSec} );
+			$V->{system}{snmpUpTime_value} = $catchall_data->{snmpUpTime};
 			$V->{system}{snmpUpTime_title} = 'SNMP Uptime';
 		}
 
-		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
-		if ( $NI->{system}->{sysUpTimeSec} && $sysUpTimeSec > $NI->{system}{sysUpTimeSec} )
+		info("sysUpTime: Old=$sysUpTime New=$catchall_data->{sysUpTime}");
+		if ( $catchall_data->{sysUpTimeSec} && $sysUpTimeSec > $catchall_data->{sysUpTimeSec} )
 		{
-			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
+			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$catchall_data->{sysUpTimeSec}");
 			notify(
 				sys     => $S,
 				event   => "Node Reset",
 				element => "",
-				details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}",
+				details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$catchall_data->{sysUpTime}",
 				context => {type => "node"}
 			);
 
 			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
 			# so that no spikes appear in the graphs
-			$NI->{system}{node_was_reset} = 1;
+			$catchall_data->{node_was_reset} = 1;
 		}
 
-		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
+		$V->{system}{sysUpTime_value} = $catchall_data->{sysUpTime};
 		$V->{system}{sysUpTime_title} = 'Uptime';
 
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec}   = time();
+		$catchall_data->{lastUpdateSec}   = time();
 
 		# get and apply any nodeconf override if such exists for this node
-		my $node = $NI->{system}{name};
+		my $node = $catchall_data->{name};
 		my ( $errmsg, $override ) = get_nodeconf( node => $node )
 			if ( has_nodeconf( node => $node ) );
 		logMsg("ERROR $errmsg") if $errmsg;
@@ -3835,20 +3838,20 @@ sub updateNodeInfo
 		# anything to override?
 		if ( $override->{sysLocation} )
 		{
-			$NI->{nodeconf}{sysLocation} = $NI->{system}{sysLocation};
-			$NI->{system}{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
+			$NI->{nodeconf}{sysLocation} = $catchall_data->{sysLocation};
+			$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 			info("Manual update of sysLocation by nodeConf");
 		}
 		if ( $override->{sysContact} )
 		{
-			$NI->{nodeconf}{sysContact} = $NI->{system}{sysContact};
-			$NI->{system}{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
+			$NI->{nodeconf}{sysContact} = $catchall_data->{sysContact};
+			$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
 			info("Manual update of sysContact by nodeConf");
 		}
 
 		if ( $override->{nodeType} )
 		{
-			$NI->{system}->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
+			$catchall_data->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
 		}
 		else
 		{
@@ -3889,7 +3892,7 @@ sub updateNodeInfo
 	if ($model)
 	{
 		print
-			"MODEL $S->{name}: nodedown=$NI->{system}{nodedown} sysUpTime=$NI->{system}{sysUpTime} sysObjectID=$NI->{system}{sysObjectID}\n";
+			"MODEL $S->{name}: nodedown=$catchall_data->{nodedown} sysUpTime=$catchall_data->{sysUpTime} sysObjectID=$catchall_data->{sysObjectID}\n";
 	}
 
 	info("Finished with exit=$exit");
@@ -3971,7 +3974,7 @@ sub getNodeData
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();	
 
 	info("Starting Node get data, node $S->{name}");
 
@@ -4000,7 +4003,7 @@ sub getNodeData
 	}
 	else
 	{
-		logMsg("ERROR ($NI->{system}{name}) on getNodeData, $anyerror");
+		logMsg("ERROR ($catchall_data->{name}) on getNodeData, $anyerror");
 		HandleNodeDown( sys => $S, type => "snmp", details => $howdiditgo->{snmp_error} )
 			if ( $howdiditgo->{snmp_error} );
 		HandleNodeDown( sys => $S, type => "wmi", details => $howdiditgo->{wmi_error} ) if ( $howdiditgo->{wmi_error} );
@@ -4020,7 +4023,6 @@ sub checkNodeHealth
 	my %args = @_;
 	my $S    = $args{sys};
 	my $D    = $args{data};
-	my $NI   = $S->ndinfo;
 	my $RI   = $S->reach;
 
 	info("Starting, node $S->{name}");
