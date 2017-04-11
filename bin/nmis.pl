@@ -5633,7 +5633,7 @@ sub runServer
 		$S->loadInfo( class => 'device_global', model => $model, target => $overall_target );    # get cpu load without index
 
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
-		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => [], data => $overall_target, create => 1 );
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device_global', path => $path, path_keys => [], data => $overall_target, create => 1 );
 		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);	
 		if($inventory) 
 		{
