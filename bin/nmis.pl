@@ -3422,8 +3422,7 @@ sub getSystemHealthInfo
 
 					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
 					# so use 'index' for now.
-					# loadInfo always sets {index}, sadly it doesn't always come out of loadInfo correct so do it again
-					$target->{index} = $target->{$index_var};
+					# loadInfo always sets {index}
 					# my $path_keys = [$index_var];
 					my $path_keys = ['index'];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
@@ -3463,7 +3462,10 @@ sub getSystemHealthInfo
 			info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
 			my ( %healthIndexNum, $healthIndexTable );
 
-			my $target = {};
+			# first loop gets the index we want to use out of the oid
+			# so we need to keep a map of index => target
+			# potientially these two loops could be merged.
+			my $targets = {};
 			if ( $healthIndexTable = $SNMP->gettable($index_snmp) )
 			{
 				# dbg("systemHealth: table is ".Dumper($healthIndexTable) );
@@ -3476,9 +3478,7 @@ sub getSystemHealthInfo
 					}
 					$healthIndexNum{$index} = $index;
 					dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
-					$target->{$index_var} = $healthIndexTable->{$oid};
-
-					# $NI->{$section}->{$index}->{$index_var} = $healthIndexTable->{$oid};
+					$targets->{$index}{$index_var} = $healthIndexTable->{$oid};
 				}
 			}
 			else
@@ -3502,9 +3502,8 @@ sub getSystemHealthInfo
 			# Loop to get information, will be stored in {info}{$section} table
 			foreach my $index ( sort keys %healthIndexNum )
 			{
-				# Inventory note: for now Sys will populate the nodeinfo section it cares about
-				# afer successful load we'll delete it. in the future loadinfo should maybe be passed
-				# the location we want the data to go
+				my $target = $targets->{$index};
+				# we pass loadInfo a hash to fill in, then put that into the inventory data
 				if ($S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
@@ -3522,9 +3521,8 @@ sub getSystemHealthInfo
 		
 					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
 					# so use 'index' for now.
-					# loadInfo always sets {index}, sadly it doesn't always come out of loadInfo correct so do it again
-					$target->{index} = $target->{$index_var};
-					# my $path_keys = [$index_var];
+					# loadInfo always sets {index}, which is potentially the oid part and not the value of the oid, eg. how fanStatus works
+					
 					my $path_keys = ['index'];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 
@@ -3640,7 +3638,7 @@ sub getSystemHealthData
 			}
 
 			# value should be in $index_var, loadInfo also puts it in {index} so fall back to that
-			my $index = $data->{$index_var} // $data->{index};
+			my $index = $data->{index};
 
 			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, debug => $model );
 			my $howdiditgo = $S->status;

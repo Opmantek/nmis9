@@ -597,7 +597,7 @@ sub loadInfo
 				dbg("MODEL section=$sect") if $wantdebug;
 				print "  MODEL section=$sect\n" if $dmodel;
 				### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
-				if ( !$target->{index} )
+				if ( $target->{index} eq '' )
 				{
 					$target->{index} = $index;
 				}
@@ -1117,8 +1117,8 @@ sub getValues
 			# replace table: replace with known value, or 'unknown' fallback, or leave unchanged
 			if ( ref( $sectiondetails->{replace} ) eq "HASH" )
 			{
-				my $reptable = $sectiondetails->{replace};
 
+				my $reptable = $sectiondetails->{replace};
 				$value = (
 					  exists( $reptable->{$value} )  ? $reptable->{$value}
 					: exists( $reptable->{unknown} ) ? $reptable->{unknown}
@@ -1677,11 +1677,6 @@ sub prep_extras_with_catchalls
 			$extras->{maxBytes}    = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 4 ) : 'U';
 			$extras->{maxPackets}  = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 50 ) : 'U';
 
-			$data = {};
-			$data = $self->{info}{entPhysicalDescr}{$index} if( defined $self->{info}{entPhysicalDescr} && defined $self->{info}{entPhysicalDescr}{$index} );
-			my $entPhysicalDescr_inventory = $self->inventory(concept => 'entPhysicalDescr', index => $index, nolog => 1);
-			$data = $entPhysicalDescr_inventory->data() if($entPhysicalDescr_inventory);
-			$extras->{entPhysicalDescr} = $data->{entPhysicalDescr} // undef;
 		}
 	}
 	else
