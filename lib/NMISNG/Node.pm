@@ -43,9 +43,12 @@ use Data::Dumper;
 use NMISNG::DB;
 use NMISNG::Inventory;
 
+# create a new node object
 # params:
-#   id - required
-#   nmisng - NMISNG object, required for model loading, config and log
+#   uuid - required
+#   nmisng - NMISNG object, required ( for model loading, config and log)
+#   id or _id - optional db id
+# note: you must call one of the accessors to update the object before it can be saved!
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -165,6 +168,8 @@ sub get_inventory_ids
 # the DefaultInventory class will be used/returned.
 # if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function
+# args:
+# returns: (inventory object, undef) or (undef, error message)
 sub inventory
 {
 	my ( $self, %args ) = @_;
@@ -193,7 +198,7 @@ sub inventory
 
 	if ( $modeldata->count() > 0 )
 	{
-		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args)) 
+		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
 			if($modeldata->count() > 1);
 		my $model = $modeldata->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
@@ -336,6 +341,8 @@ sub save
 {
 	my ($self) = @_;
 
+	return ( -1, "node is incomplete, not saveable yet" )
+			if ($self->is_new && !$self->_dirty);
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
 	my ( $valid, $validation_error ) = $self->validate();
