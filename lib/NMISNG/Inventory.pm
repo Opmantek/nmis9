@@ -39,6 +39,7 @@ our $VERSION = "1.0.0";
 use Clone;											# for copying data and other r/o sections
 use Scalar::Util;								# for weaken
 use Data::Dumper;
+use Time::HiRes;
 use Carp;
 
 use NMISNG::DB;
@@ -63,15 +64,16 @@ sub get_inventory_class
 # note: the object is always strictly associated with a node_uuid and a cluster_id
 # this method is expected to be subclassed!
 #
-# params: concept (=class name, type of inventory), 
-#  nmisng (parent object), node_uuid, cluster_id, 
+# params: concept (=class name, type of inventory),
+#  nmisng (parent object), node_uuid, cluster_id,
 #  data - all required
-# optional: id  (alias _id, the db _id of this thing if it's not new), 
+# optional: id  (alias _id, the db _id of this thing if it's not new),
 #  path (used if provided, not required, normally can be calculated on save),
 #  enabled (1/0, "nmis does something with this inventory item"),
-#  historic (not present or 0, or anything else)
+#  historic (not present or 0, or anything else),
 #  storage (hash of subconcept name -> path to the rrd file for this thing, relative to database_root),
-#  path_key (must be arrayref if present - used for simplest path computation, ie. with listed keys from data)
+#  path_key (must be arrayref if present - used for simplest path computation, ie. with listed keys from data),
+#  description (optional, if not given a descriptive text is synthesized)
 sub new
 {
 	my ( $class, %args ) = @_;
@@ -87,7 +89,7 @@ sub new
 			return undef;
 		}
 	}
-	
+
 	my $data = $args{data};
 	if (ref($data) ne "HASH")
 	{
@@ -104,13 +106,20 @@ sub new
 		$nmisng->log->fatal("Inventory object cannot be created with invalid path_keys argument!");
 		return undef;
 	}
-	
+
 	# compat issue, we *may* get _id
 	$args{id} //= $args{_id};
-	
+	# description? we don't want any logic to abuse that, but having some human-friendly bits are desirable
+	if (!defined $args{description})
+	{
+		my $nodenames = $nmisng->get_node_names(uuid => $args{node_uuid});
+		my $thisnodename = $nodenames->[0] // "UNKNOWN"; # can that happen?
+		$args{description} = "concept $args{concept} on node $thisnodename and server $args{cluster_id}";
+	}
+
 	my $self = bless( {
-		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng 
-path path_keys enabled historic storage))) }, $class);
+		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
+path path_keys enabled historic storage description))) }, $class);
 	# in addition to these, there's also on-demand _deleted
 
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
@@ -130,7 +139,7 @@ path path_keys enabled historic storage))) }, $class);
 #
 # take data and a set of keys (path_keys, which index the provided data) and create
 # a path out of them. This is a generic function that can work with any class;
-# you just need to provide the params, this is why it exists here. 
+# you just need to provide the params, this is why it exists here.
 #
 # DefaultInventory relies on this implementation to work, if your subclass does not need to do anything
 # fancy (like morph/tranlate data in keys) then it should probably use this implementation
@@ -145,7 +154,7 @@ sub make_path_from_keys
 			if (ref($keys) ne "ARRAY");
 	return "make_path_from_keys has invalid data argument: ".ref($args{data})
 			if (exists($args{data}) && ref($args{data}) ne "HASH");
-	
+
 	my @path;
 	# to make the path globally unique
 	for my $prefixelem ("cluster_id","node_uuid","concept")
@@ -173,8 +182,8 @@ sub make_path_from_keys
 # this is so that paths can be calculated without a whole object being created (which is handy for searching,
 # used from Node.pm)
 #
-# subclasses MUST implement this. 
-# 
+# subclasses MUST implement this.
+#
 # args: cluster_id, node_uuid, concept, data, (all required),
 # path_keys (required for a simple class using make_path_from_keys); partial (optional)
 #
@@ -197,14 +206,26 @@ sub make_path
 # Public:
 ###########
 
-# TODO!!!
-sub add_pit
+# add one point-in-time data record for this concept instance
+# args: self (must have been saved, ie. have _id), data (hashref), time (optional, defaults to now)
+# returns: undef or error message
+sub add_timed_data
 {
-	my ($self) = @_;
+	my ($self,%args) = @_;
 
-	# take time, data, add in this _inventory_id and then save it
-	# saving is assumed
-	# can't add to unsaved inventory, or it autosaves
+	return "cannot add timed data to unsaved inventory instance!"
+			if ($self->is_new);
+	return "cannod add timed data, invalid data argument!"
+			if (ref($args{data}) ne "HASH"); # empty hash is acceptable
+
+	my $timedrecord = { inventory_id => $self->id,
+											time => $args{time} // Time::HiRes::time,
+											data => $args{data} };
+	my $dbres = NMISNG::DB::insert(
+		collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
+		record => $timedrecord );
+	return "failed to insert record: $dbres->{error}" if (!$dbres->{success});
+	return undef;
 }
 
 # RO, returns nmisng object that this inventory object is using
@@ -240,7 +261,7 @@ sub node_uuid
 sub enabled
 {
 	my ($self,$newstatus) = @_;
-	if (@_ == 2)									# ie. even if undef
+	if (@_ == 2)									# set new value even if input is undef
 	{
 		$self->{_enabled} = $newstatus;
 	}
@@ -248,16 +269,29 @@ sub enabled
 }
 
 # returns the historic status (ie. when the inventory object was marked as deprecated/superseded/dead),
-#  optionally sets a new status 
+#  optionally sets a new status
 # args: newstatus
 sub historic
 {
 	my ($self,$newstatus) = @_;
-	if (@_ == 2)									# ie. even if undef
+	if (@_ == 2)									# set new value even if input is undef
 	{
 		$self->{_historic} = $newstatus;
 	}
 	return $self->{_historic};
+}
+
+# returns the current description, optionally sets a new one
+# args: newdescription
+# returns: description
+sub description
+{
+	my ($self,$newdescription) = @_;
+	if (@_ == 2)									# new value undef is ok, description is deletable
+	{
+		$self->{_description} = $newdescription;
+	}
+	return $self->{_description};
 }
 
 # returns the storage structure, optionally replaces it (all of it)
@@ -281,7 +315,7 @@ sub storage
 	return Clone::clone($self->{_storage});
 }
 
-# small accessor that looks up a storage subconcept 
+# small accessor that looks up a storage subconcept
 # and returns the requested storage type info for it
 #
 # args: subconcept (required), type (optional, default rrd)
@@ -321,7 +355,7 @@ sub set_subconcept_type_storage
 	else
 	{
 		delete $self->{_storage}->{$subconcept}->{$type};
-		delete $self->{_storage}->{$subconcept} 
+		delete $self->{_storage}->{$subconcept}
 		if (!keys %{$self->{_storage}->{$subconcept}}); # if nothing else left
 	}
 	return;
@@ -329,12 +363,12 @@ sub set_subconcept_type_storage
 
 
 
-	
-	
-	
-	
 
-	
+
+
+
+
+
 
 # returns the path keys list, optionally replaces it
 # args: new path_keys (arrayref)
@@ -352,7 +386,7 @@ sub path_keys
 
 # returns a copy of the data component of this inventory object, optionally replaces data (all of it)
 # (i.e. the parts possibly specific to this instance class)
-# 
+#
 # to change data: call first to get, modify the copy, then call with the updated copy to set
 # args: optional data (hashref),
 # returns: clone of data, logs on error
@@ -360,21 +394,21 @@ sub data
 {
 	my ( $self, $newvalue ) = @_;
 
-	if( $self->{_live} )	
+	if( $self->{_live} )
 	{
 		# in some instances this makes sense or all places will need to learn to check live, that might make sense
 		# not sure right now so this has been added
-		return $self->data_live();		
+		return $self->data_live();
 	}
 
 	if ( defined($newvalue) )
 	{
-		
+
 		if( $self->{_live} )
 		{
 			$self->nmisng->log->fatal("Accessing/saving data to this inventory, concept:".$self->concept." is not allowed because it's live\n".Carp::longmess());
 		}
-		else 
+		else
 		{
 			if (ref($newvalue) ne "HASH")
 			{
@@ -389,14 +423,14 @@ sub data
 	return Clone::clone( $self->{_data} );
 }
 
-# returns a ref to the data, after doing this the object cannot be accessed via normal data fnction
+# returns a ref to the data, after doing this the object cannot be accessed via normal data function
 # returns: clone of data, logs on error
 sub data_live
 {
 	my ( $self ) = @_;
 
 	$self->{_live} = 1;
-	
+
 	return $self->{_data};
 }
 
@@ -455,7 +489,7 @@ sub is_new
 sub reload
 {
 	my ($self) = @_;
-	
+
 	if ( !$self->is_new )
 	{
 		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
@@ -468,7 +502,7 @@ sub reload
 			$self->{"_$copyable"} = $newme->{$copyable};
 		}
 		# others are supposed to be settable via accessor
-		for my $settable (qw(data storage historic enabled path_keys))
+		for my $settable (qw(data storage historic enabled path_keys description))
 		{
 			$self->$settable($newme->{$settable});
 		}
@@ -518,7 +552,7 @@ sub path
 		$self->{_path} = $path;
 	}
 	$self->nmisng->log->error("Path must be an array!") if ( ref($path) ne "ARRAY" );
-	
+
 	return $path;
 }
 
@@ -545,7 +579,8 @@ sub save
 		concept    => $self->concept(),
 		path       => $self->path(), 	# path is calculated but must be stored so it can be queried
 		path_keys => $self->path_keys(), # could be empty, kept in db for selfcontainment and convenience
-		
+
+		description =>  $self->description(),
 		data       => $self->data(),
 		storage => $self->storage(),
 
