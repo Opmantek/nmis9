@@ -2641,17 +2641,18 @@ EO_HTML
 sub viewInterface
 {
 	my $intf = $Q->{intf};
-
 	my $node = $Q->{node};
+
 	my $S    = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $inventory = $S->inventory( concept => 'interface', index => $intf );
+	my $data = ($inventory) ? $inventory->data : {};
+	
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -2697,7 +2698,7 @@ sub viewInterface
 
 		print Tr(
 			td( {class => 'Warning', colspan => '2'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
@@ -2709,7 +2710,7 @@ sub viewInterface
 		{valign => 'top', width => '50%'},
 		table(
 			Tr( th( {class => 'title', colspan => '2', width => '50%'},
-					"Interface Details - $NI->{system}{name}::$V->{interface}{\"${intf}_ifDescr_value\"}"
+					"Interface Details - $catchall_data->{name}::$V->{interface}{\"${intf}_ifDescr_value\"}"
 				)
 			),
 			eval {
@@ -2742,7 +2743,7 @@ sub viewInterface
 						}
 						elsif ( $k eq "ifLastChange" )
 						{
-							$value = convUpTime( $NI->{system}{sysUpTimeSec} - $IF->{$intf}{ifLastChangeSec} );
+							$value = convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
 						}
 						push @out,
 							Tr( td( {class => 'info Plain'}, $title ),
@@ -3111,7 +3112,7 @@ sub viewActivePort
 
 	my $S = Sys::->new;                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my $M  = $S->mdl;
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
@@ -3348,7 +3349,7 @@ sub viewStorage
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 
 	print header($headeropts);
@@ -3449,12 +3450,12 @@ sub viewService
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3490,17 +3491,17 @@ sub viewService
 
 		print Tr(
 			td( {class => 'Warning', colspan => '3'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
 
-	print Tr( th( {class => 'title', colspan => '3'}, "Monitored services on node $NI->{system}{name}" ) );
+	print Tr( th( {class => 'title', colspan => '3'}, "Monitored services on node $catchall_data->{name}" ) );
 
 	# for the type determination
 	my $ST = loadServicesTable;
 
-	if ( my @servicelist = split( ",", $NI->{system}->{services} ) )
+	if ( my @servicelist = split( ",", $catchall_data->{services} ) )
 	{
 		print Tr(
 			td( {class => 'header'}, "Service" ),
@@ -3554,7 +3555,7 @@ sub viewService
 	}
 	else
 	{
-		print Tr( th( {class => 'title', colspan => '3'}, "No Services defined for $NI->{system}{name}" ) );
+		print Tr( th( {class => 'title', colspan => '3'}, "No Services defined for $catchall_data->{name}" ) );
 	}
 	print end_table;
 	pageEnd() if ( !$wantwidget );
@@ -3573,12 +3574,12 @@ sub viewServiceList
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3612,12 +3613,12 @@ sub viewServiceList
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
 
-	print Tr( th( {class => 'title', colspan => '7'}, "List of Services on node $NI->{system}{name}" ) );
+	print Tr( th( {class => 'title', colspan => '7'}, "List of Services on node $catchall_data->{name}" ) );
 
 	#'AppleMobileDeviceService.exe:1756' => {
 	#  'hrSWRunStatus' => 'running',
@@ -3630,7 +3631,8 @@ sub viewServiceList
 		= url( -absolute => 1 )
 		. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
 		. uri_escape($node);
-	if ( defined $NI->{services} )
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'service' );
+	if ( @$ids > 0 )
 	{
 		print Tr(
 			td( {class => 'header'}, a( {href => "$url&sort=Service", class => "wht"}, "Service" ) ),
@@ -3641,34 +3643,38 @@ sub viewServiceList
 			td( {class => 'header'}, a( {href => "$url&sort=CPU",     class => "wht"}, "Total CPU Time" ) ),
 			td( {class => 'header'}, a( {href => "$url&sort=Memory",  class => "wht"}, "Allocated Memory" ) )
 		);
-		foreach my $service ( sort { sortServiceList( $sort, $sortField, $NI, $a, $b ) } keys %{$NI->{services}} )
+		NMISNG::Util::TODO("Sort service list here needs to be brought back in some way!");
+		# foreach my $service ( sort { sortServiceList( $sort, $sortField, $NI, $a, $b ) } keys %{$NI->{services}} )
+		foreach my $id (@$ids)
 		{
+			my $inventory = $S->nmisng_node->inventory( _id => $id );
+			my $data = ($inventory) ? $inventory->data : {};
 			my $color;
-			$color = colorPercentHi(100) if $NI->{services}{$service}{hrSWRunStatus} =~ /running|runnable/;
+			$color = colorPercentHi(100) if $data->{hrSWRunStatus} =~ /running|runnable/;
 			$color = colorPercentHi(0)   if $color eq "red";
-			my ( $prog, $pid ) = split( ":", $NI->{services}{$service}{hrSWRunName} );
+			my ( $prog, $pid ) = split( ":", $data->{hrSWRunName} );
 
 			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
-			my $cpusecs = $NI->{services}{$service}{hrSWRunPerfCPU} / 100;
+			my $cpusecs = $data->{hrSWRunPerfCPU} / 100;
 			my $parameters
-				= $NI->{services}{$service}{hrSWRunPath} . " " . $NI->{services}{$service}{hrSWRunParameters};
+				= $data->{hrSWRunPath} . " " . $data->{hrSWRunParameters};
 
 			print Tr(
 				td( {class => 'info Plain'}, $prog ),
 				td( {class => 'info Plain'}, $parameters ),
-				td( {class => 'info Plain'}, $NI->{services}{$service}{hrSWRunType} ),
+				td( {class => 'info Plain'}, $data->{hrSWRunType} ),
 				td( {class => 'info Plain', style => "background-color:" . $color},
-					$NI->{services}{$service}{hrSWRunStatus}
+					$data->{hrSWRunStatus}
 				),
 				td( {class => 'info Plain'}, $pid ),
 				td( {class => 'info Plain'}, sprintf( "%.3f s", $cpusecs ) ),
-				td( {class => 'info Plain'}, $NI->{services}{$service}{hrSWRunPerfMem} . " KBytes" )
+				td( {class => 'info Plain'}, $data->{hrSWRunPerfMem} . " KBytes" )
 			);
 		}
 	}
 	else
 	{
-		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $NI->{system}{name}" ) );
+		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $catchall_data->{name}" ) );
 	}
 	print end_table;
 	pageEnd() if ( !$wantwidget );
@@ -3695,12 +3701,12 @@ sub viewCpuList
 
 	my $S = Sys::->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
 	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3734,25 +3740,37 @@ sub viewCpuList
 
 		print Tr(
 			td( {class => 'Warning', colspan => '7'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
+				"Node degraded, " . join( ", ", @causes ) . ", status=$catchall_data->{status_summary}"
 			)
 		);
 	}
 
-	print Tr( th( {class => 'title', colspan => '7'}, "List of CPU's on node $NI->{system}{name}" ) );
+	print Tr( th( {class => 'title', colspan => '7'}, "List of CPU's on node $catchall_data->{name}" ) );
 
 	my $url
 		= url( -absolute => 1 )
 		. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
 		. uri_escape($node);
 
-	if ( my @cpus = $S->getTypeInstances( graphtype => "hrsmpcpu" ) )
+	# instead of using this hammer we'll fall back to using getTypeInstances
+	# something like getTypeInstances that returns _id's or even inventory objects would be nicer
+
+	# my $modeldata = $S->nmisng->get_inventory_model(cluster_id => $S->nmisng_node->cluster_id,
+	# 																										 node_uuid => $S->nmisng_node->uuid,
+	# 																										 concept => 'device',
+	# 																										 filter => { "storage.hrsmpcpu" => { '$exists' => 1 }},
+	# );
+	my @indices = $S->getTypeInstances(graphtype => "hrsmpcpu");
+	if ( @indices > 0 )
 	{
 		print Tr( td( {class => 'header'}, "CPU ID and Description" ), td( {class => 'header'}, "History" ), );
-		foreach my $index (@cpus)
+		
+		foreach my $index (@indices)
 		{
+			my $data = $S->inventory( concept => 'device', index => $index )->data();
+			
 			print Tr(
-				td( {class => 'lft Plain'}, "Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})" ),
+				td( {class => 'lft Plain'}, "Server CPU $index ($data->{hrDeviceDescr})" ),
 				td( {class => 'info Plain'},
 					htmlGraph(
 						graphtype => "hrsmpcpu",
@@ -3767,7 +3785,7 @@ sub viewCpuList
 	}
 	else
 	{
-		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $NI->{system}{name}" ) );
+		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $catchall_data->{name}" ) );
 	}
 	print end_table;
 	pageEnd() if ( !$wantwidget );
@@ -4104,13 +4122,14 @@ sub viewSystemHealth
 
 	# TODO, bring back oid_lex_sort
 	# foreach my $index (oid_lex_sort(keys %{$NI->{$section}}) ) {
+	my $D = {};
 	foreach my $id (@$ids)
 	{
 		my ( $inventory, $error ) = $nmisng_node->inventory( _id => $id );
 		$nmisng->log->error("Failed to get inventory with id:$id, error:$error") && next
 			if ( !$inventory );
-		my $data  = $inventory->data();
-		my $index = $data->{index};
+		$D = $inventory->data();
+		my $index = $D->{index};
 
 		if (exists( $M->{systemHealth}{rrd}{$section}{control} )
 			&& !$S->parseString(
@@ -4124,7 +4143,6 @@ sub viewSystemHealth
 			next;
 		}
 
-		my $D = $data;
 
 		# get the header from the node informaiton first.
 		if ( not $headerDone )
@@ -4151,7 +4169,8 @@ sub viewSystemHealth
 				push( @cells, $cell );
 				++$colspan;
 			}
-			push( @cells, td( {class => 'header'}, "History" ) ) if $inventory;
+			my $storage = $inventory->find_subconcept_type_storage( type => 'rrd', subconcept => $section );
+			push( @cells, td( {class => 'header'}, "History" ) ) if $storage;
 			++$colspan;
 
 			if ( !$status{overall} )

@@ -2518,7 +2518,6 @@ sub createHrButtons
 					push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_service_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"service list"));
 		}
-
 		if ($S->getTypeInstances(graphtype => "hrsmpcpu")) {
 					push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cpu_list&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"cpu list"));

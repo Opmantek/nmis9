@@ -245,7 +245,9 @@ sub rrdDraw
 		no strict;									# *shudder*
 		if ($intf ne "") 
 		{
-			my $inventory = $S->inventory( concept => 'interface', index => $intf );
+			# this is very likely to fail
+			NMISNG::Util::TODO("Find a way to only load this if it's needed!");
+			my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 1 );
 			my $data = ($inventory) ? $inventory->data : {};
 			
 			$ifDescr = $data->{ifDescr};
