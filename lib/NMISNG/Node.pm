@@ -215,7 +215,7 @@ sub inventory
 	elsif ($create)
 	{
 		# concept must be supplied, for now, "leftovers" may end up being a concept,
-		$self->nmisng->log->debug("Creating Inventory for concept:$args{concept}");
+		$self->nmisng->log->debug("Creating Inventory for concept: $args{concept}");
 		$self->nmisng->log->error("Creating Inventory without concept") if ( !$args{concept} );
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
 

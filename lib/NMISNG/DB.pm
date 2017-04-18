@@ -654,25 +654,43 @@ sub create_capped_collection
 
 # asks mongodb for the distinct values for key K in collection X,
 # optionally limited with query Q.
-# returns undef if there's a fault, listref of values otherwise
-# args: db, collection (NAME, NOT collection object!) and key K are required,
+# args: key K, collection object (if 1.x driver) or collection NAME plus db (either driver), all required;
 # optional query
+# returns undef if there's a fault, listref of values otherwise
 sub distinct
 {
 	my %arg = @_;
 	my ( $db, $collname, $key, $query ) = @arg{qw(db collection key query)};
 
-	# collname MUST be a string only, as the perl driver doesn't
-	# have a collection.distinct wrapper yet
-	return if ( ref($collname) or !$db or !$key );
+	# with new driver collection MAY be handle
+	if ($new_driver && (ref($collname) eq "MongoDB::Collection"))
+	{
+		return if (!$key);
+		my $result;
+		try
+		{
+			my $qres = $collname->distinct($key, $query);
+			$result = [ $qres->all ] ;
+		};
+		return $result;
+	}
+	else
+	{
+		# note: could use collection object in old driver, too, but  while that has official name attrib,
+		# database is under _database... new driver has name and database attributes.
 
-	my $res = $db->run_command(
-		[   'distinct' => $collname,
-			'key'      => $key,
-			'query'    => $query
-		]
-	);
-	return $res->{ok} ? $res->{values} : undef;
+		# old driver: collname MUST be a string only, as the perl driver doesn't
+		# have a collection.distinct wrapper yet.
+		return if ( !$collname or ref($collname) or !$db or !$key );
+
+		my $res = $db->run_command(
+			[   'distinct' => $collname,
+					'key'      => $key,
+					'query'    => $query
+			]
+				);
+		return $res->{ok} ? $res->{values} : undef;
+	}
 }
 
 # End/execute bulk write operation.
@@ -1056,7 +1074,8 @@ sub get_query
 # if value is not defined or empty, then the column is not added to the hash.
 #
 # if the value is a hash, each value is checked, and the ones that exist are
-# added as a hash for that column. exception: if the key is called '$exists' or '$ne',
+# added as a hash for that column. exception: if the key is
+#one of the mongodb operators '$OP', op in eq,gt,gte,lt,lte,ne,exists,size
 # then that value is passed through as-is.
 #
 # if the value is an array, then the query is set to $in all array values
@@ -1088,8 +1107,9 @@ sub get_query_part
 		my %definedones = ();
 		while( my ($key, $value) = each(%{$col_value}) )
 		{
-			# special cases for $exists and $ne: pass-through, value defined or not
-			if (($key =~ m!^\$(exists|ne)$!)
+			# special cases for the mongodb operators that we allow:
+			# pass-through, value defined or not
+			if (($key =~ m!^\$(eq|gt|gte|lt|lte|ne|exists|size)$!)
 					or (defined($value) and $value ne ''))
 			{
 				$definedones{$key} = $value;
