@@ -2893,11 +2893,13 @@ sub loadCBQoS
 	my $S = $args{sys};
 	my $index = $args{index};
 	my $graphtype = $args{graphtype};
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
+	# this is still used by huaweiqos, nothing else should be using it
 	my $NI = $S->ndinfo;
-	my $CB = $S->cbinfo;
+	
 	my $M = $S->mdl;
-	my $node = $NI->{name};
+	my $node = $catchall_data->{name};
 
 	my ($PMName,  @CMNames, %CBQosValues , @CBQosNames);
 
@@ -2914,6 +2916,7 @@ sub loadCBQoS
 	# which is indexed (and collected+saved) per qos stat entry, NOT interface!
 	if (exists $NI->{QualityOfServiceStat})
 	{
+		NMISNG::Util::TODO("Port huaweiqos in loadCBQos and in the plugin");
 		my $huaweiqos = $NI->{QualityOfServiceStat};
 		for my $k (keys %{$huaweiqos})
 		{
@@ -2935,14 +2938,16 @@ sub loadCBQoS
 	}
 	else													# the cisco case
 	{
-		$PMName = $CB->{$index}{$direction}{PolicyMap}{Name};
+		my $inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
+		my $data = ($inventory) ? $inventory->data : {};
+		$PMName = $data->{PolicyMap}{Name};
 
-		foreach my $k (keys %{$CB->{$index}{$direction}{ClassMap}}) {
-			my $CMName = $CB->{$index}{$direction}{ClassMap}{$k}{Name};
+		foreach my $k (keys %{$data->{ClassMap}}) {
+			my $CMName = $data->{ClassMap}{$k}{Name};
 			push @CMNames , $CMName if $CMName ne "";
 
-			$CBQosValues{$index.$CMName} = { CfgType => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Descr'},
-																			 CfgRate => $CB->{$index}{$direction}{ClassMap}{$k}{'BW'}{'Value'},
+			$CBQosValues{$index.$CMName} = { CfgType => $data->{ClassMap}{$k}{'BW'}{'Descr'},
+																			 CfgRate => $data->{ClassMap}{$k}{'BW'}{'Value'},
 																			 CfgIndex => $index, CfgItem => undef,
 																			 CfgUnique => $k,  # index+cmname is not unique, doesn't cover inbound/outbound - this does.
 																			 CfgSection => $graphtype,

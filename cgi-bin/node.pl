@@ -491,7 +491,7 @@ sub typeGraph {
 		my $db;
 		my $lastUpdate;
 		if (($GTT->{$graphtype} =~ /cbqos/i and $item ne "") or $GTT->{$graphtype} =~ /interface|pkts/i ) {
-			$db = $S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item);
+			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
 			$time = RRDs::last $db;
 			$lastUpdate = returnDateStamp($time);
 		}
@@ -527,7 +527,7 @@ sub typeGraph {
 
 	my @output;
 	# check if database selectable with this info
-	if ( ($S->getDBName(graphtype=>$graphtype,index=>$index,item=>$item,
+	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
 											suppress_errors=>'true'))
 			 or $Q->{graphtype} =~ /calls|cbqos/) {
 

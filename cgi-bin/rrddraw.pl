@@ -322,8 +322,7 @@ sub graphCBQoS
 {
 	my %args = @_;
 	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+		
 	my $graphtype = $args{graphtype};
 	my $intf = $args{intf};
 	my $item = $args{item};
@@ -333,6 +332,8 @@ sub graphCBQoS
 	my $height = $args{height};
 	my $debug = $Q->{debug};
 	
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+
 	my $database;
 	my @opt;
 	my $title;
@@ -340,6 +341,10 @@ sub graphCBQoS
 	# order the names, find colors and bandwidth limits, index and section names
 	my ($CBQosNames,$CBQosValues) = NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
 	
+	# because cbqos we should find interface
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
+	my $if_data = ($inventory) ? $inventory->data : {};
+
 	if ( $item eq "" ) {
 		# display all class-maps in one graph
 		my $i;
@@ -348,15 +353,16 @@ sub graphCBQoS
 		my $avgdbr;
 		my $maxdbr;
 		my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
-		my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
+
+		my $ifDescr = shortInterface($if_data->{ifDescr});
 		my $vlabel = "Avg Bits per Second";
 		if ( $width <= 400 ) {
-			$title = "$NI->{name} $ifDescr $direction";
+			$title = "$catchall_data->{name} $ifDescr $direction";
 			$title .= " - $CBQosNames->[0]" if ($CBQosNames->[0] && $CBQosNames->[0] !~ /^(in|out)bound$/i);
 			$title .= ' - $length';
 			$vlabel = "Avg bps";
 		} else {
-			$title = "$NI->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end';
+			$title = "$catchall_data->{name} $ifDescr $direction - CBQoS from ".'$datestamp_start to $datestamp_end';
 		}
 		
 		@opt = (
@@ -409,7 +415,7 @@ sub graphCBQoS
 		{
 			my $thisinfo = $CBQosValues->{$intf.$CBQosNames->[$i]};
 			
-			$database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
+			$database = $S->makeRRDname(graphtype => $thisinfo->{CfgSection},
 																index => $thisinfo->{CfgIndex},
 																item => $CBQosNames->[$i]	);
 			my $parent = 0;
@@ -497,14 +503,14 @@ sub graphCBQoS
 		my $speed = defined $thisinfo->{CfgRate}? &convertIfSpeed($thisinfo->{'CfgRate'}) : undef;
 		my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
 		
-		$database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
+		$database = $S->makeRRDname(graphtype => $thisinfo->{CfgSection},
 															index => $thisinfo->{CfgIndex},
 															item => $item	);
 		
 		# in this case we always use the FIRST color, not the one for this item
 		my $color = $CBQosValues->{$intf.$CBQosNames->[1]}->{'Color'};
 		
-		my $ifDescr = shortInterface($IF->{$intf}{ifDescr});
+		my $ifDescr = shortInterface($if_data->{ifDescr});
 		$title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end';
 		
 		@opt = (
@@ -590,8 +596,6 @@ sub graphCalls
 {
 	my %args = @_;
 	my $S = $args{sys};
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
 	my $graphtype = $args{graphtype};
 	my $intf = $args{intf};
 	my $start = $args{start};
@@ -599,13 +603,23 @@ sub graphCalls
 	my $width = $args{width};
 	my $height = $args{height};
 
+
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+
 	my $database;
 	my @opt;
 	my $title;
 
-	my $device = ($intf eq "") ? "total" : $IF->{$intf}{ifDescr};
-	if ( $width <= 400 ) { $title = "$NI->{name} Calls ".'$length'; }
-	else { $title = "$NI->{name} - $device - ".'$length from $datestamp_start to $datestamp_end'; }
+	my $device = "total";
+	if( $intf )
+	{
+		my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
+		my $if_data = ($inventory) ? $inventory->data : {};
+		$device = $if_data->{ifDescr};
+	}
+	
+	if ( $width <= 400 ) { $title = "$catchall_data->{name} Calls ".'$length'; }
+	else { $title = "$catchall_data->{name} - $device - ".'$length from $datestamp_start to $datestamp_end'; }
 
 	# display Calls summarized or only one port
 	@opt = (
@@ -633,7 +647,7 @@ sub graphCalls
 
 	foreach my $i ($S->getTypeInstances(section => 'calls')) {
 		next unless $intf eq "" or $intf eq $i;
-		$database = $S->getDBName(graphtype => 'calls',
+		$database = $S->makeRRDname(graphtype => 'calls',
 															index => $i);
 		next if (!$database);
 
