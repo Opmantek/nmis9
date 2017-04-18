@@ -4610,9 +4610,9 @@ sub getCBQoSdata
 					return 0;
 				}
 			}
-			# I don't believe anythign has changed data/CB so no saving for now
-			# $inventory->data($data);
-			# $inventory->save();	
+			# saving is required becuase create_update_rrd can change inventory, setting data not done because
+			# it's not chagned 
+			$inventory->save();	
 		}
 		
 	}
@@ -5236,9 +5236,8 @@ sub getCallsdata
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 			}
 
-			# DISABLED because data is not modifed
-			# $inventory->data($data);
-			# $inventory->save();
+			# save because create_update_rrd may set storage
+			$inventory->save();
 		}
 		else
 		{
@@ -5690,12 +5689,12 @@ sub runServer
 						($op,$error) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 					}
-					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if(!$error);
+					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
 				}
 				else
 				{
-					# delete $device_target->{$index};
-					$inventory = $S->inventory( concept => 'device', index => $index);
+					# don't log this error if not found because it probably doesn't exist
+					$inventory = $S->inventory( concept => 'device', index => $index, nolog => 1);
 					# if this thing already exists in the database, then disable it, historic is not correct
 					# because it is still being reported on the device
 					if($inventory)
@@ -5735,7 +5734,7 @@ sub runServer
 		{
 			# look for existing data for this as 'fallback'
 			my $oldstorage;
-			my $inventory = $S->nmisng_node->inventory( concept => 'storage', index => $index, nolog => 1);
+			my $inventory = $S->inventory( concept => 'storage', index => $index, nolog => 1);
 			$oldstorage = $inventory->data() if($inventory);
 			my $storage_target = {};
 
