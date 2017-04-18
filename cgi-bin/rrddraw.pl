@@ -161,6 +161,7 @@ sub rrdDraw
 	} 
 	else 
 	{
+
 		if (!($db = $S->makeRRDname(graphtype=>$graphtype,index=>$intf,item=>$item)) ) { # get database name from node info
 			error();
 			return 0;
@@ -245,9 +246,13 @@ sub rrdDraw
 		no strict;									# *shudder*
 		if ($intf ne "") 
 		{
-			my $inventory = $S->inventory( concept => 'interface', index => $intf );
+			# this is very likely to fail
+			NMISNG::Util::TODO("Find a way to only load this if it's needed!");
+			my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 1 );
 			my $data = ($inventory) ? $inventory->data : {};
-			
+
+			# indx is used by graphs so it needs setting
+			$indx = $intf;
 			$ifDescr = $data->{ifDescr};
 			$ifSpeed = $data->{ifSpeed};
 			$ifSpeedIn = $data->{ifSpeed};

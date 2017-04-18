@@ -2033,7 +2033,6 @@ sub getIntfInfo
 	my $M    = $S->mdl;             # node model table
 	my $SNMP = $S->snmp;
 	my $NC   = $S->ndcfg;           # node config table
-	my $graphtypes = $S->ndinfo->{graphtype};
 
 	my $singleInterface = 0;
 	if ( defined $intf_one and $intf_one ne "" )
@@ -2168,10 +2167,6 @@ sub getIntfInfo
 					$inventory->historic(1);
 					$inventory->save();
 					
-					foreach my $graphtype (qw(interface pkts pkts_hc))
-					{
-						delete $graphtypes->{$index}{$graphtype} if ( defined $graphtypes->{$index}{$graphtype} );
-					}
 					dbg("Interface ifIndex=$index removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
 				}
@@ -2695,20 +2690,8 @@ sub getIntfInfo
 				);
 			}
 
-			if ( getbool( $target->{collect}, "invert" ) )
-			{
-				### 2014-10-21 keiths, get rid of bad interface graph types when ifIndexes get changed.
-				my @types = qw(pkts pkts_hc interface);
-				foreach my $type (@types)
-				{
-					if ( exists $graphtypes->{$index}{$type} )
-					{
-						logMsg("Interface not collecting, removing graphtype $type for interface $index");
-						delete $graphtypes->{$index}{$type};
-					}
-				}
-			}
 
+			
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if ( getbool( $target->{collect} )
 				&& getbool( $target->{event} ) );
@@ -2778,7 +2761,20 @@ sub getIntfInfo
 				$S->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
-				$inventory->historic(0);				
+
+				# historic is only set when the index/_id is in the db but not found in the device, we are looping
+				# through things found on the device so it's not historic
+				$inventory->historic(0);
+
+				# if collect is off then this interface is disabled
+				#   MD: I'm not totally sure this is correct, is this the variable
+				#     we want to use to control this?
+				$inventory->enabled(1);	
+				if ( getbool( $target->{collect}, "invert" ) )
+				{
+					$inventory->enabled(0);
+				}
+
 				my ( $op, $error ) = $inventory->save();
 				info( "saved ".join(',', @$path)." op: $op");
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -3571,7 +3567,6 @@ sub getSystemHealthData
 	my %args = @_;
 	my $S    = $args{sys};    # object
 
-	my $NI = $S->ndinfo;      # node info table
 	my $V  = $S->view;
 	my $M  = $S->mdl;         # node model table
 
@@ -3667,7 +3662,8 @@ sub getSystemHealthData
 					my $db = $S->create_update_rrd( data   => $D,
 																					type   => $sect,
 																					index  => $index,
-																					extras => $data );
+																					extras => $data,
+																					inventory => $inventory );
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -4404,7 +4400,7 @@ sub getIntfData
 
 				# RRD Database update and remember filename
 				info( "updateRRD type$sect index=$index", 2 );
-				my $db = $S->create_update_rrd( data => $D, type => $sect, index => $index );
+				my $db = $S->create_update_rrd( data => $D, type => $sect, index => $index, inventory => $inventory );
 				if ( !$db )
 				{
 					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -4533,14 +4529,15 @@ sub getCBQoSdata
 	
 	foreach my $direction ( "in", "out" )
 	{
-		my $ids = $S->nmisng_node->get_inventory_ids(concept => "cbqos-$direction");
+		my $concept = "cbqos-$direction";
+		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept);
 		return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
 
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
 		foreach my $id ( @$ids )
 		{
 			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
-			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:cbqos-$direction, error_message:$error_message") && next
+			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message") && next
 				if(!$inventory);
 
 			# note, this is not saved because it doesn't appear to be changed, 
@@ -4570,7 +4567,7 @@ sub getCBQoSdata
 				my $port = "$PIndex.$OIndex";
 
 				my $rrdData
-					= $S->getData( class => "cbqos-$direction", index => $intf, port => $port, model => $model );
+					= $S->getData( class => $concept, index => $intf, port => $port, model => $model );
 				my $howdiditgo = $S->status;
 				my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
@@ -4578,7 +4575,7 @@ sub getCBQoSdata
 				if ( !$anyerror )
 				{
 					processAlerts( S => $S );
-					my $D = $rrdData->{"cbqos-$direction"}{$intf};
+					my $D = $rrdData->{$concept}{$intf};
 
 					if ( $D->{'PrePolicyByte'} eq "noSuchInstance" )
 					{
@@ -4593,9 +4590,10 @@ sub getCBQoSdata
 					#
 					# update RRD
 					my $db = $S->create_update_rrd( data  => $D,
-																					type  => "cbqos-$direction",
+																					type  => $concept,
 																					index => $intf,
-																					item  => $CMName );
+																					item  => $CMName,
+																					inventory => $inventory );
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -5108,7 +5106,8 @@ sub getCallsdata
 	my $IF    = $S->ifinfo;
 	
 	my %totalsTable;
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'calls' );
+	my $concept = 'calls';
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => $concept );
 	return 1 if ( @$ids < 1 );
 
 	# get the old index values
@@ -5123,7 +5122,7 @@ sub getCallsdata
 		my $port = $data->{intfoid};
 
 		my $rrdData = $S->getData(
-			class => 'calls',
+			class => $concept,
 			index => $data->{parentintfIndex},
 			port  => $port,
 			model => $model
@@ -5137,7 +5136,7 @@ sub getCallsdata
 			processAlerts( S => $S );
 
 			my $parentIndex = $data->{parentintfIndex};
-			my $D           = $rrdData->{calls}{$parentIndex};
+			my $D           = $rrdData->{$concept}{$parentIndex};
 
 			# check indexes
 			if ( $D->{'cpmDS0CallType'}{value} eq "noSuchInstance" )
@@ -5231,7 +5230,7 @@ sub getCallsdata
 
 			#
 			# Store data
-			my $db = $S->create_update_rrd( data => \%snmpVal, type => "calls", index => $intfindex );
+			my $db = $S->create_update_rrd( data => \%snmpVal, type => $concept, index => $intfindex, inventory => $inventory );
 			if ( !$db )
 			{
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
@@ -5608,8 +5607,6 @@ sub runServer
 	my $S    = $args{sys};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-	my $graphtypes = $S->ndinfo->{graphtype};
-
 	if ( !$S->status->{snmp_enabled} )
 	{
 		info("Not performing server collection for $S->{name}: SNMP not enabled for this node");
@@ -5630,15 +5627,21 @@ sub runServer
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
 	{
+		# this will put hrCpuLoad into the device_global concept
+		# NOTE: should really be PIT!!!
 		my $overall_target = {};
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
-		$S->loadInfo( class => 'device_global', model => $model, target => $overall_target );    # get cpu load without index
-
+		# doesn't use device global here, it's only an inventory concept right now
+		$S->loadInfo( class => 'device', model => $model, target => $overall_target );    # get cpu load without index
+		
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device_global', path => $path, path_keys => [], data => $overall_target, create => 1 );
-		$S->nmisng->log->error("Failed to get inventory for device 'no index', error_message:$error_message") if(!$inventory);	
+		$S->nmisng->log->error("Failed to get inventory for device_global, error_message:$error_message") if(!$inventory);
+		# create is set so we should have an inventory here
 		if($inventory) 
 		{
+			# not sure why supplying the data above does not work, needs a test!
+			$inventory->data( $overall_target );
 			$inventory->historic(0);
 			($op,$error) = $inventory->save();
 			info( "saved ".join(',', @$path)." op: $op");
@@ -5650,13 +5653,12 @@ sub runServer
 		{
 			# create a new target for each index
 			my $device_target = {};
-			my $historic = 0;
 			if ( $S->loadInfo( class => 'device', index => $index, model => $model, target => $device_target ) )
 			{
 				my $D = $device_target;
 				info("device Descr=$D->{hrDeviceDescr}, Type=$D->{hrDeviceType}");
 				if ( $D->{hrDeviceType} eq '1.3.6.1.2.1.25.3.1.3' )
-				{                                                                       # hrDeviceProcessor
+				{# hrDeviceProcessor
 					( $hrCpuLoad, $D->{hrDeviceDescr} )
 						= $SNMP->getarray( "hrProcessorLoad.${index}", "hrDeviceDescr.${index}" );
 					dbg("CPU $index hrProcessorLoad=$hrCpuLoad hrDeviceDescr=$D->{hrDeviceDescr}");
@@ -5669,31 +5671,39 @@ sub runServer
 					info("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
 					undef %Val;
 					$Val{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
-					if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index ) ) )
-					{
-						$graphtypes->{$index}{hrsmpcpu} = "hrsmpcpu";
-					}
-					else
+
+					# lookup/create inventory before create_update_rrd so it can be passed in
+					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
+					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );					
+					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
+
+					if (! ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
-
-					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
-					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
-					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
+					# save after create_update_rrd so that new storage information is also saved
+					# again, create is set, chances of no inventory very low
 					if($inventory)
 					{
+						$inventory->data($device_target);
 						$inventory->historic(0);
 						($op,$error) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 					}
-					
 					$S->nmisng->log->error("Failed to save inventory, error_message:$error") if(!$error);
 				}
-				# else
-				# {
-				# 	delete $device_target->{$index};
-				# }
+				else
+				{
+					# delete $device_target->{$index};
+					$inventory = $S->inventory( concept => 'device', index => $index);
+					# if this thing already exists in the database, then disable it, historic is not correct
+					# because it is still being reported on the device
+					if($inventory)
+					{
+						$inventory->enabled(0);
+						$inventory->save();
+					}
+				}
 			}
 		}
 		NMISNG::Util::TODO("Need to clean up device/devices here and mark unused historic");
@@ -5728,7 +5738,6 @@ sub runServer
 			my $inventory = $S->nmisng_node->inventory( concept => 'storage', index => $index, nolog => 1);
 			$oldstorage = $inventory->data() if($inventory);
 			my $storage_target = {};
-			my $historic = 0;
 
 			# this saves any retrieved info under ni->{storage}
 			my $wasloadable = $S->loadInfo(
@@ -5739,6 +5748,21 @@ sub runServer
 			);
 			if ( $wasloadable )
 			{
+				# create_update_rrd needs an inventory object so create one, we know that index exists now so we have what is needed to
+				# create/search for the path
+				if( !$inventory )
+				{
+					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
+					($inventory,$error) = $S->nmisng_node->inventory(
+						concept => 'storage',
+						data => $storage_target,
+						path => $path,
+						path_keys => ['index'],
+						create => 1
+					);
+					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
+				}
+
 				my $D = $storage_target;                        # new data
 
 				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer
@@ -5750,7 +5774,7 @@ sub runServer
 				);
 
 				# set not historic, further down it may be set
-				$inventory->historic(1) if($inventory);
+				$inventory->historic(0) if($inventory);
 				if ((       $M->{storage}{nocollect}{Description} ne ''
 						and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/
 					)
@@ -5779,9 +5803,8 @@ sub runServer
 						push( @{$S->{reach}{diskList}}, $diskUtil );
 
 						$D->{hrStorageDescr} =~ s/,/ /g;    # lose any commas.
-						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrdisk", index => $index ) ) )
+						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrdisk", index => $index, inventory => $inventory ) ) )
 						{
-							$graphtypes->{$index}{hrdisk} = "hrdisk";
 							$D->{hrStorageType}              = 'Fixed Disk';
 							$D->{hrStorageIndex}             = $index;
 							$D->{hrStorageGraph}             = "hrdisk";
@@ -5823,9 +5846,8 @@ sub runServer
 						$S->{reach}{memfree} = $Val{hrMemSize}{value} - $Val{hrMemUsed}{value};
 						$S->{reach}{memused} = $Val{hrMemUsed}{value};
 
-						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrmem" ) ) )
+						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrmem", inventory => $inventory ) ) )
 						{
-							$graphtypes->{hrmem} = "hrmem";
 							$D->{hrStorageType}     = 'Memory';
 							$D->{hrStorageGraph}    = "hrmem";
 						}
@@ -5853,9 +5875,8 @@ sub runServer
 
 						#print Dumper $S->{reach};
 
-						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename ) )
+						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename, inventory => $inventory ) )
 						{
-							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = $D->{hrStorageDescr};    # i.e. virtual memory or swap space
 							$D->{hrStorageGraph}        = $typename;
 						}
@@ -5883,9 +5904,8 @@ sub runServer
 						$Val{$itemname . "Size"}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
 						$Val{$itemname . "Used"}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
 
-						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename ) )
+						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename, inventory => $inventory ) )
 						{
-							$graphtypes->{$typename} = $typename;
 							$D->{hrStorageType}         = 'Other Memory';
 							$D->{hrStorageGraph}        = $typename;
 						}
@@ -5900,24 +5920,21 @@ sub runServer
 						$inventory->historic(1) if($inventory);
 					}
 				}
-				if( !$inventory )
-				{
-					my $path = $S->nmisng_node->inventory_path( concept => 'storage', path_keys => ['index'], data => $storage_target );
-					($inventory,$error) = $S->nmisng_node->inventory(
-						concept => 'storage',
-						data => $storage_target,
-						path => $path,
-						path_keys => ['index'],
-						create => 1
-					);
-					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
-				}
+
+				# make sure the data is set and save
+				$inventory->data( $storage_target );
 				($op,$error) = $inventory->save() if($inventory);
+				info( "saved ".join(',', @{$inventory->path})." op: $op");
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
 			elsif( $oldstorage )
 			{
 				logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
+				if( $inventory )
+				{
+					$inventory->historic(1);
+					$inventory->save();
+				}
 				# nothing needs to be done here, storage target is the data from last time so it's already in db
 				# maybe mark it historic?
 			}
@@ -6836,9 +6853,10 @@ sub runServices
 		if ($inventory)
 		{
 			my ( $op, $error ) = $inventory->save();
+			logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 		}
 
-		logMsg("ERROR: service status saving failed: $error") if ($error);
+		logMsg("ERROR: service status saving file failed: $error") if ($error);
 	}
 
 	# we ran one or more (but not necessarily all!) services

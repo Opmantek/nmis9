@@ -147,6 +147,7 @@ sub inventory
 	else
 	{
 		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path") if (!$nolog);
+
 	}
 
 	$self->{_inventory_cache}{$concept} = $inventory
@@ -460,15 +461,16 @@ sub disable_source
 # args: none
 # returns: hashref
 # note: does NOT return live data, the info is shallowly cloned on conversion!
+# also note: inventory conversion could use model load to get the data a bit faster
 sub ifDescrInfo
 {
 	my $self = shift;
 
 	my %ifDescrInfo;
-
-	foreach my $indx ( keys %{$self->{info}{interface}} )
-	{
-		my $thisentry = $self->{info}->{interface}->{$indx};
+	my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
+	foreach my $id ( @$ids )
+	{		
+		my $thisentry = $self->nmisng_node->inventory( _id => $id )->data();
 		my $ifDescr   = $thisentry->{ifDescr};
 
 		$ifDescrInfo{$ifDescr} = {%$thisentry};
@@ -727,8 +729,7 @@ sub getData
 		class   => $self->{mdl}{$class}{rrd},
 		section => $section,
 		index   => $index,
-		port    => $port,
-		table   => $self->{info}{graphtype}
+		port    => $port		
 	);
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
@@ -796,7 +797,6 @@ sub getData
 # args: class, section, index, port (more or less required)
 # ATTENTION: class is NOT name but MODEL SUBSTRUCTURE!
 # NOTE: if section is not given, ALL existing sections are handled (including alerts!)
-# table (optional, if given must be hashref and getvalues adds graphtype list to it),
 #
 # returns: (data hash ref, status hash ref with keys 'error','skipped','nographs','wmi_error','snmp_error')
 #
@@ -817,7 +817,6 @@ sub getValues
 	my $index   = $args{index};
 	my $port    = $args{port};
 
-	my $tbl = $args{table};
 	my ( %data, %status, %todos );
 
 	# one or all sections?
@@ -867,34 +866,34 @@ sub getValues
 				next;
 			}
 		}
+		NMISNG::Util::TODO("GRAPHTYPE: Does full removal of this code make sense?");
+		# # should we add graphtype to given (info) table?
+		# if ( ref($tbl) eq "HASH" )
+		# {
+		# 	if ( $thissection->{graphtype} )
+		# 	{
+		# 		# note: it's really index outer, then sectionname inner when an index is present.
+		# 		my $target
+		# 			= ( defined($index) && $index ne "" ) ? \$tbl->{$index}->{$sectionname} : \$tbl->{$sectionname};
 
-		# should we add graphtype to given (info) table?
-		if ( ref($tbl) eq "HASH" )
-		{
-			if ( $thissection->{graphtype} )
-			{
-				# note: it's really index outer, then sectionname inner when an index is present.
-				my $target
-					= ( defined($index) && $index ne "" ) ? \$tbl->{$index}->{$sectionname} : \$tbl->{$sectionname};
+		# 		my %seen;
+		# 		for my $maybe ( split( ',', $$target ), split( ',', $thissection->{graphtype} ) )
+		# 		{
+		# 			++$seen{$maybe};
+		# 		}
+		# 		$$target = join( ",", keys %seen );
+		# 	}
 
-				my %seen;
-				for my $maybe ( split( ',', $$target ), split( ',', $thissection->{graphtype} ) )
-				{
-					++$seen{$maybe};
-				}
-				$$target = join( ",", keys %seen );
-			}
-
-			# no graphtype? complain if the model doesn't say deliberate omission - not terminal though
-			elsif ( getbool( $thissection->{no_graphs} ) )
-			{
-				$status{nographs} = "deliberate omission of graph type for section $sectionname";
-			}
-			else
-			{
-				$status{error} = "$self->{name} is missing property 'graphtype' for section $sectionname";
-			}
-		}
+		# 	# no graphtype? complain if the model doesn't say deliberate omission - not terminal though
+		# 	elsif ( getbool( $thissection->{no_graphs} ) )
+		# 	{
+		# 		$status{nographs} = "deliberate omission of graph type for section $sectionname";
+		# 	}
+		# 	else
+		# 	{
+		# 		$status{error} = "$self->{name} is missing property 'graphtype' for section $sectionname";
+		# 	}
+		# }
 
 		# prep the list of things to tackle, snmp first - iff snmp is ok for this node
 		if ( ref( $thissection->{snmp} ) eq "HASH" && $self->{snmp} )
@@ -1661,7 +1660,7 @@ sub prep_extras_with_catchalls
 
 	# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 	if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
-	{		
+	{
 		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1);
 		if( $interface_inventory )
 		{
@@ -1854,6 +1853,8 @@ sub getTypeInstances
 			$subconcept ||= $graphtype;
 			# and here's  interfaces, multiple subconcepts for concept interface
 			$concept = ($subconcept =~ /^(pkts|pkts_hc|interface)$/)? 'interface' : $subconcept;
+			# another beautiful mess
+			$concept = ($subconcept =~ /^(hrsmpcpu)$/)? 'device' : $subconcept;
 		}
 
 		# fixme harsh, but better we see gotchas now...

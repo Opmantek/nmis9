@@ -277,6 +277,8 @@ sub node_uuid
 	return $self->{_node_uuid};
 }
 
+# enabled/disabled are set when an inventory is found on a device but the system or user
+# has decided not to use it
 # returns the enabled status, optionally sets a new status
 # args: newstatus
 sub enabled
@@ -289,6 +291,8 @@ sub enabled
 	return $self->{_enabled};
 }
 
+# historic is/should be set when an inventory was once found on a device but is no longer found on that 
+# device (but is still in the db)
 # returns the historic status (ie. when the inventory object was marked as deprecated/superseded/dead),
 #  optionally sets a new status
 # args: newstatus
