@@ -275,7 +275,8 @@ sub timed_concept_collection
 			collection    => $self->{$stashname},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[ Tie::IxHash->new( "time" => 1, "inventory_id" => 1 ) ],
+				[ Tie::IxHash->new( "time" => 1, "inventory_id" => 1 ) ], # for global 'find last X readings for all instances'
+				[ Tie::IxHash->new( "inventory_id" => 1, "time" => 1 ) ],	# for 'find last X readings for THIS instance'
 			] );
 		$self->log->error("index setup failed for $collname: $err") if ($err);
 	}
@@ -355,6 +356,92 @@ sub get_inventory_model
 	my $model_data_object = NMISNG::ModelData->new( modelName => "inventory", data => $model_data );
 	return $model_data_object;
 }
+
+# accessor for finding timed data for one (or more) inventory instances
+# args: cluster_id, node_uuid, concept, path (to select one or more inventories)
+#  optional historic and enabled (for filtering),
+#  OR inventory_id (which overrules all of the above)
+#  time, (for timed-data selection)
+#  sort/skip/limit/paginate - FIXME sorts/skip/limit not supported if the selection spans more than one concept!
+# returns: modeldata object or undef if error
+sub get_timed_data_model
+{
+	my ($self, %args) = @_;
+
+	# determine the inventory instances to look for
+	my %concept2cand;
+	# a particular single inventory? look it up, get its concept
+	if ($args{inventory_id})
+	{
+		my $cursor = NMISNG::DB::find(collect => $self->inventory_collection,
+																	query => NMISNG::DB::get_query(and_part => { _id => $args{inventory_id} }),
+																	fields_hash =>  { concept => 1 });
+		return undef if (!$cursor or $cursor->count != 1); # fixme: nosuch inventory should count as an error or not?
+		my $inv = $cursor->next;
+		$concept2cand{$inv->{concept}} = $args{inventory_id};
+	}
+	# any other selectors given? then find instances and create list of wanted ones per concept
+	elsif (grep(defined($args{$_}), (qw(cluster_id node_uuid concept path historic enabled))))
+	{
+		# safe to copy undefs
+		my %selectionargs = (map { ($_ => $args{$_}) } (qw(cluster_id node_uuid concept path)));
+		# extra filters need to go under filter
+		for my $maybe (qw(historic enabled))
+		{
+			$selectionargs{filter}->{$maybe} = $args{$maybe} if (exists $args{$maybe});
+		}
+		$selectionargs{fields_hash} = { _id => 1, concept => 1 }; # don't need anything else
+		my $lotsamaybes = $self->get_inventory_model(%selectionargs);
+
+		return undef if (!$lotsamaybes or !$lotsamaybes->count); # fixme: nosuch inventory should count as an error or not?
+		for my $oneinv (@{$lotsamaybes->data})
+		{
+			$concept2cand{$oneinv->{concept}} ||= [];
+			push @{$concept2cand{$oneinv->{concept}}}, $oneinv->{_id};
+		}
+	}
+	# nope, global; so just go over each known concept
+	else
+	{
+		my $allconcepts = NMISNG::DB::distinct(db => $self->get_db(),
+																					 collection => ( $NMISNG::DB::new_driver?
+																													 $self->inventory_collection
+																													 : $self->inventory_collection->name ),
+																					 key => "concept");
+		return undef if (ref($allconcepts) ne "ARRAY" or !@$allconcepts); # fixme: no inventory at all is an error or not?
+		for my $thisone (@$allconcepts)
+		{
+			$concept2cand{$thisone} = undef; # undef is not array ref and not string
+		}
+	}
+
+	# more than one concept and thus collection? cannot sort/skip/limit/paginate
+	# fixme: must report this as error, or at least ditch those args,
+	# or possibly do sort+limit per concept and ditch skip and paginate?
+
+	my @rawtimedata;
+	# now figure out the appropriate collection for each of the concepts,
+	# then query each of those for time data matching the candidate inventory instances
+	for my $concept (keys %concept2cand)
+	{
+		my $timedcoll = $self->timed_concept_collection(concept => $concept);
+		#fixme handle  error
+
+		my $cursor = NMISNG::DB::find( collection => $timedcoll,
+																	 # undef will mean unrestricted, one value will do equality lookup,
+																	 # array will cause an $in check
+																	 query => NMISNG::DB::get_query(and_part => { inventory_id => $concept2cand{$concept} }),
+																	 sort => $args{sort},
+																	 skip => $args{skip},
+																	 limit => $args{limit} );
+		while (my $tdata = $cursor->next)
+		{
+			push @rawtimedata, $tdata;
+		}
+	}
+	return NMISNG::ModelData->new(modelname => "timed_data", data => \@rawtimedata);
+}
+
 
 # returns selection of nodes, as array of hashes
 # args: id, name, host, group for selection;

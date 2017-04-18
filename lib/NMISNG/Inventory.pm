@@ -228,6 +228,27 @@ sub add_timed_data
 	return undef;
 }
 
+# retrieve the one most recent timed data for this instance
+#(note: raw _id and inventory_id are not returned: not useful)
+# args: none
+# returns: hashref of success, error, time, data.
+sub get_newest_timed_data
+{
+	my ($self) = @_;
+
+	my $cursor = NMISNG::DB::find(
+		collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
+		query => NMISNG::DB::get_query(and_part => { inventory_id => $self->id }),
+		limit => 1,
+		sort => { time => -1 },
+		fields_hash => { time => 1, data => 1 });
+	return { success => 0, error => NMISNG::DB::get_error_string } if (!$cursor);
+	return { success => 1 } if (!$cursor->count);
+
+	my $reading = $cursor->next;
+	return { success => 1, data => $reading->{data}, time  => $reading->{time} };
+}
+
 # RO, returns nmisng object that this inventory object is using
 sub nmisng
 {
