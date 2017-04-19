@@ -117,11 +117,20 @@ sub new
 		$args{description} = "concept $args{concept} on node $thisnodename and server $args{cluster_id}";
 	}
 
-	my $self = bless( {
+	# set default properties, then update with args
+	my $self = bless( { 
+		_enabled => 1,
+		_historic => 0, 
 		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
-path path_keys enabled historic storage description))) }, $class);
+path path_keys storage description)))
+ 										}, $class);
+	# enabled and historic: override defaults only if explicitely given
+	for my $onlyifgiven (qw(enabled historic))
+	{
+		$self->{"_$onlyifgiven"} = ($args{$onlyifgiven}?1:0) if (exists $args{$onlyifgiven});
+	}
+	
 	# in addition to these, there's also on-demand _deleted
-
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
 }
@@ -236,6 +245,9 @@ sub get_newest_timed_data
 {
 	my ($self) = @_;
 
+	# inventory not saved certainly means no pit data, but  that's no error
+	return { success => 1 } if ($self->is_new);
+		
 	my $cursor = NMISNG::DB::find(
 		collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
 		query => NMISNG::DB::get_query(and_part => { inventory_id => $self->id }),
@@ -277,31 +289,31 @@ sub node_uuid
 	return $self->{_node_uuid};
 }
 
-# enabled/disabled are set when an inventory is found on a device but the system or user
-# has decided not to use it
+# enabled/disabled are set when an inventory is found on a device 
+# but the system or user has decided not to use/collect/manage it
 # returns the enabled status, optionally sets a new status
-# args: newstatus
+# args: newstatus (will be forced to 0/1)
 sub enabled
 {
 	my ($self,$newstatus) = @_;
-	if (@_ == 2)									# set new value even if input is undef
+	if (@_ == 2)	# set new value even if input is undef
 	{
-		$self->{_enabled} = $newstatus;
+		$self->{_enabled} = $newstatus?1:0;
 	}
 	return $self->{_enabled};
 }
 
-# historic is/should be set when an inventory was once found on a device but is no longer found on that 
-# device (but is still in the db)
-# returns the historic status (ie. when the inventory object was marked as deprecated/superseded/dead),
-#  optionally sets a new status
-# args: newstatus
+# historic is/should be set when an inventory was once found on a device 
+# but is no longer found on that device (but is still in the db!)
+# returns the historic status (0/1)
+#  optionally sets a new status 
+# args: newstatus (will be forced to 0/1)
 sub historic
 {
 	my ($self,$newstatus) = @_;
-	if (@_ == 2)									# set new value even if input is undef
+	if (@_ == 2)	# set new value even if input is undef
 	{
-		$self->{_historic} = $newstatus;
+		$self->{_historic} = $newstatus?1:0;
 	}
 	return $self->{_historic};
 }
