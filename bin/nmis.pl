@@ -4092,14 +4092,27 @@ sub getIntfData
 			'data.ifDescr' => 1,
 			'data.ifIndex' => 1,
 			'data.ifLastChange' => 1,
+			'enabled' => 1,
+			'historic' => 1
 		}
 	);
 
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+	my %if_data_map;
+	foreach my $entry (@$data)
+	{
+		# flatten the structure, safe because we're only grabbing specific data fields
+		$entry->{data}{_id} = $entry->{_id};
+		$entry->{data}{enabled} = $entry->{enabled};
+		$entry->{data}{historic} = $entry->{historic};
+
+		$if_data_map{$entry->{ifIndex}} = $entry->{data};
+	}
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
+
+	my ( $ifAdminTable, $ifOperTable ) = ({},{});
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
 		or ref( $S->{mdl}{custom}->{interface} ) ne "HASH"
 		or !getbool( $S->{mdl}->{custom}->{interface}->{ifAdminStatus}, "invert" )
@@ -4107,8 +4120,6 @@ sub getIntfData
 	{
 		# fixme: this cannot work for non-snmp nodes
 		info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
-
-		my ( $ifAdminTable, $ifOperTable );
 
 		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
@@ -4137,13 +4148,14 @@ sub getIntfData
 	# if an interface is added this will find it to.
 	# if it changes admin or oper state it will find it.
 	# this can be enabled on a model by model basis is false by default.
+	my $ifLastChangeTable = {};
 	if (    ref( $S->{mdl}{custom} ) eq "HASH"
 		and ref( $S->{mdl}{custom}{interface} ) eq "HASH"
 		and getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) )
 	{
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
-		my $ifLastChangeTable;
+		
 		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
 		{
 			for my $index ( sort { $a <=> $b } ( keys %{$ifLastChangeTable} ) )
@@ -4163,19 +4175,36 @@ sub getIntfData
 				}
 			}
 		}
-		# check for deleted interfaces, which exist in our inventory but are not reported by the device
-		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
+	}
+
+	# This used to be in the ifLastChange if statement, it's been taken out and now looks at both last change and admintable
+	# check for deleted interfaces, which exist in our inventory but are not reported by the device
+	foreach my $index ( sort { $a <=> $b } keys %if_data_map )
+	{
+		if ( not exists $ifLastChangeTable->{$index} && not exists $ifAdminTable->{$index} )
 		{
-			if ( not exists $ifLastChangeTable->{$index} )
+			my $data = $if_data_map{$index};
+			info("$data->{ifDescr}: Interface Removed ifIndex=$index");
+			# mark the interface historic if it's not already
+			if( !$data->{historic} )
 			{
-				my $data = $if_data_map{$index};
-				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
 				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
-				$inventory->historic(1);				
+				$inventory->historic(1);
+				$inventory->save();
+			}
+		}
+		else
+		{
+			# mark the interface not historic if it's back
+			if( $data->{historic} )
+			{
+				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
+				$inventory->historic(0);
 				$inventory->save();
 			}
 		}
 	}
+
 
 	# grab the list of interfaces again, now that the list has possibly been updated
 	# (could track the changes above and only do it if necessary)
