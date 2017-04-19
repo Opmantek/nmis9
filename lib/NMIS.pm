@@ -78,7 +78,6 @@ use Exporter;
 		loadifTypesTable
 		loadServicesTable
     loadServiceStatus
-    saveServiceStatus
 		loadUsersTable
 		loadPrivMapTable
 		loadAccessTable
@@ -3306,35 +3305,6 @@ sub service_to_filename
 	return $result;
 }
 
-# saves and overwrites one service status file
-# args: service (= hash of the service data)
-# returns: undef if ok, error message otherwise
-sub saveServiceStatus
-{
-	my (%args) = @_;
-	my $servicerec = $args{service};
-
-	return "Cannot save service status without status data!"
-			if (ref($servicerec) ne "HASH" or !keys %$servicerec);
-
-	# things that *must* be present - undef isn't cutting it
-	for my $musthave (qw(status name node service server uuid))
-	{
-		return "Required property $musthave is missing."
-				if (!defined $servicerec->{$musthave});
-	}
-
-	my $C = loadConfTable();			# cached
-	my $targetfn = service_to_filename(service => $servicerec->{service},
-																		 node => $servicerec->{node},
-																		 server => $servicerec->{server});
-	return "Cannot translate service record into filename!"
-			if (!$targetfn);
-
-	writeHashtoFile(file => $targetfn, data => $servicerec, json => "true");
-	setFileProt($targetfn);
-	return undef;
-}
 
 # looks up all events (for one node or all),
 # in current or history section

@@ -1120,9 +1120,9 @@ sub doCollect
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
 
 	# update node info data, merge in the node's configuration (which was loaded by sys' init)
-	
+
 	$S->copyModelCfgInfo( type => 'all' );
-	
+
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# run an update if no update poll time is known
@@ -1356,10 +1356,10 @@ sub runPing
 			my $host = $NC->{node}{host};          # ip name/adress of node
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
-			
+
 			( $ping_min, $ping_avg, $ping_max, $ping_loss ) = ext_ping( $host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
-			
+
 		}
 
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
@@ -2166,7 +2166,7 @@ sub getIntfInfo
 				{
 					$inventory->historic(1);
 					$inventory->save();
-					
+
 					dbg("Interface ifIndex=$index removed from table");
 					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
 				}
@@ -2691,7 +2691,7 @@ sub getIntfInfo
 			}
 
 
-			
+
 			# number of interfaces collected with collect and event on
 			$intfCollect++ if ( getbool( $target->{collect} )
 				&& getbool( $target->{event} ) );
@@ -2748,7 +2748,7 @@ sub getIntfInfo
 			# For now, create inventory at the very end
 			# get the inventory object for this, path_keys required as we don't know what type it will be
 			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );			
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, path_keys => $path_keys );
 			if( ref($path) eq 'ARRAY')
 			{
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
@@ -2769,7 +2769,7 @@ sub getIntfInfo
 				# if collect is off then this interface is disabled
 				#   MD: I'm not totally sure this is correct, is this the variable
 				#     we want to use to control this?
-				$inventory->enabled(1);	
+				$inventory->enabled(1);
 				if ( getbool( $target->{collect}, "invert" ) )
 				{
 					$inventory->enabled(0);
@@ -2780,7 +2780,7 @@ sub getIntfInfo
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 					if ($error);
 			}
-			else 
+			else
 			{
 				$nmisng->log->error("Failed to create path for inventory, error:$path");
 			}
@@ -3514,11 +3514,11 @@ sub getSystemHealthInfo
 
 					# get the inventory object for this, path_keys required as we don't know what type it will be
 					NMISNG::Util::TODO("Do we use index or the healthIndextTable value that the loop above grabbed?");
-		
+
 					# $index_var is correct but the loading side in S->inventory doesn't know what the key will be in data
 					# so use 'index' for now.
 					# loadInfo always sets {index}, which is potentially the oid part and not the value of the oid, eg. how fanStatus works
-					
+
 					my $path_keys = ['index'];
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 
@@ -3673,7 +3673,7 @@ sub getSystemHealthData
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->data($data);
-				$inventory->save();				
+				$inventory->save();
 			}
 			else
 			{
@@ -3967,7 +3967,7 @@ sub getNodeData
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();	
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	info("Starting Node get data, node $S->{name}");
 
@@ -4525,8 +4525,8 @@ sub getCBQoS
 sub getCBQoSdata
 {
 	my (%args)  = @_;
-	my $S     = $args{sys};	
-	
+	my $S     = $args{sys};
+
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
@@ -4540,7 +4540,7 @@ sub getCBQoSdata
 			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message") && next
 				if(!$inventory);
 
-			# note, this is not saved because it doesn't appear to be changed, 
+			# note, this is not saved because it doesn't appear to be changed,
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
@@ -4611,10 +4611,10 @@ sub getCBQoSdata
 				}
 			}
 			# saving is required becuase create_update_rrd can change inventory, setting data not done because
-			# it's not chagned 
-			$inventory->save();	
+			# it's not chagned
+			$inventory->save();
 		}
-		
+
 	}
 	return 1;
 }
@@ -4948,7 +4948,7 @@ sub getCBQoSwalk
 			}
 
 		}
-		
+
 		if ( scalar( keys %{$ifIndexTable} ) )
 		{
 			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
@@ -4958,7 +4958,7 @@ sub getCBQoSwalk
 			for my $index ( keys %cbQosTable )
 			{
 				my $thisqosinfo = $cbQosTable{$index};
-				# we rely on index to be there for the path key (right now)				
+				# we rely on index to be there for the path key (right now)
 
 				my $if_data = $if_data_map{$index};
 				next
@@ -4991,11 +4991,11 @@ sub getCBQoSwalk
 					NMISNG::Util::TODO("Subclass Inventory for CBQoS");
 					my $data = $thisqosinfo->{$direction};
 					$data->{index} = $index;
-					
+
 					# create inventory entry, data is not changed below so do it here,
 					# add index entry for now, may want to modify this later, or create a specialised Inventory class
 					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
+					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );
 					if( ref($path) eq 'ARRAY')
 					{
 						my ( $inventory, $error_message ) = $nmisng_node->inventory(
@@ -5053,7 +5053,7 @@ sub getCBQoSwalk
 							}
 						}
 					}
-				
+
 				}
 			}
 		}
@@ -5104,7 +5104,7 @@ sub getCallsdata
 	my $S     = $args{sys};
 	my $NI    = $S->ndinfo;
 	my $IF    = $S->ifinfo;
-	
+
 	my %totalsTable;
 	my $concept = 'calls';
 	my $ids = $S->nmisng_node->get_inventory_ids( concept => $concept );
@@ -5260,7 +5260,7 @@ sub getCallsdata
 sub getCallswalk
 {
 	my %args = @_;
-	my $S    = $args{sys};	
+	my $S    = $args{sys};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	if ( !$S->status->{snmp_enabled} )
@@ -5395,10 +5395,10 @@ sub getCallswalk
 
 			# NOTE: for now we rely on the specail index key
 			$data->{index} = $callsintf;
-			# Create/find inventory 
+			# Create/find inventory
 			# get the inventory object for this, path_keys required as we don't know what type it will be
 			my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-			my $path = $nmisng_node->inventory_path( concept => 'calls', data => $data, path_keys => $path_keys );			
+			my $path = $nmisng_node->inventory_path( concept => 'calls', data => $data, path_keys => $path_keys );
 			if( ref($path) eq 'ARRAY')
 			{
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
@@ -5632,12 +5632,12 @@ sub runServer
 		my $deviceIndex = $SNMP->getindex('hrDeviceIndex');
 		# doesn't use device global here, it's only an inventory concept right now
 		$S->loadInfo( class => 'device', model => $model, target => $overall_target );    # get cpu load without index
-		
+
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device_global', path => $path, path_keys => [], data => $overall_target, create => 1 );
 		$S->nmisng->log->error("Failed to get inventory for device_global, error_message:$error_message") if(!$inventory);
 		# create is set so we should have an inventory here
-		if($inventory) 
+		if($inventory)
 		{
 			# not sure why supplying the data above does not work, needs a test!
 			$inventory->data( $overall_target );
@@ -5645,7 +5645,7 @@ sub runServer
 			($op,$error) = $inventory->save();
 			info( "saved ".join(',', @$path)." op: $op");
 		}
-		
+
 		$S->nmisng->log->error("Failed to save inventory, error_message:$error") if($error);
 
 		foreach my $index ( keys %{$deviceIndex} )
@@ -5673,7 +5673,7 @@ sub runServer
 
 					# lookup/create inventory before create_update_rrd so it can be passed in
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
-					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );					
+					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
 
 					if (! ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
@@ -5997,10 +5997,12 @@ sub runServices
 	my $memory;
 	my $msg;
 	my %services;    # hash to hold snmp gathered service status.
-	my %status;      # hash to collect generic/non-snmp service status
 
 	my $ST    = loadServicesTable();
 	my $timer = NMIS::Timing->new;
+
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node();
 
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
 	my %snmpTable;
@@ -6009,12 +6011,13 @@ sub runServices
 	my $write = 0;
 
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
-	if (    $snmp_allowed
-		and getbool( $NT->{$node}{active} )
-		and getbool( $NT->{$node}{collect} )
-		and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
-			split( /,/, $NT->{$node}->{services} ) )
-		)
+	# if so, then do the collection here
+	if ( $snmp_allowed
+			 and getbool( $NT->{$node}{active} )
+			 and getbool( $NT->{$node}{collect} )
+			 and grep( exists( $ST->{$_} ) && $ST->{$_}->{Service_Type} eq "service",
+								 split( /,/, $NT->{$node}->{services} ) )
+			)
 	{
 		info("node has SNMP services to check");
 
@@ -6076,8 +6079,20 @@ sub runServices
 				);
 			}
 
-			# keep all services for display (not rrd!)
-			$NI->{services} = \%services;
+			# keep all processes for display, not rrd - park this as timed-data
+			# for 'snmp_services' - fixme rename the concept?
+			my $procinv_path = $nmisng_node->inventory_path(concept => "snmp_services", path_keys => [], data => {});
+			die "failed to create path for snmp_services: $procinv_path\n" if (!ref($procinv_path));
+			my ( $processinventory, $error)  = $nmisng_node->inventory( concept => "snmp_services",
+																																 data => {},
+																																 path => $procinv_path,
+																																 path_keys => [],
+																																 create => 1);
+			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
+			(my $op, $error) = $processinventory->save();
+			die "failed to save inventory for snmp_services: $error\n" if ($error);
+			$error = $processinventory->add_timed_data(data => \%services);
+			logMsg("ERROR: snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
 			my %nodeevents = loadAllEvents( node => $S->{name} );
@@ -6106,22 +6121,65 @@ sub runServices
 		}
 	}
 
+	# find and mark as historic any services no longer configured for this host
+	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
+
+	my $modeldata = $nmisng->get_inventory_model(cluster_id => $nmisng_node->cluster_id,
+																							node_uuid => $nmisng_node->uuid,
+																							concept => "service",
+																							filter => { historic => 0 },
+																							fields_hash => { "data.service" => 1,
+																															 _id => 1, });
+	my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$modeldata->data});
+	for my $maybedead (keys %oldservice)
+	{
+		next if ($desiredservices{$maybedead});
+		dbg("marking as historic inventory record for service $maybedead");
+		my ( $invobj, $error) = $nmisng_node->inventory(_id => $oldservice{$maybedead});
+		die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
+		$invobj->historic(1);
+		my $error = $invobj->save();
+		logMsg("ERROR failed to save historic inventory object for service $maybedead: $error") if ($error);
+	}
+
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	# note that this also covers the snmp-based services
-	my $didRunServices = 0;
-	for my $service ( split /,/, $NT->{$S->{name}}{services} )
+	for my $service (sort keys %desiredservices)
 	{
 		# check for invalid service table data
 		next if ( $service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i );
 
 		# are we supposed to run this service now?
-		# load the service status and check the last run time
-		my %previous = loadServiceStatus( node => $node, service => $service );
+		# load the service inventory, most recent point-in-time data and check the last run time
+		my $inventorydata = {
+			service     => $service, # == key in Services.nmis, primary identifier
+			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
+			uuid        => NMIS::UUID::getComponentUUID( $C->{server_name}, $service,
+																									 $catchall_data->{uuid} ),
+			server      => $C->{server_name}, # backwards-compat, cluster_id is the more modern approach
+			description => $ST->{$service}->{Description},
+			display_name => $ST->{$service}->{Name}, # logic-free, no idea why that can differ from $service
+			node => $node, # backwards-compat
+		};
 
-		my $lastrun
-			= ( $previous{$C->{server_name}}->{$service} && $previous{$C->{server_name}}->{$service}->{$node} )
-			? $previous{$C->{server_name}}->{$service}->{$node}->{last_run}
-			: 0;
+		my $path_keys = [ 'service' ];
+		my $path = $nmisng_node->inventory_path( concept => 'service',
+																						 data => $inventorydata,
+																						 path_keys => $path_keys );
+		die "failed to create path for service: $path\n" if (!ref($path));
+
+		my ($inventory, $error) = $nmisng_node->inventory(
+			concept => "service",
+			data    => $inventorydata,
+			path => $path,
+			path_keys => $path_keys,
+			create  => 1,
+				);
+		die "failed to create or load inventory for $service: $error\n" if (!$inventory);
+
+		# when was this service checked last?
+		my $lastrun = ref($inventory->data) eq "HASH"? $inventory->data->{last_run} : 0;
+
 
 		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300;                       # 5min
 		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at "
@@ -6157,11 +6215,9 @@ sub runServices
 		# make sure that the rrd heartbeat is suitable for the service interval!
 		my $serviceheartbeat = ( $serviceinterval * 3 ) || 300 * 3;
 
-		$didRunServices = 1;
-
 		# make sure this gets reinitialized for every service!
 		my $gotMemCpu = 0;
-		my %Val;
+		my (%Val, %status);
 
 		info(
 			"Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}"
@@ -6488,7 +6544,7 @@ sub runServices
 							if ( $idx == 0 )
 							{
 								dbg("service status text is \"$response\"");
-								$status{$service}->{status_text} = $response;
+								$status{status_text} = $response;
 								next;
 							}
 
@@ -6512,7 +6568,9 @@ sub runServices
 								# any of those could be set to zero
 								if ( defined $lwarn or defined $lcrit or defined $lmin or defined $lmax )
 								{
-									$status{$service}->{limits}->{$k} = {
+									# note that putting this in status, ie. timed_data, isn't quite perfect
+									# could go into inventory BUT might change on every poll, hence hard to track in inventory
+									$status{limits}->{$k} = {
 										warning  => $lwarn,
 										critical => $lcrit,
 										min      => $lmin,
@@ -6526,7 +6584,8 @@ sub runServices
 									my ( $numericval, $unit ) = ( $1, $2 );
 									dbg("performance data for label '$k': raw value '$value_with_unit'");
 
-									$status{$service}->{units}->{$k} = $unit;    # keep track of the input unit
+									# imperfect storage location, pit vs inventory
+									$status{units}->{$k} = $unit;    # keep track of the input unit
 									$v = $numericval;
 
 									# massage the value into a number for rrd
@@ -6555,15 +6614,16 @@ sub runServices
 							};
 
 							# record the relationship between extra readings and the DS names they're stored under
-							$status{$service}->{ds}->{$k} = $rrdsafekey;
+							# imperfect storage location, pit vs inventory
+							$status{ds}->{$k} = $rrdsafekey;
 
 							if ( $k eq "responsetime" )    # response time is handled specially
 							{
-								$responsetime = $v;
+								$responsetime = NMISNG::Util::numify($v);
 							}
 							else
 							{
-								$status{$service}->{extra}->{$k} = $v;
+								$status{extra}->{$k} = NMISNG::Util::numify($v);
 							}
 
 						}
@@ -6619,12 +6679,12 @@ sub runServices
 
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if ( !defined $responsetime );
-		$status{$service}->{responsetime} = $responsetime;
-		$status{$service}->{name}         = $ST->{$service}{Name};    # same as $service
+		$status{responsetime} = NMISNG::Util::numify($responsetime);
+		my $thisrun = time;
 
 		# external programs return 0..100 directly, rest has 0..1
 		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
-		$status{$service}->{status} = $serviceValue;
+		$status{status} = NMISNG::Util::numify($serviceValue);
 
 		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
 		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
@@ -6660,7 +6720,7 @@ sub runServices
 				event   => "Service Down",
 				level   => "Normal",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" )
+				details => ( $status{status_text} || "" )
 			);
 
 			checkEvent(
@@ -6668,7 +6728,7 @@ sub runServices
 				event   => "Service Degraded",
 				level   => "Warning",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" )
+				details => ( $status{status_text} || "" )
 			);
 		}
 		elsif ( $serviceValue > 0 )    # service is up but degraded
@@ -6682,7 +6742,7 @@ sub runServices
 				event   => "Service Down",
 				level   => "Fatal",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" )
+				details => ( $status{status_text} || "" )
 			);
 
 			# ...and create a degraded
@@ -6691,7 +6751,7 @@ sub runServices
 				event   => "Service Degraded",
 				level   => "Warning",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" ),
+				details => ( $status{status_text} || "" ),
 				context => {type => "service"}
 			);
 		}
@@ -6706,7 +6766,7 @@ sub runServices
 				event   => "Service Degraded",
 				level   => "Warning",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" )
+				details => ( $status{status_text} || "" )
 			);
 
 			# and now create a down event
@@ -6715,7 +6775,7 @@ sub runServices
 				event   => "Service Down",
 				level   => "Fatal",
 				element => $ST->{$service}{Name},
-				details => ( $status{$service}->{status_text} || "" ),
+				details => ( $status{status_text} || "" ),
 				context => {type => "service"}
 			);
 		}
@@ -6747,45 +6807,12 @@ sub runServices
 			};
 
 			# cpu is a counter, need to get the delta(counters)/period from rrd
-			$status{$service}->{memory} = $memory;
+			$status{memory} = NMISNG::Util::numify($memory);
 
 			# fixme: should we omit the responsetime graph for snmp-based services??
 			# it doesn't say too much about the service itself...
 			push @servicegraphs, (qw(service-mem service-cpu));
 		}
-
-		$status{$service}->{service} ||= $service;    # service and node are part of the fn, but possibly mangled...
-		$status{$service}->{node} ||= $node;
-		$status{$service}->{name} ||= $ST->{$service}->{Name};    # that can be all kinds of stuff, depending on the service type
-		# save our server name with the service status, for distributed setups
-		$status{$service}->{server} = $C->{server_name};
-
-		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID( $C->{server_name}, $service, 
-																															$catchall_data->{uuid} );
-
-		$status{$service}->{description} ||= $ST->{$service}->{Description};    # but that's free-form
-		$status{$service}->{last_run} ||= time;
-
-		# where does this go? get inventory, rrd information, then update accordingly
-		my $nmisng = $S->nmisng;
-		my $nmisng_node = $S->nmisng_node();
-
-		my $data = {
-			description => $status{$service}->{description},
-			server      => $status{$service}->{server},
-			service     => $status{$service}->{service},
-			uuid        => $status{$service}->{uuid},
-			node => $status{$service}->{node}, # not required but doesn't hurt
-		};
-
-		my ($inventory, $error) = $nmisng_node->inventory(
-			concept => "service",
-			data    => $data,
-			create  => 1
-				);
-		die "failed to create or load inventory!\n" if (!$inventory);
-
 
 		my $fullpath = $S->create_update_rrd( data => \%Val,
 																					type => "service",
@@ -6813,7 +6840,6 @@ sub runServices
 		map { s/^Graph-(service-custom-[a-z0-9\._]+-[a-z0-9\._-]+)\.nmis$/$1/; } (@cands);
 		dbg( "found custom graphs for service $service: " . join( " ", @cands ) ) if (@cands);
 
-		$status{$service}->{customgraphs} = \@cands;
 		push @servicegraphs, @cands;
 
 		# now record the right storage subconcept-to-filename set in the inventory
@@ -6833,40 +6859,31 @@ sub runServices
 
 		if ($gotMemCpu)
 		{
-			# pull the newest cpu value from rrd - as it's a counter we need somebody to compute the delta(counters)/period
-			# rrd stores delta * (interval last update - aggregation time) as .value
-			# http://serverfault.com/questions/476925/rrd-pdp-status-value
-			my $infohash = RRDs::info($fullpath);
-			if ( defined( my $cpuval = $infohash->{'ds[cpu].value'} ) )
-			{
-				my $stepsize   = $infohash->{step};
-				my $lastupdate = $infohash->{last_update};
+			# cpu is a counter! need to pull the most recent cpu value from timed data, and compute the delta(counters)/period
+			# to do that we need to either query rrd (inefficient) or store both cpu_raw and cpu (cooked, average centiseconds per real second)
+			my $newest = $inventory->get_newest_timed_data();
 
-				$status{$service}->{cpu} = $cpuval / ( $lastupdate % $stepsize ) if ( $lastupdate % $stepsize );
-			}
+			# autovivifies but no problem
+			my $prevcounter = ($newest->{success} && exists($newest->{data}->{cpu_raw}))? $newest->{data}->{cpu_raw} : 0;
+
+			$status{cpu_raw} = $cpu;	# the counter
+			# never done or done just now? zero
+			$status{cpu} = ($lastrun && $thisrun != $lastrun)? (($cpu - $prevcounter) / ($thisrun - $lastrun)) : 0;
 		}
 
-		# now update the per-service status file
-		$error = saveServiceStatus( service => $status{$service} );
-		# and update the inventory data
-		if ($inventory)
-		{
-			my ( $op, $error ) = $inventory->save();
-			logMsg("ERROR: service status saving inventory failed: $error") if ($error);
-		}
+		# update the inventory data
+		my $invdata = $inventory->data;
+		$invdata->{last_run} = $thisrun;
+		$inventory->data($invdata);
+		$inventory->enabled(1);
+		$inventory->historic(0);
 
-		logMsg("ERROR: service status saving file failed: $error") if ($error);
-	}
+		( my $op, $error ) = $inventory->save();
+		logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 
-	# we ran one or more (but not necessarily all!) services
-	# so we must update, not overwrite the service_status node info...
-	if ($didRunServices)
-	{
-		for my $newinfo ( keys %status )
-		{
-			$S->{info}{service_status}->{$newinfo} = $status{$newinfo};
-		}
-		$catchall_data->{lastServicesPoll} = time();
+		# and add a new point-in-time record for this service
+		$error = $inventory->add_timed_data(data => \%status, time => NMISNG::Util::numify($thisrun));
+		logMsg("ERROR: service timed data saving failed: $error") if ($error);
 	}
 
 	info("Finished");
@@ -9091,7 +9108,6 @@ sub sendMSG
 		dbg("Method $method");
 		if ( $method eq "email" )
 		{
-
 			# fixme: this is slightly inefficient as the new sendEmail can send to multiple targets in one go
 			foreach $target ( keys %{$msgTable->{$method}} )
 			{
@@ -10066,8 +10082,8 @@ command line options are:
 #=========================================================================================
 
 # run threshold calculation operation on all or one node, in a single loop
-# args: 
-#   node - (optional), 
+# args:
+#   node - (optional),
 #   running_independently - set to 1 if not in collect/outer loop that will do saves
 # returns: nothing
 sub runThreshold
@@ -10083,7 +10099,7 @@ sub runThreshold
 			die "Invalid node=$node: No node of that name\n"
 				if ( !( $node_select = checkNodeName($node) ) );
 		}
-		doThreshold( name => $node_select, table => doSummaryBuild( name => $node_select ), running_independently => $running_independently );		
+		doThreshold( name => $node_select, table => doSummaryBuild( name => $node_select ), running_independently => $running_independently );
 	}
 	else
 	{
@@ -10273,7 +10289,7 @@ sub doThreshold
 	my $running_independently = $args{running_independently};
 
 	dbg("Starting");
-	
+
 	func::update_operations_stamp( type => "threshold", start => $starttime, stop => undef )
 		if( $running_independently );
 
@@ -10373,7 +10389,7 @@ sub doThreshold
 						if ($s eq "systemHealth" && !$inventory)
 							# and (  ref( $NI->{$type} ) ne "HASH" or ( !keys %{$NI->{$type}} )
 							# 	or ref( $NI->{$type}->{$index} ) ne "HASH"
-							# 	or $index ne $NI->{$type}->{$index}->{index} )							
+							# 	or $index ne $NI->{$type}->{$index}->{index} )
 						{
 							logMsg(
 								"ERROR invalid data for section $type and index $index, cannot run threshold for this index!"
@@ -10398,7 +10414,7 @@ sub doThreshold
 						# thresholds can be selectively disabled for individual interfaces
 						if ( $type =~ /interface|pkts/ )
 						{
-							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo							
+							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo
 							if ( $data && $data->{threshold} )
 							{
 								if ( getbool( $data->{threshold} ) )
@@ -10420,7 +10436,7 @@ sub doThreshold
 						}
 						# this autovivifies but it does not matter
 						elsif ( $type =~ /cbqos/ and defined $data->{threshold} eq 'true')
-						{							
+						{
 							my ( $cbqos, $direction ) = split( /\-/, $type );
 							$inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
 							$data = $inventory->data();
@@ -10514,16 +10530,16 @@ sub doThreshold
 			elsif ( $nodestatus == -1 )
 			{
 				$catchall_data->{nodestatus} = "degraded";
-			}			
+			}
 		}
 
 		# Save the new status results, but only if run standalone
 		if( $running_independently )
 		{
 			$S->writeNodeInfo();
-			$catchall_data->save();	
+			$catchall_data->save();
 		}
-		
+
 	}
 
 	dbg("Finished");
@@ -10614,7 +10630,7 @@ sub runThrHld
 		$element = "CPU $index";
 	}
 	elsif ( $index ne '' and $thrname =~ /^hrdisk/ )
-	{		
+	{
 		$inventory = $S->inventory( concept => 'storage', index => $index );
 		$data = ( $inventory ) ? $inventory->data : {};
 		$element = "$data->{hrStorageDescr}";
@@ -10627,8 +10643,8 @@ sub runThrHld
 		{
 			$element = $data->{ifDescr};
 			$element = "$data->{ifDescr}: $item" if($type =~ /cbqos/);
-		}		
-	}	
+		}
+	}
 	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
 		and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
 	{
@@ -10636,7 +10652,7 @@ sub runThrHld
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
 		$inventory = $S->inventory( concept => $type, index => $index );
 		$data = ($inventory) ? $inventory->data() : {};
-		$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );		
+		$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );
 	}
 	if ( $element eq "" )
 	{
@@ -10724,7 +10740,7 @@ sub runThrHld
 sub getThresholdLevel
 {
 	my %args = @_;
-	my $S    = $args{sys};	
+	my $S    = $args{sys};
 	my $M    = $S->mdl;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
