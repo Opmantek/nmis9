@@ -3431,6 +3431,7 @@ sub getSystemHealthInfo
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
+					$inventory->enabled(1);
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					info( "saved ".join(',', @$path)." op: $op");
@@ -3532,6 +3533,7 @@ sub getSystemHealthInfo
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
+					$inventory->enabled(1);
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
@@ -4099,19 +4101,17 @@ sub getIntfData
 
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map;
-	foreach my $entry (@$data)
-	{
-		# flatten the structure, safe because we're only grabbing specific data fields
-		$entry->{data}{_id} = $entry->{_id};
-		$entry->{data}{enabled} = $entry->{enabled};
-		$entry->{data}{historic} = $entry->{historic};
-
-		$if_data_map{$entry->{ifIndex}} = $entry->{data};
-	}
+	my %if_data_map = map 
+		{ 
+			$_->{data}{_id} = $_->{_id};
+			$_->{data}{enabled} = $_->{enabled};
+			$_->{data}{historic} = $_->{historic}; 
+			$_->{data}{ifIndex} => $_->{data} 
+		} 
+		(@$data);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
-
+	my ($ran_admin,$ran_change) = (0,0);
 	my ( $ifAdminTable, $ifOperTable ) = ({},{});
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
 		or ref( $S->{mdl}{custom}->{interface} ) ne "HASH"
@@ -4123,6 +4123,7 @@ sub getIntfData
 
 		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
+			$ran_admin = 1;
 			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index ( keys %{$ifAdminTable} )
 			{
@@ -4158,6 +4159,7 @@ sub getIntfData
 		
 		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
 		{
+			$ran_change = 1;
 			for my $index ( sort { $a <=> $b } ( keys %{$ifLastChangeTable} ) )
 			{
 				my $ifLastChangeSec = int( $ifLastChangeTable->{$index} / 100 );
@@ -4179,28 +4181,31 @@ sub getIntfData
 
 	# This used to be in the ifLastChange if statement, it's been taken out and now looks at both last change and admintable
 	# check for deleted interfaces, which exist in our inventory but are not reported by the device
-	foreach my $index ( sort { $a <=> $b } keys %if_data_map )
+	if( $ran_change || $ran_admin )
 	{
-		if ( not exists $ifLastChangeTable->{$index} && not exists $ifAdminTable->{$index} )
+		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
 		{
 			my $data = $if_data_map{$index};
-			info("$data->{ifDescr}: Interface Removed ifIndex=$index");
-			# mark the interface historic if it's not already
-			if( !$data->{historic} )
+			if ( !exists($ifLastChangeTable->{$index}) &&  !exists($ifAdminTable->{$index}) )
 			{
-				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
-				$inventory->historic(1);
-				$inventory->save();
+				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
+				# mark the interface historic if it's not already
+				if( !$data->{historic} )
+				{
+					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
+					$inventory->historic(1);
+					$inventory->save();
+				}
 			}
-		}
-		else
-		{
-			# mark the interface not historic if it's back
-			if( $data->{historic} )
+			else
 			{
-				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
-				$inventory->historic(0);
-				$inventory->save();
+				# mark the interface not historic if it's back
+				if( $data->{historic} )
+				{
+					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
+					$inventory->historic(0);
+					$inventory->save();
+				}
 			}
 		}
 	}
@@ -4695,12 +4700,21 @@ sub getCBQoSwalk
 				'data.ifSpeed' => 1,
 				'data.ifSpeedIn' => 1,
 				'data.ifSpeedOut' => 1,
-				'data.setlimits' => 1
+				'data.setlimits' => 1,
+				'enabled' => 1,
+				'historic' => 1
 			}
 		);
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $model_data->data();
-		my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+		my %if_data_map = map 
+			{ 
+				$_->{data}{_id} = $_->{_id};
+				$_->{data}{enabled} = $_->{enabled};
+				$_->{data}{historic} = $_->{historic}; 
+				$_->{data}{ifIndex} => $_->{data} 
+			} 
+			(@$data);
 
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
@@ -4711,7 +4725,7 @@ sub getCBQoSwalk
 			my $if_data = $if_data_map{$intf};
 
 			### 2014-03-27 keiths, skipping CBQoS if not collecting data
-			if ( getbool( $if_data->{collect}, "invert" ) )
+			if ( $if_data->{historic} || !$if_data->{enabled} )
 			{
 				dbg("Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf");
 				next;
@@ -5668,6 +5682,7 @@ sub runServer
 			# not sure why supplying the data above does not work, needs a test!
 			$inventory->data( $overall_target );
 			$inventory->historic(0);
+			$inventory->enabled(1);
 			($op,$error) = $inventory->save();
 			info( "saved ".join(',', @$path)." op: $op");
 		}
@@ -5699,7 +5714,7 @@ sub runServer
 
 					# lookup/create inventory before create_update_rrd so it can be passed in
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
-					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );					
+					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
 
 					if (! ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
@@ -5712,6 +5727,7 @@ sub runServer
 					{
 						$inventory->data($device_target);
 						$inventory->historic(0);
+						$inventory->enabled(1);
 						($op,$error) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 					}
@@ -5945,6 +5961,7 @@ sub runServer
 						$inventory->historic(1) if($inventory);
 					}
 				}
+				$inventory->enabled(1);
 
 				# make sure the data is set and save
 				$inventory->data( $storage_target );
