@@ -1073,10 +1073,9 @@ sub get_query
 #
 # if value is not defined or empty, then the column is not added to the hash.
 #
-# if the value is a hash, each value is checked, and the ones that exist are
-# added as a hash for that column. exception: if the key is
-#one of the mongodb operators '$OP', op in eq,gt,gte,lt,lte,ne,exists,size
-# then that value is passed through as-is.
+# if the value is a hash, each value is checked, and only the ones that exist 
+# and are nonblank are added as a hash for that column. 
+# exception: if the key is $eq or $ne then undef is passed through as-is.
 #
 # if the value is an array, then the query is set to $in all array values
 #
@@ -1107,9 +1106,9 @@ sub get_query_part
 		my %definedones = ();
 		while( my ($key, $value) = each(%{$col_value}) )
 		{
-			# special cases for the mongodb operators that we allow:
+			# special cases for the mongodb operators where undef makes sense, ie. $eq and $ne
 			# pass-through, value defined or not
-			if (($key =~ m!^\$(eq|gt|gte|lt|lte|ne|exists|size)$!)
+			if (($key =~ m!^\$(eq|ne)$!)
 					or (defined($value) and $value ne ''))
 			{
 				$definedones{$key} = $value;
