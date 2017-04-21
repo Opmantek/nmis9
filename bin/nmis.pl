@@ -4939,7 +4939,8 @@ sub getCBQoSwalk
 					$answer->{'cbQosPolicyMapName'} = 'default';
 					dbg("policymap - name is blank, so setting to default");
 				}
-
+				# putting this also in ifDescr so it's easier to programatically find in nodes.pl
+				$cbQosTable{$intf}{$direction}{'ifDescr'} = $if_data->{'ifDescr'};
 				$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $if_data->{'ifDescr'};
 				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'}  = $answer->{'cbQosPolicyMapName'};
 				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex;
@@ -4978,6 +4979,10 @@ sub getCBQoSwalk
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef";
 						}
+
+					}
+					else
+					{
 
 					}
 				}
@@ -5025,18 +5030,20 @@ sub getCBQoSwalk
 
 				for my $direction (qw(in out))
 				{
-
-
 					# save the QoS Data, do it before tuning so inventory can be found when looking for name
 					NMISNG::Util::TODO("Subclass Inventory for CBQoS");
 					my $data = $thisqosinfo->{$direction};
 					$data->{index} = $index;
-					
+
 					# create inventory entry, data is not changed below so do it here,
 					# add index entry for now, may want to modify this later, or create a specialised Inventory class
 					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
 					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
-					if( ref($path) eq 'ARRAY')
+					
+					# only add if we have data, which we may not have in both directions, at this time
+					# i can't see a better way to find out when to skip and setting it to be disabled
+					# does not seem correct as the cbqos info isn't there
+					if( ref($path) eq 'ARRAY' && defined($data->{ClassMap}))
 					{
 						my ( $inventory, $error_message ) = $nmisng_node->inventory(
 							concept   => "cbqos-$direction",
@@ -5046,9 +5053,11 @@ sub getCBQoSwalk
 							create    => 1
 						);
 						$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+						$inventory->data($data);
 						# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 						$inventory->path( recalculate => 1 );
 						$inventory->historic(0);
+						$inventory->enabled(1);
 						my ( $op, $error ) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 						$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )

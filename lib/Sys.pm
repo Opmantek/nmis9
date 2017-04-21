@@ -126,6 +126,7 @@ sub inventory
 	$concept = 'interface' if( $concept =~ /pkts/ );
 
 	my ($data,$path_keys) = ({},[]);
+	# if we have an index put it into the data so a path can be made
 	if( $index )
 	{
 		$data->{index} = $index;
@@ -147,7 +148,6 @@ sub inventory
 	else
 	{
 		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path") if (!$nolog);
-
 	}
 
 	$self->{_inventory_cache}{$concept} = $inventory
@@ -1803,15 +1803,16 @@ sub loadGraphTypeTable
 # if both are given, then inventory instances that match either will be returned
 # fixme: if both graphtype and section are given, but the graphtype doesn't
 # belong to that section, then highly misleading data will be returned!
+# [want_modeldata] - 0/1, if set the function will return a model_data object
 #
 # returns: list of matching indices - for indexed stuff the data.index property,
 # for services the data.service name.
 sub getTypeInstances
 {
 	my ( $self, %args ) = @_;
-	my $graphtype = $args{graphtype};
-	my $section   = $args{section};
-	my @instances;
+	my ($graphtype,$section,$want_modeldata,$want_active) = @args{qw(graphtype section want_modeldata want_active)};
+
+	my (@instances,$modeldata);
 
 	# query the inventory model for concept same as section (if section was given)...
 	if (defined $section)
@@ -1851,10 +1852,11 @@ sub getTypeInstances
 			# other backwards compat mess: section names are historically ALSO fed in as graphtype,
 			# never mind that there are no such graphs...
 			$subconcept ||= $graphtype;
-			# and here's  interfaces, multiple subconcepts for concept interface
-			$concept = ($subconcept =~ /^(pkts|pkts_hc|interface)$/)? 'interface' : $subconcept;
-			# another beautiful mess
-			$concept = ($subconcept =~ /^(hrsmpcpu)$/)? 'device' : $subconcept;
+			$concept = $subconcept;
+			# and here's  interfaces, multiple subconcepts for concept interface and other messes
+			$concept = 'interface' if ($subconcept =~ /^(pkts|pkts_hc|interface)$/);
+			$concept = 'device' if ($subconcept =~ /^(hrsmpcpu)$/);
+			$concept = 'storage' if ($subconcept =~ /^(hrdisk|hrmem|hrswapmem|hrvmem|hrbufmem|hrcachemem)$/);
 		}
 
 		# fixme harsh, but better we see gotchas now...
@@ -1874,13 +1876,19 @@ sub getTypeInstances
 		# and ask ONLY for the ones where a suitable storage element is present!
 		# note: doesn't check deeper, ie. for rrd key. storage knowledge embedded here is not ideal,
 		# but at least only the agreed-upon 'subconcept will have a key if available' is required
-		my $modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
-																											 node_uuid => $self->nmisng_node->uuid,
-																											 concept => $concept,
-																											 filter => { "storage.$subconcept" => { '$exists' => 1 }},
-																											 fields_hash => { "data.index" => 1,
-																																				"data.service" => 1, });
-		if ($modeldata->count)
+		my $fields_hash = ($want_modeldata) ? undef : { "data.index" => 1,"data.service" => 1 };
+		my $filter = { "storage.$subconcept" => { '$exists' => 1 }};
+		if( $want_active )
+		{
+			$filter->{enabled} = 1;
+			$filter->{historic} = 0;
+		}
+		$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																										node_uuid => $self->nmisng_node->uuid,
+																										concept => $concept,
+																										filter => $filter,
+																										fields_hash => $fields_hash );
+		if ($modeldata->count && !$want_modeldata)
 		{
 			for my $entry (@{$modeldata->data})
 			{
@@ -1888,7 +1896,7 @@ sub getTypeInstances
 			}
 		}
 	}
-	return @instances;
+	return ($want_modeldata) ? $modeldata : @instances;
 }
 
 # compute the rrd file path for this graphtype+node+index/item
