@@ -53,7 +53,7 @@ sub new
 
 	# transform extra level arguments into extra knowledge
 	# our default is 'info', not 'debug'
-	if (!defined($level) or $level eq '')
+	if (!defined($level) or $level eq '' or !$level)
 	{
 		$args{level} = 'info';
 	}
@@ -95,13 +95,16 @@ sub debug1 { shift->log(debug => @_); };
 # higher means here: verbosity. ie. debug3 includes debug2, debug, info, and all above.
 sub is_level
 {
+	use Carp;
+	
 	my ($self, $level) = @_;
-	if ($level =~ /^[1-9]$/)
+	if (defined($level) && $level =~ /^[1-9]$/)
 	{
 		return ($level <= $self->detaillevel && $self->SUPER::is_level('debug'));
 	}
 	else
 	{
+		confess("dud level $level") if (!defined($level) or $level !~ /^(debug|info|warn|error|fatal)$/ );
 		return $self->SUPER::is_level($level);
 	}
 }
