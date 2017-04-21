@@ -2766,10 +2766,8 @@ sub getIntfInfo
 				# through things found on the device so it's not historic
 				$inventory->historic(0);
 
-				# if collect is off then this interface is disabled
-				#   MD: I'm not totally sure this is correct, is this the variable
-				#     we want to use to control this?
-				$inventory->enabled(1);
+				# if collect is off then this interface is disabled				
+				$inventory->enabled(1);	
 				if ( getbool( $target->{collect}, "invert" ) )
 				{
 					$inventory->enabled(0);
@@ -3433,6 +3431,7 @@ sub getSystemHealthInfo
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
+					$inventory->enabled(1);
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					info( "saved ".join(',', @$path)." op: $op");
@@ -3534,6 +3533,7 @@ sub getSystemHealthInfo
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
+					$inventory->enabled(1);
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
@@ -4059,7 +4059,6 @@ sub getIntfData
 	}
 
 	my $V    = $S->view;
-	my $IF   = $S->ifinfo;    # interface info
 	my $RI   = $S->reach;
 	my $SNMP = $S->snmp;
 	my $IFCACHE;
@@ -4095,14 +4094,25 @@ sub getIntfData
 			'data.ifDescr' => 1,
 			'data.ifIndex' => 1,
 			'data.ifLastChange' => 1,
+			'enabled' => 1,
+			'historic' => 1
 		}
 	);
 
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+	my %if_data_map = map 
+		{ 
+			$_->{data}{_id} = $_->{_id};
+			$_->{data}{enabled} = $_->{enabled};
+			$_->{data}{historic} = $_->{historic}; 
+			$_->{data}{ifIndex} => $_->{data} 
+		} 
+		(@$data);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
+	my ($ran_admin,$ran_change) = (0,0);
+	my ( $ifAdminTable, $ifOperTable ) = ({},{});
 	if (ref( $S->{mdl}->{custom} ) ne "HASH"    # don't autovivify
 		or ref( $S->{mdl}{custom}->{interface} ) ne "HASH"
 		or !getbool( $S->{mdl}->{custom}->{interface}->{ifAdminStatus}, "invert" )
@@ -4111,10 +4121,9 @@ sub getIntfData
 		# fixme: this cannot work for non-snmp nodes
 		info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
 
-		my ( $ifAdminTable, $ifOperTable );
-
 		if ( $ifAdminTable = $SNMP->getindex('ifAdminStatus') )
 		{
+			$ran_admin = 1;
 			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index ( keys %{$ifAdminTable} )
 			{
@@ -4131,7 +4140,7 @@ sub getIntfData
 				# total number of interfaces up
 				$RI->{intfUp}++
 					if $ifOperTable->{$index} == 1
-					and getbool( $IF->{$index}{real} );
+					and getbool( $if_data_map{$index}{real} );
 			}
 		}
 	}
@@ -4140,65 +4149,89 @@ sub getIntfData
 	# if an interface is added this will find it to.
 	# if it changes admin or oper state it will find it.
 	# this can be enabled on a model by model basis is false by default.
+	my $ifLastChangeTable = {};
 	if (    ref( $S->{mdl}{custom} ) eq "HASH"
 		and ref( $S->{mdl}{custom}{interface} ) eq "HASH"
 		and getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) )
 	{
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
-		my $ifLastChangeTable;
+		
 		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
 		{
+			$ran_change = 1;
 			for my $index ( sort { $a <=> $b } ( keys %{$ifLastChangeTable} ) )
 			{
 				my $ifLastChangeSec = int( $ifLastChangeTable->{$index} / 100 );
 				if( exists($if_data_map{$index}) && $ifLastChangeSec == $if_data_map{$index}->{ifLastChange} )
 				{
-					info("$IF->{$index}{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
+					info("$if_data_map{$index}->{ifDescr}: NO Change ifIndex=$index ifLastChangeSec=$ifLastChangeSec");
 				}
 				else
 				{
 					info("New Interface: ifIndex=$index ifLastChangeSec=$ifLastChangeSec") if( !exists($if_data_map{$index}) );
-					info("$IF->{$index}{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$IF->{$index}{ifLastChangeSec}")
+					info("$if_data_map{$index}->{ifDescr}: Changed ifLastChangeSec=$ifLastChangeSec, was=$if_data_map{$index}->{ifLastChangeSec}")
 						if($ifLastChangeSec != $if_data_map{$index}->{ifLastChangeSec}); # don't care about vivify here
 					getIntfInfo( sys => $S, index => $index );    # add/update this interface
-					# $IF->{$index}{ifLastChangeSec} = $ifLastChangeSec; # the update should do this automatically
+					# $IF->{$index}{ifLastChangeSec} = $ifLastChangeSec; # the getIntfInfo update should do this for us
 				}
-			}
-		}
-		# check for deleted interfaces
-		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
-		{
-			if ( not exists $ifLastChangeTable->{$index} )
-			{
-				my $data = $if_data_map{$index};
-				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
-				my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
 			}
 		}
 	}
 
-	info("Processing Interface Table");
-	foreach my $index ( sort { $a <=> $b } keys %if_data_map )
+	# This used to be in the ifLastChange if statement, it's been taken out and now looks at both last change and admintable
+	# check for deleted interfaces, which exist in our inventory but are not reported by the device
+	if( $ran_change || $ran_admin )
 	{
-		# load up the full inventory object here because the data data may have been updated above
-		# eventually this could be done only if it's updated
-		my $_id = $if_data_map{$index}->{_id};
-		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $_id );
-		$nmisng->log->error("Failed to get interface inventory, index $index, _id:$_id, error_message:$error_message") && next if(!$inventory);
+		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
+		{
+			my $data = $if_data_map{$index};
+			if ( !exists($ifLastChangeTable->{$index}) &&  !exists($ifAdminTable->{$index}) )
+			{
+				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
+				# mark the interface historic if it's not already
+				if( !$data->{historic} )
+				{
+					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
+					$inventory->historic(1);
+					$inventory->save();
+				}
+			}
+			else
+			{
+				# mark the interface not historic if it's back
+				if( $data->{historic} )
+				{
+					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
+					$inventory->historic(0);
+					$inventory->save();
+				}
+			}
+		}
+	}
+
+
+	# grab the list of interfaces again, now that the list has possibly been updated
+	# (could track the changes above and only do it if necessary)
+	# this could also query for ifDescr being the value we want instead of doing the if below
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+	info("Processing Interface Table");
+	foreach my $id ( sort @$ids )
+	{
+		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );		
+		$nmisng->log->error("Failed to get interface inventory, _id:$id, error_message:$error_message") && next if(!$inventory);
 		# replace minimal data with all data known
 		my $inventory_data = $inventory->data();
+		my $index = $inventory_data->{ifIndex};
 
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
-		if ( !getbool( $inventory_data->{collect} )	or !defined( $inventory_data->{ifDescr} )	or $inventory_data->{ifDescr} eq "" )
+		if ( !defined( $inventory_data->{ifDescr} )	or $inventory_data->{ifDescr} eq "" )
 		{
-			dbg("NOT Collected: $IF->{$index}{ifDescr}: ifIndex=$IF->{$index}{ifIndex}, OperStatus=$IF->{$index}{ifOperStatus}, ifAdminStatus=$IF->{$index}{ifAdminStatus}, Interface Collect=$IF->{$index}{collect}"
+			dbg("NOT Collected: $if_data_map{$index}->{ifDescr}: ifIndex=$if_data_map{$index}->{ifIndex}, OperStatus=$if_data_map{$index}->{ifOperStatus}, ifAdminStatus=$if_data_map{$index}->{ifAdminStatus}, Interface Collect=$if_data_map{$index}->{collect}"
 			);
 			next;
 		}
-
-
 
 		info(
 			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was => OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
@@ -4278,14 +4311,12 @@ sub getIntfData
 						{
 							### 2014-03-14 keiths, special handling for manual interface discovery which does not use getIntfInfo.
 							# interface now up or down, check and set or clear outstanding event.
-							dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}"
+							dbg("handling up/down admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$if_data_map{$index}->{ifAdminStatus}, oper=$if_data_map{$index}->{ifOperStatus}"
 							);
 							$inventory_data->{ifAdminStatus} = $D->{ifAdminStatus}{value};
 							$inventory_data->{ifOperStatus}  = $D->{ifOperStatus}{value};
-
-							# checking for collect here is pointless, we already know it's on or we wouldn't be here!
-							if (    getbool( $inventory_data->{collect} )
-								and $inventory_data->{ifAdminStatus} =~ /up|ok/
+							
+							if (  $inventory_data->{ifAdminStatus} =~ /up|ok/
 								and $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
 							{
 								if ( getbool( $inventory_data->{event} ) )
@@ -4312,7 +4343,7 @@ sub getIntfData
 						}
 						else
 						{
-							dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$IF->{$index}{ifAdminStatus}, oper=$IF->{$index}{ifOperStatus}"
+							dbg("status now admin=$D->{ifAdminStatus}{value}, oper=$D->{ifOperStatus}{value} was admin=$if_data_map{$index}->{ifAdminStatus}, oper=$if_data_map{$index}->{ifOperStatus}"
 							);
 							if ( $D->{ifOperStatus}{value} eq 'down' )
 							{
@@ -4460,7 +4491,7 @@ sub getIntfData
 			if ( getbool( $inventory_data->{event} ) )
 			{
 				logMsg(
-					"ERROR: Interface SNMP Data: ifAdminStatus=$inventory_data->{ifAdminStatus} ifOperStatus=$inventory_data->{ifOperStatus} collect=$inventory_data->{collect}"
+					"ERROR: Interface SNMP Data: ifAdminStatus=$inventory_data->{ifAdminStatus} ifOperStatus=$inventory_data->{ifOperStatus} enabled=".$inventory->enabled()
 				);
 			}
 		}
@@ -4669,12 +4700,21 @@ sub getCBQoSwalk
 				'data.ifSpeed' => 1,
 				'data.ifSpeedIn' => 1,
 				'data.ifSpeedOut' => 1,
-				'data.setlimits' => 1
+				'data.setlimits' => 1,
+				'enabled' => 1,
+				'historic' => 1
 			}
 		);
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $model_data->data();
-		my %if_data_map = map { $_->{data}{_id} = $_->{_id};$_->{data}{ifIndex} => $_->{data} } (@$data);
+		my %if_data_map = map 
+			{ 
+				$_->{data}{_id} = $_->{_id};
+				$_->{data}{enabled} = $_->{enabled};
+				$_->{data}{historic} = $_->{historic}; 
+				$_->{data}{ifIndex} => $_->{data} 
+			} 
+			(@$data);
 
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
@@ -4685,7 +4725,7 @@ sub getCBQoSwalk
 			my $if_data = $if_data_map{$intf};
 
 			### 2014-03-27 keiths, skipping CBQoS if not collecting data
-			if ( getbool( $if_data->{collect}, "invert" ) )
+			if ( $if_data->{historic} || !$if_data->{enabled} )
 			{
 				dbg("Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf");
 				next;
@@ -4899,7 +4939,8 @@ sub getCBQoSwalk
 					$answer->{'cbQosPolicyMapName'} = 'default';
 					dbg("policymap - name is blank, so setting to default");
 				}
-
+				# putting this also in ifDescr so it's easier to programatically find in nodes.pl
+				$cbQosTable{$intf}{$direction}{'ifDescr'} = $if_data->{'ifDescr'};
 				$cbQosTable{$intf}{$direction}{'Interface'}{'Descr'} = $if_data->{'ifDescr'};
 				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Name'}  = $answer->{'cbQosPolicyMapName'};
 				$cbQosTable{$intf}{$direction}{'PolicyMap'}{'Index'} = $PIndex;
@@ -4938,6 +4979,10 @@ sub getCBQoSwalk
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Descr'} = "Bandwidth";
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'BW'}{'Value'} = "undef";
 						}
+
+					}
+					else
+					{
 
 					}
 				}
@@ -4985,8 +5030,6 @@ sub getCBQoSwalk
 
 				for my $direction (qw(in out))
 				{
-
-
 					# save the QoS Data, do it before tuning so inventory can be found when looking for name
 					NMISNG::Util::TODO("Subclass Inventory for CBQoS");
 					my $data = $thisqosinfo->{$direction};
@@ -4995,8 +5038,12 @@ sub getCBQoSwalk
 					# create inventory entry, data is not changed below so do it here,
 					# add index entry for now, may want to modify this later, or create a specialised Inventory class
 					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );
-					if( ref($path) eq 'ARRAY')
+					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
+					
+					# only add if we have data, which we may not have in both directions, at this time
+					# i can't see a better way to find out when to skip and setting it to be disabled
+					# does not seem correct as the cbqos info isn't there
+					if( ref($path) eq 'ARRAY' && defined($data->{ClassMap}))
 					{
 						my ( $inventory, $error_message ) = $nmisng_node->inventory(
 							concept   => "cbqos-$direction",
@@ -5006,9 +5053,11 @@ sub getCBQoSwalk
 							create    => 1
 						);
 						$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+						$inventory->data($data);
 						# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 						$inventory->path( recalculate => 1 );
 						$inventory->historic(0);
+						$inventory->enabled(1);
 						my ( $op, $error ) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 						$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5642,6 +5691,7 @@ sub runServer
 			# not sure why supplying the data above does not work, needs a test!
 			$inventory->data( $overall_target );
 			$inventory->historic(0);
+			$inventory->enabled(1);
 			($op,$error) = $inventory->save();
 			info( "saved ".join(',', @$path)." op: $op");
 		}
@@ -5686,6 +5736,7 @@ sub runServer
 					{
 						$inventory->data($device_target);
 						$inventory->historic(0);
+						$inventory->enabled(1);
 						($op,$error) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 					}
@@ -5919,6 +5970,7 @@ sub runServer
 						$inventory->historic(1) if($inventory);
 					}
 				}
+				$inventory->enabled(1);
 
 				# make sure the data is set and save
 				$inventory->data( $storage_target );

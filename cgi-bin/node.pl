@@ -125,8 +125,7 @@ sub typeGraph {
 
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node); # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $M = $S->mdl;
 	my $V = $S->view;
 
@@ -309,38 +308,63 @@ sub typeGraph {
 	}
 
 	print comment("typeGraph begin");
+	my $modeldata = $S->getTypeInstances(graphtype => $graphtype, want_modeldata => 1, want_active => 1);
+	my $data = $modeldata->data;
+	# we can assume that the concept is the same in all entries
+	my $concept = ($modeldata->count > 0) ? $data->[0]{concept} : undef;	
+	my $subconcept = $GTT->{$graphtype};
+	my %index_map = map { $_->{data}{index} => $_ } @$data;
+	my $index_model = ($index) ? $index_map{$index} : {};
 
-	my $systemHealth = 0;
-	my $systemHealthSection = "";
-	my $systemHealthHeader = "";
-	my $systemHealthTitle = "";
-	my @systemHealthLabels;
+	# different graphs get their label/name from different places, this normalises
+	# that and allows grabbing the data from the inventory model
+	# do this by subconcept, concept is too broad, things like storage break it
+	my %title_struct = (
+		akcp_temp => { name => 'Sensor', label_key => 'hhmsSensorTempDescr' },
+		akcp_hum => { name => 'Sensor', label_key => 'hhmsSensorHumDescr' },
+		csscontent => { name => 'Sensor', label_key => 'CSSContentDesc' },		
+		cssgroup => { name => 'Group', label_key => 'CSSGroupDesc' },
+		env_temp => { name => 'Sensor', label_key => 'tempDescr' },
+		hrsmpcpu => { name => 'CPU' },
+		hrdisk => { name => 'Disk', label_key =>'hrStorageDescr' },
+		interface => { name => 'Interface', label_key => 'ifDescr' },
+		pkts => { name => 'Interface', label_key => 'ifDescr' },
+		pkts_hc => { name => 'Interface', label_key => 'ifDescr' },
+		'cbqos-in' => { name => 'Interface', label_key => 'ifDescr' },
+		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
+		calls => { name => 'Interface', label_key => 'ifDescr' },
+	);
+	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index");
+	# get the dropdown info for system health, we need to figure out which of the 
+	# inventory data entries should be used for the label_key and name
+	if( $concept && defined($M->{systemHealth}{sys}{$concept}) )
+	{		
+		my $sys = $M->{systemHealth}{sys}{$concept};		
+		my $systemHealthLabel;
+		my $systemHealthTitle = "";
 
-	foreach my $index (keys %{$NI->{graphtype}}) {
-		if ( ref($NI->{graphtype}{$index}) eq "HASH" ) {
-			foreach my $gtype (keys %{$NI->{graphtype}{$index}}) {
-				if ( $NI->{graphtype}{$index}{$gtype} =~ /$graphtype/ and exists $M->{systemHealth}{rrd}{$gtype} ) {
-					$systemHealth = 1;
-					$systemHealthSection = $gtype;
-					### 2013-11-22 keiths, handling headers a bit better in the graph drill in
-					if ( $M->{systemHealth}{sys}{$gtype}{headers} !~ /,/ ) {
-						$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
-					}
-					else {
-						my @tmpHeaders = split(",",$M->{systemHealth}{sys}{$gtype}{headers});
-						$systemHealthHeader = $tmpHeaders[0];
-					}
-
-					if ( exists $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} and $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} ne "" ) {
-						$systemHealthTitle =  $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title};
-					}
-					else {
-						$systemHealthTitle = $systemHealthHeader;
-					}
-					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{$systemHealthSection}};
-				}
+		# all model entries will have the same inventory concept so just use the first one
+		if( @$data > 0 )
+		{
+			my $model = $data->[0];
+			$S->nmisng->log->debug("model, index: $model->{data}{index}");
+			if ( $sys->{headers} !~ /,/ ) {
+				$systemHealthLabel = $sys->{headers};
 			}
+			else {
+				my @tmpHeaders = split(",",$sys->{headers});
+				$systemHealthLabel = $tmpHeaders[0];
+			}
+
+			if ( exists $sys->{snmp}{$systemHealthLabel}{title} and $sys->{snmp}{$systemHealthLabel}{title} ne "" ) {
+				$systemHealthTitle = $sys->{snmp}{$systemHealthLabel}{title};
+			}
+			else {
+				$systemHealthTitle = $systemHealthLabel;
+			}			
+			# indexes are already where they should be
 		}
+		$title_struct{$subconcept} = { name => $systemHealthTitle, label_key => $systemHealthLabel };
 	}
 
 	print start_form( -method=>'get', -name=>"dograph", -action=>url(-absolute=>1));
@@ -358,17 +382,19 @@ sub typeGraph {
 				# Node select menu
 				td({class=>'header',align=>'center',colspan=>'1'},eval {
 						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
-							if $Q->{graphtype} eq 'metrics' or $Q->{graphtype}  eq 'nmis';
+							if $graphtype eq 'metrics' or $graphtype  eq 'nmis';
 						return "Node ",popup_menu(-name=>'node', -override=>'1',
 							-values=>[@nodelist],
 							-default=>"$Q->{node}",
 							-onChange=>'JavaScript:this.form.submit()');
 					}),
 				# Graphtype select menu
+				# NOTE: this list needs to be adjusted to only show things are actually collect/storing
+				#   cbqos-in/out is one example that isn't working
 				td({class=>'header',align=>'center',colspan=>'1'},"Type ",
 					popup_menu(-name=>'graphtype', -override=>'1',
 						-values=>[sort keys %{$GTT}],
-						-default=>"$Q->{graphtype}",
+						-default=>"$graphtype",
 						-onChange=>'JavaScript:this.form.submit()')),
 				# Submit button
 				td({class=>'header',align=>'center',colspan=>'1'},
@@ -380,88 +406,31 @@ sub typeGraph {
 					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23')),
 				# Group or Interface select menu
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
-						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $Q->{graphtype} eq 'nmis';
-						if ( $Q->{graphtype} eq "metrics") {
+						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
+						if( defined( $title_struct{ $subconcept } ) )
+						{							
+							my $def = $title_struct{ $subconcept };							
+							my @sorted = sort { $a->{data}{index} <=> $b->{data}{index} } @$data;
+							my @values = map { $_->{data}{index} } @sorted;
+							my %labels = ( defined($def->{label_key}) ) ? map { $_->{data}{index} => $_->{data}{ $def->{label_key} } } @sorted : undef;
+							unshift @sorted, '';
+							return "$def->{name} ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+										-values=>['', @values],
+										-default=>"$index",
+										-labels=> \%labels,
+										-onChange=>'JavaScript:this.form.submit()');
+						}
+						elsif ( $graphtype eq "metrics") {
 							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1',
 										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
 										-default=>"$group",
 										-onChange=>'JavaScript:this.form.submit()'),
 										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
 						}
-						elsif ($Q->{graphtype} eq "hrsmpcpu") {
-							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
-										-default=>"$index",
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
+					 	elsif ($graphtype =~ /service|service-cpumem|service-response/) {
 							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
 										-values=>['',sort $S->getTypeInstances(section => "service")],
 										-default=>"$index",
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($Q->{graphtype} eq "hrdisk") {
-							my @disks = $S->getTypeInstances(graphtype =>  "hrdisk");
-							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @disks],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "env_temp") {
-							my @sensors = $S->getTypeInstances(graphtype => "env_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "akcp_temp") {
-							my @sensors = $S->getTypeInstances(graphtype => "akcp_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "akcp_hum") {
-							my @sensors = $S->getTypeInstances(graphtype => "akcp_hum");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "cssgroup") {
-							my @cssgroup = $S->getTypeInstances(graphtype => "cssgroup");
-							return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @cssgroup],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort @cssgroup },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "csscontent") {
-							my @csscont = $S->getTypeInstances(graphtype => "csscontent");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort @csscont],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-						elsif ($systemHealth) {
-							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',sort keys %{$NI->{$systemHealthSection}}],
-										-default=>"$index",
-										-labels=>{ @systemHealthLabels },
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-						else {
-							# all interfaces have an ifindex, but for the menu we only want
-							# the ones that NMIS actually collects
-							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} }
-							grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
-
-							### 2014-10-21 keiths, if the ifIndex is specifically requested, show it in the menu.
-							if (not grep { $_ eq $index } @wantedifs ) {
-										push(@wantedifs, $index);
-							}
-							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
-										-values=>['',  @wantedifs],
-										-default=>"$index",
-										-labels=>{ map{($_ => $IF->{$_}{ifDescr})} @wantedifs },
 										-onChange=>'JavaScript:this.form.submit()');
 						}
 					}),
@@ -477,8 +446,8 @@ sub typeGraph {
 							}
 						}
 						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},"Export");
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},"Stats");
+							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
+							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
 						}
 						push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
 						return @out;
@@ -486,11 +455,19 @@ sub typeGraph {
 
 
 	# interface info
-	if ( $GTT->{$graphtype} =~ /interface|pkts|cbqos/i and $index ne "") {
+	if ( $subconcept =~ /interface|pkts|cbqos/i and $index ne "") {
 
 		my $db;
 		my $lastUpdate;
-		if (($GTT->{$graphtype} =~ /cbqos/i and $item ne "") or $GTT->{$graphtype} =~ /interface|pkts/i ) {
+		my $intf_data = $index_model->{data};
+		# cbqos shows interface data so load if if we are doing cbqos
+		if( $subconcept =~ /cbqos/ && $index != '')
+		{
+			$intf_data = $S->inventory( concept => 'interface', index => $index )->data();
+		}
+		# NOTE: this could use the inventory last update time
+		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i ) 
+		{
 			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
 			$time = RRDs::last $db;
 			$lastUpdate = returnDateStamp($time);
@@ -498,8 +475,8 @@ sub typeGraph {
 
 		$S->readNodeView;
 		my $V = $S->view;
-
-		my $speed = &convertIfSpeed($IF->{$index}{ifSpeed});
+		# instead of loading a new inventory object re-use the model loaded above
+		my $speed = &convertIfSpeed($intf_data->{ifSpeed});
 		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne "" and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" ) {
 				$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
 		}
@@ -508,28 +485,28 @@ sub typeGraph {
 		print Tr(td({colspan=>'1'},
 			table({class=>'table',border=>'0',width=>'100%'},
 				Tr(td({class=>'header',align=>'center',},'Type'),
-					td({class=>'info Plain',},$IF->{$index}{ifType}),
+					td({class=>'info Plain',},$intf_data->{ifType}),
 					td({class=>'header',align=>'center',},'Speed'),
 					td({class=>'info Plain'},$speed)),
 				Tr(td({class=>'header',align=>'center',},'Last Updated'),
 					td({class=>'info Plain'},$lastUpdate),
 					td({class=>'header',align=>'center',},'Description'),
-					td({class=>'info Plain'},$IF->{$index}{Description})) )));
+					td({class=>'info Plain'},$intf_data->{Description})) )));
 
-	} elsif ( $GTT->{$graphtype} =~ /hrdisk/i and $index ne "") {
+	} elsif ( $subconcept =~ /hrdisk/i and $index ne "") {
 		print Tr(td({colspan=>'1'},
 			table({class=>'table',border=>'0',width=>'100%'},
 				Tr(td({class=>'header',align=>'center',},'Type'),
-					td({class=>'info Plain'},$NI->{storage}{$index}{hrStorageType}),
+					td({class=>'info Plain'},$index_model->{data}{hrStorageType}),
 					td({class=>'header',align=>'center',},'Description'),
-					td({class=>'info Plain'},$NI->{storage}{$index}{hrStorageDescr})) )));
+					td({class=>'info Plain'},$index_model->{data}{hrStorageDescr})) )));
 	}
 
 	my @output;
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
 											suppress_errors=>'true'))
-			 or $Q->{graphtype} =~ /calls|cbqos/) {
+			 or $graphtype =~ /calls|cbqos/) {
 
 		my %buttons;
 		my $htitle;
@@ -538,7 +515,7 @@ sub typeGraph {
 		my @intf;
 
 		# figure out the available policy or classifier names and other cbqos details
-		if ( $Q->{graphtype} =~ /cbqos/ )
+		if ( $graphtype =~ /cbqos/ )
 		{
 			my ($CBQosNames,undef) = NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
 			$htitle = 'Policy name';
@@ -552,16 +529,16 @@ sub typeGraph {
 		}
 
 		# display Call buttons if there is more then one call port for this node
-		if ( $Q->{graphtype} eq "calls" ) {
-			for my $i ($S->getTypeInstances(section => "calls")) {
-				$buttons{$i}{name} = $IF->{$i}{ifDescr};
+		if ( $graphtype eq "calls" ) {
+			for my $i ($S->getTypeInstances(section => "calls")) {				
+				$buttons{$i}{name} = $index_model->{data}{ifDescr};
 				$buttons{$i}{intf} = $i;
 				$buttons{$i}{item} = '';
 			}
 		}
 
 		if (%buttons) {
-			my $cg = "conf=$Q->{conf}&act=network_graph_view&graphtype=$Q->{graphtype}&start=$start&end=$end&node=".uri_escape($Q->{node});
+			my $cg = "conf=$Q->{conf}&act=network_graph_view&graphtype=$graphtype&start=$start&end=$end&node=".uri_escape($Q->{node});
 			push @output, start_Tr;
 			if ($htitle ne "") {
 				push @output, td({class=>'header',colspan=>'1'},$htitle),td({class=>'info Plain',colspan=>'1'},$hvalue);
@@ -577,17 +554,10 @@ sub typeGraph {
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
 				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
 		my $chartDiv = "";
-		if( getbool($C->{display_opcharts}) ) {
-			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;
-		}
-
-		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			if( getbool($C->{display_opcharts}) ) {
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
-			} else {
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
-			}
+		
+		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ ) {
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		}
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
@@ -623,6 +593,7 @@ sub typeExport {
 	$S->init(name=>$Q->{node}); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
+	my $graphtype = $Q->{graphtype};
 
 	my $NT = loadLocalNodeTable();
 
@@ -655,9 +626,9 @@ sub typeExport {
 		}
 	}
 
-	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
-	my $filename = "$Q->{node}"."-"."$Q->{graphtype}";
-	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$Q->{graphtype}" }
+	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$graphtype,mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
+	my $filename = "$Q->{node}"."-"."$graphtype";
+	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$graphtype" }
 	print "Content-type: text/csv;\n";
 	print "Content-Disposition: attachment; filename=$filename.csv\n\n";
 
