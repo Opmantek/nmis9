@@ -2488,8 +2488,7 @@ EO_HTML
 	if (   getbool( $catchall_data->{collect} )
 		or getbool( $catchall_data->{ping} ) )
 	{
-		my $GTT    = $S->loadGraphTypeTable();             # translate graphtype to type
-		print STDERR "GTT".Dumper($GTT);
+		my $GTT    = $S->loadGraphTypeTable();             # translate graphtype to type		
 		my $cnt    = 0;
 		my @graphs = split /,/, $M->{system}{nodegraph};
 
