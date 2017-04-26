@@ -40,6 +40,7 @@ use Clone;											# for copying data and other r/o sections
 use Scalar::Util;								# for weaken
 use Data::Dumper;
 use Time::HiRes;
+use List::MoreUtils;						# for uniq
 use Carp;
 
 use NMISNG::DB;
@@ -347,10 +348,21 @@ sub storage
 		else
 		{
 			$self->{_storage} = Clone::clone( $newstorage );
+			# and update the subconcepts list
+			$self->{_subconcepts} = [ List::MoreUtils::uniq(keys %{$self->{_storage}}) ];
 		}
 	}
 	return Clone::clone($self->{_storage});
 }
+
+# small r/o accessor to the list of unique subconcepts, as declared by the storage structure
+# args: none
+# returns: array ref (cloned, might be empty)
+sub subconcepts
+{
+	my ($self) = @_;
+	return defined($self->{_subconcepts})? Clone::clone($self->{_subconcepts}) : [];
+}	
 
 # small accessor that looks up a storage subconcept
 # and returns the requested storage type info for it
@@ -395,6 +407,10 @@ sub set_subconcept_type_storage
 		delete $self->{_storage}->{$subconcept}
 		if (!keys %{$self->{_storage}->{$subconcept}}); # if nothing else left
 	}
+
+	# and update the subconcepts list
+	$self->{_subconcepts} = [ List::MoreUtils::uniq(keys %{$self->{_storage}}) ];
+		
 	return;
 }
 
@@ -620,7 +636,8 @@ sub save
 		description =>  $self->description(),
 		data       => $self->data(),
 		storage => $self->storage(),
-
+		subconcepts => $self->subconcepts(),
+		
 		enabled => $self->enabled(),
 		historic => $self->historic(),
 
