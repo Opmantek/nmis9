@@ -3162,11 +3162,12 @@ sub eventUpdate
 	return undef;
 }
 
-# loads one or more service status files and returns the status data
+# loads one or more service statuses
 #
 # args: service, node, server, only_known (all optional)
 # if service or node are given, only matching services are returned.
 # server defaults to the local server, and is IGNORED unless only_known is 0.
+# note: assumption is that local server_name == cluster_id!
 #
 # only_known is 1 by default, which ensures that only locally known, active services
 # listed in Services.nmis and attached to active nodes are returned.
@@ -3183,126 +3184,64 @@ sub loadServiceStatus
 	my $wantnode = $args{node};
 	my $wantservice = $args{service};
 	my $wantserver = $args{server} || $C->{server_name};
-	my $onlyknown = !(getbool($args{only_known}, "invert")); # default is 1
+	my $only_known = !(getbool($args{only_known}, "invert")); # default is 1
 
-
-	my $ST = loadServicesTable;
-	my $LNT = loadLocalNodeTable;
+	my $nmisng = new_nmisng();
 
 	my %result;
-	# ask the one function that knows where this things live
-	my $statusdir = dirname(service_to_filename(service => "dummy",
-																							node => "dummy",
-																							server => $wantserver));
-	return %result if (!$statusdir or !-d $statusdir);
-	# figure out which files are relevant, skip dead stuff, then read them
-	my @candidates;
-
-	# both node and service present? then check just the one matching service status file
-	if ($wantnode and $wantservice)
+	my @selectors = ( concept => "service", filter => 
+										{ historic => 0,
+											enabled => $only_known? 1 : undef, # don't care if not onlyknown
+										} ); 
+	if ($wantnode)
 	{
-		my $statusfn = service_to_filename(service => $wantservice,
-																			 node => $wantnode,
-																			 server => $wantserver);
-		# no node or unknown service is ok only if unknowns are allowed
-		@candidates = $statusfn if (-f $statusfn
-																and (!$onlyknown or
-																		 ($LNT->{$wantnode}
-																			and $ST->{$wantservice}
-																			and $C->{server_name} eq $wantserver)));
+		my $noderec = $nmisng->node(name => $wantnode);
+		return %result if (!$noderec);
+
+		push @selectors, ( "node_uuid" =>  $noderec->uuid, 
+											 "cluster_id" => $noderec->cluster_id,
+											);
 	}
-	# otherwise read them all...BUT make sure that older files with legacy names
-	# do not overwrite the correct new material!
-	else
+	push @selectors, ("cluster_id" => $wantserver) if ($wantserver);
+	push @selectors, ("data.service" => $wantservice ) if ($wantservice);
+			
+	
+	# first find all inventory instances that match,
+	# then get the newest timed data for them
+	my $modeldata = $nmisng->get_inventory_model(@selectors);
+	return %result if (!$modeldata->count);
+
+	my $error = NMISNG::Inventory::instantiate(nmisng => $nmisng, modeldata => $modeldata);
+	die "failed to instantiate inventory objects: $error\n" if ($error);
+
+	my %nodeobjs;
+	for my $maybe (@{$modeldata->data})
 	{
-		if (!opendir(D, $statusdir))
+		# we need to check each node for being disabled if only_known is set
+		# reason: historic isn't set on service inventories if the node is disabled
+		if ($only_known)
 		{
-			logMsg("ERROR: cannot open dir $statusdir: $!");
-			return %result;
-		}
-		@candidates = map { "$statusdir/$_" } (grep(/\.json$/, readdir(D)));
-		closedir(D);
-	}
-
-	for my $maybe (@candidates)
-	{
-		if (!open(F, $maybe))
-		{
-			logMsg("ERROR: cannot read $maybe: $!");
-			next;
-		}
-		my $raw = join('', <F>);
-		close(F);
-
-		my $sdata = eval { decode_json($raw) };
-		if ($@ or ref($sdata) ne "HASH")
-		{
-			logMsg("ERROR: service status file $maybe contains invalid data: $@");
-			next;
+			my $thisnode = $nodeobjs{$maybe->node_uuid} || $nmisng->node(uuid => $maybe->node_uuid);
+			$nodeobjs{$maybe->node_uuid} ||= $thisnode;
+			
+			next if (!getbool($thisnode->configuration->{active}) # disabled node
+							 or ( !$maybe->enabled ) ); # service disabled (both count with only_known)
 		}
 
-		my $thisservice = $sdata->{service};
-		my $thisnode = $sdata->{node};
-		my $thisserver = $sdata->{server} || $C->{server_name};
+		my $semistaticdata = $maybe->data;
+		my $timeddata = $maybe->get_newest_timed_data();
+		next if (!$timeddata->{success} or !$timeddata->{time}); # no readings, not interesting
 
-		# sanity check 1: if we have data for this service already, only accept this
-		# if its last_run is strictly newer
-		if (ref($result{$thisserver}) eq "HASH"
-				&& ref($result{$thisserver}->{$thisservice}) eq "HASH"
-				&& ref($result{$thisserver}->{$thisservice}->{$thisnode}) eq "HASH"
-				&& $sdata->{last_run} <= $result{$thisserver}->{$thisservice}->{$thisnode}->{last_run})
-		{
-			dbg("Skipping status file $maybe: would overwrite existing newer data for server $thisserver, service $thisservice, node $thisnode", 1);
-			next;
-		}
+		my $thisserver = $maybe->cluster_id;
 
-		# sanity check 2: files could be orphaned (ie. deleted node, or deleted service, or no
-		# longer listed with the node, or not from this server - all ignored if only_known is false
-
-		if (!$onlyknown
-				or ( $thisnode and $LNT->{$thisnode} # known node
-						 and $thisservice and $ST->{$thisservice} # known service
-						 and $thisserver eq $C->{server_name} # our service
-						 and grep($thisservice eq $_, split(/,/, $LNT->{$thisnode}->{services})))) # service still associated with node
-		{
-			$result{$thisserver}->{$thisservice}->{$thisnode} = $sdata;
-		}
+		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
+										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata}))
+				);
+		
+		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
 	}
 
 	return %result;
-}
-
-# takes service, node, and server and translates
-# that into the file name for service status saving
-# returns: undef if the args were duds, file path otherwise
-sub service_to_filename
-{
-	my (%args) = @_;
-	my $C = loadConfTable();			# likely cached
-
-	my ($service, $node, $server) = @args{"service","node","server"};
-	return undef if (!$service or !$node or !$server);
-
-	# structure: nmis_var/service_status/<safed service>_<safed node>_<safed server>.json
-	# assumption is FLAT dir, so that ONLY this function needs to know the layout
-	my $statusdir = $C->{'<nmis_var>'}."/service_status";
-	# make sure the event dir exists, ASAP.
-	if (! -d $statusdir)
-	{
-		func::createDir($statusdir);
-		func::setFileProt($statusdir, 1);
-	}
-
-	my @parts;
-	for my $addon ($node,$service,$server)
-	{
-		my $newcomp = lc($addon);
-		$newcomp =~ s![ :/]!_!g; # no slashes possible, no colons and spaces wanted
-		push @parts, $newcomp;
-	}
-
-	my $result = "$statusdir/".join("_", @parts).".json";
-	return $result;
 }
 
 

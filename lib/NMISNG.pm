@@ -369,7 +369,7 @@ sub get_timed_data_model
 	# a particular single inventory? look it up, get its concept
 	if ($args{inventory_id})
 	{
-		my $cursor = NMISNG::DB::find(collect => $self->inventory_collection,
+		my $cursor = NMISNG::DB::find(collection => $self->inventory_collection,
 																	query => NMISNG::DB::get_query(and_part => { _id => $args{inventory_id} }),
 																	fields_hash =>  { concept => 1 });
 		return undef if (!$cursor or $cursor->count != 1); # fixme: nosuch inventory should count as an error or not?

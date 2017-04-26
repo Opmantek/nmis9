@@ -164,7 +164,7 @@ sub get_inventory_ids
 
 # find or create inventory object based on arguments
 # object returned will have base class NMISNG::Inventory but will be a
-# subclass of it specific to it's concept, if no specific implementation is found
+# subclass of it specific to its concept; if no specific implementation is found
 # the DefaultInventory class will be used/returned.
 # if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function

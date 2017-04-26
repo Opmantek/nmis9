@@ -6190,7 +6190,7 @@ sub runServices
 		my ( $invobj, $error) = $nmisng_node->inventory(_id => $oldservice{$maybedead});
 		die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
 		$invobj->historic(1);
-		my $error = $invobj->save();
+		$error = $invobj->save();
 		logMsg("ERROR failed to save historic inventory object for service $maybedead: $error") if ($error);
 	}
 
