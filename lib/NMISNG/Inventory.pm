@@ -37,6 +37,7 @@ use strict;
 our $VERSION = "1.0.0";
 
 use Clone;											# for copying data and other r/o sections
+use Module::Load;								# for getting subclasses in instantiate
 use Scalar::Util;								# for weaken
 use Data::Dumper;
 use Time::HiRes;
@@ -119,9 +120,9 @@ sub new
 	}
 
 	# set default properties, then update with args
-	my $self = bless( { 
+	my $self = bless( {
 		_enabled => 1,
-		_historic => 0, 
+		_historic => 0,
 		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
 path path_keys storage description)))
  										}, $class);
@@ -130,7 +131,7 @@ path path_keys storage description)))
 	{
 		$self->{"_$onlyifgiven"} = ($args{$onlyifgiven}?1:0) if (exists $args{$onlyifgiven});
 	}
-	
+
 	# in addition to these, there's also on-demand _deleted
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
@@ -248,7 +249,7 @@ sub get_newest_timed_data
 
 	# inventory not saved certainly means no pit data, but  that's no error
 	return { success => 1 } if ($self->is_new);
-		
+
 	my $cursor = NMISNG::DB::find(
 		collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
 		query => NMISNG::DB::get_query(and_part => { inventory_id => $self->id }),
@@ -290,7 +291,7 @@ sub node_uuid
 	return $self->{_node_uuid};
 }
 
-# enabled/disabled are set when an inventory is found on a device 
+# enabled/disabled are set when an inventory is found on a device
 # but the system or user has decided not to use/collect/manage it
 # returns the enabled status, optionally sets a new status
 # args: newstatus (will be forced to 0/1)
@@ -304,10 +305,10 @@ sub enabled
 	return $self->{_enabled};
 }
 
-# historic is/should be set when an inventory was once found on a device 
+# historic is/should be set when an inventory was once found on a device
 # but is no longer found on that device (but is still in the db!)
 # returns the historic status (0/1)
-#  optionally sets a new status 
+#  optionally sets a new status
 # args: newstatus (will be forced to 0/1)
 sub historic
 {
@@ -362,7 +363,7 @@ sub subconcepts
 {
 	my ($self) = @_;
 	return defined($self->{_subconcepts})? Clone::clone($self->{_subconcepts}) : [];
-}	
+}
 
 # small accessor that looks up a storage subconcept
 # and returns the requested storage type info for it
@@ -410,18 +411,9 @@ sub set_subconcept_type_storage
 
 	# and update the subconcepts list
 	$self->{_subconcepts} = [ List::MoreUtils::uniq(keys %{$self->{_storage}}) ];
-		
+
 	return;
 }
-
-
-
-
-
-
-
-
-
 
 # returns the path keys list, optionally replaces it
 # args: new path_keys (arrayref)
@@ -637,7 +629,7 @@ sub save
 		data       => $self->data(),
 		storage => $self->storage(),
 		subconcepts => $self->subconcepts(),
-		
+
 		enabled => $self->enabled(),
 		historic => $self->historic(),
 
@@ -703,6 +695,35 @@ sub validate
 	}
 
 	return 1;
+}
+
+# small helper that massages a modeldata object's members into instantiated inventory objects
+# note: this is a generic class function, not object method!
+# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
+# returns: error message or undef
+#
+# please note that this requires the modeldata members to be fully populated,
+# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
+sub instantiate
+{
+	my (%args) = @_;
+	my ($nmisng,$modeldata) = @args{"nmisng","modeldata"};
+	return "invalid input, nmnisng  argument missing!" if (ref($nmisng) ne "NMISNG");
+	return "invalid input, not modeldata object!" if (ref($modeldata) ne "NMISNG::ModelData");
+
+	my @objects;
+	for my $entry (@{$modeldata->data})
+	{
+		# what kind of object is that supposed to be?
+		my $class = get_inventory_class( $entry->{concept} );
+		Module::Load::load($class);
+		# and now instantiate the object from whatever we were given
+		my $object = $class->new(nmisng => $nmisng, %{$entry});
+		return "failed to instantiate object!" if (!$object);
+		push @objects, $object;
+	}
+	$modeldata->data(\@objects);
+	return undef;
 }
 
 1;
