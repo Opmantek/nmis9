@@ -156,134 +156,60 @@ sub get_db
 	return $self->{_db};
 }
 
-# helper to get/set nodes collection, primes the indices on set
-# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
-# returns: current collection handle
-sub nodes_collection
+# find all unique concep/subconcept pairs for the given path/filter
+# filtering for active things possible (eg, enabled => 1, historic => 0)
+# NOTE: INCOMPLETE, can't be done in aggregation right now, map/reduce or 
+#  perl are an option
+sub get_inventory_available_concepts
 {
-	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	if ( ref($newvalue) eq "MongoDB::Collection" )
+	my ( $self, %args ) = @_;
+	my $path;
+	
+	# start with a plain query; with _id that'll be enough already
+	my %queryinputs = ();
+	if ($args{filter})
 	{
-		$self->{_db_nodes} = $newvalue;
+		map { $queryinputs{$_} = $args{filter}->{$_}; } (keys %{$args{filter}});
+	}	
+	my $q = NMISNG::DB::get_query( and_part => \%queryinputs );
 
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_nodes},
-			drop_unwanted => $drop_unwanted,
-			indices       => [[{"uuid" => 1}, {unique => 1}]]
-				);
-		$self->log->error("index setup failed for nodes: $err") if ($err);
-	}
-	return $self->{_db_nodes};
-}
-
-# helper to get/set inventory collection, primes the indices on set
-# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
-# returns: current collection handle
-sub inventory_collection
-{
-	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	if ( ref($newvalue) eq "MongoDB::Collection" )
+	# translate the path components into the lookup path
+	if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
 	{
-		$self->{_db_inventory} = $newvalue;
+		$path = $args{path} // [];
 
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_inventory},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				[{"concept"    => 1}, {unique => 0}],
-				[{"lastupdate" => 1}, {unique => 0}],
-				[{"path"       => 1}, {unique => 0}],		# can't make this unique, index would be unique per array element!
-			] );
-		$self->log->error("index setup failed for inventory: $err") if ($err);
-	}
-	return $self->{_db_inventory};
-}
-
-# helper to get/set ip collection, primes the indices on set
-# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
-# returns: current collection handle
-sub ip_collection
-{
-	my ( $self, $newvalue, $drop_unwanted ) = @_;
-	if ( ref($newvalue) eq "MongoDB::Collection" )
-	{
-		$self->{_db_ip} = $newvalue;
-
-		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
-
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{_db_ip},
-			drop_unwanted => $drop_unwanted,
-				indices => [ [ { "node"=>1} ] ] ); # fixme will need something different
-		$self->log->error("index setup failed for inventory: $err") if ($err);
-	}
-	return $self->{_db_inventory};
-}
-
-# helper to instantiate/get/update one of the dynamic collections
-# for timed data, one per concept
-# indices are set up on set or instantiate
-#
-# if no matching collection is cached, one is created and set up.
-#
-# args: concept (required), collection (optional new value), drop_unwanted (optional, ignored unless new value)
-# returns: current collection for this concept, or undef on error (which is logged)
-sub timed_concept_collection
-{
-	my ($self, %args) = @_;
-	my ($conceptname, $newhandle, $drop_unwanted) = @args{"concept","collection","drop_unwanted"};
-
-	if (!$conceptname)
-	{
-		$self->log->error("cannot get concept collection without concept argument!");
-		return undef;
-	}
-	my $collname = lc($conceptname);
-	$collname =~ s/[^a-z0-9]+//g;
-	$collname = "timed_".substr($collname,0,64); # bsts; 120 byte max database.collname
-	my $stashname = "_db_$collname";
-
-	my $mustcheckindex;
-	# use and cache the given handle?
-	if (ref($newhandle) eq "MongoDB::Collection")
-	{
-		$self->{$stashname} = $newhandle;
-		$mustcheckindex = 1;
-	}
-	# or create a new one on the go?
-	elsif (!$self->{$stashname})
-	{
-		$self->{$stashname} = NMISNG::DB::get_collection( db => $self->get_db(),
-																											name => $collname );
-		if (ref($self->{$stashname}) ne "MongoDB::Collection")
+		# fill in starting args if given
+		my $index = 0;
+		foreach my $arg_name (qw(cluster_id node_uuid))
 		{
-			$self->log->fatal("Could not get collection $collname: ".NMISNG::DB::get_error_string);
-			return undef;
+			if ( $args{$arg_name} )
+			{
+				$path->[$index] = $args{$arg_name};
+				delete $args{$arg_name};
+			}
+			$index++;
 		}
-
-		$mustcheckindex = 1;
+		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
 	}
+	my @pipeline = ();
+	# 	{ '$match' => $q }, 
+	# 	{ '$unwind' => 'subconcepts' },
+	# 	{ '$group' => {
+	# 		'_id' : { 'concept': '$concept', 'subconcept': '$subconcepts' }
+	# 	},
+	# 	{ '$group' => {
+	# 		'_id' : '$_id.$concept',
+	# 		'concept' => '$_id.$concept',
+	# 		'subconcepts' => { '$addToSet': '$_id.subconcept' }
+	# 	}
+	# );
 
-	if ($mustcheckindex)
-	{
-		# sole index is by time and inventory_id, compound
-		my $err = NMISNG::DB::ensure_index(
-			collection    => $self->{$stashname},
-			drop_unwanted => $drop_unwanted,
-			indices       => [
-				[ Tie::IxHash->new( "time" => 1, "inventory_id" => 1 ) ], # for global 'find last X readings for all instances'
-				[ Tie::IxHash->new( "inventory_id" => 1, "time" => 1 ) ],	# for 'find last X readings for THIS instance'
-			] );
-		$self->log->error("index setup failed for $collname: $err") if ($err);
-	}
-
-	return $self->{$stashname};
+	my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->inventory_collection,
+		post_count_pipeline => \@pipeline,
+	);
+	
 }
-
 
 # note: should _id use args{id}? or _id?
 # all arguments that are used in the beginning of the path will be put
@@ -355,6 +281,76 @@ sub get_inventory_model
 
 	my $model_data_object = NMISNG::ModelData->new( modelName => "inventory", data => $model_data );
 	return $model_data_object;
+}
+
+# returns selection of nodes, as array of hashes
+# args: id, name, host, group for selection;
+#
+# returns: ModelData object, with the stuff under key "addresses" synthesized from the ip cache collection
+#
+# arg sort: mongo sort criteria
+# arg limit: return only N records at the most
+# arg skip: skip N records at the beginning. index N in the result set is at 0 in the response
+# arg paginate: sets the pagination mode, in which case the result array is fudged up sparsely to
+# return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
+# but only 0..limit are populated
+sub get_nodes_model
+{
+	my ( $self, %args ) = @_;
+
+	my $q = NMISNG::DB::get_query(
+		and_part => {
+			'uuid'  => $args{uuid},
+			'name'  => $args{name},
+			'host'  => $args{host},
+			'group' => $args{group}
+		}
+	);
+
+	my $model_data = [];
+	if ( $args{paginate} )
+	{
+
+		# fudge up a dummy result to make it reflect the total number
+		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
+		$model_data->[$count - 1] = {} if ($count);
+	}
+
+	my $entries = NMISNG::DB::find(
+		collection => $self->nodes_collection,
+		query      => $q,
+		sort       => $args{sort},
+		limit      => $args{limit},
+		skip       => $args{skip}
+	);
+
+	my $index = 0;
+	while ( my $entry = $entries->next )
+	{
+		$self->_mergeaddresses($entry);
+		$model_data->[$index++] = $entry;
+	}
+
+	my $model_data_object = NMISNG::ModelData->new( modelName => "nodes", data => $model_data );
+	return $model_data_object;
+}
+
+sub get_node_names
+{
+	my ( $self, %args ) = @_;
+	my $model_data = $self->get_nodes_model(%args);
+	my $data       = $model_data->data();
+	my @node_names = map { $_->{name} } @$data;
+	return \@node_names;
+}
+
+sub get_node_uuids
+{
+	my ( $self, %args ) = @_;
+	my $model_data = $self->get_nodes_model(%args);
+	my $data       = $model_data->data();
+	my @uuids      = map { $_->{uuid} } @$data;
+	return \@uuids;
 }
 
 # accessor for finding timed data for one (or more) inventory instances
@@ -442,75 +438,50 @@ sub get_timed_data_model
 	return NMISNG::ModelData->new(modelname => "timed_data", data => \@rawtimedata);
 }
 
-
-# returns selection of nodes, as array of hashes
-# args: id, name, host, group for selection;
-#
-# returns: ModelData object, with the stuff under key "addresses" synthesized from the ip cache collection
-#
-# arg sort: mongo sort criteria
-# arg limit: return only N records at the most
-# arg skip: skip N records at the beginning. index N in the result set is at 0 in the response
-# arg paginate: sets the pagination mode, in which case the result array is fudged up sparsely to
-# return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
-# but only 0..limit are populated
-sub get_nodes_model
+# helper to get/set inventory collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub inventory_collection
 {
-	my ( $self, %args ) = @_;
-
-	my $q = NMISNG::DB::get_query(
-		and_part => {
-			'uuid'  => $args{uuid},
-			'name'  => $args{name},
-			'host'  => $args{host},
-			'group' => $args{group}
-		}
-	);
-
-	my $model_data = [];
-	if ( $args{paginate} )
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
 	{
+		$self->{_db_inventory} = $newvalue;
 
-		# fudge up a dummy result to make it reflect the total number
-		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
-		$model_data->[$count - 1] = {} if ($count);
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_inventory},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				[{"concept"    => 1}, {unique => 0}],
+				[{"lastupdate" => 1}, {unique => 0}],
+				[{"path"       => 1}, {unique => 0}],		# can't make this unique, index would be unique per array element!
+			] );
+		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
-
-	my $entries = NMISNG::DB::find(
-		collection => $self->nodes_collection,
-		query      => $q,
-		sort       => $args{sort},
-		limit      => $args{limit},
-		skip       => $args{skip}
-	);
-
-	my $index = 0;
-	while ( my $entry = $entries->next )
-	{
-		$self->_mergeaddresses($entry);
-		$model_data->[$index++] = $entry;
-	}
-
-	my $model_data_object = NMISNG::ModelData->new( modelName => "nodes", data => $model_data );
-	return $model_data_object;
+	return $self->{_db_inventory};
 }
 
-sub get_node_names
+# helper to get/set ip collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub ip_collection
 {
-	my ( $self, %args ) = @_;
-	my $model_data = $self->get_nodes_model(%args);
-	my $data       = $model_data->data();
-	my @node_names = map { $_->{name} } @$data;
-	return \@node_names;
-}
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_ip} = $newvalue;
 
-sub get_node_uuids
-{
-	my ( $self, %args ) = @_;
-	my $model_data = $self->get_nodes_model(%args);
-	my $data       = $model_data->data();
-	my @uuids      = map { $_->{uuid} } @$data;
-	return \@uuids;
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_ip},
+			drop_unwanted => $drop_unwanted,
+				indices => [ [ { "node"=>1} ] ] ); # fixme will need something different
+		$self->log->error("index setup failed for inventory: $err") if ($err);
+	}
+	return $self->{_db_inventory};
 }
 
 # get an NMISNG::Node object given arguments that will make it unique
@@ -545,12 +516,93 @@ sub node
 	return $node;
 }
 
+# helper to get/set nodes collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub nodes_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_nodes} = $newvalue;
+
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_nodes},
+			drop_unwanted => $drop_unwanted,
+			indices       => [[{"uuid" => 1}, {unique => 1}]]
+				);
+		$self->log->error("index setup failed for nodes: $err") if ($err);
+	}
+	return $self->{_db_nodes};
+}
 
 # returns this objects log object
 sub log
 {
 	my ($self) = @_;
 	return $self->{_log};
+}
+
+# helper to instantiate/get/update one of the dynamic collections
+# for timed data, one per concept
+# indices are set up on set or instantiate
+#
+# if no matching collection is cached, one is created and set up.
+#
+# args: concept (required), collection (optional new value), drop_unwanted (optional, ignored unless new value)
+# returns: current collection for this concept, or undef on error (which is logged)
+sub timed_concept_collection
+{
+	my ($self, %args) = @_;
+	my ($conceptname, $newhandle, $drop_unwanted) = @args{"concept","collection","drop_unwanted"};
+
+	if (!$conceptname)
+	{
+		$self->log->error("cannot get concept collection without concept argument!");
+		return undef;
+	}
+	my $collname = lc($conceptname);
+	$collname =~ s/[^a-z0-9]+//g;
+	$collname = "timed_".substr($collname,0,64); # bsts; 120 byte max database.collname
+	my $stashname = "_db_$collname";
+
+	my $mustcheckindex;
+	# use and cache the given handle?
+	if (ref($newhandle) eq "MongoDB::Collection")
+	{
+		$self->{$stashname} = $newhandle;
+		$mustcheckindex = 1;
+	}
+	# or create a new one on the go?
+	elsif (!$self->{$stashname})
+	{
+		$self->{$stashname} = NMISNG::DB::get_collection( db => $self->get_db(),
+																											name => $collname );
+		if (ref($self->{$stashname}) ne "MongoDB::Collection")
+		{
+			$self->log->fatal("Could not get collection $collname: ".NMISNG::DB::get_error_string);
+			return undef;
+		}
+
+		$mustcheckindex = 1;
+	}
+
+	if ($mustcheckindex)
+	{
+		# sole index is by time and inventory_id, compound
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{$stashname},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				[ Tie::IxHash->new( "time" => 1, "inventory_id" => 1 ) ], # for global 'find last X readings for all instances'
+				[ Tie::IxHash->new( "inventory_id" => 1, "time" => 1 ) ],	# for 'find last X readings for THIS instance'
+			] );
+		$self->log->error("index setup failed for $collname: $err") if ($err);
+	}
+
+	return $self->{$stashname};
 }
 
 1;
