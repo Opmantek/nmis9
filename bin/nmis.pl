@@ -802,7 +802,7 @@ sub doUpdate
 	my $lockHandle = createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
 	# lets change our name, so a ps will report who we are - iff not debugging.
-	$0 = "nmis-" . $C->{conf} . "-update-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-update-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;    # create system object
 	                     # loads old node info (unless force is active), and the DEFAULT(!) model (always!),
@@ -1051,7 +1051,7 @@ sub doServices
 	info("Starting services, node $name");
 
 	# lets change our name, so a ps will report who we are, iff not debugging
-	$0 = "nmis-" . $C->{conf} . "-services-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-services-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;
 	$S->init( name => $name );
@@ -1098,7 +1098,7 @@ sub doCollect
 	my $lockHandle = createPollLock( type => "collect", conf => $C->{conf}, node => $name );
 
 	# lets change our name, so a ps will report who we are - iff not debugging
-	$0 = "nmis-" . $C->{conf} . "-collect-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-collect-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;    # create system object
 	if ( !$S->init( name => $name ) )    # init will usually load node info data, model etc, returns 1 if _all_ is ok
