@@ -167,7 +167,7 @@ sub rrdDraw
 			return 0;
 		}
 
-		my $res = func::getModelFile(name => "Graph-$graphtype");
+		my $res = func::getModelFile(model => "Graph-$graphtype");
 		if (!$res->{success})
 		{
 			logMsg("ERROR failed to read Graph-$graphtype: $res->{error}");
