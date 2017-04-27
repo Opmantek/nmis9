@@ -228,7 +228,11 @@ sub runThreads
 	{
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory( $C->{'<nmis_conf>'},   1 );    # do recurse
+		# that's the dir for custom models
+		createDir($C->{'<nmis_models>'}) if (!-d $C->{'<nmis_models>'});
 		setFileProtDirectory( $C->{'<nmis_models>'}, 0 );    # no recursion required
+		# that's the dir of shipped=default models
+		setFileProtDirectory( $C->{'<nmis_default_models>'}, 0 );    # no recursion required
 
 		info("Starting selftest (takes about 5 seconds)...");
 		my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
@@ -2766,8 +2770,8 @@ sub getIntfInfo
 				# through things found on the device so it's not historic
 				$inventory->historic(0);
 
-				# if collect is off then this interface is disabled				
-				$inventory->enabled(1);	
+				# if collect is off then this interface is disabled
+				$inventory->enabled(1);
 				if ( getbool( $target->{collect}, "invert" ) )
 				{
 					$inventory->enabled(0);
@@ -4101,13 +4105,13 @@ sub getIntfData
 
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map = map 
-		{ 
+	my %if_data_map = map
+		{
 			$_->{data}{_id} = $_->{_id};
 			$_->{data}{enabled} = $_->{enabled};
-			$_->{data}{historic} = $_->{historic}; 
-			$_->{data}{ifIndex} => $_->{data} 
-		} 
+			$_->{data}{historic} = $_->{historic};
+			$_->{data}{ifIndex} => $_->{data}
+		}
 		(@$data);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
@@ -4156,7 +4160,7 @@ sub getIntfData
 	{
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
-		
+
 		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
 		{
 			$ran_change = 1;
@@ -4218,7 +4222,7 @@ sub getIntfData
 	info("Processing Interface Table");
 	foreach my $id ( sort @$ids )
 	{
-		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );		
+		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );
 		$nmisng->log->error("Failed to get interface inventory, _id:$id, error_message:$error_message") && next if(!$inventory);
 		# replace minimal data with all data known
 		my $inventory_data = $inventory->data();
@@ -4315,7 +4319,7 @@ sub getIntfData
 							);
 							$inventory_data->{ifAdminStatus} = $D->{ifAdminStatus}{value};
 							$inventory_data->{ifOperStatus}  = $D->{ifOperStatus}{value};
-							
+
 							if (  $inventory_data->{ifAdminStatus} =~ /up|ok/
 								and $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
 							{
@@ -4707,13 +4711,13 @@ sub getCBQoSwalk
 		);
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $model_data->data();
-		my %if_data_map = map 
-			{ 
+		my %if_data_map = map
+			{
 				$_->{data}{_id} = $_->{_id};
 				$_->{data}{enabled} = $_->{enabled};
-				$_->{data}{historic} = $_->{historic}; 
-				$_->{data}{ifIndex} => $_->{data} 
-			} 
+				$_->{data}{historic} = $_->{historic};
+				$_->{data}{ifIndex} => $_->{data}
+			}
 			(@$data);
 
 		foreach my $PIndex ( keys %{$ifIndexTable} )
@@ -5038,8 +5042,8 @@ sub getCBQoSwalk
 					# create inventory entry, data is not changed below so do it here,
 					# add index entry for now, may want to modify this later, or create a specialised Inventory class
 					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
-					
+					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );
+
 					# only add if we have data, which we may not have in both directions, at this time
 					# i can't see a better way to find out when to skip and setting it to be disabled
 					# does not seem correct as the cbqos info isn't there

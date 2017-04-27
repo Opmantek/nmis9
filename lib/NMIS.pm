@@ -178,9 +178,6 @@ my $IFT_modtime;
 my $SRC_cache = undef; # Services table
 my $SRC_modtime;
 
-# preset kernel name
-my $kernel = $^O;
-
 sub new_nmisng
 {
 	my $C = loadConfTable();

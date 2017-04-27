@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.5.3";
+our $VERSION = "9.0.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -142,16 +142,6 @@ my $C_modtime = undef;
 my %Table_cache;
 my $Config_cache = undef;
 my $confdebug = 0;
-my $nmis_var;
-my $nmis_conf;
-my $nmis_models;
-my $nmis_logs;
-my $nmis_log;
-my $nmis_mibs;
-my @htmlElements;
-
-# preset kernel name
-my $kernel = $^O;
 
 # synchronisation with the main signal handler, to terminate gracefully
 my $_critical_section = 0;
@@ -899,32 +889,36 @@ sub setFileProtParents
 	return;
 }
 
-### 2012-01-16 keiths, C_cache gets overwritten when using loadConfTable for multiple configs.
-sub getDir {
-	my %args = @_;
+# expand directory name if its one of the short names var, models, conf, logs, mibs;
+# args: dir
+# returns expanded value or original input
+sub getDir 
+{
+	my (%args) = @_;
 	my $dir = $args{dir};
-	return $nmis_var if $dir eq 'var';
-	return $nmis_models if $dir eq 'models';
-	return $nmis_conf if $dir eq 'conf';
-	return $nmis_logs if $dir eq 'logs';
-	return $nmis_mibs if $dir eq 'mibs';
-	#these will never fire!
-	return $C_cache->{'<nmis_conf>'} if $dir eq 'conf';
-	return $C_cache->{'<nmis_models>'} if $dir eq 'models';
-	return $C_cache->{'<nmis_mibs>'} if $dir eq 'mibs';
-	return $C_cache->{'<nmis_var>'} if $dir eq 'var';
-	return $C_cache->{'<nmis_logs>'} if $dir eq 'logs';
+	my $C = loadConfTable(); # cache, in general
+
+	# known expansions
+	for my $maybe (qw(var models default_models conf logs mibs))
+	{
+		return $C->{"<nmis_$maybe>"} if ($dir eq $maybe);
+	}
+	return $dir;
 }
 
-sub existFile {
+# takes dir and name, possibly shortnames, possibly w/o extension,
+# mangles that and returns 0/1 if the file exists.
+sub existFile 
+{
 	my %args = @_;
 	my $dir = $args{dir};
 	my $name = $args{name};
+	return 0 if (!$dir or !$name);
+	
 	my $file;
-	return if $dir eq '' or $name eq '';
-	$file = getDir(dir=>$dir)."/$name";
-	$file = getFileName(file => $file);
-	return ( -r $file ) ;
+	$file = getDir(dir=>$dir)."/$name"; # expands dir args like 'conf' or 'logs'
+	$file = getFileName(file => $file); # mangles that into path with extension
+	return ( -e $file ) ;
 }
 
 # get modified time of file
@@ -952,62 +946,68 @@ sub mtimeFile {
 #	loadTable(dir=>'xx',name=>'yy',mtime=>'true') returns pointer of table and mtime of file
 #	loadTable(dir=>'xx',name=>'yy',lock=>'true') returns pointer of table and handle without caching
 # extra argument: suppress_errors, if set loadTable will not log errors but just return
-sub loadTable {
+#
+# ATTENTION: fixme dir logic is very convoluted! dir is generally NOT a garden-variety real dir path!
+sub loadTable 
+{
 	my %args = @_;
-	my $dir = lc $args{dir}; # name of directory
+	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
+	
 	my $check = getbool($args{check}); # if 'true' then check only if table is valid in cache
 	my $mtime = getbool($args{mtime}); # if 'true' then mtime is also returned
 	my $lock = getbool($args{lock}); # if lock is true then no caching
 
 	my $C = loadConfTable();
 
-	# return an empty structure if I can't do anything else.
-	my $empty = { };
-
-	if ($name ne '') {
-		if ($dir =~ /conf|models|var/) {
-			if (existFile(dir=>$dir,name=>$name)) {
-				my $file = getDir(dir=>$dir)."/$name";
-				$file = getFileName(file => $file);
-				print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
-				if ($lock) {
-					return readFiletoHash(file=>$file,lock=>$lock);
-				} else {
-					# known dir
-					my $index = lc "$dir$name";
-					if (exists $Table_cache{$index}{data}) {
-						# already in cache, check for update of file
-						if (stat($file)->mtime eq $Table_cache{$index}{mtime}) {
-							return 1 if ($check);
-							# else
-							return $Table_cache{$index}{data},$Table_cache{$index}{mtime}
-							if ($mtime); # oke
-							# else
-							return $Table_cache{$index}{data}; # oke
-						}
-					}
-					return 0 if ($check); # cached data/table not valid
-					# else
-					# read from file
-					$Table_cache{$index}{data} = readFiletoHash(file=>$file);
-					$Table_cache{$index}{mtime} = stat($file)->mtime;
-					return $Table_cache{$index}{data},$Table_cache{$index}{mtime}
-					if ($mtime); # oke
-					# else
-					return $Table_cache{$index}{data}; # oke
-				}
-			} else {
-				### 2013-08-13 keiths, enhancement submitted by Mateusz Kwiatkowski <mateuszk870@gmail.com>
-				logMsg("ERROR file does not exist or has bad permissions dir=$dir name=$name, nmis_var=$nmis_var nmis_conf=$nmis_conf") if (!$args{suppress_errors});
-			}
-		} else {
-			logMsg("ERROR unknown dir=$dir specified with name=$name");
-		}
-	} else {
-		logMsg("ERROR no name specified");
+	if (!$name or !$dir)
+	{
+		logMsg("ERROR: invalid arguments, name or dir missing!");
+		return {};
 	}
-	return $empty;
+	
+	my $file = getDir(dir=>$dir)."/$name"; # expands dirs like 'conf' or 'logs' into full location
+	$file = getFileName(file => $file);		 # mangles file name into extension'd one
+
+	if (!-e $file)
+	{
+		logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)") 
+				if (!$args{suppress_errors});
+		return {};
+	}
+
+	print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
+	if ($lock) 
+	{
+		return readFiletoHash(file=>$file, lock=>$lock);
+	} 
+	else
+	{
+		# known dir
+		my $index = lc "$dir$name";
+		if (exists $Table_cache{$index}{data}) 
+		{
+			# already in cache, check for update of file
+			if (stat($file)->mtime eq $Table_cache{$index}{mtime}) 
+			{
+				return 1 if ($check);
+				# else
+				return ($Table_cache{$index}{data}, $Table_cache{$index}{mtime})
+						if ($mtime); # oke
+				# else
+				return $Table_cache{$index}{data}; # oke
+			}
+		}
+		return 0 if ($check); # cached data/table not valid
+		# else
+		# read from file
+		$Table_cache{$index}{data} = readFiletoHash(file=>$file);
+		$Table_cache{$index}{mtime} = stat($file)->mtime;
+		return ($Table_cache{$index}{data},$Table_cache{$index}{mtime})
+				if ($mtime); # oke
+		# else
+		return $Table_cache{$index}{data}; # oke
+	}
 }
 
 sub writeTable {
@@ -1035,7 +1035,9 @@ sub writeTable {
 #
 # args: file (relative) and dir, or file (full path), json (optional), only_extension (optional)
 # variant with file+dir is used not commonly
+# 
 # attention: this function name clashes with a function in rrdfunc.pm!
+# ATTENTION: fixme dir logic is very very convoluted!
 # fixme: passing json=false DOES NOT WORK if the config says use_json=true!
 #
 # returns absolute filename with extension
@@ -1046,7 +1048,7 @@ sub getFileName
 	my $file = $args{file};
 	my $dir = $args{dir};
 
-	# are we in/under var?
+	# are we in/under var? fixme unsafe and misleading
 	my $fileundervar = ($dir and $dir =~ m!(^|/)var(/|$)!)
 			|| ($file and $file =~ m!(^|/)var(/|$)!);
 
@@ -1081,12 +1083,33 @@ sub getExtension
 										 json => $args{json}, only_extension => 1);
 }
 
-### write hash to file using Data::Dumper
-###
-sub writeHashtoModel {
-	my %args = @_;
-	my $C = loadConfTable();
-	return writeHashtoFile(file=>"$C->{'<nmis_models>'}/$args{name}",data=>$args{data},handle=>$args{handle});
+# look up model file in models-custom, falling back to models-default,
+# args: model (= model name, without extension)
+# returns: hashref (success, error, data, is_custom) 
+# with success 1/0, error message, data structure, and is_custom is 1 if the model came from models-custom
+# success is set IFF valid data came back.
+# note: not exported.
+sub getModelFile
+{
+	my (%args) = @_;
+	return { error => "Invalid arguments: no model requested!" } if (!$args{model});
+
+	my $C = loadConfTable();			# generally cached
+	my ($iscustom, $modeldata);
+	my $relfn = "$args{model}.nmis"; # the getFile logic is not safe.
+	for my $choices ("models","default_models")
+	{
+		my $fn = getDir(dir => $choices)."/$relfn";
+		if (-e $fn)
+		{
+			# loadtable caches, therefore preferred over readfiletohash
+			my $modeldata = loadTable(dir => $choices, name => $relfn);
+			return { error => "failed to read file $fn: $!" } if (ref($modeldata) ne "HASH"
+																														or !keys %$modeldata);
+			return { success => 1, data => $modeldata, is_custom => $iscustom};
+		}
+	}
+	return { error => "no model definition file available for model $args{model}!" };
 }
 
 
@@ -1367,31 +1390,6 @@ sub dbgPolling {
 	}
 }
 
-# do nothing..
-sub htmlElementValues{};
-
-#	my %args = @_;
-#	my $element = $args{element};
-#	my $value = $args{value};
-#	my $script = $args{script};
-#
-#	if ($script ne '') {
-#		push @htmlElements,$script;
-#	} elsif ($element ne '') {
-#		push @htmlElements,"document.getElementById(\"$element\").innerHTML=\"$value\"";
-#	} else {
-#		print "<script>\n";
-#		print "setTime('".timegm(localtime())."');"; # get localtime and set clock in nmiscgi.pl
-#		foreach (@htmlElements) {
-#			print "$_ \n";
-#		}
-#		print "</script>";
-#		@htmlElements = ();
-#	}
-#
-#}
-
-
 # this function logs to nmis_log in a safe, locked fashion
 # args: string, required; extended with (class::)method names and line number
 # optional: do_not_lock (default: false), to be used in signal handler ONLY!
@@ -1404,12 +1402,12 @@ sub logMsg
 	my $C = $C_cache; # local scalar
 	my $handle;
 
-	if ($C eq '') {
+	if (ref($C) ne "HASH") {
 		# no config loaded
 		die "FATAL logMsg, NO Config Loaded: $msg\n";
 	}
-	### 2012-01-25 keiths, updated so using better cache
-	elsif ( not -f $nmis_log and not -d $nmis_logs ) {
+	elsif ( not -d $C->{'<nmis_logs>'} ) 
+	{
 		print "ERROR, logMsg can't do anything but NAG YOU\n";
 		warn "ERROR logMsg: the message which killed me was: $msg\n";
 		return undef;
@@ -1444,10 +1442,10 @@ sub logMsg
 	# instead we use setfileprotdiag, and warn to stderr if need be
 	my $status_is_ok = 1;
 
-	if (!open($handle,">>$nmis_log"))
+	if (!open($handle,">> $C->{nmis_log}"))
 	{
 		$status_is_ok = 0;
-		warn returnTime." logMsg, Couldn't open log file $nmis_log. $!\n";
+		warn returnTime." logMsg, Couldn't open log file $C->{nmis_log}: $!\n";
 	}
 	else
 	{
@@ -1463,7 +1461,7 @@ sub logMsg
 		if (!print $handle returnDateStamp().",$string\n")
 		{
 			$status_is_ok = 0;
-			warn returnTime." logMsg, can't write file $nmis_log. $!\n";
+			warn returnTime." logMsg, can't write file $C->{nmis_log}: $!\n";
 		}
 		if (!close $handle)
 		{
@@ -1472,14 +1470,11 @@ sub logMsg
 		}
 		if ($status_is_ok)
 		{
-			my $errmsg = setFileProtDiag(file => $nmis_log);
+			my $errmsg = setFileProtDiag(file => $C->{nmis_log});
 			warn "logMsg, cannot set permissions: $errmsg\n" if ($errmsg);
 		}
 	}
 }
-
-my %loglevels = ( "EMERG"=>0,"ALERT"=>1,"CRITICAL"=>2,"ERROR"=>3,"WARNING"=>4,"NOTICE"=>5,"INFO"=>6,"DEBUG"=>7);
-my $maxlevel = 7; # TODO: Put this in config file.
 
 #-----------------------------------
 # logAuth2(message,level)
@@ -1494,6 +1489,9 @@ my $maxlevel = 7; # TODO: Put this in config file.
 sub logAuth2($;$) {
 	my $msg = shift;
 	my $level = shift || 3; # default: ERROR
+
+	my %loglevels = ( "EMERG"=>0,"ALERT"=>1,"CRITICAL"=>2,"ERROR"=>3,"WARNING"=>4,"NOTICE"=>5,"INFO"=>6,"DEBUG"=>7);
+	my $maxlevel = 7; # TODO: Put this in config file.
 
 	$level = $loglevels{uc $level} if exists $loglevels{uc $level};
 
@@ -1878,15 +1876,6 @@ sub loadConfTable {
 			$Table_cache{$conf}{server} = $Table_cache{$conf}{server_name};
 
 			$C_cache = $Table_cache{$conf};
-
-			### 2012-04-16 keiths, only update if not null
-			$nmis_conf = $Table_cache{$conf}{'<nmis_conf>'} if $Table_cache{$conf}{'<nmis_conf>'};
-			$nmis_var = $Table_cache{$conf}{'<nmis_var>'} if $Table_cache{$conf}{'<nmis_var>'};
-			$nmis_models = $Table_cache{$conf}{'<nmis_models>'} if $Table_cache{$conf}{'<nmis_models>'};
-			$nmis_logs = $Table_cache{$conf}{'<nmis_logs>'} if $Table_cache{$conf}{'<nmis_logs>'};
-			$nmis_log = $Table_cache{$conf}{'nmis_log'} if $Table_cache{$conf}{'nmis_log'};
-			$nmis_mibs = $Table_cache{$conf}{'<nmis_mibs>'} if $Table_cache{$conf}{'<nmis_mibs>'};
-
 			return $C_cache;
 		}
 	}

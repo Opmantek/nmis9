@@ -150,8 +150,6 @@ sub displayNodemenu
 
 	print end_td,end_Tr,end_table;
 
-	htmlElementValues();
-
 	pageEnd if (!$wantwidget);
 
 }

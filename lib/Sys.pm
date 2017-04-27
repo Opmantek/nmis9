@@ -1349,17 +1349,18 @@ sub loadModel
 	}
 	else
 	{
-		my $ext = getExtension( dir => 'models' );
-
-		# loadtable returns live/shared/cached info, but we must not modify that shared original!
-		$self->{mdl} = Clone::clone( loadTable( dir => 'models', name => $model ) );
-		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
+		# load the model file in question
+		my $res = func::getModelFile(model => $model);
+		if (!$res->{success})
 		{
-			$self->{error} = "ERROR ($self->{name}) failed to load Model file from models/$model.$ext!";
+			$self->{error} = "ERROR ($self->{name}) failed to load Model file for $model: $res->{error}!";
 			$exit = 0;
 		}
 		else
 		{
+			# getModelFile returns live/shared/cached info, but we must not modify that shared original!
+			$self->{mdl} = Clone::clone( $res->{data} );
+
 			# prime the nodeModel property from the model's filename,
 			# ignoring whatever may be in the deprecated nodeModel property
 			# in the model file
@@ -1371,18 +1372,19 @@ sub loadModel
 			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
 			{
 				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
-				my $mdl = loadTable( dir => 'models', name => $name );
-				if ( !$mdl )
+				my $commonres = func::getModelFile(model => $name);
+				if (!$commonres->{success})
 				{
-					$self->{error} = "ERROR ($self->{name}) failed to read Model file from models/${name}.$ext!";
+					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
 					$exit = 0;
 				}
 				else
 				{
 					# this mostly copies, so cloning not needed
 					# however, an unmergeable model is terminal, mustn't be cached, useless.
-					if ( !$self->_mergeHash( $self->{mdl}, $mdl ) )
+					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
 					{
+						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
 				}
