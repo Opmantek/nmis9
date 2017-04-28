@@ -4090,10 +4090,8 @@ sub getIntfData
 	$RI->{intfUp} = $RI->{intfColUp} = 0;    # reset counters of interface Up and interface collected Up
 
 	# find all id's that are needed for the first section of searching
-	my $model_data = $nmisng->get_inventory_model(
+	my $model_data = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
-		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid,
 		fields_hash => {
 			'_id' => 1,
 			'data.collect' => 1,
@@ -4704,10 +4702,8 @@ sub getCBQoSwalk
 		# are good
 		my $nmisng = $S->nmisng;
 		my $nmisng_node = $S->nmisng_node;
-		my $model_data = $nmisng->get_inventory_model(
+		my $model_data = $nmisng_node->get_inventory_model(
 			'concept' => 'interface',
-			'cluster_id' => $nmisng_node->cluster_id,
-			'node_uuid' => $nmisng_node->uuid,
 			fields_hash => {
 				'_id' => 1,
 				'data.collect' => 1,
@@ -5347,10 +5343,8 @@ sub getCallswalk
 	# are good
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
-	my $model_data = $nmisng->get_inventory_model(
+	my $model_data = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
-		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid,
 		fields_hash => {
 			'_id' => 1,
 			'data.collect' => 1,
@@ -6193,9 +6187,7 @@ sub runServices
 	# find and mark as historic any services no longer configured for this host
 	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
 
-	my $modeldata = $nmisng->get_inventory_model(cluster_id => $nmisng_node->cluster_id,
-																							node_uuid => $nmisng_node->uuid,
-																							concept => "service",
+	my $modeldata = $nmisng_node->get_inventory_model(concept => "service",
 																							filter => { historic => 0 },
 																							fields_hash => { "data.service" => 1,
 																															 _id => 1, });
@@ -8540,7 +8532,7 @@ LABEL_ESC:
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys->new;    # node object
-			if ( ( $S->init( name => $nd, snmp => 'false' ) ) )
+			if ( $S->init( name => $nd, snmp => 'false' ) )
 			{                    # get cached info of node only
 				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
 				if ( !getbool( $IFD->{$thisevent->{element}}{collect} ) )

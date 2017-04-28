@@ -465,16 +465,43 @@ sub disable_source
 # also note: inventory conversion could use model load to get the data a bit faster
 sub ifDescrInfo
 {
-	my $self = shift;
+	my ($self) = @_;
 
 	my %ifDescrInfo;
-	my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
-	foreach my $id ( @$ids )
-	{		
-		my $thisentry = $self->nmisng_node->inventory( _id => $id )->data();
-		my $ifDescr   = $thisentry->{ifDescr};
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data();
 
-		$ifDescrInfo{$ifDescr} = {%$thisentry};
+	# if we have many interfaces then fetch them on-by-one so we don't load a mountain of data at one time
+	# a smart iterator here in the ModelData would make more sense as it could fetch as we work in lots that
+	# we determine
+	# this code is basically here as an example of why we might want an iterator
+	if( $catchall_data->{intfCollect} < 100 )
+	{
+		my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
+		foreach my $id ( @$ids )
+		{
+			my ($inventory,$error_message) = $self->nmisng_node->inventory( _id => $id, debug=>1 );
+			my $thisentry = ($inventory) ? $inventory->data : {};
+			if( !$inventory || $error_message)
+			{
+				use Carp;
+				print "no inventory for node:$self->{name}, id:$id, error_message:$error_message".Carp::longmess();
+			}
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
+	}
+	else
+	{
+		my $model_data = $self->nmisng_node->get_inventory_model( concept => 'interface' );
+		my $data = $model_data->data();
+		foreach my $model ( @$data )
+		{
+			my $thisentry = $model->{data};
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
 	}
 	return \%ifDescrInfo;
 }

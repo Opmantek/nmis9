@@ -151,15 +151,24 @@ sub get_inventory_ids
 	my ( $self, %args ) = @_;
 
 	# what happens when an error happens here?
-	$args{cluster_id} = $self->cluster_id;
-	$args{node_uuid}  = $self->uuid();
 	$args{fields_hash} = {'_id' => 1};
 
-	my $model_data = $self->nmisng->get_inventory_model(%args);
+	my $model_data = $self->get_inventory_model(%args);
 
 	my $data = $model_data->data();
 	my @ids = map { $_->{_id}{value} } @$data;
 	return \@ids;
+}
+
+sub get_inventory_model
+{
+	my ( $self, %args ) = @_;
+	$args{cluster_id} = $self->cluster_id;
+	$args{node_uuid}  = $self->uuid();
+
+	my $model_data = $self->nmisng->get_inventory_model(%args);
+
+	return $model_data;
 }
 
 # find or create inventory object based on arguments
@@ -194,13 +203,12 @@ sub inventory
 	$path->[1] = $self->uuid;
 
 	# what happens when an error happens here?
-	my $modeldata = $self->nmisng->get_inventory_model(%args);
-
-	if ( $modeldata->count() > 0 )
+	my $model_data = $self->nmisng->get_inventory_model(%args);
+	if ( $model_data->count() > 0 )
 	{
 		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
-			if($modeldata->count() > 1);
-		my $model = $modeldata->data()->[0];
+			if($model_data->count() > 1);
+		my $model = $model_data->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
 
 		# use the model as arguments because everything is in the right place
