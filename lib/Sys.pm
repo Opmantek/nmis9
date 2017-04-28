@@ -219,6 +219,7 @@ sub init
 
 	$self->{_nmisng} = NMIS::new_nmisng();
 	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
+	return 0 if( !$self->{_nmisng_node} );
 	my $catchall_data;
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!

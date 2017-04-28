@@ -1200,6 +1200,10 @@ sub doCollect
 
 			# fixme: why no error handling for any of these?
 
+			# remember when the collect poll last completed successfully, this isn't saved
+			# until later so set it early so functions can use it
+			$catchall_data->{lastCollectPoll} = time();
+
 			# get node data and store in rrd
 			getNodeData( sys => $S );
 
@@ -1216,9 +1220,7 @@ sub doCollect
 
 			# Custom Alerts
 			runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
-
-			# remember when the collect poll last completed successfully
-			$catchall_data->{lastCollectPoll} = time();
+			
 		}
 		else
 		{
@@ -4079,6 +4081,7 @@ sub getIntfData
 	# load the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $createdone = "false";
 
@@ -4227,6 +4230,7 @@ sub getIntfData
 		# replace minimal data with all data known
 		my $inventory_data = $inventory->data();
 		my $index = $inventory_data->{ifIndex};
+		my $previous_pit = $inventory->get_newest_timed_data();
 
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
@@ -4253,6 +4257,8 @@ sub getIntfData
 		{
 			processAlerts( S => $S );
 
+			my $allstats = {};
+			my $alldata = {};
 			foreach my $sect ( keys %{$rrdData} )
 			{
 				my $D = $rrdData->{$sect}{$index};
@@ -4440,16 +4446,23 @@ sub getIntfData
 				{
 					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 				}
+				else
+				{
+					# convert data into values we can use in pit (eg resolve counters)
+					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					# get stats
+					my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
+					my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+				}
 			}
+			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
-			# calculate summary statistics of this interface only if intf up
-			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
-			my $util
-				= getSummaryStats( sys => $S, type => "interface", start => $period, end => time, index => $index );
-			$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
-			$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
-			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $util->{$index}{availability} );
-			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $util->{$index}{totalUtil} );
+			# resusing stats collected for PIT
+			$V->{interface}{"${index}_operAvail_value"} = $allstats->{availability};
+			$V->{interface}{"${index}_totalUtil_value"} = $allstats->{totalUtil};
+			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $allstats->{availability} );
+			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $allstats->{totalUtil} );
 
 			if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
 				and getbool( $S->{mdl}{custom}{interface}{ifAdminStatus}, "invert" ) )
