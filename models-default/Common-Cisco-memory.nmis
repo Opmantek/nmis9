@@ -70,7 +70,7 @@
       },
       'cempMemPool' => {
         'indexed' => 'true',
-        'graphtype' => 'memoryPool',
+        'graphtype' => 'cempMemPool',
         'threshold' => 'memPoolUtil',
         'snmp' => {
           'MemPoolUsed' => {
