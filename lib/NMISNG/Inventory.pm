@@ -46,6 +46,10 @@ use Carp;
 
 use NMISNG::DB;
 
+###########
+# Class/Package methods:
+###########
+
 # based on the concept, decide which class to create - or return the fallback/default class
 # args: concept
 # returns: class name
@@ -62,88 +66,35 @@ sub get_inventory_class
 	return $class;
 }
 
-# create a new inventory manager object
-# note: the object is always strictly associated with a node_uuid and a cluster_id
-# this method is expected to be subclassed!
+# small helper that massages a modeldata object's members into instantiated inventory objects
+# note: this is a generic class function, not object method!
+# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
+# returns: error message or undef
 #
-# params: concept (=class name, type of inventory),
-#  nmisng (parent object), node_uuid, cluster_id,
-#  data - all required
-# optional: id  (alias _id, the db _id of this thing if it's not new),
-#  path (used if provided, not required, normally can be calculated on save),
-#  enabled (1/0, "nmis does something with this inventory item"),
-#  historic (not present or 0, or anything else),
-#  storage (hash of subconcept name -> path to the rrd file for this thing, relative to database_root),
-#  path_key (must be arrayref if present - used for simplest path computation, ie. with listed keys from data),
-#  description (optional, if not given a descriptive text is synthesized)
-sub new
+# please note that this requires the modeldata members to be fully populated,
+# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
+sub instantiate
 {
-	my ( $class, %args ) = @_;
+	my (%args) = @_;
+	my ($nmisng,$modeldata) = @args{"nmisng","modeldata"};
+	return "invalid input, nmnisng  argument missing!" if (ref($nmisng) ne "NMISNG");
+	return "invalid input, not modeldata object!" if (ref($modeldata) ne "NMISNG::ModelData");
 
-	my $nmisng = $args{nmisng};
-	return undef if ( !$nmisng );   # check this early so we can use it to log
-
-	for my $musthave (qw(concept cluster_id node_uuid))
+	my @objects;
+	for my $entry (@{$modeldata->data})
 	{
-		if (!defined $args{$musthave})
-		{
-			$nmisng->log->fatal("Inventory object cannot be created without $musthave!");
-			return undef;
-		}
+		# what kind of object is that supposed to be?
+		my $class = get_inventory_class( $entry->{concept} );
+		Module::Load::load($class);
+		# and now instantiate the object from whatever we were given
+		my $object = $class->new(nmisng => $nmisng, %{$entry});
+		return "failed to instantiate object!" if (!$object);
+		push @objects, $object;
 	}
-
-	my $data = $args{data};
-	if (ref($data) ne "HASH")
-	{
-		$nmisng->log->fatal("Inventory object cannot be created with invalid data argument!");
-		return undef;
-	}
-	if (defined($args{storage}) && ref($args{storage}) ne "HASH")
-	{
-		$nmisng->log->fatal("Inventory object cannot be created with invalid storage argument!");
-		return undef;
-	}
-	if (defined($args{path_keys}) && ref($args{path_keys} ne "ARRAY"))
-	{
-		$nmisng->log->fatal("Inventory object cannot be created with invalid path_keys argument!");
-		return undef;
-	}
-
-	# compat issue, we *may* get _id
-	$args{id} //= $args{_id};
-	# description? we don't want any logic to abuse that, but having some human-friendly bits are desirable
-	if (!defined $args{description})
-	{
-		my $nodenames = $nmisng->get_node_names(uuid => $args{node_uuid});
-		my $thisnodename = $nodenames->[0] // "UNKNOWN"; # can that happen?
-		$args{description} = "concept $args{concept} on node $thisnodename and server $args{cluster_id}";
-	}
-
-	# set default properties, then update with args
-	my $self = bless( {
-		_enabled => 1,
-		_historic => 0,
-		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
-path path_keys storage description)))
- 										}, $class);
-	# enabled and historic: override defaults only if explicitely given
-	for my $onlyifgiven (qw(enabled historic))
-	{
-		$self->{"_$onlyifgiven"} = ($args{$onlyifgiven}?1:0) if (exists $args{$onlyifgiven});
-	}
-
-	# in addition to these, there's also on-demand _deleted
-	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
-	return $self;
+	$modeldata->data(\@objects);
+	return undef;
 }
 
-###########
-# Private:
-###########
-
-###########
-# Protected:
-###########
 
 # compute path from data and selection args.
 # note: this is a generic class function, not object method!
@@ -248,6 +199,81 @@ sub parse_rrd_update_data
 ###########
 # Public:
 ###########
+
+# create a new inventory manager object
+# note: the object is always strictly associated with a node_uuid and a cluster_id
+# this method is expected to be subclassed!
+#
+# params: concept (=class name, type of inventory),
+#  nmisng (parent object), node_uuid, cluster_id,
+#  data - all required
+# optional: id  (alias _id, the db _id of this thing if it's not new),
+#  path (used if provided, not required, normally can be calculated on save),
+#  enabled (1/0, "nmis does something with this inventory item"),
+#  historic (not present or 0, or anything else),
+#  storage (hash of subconcept name -> path to the rrd file for this thing, relative to database_root),
+#  path_key (must be arrayref if present - used for simplest path computation, ie. with listed keys from data),
+#  description (optional, if not given a descriptive text is synthesized)
+sub new
+{
+	my ( $class, %args ) = @_;
+
+	my $nmisng = $args{nmisng};
+	return undef if ( !$nmisng );   # check this early so we can use it to log
+
+	for my $musthave (qw(concept cluster_id node_uuid))
+	{
+		if (!defined $args{$musthave})
+		{
+			$nmisng->log->fatal("Inventory object cannot be created without $musthave!");
+			return undef;
+		}
+	}
+
+	my $data = $args{data};
+	if (ref($data) ne "HASH")
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid data argument!");
+		return undef;
+	}
+	if (defined($args{storage}) && ref($args{storage}) ne "HASH")
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid storage argument!");
+		return undef;
+	}
+	if (defined($args{path_keys}) && ref($args{path_keys} ne "ARRAY"))
+	{
+		$nmisng->log->fatal("Inventory object cannot be created with invalid path_keys argument!");
+		return undef;
+	}
+
+	# compat issue, we *may* get _id
+	$args{id} //= $args{_id};
+	# description? we don't want any logic to abuse that, but having some human-friendly bits are desirable
+	if (!defined $args{description})
+	{
+		my $nodenames = $nmisng->get_node_names(uuid => $args{node_uuid});
+		my $thisnodename = $nodenames->[0] // "UNKNOWN"; # can that happen?
+		$args{description} = "concept $args{concept} on node $thisnodename and server $args{cluster_id}";
+	}
+
+	# set default properties, then update with args
+	my $self = bless( {
+		_enabled => 1,
+		_historic => 0,
+		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
+path path_keys storage description)))
+ 										}, $class);
+	# enabled and historic: override defaults only if explicitely given
+	for my $onlyifgiven (qw(enabled historic))
+	{
+		$self->{"_$onlyifgiven"} = ($args{$onlyifgiven}?1:0) if (exists $args{$onlyifgiven});
+	}
+
+	# in addition to these, there's also on-demand _deleted
+	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
+	return $self;
+}
 
 # add one point-in-time data record for this concept instance
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
@@ -775,33 +801,5 @@ sub validate
 	return 1;
 }
 
-# small helper that massages a modeldata object's members into instantiated inventory objects
-# note: this is a generic class function, not object method!
-# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
-# returns: error message or undef
-#
-# please note that this requires the modeldata members to be fully populated,
-# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
-sub instantiate
-{
-	my (%args) = @_;
-	my ($nmisng,$modeldata) = @args{"nmisng","modeldata"};
-	return "invalid input, nmnisng  argument missing!" if (ref($nmisng) ne "NMISNG");
-	return "invalid input, not modeldata object!" if (ref($modeldata) ne "NMISNG::ModelData");
-
-	my @objects;
-	for my $entry (@{$modeldata->data})
-	{
-		# what kind of object is that supposed to be?
-		my $class = get_inventory_class( $entry->{concept} );
-		Module::Load::load($class);
-		# and now instantiate the object from whatever we were given
-		my $object = $class->new(nmisng => $nmisng, %{$entry});
-		return "failed to instantiate object!" if (!$object);
-		push @objects, $object;
-	}
-	$modeldata->data(\@objects);
-	return undef;
-}
 
 1;

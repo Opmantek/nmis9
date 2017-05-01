@@ -178,7 +178,8 @@ sub status
 		snmp_enabled => $self->{snmp} ? 1 : 0,
 		wmi_enabled  => $self->{wmi} ? 1 : 0,
 		snmp_error   => $self->{snmp_error},
-		wmi_error    => $self->{wmi_error}
+		wmi_error    => $self->{wmi_error},
+		skipped      => $self->{skipped}
 	};
 }
 
@@ -556,6 +557,7 @@ sub copyModelCfgInfo
 # debug (aka model; optional, just a debug flag!)
 #
 # returns 0 if retrieval was a _total_ failure, 1 if it worked (at least somewhat),
+#  2 if it was skipped for some reason (like control)
 #  if successful target will be filled in
 # also sets details for status()
 sub loadInfo
@@ -600,7 +602,7 @@ sub loadInfo
 	elsif ( $result->{skipped} )    # nothing to report because model said skip these items, apparently all of them...
 	{
 		dbg("no results, skipped because of control expression or index mismatch");
-		return 1;
+		return 2;
 	}
 	else                            # we have data, maybe errors too?
 	{
@@ -762,6 +764,7 @@ sub getData
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{skipped}    = $status->{skipped} // 0;
 
 	# data? we're happy-ish
 	if ( keys %$result )

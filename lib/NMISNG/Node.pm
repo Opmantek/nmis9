@@ -99,6 +99,37 @@ sub _dirty
 # Public:
 ###########
 
+# bulk set records to be historic which match this node
+# and are not in the array of active_ids provided
+# args: active_ids (optional, see concept), arrayref of active ids, concept (optional, if not given all inventory entries for node will be
+#  marked historic (useful for update force=1)
+# retval: updates retval, this may not be the best choice, feel free to consider/change
+sub bulk_mark_inventory_historic
+{
+	my ($self,%args) = @_;
+	my ($active_ids,$concept) = @args{'active_ids','concept'};
+	return "invalid input,active_ids must be an array!" if ($active_ids && ref($active_ids) ne "ARRAY");
+	
+	# not a huge fan of hard coding these, not sure there is much of a better way 
+	my $q = {
+		'path.0'  => $self->cluster_id,
+		'path.1'  => $self->uuid,
+	};
+	$q->{'path.2'} = $concept if( $concept );
+
+	# get_query currently doesn't support $nin, only $in
+	$q->{'data.index'} = {'$nin' => $active_ids} if($active_ids);
+
+	my $retval = NMISNG::DB::update(
+		collection => $self->nmisng->inventory_collection,
+		freeform => 1,
+		multiple => 1,
+		query => $q,
+		record => { '$set' => { 'historic' => 1 } }
+	);
+	return $retval;
+}
+
 sub cluster_id
 {
 	my ($self) = @_;
@@ -177,7 +208,11 @@ sub get_inventory_model
 # the DefaultInventory class will be used/returned.
 # if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function
-# args:
+# args: 
+#    any args that can be used for finding an inventory model, 
+#  if none is found then:
+#    concept, data, path path_keys, create - 0/1 
+#    (possibly not path_keys but whatever path info is needed for that specific inventory type)
 # returns: (inventory object, undef) or (undef, error message)
 sub inventory
 {

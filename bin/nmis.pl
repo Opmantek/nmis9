@@ -841,6 +841,11 @@ sub doUpdate
 	{
 		$S->readNodeView;    # from prev. run, but only if force isn't active
 	}
+	else
+	{
+		# make all things historic, they can bring them back if they want
+		$S->nmisng_node->bulk_mark_inventory_historic();
+	}
 
 	# prime default values, overridden if we can find anything better
 	$catchall_data->{nodeModel} ||= 'Generic';
@@ -3394,8 +3399,12 @@ sub getSystemHealthInfo
 				next;
 			}
 
+			# mark historic records
+			my @active_indices = keys %$fields;
+			$S->nmisng_node->bulk_mark_inventory_historic( active_indices => \@active_indices, concept => $section );
+
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
-			for my $indexvalue ( keys %$fields )
+			for my $indexvalue ( @active_indices )
 			{
 				dbg("section=$section index=$index_var, found value=$indexvalue");
 
@@ -3500,20 +3509,23 @@ sub getSystemHealthInfo
 				}
 			}
 
+			# mark historic records
+			my @active_indices = (sort keys %healthIndexNum);
+			$S->nmisng_node->bulk_mark_inventory_historic( active_indices => \@active_indices, concept => $section );
+
 			# Loop to get information, will be stored in {info}{$section} table
-			foreach my $index ( sort keys %healthIndexNum )
+			foreach my $index ( @active_indices )
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				if ($S->loadInfo(
+				if( $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
 						index   => $index,
 						table   => $section,
 						model   => $model,
 						target  => $target
-					)
-					)
+				))
 				{
 					info("section=$section index=$index read and stored");
 
@@ -3599,7 +3611,7 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
-		my $ids = $nmisng_node->get_inventory_ids( concept => $section );
+		my $ids = $nmisng_node->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
 
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
@@ -3643,11 +3655,14 @@ sub getSystemHealthData
 
 			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, debug => $model );
 			my $howdiditgo = $S->status;
+
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+			my ($alldata,$allstats) = ({},{});
 
 			# were there any errors?
-			if ( !$anyerror )
+			if ( !$anyerror && !$howdiditgo->{skipped} )
 			{
+				my $previous_pit = $inventory->get_newest_timed_data();
 				my $count = 0;
 				foreach my $sect ( keys %{$rrdData} )
 				{
@@ -3674,13 +3689,25 @@ sub getSystemHealthData
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+					else
+					{
+						# convert data into values we can use in pit (eg resolve counters)
+						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						# get stats
+						my $period = getThresholdPeriod(subconcept => $sect);
+						my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+					}
 				}
 				info("section=$section index=$index read and stored $count values");
 				# technically the path shouldn't change during collect so for now don't recalculate path
-				# put the new values into the inventory and save
+				# put the new values into the inventory and save				
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
 			}
+			# this allows us to prevent adding data when it wasn't collected (but not an error)
+			elsif( $howdiditgo->{skipped} ) {}
 			else
 			{
 				logMsg("ERROR ($catchall_data->{name}) on getSystemHealthData, $section, $index, $anyerror");
@@ -4251,7 +4278,7 @@ sub getIntfData
 		my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
 		# were there any errors?
-		if ( !$anyerror )
+		if ( !$anyerror && !$howdiditgo->{skipped} )
 		{
 			processAlerts( S => $S );
 
@@ -4448,19 +4475,22 @@ sub getIntfData
 				{
 					# convert data into values we can use in pit (eg resolve counters)
 					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
-					# get stats
-					my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
+					my $period = getThresholdPeriod( subconcept => $sect );
 					my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
 					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 				}
 			}
+			# add data and stats
 			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
-			# resusing stats collected for PIT
-			$V->{interface}{"${index}_operAvail_value"} = $allstats->{availability};
-			$V->{interface}{"${index}_totalUtil_value"} = $allstats->{totalUtil};
-			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $allstats->{availability} );
-			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $allstats->{totalUtil} );
+			# can't reu-se stats here because these run on default 6h, normal stats run on 15m			
+			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
+			my $interface_util_stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'interface', start => $period, end => time);
+
+			$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability};
+			$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil};
+			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $interface_util_stats->{availability} );
+			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $interface_util_stats->{totalUtil} );
 
 			if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
 				and getbool( $S->{mdl}{custom}{interface}{ifAdminStatus}, "invert" ) )
@@ -4495,6 +4525,7 @@ sub getIntfData
 				);
 			}
 		}
+		elsif( $howdiditgo->{skipped} ) {}
 		else
 		{
 			logMsg("ERROR ($S->{name}) on getIntfData of interface=$index, $anyerror");
@@ -10207,13 +10238,7 @@ sub doSummaryBuild
 			foreach my $tp ( keys %{$M->{summary}{statstype}} )
 			{
 				next if ( !exists $M->{system}->{rrd}->{$tp}->{threshold} );
-				my $threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
-
-				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
-				{
-					$threshold_period = $C->{"threshold_period-$tp"};
-					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
-				}
+				my $threshold_period = getThresholdPeriod( subconcept => $tp );
 
 				# check whether this is an indexed section, ie. whether there are multiple instances with
 				# their own indices
@@ -10284,15 +10309,9 @@ sub doSummaryBuild
 					}
 				}
 
-				# reset the threshold period, may have been changed to threshold_period-<something>
-				$threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
-
+				# reset the threshold period, may have been changed to threshold_period-<something>				
 				my $tp = "interface";
-				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
-				{
-					$threshold_period = $C->{"threshold_period-$tp"};
-					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
-				}
+				$threshold_period = getThresholdPeriod( subconcept => $tp );
 
 				# this could maybe use the model and get collect right away as that's
 				# all it seems to be used for right now
@@ -10620,6 +10639,22 @@ sub doThreshold
 		if( $running_independently );
 }
 
+sub getThresholdPeriod
+{
+	my (%args) = @_;
+	my $subconcept = $args{subconcept};
+
+	my $threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
+
+	### 2013-09-16 keiths, User defined threshold periods.
+	if ( exists $C->{"threshold_period-$subconcept"} and $C->{"threshold_period-$subconcept"} ne "" )
+	{
+		$threshold_period = $C->{"threshold_period-$subconcept"};
+		dbg("Found Configured Threshold for $subconcept, changing to \"$threshold_period\"");
+	}
+	return $threshold_period;
+}
+
 # performs the threshold value checking and event raising for
 # one or more threshold configurations
 # args: sys, type, thrname, index, item, class (all required),
@@ -10646,17 +10681,7 @@ sub runThrHld
 
 	dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
 
-	my $threshold_period = "-15 minutes";
-	if ( $C->{"threshold_period-default"} ne "" )
-	{
-		$threshold_period = $C->{"threshold_period-default"};
-	}
-	### 2013-09-16 keiths, User defined threshold periods.
-	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" )
-	{
-		$threshold_period = $C->{"threshold_period-$type"};
-		dbg("Found Configured Threshold for $type, changing to \"$threshold_period\"");
-	}
+	my $threshold_period = getThresholdPeriod( subconcept => $type );
 
 	#	check if values are already in table (done by doSummaryBuild)
 	if ( exists $sts->{$S->{name}}{$type} )
