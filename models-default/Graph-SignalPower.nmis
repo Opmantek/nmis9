@@ -28,6 +28,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Signal Power',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'Signal Strength'

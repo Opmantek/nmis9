@@ -32,6 +32,7 @@
 # Graph tcp-conns: tcpActiveOpens, tcpPassiveOpens, tcpAttemptFails, tcpEstabResets and tcpCurrEstab
 
 %hash = (
+	'heading' => 'TCP Connections',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'

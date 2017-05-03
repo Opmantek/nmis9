@@ -32,6 +32,7 @@
 #
 
 %hash = (
+	'heading' => 'Wireless In/Out Transmission',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'Wireless Transmitted/Received'

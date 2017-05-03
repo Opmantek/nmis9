@@ -28,6 +28,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'RSS per Chain',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'RSS per Chain (polarity)'

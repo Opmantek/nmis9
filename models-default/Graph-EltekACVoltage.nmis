@@ -28,6 +28,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'AC Voltage',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node AC Voltage'

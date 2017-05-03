@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'PVC Frame Relay Stats',
 	'title' => {
 		'standard' => '$ifDescr - PVC $itm - $length from $datestamp_start to $datestamp_end',
 		'short' => '$ifDescr - PVC $itm - $length'

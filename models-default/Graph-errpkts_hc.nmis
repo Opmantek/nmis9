@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Interface Error packets in percentage',
 	'title' => {
 		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node: $ifDescr - $length'

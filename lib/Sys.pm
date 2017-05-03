@@ -120,7 +120,7 @@ sub inventory
 
 	# re-use cached object for catchall
 	return $self->{_inventory_cache}{$concept}
-		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );		
+		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );
 
 	# for now map pkts into interface
 	$concept = 'interface' if( $concept =~ /pkts/ );
@@ -759,7 +759,7 @@ sub getData
 		class   => $self->{mdl}{$class}{rrd},
 		section => $section,
 		index   => $index,
-		port    => $port		
+		port    => $port
 	);
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
@@ -1659,11 +1659,11 @@ sub prep_extras_with_catchalls
 	my $item = $args{item};
 	my $section = $args{section};
 	my $str = $args{str};
-	my $type = $args{type};	
+	my $type = $args{type};
 
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
-	
+
 	# if new one is there use it
 	my $data = $self->inventory(concept => "catchall")->data_live();
 	$extras->{node} = $self->{node};
@@ -1685,7 +1685,7 @@ sub prep_extras_with_catchalls
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
 			$extras->{$key} = $data->{$key};
-		}		
+		}
 		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
 		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
@@ -1742,7 +1742,7 @@ sub parseString
 
 	dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
 
-	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value		
+	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
 		my $inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 );
@@ -1779,7 +1779,7 @@ sub parseString
 	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
 
 	dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
-	
+
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
 	#
@@ -2082,9 +2082,10 @@ sub create_update_rrd
 	return $result;
 }
 
-# get header based on graphtype
-# args graphtype, type, index, item
-# returns header or undef
+# get header based on graphtype, either from the graph file itself or
+# from the model/common-heading.
+# args: graphtype or type, index, item
+# returns: header or undef, logs if there is a problem
 sub graphHeading
 {
 	my ( $self, %args ) = @_;
@@ -2093,19 +2094,40 @@ sub graphHeading
 	my $index     = $args{index};
 	my $item      = $args{item};
 
-	my $header = $self->{mdl}->{heading}->{graphtype}->{$graphtype}
-		if ( defined $self->{mdl}->{heading}->{graphtype}->{$graphtype} );
+	my $rawheading;
 
-	if ($header)
+	# first, try the graph file - key heading
+	my $res = func::getModelFile(model => "Graph-$graphtype");
+	if ($res->{success})
 	{
-		$header = $self->parseString( string => $header, index => $index, item => $item, eval => 0 );
+		my $graphdata = $res->{data};
+		$rawheading = $graphdata->{heading} if (ref($graphdata) eq "HASH"
+																						&& defined($graphdata->{heading})
+																						&& $graphdata->{heading} ne "");
 	}
 	else
 	{
-		$header = "Heading not defined in Model";
-		logMsg("heading for graphtype=$graphtype not found in model=$self->{mdl}{system}{nodeModel}");
+		# if that is not available, use the model section 'heading' which is sourced off common-heading
+		$rawheading = $self->{mdl}->{heading}->{graphtype}->{$graphtype}
+		if ( ref($self->{mdl}) eq "HASH"
+				 && ref($self->{mdl}->{heading}) eq "HASH"
+				 && ref($self->{mdl}->{heading}->{graphtype}) eq "HASH"
+				 && defined($self->{mdl}->{heading}->{graphtype}->{$graphtype}));
 	}
-	return $header;
+
+	# if none of those work, use a boilerplate text
+	if (!$rawheading)
+	{
+		logMsg("heading for graphtype=$graphtype not found in graph file or model=$self->{mdl}{system}{nodeModel}");
+		return "Heading not defined";
+	}
+
+	# expand any variables - iff that fails, return undef
+	my $parsed = $self->parseString( string => $rawheading,
+																	 index => $index,
+																	 item => $item,
+																	 eval => 0 );
+	return $parsed;
 }
 
 sub writeNodeInfo

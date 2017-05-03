@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Class Based QoS for input',
 	'title' => {
 		'standard' => '$node - CBQoS - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - CBQOS - $length'

@@ -44,6 +44,7 @@
 #
 
 %hash = (
+	'heading' => 'Link Rate',
 	'title' => {
 		'standard' => '$node LinkRate Rx/Tx - $length from $datestamp_start to $datestamp_end',
 		'short' => 'LinkRate Rx/Tx'

@@ -32,6 +32,7 @@
 #Graph tcp-segs: tcpInSegs, tcpOutSegs, tcpRetransSegs, tcpInErrs and tcpOutRsts
 
 %hash = (
+	'heading' => 'TCP Segments',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
