@@ -37,9 +37,6 @@
   		'threshold' => {
   			'common-model' => 'threshold'
   		},
-  		'heading' => {
-  			'common-model' => 'heading'
-  		},
   		'event' => {
   			'common-model' => 'event'
   		}

@@ -64,9 +64,6 @@
       'event' => {
         'common-model' => 'event'
       },
-      'heading' => {
-        'common-model' => 'heading'
-      },
       'lldp' => {
         'common-model' => 'lldp'
       },

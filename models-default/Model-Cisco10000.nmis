@@ -36,9 +36,6 @@
       'event' => {
         'common-model' => 'event'
       },
-      'heading' => {
-        'common-model' => 'heading'
-      },
       'stats' => {
         'common-model' => 'stats'
       },

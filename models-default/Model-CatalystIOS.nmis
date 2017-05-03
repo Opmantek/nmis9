@@ -50,9 +50,6 @@
       'stats' => {
         'common-model' => 'stats'
       },
-      'heading' => {
-        'common-model' => 'heading'
-      },
       'cbqos-out' => {
         'common-model' => 'cbqos-out'
       },

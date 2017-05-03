@@ -41,10 +41,7 @@
       'summary' => {
         'common-model' => 'summary'
       },
-     'heading' => {
-        'common-model' => 'heading'
-      },
-      'stats' => {
+     'stats' => {
         'common-model' => 'stats'
       },
       'event' => {

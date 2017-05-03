@@ -40,9 +40,6 @@
       'summary' => {
         'common-model' => 'summary'
       },
-      'heading' => {
-        'common-model' => 'heading'
-      },
       'stats' => {
         'common-model' => 'stats'
       },

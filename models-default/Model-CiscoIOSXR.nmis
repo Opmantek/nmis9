@@ -42,9 +42,6 @@
   		'cbqos-in' => {
   			'common-model' => 'cbqos-in'
   		},
-  		'heading' => {
-  			'common-model' => 'heading'
-  		},
   		'cbqos-out' => {
   			'common-model' => 'cbqos-out'
   		},

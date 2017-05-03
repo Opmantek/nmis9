@@ -47,9 +47,6 @@
       'cbqos-in' => {
         'common-model' => 'cbqos-in'
       },
-      'heading' => {
-        'common-model' => 'heading'
-      },
       'stats' => {
         'common-model' => 'stats'
       },
