@@ -99,16 +99,17 @@ sub _dirty
 # Public:
 ###########
 
-# bulk set records to be historic which match this node
-# and are not in the array of active_ids provided
-# args: active_ids (optional, see concept), arrayref of active ids, concept (optional, if not given all inventory entries for node will be
+# bulk set records to be historic which match this node and are not in the array of active_indices provided
+# also updates records which are in the active_indices list to not be historic
+# args: active_indices (optional, see concept), arrayref of active ids, concept (optional, if not given all inventory entries for node will be
 #  marked historic (useful for update force=1)
-# retval: updates retval, this may not be the best choice, feel free to consider/change
-sub bulk_mark_inventory_historic
+# returns: hashref with number of records marked historic and nothistoric
+sub bulk_update_inventory_historic
 {
 	my ($self,%args) = @_;
-	my ($active_ids,$concept) = @args{'active_ids','concept'};
-	return "invalid input,active_ids must be an array!" if ($active_ids && ref($active_ids) ne "ARRAY");
+	my ($active_indices,$concept) = @args{'active_indices','concept'};
+	return "invalid input,active_indices must be an array!" if ($active_indices && ref($active_indices) ne "ARRAY");
+	my $retval = {};
 	
 	# not a huge fan of hard coding these, not sure there is much of a better way 
 	my $q = {
@@ -118,15 +119,32 @@ sub bulk_mark_inventory_historic
 	$q->{'path.2'} = $concept if( $concept );
 
 	# get_query currently doesn't support $nin, only $in
-	$q->{'data.index'} = {'$nin' => $active_ids} if($active_ids);
+	$q->{'data.index'} = {'$nin' => $active_indices} if($active_indices);
 
-	my $retval = NMISNG::DB::update(
+	# mark historic where not in list
+	my $result = NMISNG::DB::update(
 		collection => $self->nmisng->inventory_collection,
 		freeform => 1,
 		multiple => 1,
 		query => $q,
 		record => { '$set' => { 'historic' => 1 } }
 	);
+	$retval->{marked_historic} = $result->{updated_records};
+	$retval->{matched_historic} = $result->{matched_records};
+	# if we have a list unset historic
+	if( $active_indices )
+	{
+		$q->{'data.index'} = {'$in' => $active_indices} if($active_indices);
+		$result = NMISNG::DB::update(
+			collection => $self->nmisng->inventory_collection,
+			freeform => 1,
+			multiple => 1,
+			query => $q,
+			record => { '$set' => { 'historic' => 0 } }
+		);
+		$retval->{marked_nothistoric} = $result->{updated_records};
+		$retval->{matched_nothistoric} = $result->{matched_records};
+	}
 	return $retval;
 }
 
