@@ -27,6 +27,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Content',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 	},

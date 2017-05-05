@@ -28,6 +28,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'WLAN Transmitted/Received',
 	'title' => {
 		'standard' => '$node WLAN Rx/Tx - $length from $datestamp_start to $datestamp_end',
 		'short' => 'WLAN Rx/Tx'

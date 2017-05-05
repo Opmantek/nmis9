@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Call Port Stats',
 	'title' => {
 		'standard' => '$node - Calls- $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - Calls - $length'

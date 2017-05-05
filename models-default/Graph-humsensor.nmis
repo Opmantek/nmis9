@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Humidity percent',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'Humidity sensor'

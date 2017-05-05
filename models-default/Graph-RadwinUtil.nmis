@@ -32,6 +32,7 @@
 #
 
 %hash = (
+	'heading' => 'Rx/Tx from HSU Lan Port',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => 'Rx/Tx from HSU Lan Port'

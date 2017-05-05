@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Metrics',
 	'title' => {
 		'standard' => '$group - $length from $datestamp_start to $datestamp_end',
 		'short' => '$group Metrics $length'

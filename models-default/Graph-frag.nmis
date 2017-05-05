@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'IP Fragmentation/Reassembly (as a % of Packets Received)',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'

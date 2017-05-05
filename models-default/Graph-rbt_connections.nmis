@@ -30,6 +30,7 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'Connections',
 	'title' => {
 		'standard' => '$node from $datestamp_start to $datestamp_end',
 		'short' => '$node - $length'
