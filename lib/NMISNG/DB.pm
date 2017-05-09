@@ -1475,6 +1475,7 @@ sub update
 	$new_record = constrain_record( record => $record ) if ( !defined( $arg{constraints} ) || $arg{constraints} );
 
 	my $updated_records = 0;
+	my $matched_records = 0;
 	my $success         = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 	my $upsert   = $arg{upsert}   || 0;
@@ -1497,6 +1498,7 @@ sub update
 			if ( $result->acknowledged )
 			{
 				$updated_records = $result->modified_count;
+				$matched_records = $result->matched_count;
 			}
 			$success = 1;
 		}
@@ -1552,6 +1554,7 @@ sub update
 	return {
 		success         => $success,
 		updated_records => $updated_records,
+		matched_records => $matched_records,
 		error           => $error,
 		error_type      => $error_type
 	};

@@ -89,7 +89,7 @@ sub new
 		{
 			my $msg =  "Could not get collection $collname: " . NMISNG::DB::get_error_string ;
 			$self->log->fatal($msg);
-			die "$msg\n";							# database errors on that level are not really recoverable
+			die "Failed to get Collection $collname, msg: $msg\n";							# database errors on that level are not really recoverable
 		}
 		# tell mongodb to prefer numeric
 		$collhandle = $collhandle->with_codec( prefer_numeric => 1 );
