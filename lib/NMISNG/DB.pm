@@ -1143,7 +1143,11 @@ sub get_query_part
 		if( ref($col_value) eq "MongoDB::OID" ) {
 			$ret_hash->{$col_name} = $col_value;
 		}
-		else {
+		else 
+		{
+			# constructor dies if the input isn't valid as oid value (== 24 char hex string)
+			$col_value = "badc0ffee0ddf00ddeadbabe" # that's valid but won't match, which is good
+					if ($col_value !~ /^[0-9a-fA-F]{24}$/);
 			$ret_hash->{$col_name} = MongoDB::OID->new(value => $col_value);
 		}
 	}
