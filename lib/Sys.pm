@@ -120,7 +120,7 @@ sub inventory
 
 	# re-use cached object for catchall
 	return $self->{_inventory_cache}{$concept}
-		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );		
+		if( $concept eq 'catchall' && $self->{_inventory_cache}{$concept} );
 
 	# for now map pkts into interface
 	$concept = 'interface' if( $concept =~ /pkts/ );
@@ -178,7 +178,8 @@ sub status
 		snmp_enabled => $self->{snmp} ? 1 : 0,
 		wmi_enabled  => $self->{wmi} ? 1 : 0,
 		snmp_error   => $self->{snmp_error},
-		wmi_error    => $self->{wmi_error}
+		wmi_error    => $self->{wmi_error},
+		skipped      => $self->{skipped}
 	};
 }
 
@@ -219,6 +220,7 @@ sub init
 
 	$self->{_nmisng} = NMIS::new_nmisng();
 	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
+	return 0 if( !$self->{_nmisng_node} );
 	my $catchall_data;
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -464,16 +466,43 @@ sub disable_source
 # also note: inventory conversion could use model load to get the data a bit faster
 sub ifDescrInfo
 {
-	my $self = shift;
+	my ($self) = @_;
 
 	my %ifDescrInfo;
-	my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
-	foreach my $id ( @$ids )
-	{		
-		my $thisentry = $self->nmisng_node->inventory( _id => $id )->data();
-		my $ifDescr   = $thisentry->{ifDescr};
+	my $catchall_data = $self->inventory( concept => 'catchall' )->data();
 
-		$ifDescrInfo{$ifDescr} = {%$thisentry};
+	# if we have many interfaces then fetch them on-by-one so we don't load a mountain of data at one time
+	# a smart iterator here in the ModelData would make more sense as it could fetch as we work in lots that
+	# we determine
+	# this code is basically here as an example of why we might want an iterator
+	if( $catchall_data->{intfCollect} < 100 )
+	{
+		my $ids = $self->nmisng_node->get_inventory_ids( concept => 'interface' );
+		foreach my $id ( @$ids )
+		{
+			my ($inventory,$error_message) = $self->nmisng_node->inventory( _id => $id, debug=>1 );
+			my $thisentry = ($inventory) ? $inventory->data : {};
+			if( !$inventory || $error_message)
+			{
+				use Carp;
+				print "no inventory for node:$self->{name}, id:$id, error_message:$error_message".Carp::longmess();
+			}
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
+	}
+	else
+	{
+		my $model_data = $self->nmisng_node->get_inventory_model( concept => 'interface' );
+		my $data = $model_data->data();
+		foreach my $model ( @$data )
+		{
+			my $thisentry = $model->{data};
+			my $ifDescr   = $thisentry->{ifDescr};
+
+			$ifDescrInfo{$ifDescr} = {%$thisentry};
+		}
 	}
 	return \%ifDescrInfo;
 }
@@ -528,6 +557,7 @@ sub copyModelCfgInfo
 # debug (aka model; optional, just a debug flag!)
 #
 # returns 0 if retrieval was a _total_ failure, 1 if it worked (at least somewhat),
+#  2 if it was skipped for some reason (like control)
 #  if successful target will be filled in
 # also sets details for status()
 sub loadInfo
@@ -572,7 +602,7 @@ sub loadInfo
 	elsif ( $result->{skipped} )    # nothing to report because model said skip these items, apparently all of them...
 	{
 		dbg("no results, skipped because of control expression or index mismatch");
-		return 1;
+		return 2;
 	}
 	else                            # we have data, maybe errors too?
 	{
@@ -729,11 +759,12 @@ sub getData
 		class   => $self->{mdl}{$class}{rrd},
 		section => $section,
 		index   => $index,
-		port    => $port		
+		port    => $port
 	);
 	$self->{error}      = $status->{error};
 	$self->{wmi_error}  = $status->{wmi_error};
 	$self->{snmp_error} = $status->{snmp_error};
+	$self->{skipped}    = $status->{skipped} // 0;
 
 	# data? we're happy-ish
 	if ( keys %$result )
@@ -1349,17 +1380,18 @@ sub loadModel
 	}
 	else
 	{
-		my $ext = getExtension( dir => 'models' );
-
-		# loadtable returns live/shared/cached info, but we must not modify that shared original!
-		$self->{mdl} = Clone::clone( loadTable( dir => 'models', name => $model ) );
-		if ( ref( $self->{mdl} ) ne "HASH" or !keys %{$self->{mdl}} )
+		# load the model file in question
+		my $res = func::getModelFile(model => $model);
+		if (!$res->{success})
 		{
-			$self->{error} = "ERROR ($self->{name}) failed to load Model file from models/$model.$ext!";
+			$self->{error} = "ERROR ($self->{name}) failed to load Model file for $model: $res->{error}!";
 			$exit = 0;
 		}
 		else
 		{
+			# getModelFile returns live/shared/cached info, but we must not modify that shared original!
+			$self->{mdl} = Clone::clone( $res->{data} );
+
 			# prime the nodeModel property from the model's filename,
 			# ignoring whatever may be in the deprecated nodeModel property
 			# in the model file
@@ -1371,18 +1403,19 @@ sub loadModel
 			foreach my $class ( keys %{$self->{mdl}{'-common-'}{class}} )
 			{
 				my $name = "Common-" . $self->{mdl}{'-common-'}{class}{$class}{'common-model'};
-				my $mdl = loadTable( dir => 'models', name => $name );
-				if ( !$mdl )
+				my $commonres = func::getModelFile(model => $name);
+				if (!$commonres->{success})
 				{
-					$self->{error} = "ERROR ($self->{name}) failed to read Model file from models/${name}.$ext!";
+					$self->{error} = "ERROR ($self->{name}) failed to read Model file $name: $commonres->{error}!";
 					$exit = 0;
 				}
 				else
 				{
 					# this mostly copies, so cloning not needed
 					# however, an unmergeable model is terminal, mustn't be cached, useless.
-					if ( !$self->_mergeHash( $self->{mdl}, $mdl ) )
+					if ( !$self->_mergeHash( $self->{mdl}, $commonres->{data} ) )
 					{
+						$self->{error} = "ERROR ($self->{name}) model merging failed!";
 						return 0;
 					}
 				}
@@ -1626,11 +1659,11 @@ sub prep_extras_with_catchalls
 	my $item = $args{item};
 	my $section = $args{section};
 	my $str = $args{str};
-	my $type = $args{type};	
+	my $type = $args{type};
 
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
-	
+
 	# if new one is there use it
 	my $data = $self->inventory(concept => "catchall")->data_live();
 	$extras->{node} = $self->{node};
@@ -1652,7 +1685,7 @@ sub prep_extras_with_catchalls
 		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 		{
 			$extras->{$key} = $data->{$key};
-		}		
+		}
 		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
 		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
@@ -1709,7 +1742,7 @@ sub parseString
 
 	dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
 
-	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value		
+	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
 		my $inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 );
@@ -1746,7 +1779,7 @@ sub parseString
 	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
 
 	dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
-	
+
 	# massage the string and replace any available variables from extras,
 	# but ONLY WHERE no compatibility hardcoded variable is present.
 	#
@@ -2049,9 +2082,10 @@ sub create_update_rrd
 	return $result;
 }
 
-# get header based on graphtype
-# args graphtype, type, index, item
-# returns header or undef
+# get header based on graphtype, either from the graph file itself or
+# from the model/common-heading.
+# args: graphtype or type, index, item
+# returns: header or undef, logs if there is a problem
 sub graphHeading
 {
 	my ( $self, %args ) = @_;
@@ -2060,19 +2094,40 @@ sub graphHeading
 	my $index     = $args{index};
 	my $item      = $args{item};
 
-	my $header = $self->{mdl}->{heading}->{graphtype}->{$graphtype}
-		if ( defined $self->{mdl}->{heading}->{graphtype}->{$graphtype} );
+	my $rawheading;
 
-	if ($header)
+	# first, try the graph file - key heading
+	my $res = func::getModelFile(model => "Graph-$graphtype");
+	if ($res->{success})
 	{
-		$header = $self->parseString( string => $header, index => $index, item => $item, eval => 0 );
+		my $graphdata = $res->{data};
+		$rawheading = $graphdata->{heading} if (ref($graphdata) eq "HASH"
+																						&& defined($graphdata->{heading})
+																						&& $graphdata->{heading} ne "");
 	}
 	else
 	{
-		$header = "Heading not defined in Model";
-		logMsg("heading for graphtype=$graphtype not found in model=$self->{mdl}{system}{nodeModel}");
+		# if that is not available, use the model section 'heading' which is sourced off common-heading
+		$rawheading = $self->{mdl}->{heading}->{graphtype}->{$graphtype}
+		if ( ref($self->{mdl}) eq "HASH"
+				 && ref($self->{mdl}->{heading}) eq "HASH"
+				 && ref($self->{mdl}->{heading}->{graphtype}) eq "HASH"
+				 && defined($self->{mdl}->{heading}->{graphtype}->{$graphtype}));
 	}
-	return $header;
+
+	# if none of those work, use a boilerplate text
+	if (!$rawheading)
+	{
+		logMsg("heading for graphtype=$graphtype not found in graph file or model=$self->{mdl}{system}{nodeModel}");
+		return "Heading not defined";
+	}
+
+	# expand any variables - iff that fails, return undef
+	my $parsed = $self->parseString( string => $rawheading,
+																	 index => $index,
+																	 item => $item,
+																	 eval => 0 );
+	return $parsed;
 }
 
 sub writeNodeInfo

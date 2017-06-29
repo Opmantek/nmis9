@@ -311,6 +311,7 @@ $safeservice =~ s/[^a-z0-9\._]//g;
 
 my $graphname = "service-custom-$safeservice-$shortname";
 
+# nmis_models is the dir for custom models
 my $modeldir = $config->{'<nmis_models>'};
 my $savefilename = "$modeldir/Graph-$graphname.nmis";
 my $tempfilewarning;

@@ -84,10 +84,11 @@ if ($Q->{act} eq 'network_graph_view') {		typeGraph();
 } else { notfound(); }
 
 sub notfound {
+	my ($message) = @_;
 	print header($headeropts);
 	print start_html();
 	print "Network: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf} <br>\n";
-	print "Request not found\n";
+	print $message || "Request not found\n";
 	print end_html;
 }
 
@@ -124,7 +125,9 @@ sub typeGraph {
 	my $GT = loadGroupTable();
 
 	my $S = Sys::->new; # get system object
-	$S->init(name=>$node); # load node info and Model if name exists
+	 # load node info and Model if name exists
+	notfound("Node not found") && return if( !$S->init(name=>$node) );
+	
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $M = $S->mdl;
 	my $V = $S->view;
@@ -590,7 +593,7 @@ sub typeGraph {
 sub typeExport {
 
 	my $S = Sys::->new; # get system object
-	$S->init(name=>$Q->{node}); # load node info and Model if name exists
+	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 	my $graphtype = $Q->{graphtype};
@@ -652,7 +655,7 @@ sub typeExport {
 sub typeStats {
 
 	my $S = Sys::->new; # get system object
-	$S->init(name=>$Q->{node}); # load node info and Model if name exists
+	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 

@@ -1,0 +1,76 @@
+#
+## $Id: Graph-mem-router.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'Router Memory Utilisation',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => '% Mem. Util.'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:MemUsedD=$database:MemoryUsedPROC:AVERAGE',
+			'DEF:MemFreeD=$database:MemoryFreePROC:AVERAGE',
+			'DEF:MemUsedM=$database:MemoryUsedIO:AVERAGE',
+			'DEF:MemFreeM=$database:MemoryFreeIO:AVERAGE',
+			'CDEF:totalMemD=MemUsedD,MemFreeD,+',
+			'CDEF:perUsedMemD=MemUsedD,totalMemD,/,100,*',
+			'CDEF:totalMemM=MemUsedM,MemFreeM,+',
+			'CDEF:perUsedMemM=MemUsedM,totalMemM,/,100,*',
+			'LINE2:perUsedMemD#00BFFF:% Proc Mem Used',
+			'GPRINT:perUsedMemD:AVERAGE:Avg %4.0lf%%',
+			'GPRINT:MemFreeD:AVERAGE:Proc Mem Free %1.0lf bytes',
+			'GPRINT:totalMemD:AVERAGE:Total Proc Mem %1.0lf bytes\\n',
+
+			'LINE2:perUsedMemM#00FF7F:% IO Mem Used',
+			'GPRINT:perUsedMemM:AVERAGE:Avg %4.0lf%%',
+			'GPRINT:MemFreeM:AVERAGE:IO Mem Free %1.0lf bytes',
+			'GPRINT:totalMemM:AVERAGE:Total IO Mem %1.0lf bytes\\n'
+		],
+		'small' => [
+			'DEF:MemUsedD=$database:MemoryUsedPROC:AVERAGE',
+			'DEF:MemFreeD=$database:MemoryFreePROC:AVERAGE',
+			'DEF:MemUsedM=$database:MemoryUsedIO:AVERAGE',
+			'DEF:MemFreeM=$database:MemoryFreeIO:AVERAGE',
+			'CDEF:totalMemD=MemUsedD,MemFreeD,+',
+			'CDEF:perUsedMemD=MemUsedD,totalMemD,/,100,*',
+			'CDEF:totalMemM=MemUsedM,MemFreeM,+',
+			'CDEF:perUsedMemM=MemUsedM,totalMemM,/,100,*',
+			'LINE2:perUsedMemD#00BFFF:% Proc Mem Used',
+			'GPRINT:perUsedMemD:AVERAGE:Avg %1.0lf%%',
+			'LINE2:perUsedMemM#00FF7F:% IO Mem Used',
+			'GPRINT:perUsedMemM:AVERAGE:Avg %1.0lf%%\\n',
+		]
+	}
+);

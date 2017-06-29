@@ -1,0 +1,397 @@
+#
+## $Id: Model-Windows2000.nmis,v 8.3 2012/04/28 00:59:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'alerts' => {
+    'storage' => {
+      'HighDiskUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '70',
+        	'Warning' => '75',
+        	'Minor' => '80',
+        	'Major' => '95',
+        	'Critical' => '98',
+        	'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Disk Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+        	'Normal' => '85',
+        	'Warning' => '0',
+        	'Minor' => '0',
+        	'Major' => '90',
+        	'Critical' => '95',
+        	'Fatal' => '98',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'High Memory Usage',
+        'level' => 'Warning',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Memory/',
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'Windows2000',
+    'nodeType' => 'server',
+    'nodegraph' => 'health,response,ip,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber'
+          },
+          'sysName' => {
+            'oid' => 'sysName',
+            'title' => 'System Name'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default',
+              'noSuchObject' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
+          #              has been running for, not the uptime of the box.  hrSystemUpTime
+          #              is the same as 'uptime' on the bash command line.
+          'sysUpTime' => {
+            'oid' => 'hrSystemUptime',
+            'title' => 'Uptime'
+          },
+          'snmpUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'SNMP_Uptime'
+          }
+        }
+      },
+      'extra' => {
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers.0',
+            'title' => 'Users'
+          },
+          'hrProcesses' => {
+            'oid' => 'hrSystemProcesses.0',
+            'title' => 'Processes'
+          }
+        }
+      }
+    },
+    'rrd' => {
+      'hrwin' => {
+        'snmp' => {
+          'hrNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          },
+          'UserTime' => {
+            'oid' => 'cpuPercentUserTime'
+          },
+          'AvailableBytes' => {
+            'oid' => 'memoryAvailableBytes'
+          },
+          'CommittedBytes' => {
+            'oid' => 'memoryCommittedBytes'
+          },
+          'PagesPerSec' => {
+            'oid' => 'memoryPagesPerSec'
+          },
+          'ProcessorTime' => {
+            'oid' => 'cpuPercentProcessorTime'
+          },
+          'InterruptsPerSec' => {
+            'oid' => 'cpuInterruptsPerSec'
+          }
+        },
+        'graphtype' => 'hrwincpu,hrwincpuint,hrwinpps,hrwinusers,hrwinmem'
+      },
+      'mib2ip' => {
+        'snmp' => {
+          'ipFragFails' => {
+            'oid' => 'ipFragFails'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    },
+    'nodeVendor' => 'Microsoft'
+  },
+  'device' => {
+    'sys' => {
+      'device' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrDeviceType' => {
+            'oid' => 'hrDeviceType'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      }
+    }
+  },
+  'interface' => {
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description (ifAlias)'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      }
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'other',
+      'ifDescr' => 'loopback',
+      'Description' => '^#',
+      'noDescription' => 'false',
+      'ifType' => 'softwareloopback'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	}
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        }
+      }
+    },
+    'nocollect' => {
+      'Description' => ''
+    }
+  }
+);

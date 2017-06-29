@@ -46,6 +46,10 @@ use Carp;
 
 use NMISNG::DB;
 
+###########
+# Class/Package methods:
+###########
+
 # based on the concept, decide which class to create - or return the fallback/default class
 # args: concept
 # returns: class name
@@ -61,6 +65,140 @@ sub get_inventory_class
 	my $class = "NMISNG::Inventory::" . ( $knownclasses{$concept} // $knownclasses{default} );
 	return $class;
 }
+
+# small helper that massages a modeldata object's members into instantiated inventory objects
+# note: this is a generic class function, not object method!
+# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
+# returns: error message or undef
+#
+# please note that this requires the modeldata members to be fully populated,
+# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
+sub instantiate
+{
+	my (%args) = @_;
+	my ($nmisng,$modeldata) = @args{"nmisng","modeldata"};
+	return "invalid input, nmnisng  argument missing!" if (ref($nmisng) ne "NMISNG");
+	return "invalid input, not modeldata object!" if (ref($modeldata) ne "NMISNG::ModelData");
+
+	my @objects;
+	for my $entry (@{$modeldata->data})
+	{
+		# what kind of object is that supposed to be?
+		my $class = get_inventory_class( $entry->{concept} );
+		Module::Load::load($class);
+		# and now instantiate the object from whatever we were given
+		my $object = $class->new(nmisng => $nmisng, %{$entry});
+		return "failed to instantiate object!" if (!$object);
+		push @objects, $object;
+	}
+	$modeldata->data(\@objects);
+	return undef;
+}
+
+
+# compute path from data and selection args.
+# note: this is a generic class function, not object method!
+#
+# take data and a set of keys (path_keys, which index the provided data) and create
+# a path out of them. This is a generic function that can work with any class;
+# you just need to provide the params, this is why it exists here.
+#
+# DefaultInventory relies on this implementation to work, if your subclass does not need to do anything
+# fancy (like morph/tranlate data in keys) then it should probably use this implementation
+# args: cluster_id, node_uuid, concept, data, path_keys (all required), partial (optional, default: 0)
+# returns error message or path arrayref if ok
+sub make_path_from_keys
+{
+	my (%args) = @_;
+
+	my $keys = $args{"path_keys"};
+	return "make_path_from_keys cannot work without path_keys!"
+			if (ref($keys) ne "ARRAY");
+	return "make_path_from_keys has invalid data argument: ".ref($args{data})
+			if (exists($args{data}) && ref($args{data}) ne "HASH");
+
+	my @path;
+	# to make the path globally unique
+	for my $prefixelem ("cluster_id","node_uuid","concept")
+	{
+		if (!$args{partial} && !defined($args{$prefixelem}))
+		{
+			return "make_path_from_keys is missing $prefixelem argument!";
+		}
+		push @path, $args{$prefixelem};
+	}
+	# now go through the given path_keys
+	foreach my $pathelem (@$keys)
+	{
+		if (!$args{partial} && !defined($args{data}->{$pathelem}))
+		{
+			return("make_path_from_keys is missing $pathelem data!");
+		}
+		push @path, $args{data}->{$pathelem};
+	}
+	return \@path;
+}
+
+# (re)compute path from instance data - BUT also create path WITHOUT instance!
+# note: MUST NOT be instance method, but a class function, ie. NO SELF!
+# this is so that paths can be calculated without a whole object being created (which is handy for searching,
+# used from Node.pm)
+#
+# subclasses MUST implement this.
+#
+# args: cluster_id, node_uuid, concept, data, (all required),
+# path_keys (required for a simple class using make_path_from_keys); partial (optional)
+#
+# it should fill out the path value (arrayref),
+# it MUST construct the path with cluster_id, node_uuid and concept as the first three elements,
+# it should return an error message if it does not have enough data to create the path
+# if partial is 1 then part of a path will be returned, which could be handy for searching (maybe?)
+#
+# returns error message or path array ref
+sub make_path
+{
+	# make up for object deref invocation being passed in as first argument
+	# expecting a hash which has even # of inputs
+	shift if ( !( $#_ % 2 ) );
+
+	die(__PACKAGE__."::make_path must be implemented by subclass!");
+}
+
+# take data structure that create_update_rrd and convert it into 
+# values that time_data can use.
+# args: 
+#  rrd_data - data sent to create_update_rrd, hashref, each entry holding a hash keys @{value,option}
+#  target - where to put the parsed data
+#  previous_pit - previous entry for this thing, note: could be looked up if we want, not done right now
+# NOTE: does not handle counter wrapping at this time
+sub parse_rrd_update_data
+{
+	my ($rrd_data,$target,$previous_pit) = @_;
+	foreach my $key (keys %$rrd_data)
+	{
+		my $key_raw = $key."_raw";
+		my $entry = $rrd_data->{$key};
+		if($entry->{option} eq 'nosave' ) {}
+		elsif( $entry->{option} =~ /^counter/)
+		{
+			$target->{$key_raw} = $entry->{value};
+			# autovivifies but no problem
+			my $prev_value = ( $previous_pit->{success} && exists($previous_pit->{data}->{$key_raw}) ) ? $previous_pit->{data}->{$key_raw} : undef;							
+			$target->{$key} = ($prev_value) ? ($entry->{value} - $prev_value) : 0;
+			# TODO: handle wrapping
+			# $target->{$key} = ???!?!? if( $target->{$key} < $prev_value );
+		}
+		else
+		{
+			$target->{$key} = $entry->{value};
+		}
+	}
+	return; # all changes are done in place
+}
+
+###########
+# Public:
+###########
 
 # create a new inventory manager object
 # note: the object is always strictly associated with a node_uuid and a cluster_id
@@ -137,105 +275,49 @@ path path_keys storage description)))
 	return $self;
 }
 
-###########
-# Private:
-###########
-
-###########
-# Protected:
-###########
-
-# compute path from data and selection args.
-# note: this is a generic class function, not object method!
-#
-# take data and a set of keys (path_keys, which index the provided data) and create
-# a path out of them. This is a generic function that can work with any class;
-# you just need to provide the params, this is why it exists here.
-#
-# DefaultInventory relies on this implementation to work, if your subclass does not need to do anything
-# fancy (like morph/tranlate data in keys) then it should probably use this implementation
-# args: cluster_id, node_uuid, concept, data, path_keys (all required), partial (optional, default: 0)
-# returns error message or path arrayref if ok
-sub make_path_from_keys
-{
-	my (%args) = @_;
-
-	my $keys = $args{"path_keys"};
-	return "make_path_from_keys cannot work without path_keys!"
-			if (ref($keys) ne "ARRAY");
-	return "make_path_from_keys has invalid data argument: ".ref($args{data})
-			if (exists($args{data}) && ref($args{data}) ne "HASH");
-
-	my @path;
-	# to make the path globally unique
-	for my $prefixelem ("cluster_id","node_uuid","concept")
-	{
-		if (!$args{partial} && !defined($args{$prefixelem}))
-		{
-			return "make_path_from_keys is missing $prefixelem argument!";
-		}
-		push @path, $args{$prefixelem};
-	}
-	# now go through the given path_keys
-	foreach my $pathelem (@$keys)
-	{
-		if (!$args{partial} && !defined($args{data}->{$pathelem}))
-		{
-			return("make_path_from_keys is missing $pathelem data!");
-		}
-		push @path, $args{data}->{$pathelem};
-	}
-	return \@path;
-}
-
-# (re)compute path from instance data - BUT also create path WITHOUT instance!
-# note: MUST NOT be instance method, but a class function, ie. NO SELF!
-# this is so that paths can be calculated without a whole object being created (which is handy for searching,
-# used from Node.pm)
-#
-# subclasses MUST implement this.
-#
-# args: cluster_id, node_uuid, concept, data, (all required),
-# path_keys (required for a simple class using make_path_from_keys); partial (optional)
-#
-# it should fill out the path value (arrayref),
-# it MUST construct the path with cluster_id, node_uuid and concept as the first three elements,
-# it should return an error message if it does not have enough data to create the path
-# if partial is 1 then part of a path will be returned, which could be handy for searching (maybe?)
-#
-# returns error message or path array ref
-sub make_path
-{
-	# make up for object deref invocation being passed in as first argument
-	# expecting a hash which has even # of inputs
-	shift if ( !( $#_ % 2 ) );
-
-	die(__PACKAGE__."::make_path must be implemented by subclass!");
-}
-
-###########
-# Public:
-###########
-
 # add one point-in-time data record for this concept instance
-# args: self (must have been saved, ie. have _id), data (hashref), time (optional, defaults to now)
+# args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
+#     time (optional, defaults to now)
+#   delay_insert - delay inserting until save is called (if it's never called it's not saved)
+#     if data has already been queued for the time/concept then data provided will overwrite existing
+#     if provided, otherwise existing will be kept (so data can be set one place and derived_data in another)
 # returns: undef or error message
 sub add_timed_data
 {
 	my ($self,%args) = @_;
-
-	return "cannot add timed data to unsaved inventory instance!"
-			if ($self->is_new);
+	
 	return "cannod add timed data, invalid data argument!"
 			if (ref($args{data}) ne "HASH"); # empty hash is acceptable
+	return "cannod add timed data, invalid derived_data argument!"
+			if (ref($args{derived_data}) ne "HASH"); # empty hash is acceptable			
 
-	my $timedrecord = { inventory_id => $self->id,
-											time => $args{time} // Time::HiRes::time,
-											data => $args{data} };
-	my $dbres = NMISNG::DB::insert(
-		collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
-		record => $timedrecord );
-	return "failed to insert record: $dbres->{error}" if (!$dbres->{success});
+	my $delay = $args{delay_insert};
+
+	my $timedrecord = { time => $args{time} // Time::HiRes::time,
+											data => $args{data},
+											derived_data => $args{derived_data} };
+	if( !$delay )
+	{
+		return "cannot add timed data to unsaved inventory instance!"
+			if ($self->is_new);
+
+		$timedrecord->{inventory_id} = $self->id;
+		my $dbres = NMISNG::DB::insert(
+			collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
+			record => $timedrecord );
+		return "failed to insert record: $dbres->{error}" if (!$dbres->{success});
+	}
+	else
+	{
+		my $key = $timedrecord->{time}.$self->concept();
+		if( defined($self->{_queued_pit}{$key}) )
+		{
+			my $existing = $self->{_queued_pit}{$key};
+			$timedrecord->{data} //= $existing->{data};
+			$timedrecord->{derived_data} //= $existing->{derived_data};
+		}
+		$self->{_queued_pit}{$key} = $timedrecord;
+	}
 	return undef;
 }
 
@@ -263,13 +345,6 @@ sub get_newest_timed_data
 	return { success => 1, data => $reading->{data}, time  => $reading->{time} };
 }
 
-# RO, returns nmisng object that this inventory object is using
-sub nmisng
-{
-	my ($self) = @_;
-	return $self->{_nmisng};
-}
-
 # RO, returns cluster_id of this Inventory
 sub cluster_id
 {
@@ -284,11 +359,17 @@ sub concept
 	return $self->{_concept};
 }
 
-# RO, returns node_uuid of the owning node
-sub node_uuid
+# returns the current description, optionally sets a new one
+# args: newdescription
+# returns: description
+sub description
 {
-	my ($self) = @_;
-	return $self->{_node_uuid};
+	my ($self,$newdescription) = @_;
+	if (@_ == 2)									# new value undef is ok, description is deletable
+	{
+		$self->{_description} = $newdescription;
+	}
+	return $self->{_description};
 }
 
 # enabled/disabled are set when an inventory is found on a device
@@ -320,17 +401,18 @@ sub historic
 	return $self->{_historic};
 }
 
-# returns the current description, optionally sets a new one
-# args: newdescription
-# returns: description
-sub description
+# RO, returns nmisng object that this inventory object is using
+sub nmisng
 {
-	my ($self,$newdescription) = @_;
-	if (@_ == 2)									# new value undef is ok, description is deletable
-	{
-		$self->{_description} = $newdescription;
-	}
-	return $self->{_description};
+	my ($self) = @_;
+	return $self->{_nmisng};
+}
+
+# RO, returns node_uuid of the owning node
+sub node_uuid
+{
+	my ($self) = @_;
+	return $self->{_node_uuid};
 }
 
 # returns the storage structure, optionally replaces it (all of it)
@@ -670,6 +752,28 @@ sub save
 	# reset path to what was saved, probably the same but safe
 	$self->{_path} = $record->{path} if ( $result->{success} );
 
+	# save any queued time/pit data, not expecting many here so not very optimised
+	my @queued_keys = keys %{$self->{_queued_pit}};
+	if( $result->{success} && @queued_keys > 0 )
+	{
+		foreach my $key (@queued_keys)
+		{
+			my $record = $self->{_queued_pit}{$key};
+			# using ourself means id will be added (so new inventories will work, no save first required)
+			my $error = $self->add_timed_data( %$record );
+			if( $error )
+			{
+				$result->{success} = 0;
+				$result->{error} .= "Error saving time data: $error";
+			}
+			else
+			{
+				# clean up successful saves
+				delete $self->{_queued_pit}{$key};
+			}
+		}
+	}
+
 	# TODO: set lastupdate into object?
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
@@ -697,33 +801,5 @@ sub validate
 	return 1;
 }
 
-# small helper that massages a modeldata object's members into instantiated inventory objects
-# note: this is a generic class function, not object method!
-# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
-# returns: error message or undef
-#
-# please note that this requires the modeldata members to be fully populated,
-# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
-sub instantiate
-{
-	my (%args) = @_;
-	my ($nmisng,$modeldata) = @args{"nmisng","modeldata"};
-	return "invalid input, nmnisng  argument missing!" if (ref($nmisng) ne "NMISNG");
-	return "invalid input, not modeldata object!" if (ref($modeldata) ne "NMISNG::ModelData");
-
-	my @objects;
-	for my $entry (@{$modeldata->data})
-	{
-		# what kind of object is that supposed to be?
-		my $class = get_inventory_class( $entry->{concept} );
-		Module::Load::load($class);
-		# and now instantiate the object from whatever we were given
-		my $object = $class->new(nmisng => $nmisng, %{$entry});
-		return "failed to instantiate object!" if (!$object);
-		push @objects, $object;
-	}
-	$modeldata->data(\@objects);
-	return undef;
-}
 
 1;

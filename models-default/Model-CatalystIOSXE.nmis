@@ -1,0 +1,747 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'calls' => {
+        'common-model' => 'calls'
+      },
+      'cbqos-in' => {
+        'common-model' => 'cbqos-in'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out'
+      },
+      'database' => {
+        'common-model' => 'database'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
+      'cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'mpls' => {
+        'common-model' => 'mpls'
+      },
+      'neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'status' => {
+        'common-model' => 'Cisco-status'
+      },
+      'vlan' => {
+        'common-model' => 'Cisco-vlan'
+      },
+    }
+  },
+  'custom' => {
+    'interface' => {
+      'ifAdminStatus' => 'false',
+      'ifNumber' => 'false',
+      'ifLastChange' => 'true',
+      'ifTableLastChange' => 'true',
+    }
+  },
+  'interface' => {
+    'collect' => {
+      'Description' => '(CNOC|Collection)'
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'null',
+      'ifDescr' => 'sublayer|null|controller',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'macSecUncontrolledIF|macSecControlledIF|other|softwareloopback|propVirtual|slip'
+    },
+    'noevent' => {
+      'Description' => '^!|^0',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+    },
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out'
+      },
+      #'pkts' => {
+      #  'graphtype' => 'pkts,errpkts',
+      #  'indexed' => 'true',
+      #  'snmp' => {
+      #    'ifHCInOctets' => {
+      #      'oid' => 'ifHCInOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCInUcastPkts' => {
+      #      'oid' => 'ifHCInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutOctets' => {
+      #      'oid' => 'ifHCOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifHCOutUcastPkts' => {
+      #      'oid' => 'ifHCOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInDiscards' => {
+      #      'oid' => 'ifInDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInErrors' => {
+      #      'oid' => 'ifInErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInNUcastPkts' => {
+      #      'oid' => 'ifInNUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInOctets' => {
+      #      'oid' => 'ifInOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifInUcastPkts' => {
+      #      'oid' => 'ifInUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutDiscards' => {
+      #      'oid' => 'ifOutDiscards',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutErrors' => {
+      #      'oid' => 'ifOutErrors',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutNUcastPkts' => {
+      #      'oid' => 'ifOutNUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutOctets' => {
+      #      'oid' => 'ifOutOctets',
+      #      'option' => 'counter,0:U'
+      #    },
+      #    'ifOutUcastPkts' => {
+      #      'oid' => 'ifOutUcastPkts',
+      #      'option' => 'counter,0:U'
+      #    }
+      #  },
+      #  'threshold' => 'pkt_errors_in,pkt_errors_out'
+      #},
+      'pkts_hc' => {
+        'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          }
+        }
+      }
+    },
+    'sys' => {
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'vlanTrunkPortEncapsulationType' => {
+            'replace' => {
+              '1' => 'isl',
+              '4' => 'dot1q',
+              '0' => 'null',
+              '3' => 'lane',
+              'unknown' => 'unknown',
+              '2' => 'dot10',
+              '5' => 'negotiate'
+            },
+            'oid' => 'vlanTrunkPortEncapsulationType',
+            'title' => ' Encapsulation Type'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => ' Description'
+          },
+          'vlanPortVlan' => {
+            'oid' => 'vlanTrunkPortNativeVlan'
+          }
+        }
+      },
+      #'extra' => {
+      #  'indexed' => 'true',
+      #  'snmp' => {
+      #    'Description' => {
+      #      'oid' => 'ifAlias',
+      #      'title' => ' Description'
+      #    },
+      #    'ifHighSpeed' => {
+      #      'oid' => 'ifHighSpeed'
+      #    }
+      #  }
+      #},
+      'standard' => {
+      	'headers' => 'ifIndex,ifDescr,Description,ifAdminStatus,ifOperStatus,ifType,ifPhysAddress,ifSpeed,ifHighSpeed,ifLastChange,collect,nocollect',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => ' Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => ' Name'
+          },
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => ' Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => ' Oper Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => ' Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => ' Type'
+          }
+        }
+      }
+    }
+  },
+  'stats' => {
+    'type' => {
+      'cpu-cpm' => [
+        'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
+      ],
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
+        'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
+        'DEF:responseHealth=$database:responseHealth:AVERAGE',
+        'DEF:cpuHealth=$database:cpuHealth:AVERAGE',
+        'DEF:memHealth=$database:memHealth:AVERAGE',
+        'DEF:intHealth=$database:intHealth:AVERAGE',
+        'DEF:diskHealth=$database:diskHealth:AVERAGE',
+        'DEF:swapHealth=$database:swapHealth:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf',
+        'PRINT:reachabilityHealth:AVERAGE:reachabilityHealth=%1.2lf',
+        'PRINT:availabilityHealth:AVERAGE:availabilityHealth=%1.2lf',
+        'PRINT:responseHealth:AVERAGE:responseHealth=%1.2lf',
+        'PRINT:cpuHealth:AVERAGE:cpuHealth=%1.2lf',
+        'PRINT:memHealth:AVERAGE:memHealth=%1.2lf',
+        'PRINT:intHealth:AVERAGE:intHealth=%1.2lf',
+        'PRINT:diskHealth:AVERAGE:diskHealth=%1.2lf',
+        'PRINT:swapHealth:AVERAGE:swapHealth=%1.2lf'
+      ],
+      'pkts_hc' => [
+        'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+        'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+        'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+        'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+        'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+
+        'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+        'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+        'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+        'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+        'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+
+        'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+        'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+        'CDEF:ifInDiscardsProc=ifInDiscards,ifInPkts,/,100,*',
+        'CDEF:ifOutDiscardsProc=ifOutDiscards,ifOutPkts,/,100,*',
+        'CDEF:ifInErrorsProc=ifInErrors,ifInPkts,/,100,*',
+        'CDEF:ifOutErrorsProc=ifOutErrors,ifOutPkts,/,100,*',
+        'PRINT:ifInUcastPkts:AVERAGE:ifInUcastPkts=%1.2lf',
+        'PRINT:ifInMcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInBcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInDiscards:AVERAGE:ifInDiscards=%1.2lf',
+        'PRINT:ifInErrors:AVERAGE:ifInErrors=%1.2lf',
+        'PRINT:ifInDiscardsProc:AVERAGE:ifInDiscardsProc=%1.2lf',
+        'PRINT:ifInErrorsProc:AVERAGE:ifInErrorsProc=%1.5lf',
+        'PRINT:ifOutUcastPkts:AVERAGE:ifOutUcastPkts=%1.5lf',
+        'PRINT:ifOutMcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutBcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutDiscards:AVERAGE:ifOutDiscards=%1.2lf',
+        'PRINT:ifOutErrors:AVERAGE:ifOutErrors=%1.2lf',
+        'PRINT:ifOutDiscardsProc:AVERAGE:ifOutDiscardsProc=%1.5lf',
+        'PRINT:ifOutErrorsProc:AVERAGE:ifOutErrorsProc=%1.5lf'
+      ],
+      'interface' => [
+        'DEF:input=$database:ifInOctets:AVERAGE',
+        'DEF:output=$database:ifOutOctets:AVERAGE',
+        'DEF:status=$database:ifOperStatus:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$inSpeed,/,100,*',
+        'CDEF:outputUtil=outputBits,$outSpeed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ],
+      'nodehealth' => [
+        'DEF:avgBusy1=$database:avgBusy1:AVERAGE',
+        'DEF:avgBusy5=$database:avgBusy5:AVERAGE',
+        'DEF:MemPUsed=$database:MemoryUsedPROC:AVERAGE',
+        'DEF:MemPFree=$database:MemoryFreePROC:AVERAGE',
+        'CDEF:totalPMem=MemPUsed,MemPFree,+',
+        'CDEF:perPUsedMem=MemPUsed,totalPMem,/,100,*',
+        'CDEF:perPFreeMem=MemPFree,totalPMem,/,100,*',
+        'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
+        'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+        'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
+        'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf'
+      ],
+    }
+  },
+  'summary' => {
+    'statstype' => {
+      'health' => {
+        'sumname' => {
+          'available' => {
+            'stsname' => [
+              'available'
+            ]
+          },
+          'reachable' => {
+            'stsname' => [
+              'reachable'
+            ]
+          },
+          'response' => {
+            'stsname' => [
+              'response'
+            ]
+          }
+        }
+      },
+      'nodehealth' => {
+        'sumname' => {
+          'cpu' => {
+            'stsname' => [
+              'avgBusy5min'
+            ]
+          },
+          'memory' => {
+            'stsname' => [
+              'ProcMemUsed'
+            ]
+          }
+        }
+      }
+    }
+  },
+  #'systemHealth' => {
+  #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
+  #},
+  'systemHealth' => {
+    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+  },
+  'system' => {
+    'nodeModel' => 'CatalystIOSXE',
+    'nodeType' => 'router',
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo',
+    'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'cpu,mem-proc,routenumber,topo',
+        'snmp' => {
+          'MemoryFreePROC' => {
+            'oid' => 'ciscoMemoryPoolFree.1'
+          },
+          'MemoryUsedPROC' => {
+            'oid' => 'ciscoMemoryPoolUsed.1'
+          },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+          'RouteNumber' => {
+            'oid' => 'inetCidrRouteNumber'
+          },
+          'avgBusy1' => {
+            'oid' => 'cpmCPUTotal1minRev.1000'
+          },
+          'avgBusy5' => {
+            'oid' => 'cpmCPUTotal5minRev.1000'
+          }
+        },
+        'threshold' => 'cpu,mem-proc'
+      },
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+      }    },
+    'sys' => {
+      'nodeConfiguration' => {
+        'snmp' => {
+          'bootConfigLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.3.0',
+            'snmpObject' => 'ccmHistoryStartupLastChanged',
+            'title' => 'Boot Configuration Last Changed'
+          },
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.1.0',
+            'snmpObject' => 'ccmHistoryRunningLastChanged',
+            'title' => 'Configuration Last Changed'
+          },
+          'configLastSaved' => {
+            'oid' => '1.3.6.1.4.1.9.9.43.1.1.2.0',
+            'snmpObject' => 'ccmHistoryRunningLastSaved',
+            'title' => 'Configuration Last Viewed'
+          }
+        }
+      },
+      'extra' => {
+        'snmp' => {
+          'softwareImage' => {
+            'calculate' => '$r =~ /CW_IMAGE\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.2',
+            'snmpObjectName' => 'ciscoImageString',
+            'title' => 'Software Image',
+          },
+          'softwareVersion' => {
+            'calculate' => '$r =~ /CW_VERSION\\$(.+)\\$/; $r = $1',
+            'oid' => '1.3.6.1.4.1.9.9.25.1.1.1.2.5',
+            'snmpObjectName' => 'ciscoVersionString',
+            'title' => 'Software Version',
+          },
+          'rttMonApplVersion' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.1.1.0',
+            'snmpObjectName' => 'rttMonApplVersion',
+            'replace' => {
+              'noSuchObject' => 'N/A'
+            },
+            'title' => 'IPSLA Version'
+          },
+          'rttMonApplResponder' => {
+            'oid' => '1.3.6.1.4.1.9.9.42.1.1.13.0',
+            'snmpObjectName' => 'rttMonApplResponder',
+            'replace' => {
+              '1' => 'enabled',
+              '2' => 'disabled',
+              'noSuchObject' => 'N/A'
+            },
+            'title' => 'IPSLA Responder'
+          },
+          'TimeSinceTopologyChange' => {
+            'oid' => 'dot1dStpTimeSinceTopologyChange',
+            'Title' => 'Time Since STP Topology Change',
+            'replace' => {
+              'noSuchObject' => 'N/A',
+              'noSuchInstance' => 'N/A',
+            }
+          },
+        },
+      },
+
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
+          },
+        }
+      }
+    }
+  }
+);

@@ -1,0 +1,55 @@
+#
+## $Id: Graph-ccpu.nmis,v 8.1 2011/11/11 03:08:35 keiths Exp $
+#
+# Autor: Kai Poenisch
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'CPU Utilisation',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+	},
+	'vlabel' => {
+		'standard' => '% Utilisation'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:apChassisCPUAvg=$database:apChassisCPUAvg:AVERAGE',
+			'DEF:apChassisInstMem=$database:apChassisInstMem:AVERAGE',
+			'DEF:apChassisHeapFree=$database:apChassisHeapFree:AVERAGE',
+			'CDEF:perFreeMem=apChassisHeapFree,apChassisInstMem,/,100,*',  
+			'LINE1:apChassisCPUAvg#00ff00:CPU Avg',
+			'LINE1:perFreeMem#0000ff:Free Mem',
+			'GPRINT:apChassisCPUAvg:AVERAGE:Avg CPU %1.2lf',
+			'GPRINT:apChassisCPUAvg:MAX:Max CPU %1.2lf',
+			'GPRINT:apChassisCPUAvg:LAST:current CPU %1.2lf',
+			'GPRINT:apChassisInstMem:MAX:Inst Mem %1.2lf %s',
+			'GPRINT:apChassisHeapFree:AVERAGE:Avg Mem Free %1.2lf %s',
+			'GPRINT:apChassisHeapFree:MAX:Max Mem Free %1.2lf %s',
+			'GPRINT:apChassisHeapFree:LAST:current Mem Free %1.2lf %s'
+		]
+	}
+);

@@ -178,9 +178,6 @@ my $IFT_modtime;
 my $SRC_cache = undef; # Services table
 my $SRC_modtime;
 
-# preset kernel name
-my $kernel = $^O;
-
 sub new_nmisng
 {
 	my $C = loadConfTable();
@@ -1146,6 +1143,130 @@ sub getSummaryStats
 			return \%summaryStats;
 		} else {
 			logMsg("INFO ($S->{name}) no info return from RRD for type=$type index=$index item=$item");
+		}
+	}
+	return;
+}
+
+sub getSubconceptStats
+{
+	my %args = @_;
+	my $inventory = $args{inventory};
+	my $subconcept = $args{subconcept};
+
+	my $start = $args{start};
+	my $end = $args{end};
+
+	my $S = $args{sys};
+	my $M  = $S->mdl;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+
+	my $C = loadConfTable();
+	if (getbool($C->{server_master}) and $catchall_data->{server}
+			and lc($catchall_data->{server}) ne lc($C->{server_name}))
+	{
+		# send request to remote server
+		dbg("serverConnect to $catchall_data->{server} for node=$S->{node}");
+		#return serverConnect(server=>$catchall_data->{server},type=>'send',func=>'summary',node=>$S->{node},
+		#		gtype=>$type,start=>$start,end=>$end,index=>$index);
+	}
+
+	my $db = $C->{database_root}.$inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
+	my $data = $inventory->data;
+	my $index = $data->{index};
+
+	my $ERROR;
+	my ($graphret,$xs,$ys);
+	my @option;
+	my %summaryStats; # return value
+
+	dbg("Start subconcept=$subconcept, index=$index, start=$start, end=$end");
+
+	# check if storage exists
+	if (!$db)
+	{
+		# fixme: should this be logged as error? likely not, as common-bla models set
+		# up all kinds of things that don't work everywhere...
+		logMsg("ERROR ($S->{name}) no rrd name found for subconcept $subconcept, index $index");
+		return;
+	}
+
+	# check if rrd option rules exist in Model for stats
+	if ($M->{stats}{type}{$subconcept} eq "") {
+		logMsg("ERROR ($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}");
+		return;
+	}
+
+	# check if rrd file exists - note that this is NOT an error if the db belongs to
+	# a section with source X but source X isn't enabled (e.g. only wmi or only snmp)
+	if (! -e $db )
+	{
+		# unfortunately the sys object here is generally NOT a live one
+		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
+		# to figure out if the right source is enabled
+		my %status = PreciseNodeStatus(system => $S);
+		# fixme unclear how to find the model's rrd section for this thing?
+
+		my $severity = "INFO";
+		logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
+					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
+					 .($status{wmi_enabled}?"enabled":"disabled") );
+		return;
+	}
+
+	push @option, ("--start", "$start", "--end", "$end") ;
+
+	# escape any : chars which might be in the database name, e.g handling C: in the RPN
+	$db =~ s/:/\\:/g;
+	# NOTE: is there any reason we don't use parse string or some other generic function here?
+	if( $index )
+	{
+		no strict;
+		$database = $db; # global
+		
+		if( $inventory->concept eq 'interface' )
+		{
+			my $data = $inventory->data();
+			$speed = $data->{ifSpeed} if $index ne "";
+			$inSpeed = $data->{ifSpeed} if $index ne "";
+			$outSpeed = $data->{ifSpeed} if $index ne "";
+			$inSpeed = $data->{ifSpeedIn} if $index ne "" and $data->{ifSpeedIn};
+			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
+		}
+		# read from Model and translate variable ($database etc.) rrd options
+		foreach my $str (@{$M->{stats}{type}{$subconcept}}) {
+			my $s = $str;
+			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			if ($s =~ /ERROR/) {
+				logMsg("ERROR ($S->{name}) model=$catchall_data->{nodeModel} subconcept=$subconcept ($str) in expanding variables, $s");
+				return; # error
+			}
+			push @option, $s;
+		}
+	}
+	if (getbool($C->{debug})) {
+		foreach (@option) {
+			dbg("option=$_",2);
+		}
+	}
+
+	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
+	if (($ERROR = RRDs::error)) {
+		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
+	} else {
+		##logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
+		if ( scalar(@$graphret) ) {
+			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
+			foreach my $line ( @$graphret ) {
+				my ($name,$value) = split "=", $line;				
+				$summaryStats{$name} = $value;
+				
+				dbg("name=$name, index=$index, value=$value",2);
+				##logMsg("INFO name=$name, index=$index, value=$value");
+			}
+			return \%summaryStats;
+		} else {
+			logMsg("INFO ($S->{name}) no info return from RRD for subconcept=$subconcept index=$index");
 		}
 	}
 	return;

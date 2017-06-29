@@ -1,0 +1,613 @@
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
+      'entityMib' => {
+        'common-model' => 'entityMib'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'jnxOperations' => {
+        'common-model' => 'Juniper-jnxOperations'
+      },
+    }
+  },
+  'interface' => {
+    'noevent' => {
+      'ifDescr' => 'null',
+      'Description' => '^!|^0',
+      'ifType' => 'other'
+    },
+    'collect' => {
+      'Description' => '(CNOC|Collection)',
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'null',
+      'ifDescr' => 'sublayer|null|controller',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'other|softwareloopback|propVirtual|slip'
+    },
+    'rrd' => {
+      'interface' => {
+        'graphtype' => 'bits,abits,maxbits,util,autil',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            }
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          }
+        },
+        'threshold' => 'util_in,util_out'
+      },
+      'pkts_hc' => {
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'indexed' => 'true',
+        'snmp' => {
+          'ifHCInBcastPkts' => {
+            'oid' => 'ifHCInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInMcastPkts' => {
+            'oid' => 'ifHCInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInUcastPkts' => {
+            'oid' => 'ifHCInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutBcastPkts' => {
+            'oid' => 'ifHCOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutMcastPkts' => {
+            'oid' => 'ifHCOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutUcastPkts' => {
+            'oid' => 'ifHCOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInBcastPkts' => {
+            'oid' => 'ifInBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInDiscards' => {
+            'oid' => 'ifInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInMcastPkts' => {
+            'oid' => 'ifInMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutBcastPkts' => {
+            'oid' => 'ifOutBroadcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutDiscards' => {
+            'oid' => 'ifOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifOutMcastPkts' => {
+            'oid' => 'ifOutMulticastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'pkt_errors_in,pkt_errors_out,pkt_discards_in,pkt_discards_out'
+      }
+    },
+    'sys' => {
+      'extra' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'Description' => {
+            'oid' => 'ifAlias',
+            'title' => 'Description'
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          }
+        }
+      },
+      'standard' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'oid' => 'ifAdminStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Admin Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
+          },
+          'ifOperStatus' => {
+            'oid' => 'ifOperStatus',
+            'replace' => {
+              '1' => 'up',
+              '2' => 'down',
+              '3' => 'testing',
+              '4' => 'unknown',
+              '5' => 'dormant',
+              '6' => 'notPresent',
+              '7' => 'lowerLayerDown'
+            },
+            'title' => 'Oper Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
+          }
+        },
+	      'extra' => {
+	        'indexed' => 'true',
+	        'snmp' => {
+	  				'ifHighSpeed' => {
+	  					'oid' => 'ifHighSpeed'
+	  				},
+	  				'Description' => {
+	            'oid' => 'ifAlias',
+	            'title' => 'Description'
+	          },
+	          'vlanPortVlan' => {
+	            'oid' => '1.3.6.1.2.1.17.7.1.4.5.1.1',
+	            'sysObjectName' => 'dot1qPvid',
+	            'title' => 'VLAN'
+	          }
+	        }
+	      }
+      }
+    }
+  },
+  'system' => {
+    'nodeModel' => 'JuniperSwitch',
+    'nodeType' => 'switch',
+    'nodeVendor' => 'Juniper Networks, Inc.',
+    'nodegraph' => 'health,response,topo,routenumber,ip,frag',
+    'rrd' => {
+      'mib2ip' => {
+        'graphtype' => 'ip,frag',
+        'snmp' => {
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          }
+        }
+      },
+      # SWITCHES HAVE dot1dStpTopChanges
+      'nodehealth' => {
+        'graphtype' => 'topo,routenumber',
+        'threshold' => '',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+
+        },
+      }
+    },
+    'sys' => {
+			#JUNIPER-MIB::jnxBoxDescr.0 = STRING: node0 Juniper SRX550 Internet Router
+			#JUNIPER-MIB::jnxBoxSerialNo.0 = STRING: AL8888AK8888
+
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestIndex.0 = INTEGER: 108
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestTime.0 = Timeticks: (1941538074) 224 days, 17:09:40.74
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestDate.0 = STRING: 2014-10-30,17:1:33.0,+10:0
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestSource.0 = INTEGER: cli(2)
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgLatestUser.0 = STRING: userid
+			#JUNIPER-CFGMGMT-MIB::jnxCmCfgChgMaxEventEntries.0 = INTEGER: 64
+      'extra' => {
+        'snmp' => {
+          'chassisVer' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.2.0',
+            'snmpObject' => 'jnxBoxDescr',
+            'title' => 'Box Description'
+          },
+          'serialNum' => {
+            'oid' => '1.3.6.1.4.1.2636.3.1.3.0',
+            'snmpObject' => 'jnxBoxSerialNo',
+            'title' => 'Serial Number'
+          },
+        }
+      },
+
+      'juniperConfiguration' => {
+        'snmp' => {
+          'configLastChanged' => {
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.2.0',
+            'snmpObject' => 'jnxCmCfgChgLatestTime',
+            'title' => 'Config Last Change'
+          },
+          'configLastChangedDate' => {
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.3.0',
+            'snmpObject' => 'jnxCmCfgChgLatestDate',
+            'title' => 'Config Last Change Date'
+          },
+          'configLastChangedUser' => {
+            'oid' => '1.3.6.1.4.1.2636.3.18.1.5.0',
+            'snmpObject' => 'jnxCmCfgChgLatestUser',
+            'title' => 'Config Changed By'
+          },
+        }
+      },
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
+          }
+        }
+      },
+    }
+  },
+
+  'systemHealth' => {
+    'sections' => 'bgpPeer,ospfNbr,jnxOperations,macTable,lldp,lldpLocal,entityMib',
+    'sys' => {
+      'macTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
+    },
+  },
+  'stats' => {
+  	'type' => {
+      'health' => [
+        'DEF:reach=$database:reachability:AVERAGE',
+        'DEF:avail=$database:availability:AVERAGE',
+        'DEF:health=$database:health:AVERAGE',
+        'DEF:response=$database:responsetime:AVERAGE',
+        'DEF:loss=$database:loss:AVERAGE',
+        'DEF:intfCollect=$database:intfCollect:AVERAGE',
+        'DEF:intfColUp=$database:intfColUp:AVERAGE',
+        'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
+        'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
+        'DEF:responseHealth=$database:responseHealth:AVERAGE',
+        'DEF:cpuHealth=$database:cpuHealth:AVERAGE',
+        'DEF:memHealth=$database:memHealth:AVERAGE',
+        'DEF:intHealth=$database:intHealth:AVERAGE',
+        'DEF:diskHealth=$database:diskHealth:AVERAGE',
+        'DEF:swapHealth=$database:swapHealth:AVERAGE',
+        'PRINT:intfCollect:AVERAGE:intfCollect=%1.3lf',
+        'PRINT:intfColUp:AVERAGE:intfColUp=%1.3lf',
+        'PRINT:reach:AVERAGE:reachable=%1.3lf',
+        'PRINT:avail:AVERAGE:available=%1.3lf',
+        'PRINT:health:AVERAGE:health=%1.3lf',
+        'PRINT:response:AVERAGE:response=%1.2lf',
+        'PRINT:loss:AVERAGE:loss=%1.2lf',
+        'PRINT:reachabilityHealth:AVERAGE:reachabilityHealth=%1.2lf',
+        'PRINT:availabilityHealth:AVERAGE:availabilityHealth=%1.2lf',
+        'PRINT:responseHealth:AVERAGE:responseHealth=%1.2lf',
+        'PRINT:cpuHealth:AVERAGE:cpuHealth=%1.2lf',
+        'PRINT:memHealth:AVERAGE:memHealth=%1.2lf',
+        'PRINT:intHealth:AVERAGE:intHealth=%1.2lf',
+        'PRINT:diskHealth:AVERAGE:diskHealth=%1.2lf',
+        'PRINT:swapHealth:AVERAGE:swapHealth=%1.2lf'
+      ],      
+      'pkts_hc' => [
+        'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+        'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+        'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+        'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+        'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+
+        'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+        'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+        'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+        'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+        'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+
+        'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+        'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+        'CDEF:ifInDiscardsProc=ifInDiscards,ifInPkts,/,100,*',
+        'CDEF:ifOutDiscardsProc=ifOutDiscards,ifOutPkts,/,100,*',
+        'CDEF:ifInErrorsProc=ifInErrors,ifInPkts,/,100,*',
+        'CDEF:ifOutErrorsProc=ifOutErrors,ifOutPkts,/,100,*',
+        'PRINT:ifInUcastPkts:AVERAGE:ifInUcastPkts=%1.2lf',
+        'PRINT:ifInMcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInBcastPkts:AVERAGE:ifInNUcastPkts=%1.2lf',
+        'PRINT:ifInDiscards:AVERAGE:ifInDiscards=%1.2lf',
+        'PRINT:ifInErrors:AVERAGE:ifInErrors=%1.2lf',
+        'PRINT:ifInDiscardsProc:AVERAGE:ifInDiscardsProc=%1.2lf',
+        'PRINT:ifInErrorsProc:AVERAGE:ifInErrorsProc=%1.5lf',
+        'PRINT:ifOutUcastPkts:AVERAGE:ifOutUcastPkts=%1.5lf',
+        'PRINT:ifOutMcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutBcastPkts:AVERAGE:ifOutNUcastPkts=%1.2lf',
+        'PRINT:ifOutDiscards:AVERAGE:ifOutDiscards=%1.2lf',
+        'PRINT:ifOutErrors:AVERAGE:ifOutErrors=%1.2lf',
+        'PRINT:ifOutDiscardsProc:AVERAGE:ifOutDiscardsProc=%1.5lf',
+        'PRINT:ifOutErrorsProc:AVERAGE:ifOutErrorsProc=%1.5lf'
+      ],
+      'interface' => [
+        'DEF:input=$database:ifInOctets:AVERAGE',
+        'DEF:output=$database:ifOutOctets:AVERAGE',
+        'DEF:status=$database:ifOperStatus:AVERAGE',
+        'CDEF:inputBits=input,8,*',
+        'CDEF:outputBits=output,8,*',
+        'CDEF:inputUtil=inputBits,$inSpeed,/,100,*',
+        'CDEF:outputUtil=outputBits,$outSpeed,/,100,*',
+        'CDEF:totalUtil=outputUtil,inputUtil,+,2,/',
+        'PRINT:status:AVERAGE:availability=%1.2lf',
+        'PRINT:inputUtil:AVERAGE:inputUtil=%1.2lf',
+        'PRINT:outputUtil:AVERAGE:outputUtil=%1.2lf',
+        'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
+        'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
+        'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
+      ]  		
+  	}
+  },
+  'summary' => {
+    'statstype' => {
+      'nodehealth' => {
+        'sumname' => {
+          'memory' => {
+            'stsname' => [
+              'ProcMemUsed'
+            ]
+          },
+          'cpu' => {
+            'stsname' => [
+              'avgBusy5min'
+            ]
+          },
+          'buffer' => {
+            'stsname' => [
+              'bufferElFree'
+           ]
+          }
+        }
+      },
+      'health' => {
+        'sumname' => {
+          'reachable' => {
+            'stsname' => [
+              'reachable'
+            ]
+          },
+          'response' => {
+            'stsname' => [
+              'response'
+            ]
+          },
+          'available' => {
+            'stsname' => [
+              'available'
+            ]
+          }
+        }
+      }
+    }
+  }
+);

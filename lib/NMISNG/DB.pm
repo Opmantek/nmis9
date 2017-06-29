@@ -1143,7 +1143,11 @@ sub get_query_part
 		if( ref($col_value) eq "MongoDB::OID" ) {
 			$ret_hash->{$col_name} = $col_value;
 		}
-		else {
+		else 
+		{
+			# constructor dies if the input isn't valid as oid value (== 24 char hex string)
+			$col_value = "badc0ffee0ddf00ddeadbabe" # that's valid but won't match, which is good
+					if ($col_value !~ /^[0-9a-fA-F]{24}$/);
 			$ret_hash->{$col_name} = MongoDB::OID->new(value => $col_value);
 		}
 	}
@@ -1475,6 +1479,7 @@ sub update
 	$new_record = constrain_record( record => $record ) if ( !defined( $arg{constraints} ) || $arg{constraints} );
 
 	my $updated_records = 0;
+	my $matched_records = 0;
 	my $success         = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 	my $upsert   = $arg{upsert}   || 0;
@@ -1497,6 +1502,7 @@ sub update
 			if ( $result->acknowledged )
 			{
 				$updated_records = $result->modified_count;
+				$matched_records = $result->matched_count;
 			}
 			$success = 1;
 		}
@@ -1552,6 +1558,7 @@ sub update
 	return {
 		success         => $success,
 		updated_records => $updated_records,
+		matched_records => $matched_records,
 		error           => $error,
 		error_type      => $error_type
 	};

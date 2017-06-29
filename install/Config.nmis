@@ -28,7 +28,10 @@ my %hash = (
     '<nmis_data>' => '<nmis_base>',
     '<nmis_logs>' => '<nmis_base>/logs',
     '<nmis_menu>' => '<nmis_base>/menu',
-    '<nmis_models>' => '<nmis_base>/models',
+		
+		'<nmis_models>' => '<nmis_base>/models-custom',
+		'<nmis_default_models>' => '<nmis_base>/models-default',
+
     '<nmis_var>' => '<nmis_data>/var',
     '<menu_base>' => '<nmis_base>/menu',
     'database_root' => '<nmis_data>/database',

@@ -89,7 +89,7 @@ sub new
 		{
 			my $msg =  "Could not get collection $collname: " . NMISNG::DB::get_error_string ;
 			$self->log->fatal($msg);
-			die "$msg\n";							# database errors on that level are not really recoverable
+			die "Failed to get Collection $collname, msg: $msg\n";							# database errors on that level are not really recoverable
 		}
 		# tell mongodb to prefer numeric
 		$collhandle = $collhandle->with_codec( prefer_numeric => 1 );
@@ -231,31 +231,36 @@ sub get_inventory_model
 
 	# start with a plain query; with _id that'll be enough already
 	my %queryinputs = (	'_id' => $args{_id} );    # this is a bit inconsistent
-	if ($args{filter})
-	{
-		map { $queryinputs{$_} = $args{filter}->{$_}; } (keys %{$args{filter}});
-	}
 	my $q = NMISNG::DB::get_query( and_part => \%queryinputs );
 
-	# translate the path components into the lookup path
-	if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
+	# there is no point in adding any other filters if _id is specified
+	if( !$args{_id} )
 	{
-		$path = $args{path} // [];
-
-		# fill in starting args if given
-		my $index = 0;
-		foreach my $arg_name (qw(cluster_id node_uuid concept))
+		if ($args{filter} )
 		{
-			if ( $args{$arg_name} )
-			{
-				$path->[$index] = $args{$arg_name};
-				delete $args{$arg_name};
-			}
-			$index++;
+			map { $queryinputs{$_} = $args{filter}->{$_}; } (keys %{$args{filter}});
 		}
-		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
-	}
+		$q = NMISNG::DB::get_query( and_part => \%queryinputs );
 
+		# translate the path components into the lookup path
+		if ( $args{path} || $args{node_uuid} || $args{cluster_id} || $args{concept} )
+		{
+			$path = $args{path} // [];
+
+			# fill in starting args if given
+			my $index = 0;
+			foreach my $arg_name (qw(cluster_id node_uuid concept))
+			{
+				if ( $args{$arg_name} )
+				{
+					$path->[$index] = $args{$arg_name};
+					delete $args{$arg_name};
+				}
+				$index++;
+			}
+			map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
+		}
+	}
 	my $model_data = [];
 	if ( $args{paginate} )
 	{

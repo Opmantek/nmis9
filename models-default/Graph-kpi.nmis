@@ -1,0 +1,146 @@
+#
+## $Id: Graph-health.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'heading' => 'Key Performance Indicators',
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'KPI Scores',
+		'short' => 'KPI'
+	},
+	'option' => {
+		'standard' => [
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'--step','1800',
+			'DEF:health=$database:health:AVERAGE',
+			'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
+			'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
+			'DEF:responseHealth=$database:responseHealth:AVERAGE',
+			'DEF:cpuHealth=$database:cpuHealth:AVERAGE',
+			'DEF:memHealth=$database:memHealth:AVERAGE',
+			'DEF:intHealth=$database:intHealth:AVERAGE',
+			'DEF:diskHealth=$database:diskHealth:AVERAGE',
+			'DEF:swapHealth=$database:swapHealth:AVERAGE',
+			
+			'AREA:reachabilityHealth#CD5C5C:Reachability KPI',
+			'GPRINT:reachabilityHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:availabilityHealth#ffff00:Availability KPI',
+			'GPRINT:availabilityHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:responseHealth#ffa500:Response KPI',
+			'GPRINT:responseHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:cpuHealth#4daef6:CPU KPI',
+			'GPRINT:cpuHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'STACK:memHealth#00ffff:MEM KPI',
+			'GPRINT:memHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:swapHealth#aa00aa:SWAP KPI',
+			'GPRINT:swapHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:intHealth#00cccc:Interface KPI',
+			'GPRINT:intHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:diskHealth#00aaaa:Disk KPI',
+			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
+
+			#'LINE2:health#ff9900:Health',
+			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',
+			#'LINE2:reach#0000ff:Reachability',
+			#'GPRINT:reach:AVERAGE:Avg %6.2lf%%',
+			#'LINE2:avail#00ff00:Availability',
+			#'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
+			#'LINE2:loss#ff00ff:Ping_loss',
+			#'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n',
+		],
+		'small' => [
+			'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
+			'--step','1800',
+			'DEF:health=$database:health:AVERAGE',
+
+			'DEF:reachabilityHealth=$database:reachabilityHealth:AVERAGE',
+			'DEF:availabilityHealth=$database:availabilityHealth:AVERAGE',
+			'DEF:responseHealth=$database:responseHealth:AVERAGE',
+			'DEF:cpuHealth=$database:cpuHealth:AVERAGE',
+			'DEF:memHealth=$database:memHealth:AVERAGE',
+			'DEF:intHealth=$database:intHealth:AVERAGE',
+			'DEF:diskHealth=$database:diskHealth:AVERAGE',
+			'DEF:swapHealth=$database:swapHealth:AVERAGE',
+
+			'AREA:reachabilityHealth#CD5C5C:Reachability KPI',
+			'GPRINT:reachabilityHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:availabilityHealth#ffff00:Availability KPI',
+			'GPRINT:availabilityHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'STACK:responseHealth#ffa500:Response KPI',
+			'GPRINT:responseHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:cpuHealth#4daef6:CPU KPI',
+			'GPRINT:cpuHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'STACK:memHealth#00ffff:MEM KPI',
+			'GPRINT:memHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:swapHealth#aa00aa:SWAP KPI',
+			'GPRINT:swapHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'STACK:intHealth#00cccc:Interface KPI',
+			'GPRINT:intHealth:AVERAGE:Avg %6.2lf%%',
+
+			'STACK:diskHealth#00aaaa:Disk KPI',
+			'GPRINT:diskHealth:AVERAGE:Avg %6.2lf%%\\n',
+
+			'GPRINT:health:AVERAGE:Overall Health Avg %6.2lf%%',
+
+			#'LINE2:health#ff9900:Health',
+			#'GPRINT:health:AVERAGE:Avg %6.2lf%%',
+			#'LINE2:reach#0000ff:Reachability',
+			#'GPRINT:reach:AVERAGE:Avg %6.2lf%%\\n',
+			#'LINE2:avail#00ff00:Availability',
+			#'GPRINT:avail:AVERAGE:Avg %6.2lf%%',
+			#'LINE2:loss#ff00ff:Ping_loss',
+			#'GPRINT:loss:AVERAGE:Avg %6.2lf%%\\n',
+		]
+	}
+);
+#00FF7F

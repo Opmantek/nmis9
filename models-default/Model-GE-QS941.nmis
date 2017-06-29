@@ -1,0 +1,561 @@
+#
+## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response,ip',
+    'nodeModel' => 'GE-QS941',
+    'nodeType' => 'generic',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      },
+
+#CPS6000-MIB::cps6000Ps1Swv.0 = STRING: 2.0.9
+#CPS6000-MIB::cps6000Ps1Verb.0 = STRING: 1.1.0
+#CPS6000-MIB::cps6000Ps1Verw.0 = STRING: 1.10.0SP
+#CPS6000-MIB::cps6000Ps1Verd.0 = STRING: 1.4
+#CPS6000-MIB::cps6000Ps1Dflt.0 = STRING: FTTN.1.0
+#CPS6000-MIB::cps6000Ps1Brc.0 = STRING: QS841A
+#CPS6000-MIB::cps6000Ps1Sn.0 = STRING: 12KZ20024863
+#"cps6000Ps1Swv"		"1.3.6.1.4.1.10520.2.1.1.2.5" "Software Version"
+#"cps6000Ps1Verb"		"1.3.6.1.4.1.10520.2.1.1.2.6" "Boot Block Version"
+#"cps6000Ps1Verw"		"1.3.6.1.4.1.10520.2.1.1.2.7" "Web Page Version"
+#"cps6000Ps1Verd"		"1.3.6.1.4.1.10520.2.1.1.2.8" "Display Version"
+#"cps6000Ps1Dflt"		"1.3.6.1.4.1.10520.2.1.1.2.9" "Defaults Version"
+#"cps6000Ps1Brc"		"1.3.6.1.4.1.10520.2.1.1.2.10" "Board Code"
+#"cps6000Ps1Sn"		"1.3.6.1.4.1.10520.2.1.1.2.11" "Serial Number"
+
+      'extra' => {
+        'snmp' => {
+          'cps6000Ps1Swv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.5.0',
+            'title' => 'Software Version'
+          },
+          'cps6000Ps1Verb' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.6.0',
+            'title' => 'Boot Block Version'
+          },
+          'cps6000Ps1Verw' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.7.0',
+            'title' => 'Web Page Version'
+          },
+          'cps6000Ps1Verd' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.8.0',
+            'title' => 'Display Version'
+          },
+          'cps6000Ps1Dflt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.9.0',
+            'title' => 'Defaults Version'
+          },
+          'cps6000Ps1Brc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.10.0',
+            'title' => 'Board Code'
+          },
+          'cps6000Ps1Sn' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.2.11.0',
+            'title' => 'Serial Number'
+          },
+        }
+      },
+    },
+    'rrd' => {
+      'mib2ip' => {
+        'snmp' => {
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipFragCreates' => {
+            'oid' => 'ipFragCreates',
+            'option' => 'counter,0:U'
+          },
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipFragOKs' => {
+            'oid' => 'ipFragOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInDelivers' => {
+            'oid' => 'ipInDelivers',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
+            'option' => 'counter,0:U'
+          },
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes'
+          },
+          'ipInHdrErrors' => {
+            'oid' => 'ipInHdrErrors',
+            'option' => 'counter,0:U'
+          },
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
+            'option' => 'counter,0:U'
+          },
+          'ipOutDiscards' => {
+            'oid' => 'ipOutDiscards',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmOKs' => {
+            'oid' => 'ipReasmOKs',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
+            'option' => 'counter,0:U'
+          }
+        },
+        'graphtype' => 'ip,frag'
+      }
+    }
+  },
+  'alerts' => {
+    'cps6000Alarm' => {
+      'cps6000AlarmActive' => {
+        'type' => 'test',
+        'test' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 == 1',
+        'value' => 'CVAR1=cpsAlarmEntryAst;$CVAR1 = "active" || "inactive"',
+        'control' => 'CVAR=cps6000AlarmEntryDes;$CVAR =~ /Major Communication Fail Alarm|Number Not Configured|No Dial-Out Response|External Password Reset|Auxiliary \d|Program Line Invalid|Energy Management Disabled|Incompatible Rectifier|Load Share Fail|Incompatible Converter|Fan Fail|Input Power|CB Trip|Circuit Fail|Converter \w+|Multiple Circuits Fail|Loss of Redundancy|Load \w+|Line Test Failed/',
+        'unit' => '',
+        'element' => 'cps6000AlarmEntryDes',
+        'event' => 'GE Alarm Active',
+        'level' => 'Major'
+      }
+    },
+  },
+
+#CPS6000-MIB::cps6000AlarmEntryIndex.0 = INTEGER: 0
+#CPS6000-MIB::cps6000AlarmEntryDes.0 = STRING: Auxiliary Major
+#CPS6000-MIB::cps6000AlarmEntryAst.0 = INTEGER: inactive(0)
+#CPS6000-MIB::cps6000AlarmEntrySev.0 = STRING: MAJ
+#CPS6000-MIB::cps6000AlarmEntryAcc.0 = STRING: 
+#CPS6000-MIB::cps6000AlarmEntryThr.0 = STRING: 
+#CPS6000-MIB::cps6000AlarmEntryFth.0 = STRING: 
+#CPS6000-MIB::cps6000AlarmEntryBth.0 = STRING: 
+#CPS6000-MIB::cps6000AlarmEntryDly.0 = INTEGER: 0
+#CPS6000-MIB::cps6000AlarmEntryNoo.0 = INTEGER: no(0)
+#CPS6000-MIB::cps6000AlarmEntryNor.0 = INTEGER: no(0)
+#CPS6000-MIB::cps6000AlarmEntryNag.0 = INTEGER: no(0)
+#CPS6000-MIB::cps6000AlarmEntryDst.0 = STRING: 
+#CPS6000-MIB::cps6000AlarmEntryFds.0 = STRING: Auxiliary Major
+#cps6000AlarmEntryIndex		1.3.6.1.4.1.10520.2.1.1.32.1.1
+#cps6000AlarmEntryDes		1.3.6.1.4.1.10520.2.1.1.32.1.2
+#cps6000AlarmEntryAst		1.3.6.1.4.1.10520.2.1.1.32.1.3
+#cps6000AlarmEntrySev		1.3.6.1.4.1.10520.2.1.1.32.1.4
+#cps6000AlarmEntryAcc		1.3.6.1.4.1.10520.2.1.1.32.1.5
+#cps6000AlarmEntryThr		1.3.6.1.4.1.10520.2.1.1.32.1.6
+#cps6000AlarmEntryFth		1.3.6.1.4.1.10520.2.1.1.32.1.7
+#cps6000AlarmEntryBth		1.3.6.1.4.1.10520.2.1.1.32.1.8
+#cps6000AlarmEntryDly		1.3.6.1.4.1.10520.2.1.1.32.1.9
+#cps6000AlarmEntryNoo		1.3.6.1.4.1.10520.2.1.1.32.1.10
+#cps6000AlarmEntryNor		1.3.6.1.4.1.10520.2.1.1.32.1.11
+#cps6000AlarmEntryNag		1.3.6.1.4.1.10520.2.1.1.32.1.12
+#cps6000AlarmEntryDst		1.3.6.1.4.1.10520.2.1.1.32.1.13
+#cps6000AlarmEntryFds		1.3.6.1.4.1.10520.2.1.1.32.1.14
+
+  'systemHealth' => {
+    'sections' => 'cps6000Alarm,cps6000Cct,cps6000Grp,cps6000Groups',
+    'sys' => {    	
+      'cps6000Alarm' => {        
+        'indexed' => 'cps6000AlarmEntryIndex',
+        'index_oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.1',    
+        'headers' => 'cps6000AlarmEntryDes,cps6000AlarmEntryAst,cps6000AlarmEntrySev,cps6000AlarmEntryAcc',
+        'snmp' => {
+          'cps6000AlarmEntryIndex' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.1',
+            'title' => 'Alarm Index'
+          },
+          'cps6000AlarmEntryDes' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.2',
+            'title' => 'Alarm Description'
+          },
+          'cps6000AlarmEntryAst' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.3',
+            'replace' => {
+              '0' => 'inactive',
+              '1' => 'active',
+            },
+            'title' => 'Alarm State'
+          },
+          'cpsAlarmEntryAst' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.3',
+            'title' => 'Alarm State'
+          },
+          'cps6000AlarmEntrySev' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.4',
+            'title' => 'Alarm Severity'
+          },
+          'cps6000AlarmEntryAcc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.5',
+            'title' => 'Contact Closure'
+          },
+        },
+      },      
+      'cps6000Groups' => {        
+        'indexed' => 'cpsGrpEntryIndex',
+        'index_oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',    
+        'headers' => 'cpsGrpEntryIndex,cpsGrpEntryIde,cpsGrpEntryDes',
+        'snmp' => {
+          'cpsGrpEntryIndex' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',
+            'title' => 'Group Index'
+          },
+          'cpsGrpEntryIde' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.2',
+            'title' => 'Group ID'
+          },
+          'cpsGrpEntryDes' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.3',
+            'title' => 'Group Description'
+          },
+        },
+      }, 
+      'cps6000Grp' => {        
+        'indexed' => 'cpsGrpEntryIndex',
+        'index_oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',    
+        'headers' => 'cpsGrpEntryIndex,cpsGrpEntryIde,cpsGrpEntryDes,cpsGrpEntryCct,cpsGrpEntryTadc,cpsGrpEntryAadc,cpsGrpEntryCap,cpsGrpEntryLrs,cpsGrpEntryOlcap',
+        'snmp' => {
+          'cpsGrpEntryIndex' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.1',
+            'title' => 'Group Index'
+          },
+          'cpsGrpEntryIde' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.2',
+            'title' => 'Group ID'
+          },
+          'cpsGrpEntryDes' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.3',
+            'title' => 'Group Description'
+          },
+          'cpsGrpEntryCct' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.4',
+            'title' => 'Circuits'
+          },
+          'cpsGrpEntryTadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.5',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+            'title' => 'Total Current (mA)'
+          },
+          'cpsGrpEntryAadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.6',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+            'title' => 'Average Current (mA)'
+          },
+          'cpsGrpEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.7',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+            'title' => 'Capacity (mA)'
+          },
+          'cpsGrpEntryLrs' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.8',
+            'title' => 'Loss of Redundancy Status'
+          },
+          'cpsGrpEntryOlcap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.9',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+            'title' => 'Online Capacity (mA)'
+          },
+        },
+      },      
+      'cps6000Cct' => {        
+        #'control' => 'CVAR=cpsCctEntryAdc;$CVAR > 2',
+        'indexed' => 'cpsCctEntryIndex',
+        'index_oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.1',    
+        'headers' => 'cpsCctEntryIndex,cpsCctEntryIde,cpsCctEntryDes,cpsCctEntryGrp,cpsCctEntryVdc,cpsCctEntryAdc,cpsCctEntryStt,cpsCctEntryTmp,cpsCctEntryCap',
+        'snmp' => {
+          'cpsCctEntryIndex' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.1',
+            'title' => 'Circuit Index'
+          },
+          'cpsCctEntryIde' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.2',
+            'title' => 'Circuit ID'
+          },
+          'cpsCctEntryDes' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.3',
+            'title' => 'Circuit Description'
+          },
+
+          'cpsCctEntryVdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.4',
+            'calculate' => '$r =~ /(\d+) V/; $r = $1',
+            'title' => 'Voltage (Volts)'
+          },
+          'cpsCctEntryAdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.5',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
+            'title' => 'Current (mA)'
+          },
+
+          'cpsCctEntryStt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.6',
+            'title' => 'State'
+          },
+          'cpsCctEntryTmp' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.7',
+            'calculate' => '$r =~ /(\d+) C/; $r = $1',
+            'title' => 'Temperature (C)'
+          },
+          'cpsCctEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.8',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
+            'title' => 'Capacity (mA)'
+          },
+
+          'cpsCctEntryCfl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.13',
+            'title' => 'Fail Alarm'
+          },
+          'cpsCctEntryOv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.14',
+            'title' => 'Over Volgate Alarm'
+          },
+          'cpsCctEntryCl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.15',
+            'title' => 'Current Limit Alarm'
+          },
+          'cpsCctEntryGf' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.16',
+            'title' => 'Ground Fault Alarm'
+          },
+          'cpsCctEntryUv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.17',
+            'title' => 'Under Voltage Alarm'
+          },
+          'cpsCctEntryOt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.18',
+            'title' => 'Over Temperature Alarm'
+          },
+          'cpsCctEntryLds' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.19',
+            'title' => 'Load Drop Status Alarm'
+          },
+          'cpsCctEntryLss' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.20',
+            'title' => 'Load Share Status Alarm'
+          },
+          'cpsCctEntryLts' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.21',
+            'title' => 'Line Test Status Alarm'
+          },
+          'cpsCctEntryIlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.22',
+            'calculate' => '$r =~ /(\d+) ohms/; $r = $1',            
+            'title' => 'Initial Line Resistance (Ohms)'
+          },
+          'cpsCctEntryAlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.23',
+            'calculate' => '$r =~ /(\d+) ohms/; $r = $1',            
+            'title' => 'Actual Line Resistance (Ohms)'
+          },
+
+        },
+      },      
+    },
+    'rrd' => {
+      'cps6000Alarm' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Alarm',
+        'snmp' => {
+          'cpsAlarmEntryAst' => {
+            'sysObjectName' => 'cps6000AlarmEntryAst',
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.32.1.3',
+          },
+        },
+      },
+      'cps6000Grp' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Grp',
+        'snmp' => {
+          'cpsGrpEntryTadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.5',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryAadc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.6',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.7',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+          'cpsGrpEntryLrs' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.8',
+          },
+          'cpsGrpEntryOlcap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.38.1.9',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+        },
+      },
+      'cps6000Cct' => {
+        'indexed' => 'true',
+        'graphtype' => 'cps6000Cct',
+        'snmp' => {
+          'cpsCctEntryVdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.4',
+            'calculate' => '$r =~ /(\d+) V/; $r = $1',
+          },
+          'cpsCctEntryAdc' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.5',
+            'calculate' => '$r =~ /(\d+) mA/; $r = $1',
+          },
+
+          'cpsCctEntryStt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.6',
+            'replace' => {
+              'ON' => '100',
+              'STANDBY' => '80',
+              'MISSING' => '20',
+              'VACANT' => '0',
+            },
+          },
+          'cpsCctEntryTmp' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.7',
+            'calculate' => '$r =~ /(\d+) C/; $r = $1',
+          },
+          'cpsCctEntryCap' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.8',
+            'calculate' => '$r =~ /(\d+)mA/; $r = $1',
+          },
+
+          'cpsCctEntryCfl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.13',
+          },
+          'cpsCctEntryOv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.14',
+          },
+          'cpsCctEntryCl' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.15',
+          },
+          'cpsCctEntryGf' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.16',
+          },
+          'cpsCctEntryUv' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.17',
+          },
+          'cpsCctEntryOt' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.18',
+          },
+          'cpsCctEntryLds' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.19',
+          },
+          'cpsCctEntryLss' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.20',
+          },
+          'cpsCctEntryLts' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.21',
+          },
+          'cpsCctEntryIlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.22',
+          },
+          'cpsCctEntryAlr' => {
+            'oid' => '1.3.6.1.4.1.10520.2.1.1.40.1.23',
+          },
+        },
+      },
+    }
+  },
+
+);

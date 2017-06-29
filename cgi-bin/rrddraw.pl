@@ -167,14 +167,14 @@ sub rrdDraw
 			return 0;
 		}
 
-		my $graph;
-		if (!($graph = loadTable(dir=>'models',name=>"Graph-$graphtype"))
-				or !keys %$graph ) 
+		my $res = func::getModelFile(model => "Graph-$graphtype");
+		if (!$res->{success})
 		{
-			logMsg("ERROR failed to read Graph-$graphtype!");
+			logMsg("ERROR failed to read Graph-$graphtype: $res->{error}");
 			error();
 			return 0;
 		}
+		my $graph = $res->{data};
 
 		my $title = 'standard';
 		my $vlabel = 'standard';

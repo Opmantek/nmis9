@@ -228,7 +228,11 @@ sub runThreads
 	{
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory( $C->{'<nmis_conf>'},   1 );    # do recurse
+		# that's the dir for custom models
+		createDir($C->{'<nmis_models>'}) if (!-d $C->{'<nmis_models>'});
 		setFileProtDirectory( $C->{'<nmis_models>'}, 0 );    # no recursion required
+		# that's the dir of shipped=default models
+		setFileProtDirectory( $C->{'<nmis_default_models>'}, 0 );    # no recursion required
 
 		info("Starting selftest (takes about 5 seconds)...");
 		my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
@@ -661,8 +665,8 @@ sub runThreads
 
 		if ( ( my $db = $S->create_update_rrd( data => $D, type => "nmis" ) ) )
 		{
-			$NI->{graphtype}{nmis} = 'nmis';
-			$NI->{graphtype}->{network}->{metrics} = 'metrics';
+			# $NI->{graphtype}{nmis} = 'nmis';
+			# $NI->{graphtype}->{network}->{metrics} = 'metrics';
 		}
 		else
 		{
@@ -802,7 +806,7 @@ sub doUpdate
 	my $lockHandle = createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
 	# lets change our name, so a ps will report who we are - iff not debugging.
-	$0 = "nmis-" . $C->{conf} . "-update-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-update-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;    # create system object
 	                     # loads old node info (unless force is active), and the DEFAULT(!) model (always!),
@@ -836,6 +840,11 @@ sub doUpdate
 	if ( !getbool( $nvp{force} ) )
 	{
 		$S->readNodeView;    # from prev. run, but only if force isn't active
+	}
+	else
+	{
+		# make all things historic, they can bring them back if they want
+		$S->nmisng_node->bulk_update_inventory_historic();
 	}
 
 	# prime default values, overridden if we can find anything better
@@ -1051,7 +1060,7 @@ sub doServices
 	info("Starting services, node $name");
 
 	# lets change our name, so a ps will report who we are, iff not debugging
-	$0 = "nmis-" . $C->{conf} . "-services-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-services-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;
 	$S->init( name => $name );
@@ -1098,7 +1107,7 @@ sub doCollect
 	my $lockHandle = createPollLock( type => "collect", conf => $C->{conf}, node => $name );
 
 	# lets change our name, so a ps will report who we are - iff not debugging
-	$0 = "nmis-" . $C->{conf} . "-collect-$name" if ( !$C->{debug} );
+	$0 = "NGmis-" . $C->{conf} . "-collect-$name" if ( !$C->{debug} );
 
 	my $S = Sys->new;    # create system object
 	if ( !$S->init( name => $name ) )    # init will usually load node info data, model etc, returns 1 if _all_ is ok
@@ -1196,6 +1205,10 @@ sub doCollect
 
 			# fixme: why no error handling for any of these?
 
+			# remember when the collect poll last completed successfully, this isn't saved
+			# until later so set it early so functions can use it
+			$catchall_data->{lastCollectPoll} = time();
+
 			# get node data and store in rrd
 			getNodeData( sys => $S );
 
@@ -1212,9 +1225,7 @@ sub doCollect
 
 			# Custom Alerts
 			runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
-
-			# remember when the collect poll last completed successfully
-			$catchall_data->{lastCollectPoll} = time();
+			
 		}
 		else
 		{
@@ -2151,26 +2162,13 @@ sub getIntfInfo
 			}
 
 			# remove unknown interfaces, found in previous runs, from table
-			### possible vivification
-			my $ids = $nmisng_node->get_inventory_ids( concept => 'interface' );
-			foreach my $id (@$ids)
-			{
-				# we may want a faster way to do this, perhaps ask for the ids along with some data?
-				my ( $inventory, $error_message ) = $nmisng_node->inventory( _id => $id );
-				$nmisng->log->warn("Failed to get Inventory for interface:$id, error:$error_message") && next
-					if(!$inventory);
-
-				my $index = $inventory->data()->{index};
-
-				if ( !defined( $ifIndexMap->{$index} ) )
-				{
-					$inventory->historic(1);
-					$inventory->save();
-
-					dbg("Interface ifIndex=$index removed from table");
-					logMsg("INFO ($S->{name}) Interface ifIndex=$index removed from table");    # test info
-				}
-			}
+			my @active_indices = keys %$ifIndexMap;
+			my $result = $S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'interface' );
+			dbg("Interfaces marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
+				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");
+			logMsg("INFO ($S->{name}) marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
+				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");    # test info
+			
 			delete $V->{interface};    # rebuild interface view table
 		}
 
@@ -2766,8 +2764,8 @@ sub getIntfInfo
 				# through things found on the device so it's not historic
 				$inventory->historic(0);
 
-				# if collect is off then this interface is disabled				
-				$inventory->enabled(1);	
+				# if collect is off then this interface is disabled
+				$inventory->enabled(1);
 				if ( getbool( $target->{collect}, "invert" ) )
 				{
 					$inventory->enabled(0);
@@ -3119,10 +3117,12 @@ sub getEnvInfo
 			logMsg( "ERROR ($S->{name}) on get environment index table: " . $SNMP->error );
 			HandleNodeDown( sys => $S, type => "snmp", details => "get environment index table: " . $SNMP->error );
 		}
+		
+		my @active_indices = (sort keys %envIndexNum);
+		$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
 
-		# fixme: this loadinfo run is only required for snmp
-		# Loop to get information, will be stored in {info}{$section} table
-		foreach my $index ( sort keys %envIndexNum )
+		# fixme: this loadinfo run is only required for snmp		
+		foreach my $index ( @active_indices )
 		{
 			my $target = {};
 			if ($S->loadInfo(
@@ -3206,10 +3206,14 @@ sub getEnvData
 
 	for my $section (@wantsections)
 	{
-		next if ( !exists( $S->{info}->{$section} ) );    # no list of indices, nothing to do
-
-		for my $index ( sort keys %{$S->{info}{$section}} )
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
+		
+		for my $id ( @$ids )
 		{
+			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
+			my $data = ($inventory) ? $inventory->data : {};
+			my $index = $data->{index};
+
 			my $rrdData = $S->getData(
 				class   => 'environment',
 				section => $section,
@@ -3223,6 +3227,8 @@ sub getEnvData
 			if ( !$anyerror )
 			{
 				processAlerts( S => $S );
+				my ($alldata,$allstats) = ({},{});
+				my $previous_pit = $inventory->get_newest_timed_data();
 
 				foreach my $sect ( keys %{$rrdData} )
 				{
@@ -3234,8 +3240,20 @@ sub getEnvData
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+					else
+					{
+						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						# get stats
+						my $period = getThresholdPeriod(subconcept => $sect);
+						my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+					}
 				}
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				# new subconcepts may have been added
+				$inventory->save();
 			}
+			elsif( $howdiditgo->{skipped} ) {}
 			else
 			{
 				logMsg("ERROR ($catchall_data->{name}) on getEnvData, $anyerror");
@@ -3388,8 +3406,12 @@ sub getSystemHealthInfo
 				next;
 			}
 
+			# update historic setting in records
+			my @active_indices = keys %$fields;
+			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
-			for my $indexvalue ( keys %$fields )
+			for my $indexvalue ( @active_indices )
 			{
 				dbg("section=$section index=$index_var, found value=$indexvalue");
 
@@ -3494,20 +3516,23 @@ sub getSystemHealthInfo
 				}
 			}
 
+			# mark historic records
+			my @active_indices = (sort keys %healthIndexNum);
+			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+
 			# Loop to get information, will be stored in {info}{$section} table
-			foreach my $index ( sort keys %healthIndexNum )
+			foreach my $index ( @active_indices )
 			{
 				my $target = $targets->{$index};
 				# we pass loadInfo a hash to fill in, then put that into the inventory data
-				if ($S->loadInfo(
+				if( $S->loadInfo(
 						class   => 'systemHealth',
 						section => $section,
 						index   => $index,
 						table   => $section,
 						model   => $model,
 						target  => $target
-					)
-					)
+				))
 				{
 					info("section=$section index=$index read and stored");
 
@@ -3593,7 +3618,7 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
-		my $ids = $nmisng_node->get_inventory_ids( concept => $section );
+		my $ids = $nmisng_node->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
 
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
@@ -3637,11 +3662,14 @@ sub getSystemHealthData
 
 			my $rrdData = $S->getData( class => 'systemHealth', section => $section, index => $index, debug => $model );
 			my $howdiditgo = $S->status;
+
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
+			my ($alldata,$allstats) = ({},{});
 
 			# were there any errors?
-			if ( !$anyerror )
+			if ( !$anyerror && !$howdiditgo->{skipped} )
 			{
+				my $previous_pit = $inventory->get_newest_timed_data();
 				my $count = 0;
 				foreach my $sect ( keys %{$rrdData} )
 				{
@@ -3668,13 +3696,25 @@ sub getSystemHealthData
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+					else
+					{
+						# convert data into values we can use in pit (eg resolve counters)
+						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						# get stats
+						my $period = getThresholdPeriod(subconcept => $sect);
+						my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+					}
 				}
 				info("section=$section index=$index read and stored $count values");
 				# technically the path shouldn't change during collect so for now don't recalculate path
-				# put the new values into the inventory and save
+				# put the new values into the inventory and save				
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
 			}
+			# this allows us to prevent adding data when it wasn't collected (but not an error)
+			elsif( $howdiditgo->{skipped} ) {}
 			else
 			{
 				logMsg("ERROR ($catchall_data->{name}) on getSystemHealthData, $section, $index, $anyerror");
@@ -3962,21 +4002,25 @@ sub processAlerts
 #=========================================================================================
 
 # get node values by snmp and store in RRD and some values in reach table
-#
+# inventory for this is the catchall
 sub getNodeData
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $inventory = $S->inventory( concept => 'catchall' );
+	my $catchall_data = $inventory->data_live();
 
 	info("Starting Node get data, node $S->{name}");
 
 	my $rrdData    = $S->getData( class => 'system', model => $model );
 	my $howdiditgo = $S->status;
 	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
-
+	
 	if ( !$anyerror )
 	{
+		my ($alldata,$allstats) = ({},{});
+		my $previous_pit = $inventory->get_newest_timed_data();
+
 		processAlerts( S => $S );
 		foreach my $sect ( keys %{$rrdData} )
 		{
@@ -3987,13 +4031,23 @@ sub getNodeData
 			{
 				dbg( "rrdData, section=$sect, ds=$ds, value=$D->{$ds}{value}, option=$D->{$ds}{option}", 2 );
 			}
-			my $db = $S->create_update_rrd( data => $D, type => $sect );
+			my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $sect );
 			if ( !$db )
 			{
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 			}
+			else
+			{
+				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				my $period = getThresholdPeriod( subconcept => $sect );
+				my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+				map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+			}
 		}
+		# add data and stats, catchall should be saved at the end of the cycle which will save
+		$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 	}
+	elsif( $howdiditgo->{skipped} ) {}
 	else
 	{
 		logMsg("ERROR ($catchall_data->{name}) on getNodeData, $anyerror");
@@ -4075,6 +4129,7 @@ sub getIntfData
 	# load the node here for now, this should be passed in as a param in the future
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $createdone = "false";
 
@@ -4083,10 +4138,8 @@ sub getIntfData
 	$RI->{intfUp} = $RI->{intfColUp} = 0;    # reset counters of interface Up and interface collected Up
 
 	# find all id's that are needed for the first section of searching
-	my $model_data = $nmisng->get_inventory_model(
+	my $model_data = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
-		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid,
 		fields_hash => {
 			'_id' => 1,
 			'data.collect' => 1,
@@ -4101,13 +4154,13 @@ sub getIntfData
 
 	my $data = $model_data->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-	my %if_data_map = map 
-		{ 
+	my %if_data_map = map
+		{
 			$_->{data}{_id} = $_->{_id};
 			$_->{data}{enabled} = $_->{enabled};
-			$_->{data}{historic} = $_->{historic}; 
-			$_->{data}{ifIndex} => $_->{data} 
-		} 
+			$_->{data}{historic} = $_->{historic};
+			$_->{data}{ifIndex} => $_->{data}
+		}
 		(@$data);
 
 	# default for ifAdminStatus-based detection is ON. only off if explicitely set to false.
@@ -4156,7 +4209,7 @@ sub getIntfData
 	{
 		# fixme: this cannot work for non-snmp node
 		info("Using ifLastChange for Interface Change Detection");
-		
+
 		if ( $ifLastChangeTable = $SNMP->getindex('ifLastChange') )
 		{
 			$ran_change = 1;
@@ -4183,33 +4236,21 @@ sub getIntfData
 	# check for deleted interfaces, which exist in our inventory but are not reported by the device
 	if( $ran_change || $ran_admin )
 	{
-		foreach my $index ( sort { $a <=> $b } keys %if_data_map )
-		{
-			my $data = $if_data_map{$index};
-			if ( !exists($ifLastChangeTable->{$index}) &&  !exists($ifAdminTable->{$index}) )
-			{
-				info("$data->{ifDescr}: Interface Removed ifIndex=$index");
-				# mark the interface historic if it's not already
-				if( !$data->{historic} )
-				{
-					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
-					$inventory->historic(1);
-					$inventory->save();
-				}
-			}
-			else
-			{
-				# mark the interface not historic if it's back
-				if( $data->{historic} )
-				{
-					my ($inventory,$error_message) = $nmisng_node->inventory(_id => $data->{_id});
-					$inventory->historic(0);
-					$inventory->save();
-				}
-			}
-		}
-	}
+		# build a list of all active indices
+		my %active_index_map = ();
+		map { $active_index_map{$_} = 1 } (keys %$ifLastChangeTable);
+		map { $active_index_map{$_} = 1 } (keys %$ifAdminTable);
+		my @active_indices = keys %active_index_map;
+		# this will update all historic settings to be correct
+		my $result = $S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'interface' );
+		dbg("Interfaces marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
+			"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");
+		logMsg("INFO ($S->{name}) marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
+			"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");    # test info
 
+		# NOTE: this info is nice, can we have bulk_update_inventory_historic do something like it?
+		# info("$data->{ifDescr}: Interface Removed ifIndex=$index");
+	}
 
 	# grab the list of interfaces again, now that the list has possibly been updated
 	# (could track the changes above and only do it if necessary)
@@ -4218,11 +4259,12 @@ sub getIntfData
 	info("Processing Interface Table");
 	foreach my $id ( sort @$ids )
 	{
-		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );		
+		my ($inventory,$error_message) = $nmisng_node->inventory( _id =>  $id );
 		$nmisng->log->error("Failed to get interface inventory, _id:$id, error_message:$error_message") && next if(!$inventory);
 		# replace minimal data with all data known
 		my $inventory_data = $inventory->data();
 		my $index = $inventory_data->{ifIndex};
+		my $previous_pit = $inventory->get_newest_timed_data();
 
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
@@ -4245,10 +4287,11 @@ sub getIntfData
 		my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
 
 		# were there any errors?
-		if ( !$anyerror )
+		if ( !$anyerror && !$howdiditgo->{skipped} )
 		{
 			processAlerts( S => $S );
 
+			my ($alldata,$allstats) = ({},{});
 			foreach my $sect ( keys %{$rrdData} )
 			{
 				my $D = $rrdData->{$sect}{$index};
@@ -4315,7 +4358,7 @@ sub getIntfData
 							);
 							$inventory_data->{ifAdminStatus} = $D->{ifAdminStatus}{value};
 							$inventory_data->{ifOperStatus}  = $D->{ifOperStatus}{value};
-							
+
 							if (  $inventory_data->{ifAdminStatus} =~ /up|ok/
 								and $inventory_data->{ifOperStatus} !~ /up|ok|dormant/ )
 							{
@@ -4436,16 +4479,26 @@ sub getIntfData
 				{
 					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 				}
+				else
+				{
+					# convert data into values we can use in pit (eg resolve counters)
+					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					my $period = getThresholdPeriod( subconcept => $sect );
+					my $stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+				}
 			}
+			# add data and stats
+			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
-			# calculate summary statistics of this interface only if intf up
+			# can't reu-se stats here because these run on default 6h, normal stats run on 15m			
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
-			my $util
-				= getSummaryStats( sys => $S, type => "interface", start => $period, end => time, index => $index );
-			$V->{interface}{"${index}_operAvail_value"} = $util->{$index}{availability};
-			$V->{interface}{"${index}_totalUtil_value"} = $util->{$index}{totalUtil};
-			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $util->{$index}{availability} );
-			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $util->{$index}{totalUtil} );
+			my $interface_util_stats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'interface', start => $period, end => time);
+
+			$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability};
+			$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil};
+			$V->{interface}{"${index}_operAvail_color"} = colorHighGood( $interface_util_stats->{availability} );
+			$V->{interface}{"${index}_totalUtil_color"} = colorLowGood( $interface_util_stats->{totalUtil} );
 
 			if ( defined $S->{mdl}{custom}{interface}{ifAdminStatus}
 				and getbool( $S->{mdl}{custom}{interface}{ifAdminStatus}, "invert" ) )
@@ -4480,6 +4533,7 @@ sub getIntfData
 				);
 			}
 		}
+		elsif( $howdiditgo->{skipped} ) {}
 		else
 		{
 			logMsg("ERROR ($S->{name}) on getIntfData of interface=$index, $anyerror");
@@ -4561,9 +4615,8 @@ sub getCBQoSdata
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
-		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept);
-		return 1 if ( !$ids || @$ids < 1 ); #nothing to be done
-
+		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept, filter => { enabled => 1, historic => 0 });
+		
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
 		foreach my $id ( @$ids )
 		{
@@ -4571,7 +4624,6 @@ sub getCBQoSdata
 			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message") && next
 				if(!$inventory);
 
-			# note, this is not saved because it doesn't appear to be changed,
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
@@ -4628,6 +4680,15 @@ sub getCBQoSdata
 					if ( !$db )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
+					}
+					else
+					{
+						# need to caputre rrd data here for time_data
+						# problem: item is not accounted for, we have an inventory item per
+						# interface/direction but an rrd per interface/direction/item, adding
+						# time data will make it so the values overwrite each other or we have
+						# several entries and no way to distinguish which item they are for
+						# unless the structure is made deep (which sucks because it breaks convention)
 					}
 				}
 				else
@@ -4687,10 +4748,8 @@ sub getCBQoSwalk
 		# are good
 		my $nmisng = $S->nmisng;
 		my $nmisng_node = $S->nmisng_node;
-		my $model_data = $nmisng->get_inventory_model(
+		my $model_data = $nmisng_node->get_inventory_model(
 			'concept' => 'interface',
-			'cluster_id' => $nmisng_node->cluster_id,
-			'node_uuid' => $nmisng_node->uuid,
 			fields_hash => {
 				'_id' => 1,
 				'data.collect' => 1,
@@ -4707,13 +4766,13 @@ sub getCBQoSwalk
 		);
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $model_data->data();
-		my %if_data_map = map 
-			{ 
+		my %if_data_map = map
+			{
 				$_->{data}{_id} = $_->{_id};
 				$_->{data}{enabled} = $_->{enabled};
-				$_->{data}{historic} = $_->{historic}; 
-				$_->{data}{ifIndex} => $_->{data} 
-			} 
+				$_->{data}{historic} = $_->{historic};
+				$_->{data}{ifIndex} => $_->{data}
+			}
 			(@$data);
 
 		foreach my $PIndex ( keys %{$ifIndexTable} )
@@ -5038,8 +5097,8 @@ sub getCBQoSwalk
 					# create inventory entry, data is not changed below so do it here,
 					# add index entry for now, may want to modify this later, or create a specialised Inventory class
 					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );			
-					
+					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );
+
 					# only add if we have data, which we may not have in both directions, at this time
 					# i can't see a better way to find out when to skip and setting it to be disabled
 					# does not seem correct as the cbqos info isn't there
@@ -5120,7 +5179,6 @@ sub getCalls
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $M    = $S->mdl;
 	my $NC   = $S->ndcfg;
 
@@ -5151,13 +5209,11 @@ sub getCallsdata
 {
 	my %args  = @_;
 	my $S     = $args{sys};
-	my $NI    = $S->ndinfo;
-	my $IF    = $S->ifinfo;
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my %totalsTable;
 	my $concept = 'calls';
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => $concept );
-	return 1 if ( @$ids < 1 );
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => $concept, filter => { enabled => 1, historic => 0 } );
 
 	# get the old index values
 	# the layout of the record is: channel intf intfDescr intfindex parentintfDescr parentintfindex port slot
@@ -5284,10 +5340,21 @@ sub getCallsdata
 			{
 				logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 			}
+			else
+			{
+				my ($alldata,$allstats) = ({},{});
+				my $previous_pit = $inventory->get_newest_timed_data();
+				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						# get stats
+				my $period = getThresholdPeriod(subconcept => $concept);
+				my $allstats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
-			# save because create_update_rrd may set storage
-			$inventory->save();
+				# save because create_update_rrd may set storage
+				$inventory->save();
+			}
 		}
+		elsif( $howdiditgo->{skipped} ) {}
 		else
 		{
 			logMsg("ERROR ($S->{name}) on getCallsdata, $anyerror");
@@ -5330,10 +5397,8 @@ sub getCallswalk
 	# are good
 	my $nmisng = $S->nmisng;
 	my $nmisng_node = $S->nmisng_node;
-	my $model_data = $nmisng->get_inventory_model(
+	my $model_data = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
-		'cluster_id' => $nmisng_node->cluster_id,
-		'node_uuid' => $nmisng_node->uuid,
 		fields_hash => {
 			'_id' => 1,
 			'data.collect' => 1,
@@ -5433,7 +5498,9 @@ sub getCallswalk
 		}
 		# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
 		my $InstalledVoice;
-		foreach my $callsintf ( keys %callsTable )
+		my @active_indices = ( keys %callsTable );
+		$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'calls' );		
+		foreach my $callsintf ( @active_indices )
 		{
 			my $data = $callsTable{$callsintf};
 			( $data->{'intfDescr'}, $data->{'parentintfDescr'} ) = $SNMP->getarray(
@@ -5486,16 +5553,14 @@ sub getPVC
 
 	my $S  = $args{sys};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	my $graphtypes = $S->ndinfo->{graphtype};
+	
 	if ( !$S->status->{snmp_enabled} )
 	{
 		info("Not performing getPVC for $S->{name}: SNMP not enabled for this node");
 		return 1;
 	}
 
-	my $IF   = $S->ifinfo;
 	my $SNMP = $S->snmp;
-	my $PVC  = $S->pvcinfo;
 
 	my %pvcTable;
 	my $port;
@@ -5506,22 +5571,30 @@ sub getPVC
 
 	my %pvcStats;    # start this new every time
 	my %snmpTable;
+	my $concept = 'pvc';
+
+	# get all the interfaces we know about
+	# grab all the interface data required to run this function
+	# no writing back to the IF information is done so plain models
+	# are good
+	my $nmisng = $S->nmisng;
+	my $nmisng_node = $S->nmisng_node;
+	my $model_data = $nmisng_node->get_inventory_model(
+		'concept' => 'interface',
+		fields_hash => {
+			'_id' => 1,
+			'data.collect' => 1,
+			'data.ifAdminStatus' => 1,
+			'data.ifIndex' => 1,
+			'enabled' => 1
+		},
+		filter => { 'data.ifAdminStatus' => 'up', 'data.ifType' => 'regex:framerelay', enabled => 1 }
+	);
+	my $data = $model_data->data();
+	my %seen = map { $_->{data}{ifIndex} => $_->{data}{ifIndex} } (@$data);
 
 	dbg("Starting frame relay PVC collection");
 
-	# double check if any frame relay interfaces on this node.
-	# cycle thru each ifindex and check the ifType, and save the ifIndex for matching later
-	# only collect on interfaces that are defined, with collection turned on globally
-	# and for that interface and that are Admin UP
-	foreach ( keys %{$IF} )
-	{
-		if (    $IF->{$_}{ifType} =~ /framerelay/i
-			and $IF->{$_}{ifAdminStatus} eq "up"
-			and getbool( $IF->{$_}{collect} ) )
-		{
-			$seen{$_} = $_;
-		}
-	}
 	if ( !%seen )
 	{    # nothing to do
 		dbg("$S->{name} does not have any frame ports or no collect or port down");
@@ -5552,7 +5625,7 @@ sub getPVC
 			}
 		}
 
-		# fixme hardcoded model name is bad
+		# fixme hardcoded model name is bad (so is a freaking hard coded collection though!)
 		if ( $catchall_data->{nodeModel} =~ /CiscoRouter/ )
 		{
 			if ( $cfrExtCircIfNameTable = $SNMP->getindex('cfrExtCircuitIfName') )
@@ -5577,7 +5650,9 @@ sub getPVC
 			}
 
 			foreach $pvc ( keys %{$pvcStats{$port}} )
-			{
+			{				
+				my $key = "${port}-${pvc}";
+
 				# massage some values
 				# frCircuitState = 2 for active
 				# could set an alarm here on PVC down ??
@@ -5598,29 +5673,11 @@ sub getPVC
 				$snmpTable{$port}{$pvc}{SentFrames}{option}     = "counter,0:U";
 				$snmpTable{$port}{$pvc}{SentOctets}{option}     = "counter,0:U";
 				$snmpTable{$port}{$pvc}{State}{option}          = "gauge,0:U";
-				my $key = "${port}-${pvc}";
 
-				if (my $db = $S->create_update_rrd( data => \%{$snmpTable{$port}{$pvc}},
-																						type => "pvc",
-																						item => $key ))
-				{
-					$graphtypes->{$key}{pvc} = 'pvc';
-				}
-				else
-				{
-					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
-				}
-			}
-		}
 
-		# save a list of PVC numbers to an interface style file, with ifindex mappings, so we
-		# can use this to read and graph the rrd via the web ui.
-		# save the cisco interface ifDescr if we have it.
-		foreach $port ( keys %pvcStats )
-		{
-			foreach $pvc ( keys %{$pvcStats{$port}} )
-			{
-				my $key = "${port}-${pvc}";
+				# save a list of PVC numbers to an interface style file, with ifindex mappings, so we
+				# can use this to read and graph the rrd via the web ui.
+				# save the cisco interface ifDescr if we have it.
 				$pvcTable{$key}{subifDescr}
 					= rmBadChars( $pvcStats{$port}{$pvc}{cfrExtCircuitIfName} );    # if not cisco, will not exist.
 				$pvcTable{$key}{pvc}  = $pvc;
@@ -5631,24 +5688,67 @@ sub getPVC
 				$pvcTable{$key}{EIR} = $pvcStats{$port}{$pvc}{frCircuitExcessBurst};
 				$pvcTable{$key}{subifIndex}
 					= $pvcStats{$port}{$pvc}{frCircuitLogicalIfIndex};    # non-cisco may support this - to be verified.
+
+
+				# "normalise" naming a little
+				my $target = $pvcTable{$key};
+				my $D = $snmpTable{$port}{$pvc};
+
+				# get inventory, use made up key for index right now, this code is not long for this digital world
+				my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+				$pvcTable{$key}{index} = $key;
+
+				my $path = $nmisng_node->inventory_path( concept => $concept, data => $target, path_keys => $path_keys );
+				$S->nmisng->log->error("Failed to create path for pvc key:$key") && next if( ref($path) ne 'ARRAY');
+			
+				my ( $inventory, $error_message ) = $nmisng_node->inventory(
+					concept   => $concept,
+					data      => $target,
+					path      => $path,
+					path_keys => $path_keys,
+					create    => 1
+				);
+				$S->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
+				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				$inventory->path( recalculate => 1 );
+
+				# historic is only set when the index/_id is in the db but not found in the device, we are looping
+				# through things found on the device so it's not historic
+				$inventory->historic(0);
+
+				# if collect is off then this interface is disabled
+				$inventory->enabled(1);
+				
+				my ( $op, $error ) = $inventory->save();
+				info( "saved ".join(',', @$path)." op: $op");
+				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+					if ($error);
+			
+				if (my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $concept, item => $key ) )
+				{
+					my ($alldata,$allstats) = ({},{});
+					my $previous_pit = $inventory->get_newest_timed_data();
+					# shouldn't need to save twice but this all could be optimise
+					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					# get stats
+					my $period = getThresholdPeriod(subconcept => $concept);
+					my $allstats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
+					$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+					# new subconcepts may have been added
+					$inventory->save();
+				}
+				else
+				{
+					logMsg( "ERROR updateRRD failed: " . getRRDerror() );
+				}
 			}
-		}
-		if (%pvcTable)
-		{
-			# pvcTable has some values, so write it out
-			$S->{info}{pvc} = \%pvcTable;
-			dbg("pvc values stored");
-		}
-		else
-		{
-			delete $S->{info}{pvc};
 		}
 	}
 
 	dbg("Finished");
 }
 
-# fixme: this function does not work for wmi-only nodes
+# fixme: this function does not work for wmi-only nodes, it's also good and nasty
 sub runServer
 {
 	my %args = @_;
@@ -5718,18 +5818,19 @@ sub runServer
 					$device_target->{hrCpuLoad}
 						= ( $hrCpuLoad =~ /noSuch/i ) ? $overall_target->{hrCpuLoad} : $hrCpuLoad;
 					info("cpu Load=$overall_target->{hrCpuLoad}, Descr=$D->{hrDeviceDescr}");
-					undef %Val;
-					$Val{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
+					my $D = {};
+					$D->{hrCpuLoad}{value} = $device_target->{hrCpuLoad} || 0;
 
 					# lookup/create inventory before create_update_rrd so it can be passed in
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
 					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
 
-					if (! ( my $db = $S->create_update_rrd( data => \%Val, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
+					if (! ( my $db = $S->create_update_rrd( data => $D, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
 					{
 						logMsg( "ERROR updateRRD failed: " . getRRDerror() );
 					}
+
 					# save after create_update_rrd so that new storage information is also saved
 					# again, create is set, chances of no inventory very low
 					if($inventory)
@@ -5737,6 +5838,16 @@ sub runServer
 						$inventory->data($device_target);
 						$inventory->historic(0);
 						$inventory->enabled(1);
+
+						my ($alldata,$allstats) = ({},{});
+						my $previous_pit = $inventory->get_newest_timed_data();
+						# shouldn't need to save twice but this all could be optimise
+						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						# get stats
+						my $period = getThresholdPeriod(subconcept => 'hrsmpcpu');
+						my $allstats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'hrsmpcpu', start => $period, end => time);
+						$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+
 						($op,$error) = $inventory->save();
 						info( "saved ".join(',', @$path)." op: $op");
 					}
@@ -5768,10 +5879,6 @@ sub runServer
 	{
 		$S->{reach}{cpu} = mean( @{$S->{reach}{cpuList}} );
 	}
-
-	# # keep the old storage data around a bit longer, as fallback if loadinfo fails
-	my $oldstorage = $S->ndinfo->{storage};
-	# delete $NI->{storage};
 
 	if ( $M->{storage} ne '' )
 	{
@@ -5812,23 +5919,24 @@ sub runServer
 					);
 					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
 				}
-
-				my $D = $storage_target;                        # new data
+				
+				my $D; #used to be %Val
+				my $subconcept = 'notset'; # this will be filled in with the subconcept found
 
 				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer
-				$D->{hrStorageSize} = unpack( "I", pack( "i", $D->{hrStorageSize} ) );
-				$D->{hrStorageUsed} = unpack( "I", pack( "i", $D->{hrStorageUsed} ) );
+				$storage_target->{hrStorageSize} = unpack( "I", pack( "i", $storage_target->{hrStorageSize} ) );
+				$storage_target->{hrStorageUsed} = unpack( "I", pack( "i", $storage_target->{hrStorageUsed} ) );
 
 				info(
-					"storage $D->{hrStorageDescr} Type=$D->{hrStorageType}, Size=$D->{hrStorageSize}, Used=$D->{hrStorageUsed}, Units=$D->{hrStorageUnits}"
+					"storage $storage_target->{hrStorageDescr} Type=$storage_target->{hrStorageType}, Size=$storage_target->{hrStorageSize}, Used=$storage_target->{hrStorageUsed}, Units=$storage_target->{hrStorageUnits}"
 				);
 
 				# set not historic, further down it may be set
 				$inventory->historic(0) if($inventory);
 				if ((       $M->{storage}{nocollect}{Description} ne ''
-						and $D->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/
+						and $storage_target->{hrStorageDescr} =~ /$M->{storage}{nocollect}{Description}/
 					)
-					or $D->{hrStorageSize} <= 0
+					or $storage_target->{hrStorageSize} <= 0
 					)
 				{
 					NMISNG::Util::TODO("Need an inventory object and mark it historic?");
@@ -5836,28 +5944,28 @@ sub runServer
 				}
 				else
 				{
-					if ($D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4'        # hrStorageFixedDisk
-						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10'    # hrStorageNetworkDisk
+					if ($storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.4'        # hrStorageFixedDisk
+						or $storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.10'    # hrStorageNetworkDisk
 						)
 					{
-						my %Val;
-						my $hrStorageType = $D->{hrStorageType};
-						$Val{hrDiskSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
-						$Val{hrDiskUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+						$subconcept = 'hrdisk';
+						my $hrStorageType = $storage_target->{hrStorageType};
+						$D->{hrDiskSize}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
+						$D->{hrDiskUsed}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
 						### 2012-12-20 keiths, adding Server Disk to Health Calculations.
-						my $diskUtil = $Val{hrDiskUsed}{value} / $Val{hrDiskSize}{value} * 100;
-						dbg("Disk List updated with Util=$diskUtil Size=$Val{hrDiskSize}{value} Used=$Val{hrDiskUsed}{value}",
+						my $diskUtil = $D->{hrDiskUsed}{value} / $D->{hrDiskSize}{value} * 100;
+						dbg("Disk List updated with Util=$diskUtil Size=$D->{hrDiskSize}{value} Used=$D->{hrDiskUsed}{value}",
 							1
 						);
 						push( @{$S->{reach}{diskList}}, $diskUtil );
 
-						$D->{hrStorageDescr} =~ s/,/ /g;    # lose any commas.
-						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrdisk", index => $index, inventory => $inventory ) ) )
+						$storage_target->{hrStorageDescr} =~ s/,/ /g;    # lose any commas.
+						if ( ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, index => $index, inventory => $inventory ) ) )
 						{
-							$D->{hrStorageType}              = 'Fixed Disk';
-							$D->{hrStorageIndex}             = $index;
-							$D->{hrStorageGraph}             = "hrdisk";
+							$storage_target->{hrStorageType}              = 'Fixed Disk';
+							$storage_target->{hrStorageIndex}             = $index;
+							$storage_target->{hrStorageGraph}             = "hrdisk";
 							$disk_cnt++;
 						}
 						else
@@ -5879,27 +5987,27 @@ sub runServer
 								}
 							}
 
-							$D->{hrStorageType}        = 'Network Disk';
-							$D->{hrFSRemoteMountPoint} = $fileSystemTable->{$D->{hrStorageDescr}};
+							$storage_target->{hrStorageType}        = 'Network Disk';
+							$storage_target->{hrFSRemoteMountPoint} = $fileSystemTable->{$storage_target->{hrStorageDescr}};
 						}
 
 					}
 					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
-					elsif ($D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2'
-						or $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20' )
-					{    # Memory
-						my %Val;
-						$Val{hrMemSize}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
-						$Val{hrMemUsed}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+					elsif ($storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2'
+						or $storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20' )
+					{    # Memory	
+						$subconcept = 'hrmem';
+						$D->{hrMemSize}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
+						$D->{hrMemUsed}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
 						### 2012-12-20 keiths, adding Server Memory to Health Calculations.
-						$S->{reach}{memfree} = $Val{hrMemSize}{value} - $Val{hrMemUsed}{value};
-						$S->{reach}{memused} = $Val{hrMemUsed}{value};
+						$S->{reach}{memfree} = $D->{hrMemSize}{value} - $D->{hrMemUsed}{value};
+						$S->{reach}{memused} = $D->{hrMemUsed}{value};
 
-						if ( ( my $db = $S->create_update_rrd( data => \%Val, type => "hrmem", inventory => $inventory ) ) )
+						if ( ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) ) )
 						{
-							$D->{hrStorageType}     = 'Memory';
-							$D->{hrStorageGraph}    = "hrmem";
+							$storage_target->{hrStorageType}     = 'Memory';
+							$storage_target->{hrStorageGraph}    = "hrmem";
 						}
 						else
 						{
@@ -5908,27 +6016,26 @@ sub runServer
 					}
 
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
-					elsif ( $D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.3' )
-					{    # VirtualMemory
-						my %Val;
-
+					elsif ( $storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.3' )
+					{    # VirtualMemory						
 						my ( $itemname, $typename )
-							= ( $D->{hrStorageDescr} =~ /Swap/i ) ? (qw(hrSwapMem hrswapmem)) : (qw(hrVMem hrvmem));
+							= ( $storage_target->{hrStorageDescr} =~ /Swap/i ) ? (qw(hrSwapMem hrswapmem)) : (qw(hrVMem hrvmem));
+						$subconcept = $typename;
 
-						$Val{$itemname . "Size"}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
-						$Val{$itemname . "Used"}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+						$D->{$itemname . "Size"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
+						$D->{$itemname . "Used"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
 						### 2014-08-07 keiths, adding Other Memory to Health Calculations.
 						$S->{reach}{$itemname . "Free"}
-							= $Val{$itemname . "Size"}{value} - $Val{$itemname . "Used"}{value};
-						$S->{reach}{$itemname . "Used"} = $Val{$itemname . "Used"}{value};
+							= $D->{$itemname . "Size"}{value} - $D->{$itemname . "Used"}{value};
+						$S->{reach}{$itemname . "Used"} = $D->{$itemname . "Used"}{value};
 
 						#print Dumper $S->{reach};
 
-						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename, inventory => $inventory ) )
+						if ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) )
 						{
-							$D->{hrStorageType}         = $D->{hrStorageDescr};    # i.e. virtual memory or swap space
-							$D->{hrStorageGraph}        = $typename;
+							$storage_target->{hrStorageType}         = $storage_target->{hrStorageDescr};    # i.e. virtual memory or swap space
+							$storage_target->{hrStorageGraph}        = $typename;
 						}
 						else
 						{
@@ -5939,25 +6046,25 @@ sub runServer
 					# also collect mem buffers and cached mem if present
 					# these are marked as storagetype hrStorageOther but the descr is usable
 					elsif (
-						$D->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.1'    # StorageOther
-						and $D->{hrStorageDescr} =~ /^(Memory buffers|Cached memory)$/i
+						$storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.1'    # StorageOther
+						and $storage_target->{hrStorageDescr} =~ /^(Memory buffers|Cached memory)$/i
 						)
-					{
-						my %Val;
+					{						
 						my ( $itemname, $typename )
-							= ( $D->{hrStorageDescr} =~ /^Memory buffers$/i )
+							= ( $storage_target->{hrStorageDescr} =~ /^Memory buffers$/i )
 							? (qw(hrBufMem hrbufmem))
 							: (qw(hrCacheMem hrcachemem));
+						$subconcept = $typename;
 
 						# for buffers the total size isn't overly useful (net-snmp reports total phsymem),
 						# for cached mem net-snmp reports total size == used cache mem
-						$Val{$itemname . "Size"}{value} = $D->{hrStorageUnits} * $D->{hrStorageSize};
-						$Val{$itemname . "Used"}{value} = $D->{hrStorageUnits} * $D->{hrStorageUsed};
+						$D->{$itemname . "Size"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
+						$D->{$itemname . "Used"}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
 
-						if ( my $db = $S->create_update_rrd( data => \%Val, type => $typename, inventory => $inventory ) )
+						if ( my $db = $S->create_update_rrd( data => $D, type => $subconcept, inventory => $inventory ) )
 						{
-							$D->{hrStorageType}         = 'Other Memory';
-							$D->{hrStorageGraph}        = $typename;
+							$storage_target->{hrStorageType}         = 'Other Memory';
+							$storage_target->{hrStorageGraph}        = $typename;
 						}
 						else
 						{
@@ -5972,9 +6079,19 @@ sub runServer
 				}
 				$inventory->enabled(1);
 
+				my ($alldata,$allstats) = ({},{});
+				my $previous_pit = $inventory->get_newest_timed_data();
+
 				# make sure the data is set and save
 				$inventory->data( $storage_target );
-				($op,$error) = $inventory->save() if($inventory);
+
+				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				# get stats
+				my $period = getThresholdPeriod(subconcept => $subconcept);
+				my $allstats = NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $subconcept, start => $period, end => time);
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );				
+
+				($op,$error) = $inventory->save();
 				info( "saved ".join(',', @{$inventory->path})." op: $op");
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
 			}
@@ -6176,9 +6293,7 @@ sub runServices
 	# find and mark as historic any services no longer configured for this host
 	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
 
-	my $modeldata = $nmisng->get_inventory_model(cluster_id => $nmisng_node->cluster_id,
-																							node_uuid => $nmisng_node->uuid,
-																							concept => "service",
+	my $modeldata = $nmisng_node->get_inventory_model(concept => "service",
 																							filter => { historic => 0 },
 																							fields_hash => { "data.service" => 1,
 																															 _id => 1, });
@@ -7786,7 +7901,8 @@ sub getIntfAllInfo
 		my $configuration = $nmisng_node->configuration;
 		if ( getbool( $configuration->{active} ) and getbool( $configuration->{collect} ) )
 		{
-			my $ids = $nmisng_node->get_inventory_ids(concept => 'interface');
+			# ony grab active interfaces
+			my $ids = $nmisng_node->get_inventory_ids(concept => 'interface', filter => { enabled => 1, historic => 0});
 			dbg( "ADD node=$node_name", 3 );
 			logMsg("INFO empty interface info file of node $node_name") if(!$ids || @$ids < 1);
 			foreach my $id ( @$ids )
@@ -8523,7 +8639,7 @@ LABEL_ESC:
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys->new;    # node object
-			if ( ( $S->init( name => $nd, snmp => 'false' ) ) )
+			if ( $S->init( name => $nd, snmp => 'false' ) )
 			{                    # get cached info of node only
 				my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr
 				if ( !getbool( $IFD->{$thisevent->{element}}{collect} ) )
@@ -10198,13 +10314,7 @@ sub doSummaryBuild
 			foreach my $tp ( keys %{$M->{summary}{statstype}} )
 			{
 				next if ( !exists $M->{system}->{rrd}->{$tp}->{threshold} );
-				my $threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
-
-				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
-				{
-					$threshold_period = $C->{"threshold_period-$tp"};
-					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
-				}
+				my $threshold_period = getThresholdPeriod( subconcept => $tp );
 
 				# check whether this is an indexed section, ie. whether there are multiple instances with
 				# their own indices
@@ -10275,15 +10385,9 @@ sub doSummaryBuild
 					}
 				}
 
-				# reset the threshold period, may have been changed to threshold_period-<something>
-				$threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
-
+				# reset the threshold period, may have been changed to threshold_period-<something>				
 				my $tp = "interface";
-				if ( exists $C->{"threshold_period-$tp"} and $C->{"threshold_period-$tp"} ne "" )
-				{
-					$threshold_period = $C->{"threshold_period-$tp"};
-					dbg("Found Configured Threshold for $tp, changing to \"$threshold_period\"");
-				}
+				$threshold_period = getThresholdPeriod( subconcept => $tp );
 
 				# this could maybe use the model and get collect right away as that's
 				# all it seems to be used for right now
@@ -10611,6 +10715,22 @@ sub doThreshold
 		if( $running_independently );
 }
 
+sub getThresholdPeriod
+{
+	my (%args) = @_;
+	my $subconcept = $args{subconcept};
+
+	my $threshold_period = $C->{"threshold_period-default"} || "-15 minutes";
+
+	### 2013-09-16 keiths, User defined threshold periods.
+	if ( exists $C->{"threshold_period-$subconcept"} and $C->{"threshold_period-$subconcept"} ne "" )
+	{
+		$threshold_period = $C->{"threshold_period-$subconcept"};
+		dbg("Found Configured Threshold for $subconcept, changing to \"$threshold_period\"");
+	}
+	return $threshold_period;
+}
+
 # performs the threshold value checking and event raising for
 # one or more threshold configurations
 # args: sys, type, thrname, index, item, class (all required),
@@ -10637,17 +10757,7 @@ sub runThrHld
 
 	dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
 
-	my $threshold_period = "-15 minutes";
-	if ( $C->{"threshold_period-default"} ne "" )
-	{
-		$threshold_period = $C->{"threshold_period-default"};
-	}
-	### 2013-09-16 keiths, User defined threshold periods.
-	if ( exists $C->{"threshold_period-$type"} and $C->{"threshold_period-$type"} ne "" )
-	{
-		$threshold_period = $C->{"threshold_period-$type"};
-		dbg("Found Configured Threshold for $type, changing to \"$threshold_period\"");
-	}
+	my $threshold_period = getThresholdPeriod( subconcept => $type );
 
 	#	check if values are already in table (done by doSummaryBuild)
 	if ( exists $sts->{$S->{name}}{$type} )

@@ -99,6 +99,55 @@ sub _dirty
 # Public:
 ###########
 
+# bulk set records to be historic which match this node and are not in the array of active_indices provided
+# also updates records which are in the active_indices list to not be historic
+# args: active_indices (optional, see concept), arrayref of active ids, concept (optional, if not given all inventory entries for node will be
+#  marked historic (useful for update force=1)
+# returns: hashref with number of records marked historic and nothistoric
+sub bulk_update_inventory_historic
+{
+	my ($self,%args) = @_;
+	my ($active_indices,$concept) = @args{'active_indices','concept'};
+	return "invalid input,active_indices must be an array!" if ($active_indices && ref($active_indices) ne "ARRAY");
+	my $retval = {};
+	
+	# not a huge fan of hard coding these, not sure there is much of a better way 
+	my $q = {
+		'path.0'  => $self->cluster_id,
+		'path.1'  => $self->uuid,
+	};
+	$q->{'path.2'} = $concept if( $concept );
+
+	# get_query currently doesn't support $nin, only $in
+	$q->{'data.index'} = {'$nin' => $active_indices} if($active_indices);
+
+	# mark historic where not in list
+	my $result = NMISNG::DB::update(
+		collection => $self->nmisng->inventory_collection,
+		freeform => 1,
+		multiple => 1,
+		query => $q,
+		record => { '$set' => { 'historic' => 1 } }
+	);
+	$retval->{marked_historic} = $result->{updated_records};
+	$retval->{matched_historic} = $result->{matched_records};
+	# if we have a list unset historic
+	if( $active_indices )
+	{
+		$q->{'data.index'} = {'$in' => $active_indices} if($active_indices);
+		$result = NMISNG::DB::update(
+			collection => $self->nmisng->inventory_collection,
+			freeform => 1,
+			multiple => 1,
+			query => $q,
+			record => { '$set' => { 'historic' => 0 } }
+		);
+		$retval->{marked_nothistoric} = $result->{updated_records};
+		$retval->{matched_nothistoric} = $result->{matched_records};
+	}
+	return $retval;
+}
+
 sub cluster_id
 {
 	my ($self) = @_;
@@ -151,15 +200,24 @@ sub get_inventory_ids
 	my ( $self, %args ) = @_;
 
 	# what happens when an error happens here?
-	$args{cluster_id} = $self->cluster_id;
-	$args{node_uuid}  = $self->uuid();
 	$args{fields_hash} = {'_id' => 1};
 
-	my $model_data = $self->nmisng->get_inventory_model(%args);
+	my $model_data = $self->get_inventory_model(%args);
 
 	my $data = $model_data->data();
 	my @ids = map { $_->{_id}{value} } @$data;
 	return \@ids;
+}
+
+sub get_inventory_model
+{
+	my ( $self, %args ) = @_;
+	$args{cluster_id} = $self->cluster_id;
+	$args{node_uuid}  = $self->uuid();
+
+	my $model_data = $self->nmisng->get_inventory_model(%args);
+
+	return $model_data;
 }
 
 # find or create inventory object based on arguments
@@ -168,7 +226,11 @@ sub get_inventory_ids
 # the DefaultInventory class will be used/returned.
 # if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function
-# args:
+# args: 
+#    any args that can be used for finding an inventory model, 
+#  if none is found then:
+#    concept, data, path path_keys, create - 0/1 
+#    (possibly not path_keys but whatever path info is needed for that specific inventory type)
 # returns: (inventory object, undef) or (undef, error message)
 sub inventory
 {
@@ -194,13 +256,12 @@ sub inventory
 	$path->[1] = $self->uuid;
 
 	# what happens when an error happens here?
-	my $modeldata = $self->nmisng->get_inventory_model(%args);
-
-	if ( $modeldata->count() > 0 )
+	my $model_data = $self->nmisng->get_inventory_model(%args);
+	if ( $model_data->count() > 0 )
 	{
 		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
-			if($modeldata->count() > 1);
-		my $model = $modeldata->data()->[0];
+			if($model_data->count() > 1);
+		my $model = $model_data->data()->[0];
 		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
 
 		# use the model as arguments because everything is in the right place

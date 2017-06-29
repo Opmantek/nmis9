@@ -1,0 +1,306 @@
+#
+## $Id: Model-CiscoCSS.nmis,v 8.1 2011/11/11 03:08:35 keiths Exp $
+#
+#  Autor: Kai Poenisch 
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+    'environment' => {
+      'rrd' => {
+        'csscontent' => {
+	  'snmp'=> {
+  	    'CSScontentHits' => {
+	      'oid' => 'apCntHits',
+	      'option' => 'counter,U:U',
+	      'title' => 'Hits',
+            },         
+  	    'CSScontentBytes' => {
+	      'oid' => 'apCntByteCount',
+ 	      'option' => 'counter,U:U',
+	      'title' => 'Bytes',
+            },         
+     	    'CSScontentFrames' => {
+	      'oid' => 'apCntFrameCount',
+ 	      'option' => 'counter,U:U',
+	      'title' => 'Frames',
+            },         
+	  },            
+	  'indexed' => 'apCntIndex',
+          'graphtype' => 'csscontent',
+        },
+        'cssgroup' => {
+	  'snmp'=> {
+  	    'CSSgroupHits' => {
+	      'oid' => 'CSSgroupHits',
+	      'option' => 'counter,U:U',
+	      'title' => 'Hits',
+            },         
+  	    'CSSgroupBytes' => {
+	      'oid' => 'CSSGroupBytes',
+ 	      'option' => 'counter,U:U',
+	      'title' => 'Bytes',
+            },         
+     	    'CSSgroupFrames' => {
+	      'oid' => 'CSSGroupFrames',
+ 	      'option' => 'counter,U:U',
+	      'title' => 'Frames',
+            },         
+    	    'CSSgroupMaxCon' => {
+	      'oid' => 'CSSGroupMaxCon',
+ 	      'option' => 'counter,U:U',
+	      'title' => 'Total Connectons ',
+            },         
+   	    'CSSgroupCurCon' => {
+	      'oid' => 'CSSGroupCurCon',
+	      'title' => 'Current Connections',
+            },         
+	  },            
+	  'indexed' => 'CSSgroupIndex',
+          'graphtype' => 'cssgroup',
+        },
+    },
+    'sys' => {
+      'cssgroup' => {
+        'snmp' => {
+	  'CSSGroupDesc' => {
+	    'oid' => 'CSSGroupDesc',
+	  },
+	},
+ 	  'indexed' => 'CSSgroupIndex',
+      },
+      'csscontent' => {
+        'snmp' => {
+	  'CSSContentDesc' => {
+	    'oid' => 'apCntName',
+	  },
+	},
+ 	  'indexed' => 'apCntIndex',
+      },
+    },
+  },
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'calls' => {
+        'common-model' => 'calls'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodeType' => 'switch',
+    'nodeModel' => 'CiscoCSS',
+    'rrd' => {
+      'nodehealth' => {
+        'snmp' => {
+	  'apChassisCPUAvg' => {
+	    'oid' => 'apChassisCPUAvg.1'
+	  },
+	  'apChassisInstMem' => {
+	    'oid' => 'apChassisInstMem.1'
+          },
+	  'apChassisHeapFree' => {
+	    'oid' => 'apChassisHeapFree.1'
+          },                     
+ 	  'MemoryFreeIO' => {
+	    'oid' => 'apChassisHeapFree.1'
+          },                     
+  	  'MemoryUsedIO' => {
+	    'oid' => 'apChassisInstMem.1'
+          }                     
+        },
+        'threshold' => 'ccpu',
+        'graphtype' => 'ccpu,mem-router'
+      },
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
+      }
+    },
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,ccpu',
+  },
+  'interface' => {
+    'rrd' => {
+      'interface' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:$ifSpeed'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          }
+        },
+        'indexed' => 'true',
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      }
+    },
+     'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'title' => ' Oper Status'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => ' Name'
+          },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => ' Admin Status'
+          },
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => ' Bandwidth'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => ' Last Change'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => ' Type'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'ifOperStatus' => 'down',
+      'ifDescr' => 'sublayer|Serial.*|null|controller',
+      'noDescription' => 'false',
+      'Description' => '^#',
+      'ifType' => 'other|softwareloopback|isdn'
+    },
+    'noevent' => {
+      'Description' => '^!',
+      'ifDescr' => 'null',
+      'ifType' => 'other'
+	}
+  }
+);
