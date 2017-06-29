@@ -10287,13 +10287,13 @@ sub doSummaryBuild
 
 				# this could maybe use the model and get collect right away as that's
 				# all it seems to be used for right now
-				my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface' );
+				my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
 				# get all collected interfaces
 				foreach my $id (@$ids)
 				{
 					my $data = $S->nmisng_node->inventory( _id => $id )->data();
 					my $index = $data->{index};
-					next unless getbool( $data->{collect} );
+					
 					my $sts = getSummaryStats(
 						sys   => $S,
 						type  => $tp,
