@@ -37,9 +37,6 @@ use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-
 #
 use Time::ParseDate;
 use RRDs;

@@ -16,6 +16,7 @@ use Data::Dumper;
 
 my %nvp = getArguements(@ARGV);
 my $C = loadConfTable(debug => $nvp{debug}, info=> $nvp{info});
+rrdfunc::require_RRDs(config=>$C);
 
 print "testing parse_dateandtime...\n";
 

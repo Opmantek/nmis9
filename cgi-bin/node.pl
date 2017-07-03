@@ -53,6 +53,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+rrdfunc::require_RRDs(config=>$C);
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request

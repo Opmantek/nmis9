@@ -47,7 +47,6 @@ use csv;
 use func;
 use NMIS;
 use POSIX;
-use RRDs 1.000.490;
 use rrdfunc;
 use Net::hostent;
 use Socket;
@@ -73,6 +72,7 @@ my $vardir = $nvp{vardir};
 
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 unless ( $vardir ) { $vardir = $C->{'<nmis_var>'} }
 

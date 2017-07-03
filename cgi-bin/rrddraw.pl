@@ -33,12 +33,9 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-
 use strict;
-use RRDs 1.4004;
 use func;
+use rrdfuncl
 use Sys;
 use NMIS;
 use Data::Dumper;
@@ -50,6 +47,7 @@ my $Q = $q->Vars;
 
 my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+rrdfunc::require_RRDs(config=>$C);
 $C->{auth_require} = 0; # bypass auth
 
 # NMIS Authentication module
@@ -96,6 +94,8 @@ sub error {
 sub rrdDraw 
 {
 	my %args = @_;
+
+	rrdfunc::require_RRDs();
 
 	# Break the query up for the names
 	my $type = $Q->{obj};

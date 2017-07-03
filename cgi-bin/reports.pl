@@ -46,7 +46,6 @@
 #
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "/usr/local/rrdtool/lib/perl";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
@@ -68,6 +67,7 @@ my $Q = $q->Vars; # values in hash
 
 my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+rrdfunc::require_RRDs(config=>$C);
 
 # if no options, assume called from web interface ....
 my $outputfile;

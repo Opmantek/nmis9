@@ -44,14 +44,14 @@ use lib "$FindBin::Bin/../lib";
 
 use strict;
 use func;
-use lib "/usr/local/rrdtool/lib/perl"; 
-use RRDs 1.000.490; # from Tobias
+use rrdfunc;
 use Data::Dumper;
 
 # Variables for command line munging
 my %ARG = getArguements(@ARGV);
 
 my $C = loadConfTable(conf=>$ARG{conf},debug=>$ARG{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 my $debug = $C->{debug};
 

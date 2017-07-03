@@ -50,7 +50,6 @@ use func;
 use NMIS;
 use NMIS::IPSLA;
 use POSIX;
-use RRDs 1.000.490;
 use rrdfunc;
 use Net::hostent;
 use Socket;
@@ -79,6 +78,7 @@ my $debug = setDebug($nvp{debug});
 
 # load configuration table
 my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 # store multithreading arguments from nvp
 my $mthread	= 0;

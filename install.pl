@@ -582,8 +582,11 @@ printBanner("Checking RRDTool Version");
 {
 	my $rrdisok=0;
 
-	use NMIS::uselib;
-	use lib "$NMIS::uselib::rrdtool_lib";
+	require rrdfunc;
+	# TODO: need
+	my $C = { rrd_lib => '/usr/local/rrdtool/lib/perl' };
+	print "Attempting to find RRD at /usr/local/rrdtool/lib/perl, config entry rrd_lib can be set if it's not there";
+	rrdfunc::require_RRDs(config=>$C);
 
 	eval { require RRDs; };
 	if (!$@)
@@ -604,11 +607,12 @@ printBanner("Checking RRDTool Version");
 	}
 	else
 	{
-		echolog("No RRDs module found!");
+		echolog("No RRDs module found! Adjust the rrd_lib config entry so NMIS can find it.");
 	}
 
 	if (!$rrdisok)
 	{
+		print "CHANGE ME!!!!!\n I should prompt for the location of RRD!!!\n\n";
 		print "\nNMIS will not work properly without a sufficiently modern rrdtool/RRDs.
 
 We HIGHLY recommend that you stop the installer now, install rrdtool

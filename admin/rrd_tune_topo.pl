@@ -30,7 +30,6 @@
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "/usr/local/rrdtool/lib/perl"; 
 
 # Include for reference
 #use lib "/usr/local/nmis8/lib";
@@ -39,9 +38,9 @@ use lib "/usr/local/rrdtool/lib/perl";
 use strict;
 use Fcntl qw(:DEFAULT :flock);
 use func;
+use rrdfunc;
 use NMIS;
 use NMIS::Timing;
-use RRDs 1.000.490; # from Tobias
 
 my $t = NMIS::Timing->new();
 
@@ -56,6 +55,7 @@ $debug = 1;
 
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;

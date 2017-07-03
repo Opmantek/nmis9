@@ -41,9 +41,7 @@ use Data::Dumper;
 use Cwd;
 
 use func;
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-use RRDs 1.000.490;
+use rrdfunc;
 
 die "Usage: ".basename($0). " [examine=N] [dir=/some/dir] [change=false] [precise=true] [match=regex]\n
 examine: check last N days for values outside of min/max. default 30.
@@ -64,6 +62,7 @@ print basename($0)." $VERSION starting up.\n\n";
 # and the usual conf and debug
 my %ARG = getArguements(@ARGV);
 my $C = loadConfTable(conf=>$ARG{conf}, debug=>$ARG{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 my $onlythese = $ARG{match}? qr/$ARG{match}/ : qr/.*/;
 my $dochange = getbool($ARG{change});

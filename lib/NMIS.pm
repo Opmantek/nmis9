@@ -31,15 +31,12 @@ use strict;
 
 our $VERSION = "9.0.0A";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-
-use RRDs;
 use Time::ParseDate;
 use Time::Local;
 use Net::hostent;
 use Socket;
 use func;
+use rrdfunc;
 use csv;
 use notify;
 use ip;
@@ -1038,6 +1035,7 @@ sub getSummaryStats
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
+	rrdfunc::require_RRDs(config=>$C);
 	if (getbool($C->{server_master}) and $catchall_data->{server}
 			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -1124,7 +1122,7 @@ sub getSummaryStats
 	}
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error)) {
+	if (($ERROR = RRDs::error())) {
 		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 	} else {
 		##logMsg("INFO result type=$type, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
@@ -1162,6 +1160,7 @@ sub getSubconceptStats
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $C = loadConfTable();
+	rrdfunc::require_RRDs(config=>$C);
 	if (getbool($C->{server_master}) and $catchall_data->{server}
 			and lc($catchall_data->{server}) ne lc($C->{server_name}))
 	{
@@ -1251,7 +1250,7 @@ sub getSubconceptStats
 	}
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error)) {
+	if (($ERROR = RRDs::error())) {
 		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
 	} else {
 		##logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");

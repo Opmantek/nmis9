@@ -2068,7 +2068,7 @@ sub create_update_rrd
 		$inventory->set_subconcept_type_storage(subconcept => $type, type => 'rrd',
 																						data => $dbname);
 	}
-
+	rrdfunc::require_RRDs(config=>$C);
 	my $result = rrdfunc::updateRRD( database => $C->{database_root} . $dbname,
 																	 data => $data,
 																	 # rest is only needed if the rrd file must be created/ds-extended

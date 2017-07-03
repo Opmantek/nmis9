@@ -12,15 +12,17 @@ print Dumper(\@INC) ."\n";
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
+use func;
+use rrdfunc;
+my $C = loadConfTable();
+rrdfunc::require_RRDs(config=>$C);
 
 print "Second:\n";
 print Dumper(\@INC) ."\n";
 
 
 #push(@INC,"/usr/local/rrdtool/lib/perl");
-
+print "I'm not sure this is correct\n";
 use RRDs;
 
 

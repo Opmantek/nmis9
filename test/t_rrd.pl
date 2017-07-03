@@ -4,13 +4,12 @@ use strict;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use lib "/usr/local/rrdtool/lib/perl"; 
 
 use NMIS;
 use NMIS::Timing;
 use func;
+use rrdfunc;
 use Sys;
-use RRDs;
 use Data::Dumper; 
 $Data::Dumper::Indent = 1;
 
@@ -20,6 +19,7 @@ print $t->elapTime(). " Begin\n";
 
 print $t->elapTime(). " loadConfTable\n";
 my $C = loadConfTable();
+rrdfunc::require_RRDs(config=>$C);
 
 #my $rrd = "/usr/local/nmis8/database/interface/router/wanedge1/wanedge1-fastethernet0-1.rrd";
 ##/interface/router/wanedge1/wanedge1-fastethernet0-0-pkts.rrd

@@ -29,16 +29,14 @@
 package rrdfunc;
 our $VERSION = "2.3.0";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-
 use strict;
+use feature 'state';
+use Config;
 
 use vars qw(@ISA @EXPORT);
 
 use Exporter;
 
-use RRDs 1.000.490;
 use File::Basename;
 use Statistics::Lite;
 use POSIX qw();									# for strftime
@@ -57,6 +55,43 @@ use func;
 		createRRD
 	);
 
+# This function should be called if using any RRDS:: functionality directly
+# Functions in this file will also call it for you (but you have to give them a config)
+# it can also be called on it's own before using rrdfunc::'s, doing this means calls to 
+# rrdfunc's functions to do not need the config as a parameter
+sub require_RRDs
+{
+	my (%args) = @_;	
+	state $RRD_included = 0;
+
+	if( !$RRD_included )
+	{
+		my $config = $args{config};	
+		die "no config!" if (!$config);
+		
+		$RRD_included = 1;
+		if ($config->{rrd_lib} ne '')
+		{
+			my $loc=$config->{rrd_lib};
+			unshift @INC, $loc;
+
+			# the "use lib" method works only at compile time,
+			# and does a bit more: arch-specific dirs and version+arch specific
+			# ones are added dynamically, too!
+			if (-d "$loc/$Config{archname}/auto")
+			{
+					unshift @INC, "$loc/$Config{archname}";
+			}
+			for my $extras ("$loc/$Config{version}",
+											"$loc/$Config{version}/$Config{archname}")
+			{
+					unshift @INC, $extras if (-d $extras);
+			}
+		}
+		require RRDs;
+		RRDs->import;
+	}
+}
 
 # rough stats of what the module has done,
 # including last error - fixme: this is module-level, not instance-level!
@@ -86,6 +121,7 @@ sub getRRDasHash
 	my %args = @_;
 	my $db = $args{database};
 	die "getRRDasHash requires database argument!\n" if (!$db);
+	require_RRDs(config => $args{config});
 
 	my $minhr = (defined $args{hour_from}? $args{hour_from} : 0);
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
@@ -162,6 +198,7 @@ sub getRRDStats
 	my %args = @_;
 	my $db = $args{database};
 	die "getRRDStats requires database argument!\n" if (!$db);
+	require_RRDs(config => $args{config});
 
 	my $graphtype = $args{graphtype};
 	my $index = $args{index};
@@ -226,8 +263,9 @@ sub getRRDStats
 #
 sub addDStoRRD
 {
-	my ($rrd, @ds) = @_ ;
+	my ($rrd, @ds,$config) = @_ ;
 	die "addDStoRRD requires rrd argument!\n" if (!$rrd);
+	require_RRDs(config=>$config);
 
 	dbg("update $rrd with @ds");
 
@@ -351,7 +389,7 @@ sub addDStoRRD
 							dbg("xml written to $rrd.xml");
 							# Re-import
 							RRDs::restore($rrd.".xml",$rrd);
-							if (my $ERROR = RRDs::error)
+							if (my $ERROR = RRDs::error() )
 							{
 								logMsg("update ERROR database=$rrd: $ERROR");
 								$stats{error} = "update database=$rrd: $ERROR";
@@ -406,6 +444,7 @@ sub addDStoRRD
 sub updateRRD
 {
 	my %args = @_;
+	require_RRDs(config => $args{config});
 
 	my ($S,$data,$type,$index,$item,$database,$extras) =
 			@args{"sys","data","type","index","item","database","extras"};
@@ -511,7 +550,7 @@ sub updateRRD
 		RRDs::update($database,@options);
 		++$stats{rrdcount};
 
-		if (my $ERROR = RRDs::error)
+		if (my $ERROR = RRDs::error())
 		{
 			if ($ERROR !~ /contains more DS|unknown DS name/)
 			{
@@ -664,6 +703,8 @@ sub createRRD
 	my $index = $args{index};
 	my $database = $args{database};
 
+	require_RRDs(config => $args{config});
+
 	my $C = loadConfTable();
 
 	my $exit = 1;
@@ -707,7 +748,7 @@ sub createRRD
 				dbg($t);
 			}
 			RRDs::create("$database",@options);
-			my $ERROR = RRDs::error;
+			my $ERROR = RRDs::error();
 			if ($ERROR)
 			{
 				$stats{error} = "($S->{name}) unable to create $database: $ERROR";

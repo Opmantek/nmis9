@@ -1,4 +1,13 @@
 my %hash = (
+  'database' => {
+    'db_enabled' => 'true',
+    'db_name' => 'nmisng',
+    'db_password' => 'op42flow42',
+    'db_port' => '27017',
+    'db_query_timeout' => 5000,
+    'db_server' => 'localhost',
+    'db_username' => 'opUserRW'
+  },
   'modules' => {
     'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
@@ -19,7 +28,8 @@ my %hash = (
     'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
 
-	'directories' => {
+  'directories' => {
+    'rrd_lib' => '/usr/local/rrdtool/lib/perl', #  if not present or blank: let perl guess/use the standard rrd 
     '<nmis_base>' => '/usr/local/nmis8',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
@@ -29,8 +39,8 @@ my %hash = (
     '<nmis_logs>' => '<nmis_base>/logs',
     '<nmis_menu>' => '<nmis_base>/menu',
 		
-		'<nmis_models>' => '<nmis_base>/models-custom',
-		'<nmis_default_models>' => '<nmis_base>/models-default',
+	'<nmis_models>' => '<nmis_base>/models-custom',
+	'<nmis_default_models>' => '<nmis_base>/models-default',
 
     '<nmis_var>' => '<nmis_data>/var',
     '<menu_base>' => '<nmis_base>/menu',
@@ -42,11 +52,11 @@ my %hash = (
     'report_root' => '<nmis_base>/htdocs/reports',
     'script_root' => '<nmis_conf>/scripts',
     'web_root' => '<nmis_base>/htdocs',
-		'plugin_root' => '<nmis_conf>/plugins',
-		'<nmis_backups>' => '<nmis_data>/backups',
+	'plugin_root' => '<nmis_conf>/plugins',
+	'<nmis_backups>' => '<nmis_data>/backups',
   },
 
-	'globals' => {
+  'globals' => {
     'global_threshold' => 'true', # advanced thresholds enabled or not
     'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
 		'threshold_poll_node' => 'true', # or perform threshold computation with each node
@@ -69,7 +79,7 @@ my %hash = (
     'uuid_namespace_name' => 'www.domain.com'
   },
 
-	'system' => {
+  'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",

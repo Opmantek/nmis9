@@ -46,6 +46,7 @@ $debug = 1;
 
 
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+rrdfunc::require_RRDs(config=>$C);
 
 my $LNT = loadLocalNodeTable();
 

@@ -34,12 +34,8 @@ use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use NMIS::uselib;
-use lib "$NMIS::uselib::rrdtool_lib";
-
 #
 use Time::ParseDate;
-use RRDs;
 use NMIS;
 use func;
 use csv;
@@ -57,6 +53,7 @@ my $C;
 
 # load NMIS configuration table
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+rrdfunc::require_RRDs(config=>$C);
 
 # NMIS Authentication module
 use Auth;

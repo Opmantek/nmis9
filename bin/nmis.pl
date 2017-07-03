@@ -74,6 +74,7 @@ my %nvp = getArguements(@ARGV);
 my $starttime = Time::HiRes::time;
 my $C = loadConfTable( conf => $nvp{conf}, debug => $nvp{debug}, info => $nvp{info} );
 die "nmis cannot operate without config!\n" if ( ref($C) ne "HASH" );
+rrdfunc::require_RRDs(config=>$C);
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
 # this is used by rrdfunc::createRRD(), so needs to be scoped suitably.
