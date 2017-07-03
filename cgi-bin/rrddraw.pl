@@ -35,7 +35,7 @@ use lib "$FindBin::Bin/../lib";
 
 use strict;
 use func;
-use rrdfuncl
+use rrdfunc;
 use Sys;
 use NMIS;
 use Data::Dumper;
@@ -309,7 +309,7 @@ sub rrdDraw
 		($graphret,$xs,$ys) = RRDs::graph($filename, @options);
 	}
 
-	if ($ERROR = RRDs::error) 
+	if ($ERROR = RRDs::error()) 
 	{
 		logMsg("$db Graphing Error for $graphtype: $ERROR");
 	}
