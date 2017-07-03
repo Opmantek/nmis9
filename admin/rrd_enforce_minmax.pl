@@ -166,7 +166,7 @@ for my $fn (@candidates)
 			my $xmlfile = "$fn.xml";
 			unlink ($xmlfile) if (-f $xmlfile);
 			RRDs::dump($fn, $xmlfile);
-			if (my $ERROR = RRDs::error) 
+			if (my $ERROR = RRDs::error()) 
 			{
 				print "Error: cannot dump $fn to $xmlfile: $ERROR\n\n";
 				next;
@@ -176,7 +176,7 @@ for my $fn (@candidates)
 					if (!rename($fn, $fn.".bak"));
 
 			RRDs::restore("--range-check", $xmlfile, $fn);
-			if (my $ERROR = RRDs::error) 
+			if (my $ERROR = RRDs::error()) 
 			{
 				print "Error: restoring with range check failed: $ERROR\n\n";
 				rename("$fn.bak",$fn);	# revert to the old file

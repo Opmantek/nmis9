@@ -1100,7 +1100,7 @@ sub displayRTTgraph {
 	my ($graphret,$xs,$ys) = RRDs::graph('-', @options);
 	select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout
 
-	if ($ERROR = RRDs::error) {
+	if ($ERROR = RRDs::error()) {
 		logIpsla("IPSLA: RRDgraph, $database Graphing Error: $ERROR");
 	}
 }

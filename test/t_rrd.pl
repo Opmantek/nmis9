@@ -116,7 +116,7 @@ push @options,"RRA:MIN:0.5:$DB->{step_year}:$DB->{rows_year}";
 
 print $t->markTime(). " RRDs::create maxOctets=$maxOctets $database\n";
 RRDs::create("$database",@options);
-my $ERROR = RRDs::error;
+my $ERROR = RRDs::error();
 if ($ERROR) {
 	print("ERROR unable to create $database: $ERROR\n");
 	exit 0;
@@ -175,7 +175,7 @@ for (my $i = 1; $i <= $max; ++$i ) {
 	print $t->elapTime(). " $i $time RRDs::update $vin:$vout, $in:$out\n";
 	my @options = ("-t",$ds,$value);
 	RRDs::update($database, @options);
-	my $ERROR = RRDs::error;
+	my $ERROR = RRDs::error();
 	if ($ERROR) {
 		print("ERROR unable to update $database: $ERROR\n");
 		exit 0;
@@ -212,7 +212,7 @@ my @graphopt = (
 
 my ($graphret,$xs,$ys) = RRDs::graph($graph, @graphopt);
 
-if ($ERROR = RRDs::error) {
+if ($ERROR = RRDs::error()) {
 	print("ERROR: $database Graphing Error: $ERROR\n");
 
 }

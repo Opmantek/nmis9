@@ -166,7 +166,7 @@ sub checkRRD {
 	###ERROR RRD Info for /data/nmis8/database/health/router/router-health.rrd has an error: '/data/nmis8/database/health/router/router-health.rrd' is not an RRD file
 
 	# Check for errors.
-	my $ERROR = RRDs::error;
+	my $ERROR = RRDs::error();
 	if ($ERROR) {
 		print STDERR "ERROR RRD Info for $rrd has an error: $ERROR\n";
 		++$sum->{count}{'error-rrd'};

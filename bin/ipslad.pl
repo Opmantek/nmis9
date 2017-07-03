@@ -821,7 +821,7 @@ sub runRRDupdate {
 
 	# update RRD
 	RRDs::update($database,@options);
-	my $Error = RRDs::error;
+	my $Error = RRDs::error();
 	if ($Error =~ /Template contains more DS|unknown DS name|tmplt contains more DS/i) {
 		logIpsla("IPSLAD: updateRRD: missing DataSource in $database, try to update") if $debug;
 		# find the DS names in the existing database (format ds[name].* )
@@ -842,7 +842,7 @@ sub runRRDupdate {
 		&addDStoRRD($database,@ds) if scalar @ds > 0 ;
 		sleep(2);
 		RRDs::update($database,@options);
-		$Error = RRDs::error;
+		$Error = RRDs::error();
 	}
 	if ($Error eq "") {
 		logIpsla("IPSLAD: RRDupdate, database $database updated\n") if $debug;
@@ -884,7 +884,7 @@ sub runRRDcreate {
 	push @options, "RRA:MAX:0:$RRA_step:$RRA_rows";
 
 	RRDs::create("$database",@options);
-	my $ERROR = RRDs::error;
+	my $ERROR = RRDs::error();
 	if ($ERROR) {
 		$RTTcfg{$nno}{status} = "error" ;
 		$RTTcfg{$nno}{message} = "unable to create database $database, $ERROR";

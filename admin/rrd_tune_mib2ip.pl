@@ -153,7 +153,7 @@ foreach my $node (sort keys %{$LNT}) {
 							RRDs::tune($rrd, "--data-source-type", "$dsname:COUNTER");
 							
 							# Check for errors.
-							my $ERROR = RRDs::error;
+							my $ERROR = RRDs::error();
 							if ($ERROR) {
 								print STDERR "ERROR RRD Tune for $rrd has an error: $ERROR\n";
 							}
