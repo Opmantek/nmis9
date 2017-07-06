@@ -36,7 +36,7 @@ use File::Basename;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use func;
+use NMISNG::Util;
 
 my ($template, $live) = @ARGV;
 if (!$template or !-f $template or !$live or !-f $live)
@@ -51,10 +51,10 @@ based on the NMIS install \"template\". Only missing entries are added.\n\n";
 }
 
 # load the live config or the results will be messy wrt perms
-my $current = loadConfTable();
+my $current = NMISNG::Util::loadConfTable();
 
-my $templateconf = readFiletoHash(file => $template);
-my $liveconf = readFiletoHash(file => $live);
+my $templateconf = NMISNG::Util::readFiletoHash(file => $template);
+my $liveconf = NMISNG::Util::readFiletoHash(file => $live);
 
 die "Invalid template config!\n" if (ref($templateconf) ne "HASH"
 																						or !keys %$templateconf);
@@ -78,7 +78,7 @@ for my $section (sort keys %$templateconf)
 }
 if (@added)
 {
-	writeHashtoFile(file=>$live, data=>$liveconf);
+	NMISNG::Util::writeHashtoFile(file=>$live, data=>$liveconf);
 	
 	print "\nItems added to Live Config:\n";
 	for (@added)

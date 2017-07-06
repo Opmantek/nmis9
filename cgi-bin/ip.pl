@@ -37,9 +37,9 @@ use lib "$FindBin::Bin/../lib";
 #****** Shouldn't be anything else to customise below here *******************
 
 use strict;
-use func;
-use NMIS;
-use ip;
+use NMISNG::Util;
+use Compat::NMIS;
+use NMISNG::IP;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -47,17 +47,17 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 ## Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -65,13 +65,13 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # this cgi script defaults to widget mode ON
-my $wantwidget = !getbool($Q->{widget},"invert");
+my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
 
 print header($headeropts);
-pageStart(title => "NMIS IP Calc") if (!$wantwidget);
+Compat::NMIS::pageStart(title => "NMIS IP Calc") if (!$wantwidget);
 
 #======================================================================
 
@@ -158,14 +158,14 @@ sub ipCalc {
 	}
 	elsif ( $mask !~ /\d+\.\d+\.\d+\.\d+/ ) { 
 		# Its a number bits mask
-		$mask = ipBitsToMask(bits => $mask);
+		$mask = Compat::IP::ipBitsToMask(bits => $mask);
 	}
 	
-	($subnet,$bits) = ipSubnet(address => $address, mask => $mask);
-	$broadcast = ipBroadcast(subnet => $subnet, mask => $mask);
-	$wildcard = ipWildcard(mask => $mask);
-	$hosts = ipHosts(mask => $mask);
-	if ( getbool($assume) ) {
+	($subnet,$bits) = Compat::IP::ipSubnet(address => $address, mask => $mask);
+	$broadcast = Compat::IP::ipBroadcast(subnet => $subnet, mask => $mask);
+	$wildcard = Compat::IP::ipWildcard(mask => $mask);
+	$hosts = Compat::IP::ipHosts(mask => $mask);
+	if ( NMISNG::Util::getbool($assume) ) {
 		$mask = "No mask assuming 255.255.255.0"; 
 	} 
 	
@@ -209,24 +209,24 @@ sub ipSubnets {
 	}
 	elsif ( $mask !~ /\d+\.\d+\.\d+\.\d+/ ) { 
 		# Its a number bits mask
-		$mask = ipBitsToMask(bits => $mask);
+		$mask = Compat::IP::ipBitsToMask(bits => $mask);
 	}
 
 	if ( $submask !~ /\d+\.\d+\.\d+\.\d+/ ) { 
 		# Its a number bits mask
-		$submask = ipBitsToMask(bits => $submask);
+		$submask = Compat::IP::ipBitsToMask(bits => $submask);
 	}
 
-	$wildcard = ipWildcard(mask => $mask);
-	$numsmallsubnets = ipNumSubnets(wildcard => $wildcard);
+	$wildcard = Compat::IP::ipWildcard(mask => $mask);
+	$numsmallsubnets = Compat::IP::ipNumSubnets(wildcard => $wildcard);
 
 	# get the mask for the second subnet mask!
-	($subnet,$subbits) = ipSubnet(address => $address, mask => $submask);
-	$subbroadcast = ipBroadcast(subnet => $subnet, mask => $submask);
-	$subwildcard = ipWildcard(mask => $submask);
-	$subhosts = ipHosts(mask => $submask);
-	$hosts = ipHosts(mask => $mask);
-	$numbigsubnets = ipNumSubnets(wildcard => $subwildcard);
+	($subnet,$subbits) = Compat::IP::ipSubnet(address => $address, mask => $submask);
+	$subbroadcast = Compat::IP::ipBroadcast(subnet => $subnet, mask => $submask);
+	$subwildcard = Compat::IP::ipWildcard(mask => $submask);
+	$subhosts = Compat::IP::ipHosts(mask => $submask);
+	$hosts = Compat::IP::ipHosts(mask => $mask);
+	$numbigsubnets = Compat::IP::ipNumSubnets(wildcard => $subwildcard);
 
 	$numsubnets = ( $numbigsubnets + 1 ) / ( $numsmallsubnets + 1 );
 	$numsubnets = ( $subhosts + 2 ) / ( $hosts + 2 ) ;
@@ -250,10 +250,10 @@ sub ipSubnets {
 
 	my $cnt = 0;
 	for ( $i = 1; $i <= $numsubnets; ++$i ) {
-		($subnet,$subbits) = ipSubnet(address => $subnet, mask => $mask);
-		$subbroadcast = ipBroadcast(subnet => $subnet, mask => $mask);
+		($subnet,$subbits) = Compat::IP::ipSubnet(address => $subnet, mask => $mask);
+		$subbroadcast = Compat::IP::ipBroadcast(subnet => $subnet, mask => $mask);
 		print Tr(td({class=>'info'},$subnet),td({class=>'info'},$subbroadcast));
-		$subnet = ipNextSubnet(subnet => $subnet, mask => $mask);
+		$subnet = Compat::IP::ipNextSubnet(subnet => $subnet, mask => $mask);
 		last if $cnt++ > 1024;
 	}
 

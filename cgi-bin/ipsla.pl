@@ -36,10 +36,9 @@ use lib "$FindBin::Bin/../lib";
 
 #
 use Time::ParseDate;
-use NMIS;
-use func;
-use csv;
-use rrdfunc;
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::rrdfunc;
 use Fcntl qw(:DEFAULT :flock);
 
 use Data::Dumper;
@@ -52,18 +51,18 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-rrdfunc::require_RRDs(config=>$C);
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 my $user;
 my $privlevel = 5;
 my $logoutButton;
 
 # variables used for the security mods
 my $headeropts = {}; #{type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -216,7 +215,7 @@ $operation{'tcpConnect-stats'} = $operation{'tcpConnect'};
 my %RTTcfg = readVartoHash("ipslacfg");
 
 # get config database values if view graph is active
-if ( getbool($view) and $key ne "") {
+if ( NMISNG::Util::getbool($view) and $key ne "") {
 	$pnode = $RTTcfg{$key}{pnode};
 	$optype = $RTTcfg{$key}{optype};
 	$saddr = $RTTcfg{$key}{saddr};
@@ -251,12 +250,12 @@ if ($prnode ne $rnode) { $rcom = $RTTcfg{$rnode}{community};}
 if ($pcom ne "*********" and $pcom ne "" and $pnode ne "") {
 	$RTTcfg{$pnode}{community} = $pcom;
 	$pcom = "*********";
-	writeHashtoVar("ipslacfg",\%RTTcfg) if (!getbool($view)); # store com config on disk
+	writeHashtoVar("ipslacfg",\%RTTcfg) if (!NMISNG::Util::getbool($view)); # store com config on disk
 }
 if ($rcom ne "*********" and $rcom ne "" and $rnode ne "") {
 	$RTTcfg{$rnode}{community} = $rcom;
 	$rcom = "*********";
-	writeHashtoVar("ipslacfg",\%RTTcfg) if (!getbool($view)); # store com config on disk
+	writeHashtoVar("ipslacfg",\%RTTcfg) if (!NMISNG::Util::getbool($view)); # store com config on disk
 }
 
 # what shall we do
@@ -296,7 +295,7 @@ sub startIPSLApage {
 	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
 
 	#ipsla.pl is NOT parsing this $Q properly!
-	my $portalCode = loadPortalCode(conf=>$Q->{conf});
+	my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
 
 	# Javascripts
 	my $jscript = getJscript();
@@ -354,13 +353,13 @@ sub displayIPSLAmenu {
 	if ($pnode eq "") { $rnode = $optype = $pcom = $rcom = $pcom = $raddr = $view = $url = $key = $vrf = ""; }
 	if ($optype =~ /http/ and $url eq "") { $url = "http://"; }
 
-	if ($poptype ne $optype and !getbool($view)){
+	if ($poptype ne $optype and !NMISNG::Util::getbool($view)){
 		$freq = $lsr = $tout = $tos = ""; $vrfy = 0; $attr = "on"  # defaults
 	}
 
 	# create source address list of probe node
 	if ( $pnode ) {
-		my $S = Sys::->new; # get system object
+		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$pnode,snmp=>'false'); # load node info and Model if name exists
 		my $II = $S->ifinfo;
 		foreach my $k (sort keys %{$II} ) {
@@ -492,7 +491,7 @@ sub displayIPSLAmenu {
 						-label=>'',
 						-onChange=>'JavaScript:this.form.submit()')),
 			td({class=>"info Plain"}, eval {
-				if (getbool($view)) {
+				if (NMISNG::Util::getbool($view)) {
 						return "View node charts&nbsp;".
 							checkbox( -name=>"pnodechart",
 								-checked=>"$pnodechart",
@@ -549,7 +548,7 @@ sub displayIPSLAmenu {
 					if ($RTTcfg{$nno}{message} ne "") {
 						$class = "Error";
 						$message = "&nbsp;$RTTcfg{$nno}{message}";
-					} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
+					} elsif ( !NMISNG::Util::getbool($C->{daemon_ipsla_active}) ) {
 						$class = "Error";
 						$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon ipslad.pl";
 					} 
@@ -575,7 +574,7 @@ sub displayIPSLAmenu {
 
 
 	# display node charts ?
-	if (getbool($view) and $pnodechart eq "on") { displayRTTnode(); } # node charts
+	if (NMISNG::Util::getbool($view) and $pnodechart eq "on") { displayRTTnode(); } # node charts
 
 	# background values
 	print hidden(-name=>'file', -default=>$Q->{conf},-override=>'1');
@@ -584,7 +583,7 @@ sub displayIPSLAmenu {
 	print hidden(-name=>'poptype', -default=>$optype,-override=>'1');
 	print hidden(-name=>'deldb', -default=>'false',-override=>'1');
 	print hidden(-name=>'view', -default=>$view,-override=>'1');
-	print hidden(-name=>'key', -default=>$key,-override=>'1') if (getbool($view));
+	print hidden(-name=>'key', -default=>$key,-override=>'1') if (NMISNG::Util::getbool($view));
 
 	print end_form;
 
@@ -592,7 +591,7 @@ sub displayIPSLAmenu {
 	print start_form( -method=>'get', -name=>"data", -action=>url() );
 
 	# display data
-	if (getbool($view) and $RTTcfg{$nno}{status} eq "running") { displayRTTdata($nno); }
+	if (NMISNG::Util::getbool($view) and $RTTcfg{$nno}{status} eq "running") { displayRTTdata($nno); }
 
 	# background values
 	print hidden(-name=>'file', -default=>$Q->{conf},-override=>'1');
@@ -612,7 +611,7 @@ sub runCfgUpdate {
 
 	# let the daemon unlink the database
 	return if ($RTTcfg{$nno}{func} =~ /stop|remove/
-						 and getbool($RTTcfg{$nno}{deldb}));
+						 and NMISNG::Util::getbool($RTTcfg{$nno}{deldb}));
 
 	# run bin/ipslad.pl for accept modified configuration
 	# if this system failed then the detach process ipslad.pl does it later.
@@ -982,8 +981,8 @@ sub displayRTTdata {
 	$start = int $start;
 	$end = int $end;
 
-	$date_start = returnDateStamp($start); # for display date/time fields
-	$date_end = returnDateStamp($end);
+	$date_start = NMISNG::Util::returnDateStamp($start); # for display date/time fields
+	$date_end = NMISNG::Util::returnDateStamp($end);
 
 	my @items = split ":", $RTTcfg{$nno}{items};
 
@@ -1032,8 +1031,8 @@ sub displayRTTgraph {
 	my @colors = ("880088","00CC00","0000CC","CC00CC","FFCC00","00CCCC",
 			"000044","BBBB00","BB00BB","00BBBB");
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	# select the vertical label, first digit of first item
 	my $vlabel = "RTT Avg msec.";
@@ -1101,7 +1100,7 @@ sub displayRTTgraph {
 	select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout
 
 	if ($ERROR = RRDs::error()) {
-		logIpsla("IPSLA: RRDgraph, $database Graphing Error: $ERROR");
+		NMISNG::Util::logIpsla("IPSLA: RRDgraph, $database Graphing Error: $ERROR");
 	}
 }
 
@@ -1110,7 +1109,7 @@ sub writeHashtoVar {
 	my $data = shift; # address of hash
 	my $handle;
 
-	my $datafile = getFileName(file => "$C->{'<nmis_var>'}/$file");
+	my $datafile = NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/$file");
 
 
 	open DB, ">$datafile" or warn returnTime." writeHashtoVar: cannot open $datafile: $!\n";
@@ -1118,7 +1117,7 @@ sub writeHashtoVar {
 	print DB Data::Dumper->Dump([$data], [qw(*hash)]);
 	close DB;
 
-	setFileProt($datafile);
+	NMISNG::Util::setFileProt($datafile);
 	print returnTime." writeHashtoVar: wrote @{[ scalar keys %{$data} ]} records to $datafile\n" if $debug > 1;
 
 }
@@ -1129,7 +1128,7 @@ sub readVartoHash {
 	my $handle;
 	my $line;
 
-	my $datafile = getFileName(file => "$C->{'<nmis_var>'}/$file");
+	my $datafile = NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/$file");
 
 	if ( -r $datafile ) {
 		sysopen($handle, $datafile, O_RDONLY )

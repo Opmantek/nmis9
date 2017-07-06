@@ -50,12 +50,11 @@ use Data::Dumper;
 use Socket;
 
 use strict;
-use func;
-use csv;
-use NMIS;
+use NMISNG::Util;
+use Compat::NMIS;
 use Time::Local;
 use Fcntl qw(:DEFAULT :flock);
-use Sys;
+use NMISNG::Sys;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
@@ -68,21 +67,21 @@ my $C;
 
 $SIG{PIPE} = sub { };  # Supress broken pipe error messages.
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # -------------------------------------------------------
 # Before going any further, check to see if we must handlegrep
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 my $logoutButton;
 my $privlevel = 5;
 my $user;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
@@ -102,10 +101,10 @@ if ($AU->Require) {
 # -------------------------------------------------------------
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 ### 2012-08-29 keiths, adding wiget less support, widget on by default.
-my $widget = getbool($Q->{widget},"invert")? "false" : "true";
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false" : "true";
 
 ### unless told otherwise, and this is not JQuery call, widget is false!
 if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
@@ -139,7 +138,7 @@ my $LL;		# global ref to conf/Logs.xxxx configuration file
 # the syslog record that we are parsing for nodename references, which could be a hostname, fqdn hostname, or ip address.
 # Therefore, create a hash, keyed by name records, values being the node key.
 ## TBD - add the node sysName in here, as a log source address could be it's sysname.
-my $NT = loadNodeTable();
+my $NT = Compat::NMIS::loadNodeTable();
 my $NN;
 foreach my $k ( keys %{$NT} ) {
 	$NN->{ $NT->{$k}{name} } = $k;			# create reference to node file key in new hash by name
@@ -147,12 +146,12 @@ foreach my $k ( keys %{$NT} ) {
 	$NN->{ $k } = $k;										# create reference to node file key in new hash by node file key
 }
 
-my $GT = loadGroupTable();
+my $GT = Compat::NMIS::loadGroupTable();
 my $logFileName;						# this gets set to the full qualified filename in conf/Logs.xxxx config fiel
 
 # defaults
 my $logName = 'Event_Log';
-if ( getbool($C->{server_master}) and $Q->{logname} eq "" ) {
+if ( NMISNG::Util::getbool($C->{server_master}) and $Q->{logname} eq "" ) {
 	$logName = 'Slave_Event_Log';
 }
 elsif ($Q->{logname} ne "" ) {
@@ -185,7 +184,7 @@ my $logLevelSummary = {
 # else leave as path will point to log outside our dir space.
 ## capture the log name and file to parse here
 
-$LL = loadTable(dir=>'conf',name=>'Logs');
+$LL = NMISNG::Util::loadTable(dir=>'conf',name=>'Logs');
 # check each log entry for field 'file', and if no path, add the nmis log dir default path
 foreach ( keys %{$LL} ) {
 	$LL->{$_}{logFileName} = $C->{'<nmis_logs>'} .'/'. $LL->{$_}{logFileName} if $LL->{$_}{logFileName} !~ /\//;
@@ -210,7 +209,7 @@ my $logLinkEnd=qq|</a>|;
 print header($headeropts);
 
 ### 2012-08-29 keiths, adding wiget less support.
-pageStart(title => "NMIS Log Viewer", refresh => $Q->{refresh})
+Compat::NMIS::pageStart(title => "NMIS Log Viewer", refresh => $Q->{refresh})
 		if (!$wantwidget);
 
 if ($Q->{act} eq 'log_file_view') {
@@ -247,7 +246,7 @@ sub notfound {
 }
 
 ### 2012-08-29 keiths, adding wiget less support.
-pageEnd() if (!$wantwidget);
+Compat::NMIS::pageEnd() if (!$wantwidget);
 
 exit;
 # ------------------------------------------------------
@@ -274,7 +273,7 @@ sub viewLogList {
 			if ( $LL->{$i}{logFileName} ne '' and -r $LL->{$i}{logFileName} ) {
 					@filestat = stat $LL->{$i}{logFileName};
 					$logFileSize = $filestat[7] . ' bytes';
-				$date = func::returnDateStamp($filestat[9]);
+				$date = NMISNG::Util::returnDateStamp($filestat[9]);
 			}
 			else {
 				$date = 'UA';
@@ -371,7 +370,7 @@ sub loadLogFile {
 			$_ =~ s/  / /g;
 			$readLogNum++;
 
-			if ( getbool($boolean) && $switch eq "and" ) {
+			if ( NMISNG::Util::getbool($boolean) && $switch eq "and" ) {
 				if ( 	$_ =~ /$search1/i and
 				$_ =~ /$search2/i and
 				$_ =~ /$search3/i and
@@ -383,7 +382,7 @@ sub loadLogFile {
 					$searchLogNum++;
 				}
 			}
-			if ( getbool($boolean) && $switch eq "or" ) {
+			if ( NMISNG::Util::getbool($boolean) && $switch eq "or" ) {
 				if ( 	$_ =~ /$search1/i or
 				$_ =~ /$search2/i or
 				$_ =~ /$search3/i or
@@ -395,7 +394,7 @@ sub loadLogFile {
 					$searchLogNum++;
 				}
 			}
-			elsif ( getbool($dosearch,"invert") ) {
+			elsif ( NMISNG::Util::getbool($dosearch,"invert") ) {
 				push @logRecords, $_ ;
 				last if scalar @logRecords >= $logMaxTableLines;
 			}
@@ -529,7 +528,7 @@ sub outputLine {
 		($logEvent = $logSplit[10]) =~ s/^%|:$//g;		# drop the leading '%' and trailing ':'
 		### set the log level in the URL if we have a syslog severity level
 		if ( $logEvent =~ m/-(\d+)-/ ) {
-			$logLevelText = eventLevelSet($1);
+			$logLevelText = NMISNG::Util::eventLevelSet($1);
 			$gotEvent = 1;
 		}
 		else {
@@ -542,7 +541,7 @@ sub outputLine {
 					$logEvent = $logBits[0];
 					$gotEvent = 1;
 					if ( $logEvent =~ m/-(\d+)-/ ) {
-						$logLevelText = eventLevelSet($1);
+						$logLevelText = NMISNG::Util::eventLevelSet($1);
 					}
 				}
 			}
@@ -584,11 +583,11 @@ sub outputLine {
 			"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 
-			if ( getbool($C->{node_button_in_logs}) ) {
+			if ( NMISNG::Util::getbool($C->{node_button_in_logs}) ) {
 				#prepend nodebut!
 				$line = "$logNodeButton $line";
 				}
-				if ( getbool($C->{buttons_in_logs}) ) {
+				if ( NMISNG::Util::getbool($C->{buttons_in_logs}) ) {
 				#prepend buttons!
 				$line = "$buttons $line";
 			}
@@ -608,7 +607,7 @@ sub outputLine {
 
 		### set the log level in the URL if we have a syslog severity level
 		if ( $logEvent =~ m/-(\d+)-/ ) {
-			$logLevelText = eventLevelSet($1);
+			$logLevelText = NMISNG::Util::eventLevelSet($1);
 			my $urlsafeevent = uri_escape($logEvent);
 			($logEventLinkStart = $logLinkStart) =~ s/&search=/&search=$urlsafeevent/;
 			$logEventLinkStart =~ s/&level=/&level=$logLevelText/;
@@ -654,11 +653,11 @@ sub outputLine {
 			"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
 			"<a href=\"telnet://$logNode\"><img alt=\"telnet to $logNode\" src=\"$C->{telnet_icon}\" border=0 align=top></a>";
 
-			if ( getbool($C->{node_button_in_logs}) ) {
+			if ( NMISNG::Util::getbool($C->{node_button_in_logs}) ) {
 				#prepend nodebut!
 				$line = "$logNodeButton $line";
 				}
-				if ( getbool($C->{buttons_in_logs}) ) {
+				if ( NMISNG::Util::getbool($C->{buttons_in_logs}) ) {
 				#prepend buttons!
 				$line = "$buttons $line";
 			}
@@ -686,7 +685,7 @@ sub outputLine {
 
 		#Check the date format and if it doesn't have a - then it is UNIX format
 		if ( $logTime !~ /-/ ) {
-			$logTime = returnDateStamp($logTime);
+			$logTime = NMISNG::Util::returnDateStamp($logTime);
 		}
 
 		# If the line has ' Time=' in it, convert to Outage Time
@@ -722,7 +721,7 @@ sub outputLine {
 
 		# use the node name hash we setup to find the node record.
 		# if not indexed, then the syslog nodename is not current, so dont provide a href
-		$logLevelText = eventLevelSet($logLevel);
+		$logLevelText = NMISNG::Util::eventLevelSet($logLevel);
 
 		++$logLevelSummary->{lc($logLevel)};
 
@@ -754,10 +753,10 @@ sub outputLine {
 												qq|&refresh=$C->{widget_refresh_time}&widget=$widget&node=$urlsafelognode">|.
 												qq|<img alt="NMIS" src="$C->{nmis_icon}" border="0"></a>|;
 
-			if ( getbool($C->{node_button_in_logs}) ) {
+			if ( NMISNG::Util::getbool($C->{node_button_in_logs}) ) {
 				$line = "$logNodeButton $logTime $logNodeLink $logEventLink $logLevelLink $logElement $logDetails$logServer";
 			}
-			elsif ( getbool($C->{buttons_in_logs}) ) {
+			elsif ( NMISNG::Util::getbool($C->{buttons_in_logs}) ) {
 				$buttons =
 					"<a href=\"$C->{admin}?tool=ping&node=$urlsafelognode\"><img alt=\"ping $logNode\" src=\"$C->{ping_icon}\" border=\"0\"></a>".
 					"<a href=\"$C->{admin}?tool=trace&node=$urlsafelognode\"><img alt=\"traceroute $logNode\" src=\"$C->{trace_icon}\" border=\"0\"></a>".
@@ -794,9 +793,6 @@ sub outputLine {
 		$logLevelText = 'Unknown';
 
 	} # elsif nmis.log
-	#5-Jun-2013 07:06:41,nmiscgi.pl#97Auth::loginout#1208Auth::verify_id#333<br>verify_id: cookie not defined
-	#5-Jun-2013 07:07:53,nmiscgi.pl#97Auth::loginout#1197<br>user=nmis logged in with config=
-	#5-Jun-2013 07:07:56,logs.pl#223Auth::CheckAccess#234<br>CheckAccessCmd: nmis, Event_Log, 1
 	elsif ( lc $logName eq 'auth_log') {
 		$line =~ s/&lt;br&gt;/, /gi;
 		$logLevelText = 'Unknown';
@@ -826,7 +822,7 @@ sub outputLine {
 	# Rule 3: if Authentication enabled, only print if user enabled for select Group
 	if ( $NT->{$logNode}{group} ne "" and $AU->Require and not $AU->InGroup($NT->{$logNode}{group}) ) { return 0 }
 
-	if ( getbool($C->{syslogDNSptr}) and (lc $logName eq "cisco_syslog")) {
+	if ( NMISNG::Util::getbool($C->{syslogDNSptr}) and (lc $logName eq "cisco_syslog")) {
 		# have a go at finding out the hostname for any ip address that may have been referenced in the log.
 		# assumes we have populated our DNS with lots of PTR records !
 		my $i = 3;				# put a failsafe loop counter in here !
@@ -977,7 +973,7 @@ sub logRFCColor {
 		'Normal' => '7',
 		'Unknown' => '7'
 	);
-	return colorPercentHi( (100/7)*$RFC{$_[0]} );
+	return NMISNG::Util::colorPercentHi( (100/7)*$RFC{$_[0]} );
 }
 
 

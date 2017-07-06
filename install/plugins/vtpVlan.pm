@@ -33,7 +33,7 @@ package vtpVlan;
 our $VERSION = "1.1.0";
 
 use strict;
-use func;												# for logging, info
+use NMISNG::Util;												# for logging, info
 
 sub update_plugin
 {

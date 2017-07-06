@@ -35,7 +35,8 @@ our $VERSION="1.1.0";
 
 use strict;
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+# not required, doesn't use NMIS modules
+# use lib "$FindBin::Bin/../lib";
 use Socket;
 use Getopt::Std;
 use POSIX qw();

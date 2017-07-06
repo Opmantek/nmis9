@@ -417,7 +417,7 @@ sub node_uuid
 
 # returns the storage structure, optionally replaces it (all of it)
 # to modify: call first to get, modify the copy, then call with the updated copy to set
-# args: optional new storage info (hashref)
+# args: optional new storage NMISNG::Util::info (hashref)
 # returns: clone of storage info, logs on error
 sub storage
 {

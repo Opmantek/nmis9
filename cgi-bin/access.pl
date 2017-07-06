@@ -35,8 +35,8 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -48,14 +48,14 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -63,7 +63,7 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -91,7 +91,7 @@ sub loadAccess {
 
 	print table(Tr(td(p(b("Welcome at the Network Management Information System"))))) if $start_page_id eq '';
 
-	my $AT = loadAccessTable();
+	my $AT = Compat::NMIS::loadAccessTable();
 	if ($AT) {
 		print "<script>\n";
 		for my $nm (keys %{$AT}) {

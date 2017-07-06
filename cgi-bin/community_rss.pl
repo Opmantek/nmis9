@@ -35,9 +35,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
-use NMIS::License;
+use Compat::NMIS;
+use NMISNG::Util;
+use Compat::License;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -50,7 +50,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 if ($Q->{act} eq '' ) {	
 	&printFeed();
@@ -61,7 +61,7 @@ sub printFeed {
 	my $feedurl = $C->{community_rss_url} || "https://community.opmantek.com/rss/NMIS.xml";
 
 	print header($headeropts);
-	pageStartJscript(title => "NMIS Community News") if (!getbool($Q->{widget}));
+	Compat::NMIS::pageStartJscript(title => "NMIS Community News") if (!NMISNG::Util::getbool($Q->{widget}));
 
 	print qq|
 <script>
@@ -91,6 +91,6 @@ sub printFeed {
 
 	print end_table;
 
-	pageEnd if (!getbool($Q->{widget}));
+	pageEnd if (!NMISNG::Util::getbool($Q->{widget}));
 
 }

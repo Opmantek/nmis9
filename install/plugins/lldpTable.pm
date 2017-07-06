@@ -34,9 +34,9 @@ our $VERSION = "1.1.0";
 
 use strict;
 
-use func; # required for logMsg
+use NMISNG::Util; # required for logMsg
 
-use NMIS;
+use Compat::NMIS;
 
 
 sub update_plugin
@@ -53,7 +53,7 @@ sub update_plugin
 
 	info("LLDP plugin update-phase Working on $node LLDP Table");
 
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 
 	for my $key (keys %{$NI->{lldp}})
 	{

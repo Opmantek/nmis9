@@ -4,8 +4,8 @@ package network;
 our $VERSION = "1.0.0";
 
 use strict;
-use func;												# for the conf table extras, and beautify_physaddress
-use NMIS;												# for the conf table extras, and beautify_physaddress
+use NMISNG::Util;												# for the conf table extras, and beautify_physaddress
+use Compat::NMIS;												# for the conf table extras, and beautify_physaddress
 use JSON::XS;
 
 sub update_plugin
@@ -75,7 +75,7 @@ sub extractNetwork {
 		my $ip = $NI->{system}{host};
 		# is the address a host name not a handy IP address
 		if ( $ip !~ /\d+\.\d+\.\d+\.\d+/ )  {
-			$ip = resolveDNStoAddr($ip);
+			$ip = Compat::NMIS::resolveDNStoAddr($ip);
 		}
 		my $ifIndex = 0;
 		$nodeNet->{ip}{$ifIndex}{ipSubnet} = undef;

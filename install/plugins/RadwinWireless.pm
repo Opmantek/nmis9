@@ -34,8 +34,8 @@ our $VERSION = "1.0.1";
 
 use strict;
 
-use func;												# for the conf table extras
-use NMIS;
+use NMISNG::Util;												# for the conf table extras
+use Compat::NMIS;
 
 sub update_plugin
 {
@@ -50,7 +50,7 @@ sub update_plugin
 	my $changesweremade = 0;
 	
 	info("Working on $node RadwinWireless");
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 
 	for my $key (keys %{$NI->{HBS}})
 	{

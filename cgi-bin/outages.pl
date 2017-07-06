@@ -36,9 +36,9 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use Time::ParseDate;
-use NMIS;
-use Sys;
-use func;
+use Compat::NMIS;
+use NMISNG::Sys;
+use NMISNG::Util;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -50,14 +50,14 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -65,10 +65,10 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # default is widgeted mode, only off if explicitely set to false
-my $widget = getbool($Q->{widget},"invert")? "false": "true";
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false": "true";
 # numeric option as $widget needs to remain t/f text
 my $wantwidget = $widget eq 'true';
 
@@ -100,12 +100,12 @@ sub viewOutage {
 	my $time = time();
 
 	print header($headeropts);
-	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
+	Compat::NMIS::pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 	
-	my $OT = loadOutageTable();
-	my $NT = loadNodeTable();
+	my $OT = Compat::NMIS::loadOutageTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
 	# start of form
@@ -114,7 +114,7 @@ sub viewOutage {
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
-	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 
@@ -145,10 +145,10 @@ sub viewOutage {
 				scrolling_list(-name=>'node',-multiple=>'true',-size=>'12',override=>'1',-values=>\@nodes,-default=>\@nd) ),
 			td({class=>'info'},
 				textfield(-name=>'start',-id=>'id_start',-style=>'background-color:yellow;width:100%;',override=>'1',
-					-value=>returnDateStamp($start)),div({-id=>'calendar-start'}) ),
+					-value=>NMISNG::Util::returnDateStamp($start)),div({-id=>'calendar-start'}) ),
 			td({class=>'info'},
 				textfield(-name=>'end',-id=>'id_end',-style=>'background-color:yellow;width:100%;',override=>'1',
-					-value=>returnDateStamp($end)),div({-id=>'calendar-end'}) ),
+					-value=>NMISNG::Util::returnDateStamp($end)),div({-id=>'calendar-end'}) ),
 			td({class=>'info'},
 				textfield(-name=>'change',-style=>'background-color:yellow;width:200px;',override=>'1',-value=>$change)),
 			td({class=>'info',colspan=>'2',align=>'center'},
@@ -173,7 +173,7 @@ sub viewOutage {
 		td({class=>'header',align=>'center'},'Status'),
 		td({class=>'header',align=>'center'},'Action')
 		);
-	foreach my $ot (sortall($OT,'start','rev')) {
+	foreach my $ot (NMISNG::Util::sortall($OT,'start','rev')) {
 		next unless $AU->InGroup($NT->{$OT->{$ot}{node}}{group});
 		next if $Q->{node} ne '' and $node !~ /$OT->{$ot}{node}/;
 
@@ -188,11 +188,11 @@ sub viewOutage {
 		}
 
 		push @out, Tr(
-			td({class=>'info',style=>getBGColor($color)},$NT->{$OT->{$ot}{node}}{name}),
-			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{start})),
-			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{end})),
-			td({class=>'info',style=>getBGColor($color)},$OT->{$ot}{change}),
-			td({class=>'info',style=>getBGColor($color)},$outage),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$NT->{$OT->{$ot}{node}}{name}),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($OT->{$ot}{start})),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($OT->{$ot}{end})),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$OT->{$ot}{change}),
+			td({class=>'info',style=>NMISNG::Util::getBGColor($color)},$outage),
 			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot&widget=$widget"},'delete'))
 			);
 	}
@@ -236,7 +236,7 @@ sub viewOutage {
 	});
 ENDS
 
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 
@@ -270,7 +270,7 @@ sub doaddOutage {
 
 	$change =~ s/,//g; # remove comma
 
-	my ($OT,$handle) = loadTable(dir=>'conf',name=>'Outage',lock=>'true');
+	my ($OT,$handle) = NMISNG::Util::loadTable(dir=>'conf',name=>'Outage',lock=>'true');
 
 	# process multiple node select
 	foreach my $nd ( split(/,/,$node) ) {
@@ -282,7 +282,7 @@ sub doaddOutage {
 		$OT->{$outageHash}{user} = $AU->User();
 	}
 
-	writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
+	NMISNG::Util::writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
 
 	$Q->{node} = '';
 }
@@ -291,7 +291,7 @@ sub dodeleteOutage {
 
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
-	outageRemove(key=>$Q->{hash});
+	Compat::NMIS::outageRemove(key=>$Q->{hash});
 
 
 	$Q->{node} = '';

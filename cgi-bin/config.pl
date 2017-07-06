@@ -35,10 +35,9 @@ use lib "$FindBin::Bin/../lib";
 
 #
 use strict;
-use NMIS;
-use func;
-use csv;
-use DBfunc;
+use Compat::NMIS;
+use Compat::DBfunc;							# fixme9: should be removed
+use NMISNG::Util;
 use URI::Escape;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -47,21 +46,21 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}?
-		!getbool($Q->{widget}, "invert") : 1;
+		!NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -72,7 +71,7 @@ if ($AU->Require) {
 $AU->CheckAccess("table_config_view","header");
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -96,7 +95,7 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 
 sub notfound {
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
@@ -116,11 +115,11 @@ sub displayConfig{
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
 
-	my $CT = loadCfgTable(); # load configuration of table
+	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	# start of form
   # the get() code doesn't work without a query param, nor does it work with all params present
@@ -177,7 +176,7 @@ sub typeSect {
 	my $CC = $args{data};
 	my @out;
 
-	my $CT = loadCfgTable(); # load configuration of table
+	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
 	my $ref = url(-absolute=>1)."?conf=$Q->{conf}";
 
@@ -234,13 +233,13 @@ sub editConfig{
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my $CT = loadCfgTable(); # load configuration of table
+	my $CT = Compat::NMIS::loadCfgTable(); # load configuration of table
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	# start of form, see comment for first start_form
 	# except that this one also needs the cancel case covered
@@ -278,7 +277,7 @@ sub editConfig{
 							Tr(td({class => "header", colspan => 2}, "Existing Groups"));
 
 		# figure out the number of members per group and warn the user if there are any members
-		my $LNT = loadLocalNodeTable();
+		my $LNT = Compat::NMIS::loadLocalNodeTable();
 		my %membercounts;
 		for my $node (values %$LNT)
 		{
@@ -377,7 +376,7 @@ sub editConfig{
 sub doEditConfig {
 	my %args = @_;
 
-	return 1 if (getbool($Q->{cancel}));
+	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -388,13 +387,13 @@ sub doEditConfig {
 	# check if DB <=> file change
 	if ($section eq 'database' and $item =~ /^db.*sql$/
 			and $C->{$item} ne $value and ($C->{$item} ne ''
-																		 or getbool($value)) ) {
+																		 or NMISNG::Util::getbool($value)) ) {
 		storeTable(section=>$section,item=>$item,value=>$value);
 		return 0;
 	}
 	else
 	{
-		my ($CC,undef) = readConfData(conf=>$C->{conf});
+		my ($CC,undef) = NMISNG::Util::readConfData();
 
 		# handle the comfy group_list editing and translate the separate values
 		# ditto for roletype, nettype and nodetype
@@ -438,7 +437,7 @@ sub doEditConfig {
 
 
 		$CC->{$section}{$item} = $value;
-		writeConfData(data=>$CC);
+		NMISNG::Util::writeConfData(data=>$CC);
 		return 1;
 	}
 }
@@ -452,11 +451,11 @@ sub deleteConfig {
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	my $value = $CC->{$section}{$item};
 
@@ -501,30 +500,30 @@ End_deleteConfig:
 sub doDeleteConfig {
 	my %args = @_;
 
-	return if (getbool($Q->{cancel}));
+	return if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
 	my $section = $Q->{section};
 	my $item = $Q->{item};
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	delete $CC->{$section}{$item};
 
-	writeConfData(data=>$CC);
+	NMISNG::Util::writeConfData(data=>$CC);
 }
 
 sub addConfig{
 	my %args = @_;
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	my $section = $Q->{section};
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
@@ -568,11 +567,11 @@ sub addConfig{
 sub doAddConfig {
 	my %args = @_;
 
-	return if (getbool($Q->{cancel}));
+	return if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_Config_rw");
 
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 
 	my $section = $Q->{section};
 
@@ -580,7 +579,7 @@ sub doAddConfig {
 		$CC->{$section}{$Q->{id}} = $Q->{value};
 	}
 
-	writeConfData(data=>$CC);
+	NMISNG::Util::writeConfData(data=>$CC);
 }
 
 # store full table in DB
@@ -610,7 +609,7 @@ sub storeTable {
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	if (!($table = $tables{$item})) {
 		print Tr(td({class=>'error'},"ERROR, table does not exist"));
@@ -618,7 +617,7 @@ sub storeTable {
 	}
 
 	# check if DB exists
-	my $dbh = DBfunc::->new();
+	my $dbh = Compat::DBfunc::->new();
 	if ( !$dbh->connect()) {
 		print Tr(td({class=>'error'},"ERROR, no mySQL server active"));
 		return;
@@ -639,10 +638,10 @@ sub storeTable {
 
 	print start_table;
 
-	if ( getbool($C->{$item}) ) {
+	if ( NMISNG::Util::getbool($C->{$item}) ) {
 		print Tr(td({class=>'info Plain'}," mySQL Database is active now"));
 	} else {
-		my $ext = getExtension(dir=>'conf');
+		my $ext = NMISNG::Util::getExtension(dir=>'conf');
 		print Tr(td({class=>'info Plain'}," conf/$table.$ext is active now"));
 	}
 
@@ -650,7 +649,7 @@ sub storeTable {
 
 	print Tr(td(
 				eval {
-					if (getbool($value)) {
+					if (NMISNG::Util::getbool($value)) {
 						return button(-name=>"button",
 													onclick=> '$("#dbinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
 													-value=>'Transfer from file to DB');
@@ -678,29 +677,29 @@ sub doStoreTable {
 
 	my $T;
 
-	return 1 if (getbool($Q->{cancel}));
+	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
-	if (getbool($Q->{db})) {
+	if (NMISNG::Util::getbool($Q->{db})) {
 		# from file to DB
-		if (($T = loadTable(dir=>'conf',name=>$table)) ) { # load requested table
-			if (DBfunc::->delete(table=>$table,where=>'*')) { # delete all rows
-				logMsg("INFO all rows of table=$table removed");
+		if (($T = NMISNG::Util::loadTable(dir=>'conf',name=>$table)) ) { # load requested table
+			if (Compat::DBfunc::->delete(table=>$table,where=>'*')) { # delete all rows
+				NMISNG::Util::logMsg("INFO all rows of table=$table removed");
 				my $cnt = 0;
 				for my $k (keys %{$T}) {
 					$T->{$k}{index} = $k; #
-					if ( ! DBfunc::->insert(table=>$table,data=>$T->{$k})) {
+					if ( ! Compat::DBfunc::->insert(table=>$table,data=>$T->{$k})) {
 						print header($headeropts);
-						pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
+						Compat::NMIS::pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) if (!$wantwidget);
 
 						print "\n</pre>\n";
-						print DBfunc->error."<br>\n";
+						print Compat::DBfunc->error."<br>\n";
 						pageEnd if (!$wantwidget);
 						last;
 					}
 				}
-				logMsg("INFO file transfer table=$table to DB done");
+				NMISNG::Util::logMsg("INFO file transfer table=$table to DB done");
 			} else {
-				logMsg("ERROR delete all rows of table$table");
+				NMISNG::Util::logMsg("ERROR delete all rows of table$table");
 				return;
 			}
 		} else {
@@ -708,19 +707,19 @@ sub doStoreTable {
 		}
 	} else {
 		# from DB to file
-		if (($T = DBfunc::->select(table=>$table)) ) {
-			writeTable(dir=>'conf',name=>$table,data=>$T);
-			my $ext = getExtension(dir=>'conf');
-			logMsg("INFO table=$table transfer from DB to file=conf/$table.$ext done");
+		if (($T = Compat::DBfunc::->select(table=>$table)) ) {
+			NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$T);
+			my $ext = NMISNG::Util::getExtension(dir=>'conf');
+			NMISNG::Util::logMsg("INFO table=$table transfer from DB to file=conf/$table.$ext done");
 		} else {
 			return;
 		}
 	}
 
 	# update config
-	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	my ($CC,undef) = NMISNG::Util::readConfData();
 	$CC->{$section}{$item} = $value;
-	writeConfData(data=>$CC);
+	NMISNG::Util::writeConfData(data=>$CC);
 
 }
 

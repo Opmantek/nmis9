@@ -27,30 +27,30 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.0G";
+our $VERSION = "9.0.0a";
 
 use FindBin qw($Bin);
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::RealBin/../lib";
 use strict;
 use POSIX qw(setsid);
 use Socket;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 use Data::Dumper;
 use Fcntl qw(:DEFAULT :flock);
 use File::Basename;
 use Test::Deep::NoTest;
 
-
-# Variables for command line munging
 my (  $restart, $fpingexit, $debug) = ();
-my %nvp = getArguements(@ARGV);
+
+my %nvp = % { NMISNG::Util::get_args_multi(@ARGV) };
+
 my %INFO;
 my $qripaddr = qr/\d+\.\d+\.\d+\.\d+/;
 
-if (!getbool($nvp{kill}) and !getbool($nvp{restart})
+if (!NMISNG::Util::getbool($nvp{kill}) and !NMISNG::Util::getbool($nvp{restart})
 		or (@ARGV == 1 and $ARGV[0] =~ /^-{1,2}(h(elp)?|\?)$/ )) {
-	my $ext = getExtension();
+	my $ext = NMISNG::Util::getExtension();
 	my $base = basename($0);
 	die "$base Version $VERSION
 
@@ -68,11 +68,11 @@ default is no logging, no debug\n";
 }
 
 # load configuration table
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+my $C = NMISNG::Util::loadConfTable(debug=>$nvp{debug});
 
 # check if nmis is locked, if so shut down immediately.
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
-if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+if (-f $lockoutfile or NMISNG::Util::getbool($C->{global_collect},"invert"))
 {
 	die ("Attention: NMIS is currently disabled, fpingd.pl is terminating!\n"
 			 .(-f $lockoutfile? "Remove the file $lockoutfile to re-enable.\n\n" :
@@ -80,9 +80,9 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 }
 
 ## setting debug levels
-$debug =  setDebug($nvp{debug});
+$debug =  NMISNG::Util::setDebug($nvp{debug});
 my $logfile     = $C->{'fpingd_log'};
-my $runfile     = "/var/run/nmis-fpingd.pid";
+my $runfile     = "/var/run/fpingd.pid";
 
 #----------------------------------------
 # check that fping is available!
@@ -90,7 +90,7 @@ my $fpingver = `fping -v`;
 if ($? >> 8)
 {
 	&debug("fping binary executable not found, please install fping utility");
-	logMsg("ERROR fping binary executable not found, please install fping utility");
+	NMISNG::Util::logMsg("ERROR fping binary executable not found, please install fping utility");
 	exit(1);
 }
 else
@@ -111,12 +111,12 @@ if ( -f $runfile ) {
 	chomp $alreadyrunning;
 	close(F);
 }
-if ( $alreadyrunning and ( getbool($nvp{kill}) or getbool($nvp{restart}) ))
+if ( $alreadyrunning and ( NMISNG::Util::getbool($nvp{kill}) or NMISNG::Util::getbool($nvp{restart}) ))
 {
 	killall($alreadyrunning);
 }
 
-if (defined $nvp{kill} and getbool($nvp{kill}))
+if (defined $nvp{kill} and NMISNG::Util::getbool($nvp{kill}))
 {
 	debug("Killed process $FindBin::Script, deleted $runfile");
 	exit(0);
@@ -165,7 +165,7 @@ $fpingcmd =~ s/length/$length/;
 $fpingcmd =~ s/retries/$retries/;
 $fpingcmd =~ s/count/$count/;
 
-my $ext = getExtension(dir=>'var');
+my $ext = NMISNG::Util::getExtension(dir=>'var');
 
 &debug( "logfile = $FindBin::Bin/../logs/fpingd.log") if defined $nvp{logging};
 &debug( "logging not enabled - set cmdline option \'logging=true\' if logging required") if !defined $nvp{logging};
@@ -187,14 +187,14 @@ chdir('/') or die "Can't chdir to /: $!";
 
 
 # for debugging, undocumented: argument foreground=true
-if (!getbool($nvp{"foreground"}))
+if (!NMISNG::Util::getbool($nvp{"foreground"}))
 {
 	# Reopen stdout, stdin with /dev/null; stderr to the fpingd logfile
 	# if we dont reopen, the calling terminal will wait, and nmis.pl daemon control will hang
 	open(STDIN, "<", "/dev/null") or die "cannot reopen stdin: $!\n";
 	open(STDOUT, ">", "/dev/null") or die "cannot reopen stdout: $!\n";
 	open(STDERR, ">>", $logfile) or die "cannot open stdout to $logfile: $!\n";
-	setFileProtDiag(file => $logfile);
+	NMISNG::Util::setFileProtDiag(file => $logfile);
 
 	if (!defined(my $pid = fork))
 	{
@@ -213,14 +213,14 @@ open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
 print PID $$;
 close PID;
 &debug("daemon started, pidfile $runfile created with pid: $$");
-logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $$");
+NMISNG::Util::logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $$");
 umask 0;
 
-if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
-        logMsg("INFO daemon fpingd will cache DNS for improved name resolution");
+if ( !NMISNG::Util::getbool($C->{daemon_fping_dns_cache},"invert") ) {
+        NMISNG::Util::logMsg("INFO daemon fpingd will cache DNS for improved name resolution");
 }
 else {
-        logMsg("WARNING daemon fpingd will not CACHE DNS, use under adult supervision");
+        NMISNG::Util::logMsg("WARNING daemon fpingd will not CACHE DNS, use under adult supervision");
 }
 
 
@@ -250,18 +250,18 @@ sub fastping
 	my $prevlnt;
 
 	# cannot use loadGenericTable as that checks and clashes with db_events_sql
-	my $oldeventconfig = loadTable(dir => 'conf', name => 'Events');
+	my $oldeventconfig = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 	my $qr_parse_result = qr/^.*\s+:(?:(?: \d+\.\d+)|(?: -)){1,$count}$/;
 
 	while(1)
 	{
 		$start_time = time();
 
-		my $lnt = loadLocalNodeTable();
+		my $lnt = Compat::NMIS::loadLocalNodeTable();
 		if ($prevlnt && !eq_deeply($lnt, $prevlnt))
 		{
 			debug("Nodes list has changed, reloading after the next sleep");
-			logMsg("INFO fpingd will reload the Nodes list as it has changed");
+			NMISNG::Util::logMsg("INFO fpingd will reload the Nodes list as it has changed");
 			$read_cnt = 1 if ($read_cnt > 1); # reload no later than after this run
 		}
 		$prevlnt = $lnt;
@@ -324,12 +324,12 @@ sub fastping
 							$loss = int( ($loss/$count) * 100 );
 						}
 					} else {
-						logMsg("INFO fping returned=$_");
+						NMISNG::Util::logMsg("INFO fping returned=$_");
 						### 2012-02-24 keiths, update from Till Dierkesmann to handle ICMP oddness
 						my $pingedhost=$_;
 						$pingedhost=~s/(.*)(\D)(\d+\.\d+\.\d+\.\d+)(.*)/$3/;
 						if(!defined $hostname or $hostname eq "") {
-							logMsg("INFO Hostname seems to be $pingedhost");
+							NMISNG::Util::logMsg("INFO Hostname seems to be $pingedhost");
 							$hostname=$pingedhost;
             }
 					}
@@ -340,7 +340,7 @@ sub fastping
 					# get node name back from host
 					if ( not exists $INFO{$hostname}{node} ) {
 						## 2011-12-07 keiths, changing error to be more accurate.
-						logMsg("ERROR hostname $hostname not found in FPING results");
+						NMISNG::Util::logMsg("ERROR hostname $hostname not found in FPING results");
 					} else {
 						# save only used info by nmis.pl
 						$ping_result{$INFO{$hostname}{node}} = {
@@ -361,11 +361,11 @@ sub fastping
 				}
 				close IN;
 
-				### logMsg("INFO run time of fping is ".(time()-$start_time)." sec. pinged ".(scalar keys %ping_result)." nodes");
+				### NMISNG::Util::logMsg("INFO run time of fping is ".(time()-$start_time)." sec. pinged ".(scalar keys %ping_result)." nodes");
 			}
 			else
 			{
-				logMsg("ERROR could not open pipe to fping: $!");
+				NMISNG::Util::logMsg("ERROR could not open pipe to fping: $!");
 				exit 1;
 			}
 		} # foreach row in nodelist
@@ -400,7 +400,7 @@ sub fastping
 						close RF or push(@problems,"ERROR could now write to or close $raweventlog: $!");
 					}
 				}
-				map { logMsg($_) } (@problems); # DO NOT run logMsg inside a critical section or while holding a lock!
+				map { NMISNG::Util::logMsg($_) } (@problems); # DO NOT run NMISNG::Util::logMsg inside a critical section or while holding a lock!
 			}
 
 			# only submit changes in status to the event system, or submit all if restart
@@ -417,7 +417,7 @@ sub fastping
 					{
 						fpingNotify($nd);
 					}
-					elsif ( not eventExist($nd, "Node Down", undef) )
+					elsif ( not Compat::NMIS::eventExist($nd, "Node Down", undef) )
 					{
 						# Device is DOWN, was up, as no entry in event database
 						&debug("\t$nd is now DOWN, was UP, Updating event database");
@@ -449,10 +449,10 @@ sub fastping
 				else
 				{
 					# check the event existence AND its currency!
-					my $event_exists = eventExist($nd, "Node Down", undef);
-					my $erec = eventLoad(filename => $event_exists) if ($event_exists);
+					my $event_exists = Compat::NMIS::eventExist($nd, "Node Down", undef);
+					my $erec = Compat::NMIS::eventLoad(filename => $event_exists) if ($event_exists);
 
-					if ($event_exists and $erec and getbool($erec->{current}))
+					if ($event_exists and $erec and NMISNG::Util::getbool($erec->{current}))
 					{
 						# Device was down is now UP!
 						# Only post the status if the event database records as currently down
@@ -470,30 +470,30 @@ sub fastping
 
 		# At this point, %ping_result is a hash populated by ping results keyed by NMIS host names
 		# Write the hash out to a file
-		writeTable(dir=>'var',name=>"nmis-fping",data=>\%ping_result );
+		NMISNG::Util::writeTable(dir=>'var',name=>"nmis-fping",data=>\%ping_result );
 
 		# check if the config is still unchanged, if not restart (but only after firstrun)
 		# ditto for the events config
-		my $newconf = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+		my $newconf = NMISNG::Util::loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
 		# re-check for nmis locked
 		my $lockoutfile = $newconf->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
-		if (-f $lockoutfile or getbool($newconf->{global_collect},"invert"))
+		if (-f $lockoutfile or NMISNG::Util::getbool($newconf->{global_collect},"invert"))
 		{
-			logMsg("WARN fping is terminating because NMIS is disabled!");
+			NMISNG::Util::logMsg("WARN fping is terminating because NMIS is disabled!");
 			die ("Attention: fping is terminating because NMIS is disabled!\n");
 		}
 
 		# cannot use loadGenericTable as that checks and clashes with db_events_sql
-		my $eventconfig = loadTable(dir => 'conf', name => 'Events');
+		my $eventconfig = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
 
 		my $whichchanged = !eq_deeply($oldeventconfig, $eventconfig) ?
 				"Events List" : !eq_deeply($C,$newconf) ? "Config" : undef;
 		if ($whichchanged)
 		{
 			debug("$whichchanged has changed, will restart after this sleep");
-			logMsg("INFO fpingd will restart after this sleep, $whichchanged has changed");
+			NMISNG::Util::logMsg("INFO fpingd will restart after this sleep, $whichchanged has changed");
 			sleep(int(5-rand(10)) + $sleep); # standard interval +/- 5 sec
-			logMsg("INFO fpingd is restarting now");
+			NMISNG::Util::logMsg("INFO fpingd is restarting now");
 			exec($origscript,@restartparams);
 			die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
 		}
@@ -517,13 +517,13 @@ sub fastping
 sub fpingCheckEvent
 {
 	my $node = shift;
-	&debug("\tUpdating event database via sub checkEvent() host: $node event: Node Up");
+	&debug("\tUpdating event database via sub Compat::NMIS::checkEvent() host: $node event: Node Up");
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name => $node, snmp => 'false');
 	my $NI = $S->ndinfo; # pointer to node info table
 
-	checkEvent( sys		=> $S,
+	Compat::NMIS::checkEvent( sys		=> $S,
 							event   => "Node Down",
 							element => "",
 							level   => "Normal",
@@ -537,12 +537,12 @@ sub fpingNotify
 {
 	my $node = shift;
 
-	&debug("\tUpdating event database via sub notify() host: $node event: Node Down");
+	&debug("\tUpdating event database via sub Compat::NMIS::notify() host: $node event: Node Down");
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node, snmp=>'false');
 
-	notify(	sys		=> $S,
+	Compat::NMIS::notify(	sys		=> $S,
 					event   => "Node Down",
 					element => "",
 					details => "Ping failed",
@@ -562,16 +562,16 @@ sub debug {
 	if ( $nvp{logging} )
 	{
 		open LOG, ">>$logfile" or warn "Can't write to $logfile: $!";
-		print LOG returnDateStamp(). " ". $_[0] ."\n";
+		print LOG NMISNG::Util::returnDateStamp(). " ". $_[0] ."\n";
 		close LOG;
-		setFileProtDiag(file => $logfile);
+		NMISNG::Util::setFileProtDiag(file => $logfile);
 	}
 }
 
 sub catch_zap {
 	$fpingexit++;
 	&debug("I was killed by $_[0]");
-	logMsg("INFO daemon fpingd killed by $_[0]",
+	NMISNG::Util::logMsg("INFO daemon fpingd killed by $_[0]",
 				 do_not_lock => 1);
 	unlink $runfile;
 	die "I was killed by $_[0]: $!\n";
@@ -594,27 +594,27 @@ sub killall {
 sub readNodes
 {
 	my @hosts;
-	my $NT = loadLocalNodeTable(); # from (cached) file or db
+	my $NT = Compat::NMIS::loadLocalNodeTable(); # from (cached) file or db
 
 	foreach my $nd (sort keys %{$NT} ) {
-		if ( getbool($NT->{$nd}{active}) and getbool($NT->{$nd}{ping})) {
+		if ( NMISNG::Util::getbool($NT->{$nd}{active}) and NMISNG::Util::getbool($NT->{$nd}{ping})) {
 			if ( $INFO{$nd}{name} eq '' or $NT->{$nd}{host} ne $INFO{$nd}{org_host}) {
 				# new entry or changed host address
 				$INFO{$nd}{org_host} = $NT->{$nd}{host}; # remember original for changes
 				$INFO{$nd}{name} = $nd; # remember name of node
 
 					# Optionally Caching DNS, improved performance but makes development harder :-)
-          if ( !getbool($C->{daemon_fping_dns_cache},"invert") ) {
+          if ( !NMISNG::Util::getbool($C->{daemon_fping_dns_cache},"invert") ) {
 						if ($NT->{$nd}{host} =~ /$qripaddr/) {
 							$INFO{$NT->{$nd}{host}}{node} = $nd;
 							$INFO{$nd}{host} = $NT->{$nd}{host};
 						}
 						# get ip address
-						elsif ((my $addr = resolveDNStoAddr($NT->{$nd}{host}))) {
+						elsif ((my $addr = Compat::NMIS::resolveDNStoAddr($NT->{$nd}{host}))) {
 							$INFO{$addr}{node} = $nd; # for backwards search
 							$INFO{$nd}{host} = $addr;
 						} else {
-							logMsg("ERROR cannot resolve host=$NT->{$nd}{host} from node $nd to IP address using OS (e.g. DNS or /etc/hosts)");
+							NMISNG::Util::logMsg("ERROR cannot resolve host=$NT->{$nd}{host} from node $nd to IP address using OS (e.g. DNS or /etc/hosts)");
 							next;
 						}
 					}
@@ -631,7 +631,7 @@ sub readNodes
 				if ($NT->{$nd}{postpone} =~ /d+/) {
 					$INFO{$nd}{postpone} = $NT->{$nd}{postpone}; # in seconds
 				} else {
-					logMsg("ERROR ($nd) value of postpone in table Nodes must be numeric value (seconds)");
+					NMISNG::Util::logMsg("ERROR ($nd) value of postpone in table Nodes must be numeric value (seconds)");
 				}
 			}
 			push @hosts,$INFO{$nd}{host};
@@ -643,7 +643,7 @@ sub readNodes
 
 	if ( ! @hosts ) {
 		&debug("No nodes found to ping");
-		logMsg("INFO no nodes found in Node table to ping, exit daemon");
+		NMISNG::Util::logMsg("INFO no nodes found in Node table to ping, exit daemon");
 		exit 1;
 	} else {
 		&debug("Read Nodelist, @hosts");

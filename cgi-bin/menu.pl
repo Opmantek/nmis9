@@ -33,10 +33,10 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Data::Dumper;
 
-use NMIS;
-use func;
-use Sys;
-use NMIS::Modules;
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::Sys;
+use Compat::Modules;
 
 use JSON::XS;
 
@@ -46,18 +46,18 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 $Q->{conf} = (exists $Q->{conf} and $Q->{conf} ) ?  $Q->{conf} : $C->{conf};
 
 # set some defaults
 my $widget_refresh = $C->{widget_refresh_time} ? $C->{widget_refresh_time} : 180 ;
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -158,7 +158,7 @@ sub menu_bar_site {
 	
 	sub menu_site 
 	{
-		my $M = NMIS::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
+		my $M = Compat::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
 													 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
 		my $modules = $M->getModules();
 
@@ -178,8 +178,8 @@ sub menu_bar_site {
 		push @netstatus, qq|<a id='nmislogs' href="logs.pl?conf=$Q->{conf}&amp;act=log_file_view&amp;lines=50">Network Events</a>|
 						if ($AU->CheckAccess("Event_Log","check"));
 
-		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if tableExists('Customers');
-		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if tableExists('BusinessServices');
+		push @netstatus, qq|<a id='ntw_customer' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_customer">Customer Status and Health</a>| if Compat::NMIS::tableExists('Customers');
+		push @netstatus, qq|<a id='ntw_business' href="network.pl?conf=$Q->{conf}&amp;refresh=$widget_refresh&amp;act=network_summary_business">Business Services Status and Health</a>| if Compat::NMIS::tableExists('BusinessServices');
 		push @netstatus, qq|<a id='ntw_map' href="$modules->{opMaps}{link}?widget=true">Network Maps</a>| if $M->moduleInstalled(module => "opMaps");
 		push @netstatus, qq|<a id='selectNode_open' onclick="selectNodeOpen();return false;">Quick Search</a>|;
 		push @netstatus, qq|<a id='ntw_rss' href="community_rss.pl?widget=true">NMIS Community</a>|;
@@ -213,8 +213,8 @@ sub menu_bar_site {
 		my @nettools;		 
 		push @nettools, qq|<a id='tools_ping' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ping">Ping</a>|;
 		push @nettools, qq|<a id='tools_trace' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_trace">Traceroute</a>|;
-		push @nettools, qq|<a id='tools_lft' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_lft">LFT</a>| if (getbool($C->{view_lft})); 
-		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if (getbool($C->{view_mtr}));
+		push @nettools, qq|<a id='tools_lft' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_lft">LFT</a>| if (NMISNG::Util::getbool($C->{view_lft})); 
+		push @nettools, qq|<a id='tools_mtr' href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_mtr">MTR</a>| if (NMISNG::Util::getbool($C->{view_mtr}));
 		push @nettools, qq|<a id='tls_snmp' href="snmp.pl?conf=$Q->{conf}&amp;act=snmp_var_menu">SNMP Tool</a>|;
 													
 
@@ -304,7 +304,7 @@ sub menu_bar_site {
 								
 		push @menu_site, qq|Service Desk|, \@sdeskstuff;
 
-		my $Tables = loadGenericTable('Tables');
+		my $Tables = Compat::NMIS::loadGenericTable('Tables');
 
 		my @tableMenu;		 
 			
@@ -509,19 +509,19 @@ sub menu_node_panel {
 	my $if;
 	my $tooltip;
 
-	my $NI = loadNodeInfoTable($node);
+	my $NI = Compat::NMIS::loadNodeInfoTable($node);
 	my @menuInt;
 	my @tmp;
 	push @menuInt,	( qq|<a id="panel" name="Node" href="network.pl?conf=$Q->{conf}&amp;act=network_node_view&amp;node=$node&amp;server=$C->{server}">Node</a>| );
 	# added check for no interfaces, node is down or never collected due to snmp fault..
-	if ( getbool($NI->{system}{collect}) and keys %{$NI->{interface}} ) {
+	if ( NMISNG::Util::getbool($NI->{system}{collect}) and keys %{$NI->{interface}} ) {
 		#$menu_site[1][0] = qq|<a Interfaces</a>|;
 		# check for interface up and collect is true
 		# create temporal table
 		foreach my $intf (keys %{$NI->{interface}}) {
 			# get all interface where oper is up and collecting
 			if ($NI->{interface}{$intf}{ifAdminStatus} eq 'up' 
-					and getbool($NI->{interface}{$intf}{collect})) {
+					and NMISNG::Util::getbool($NI->{interface}{$intf}{collect})) {
 				$if->{$intf}{ifDescr} = $NI->{interface}{$intf}{ifDescr};
 				$if->{$intf}{Description} = $NI->{interface}{$intf}{Description};
 			}
@@ -529,7 +529,7 @@ sub menu_node_panel {
 		@tmp=();
 		# create the sorted interface list
 		# but only if interface info available
-		foreach my $intf (sorthash($if,['ifDescr'],'fwd')) {
+		foreach my $intf (NMISNG::Util::sorthash($if,['ifDescr'],'fwd')) {
 
 			#TBD - nmisdev - replace with jquery popup ??
 
@@ -596,12 +596,12 @@ EO_TEXT
 sub save_window_state {
 	my $data = $Q->{POSTDATA};	
 	my $windowData = decode_json($data);
-	my ($allWindowData, $handle) = loadTable(dir => 'var', 
+	my ($allWindowData, $handle) = NMISNG::Util::loadTable(dir => 'var', 
 																					 name => "nmis-windowstate",
 																					 lock =>  'true');
 	$allWindowData->{$user} = $windowData->{windowData};
 		
-	writeTable(dir=>'var', name=>"nmis-windowstate", data=>$allWindowData,
+	NMISNG::Util::writeTable(dir=>'var', name=>"nmis-windowstate", data=>$allWindowData,
 			handle => $handle);
 
 	print header({-type=>"text/html",-expires=>'now'});

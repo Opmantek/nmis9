@@ -26,26 +26,16 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-
-package Notify::critical;
+package NMISNG::Notify::critical;
 our $VERSION = "1.1.0";
 
 require 5;
 
 use strict;
-use notify;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Data::Dumper;
-
-
-@ISA = qw(Exporter);
-
-@EXPORT = qw(
-		critical
-	);
-
-@EXPORT_OK = qw(	);
+use NMISNG::Notify;
 
 sub sendNotification {
 	my %arg = @_;
@@ -67,7 +57,7 @@ sub sendNotification {
 	{
 		print STDERR "Notify::critical Sending critical email to $contact->{Email}\n" if $C->{debug};
 
-		my ($status, $code, $errmsg) = sendEmail(
+		my ($status, $code, $errmsg) = NMISNG::Notify::sendEmail(
 			# params for connection and sending 
 			sender => $C->{mail_from},
 			recipients => [$contact->{Email}],

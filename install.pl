@@ -232,7 +232,7 @@ libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-process
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
-libexcel-writer-xlsx-perl libmojolicious-perl));
+libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl));
 
 	my @rhpackages = (qw(perl-core autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -241,7 +241,7 @@ net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
 perl-JSON-XS httpd fping nmap make groff perl-CPAN crontabs dejavu*
 perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
-perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
+perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool perl-SNMP_Session
 rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX
  perl-Digest-HMAC perl-Crypt-DES perl-Clone
@@ -1579,7 +1579,7 @@ sub listModules
   my (@missing, @critmissing);
   my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
 										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
-										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
+										 "SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
 	# sort by install prio, or file
@@ -1606,10 +1606,6 @@ sub listModules
 					.qq|\n\nNote: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt,
 Authen::TacacsPlus, Authen::Simple::RADIUS are optional components for the
 NMIS AAA system.
-
-The modules SNMP_util and SNMP_Session are also optional (needed only for
-the ipsla subsystem) and can be installed either with
-'yum install perl-SNMP_Session' or 'apt-get install libsnmp-session-perl'.
 
 The modules Digest::HMAC and Crypt::DES are required if any of your
 devices use SNMP Version 3.\n\n|;

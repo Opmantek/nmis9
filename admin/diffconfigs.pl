@@ -32,7 +32,7 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use strict;
-use func;
+use NMISNG::Util;
 use File::Basename;
 use Getopt::Std;
 
@@ -56,10 +56,10 @@ my ($cf1,$cf2)=@ARGV;
 $cf2 .= "/".basename($cf1) if (-d $cf2);
 die $usage if (!-f $cf2);
 
-my $c1 = readFiletoHash(file=>$cf1);
+my $c1 = NMISNG::Util::readFiletoHash(file=>$cf1);
 die "Error: could not read $cf1: $!\n" if (!$c1);
 
-my $c2 = readFiletoHash(file=>$cf2);
+my $c2 = NMISNG::Util::readFiletoHash(file=>$cf2);
 die "Error: could not read $cf2: $!\n" if (!$c2);
 
 print "\nComparing $cf1 to $cf2\n";

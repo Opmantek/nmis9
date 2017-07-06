@@ -34,8 +34,8 @@ our $VERSION = "1.0.0";
 
 use strict;
 
-use func;												# for the conf table extras, and beautify_physaddress
-use NMIS;
+use NMISNG::Util;												# for the conf table extras, and beautify_physaddress
+use Compat::NMIS;
 
 sub update_plugin
 {

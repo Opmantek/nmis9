@@ -35,15 +35,12 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
-use NMIS;
-use func;
-use Sys;
-use Mib;
-use snmp;
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::Sys;
+use NMISNG::MIB;
+use NMISNG::Snmp;
 use Net::SNMP qw(oid_lex_sort);
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -52,17 +49,17 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -70,7 +67,7 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -101,7 +98,7 @@ sub menuSNMP{
 	my $go = $Q->{go};
 
 	my $xoid;
-	my $NT = loadLocalNodeTable(); # node table
+	my $NT = Compat::NMIS::loadLocalNodeTable(); # node table
 
 	my ($OIDS,$NAMES) = Mib::loadoid();
 
@@ -167,7 +164,7 @@ sub menuSNMP{
 	print td(button(-name=>'submit',onclick=>"get('nmisSnmp','go');",-value=>"Go"));
 
 	print end_Tr;
-	if ($node ne '' and $oid ne '' and getbool($go)) { viewSNMP(oid=>$oid); }
+	if ($node ne '' and $oid ne '' and NMISNG::Util::getbool($go)) { viewSNMP(oid=>$oid); }
 
 	print end_table;
 	print hidden(-name=>'pnode', -default=>"$node",-override=>'1');
@@ -201,10 +198,10 @@ sub viewSNMP {
 			return;
 		}
 
-		$SNMP = snmp->new(debug => $Q->{debug});
-		if (!$SNMP->open( host => stripSpaces($host),
-											version => stripSpaces($version),
-											community => stripSpaces($community),
+		$SNMP = NMISNG::Snmp->new(debug => $Q->{debug});
+		if (!$SNMP->open( host => NMISNG::Util::stripSpaces($host),
+											version => NMISNG::Util::stripSpaces($version),
+											community => NMISNG::Util::stripSpaces($community),
 											port => $port,
 											max_msg_size => $C->{snmp_max_msg_size},
 											debug => $Q->{debug})) {
@@ -212,7 +209,7 @@ sub viewSNMP {
 			return;
 		}
 	} else {
-		$S = Sys::->new; # get system object
+		$S = NMISNG::Sys->new; # get system object
 		if ($S->init(name=>$node)) { # open snmp
 			$SNMP = $S->snmp;
 			if (!$S->open()) {
@@ -230,7 +227,7 @@ sub viewSNMP {
 		print Tr(td({class=>'header',colspan=>'3'},'result of query'.$msg));
 		for my $k (oid_lex_sort(keys %{$result})) {
 			print Tr(
-				td({class=>'header'},escapeHTML(oid2name($k))),
+				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($k))),
 				td({class=>'header'},$k),td({class=>'info'},escapeHTML($result->{$k})));
 		}
 	} else {
@@ -238,7 +235,7 @@ sub viewSNMP {
 		if ((($result) = $SNMP->getarray($oid))) {
 			print Tr(td({class=>'header',colspan=>'3'},'result of query'));
 			print Tr(
-				td({class=>'header'},escapeHTML(oid2name($oid))),
+				td({class=>'header'},escapeHTML(NMISNG::MIB::oid2name($oid))),
 				td({class=>'header'},$oid),td({class=>'info'},escapeHTML($result)));
 			} else {
 			print Tr(td({class=>'error'},$SNMP->error));

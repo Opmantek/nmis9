@@ -36,10 +36,10 @@ use lib "$FindBin::Bin/../lib";
 #
 use strict;
 use List::Util;
-use NMIS;
-use func;
-use Sys;
-use rrdfunc;
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::Sys;
+use NMISNG::rrdfunc;
 use Time::ParseDate;
 use URI::Escape;
 
@@ -52,20 +52,20 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-rrdfunc::require_RRDs(config=>$C);
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 my $user;
 my $privlevel;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);  
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -73,7 +73,7 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -122,10 +122,10 @@ sub typeGraph {
 
 	my $length;
 
-	my $NT = loadLocalNodeTable();
-	my $GT = loadGroupTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
 
-	my $S = Sys::->new; # get system object
+	my $S = NMISNG::Sys->new; # get system object
 	 # load node info and Model if name exists
 	notfound("Node not found") && return if( !$S->init(name=>$node) );
 	
@@ -168,7 +168,7 @@ sub typeGraph {
 			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
 	}
 	print start_html(
-		-title => "Graph Drill In for $heading @ ".returnDateStamp." - $C->{server_name}",
+		-title => "Graph Drill In for $heading @ ".NMISNG::Util::returnDateStamp." - $C->{server_name}",
 		-meta => { 'CacheControl' => "no-cache",
 			'Pragma' => "no-cache",
 			'Expires' => -1
@@ -271,8 +271,8 @@ sub typeGraph {
 	$p_start = $start;
 	$p_end = $end;
 
-	$date_start = returnDateStamp($start);
-	$date_end = returnDateStamp($end);
+	$date_start = NMISNG::Util::returnDateStamp($start);
+	$date_end = NMISNG::Util::returnDateStamp($end);
 
 	#==== calculation done
 
@@ -301,11 +301,11 @@ sub typeGraph {
 				}
 			}
 			else {
-				logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
+				NMISNG::Util::logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
 			}
 		}
 		if ($auth) {
-			if ( getbool($NT->{$node}{active}) ) {
+			if ( NMISNG::Util::getbool($NT->{$node}{active}) ) {
 				push(@nodelist, $NT->{$node}{name});
 			}
 		}
@@ -474,13 +474,13 @@ sub typeGraph {
 		{
 			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
 			$time = RRDs::last $db;
-			$lastUpdate = returnDateStamp($time);
+			$lastUpdate = NMISNG::Util::returnDateStamp($time);
 		}
 
 		$S->readNodeView;
 		my $V = $S->view;
 		# instead of loading a new inventory object re-use the model loaded above
-		my $speed = &convertIfSpeed($intf_data->{ifSpeed});
+		my $speed = &NMISNG::Util::convertIfSpeed($intf_data->{ifSpeed});
 		if ( $V->{interface}{"${index}_ifSpeedIn_value"} ne "" and $V->{interface}{"${index}_ifSpeedOut_value"} ne "" ) {
 				$speed = qq|IN: $V->{interface}{"${index}_ifSpeedIn_value"} OUT: $V->{interface}{"${index}_ifSpeedOut_value"}|;
 		}
@@ -593,13 +593,13 @@ sub typeGraph {
 # unreachable dead code as of 2016-08
 sub typeExport {
 
-	my $S = Sys::->new; # get system object
+	my $S = NMISNG::Sys->new; # get system object
 	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 	my $graphtype = $Q->{graphtype};
 
-	my $NT = loadLocalNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	my %interfaceTable;
 	my $database;
@@ -630,7 +630,7 @@ sub typeExport {
 		}
 	}
 
-	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$graphtype,mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
+	my ($statval,$head) = NMISNG::rrdfunc::getRRDasHash(sys=>$S,graphtype=>$graphtype,mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
 	my $filename = "$Q->{node}"."-"."$graphtype";
 	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$graphtype" }
 	print "Content-type: text/csv;\n";
@@ -655,13 +655,13 @@ sub typeExport {
 # unreachable dead code as of 2016-08
 sub typeStats {
 
-	my $S = Sys::->new; # get system object
+	my $S = NMISNG::Sys->new; # get system object
 	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-	my $NT = loadLocalNodeTable();
-	my $C = loadConfTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
+	my $C = NMISNG::Util::loadConfTable();
 
 	print header($headeropts);
 
@@ -705,10 +705,10 @@ sub typeStats {
 
 	$Q->{intf} = $Q->{group} if $Q->{group} ne '';
 
-	my $statval = getRRDStats(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
+	my $statval = NMISNG::rrdfunc::getRRDStats(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
 	my $f = 1;
-	my $starttime = returnDateStamp($Q->{start});
-	my $endtime = returnDateStamp($Q->{end});
+	my $starttime = NMISNG::Util::returnDateStamp($Q->{start});
+	my $endtime = NMISNG::Util::returnDateStamp($Q->{end});
 
 	print start_table;
 

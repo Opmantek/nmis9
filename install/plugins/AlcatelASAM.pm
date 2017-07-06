@@ -33,8 +33,8 @@ package AlcatelASAM;
 our $VERSION = "1.1.0";
 
 use strict;
-use NMIS;												# lnt
-use func;												# for the conf table extras
+use Compat::NMIS;												# lnt
+use NMISNG::Util;												# for the conf table extras
 use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
@@ -42,7 +42,7 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C) = @args{qw(node sys config)};
 
-	my $LNT = loadLocalNodeTable(); # fixme required? are rack_count and shelf_count kept in the node's ndinfo section?
+	my $LNT = Compat::NMIS::loadLocalNodeTable(); # fixme required? are rack_count and shelf_count kept in the node's ndinfo section?
 	my $NC = $S->ndcfg;
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
@@ -81,7 +81,7 @@ sub update_plugin
 	}
 
 	# Get the SNMP Session going.
-	my $snmp = snmp->new(name => $node);
+	my $snmp = NMISNG::Snmp->new(name => $node);
 	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
 			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
 	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)

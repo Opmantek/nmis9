@@ -38,13 +38,13 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use File::Basename;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 use Data::Dumper;
 use NMIS::Integration;
-use NMIS::Timing;
+use Compat::Timing;
 
-my $t = NMIS::Timing->new();
+my $t = Compat::Timing->new();
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=(which action to take)
@@ -136,7 +136,7 @@ sub processNodes {
 	my $serverRoles = loadTable(dir=>'conf',name=>'ServerRoles');
 
 	foreach my $node (sort keys %{$LNT}) {	
-		my $S = Sys::->new; # get system object
+		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		my $NI = $S->ndinfo;
 		
@@ -382,7 +382,7 @@ sub nodeServiceReport {
 	my $filter = $args{filter} || "";
 	
 	my $noExceptions = 1;
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 	
 	#print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
 	my @headings = (
@@ -418,7 +418,7 @@ sub nodeServiceReport {
 			if ( $group eq "" or $group eq $LNT->{$node}{group} ) {
 				my $intCollect = 0;
 				my $intCount = 0;
-				my $S = Sys::->new; # get system object
+				my $S = NMISNG::Sys->new; # get system object
 				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 				my $NI = $S->ndinfo;
 				my $IF = $S->ifinfo;

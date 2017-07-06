@@ -1,0 +1,260 @@
+#!/usr/bin/perl
+#
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+use strict;
+our $VERSION = "9.0.0a";
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use POSIX qw();
+use File::Basename;
+use Data::Dumper;
+
+use Compat::NMIS;			# fixme9: should we rewrite add-outage code to not use loadLocalNodeTable?
+use NMISNG;
+use NMISNG::Log;
+use NMISNG::Util;
+
+if ( @ARGV == 1 && $ARGV[0] eq "--version" )
+{
+	print "version=$VERSION\n";
+	exit 0;
+}
+
+my $thisprogram = basename($0);
+my $usage       = "Usage: $thisprogram [option=value...] <act=command>
+
+ act=import-nodes-from-nodes-file
+ act=import-nodeconf-from-files
+
+ act=add-outage {node|group}=name start=HH:MM end=HH:MM [comment=text]
+ act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
+\n";
+
+die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
+my $Q = NMISNG::Util::get_args_multi(@ARGV);
+
+my $C      = NMISNG::Util::loadConfTable();
+die "no config available!\n" if (!$C);
+my $logger = NMISNG::Log->new(
+	debug => $Q->{debug},
+	info  => $Q->{info},
+	level => $C->{log_level},
+	path  => $C->{'<nmis_logs>'} . "/cli.log"
+);
+
+my $nmisng = NMISNG->new(
+	config => $C,
+	log    => $logger,
+);
+
+
+if ( $Q->{act} eq "import-nodes-from-nodes-file" )
+{
+	my $node_table = NMISNG::Util::loadTable( dir => 'conf', name => 'Nodes' );
+	foreach my $node_name_key ( keys %$node_table )
+	{
+		my $node_configuration = $node_table->{$node_name_key};
+		my $node = $nmisng->node( uuid => $node_configuration->{uuid}, create => 1 );
+
+		# set the configuration
+ 		if ( $node->is_new )
+		{
+			# make sure cluster_id is set
+			$node_configuration->{cluster_id} ||= $C->{server_name} // 'localhost';
+			$node->configuration($node_configuration);
+		}
+
+		# save
+		my ($op,$error) = $node->save();
+		$logger->error("Error saving node:",$error) if($error);
+		$logger->debug( "$node_name_key saved to database, op:", $op );
+	}
+}
+elsif ( $Q->{act} eq "import-nodeconf-from-files" )
+{
+	$logger->NMISNG::Util::info( "Starting " . $Q->{act} );
+
+	# this is highly inpired by "get_nodeconf"
+	# walk the dir
+	my $C     = NMISNG::Util::loadConfTable();                     # likely cached
+	my $ncdir = $C->{'<nmis_conf>'} . "/nodeconf";
+	opendir( D, $ncdir )
+		or $logger->error("Cannot open nodeconf dir: $!");
+	my @cands = grep( /^[a-z0-9_-]+\.json$/, readdir(D) );
+	closedir(D);
+
+	for my $maybe (@cands)
+	{
+		my $data = NMISNG::Util::readFiletoHash( file => "$ncdir/$maybe", json => 1 );
+		if ( ref($data) ne "HASH" or !keys %$data or !$data->{name} )
+		{
+			$logger->error("nodeconf $ncdir/$maybe had invalid data! Skipping.");
+			next;
+		}
+
+		# get the node, don't create it, it must exist
+		my $node_name = $data->{name};
+		my $node = $nmisng->node( name => $node_name );
+		if ( !$node )
+		{
+			$logger->error("trying to import nodeconf for $data->{name} when node is not in db! Skipping.");
+			next;
+		}
+
+		# don't bother saving the name in it
+		delete $data->{name};
+		$node->overrides($data);
+		my ($op,$error) = $node->save();
+		$logger->error("Error saving node:",$error) if($error);
+		$logger->debug( "$node_name overrides saved to database, op:" . $op );
+	}
+	$logger->NMISNG::Util::info( "Done " . $Q->{act} );
+}
+elsif ($Q->{act} eq "add-outage")
+{
+	my $outages = NMISNG::Util::loadTable(dir => "conf", name => "Outage");
+	my $nodes = Compat::NMIS::loadLocalNodeTable;
+
+	die "Invalid arguments!\n$usage" 
+			if (!$Q->{start} || !$Q->{end}
+					|| !( $Q->{group} xor $Q->{node} )
+					|| $Q->{start} !~ /^\d+:\d+$/ || $Q->{end} !~ /^\d+:\d+$/ );
+	
+	die "Unknown node \"$Q->{node}\" given, aborting!\n"
+			if ($Q->{node} && !$nodes->{$Q->{node}});
+
+	my @now = localtime;
+	my @hm = split(/:/, $Q->{start});
+	
+	die "start time \"$Q->{start}\" unparseable!\n" 
+			if ($hm[0]>=24 || $hm[1]>=60);
+
+	my $begtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
+	@hm = split(/:/, $Q->{end});
+	
+	die "end time \"$Q->{end}\" unparseable!\n" 
+			if ($hm[0]>=24 || $hm[1]>=60);
+
+	my $endtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
+
+	# if the endtime is earlier than the begin, add one day to end
+	if ( $endtime < $begtime )
+	{
+		$endtime += 86400;
+	}
+	# if the time specified is earlier than now, add one day
+	if ( $begtime < time )
+	{
+		$begtime += 86400;
+		$endtime += 86400;
+	}
+	
+	my @candidates = $Q->{node}? ($Q->{node}) 
+			: (grep { $nodes->{$_}->{group} eq $Q->{group} } keys %{$nodes}); # fixme9 better way to get the nodes of a group?
+	
+	die "group \"$Q->{group}\" has no members, aborting!\n" if (!@candidates);
+	
+	print "Outage window is from ".localtime($begtime)." to ".
+			localtime($endtime)."\n" if (NMISNG::Util::getbool($Q->{verbose}));
+
+	for my $node (@candidates)
+	{
+		$outages->{ join("-",$node,$begtime,$endtime) } = {
+			node => $node,
+			start => $begtime,
+			end => $endtime,
+			change => $Q->{comment} };
+		
+		print "Applying to node $node\n" 
+				if (NMISNG::Util::getbool($Q->{verbose}));
+	}
+	NMISNG::Util::writeTable(dir=> "conf", name => "Outage", data => $outages);
+}
+elsif ($Q->{act} eq "run-reports")
+{
+	my ($period, $reporttype) = @{$Q}{"period","type"};
+
+	die "Unknown date=$period selected!\n$usage\n"
+			if ($period !~ /^(day|week|month)$/i);
+	die "Unknown report=$reporttype selected!\n$usage\n"
+			if ($reporttype !~ /^(all|times|health|top10|outage|response|avail|port)$/);
+
+	my $reportdir = $C->{report_root};
+	NMISNG::Util::createDir($reportdir) if (!-d $reportdir);
+	my ($start, $end, $outfile);
+	my $time = time();
+	
+	# attention: the file naming logic here must match purge_files() in cgi-bin/reports.pl,
+	# or unwanted ancient reports will be left behind!
+	if ($period eq 'day') 
+	{
+		my ($s,$m,$h) = (localtime($time))[0..2];
+		$end = $time-($s+($m*60)+($h*60*60));
+		$start = $end - (60*60*24); # yesterday
+
+		$outfile= POSIX::strftime("day-%d-%m-%Y-%a.html",localtime($start));
+	} 
+	elsif ($period eq 'week') 
+	{
+		my ($s,$m,$h,$wd) = (localtime($time))[0..2,6];
+		$end = $time-($s+($m*60)+($h*60*60)+($wd*60*60*24));
+		$start = $end - (60*60*24*7); # last weekend
+
+		$outfile = POSIX::strftime("week-%d-%m-%Y-%a.html",localtime($start));
+	} 
+	elsif ($period eq 'month') 
+	{
+		my ($m,$y) = (localtime($time))[4,5];
+		$end = timelocal(0,0,0,1,$m,$y);
+		$m -= 1;
+		if ($m < 0) {
+			$m = 11; $y -= 1;
+		}
+		$start = timelocal(0,0,0,1,$m,$y);
+		
+		$outfile =  POSIX::strftime("month-%m-%Y.html",localtime($start));
+	}
+	
+	my @todos = ($reporttype eq "all"? (qw(times health top10 outage response avail port)) : $reporttype);
+	for my $thisreport (@todos)
+	{
+		my $file = "$reportdir/${thisreport}-${outfile}";
+		my $status = system("$C->{'<nmis_cgi>'}/reports.pl", "report=$thisreport",
+												"start=$start", "end=$end", "outfile=$file");
+		NMISNG::Util::logMsg("ERROR (report) generating report=$thisreport file=$file: $!") if ($status);
+		NMISNG::Util::setFileProt($file) if (-f $file);
+	}
+}
+else
+{
+	die $usage;
+}
+

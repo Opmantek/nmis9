@@ -52,23 +52,23 @@ use JSON::XS;
 use Data::Dumper;
 use UI::Dialog;
 
-use func;
-use NMIS;
+use NMISNG::Util;
+use Compat::NMIS;
 
 
 my $bn = basename($0);
 my $usage = "Usage: $bn [debug=true] {--version}\n\n";
 
 die $usage if (@ARGV == 1 and $ARGV[0] =~ /^--?[h?]/);
-my %args = getArguements(@ARGV);
+my %args = NMISNG::Util::getArguements(@ARGV);
 
 
-my $debuglevel = setDebug($args{debug});
-my $infolevel = setDebug($args{info});
+my $debuglevel = NMISNG::Util::setDebug($args{debug});
+my $infolevel = NMISNG::Util::setDebug($args{info});
 my $confname = $args{conf} || "Config";
 
 # get us a common config first
-my $config = loadConfTable(conf=>$confname,
+my $config = NMISNG::Util::loadConfTable(conf=>$confname,
 													 dir=>"$FindBin::RealBin/../conf",
 													 debug => $debuglevel);
 die "could not load configuration $confname!\n"
@@ -336,7 +336,7 @@ if (-f $savefilename)
 }
 
 # takes care of permissions, too.
-writeHashtoFile(file => $savefilename, data => \%graph);
+NMISNG::Util::writeHashtoFile(file => $savefilename, data => \%graph);
 
 if ($tempfilewarning)
 {

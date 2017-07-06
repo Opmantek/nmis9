@@ -35,10 +35,10 @@
 use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use func;
-use NMIS;
-use NMIS::Modules;
-use NMIS::License;
+use NMISNG::Util;
+use Compat::NMIS;
+use Compat::Modules;
+use Compat::License;
 use JSON::XS;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -50,13 +50,13 @@ my $Q = $q->Vars; # values in hash
 # toss in a default conf=Config.nmis
 $Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 if ( ($Q->{conf} eq "" )
 	and -f "$C->{'<nmis_conf>'}/Tenants.nmis" 
 		 and -f "$C->{'<nmis_cgi>'}/tenants.pl" ) 
 {
-	logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
+	NMISNG::Util::logMsg("TENANT Redirect, conf=$Q->{conf}, $C->{'<cgi_url_base>'}/tenants.pl"); 	
 	print $q->header($q->redirect(
 			-url=>"$C->{'<cgi_url_base>'}/tenants.pl",
 			-nph=>1,
@@ -68,14 +68,14 @@ if ( ($Q->{conf} eq "" )
 my $widget_refresh = $C->{widget_refresh_time} ? $C->{widget_refresh_time} : 180 ;
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 my $logoutButton;
 my $privlevel = 5;
 my $user;
 
 # the updated login screen code needs to know what modules are available
-my $M = NMIS::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
-													 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
+my $M = Compat::Modules->new(nmis_base => $C->{'<nmis_base>'}, 
+														 nmis_cgi_url_base => $C->{'<cgi_url_base>'});
 my $moduleCode = $M->getModuleCode();
 my $installedModules = $M->installedModules();
 
@@ -83,7 +83,7 @@ my $installedModules = $M->installedModules();
 my $headeropts = {type=>'text/html',expires=>'now'};
 # pass in confname ONLY if its not the default
 my $custom_confname = $Q->{conf}; undef $custom_confname if ($custom_confname eq "Config.nmis");
-my $AU = Auth->new(conf => $C, confname => $custom_confname);  # Auth::new will reap init values from NMIS configuration
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	#2011-11-14 Integrating changes from Till Dierkesmann
@@ -97,7 +97,7 @@ if ($AU->Require) {
 															password=>$Q->{auth_password},
 															headeropts=>$headeropts,
 															listmodules => 
-															(!getbool($C->{display_module_list}, 'invert')? 
+															(!NMISNG::Util::getbool($C->{display_module_list}, 'invert')? 
 															 $M->getModuleLinks : undef)) ;
 	$privlevel = $AU->{privlevel};
 	$user = $AU->{user};
@@ -129,19 +129,19 @@ if ($AU->Require) {
 
 # Check to see if NMIS has been Registered.  To be in licensing of commercial modules.
 my $registered = "false";
-my $L = NMIS::License->new();
+my $L = Compat::License->new();
 my ($licenseValid,$licenseMessage) = $L->checkLicense();
 $registered = "true" if $licenseValid;
 
 ### 2012-12-06 keiths, added a HTML5 compliant header.
 print $q->header($headeropts);
-startNmisPage(title => "NMIS by Opmantek - $C->{server_name}");
+Compat::NMIS::startNmisPage(title => "NMIS by Opmantek - $C->{server_name}");
 
-my $tenantCode = loadTenantCode(conf=>$Q->{conf});
+my $tenantCode = Compat::NMIS::loadTenantCode(conf=>$Q->{conf});
 
-my $serverCode = loadServerCode(conf=>$Q->{conf});
+my $serverCode = Compat::NMIS::loadServerCode(conf=>$Q->{conf});
 
-my $portalCode = loadPortalCode(conf=>$Q->{conf});
+my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
  
 my $logoCode;
 if ( $C->{company_logo} ) {
@@ -162,7 +162,7 @@ if ($C->{auth_method_1} eq "apache") {
 
 # Get server time
 ## removing the display of the Portal Links for now.
-my $ptime = &get_localtime();
+my $ptime = &NMISNG::Util::get_localtime();
 my $confString = "";
 if ( $Q->{conf} ne "Config" and $Q->{conf} ne "Config.nmis" ) {
 	$confString = "Conf: $Q->{conf},";
@@ -201,7 +201,7 @@ print qq|
 
 # defaults
 my $logName = 'Event_Log';
-if ( getbool($C->{server_master}) and $Q->{logname} eq "" ) {
+if ( NMISNG::Util::getbool($C->{server_master}) and $Q->{logname} eq "" ) {
 	$logName = 'Slave_Event_Log';
 }
 elsif ($Q->{logname} ne "" ) {
@@ -209,8 +209,8 @@ elsif ($Q->{logname} ne "" ) {
 }
 
 # send the default list of all names
-my $NT = loadNodeTable(); # load node table
-my $NSum = loadNodeSummary();
+my $NT = Compat::NMIS::loadNodeTable(); # load node table
+my $NSum = Compat::NMIS::loadNodeSummary();
 
 #Only show authorised nodes in the list.
 my $auth;
@@ -226,11 +226,11 @@ for my $node ( sort keys %{$NT}) {
 			}
 		}
 		else {
-			logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.") 
+			NMISNG::Util::logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.") 
 		}
 	}
 	if ($auth) {
-		if ( getbool($NT->{$node}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$node}{active}) ) {
 			push @valNode, $NT->{$node}{name};
 		}
 	}
@@ -279,7 +279,7 @@ $C->{'opmaps_widget_height'} = 450 if $C->{'opmaps_widget_height'} eq "";
 $C->{'opflow_widget_width'} = 750 if $C->{'opflow_widget_width'} eq "";
 $C->{'opflow_widget_height'} = 460 if $C->{'opflow_widget_height'} eq "";
 
-my $windowData = loadWindowStateTable();
+my $windowData = Compat::NMIS::loadWindowStateTable();
 my $savedWindowState = "false";
 my $userWindowData = "false";
 if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user} ne '' )
@@ -289,7 +289,7 @@ if( defined $windowData && defined($windowData->{$user}) && $windowData->{$user}
 }
 
 # show the setup if not hidden and user sufficiently authorized
-my $showsetup = (getbool($C->{'hide_setup_widget'}) 
+my $showsetup = (NMISNG::Util::getbool($C->{'hide_setup_widget'}) 
 		or !$AU->CheckAccess("table_config_rw","check") 
 		or !$AU->CheckAccess("table_config_view","check"))? 'false' : 'true';
 

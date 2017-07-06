@@ -31,9 +31,9 @@
 # Two basic ways to grab info, via get*Model functions which return ModelData objects
 # or directly via the object
 package NMISNG;
-use strict;
+our $VERSION = "9.0.0a";
 
-our $VERSION = "9.0.0";
+use strict;
 
 use Data::Dumper;
 use Tie::IxHash;

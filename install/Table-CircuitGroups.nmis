@@ -1,16 +1,15 @@
 # Screen 1, create a name and select a GE Node this belongs to
 # Screen 2, select the node and load the circuits, and let the user select the circuits
 
-use NMIS;
-use Auth;
-use Data::Dumper;
+use Compat::NMIS;
+use NMISNG::Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 my $C = loadConfTable();
 # variables used for the security mods
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 # Calling program needs to do auth, then set the ENVIRONMENT before this is called.
 $AU->SetUser($ENV{'NMIS_USER'});
@@ -19,8 +18,8 @@ my @geNodes = ();
 my @nodes = ();
 my @circuits = ();
 
-my $NS = loadNodeSummary();
-my $LNT = loadLocalNodeTable(); # load from file or db
+my $NS = Compat::NMIS::loadNodeSummary();
+my $LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
 
 foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { 
 	if ($AU->InGroup($LNT->{$_}{group})) {
@@ -35,7 +34,7 @@ if ( $Q->{key} ne "" ) {
 	my $CG = loadTable(dir=>'conf',name=>'CircuitGroups');
 	#print STDERR "key=$key geNode=$CG->{$key}{geNode}\n";
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$CG->{$key}{geNode},snmp=>'false');
 	my $NI = $S->ndinfo;
 	if ( exists $NI->{cps6000Cct} ) {

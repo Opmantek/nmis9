@@ -34,10 +34,10 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use func;
-use rrdfunc;
-use Sys;
-use NMIS;
+use NMISNG::Util;
+use NMISNG::rrdfunc;
+use NMISNG::Sys;
+use Compat::NMIS;
 use Data::Dumper;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -46,16 +46,16 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars;
 
 my $C;
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-rrdfunc::require_RRDs(config=>$C);
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+NMISNG::rrdfunc::require_RRDs(config=>$C);
 $C->{auth_require} = 0; # bypass auth
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -63,7 +63,7 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -74,7 +74,7 @@ if ($Q->{act} eq 'draw_graph_view') {	rrdDraw();
 exit;
 
 sub notfound {
-	logMsg("rrddraw; Command unknown act=$Q->{act}");
+	NMISNG::Util::logMsg("rrddraw; Command unknown act=$Q->{act}");
 }
 
 #============================================================================
@@ -95,7 +95,7 @@ sub rrdDraw
 {
 	my %args = @_;
 
-	rrdfunc::require_RRDs();
+	NMISNG::rrdfunc::require_RRDs();
 
 	# Break the query up for the names
 	my $type = $Q->{obj};
@@ -112,7 +112,7 @@ sub rrdDraw
 	my $item = $Q->{item};
 	my $filename = $Q->{filename};
 
-	my $S = Sys::->new; # get system object
+	my $S = NMISNG::Sys->new; # get system object
 	$S->init(name=>$nodename, snmp=>'false');
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
@@ -167,10 +167,10 @@ sub rrdDraw
 			return 0;
 		}
 
-		my $res = func::getModelFile(model => "Graph-$graphtype");
+		my $res = NMISNG::Util::getModelFile(model => "Graph-$graphtype");
 		if (!$res->{success})
 		{
-			logMsg("ERROR failed to read Graph-$graphtype: $res->{error}");
+			NMISNG::Util::logMsg("ERROR failed to read Graph-$graphtype: $res->{error}");
 			error();
 			return 0;
 		}
@@ -184,17 +184,17 @@ sub rrdDraw
 
 		$title = 'short' if $width <= 400 and $graph->{title}{short} ne "";
 		$vlabel = 'short' if $width <= 400 and $graph->{vlabel}{short} ne "";
-		$vlabel = 'split' if getbool($C->{graph_split}) and $graph->{vlabel}{split} ne "";
+		$vlabel = 'split' if NMISNG::Util::getbool($C->{graph_split}) and $graph->{vlabel}{split} ne "";
 		$size = 'small' if $width <= 400 and $graph->{option}{small} ne "";
 
 
 		if (($ttl = $graph->{title}{$title}) eq "") 
 		{
-			logMsg("no title->$title found in Graph-$graphtype");
+			NMISNG::Util::logMsg("no title->$title found in Graph-$graphtype");
 		}
 		if (($lbl = $graph->{vlabel}{$vlabel}) eq "") 
 		{
-			logMsg("no vlabel->$vlabel found in Graph-$graphtype");
+			NMISNG::Util::logMsg("no vlabel->$vlabel found in Graph-$graphtype");
 		}
 
 		@opt = (
@@ -264,16 +264,16 @@ sub rrdDraw
 			}
 
 			if ( $data->{ifSpeedIn} and $data->{ifSpeedOut} ) {
-				$speed = "IN\\: ". convertIfSpeed($ifSpeedIn) ." OUT\\: ". convertIfSpeed($ifSpeedOut);
+				$speed = "IN\\: ". NMISNG::Util::convertIfSpeed($ifSpeedIn) ." OUT\\: ". NMISNG::Util::convertIfSpeed($ifSpeedOut);
 			}
 			else {
-				$speed = convertIfSpeed($ifSpeed);
+				$speed = NMISNG::Util::convertIfSpeed($ifSpeed);
 			}
 		}
 		$node = $catchall_data->{name};
-		$datestamp_start = returnDateStamp($start);
-		$datestamp_end = returnDateStamp($end);
-		$datestamp = returnDateStamp(time);
+		$datestamp_start = NMISNG::Util::returnDateStamp($start);
+		$datestamp_end = NMISNG::Util::returnDateStamp($end);
+		$datestamp = NMISNG::Util::returnDateStamp(time);
 		$database = $db;
 		
 		# escape any : chars which might be in the database name e.g handling C: in the RPN
@@ -282,14 +282,14 @@ sub rrdDraw
 		$group = $grp;
 		$itm = $item;
 		$length = $l;
-		$split = getbool($C->{graph_split}) ? -1 : 1 ;
-		$GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
+		$split = NMISNG::Util::getbool($C->{graph_split}) ? -1 : 1 ;
+		$GLINE = NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 		$weight = 0.983;
 
 		foreach my $str (@opt) {
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \'\$$1\' ";}}egx;
 			if ($str =~ /ERROR/) {
-				logMsg("ERROR in expanding variables, $str");
+				NMISNG::Util::logMsg("ERROR in expanding variables, $str");
 				return;
 			}
 			push @options,$str;
@@ -311,7 +311,7 @@ sub rrdDraw
 
 	if ($ERROR = RRDs::error()) 
 	{
-		logMsg("$db Graphing Error for $graphtype: $ERROR");
+		NMISNG::Util::logMsg("$db Graphing Error for $graphtype: $ERROR");
 	}
 	return $graphret;
 }
@@ -354,7 +354,7 @@ sub graphCBQoS
 		my $maxdbr;
 		my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
 
-		my $ifDescr = shortInterface($if_data->{ifDescr});
+		my $ifDescr = NMISNG::Util::shortInterface($if_data->{ifDescr});
 		my $vlabel = "Avg Bits per Second";
 		if ( $width <= 400 ) {
 			$title = "$catchall_data->{name} $ifDescr $direction";
@@ -500,7 +500,7 @@ sub graphCBQoS
 		# display ONLY the selected class-map
 		my $thisinfo = $CBQosValues->{$intf.$item};
 		
-		my $speed = defined $thisinfo->{CfgRate}? &convertIfSpeed($thisinfo->{'CfgRate'}) : undef;
+		my $speed = defined $thisinfo->{CfgRate}? &NMISNG::Util::convertIfSpeed($thisinfo->{'CfgRate'}) : undef;
 		my $direction = ($graphtype eq "cbqos-in") ? "input" : "output" ;
 		
 		$database = $S->makeRRDname(graphtype => $thisinfo->{CfgSection},
@@ -510,7 +510,7 @@ sub graphCBQoS
 		# in this case we always use the FIRST color, not the one for this item
 		my $color = $CBQosValues->{$intf.$CBQosNames->[1]}->{'Color'};
 		
-		my $ifDescr = shortInterface($if_data->{ifDescr});
+		my $ifDescr = NMISNG::Util::shortInterface($if_data->{ifDescr});
 		$title = "$ifDescr $direction - $item from ".'$datestamp_start to $datestamp_end';
 		
 		@opt = (

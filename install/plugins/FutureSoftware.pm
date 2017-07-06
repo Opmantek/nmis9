@@ -5,8 +5,8 @@ our $VERSION = "1.1.0";
 
 use strict;
 
-use func;												# for loading extra tables
-use NMIS;												# iftypestable
+use NMISNG::Util;												# for loading extra tables
+use Compat::NMIS;												# iftypestable
 use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
@@ -20,7 +20,7 @@ sub update_plugin
 	return (0,undef) if ( $NI->{system}{nodeModel} ne "FutureSoftware"
 												or !getbool($NI->{system}->{collect}));
 
-	my $IFT = loadifTypesTable();
+	my $IFT = Compat::NMIS::loadifTypesTable();
 	my $NC = $S->ndcfg;
 	my $V = $S->view;
 
@@ -28,13 +28,13 @@ sub update_plugin
 	my $intfTotal;
 
 	# load any nodeconf overrides
-	my ($errmsg, $override) = get_nodeconf(node => $node)
-			if (has_nodeconf(node => $node));
+	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
+			if (Compat::NMIS::has_nodeconf(node => $node));
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
 	# Get the SNMP Session going.
-	my $snmp = snmp->new(name => $node);
+	my $snmp = NMISNG::Snmp->new(name => $node);
 	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
 			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
 	
@@ -185,10 +185,10 @@ sub update_plugin
 				 and $S->{info}{interface}{$index}{ifOperStatus} !~ /up|ok|dormant/ 
 				) {
 			if ($S->{info}{interface}{$index}{event} eq 'true') {
-				notify(sys=>$S,event=>"Interface Down",element=>$S->{info}{interface}{$index}{ifDescr},details=>$S->{info}{interface}{$index}{Description});
+				Compat::NMIS::notify(sys=>$S,event=>"Interface Down",element=>$S->{info}{interface}{$index}{ifDescr},details=>$S->{info}{interface}{$index}{Description});
 			}
 		} else {
-			checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$S->{info}{interface}{$index}{ifDescr},details=>$S->{info}{interface}{$index}{Description});
+			Compat::NMIS::checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$S->{info}{interface}{$index}{ifDescr},details=>$S->{info}{interface}{$index}{Description});
 		}
 		
 		$S->{info}{interface}{$index}{threshold} = $S->{info}{interface}{$index}{collect};
@@ -226,8 +226,8 @@ sub update_plugin
 		}
 		
 		# get color depending of state
-		$V->{interface}{"${index}_ifAdminStatus_color"} = getAdminColor(sys=>$S,index=>$index);
-		$V->{interface}{"${index}_ifOperStatus_color"} = getOperColor(sys=>$S,index=>$index);
+		$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor(sys=>$S,index=>$index);
+		$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor(sys=>$S,index=>$index);
 		
 		$V->{interface}{"${index}_ifAdminStatus_value"} = $S->{info}{interface}{$index}{ifAdminStatus};
 		$V->{interface}{"${index}_ifOperStatus_value"} = $S->{info}{interface}{$index}{ifOperStatus};

@@ -34,10 +34,10 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 # 
 use strict;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 use Fcntl qw(:DEFAULT :flock);
-use Sys;
+use NMISNG::Sys;
 
 use vars qw($CT); # Contact table
 
@@ -46,17 +46,16 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 # this cgi script defaults to widget mode ON
-my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
+my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
 my $C;
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);  
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -67,7 +66,7 @@ if ($AU->Require) {
 $AU->CheckAccess("tls_event_flow","header");
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -81,11 +80,11 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 } elsif ($Q->{act} eq 'event_database_dodelete') 
 {	
 	# deletion requires node, event, element arguments
-	if (my $err = eventDelete( event => { node => $Q->{node},
+	if (my $err = Compat::NMIS::eventDelete( event => { node => $Q->{node},
 																				event => $Q->{event},
 																				element => $Q->{element} } ))
 	{
-		logMsg("ERROR: event deletion failed: $err");
+		NMISNG::Util::logMsg("ERROR: event deletion failed: $err");
 	}
 
 	displayEventList();
@@ -94,7 +93,7 @@ if ($Q->{act} eq 'event_database_list') {			displayEventList();
 
 sub notfound {
 	print header($headeropts);
-	pageStart(title => "View Events - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "View Events - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 	print "View Event: ERROR, act=$Q->{act}<br>\n";
 	print "Request not found\n";
 	pageEnd if (!$wantwidget);
@@ -110,13 +109,13 @@ exit 0;
 sub displayFlow{
 
 	print header($headeropts);
-	pageStart(title => "View Event Flow - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "View Event Flow - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	my %events = ( 
 		event => ["Generic Down", "Generic Up", "Interface Down", "Interface Up",
 					"Node Down", "Node Reset", "Node Up", "Node Failover", "Proactive", "Proactive Closed",
 					"RPS Fail", "SNMP Down", "SNMP Up"],
-		node => [ sort keys %{loadLocalNodeTable()} ]
+		node => [ sort keys %{Compat::NMIS::loadLocalNodeTable()} ]
 	);
 
 	# the get() code doesn't work without a query param, nor does it work with all params present
@@ -176,7 +175,7 @@ sub displayFlow{
 sub displayEventList
 {
 	print header($headeropts);
-	pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	# load all events, for all nodes
 	my %allevents = loadAllEvents;
@@ -191,11 +190,11 @@ sub displayEventList
 	foreach my $eventkey (sort keys %allevents)  
 	{
 		my $thisevent = $allevents{$eventkey};
-		next if (!getbool($thisevent->{current}));
+		next if (!NMISNG::Util::getbool($thisevent->{current}));
 
 		my $start = $thisevent->{startdate};
-		my $date = returnDate($thisevent->{startdate});
-		my $time = returnTime($thisevent->{startdate});
+		my $date = NMISNG::Util::returnDate($thisevent->{startdate});
+		my $time = NMISNG::Util::returnTime($thisevent->{startdate});
 		my $node = $thisevent->{node};
 		my $event = $thisevent->{event};
 		my $element = $thisevent->{element};
@@ -219,7 +218,7 @@ sub displayEventList
 sub	displayEvent {
 
 	print header($headeropts);
-	pageStart(title => "View Event Database - $Q->{node} - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "View Event Database - $Q->{node} - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print start_table;
 
@@ -246,7 +245,7 @@ sub displayEventFlow {
 
 	print start_table;
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 	my $NI = $S->ndinfo;
 	my $M = $S->mdl;
@@ -326,21 +325,21 @@ sub displayEventItems {
 	my $contact;
 
 	# load Contact table
-	$CT = loadContactsTable();
+	$CT = Compat::NMIS::loadContactsTable();
 	# load the escalation policy table
-	my $EST = loadEscalationsTable();
+	my $EST = Compat::NMIS::loadEscalationsTable();
 	# load Node table
-	my $NT = loadLocalNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	# suck in this one event
-	my $thisevent = eventLoad(node => $node, event => $event, element => $element);
+	my $thisevent = Compat::NMIS::eventLoad(node => $node, event => $event, element => $element);
 	if (!$thisevent)
 	{
 		print Tr(td({class=>'info'},"No such event!"));
 		return;
 	}
 
-	if ( getbool($flag) ) 
+	if ( NMISNG::Util::getbool($flag) ) 
 	{
 		# generate entry for display event Flow
 		$thisevent->{current} = "true";
@@ -357,7 +356,7 @@ sub displayEventItems {
 		$thisevent->{user} = "";
 	}
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 	my $NI = $S->ndinfo;
 
@@ -369,14 +368,14 @@ sub displayEventItems {
 	# set the current event time
 	my $outage_time = time - $thisevent->{startdate};
 
-	$date = returnDate($thisevent->{startdate});
-	$time = returnTime($thisevent->{startdate});
+	$date = NMISNG::Util::returnDate($thisevent->{startdate});
+	$time = NMISNG::Util::returnTime($thisevent->{startdate});
 	printRow(1,"start time","$date $time");
 
 	printRow(1,"node",$thisevent->{node});
 
 	# info
-	my $ack_str = getbool($thisevent->{ack}) ?  ", event waiting for activating" : ", event active"; 
+	my $ack_str = NMISNG::Util::getbool($thisevent->{ack}) ?  ", event waiting for activating" : ", event active"; 
 	my $esc_str = ($thisevent->{escalate} eq -1) ? ", no level set" : "";
 	my $ntf_str = ($thisevent->{notify} ne '') ? $thisevent->{notify} : "no UP notify sending";
 
@@ -390,9 +389,9 @@ sub displayEventItems {
 	printRow(1,"user",$thisevent->{user});
 	printRow(1,"notify up",$ntf_str);
 
-	my ($outage,undef) = outageCheck($thisevent->{node},time());
+	my ($outage,undef) = Compat::NMIS::outageCheck($thisevent->{node},time());
 	if ( $outage eq "current" 
-			 and getbool($thisevent->{ack},"invert") ) {
+			 and NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
 		# check outage
 		printRow(1,"status","node at Outage, no escalation");
 	}
@@ -405,7 +404,7 @@ sub displayEventItems {
 		foreach my $node_depend ( split /,/ , lc($NT->{$thisevent->{node}}{depend}) ) {
 			next if $node_depend eq "N/A" ;		# default setting
 			next if $node_depend eq $thisevent->{node};	# remove the catch22 of self dependancy.
-			if ( eventExist($node_depend, "Node Down", "" ) ) {
+			if ( Compat::NMIS::eventExist($node_depend, "Node Down", "" ) ) {
 				printRow(1,"status","dependant $node_depend is reported as down");
 				return;
 			}
@@ -453,7 +452,7 @@ sub displayEventItems {
 					$thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i and 
 					$thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i ) {
 				$keyhash{$esc} = $klst;
-				dbg("match found for escalation key=$esc");
+				NMISNG::Util::dbg("match found for escalation key=$esc");
 			}
 		}
 
@@ -468,7 +467,7 @@ sub displayEventItems {
 		printRow(2,"type",$field[2]);
 		printRow(2,"event",$field[3]);
 		printRow(2,"message","Escalation $thisevent->{node} $thisevent->{event_level} $thisevent->{event}\n $thisevent->{element} $thisevent->{details}");
-		my $not_str = getbool($EST->{$esc_key}{UpNotify}) ? ", an UP event notification will be sent to the list of Contacts who received a \'down\' event notification" : "";
+		my $not_str = NMISNG::Util::getbool($EST->{$esc_key}{UpNotify}) ? ", an UP event notification will be sent to the list of Contacts who received a \'down\' event notification" : "";
 		printRow(2,"upnotify","$EST->{$esc_key}{UpNotify} $not_str");
 
 
@@ -478,8 +477,8 @@ sub displayEventItems {
 			my $escalate = "escalate".$lvl;
 			if ( $level ne "" ) {
 				printRow(2,"level$lvl",$level);
-				$date = returnDate($thisevent->{startdate}+$C->{$escalate});
-				$time = returnTime($thisevent->{startdate}+$C->{$escalate});
+				$date = NMISNG::Util::returnDate($thisevent->{startdate}+$C->{$escalate});
+				$time = NMISNG::Util::returnTime($thisevent->{startdate}+$C->{$escalate});
 				printRow(3,"time","$date $time");
 				# Now we have a string, check for multiple notify types
 				foreach $field ( split "," , $level ) {

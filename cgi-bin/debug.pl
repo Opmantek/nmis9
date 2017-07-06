@@ -35,9 +35,9 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
-use NMIS;
-use func;
-use csv;
+use Compat::NMIS;
+use NMISNG::Util;
+use Compat::CSV;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -50,17 +50,17 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # if options, then called from command line
 if ( $#ARGV > 0 ) { $C->{auth_require} = 0; } # bypass auth
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -68,7 +68,7 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -338,7 +338,7 @@ print "<p>\$urlhost:&nbsp;$urlhost</p><br>";
 my @TB = qw( Nodes Logs Contacts Locations Events Escalation Thresholds Model SysNode SysInt Services );
 foreach my $id ( @TB ) {
 
-	my %TB = loadCSV($C->{$id.'_Table'},$C->{$id.'_Key'},"\t");
+	my %TB = Compat::CSV::loadCSV($C->{$id.'_Table'},$C->{$id.'_Key'},"\t");
 	print "<h2>$id"."_Table</h2>";
 	print dumper_html(\%TB);
 }
@@ -347,15 +347,15 @@ foreach my $id ( @TB ) {
 print "<h1>Dynamic Tables</h1></br>";
 
 
-my $NT = loadNodeTable();
+my $NT = Compat::NMIS::loadNodeTable();
 print '<h2>Node Table [\$NT]</h2>';
 print dumper_html($NT);
-my ($errmsg, $overrides) = get_nodeconf();
+my ($errmsg, $overrides) = Compat::NMIS::get_nodeconf();
 print '<h2>NodeConf</h2>';
 print "<p>$errmsg</p>" if ($errmsg);
 print dumper_html($overrides);
 
-	my $GT = loadGroupTable();
+	my $GT = Compat::NMIS::loadGroupTable();
 print '<h2>Group Table [\$GT]</h2>';
 print dumper_html($GT);
 
@@ -367,29 +367,29 @@ print "<h2>Current Events</h2>";
 my %allevents = loadAllEvents;
 print dumper_html(\%allevents);
 
-my $OT = loadOutageTable();
+my $OT = Compat::NMIS::loadOutageTable();
 print "<h2>Outage Table</h2>";
 print dumper_html($OT);
 
-my $ext = getExtension(dir=>'var');
+my $ext = NMISNG::Util::getExtension(dir=>'var');
 
 foreach my $node (sort keys %{$NT}) {
 	if ( $C->{server_name} eq $NT->{$node}{server} ) {
-		my $nodeInfo = loadNodeInfoTable($node);
+		my $nodeInfo = Compat::NMIS::loadNodeInfoTable($node);
 		
 		print "<h2>$node System File ( /var/$node.$ext) </h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$node.$ext\") *24*60) ]} minutes ago</b><br>";
 		print dumper_html($nodeInfo);
 	}
 }
 
-my $NS = loadNodeSummary();
+my $NS = Compat::NMIS::loadNodeSummary();
 print "<h2>Node Summary</h2>";
 print dumper_html($NS);
 	
 my $dir = "$FindBin::Bin/../var";	
 foreach my $summary ( qw( nmis-summary8h nmis-summary16h ) ) {
 
-	my %summaryHash = readFiletoHash(file=>"$dir/$summary");
+	my %summaryHash = NMISNG::Util::readFiletoHash(file=>"$dir/$summary");
 
 	print "<h2>$summary</h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$summary.$ext\") *24*60) ]} minutes ago</b><br>";
 	print dumper_html(\%summaryHash);
@@ -411,7 +411,7 @@ print "<h1>Color Chart - 0 - 100% </h1>";
 
 print '<table><tr>';
 for ( 0 .. 100 ) {
-		my $c = colorPercentLo($_);
+		my $c = NMISNG::Util::colorPercentLo($_);
     print "<td style=background-color:$c;>&nbsp;</td>";
 }
 print '</tr></table>';
@@ -420,12 +420,12 @@ print "<h1>Color Chart - Response Time Threshold set to $C->{response_time_thres
 
 print '<table><tr>';
 for my $i ( 0 .. $C->{response_time_threshold}) {
-	my $c = colorResponseTime($i,$C->{response_time_threshold});
+	my $c = NMISNG::Util::colorResponseTime($i,$C->{response_time_threshold});
 	if ($i % 20 == 0) { 
 		print "<td style=background-color:$c;>$i</td>";
 	}
 }
-my $c = colorResponseTime("nan",$C->{response_time_threshold});
+my $c = NMISNG::Util::colorResponseTime("nan",$C->{response_time_threshold});
 print "<td style=background-color:$c;>nan</td>";
 print '</tr></table>';
 

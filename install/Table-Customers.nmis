@@ -32,26 +32,27 @@
 #   
 # *****************************************************************************
 
-use NMIS;
-use Auth;
-use NMIS::UUID;
+use Compat::NMIS;
+use NMISNG::Auth;
+use NMISNG::Util;
+use Compat::UUID;
 
-my $C = loadConfTable();
+my $C = NMISNG::Util::loadConfTable();
 # variables used for the security mods
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 # Calling program needs to do auth, then set the ENVIRONMENT before this is called.
 $AU->SetUser($ENV{'NMIS_USER'});
 
 my @groups = ();
-my $GT = loadGroupTable();
+my $GT = Compat::NMIS::loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 
 %hash = (
 	Customers => [
 		{ customer => { header => 'Customer Name',display => 'key,header,text', value => [""] }},
 		{ groups => { header => 'Groups',display => 'header,scrolling',value => [ @groups ] }},
-		{ locations => { header => 'Locations',display => 'header,scrolling',value => [ sort keys %{loadGenericTable('Locations')}] }},
+		{ locations => { header => 'Locations',display => 'header,scrolling',value => [ sort keys %{Compat::NMIS::loadGenericTable('Locations')}] }},
 		{ description => { header => 'Description', display => 'header,textbox', value => [""] }}
 	]
 );

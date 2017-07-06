@@ -172,7 +172,7 @@
 					'LocalDateTime' => {
 						'query' => "select * from win32_operatingsystem",
 						'field' => "LocalDateTime", # 20160824173101.375199+600
-						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); return func::returnDateStamp($r)',
+						'calculate' => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); return NMISNG::Util::returnDateStamp($r)',
             'title' => 'System Clock',
 					},
 

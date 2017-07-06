@@ -5,9 +5,9 @@ our $VERSION = "1.0.1";
 
 use strict;
 
-use NMIS;												# lnt
-use func;												# for the conf table extras
-use rrdfunc;										# for updateRRD
+use Compat::NMIS;												# lnt
+use NMISNG::Util;												# for the conf table extras
+use NMISNG::rrdfunc;										# for updateRRD
 # Customer not running latest code, can not use this
 #use snmp 1.1.0;									# for snmp-related access
 use Net::SNMP qw(oid_lex_sort);
@@ -30,7 +30,7 @@ sub collect_plugin
 	info("Working on $node ppxCardMEM");
 
 	# Get the SNMP Session going.
-	#my $snmp = snmp->new(name => $node);
+	#my $snmp = NMISNG::Snmp->new(name => $node);
 
 	my ($session, $error) = Net::SNMP->session(
                            -hostname      => $NC->{node}{host},
@@ -96,7 +96,7 @@ sub collect_plugin
 				$NI->{ppxCardMEM}{$card}{'memCapNormalRam'} = $snmpdata->{"$memCapacityOid.$card.$normalRam"};
 				$NI->{ppxCardMEM}{$card}{'memCapSharedRam'} = $snmpdata->{"$memCapacityOid.$card.$sharedRam"};
 	
-				my $filename = updateRRD(data=>$data, sys=>$S, type=>"ppxCardMEM", index => $card);
+				my $filename = NMISNG::rrdfunc::updateRRD(data=>$data, sys=>$S, type=>"ppxCardMEM", index => $card);
 				if (!$filename)
 				{
 					return (2, "UpdateRRD failed!");

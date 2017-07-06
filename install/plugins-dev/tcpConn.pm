@@ -4,7 +4,7 @@ package tcpConn;
 our $VERSION = "1.1.0";
 
 use strict;
-use func;												# for the conf table extras
+use NMISNG::Util;												# for the conf table extras
 use snmp 1.1.0;									# for snmp-related access
 
 sub collect_plugin
@@ -43,7 +43,7 @@ sub collect_plugin
 	{
 		my $NC = $S->ndcfg;
 
-		my $snmp = snmp->new(name => $node);
+		my $snmp = NMISNG::Snmp->new(name => $node);
 		return (2,"Could not open SNMP session to node $node: ".$snmp->error)
 				if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
 

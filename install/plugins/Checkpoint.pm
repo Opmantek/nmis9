@@ -5,8 +5,8 @@ our $VERSION = "1.0.1"; # MRH 20160107
 
 use strict;
 
-use func;												# for loading extra tables
-use NMIS;
+use NMISNG::Util;												# for loading extra tables
+use Compat::NMIS;
 
 
 sub collect_plugin
@@ -83,11 +83,11 @@ sub collect_plugin
 	# process the status now and raise an event if needed.
 	if ( $svnStatus eq "OK" ) {
 		# check if event exists and clear it
-		checkEvent(sys => $S, event => "Alert: $svnEvent", level => $svnLevel, element => $svnElement, details => $svnDetails);
+		Compat::NMIS::checkEvent(sys => $S, event => "Alert: $svnEvent", level => $svnLevel, element => $svnElement, details => $svnDetails);
 	} 
 	else {
 		# raise a new event.
-		notify(sys => $S, event => "Alert: $svnEvent", element => $svnElement, details => $svnDetails);
+		Compat::NMIS::notify(sys => $S, event => "Alert: $svnEvent", element => $svnElement, details => $svnDetails);
 	}
 
 
@@ -150,11 +150,11 @@ sub collect_plugin
 	# process the status now and raise an event if needed.
 	if ( $haStatus eq "OK" ) {
 		# check if event exists and clear it
-		checkEvent(sys => $S, event => "Alert: $haEvent", level => $haLevel, element => $haElement, details => $haDetails);
+		Compat::NMIS::checkEvent(sys => $S, event => "Alert: $haEvent", level => $haLevel, element => $haElement, details => $haDetails);
 	} 
 	else {
 		# raise a new event.
-		notify(sys => $S, event => "Alert: $haEvent", level => $haLevel, element => $haElement, details => $haDetails);
+		Compat::NMIS::notify(sys => $S, event => "Alert: $haEvent", level => $haLevel, element => $haElement, details => $haDetails);
 	}
 		
 
@@ -201,11 +201,11 @@ sub collect_plugin
 	# process the status now and raise an event if needed.
 	if ( $fwStatus eq "OK" ) {
 		# check if event exists and clear it
-		checkEvent(sys => $S, event => "Alert: $fwEvent", level => $fwLevel, element => $fwElement, details => $fwDetails);
+		Compat::NMIS::checkEvent(sys => $S, event => "Alert: $fwEvent", level => $fwLevel, element => $fwElement, details => $fwDetails);
 	} 
 	else {
 		# raise a new event.
-		notify(sys => $S, event => "Alert: $fwEvent", level => $fwLevel, element => $fwElement, details => $fwDetails);
+		Compat::NMIS::notify(sys => $S, event => "Alert: $fwEvent", level => $fwLevel, element => $fwElement, details => $fwDetails);
 	}
 
 	### processing for PS alerts
@@ -262,11 +262,11 @@ sub collect_plugin
 	# process the status now and raise an event if needed.
 	if ( $psStatus eq "OK" ) {
 		# check if event exists and clear it
-		checkEvent(sys => $S, event => "Alert: $psEvent", level => $psLevel, element => $psElement, details => $psDetails);
+		Compat::NMIS::checkEvent(sys => $S, event => "Alert: $psEvent", level => $psLevel, element => $psElement, details => $psDetails);
 	} 
 	else {
 		# raise a new event.
-		notify(sys => $S, event => "Alert: $psEvent", level => $psLevel, element => $psElement, details => $psDetails);
+		Compat::NMIS::notify(sys => $S, event => "Alert: $psEvent", level => $psLevel, element => $psElement, details => $psDetails);
 	}
 		
 	#if ( $state_svn == 2 ||

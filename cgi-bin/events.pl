@@ -35,9 +35,9 @@ use lib "$FindBin::Bin/../lib";
 
 # 
 use strict;
-use NMIS;
-use Sys;
-use func;
+use Compat::NMIS;
+use NMISNG::Sys;
+use NMISNG::Util;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -50,17 +50,17 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -71,10 +71,10 @@ if ($AU->Require) {
 $AU->CheckAccess("tls_event_db","header");
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # this cgi script defaults to widget mode ON
-my $widget = getbool($Q->{widget},"invert")? 'false' : 'true';
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : 'true';
 my $wantwidget = $widget eq 'true';
 #======================================================================
 
@@ -110,13 +110,13 @@ sub viewEvent
 	
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "NMIS View Event $node",refresh => 86400) 
+	Compat::NMIS::pageStartJscript(title => "NMIS View Event $node",refresh => 86400) 
 			if (!$wantwidget);
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	print createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system => $S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 
@@ -131,19 +131,19 @@ sub viewEvent
 		});
 
 	# print data
-	my %nodeevents = loadAllEvents(node => $node);
+	my %nodeevents = Compat::NMIS::loadAllEvents(node => $node);
 	my $cnt = keys %nodeevents;
-	for my $eventkey (sorthash(\%nodeevents,['startdate'],'fwd')) 
+	for my $eventkey (NMISNG::Util::sorthash(\%nodeevents,['startdate'],'fwd')) 
 	{
 		my $thisevent = $nodeevents{$eventkey};
 
-		my $state = getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
+		my $state = NMISNG::Util::getbool($thisevent->{ack},"invert") ? 'active' : 'inactive';
 		print Tr( eval { my $line;
 										 $line .= td({class=>'info Plain'},
 																 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node));
-										 my $outage = convertSecsHours(time() - $thisevent->{startdate});
+										 my $outage = NMISNG::Util::convertSecsHours(time() - $thisevent->{startdate});
 										 $line .= td({class=>'info Plain'},$outage);
-										 $line .= td({class=>'info Plain'}, returnDateStamp($thisevent->{startdate}));
+										 $line .= td({class=>'info Plain'}, NMISNG::Util::returnDateStamp($thisevent->{startdate}));
 										 $line .= td({class=>'info Plain'}, $thisevent->{event});
 										 $line .= td({class=>'info Plain'}, $thisevent->{level});
 										 $line .= td({class=>'info Plain'}, $thisevent->{element});
@@ -160,14 +160,14 @@ sub viewEvent
 	}
 	print end_table,end_td,end_Tr;
 	print end_table;
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 ###
 sub listEvent 
 {
 	print header($headeropts);
-	pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
+	Compat::NMIS::pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
 
 	# verify access to this command/tool bar/button
 	#
@@ -187,19 +187,19 @@ sub listEvent
 	my %localevents = loadAllEvents;
 	displayEvents(\%localevents, $C->{'server_name'}); #single server
 
-	if (getbool($C->{server_master})) {
+	if (NMISNG::Util::getbool($C->{server_master})) {
 		# check modify of remote node tables
-		my $ST = loadServersTable();
+		my $ST = Compat::NMIS::loadServersTable();
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
 			
 			my $table = "nmis-$srv-event";       
-			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) 
+			if ( -r NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/$table") ) 
 			{
 				# this is: either an old-style eventhash->event table file,
 				# or a new-style eventfilename->event structure. fortunately the guts are compatible.
-				my $remote_events = loadTable(name=>$table, dir => 'var');
+				my $remote_events = NMISNG::Util::loadTable(name=>$table, dir => 'var');
 				displayEvents($remote_events, "Slave Server $srv"); #single server
 			}
 		}
@@ -208,7 +208,7 @@ sub listEvent
 	print end_table;
 	print end_form;
 
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 
 }
 
@@ -235,9 +235,9 @@ sub displayEvents
 
 	my $node = $Q->{node};
 
-	my $C = loadConfTable();
-	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
+	my $C = NMISNG::Util::loadConfTable();
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
 
 	# header
 	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
@@ -253,7 +253,7 @@ sub displayEvents
 	{
 		my $thisevent = $eventdata->{$eventkey};
 		
-		if ( getbool($thisevent->{ack}) ) 
+		if ( NMISNG::Util::getbool($thisevent->{ack}) ) 
 		{
 			++$eventackcount{$thisevent->{node}};
 		}
@@ -271,7 +271,7 @@ sub displayEvents
 	my $tmpack = '';
 	my $match = 'false';
 
-	my $event_cnt = 0; # index for update routine eventAck()
+	my $event_cnt = 0; # index for update routine Compat::NMIS::eventAck()
 
 	for my $eventkey ( sort { $eventdata->{$a}{ack} cmp  $eventdata->{$b}{ack} 
 														 or $eventdata->{$a}{node} cmp $eventdata->{$b}{node} 
@@ -292,14 +292,14 @@ sub displayEvents
 			typeHeader();
 		}
 
-		if (!getbool($tmpack,"invert") and getbool($thisevent->{ack},"invert")) {
+		if (!NMISNG::Util::getbool($tmpack,"invert") and NMISNG::Util::getbool($thisevent->{ack},"invert")) {
 			$tmpack = 'false';
 			print Tr(td({class=>'heading3',colspan=>'10'},"Active Events. (Set All Events Inactive",
 						checkbox(-name=>'checkbox_name',-label=>'',-onClick=>"checkBoxes(this,'false$server')",-checked=>'',override=>'1'),
 					")"));
 		}
 
-		if (!getbool($tmpack) and getbool($thisevent->{ack})) {
+		if (!NMISNG::Util::getbool($tmpack) and NMISNG::Util::getbool($thisevent->{ack})) {
 			$tmpack = 'true';
 			$display ='none';
 			$node_cnt = 0;
@@ -313,24 +313,24 @@ sub displayEvents
 			$node_cnt = 0;
 
 			active($server,$tempnode,$tempnodeack,\%eventnoackcount) 
-					if (getbool($thisevent->{ack},"invert"));
+					if (NMISNG::Util::getbool($thisevent->{ack},"invert"));
 			inactive($server,$tempnode,$tempnodeack,\%eventackcount) 
-					if (getbool($thisevent->{ack}));
+					if (NMISNG::Util::getbool($thisevent->{ack}));
 
 		}
 
 		# now write the events, hidden or not hidden
-		if ( getbool($thisevent->{ack},"invert") ) {
-			$color = eventColor($thisevent->{level});
+		if ( NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
+			$color = NMISNG::Util::eventColor($thisevent->{level});
 		}
 		else {
 			$color = "white";
 		}
-		$start = returnDateStamp($thisevent->{startdate});
-		$last = returnDateStamp($thisevent->{lastchange});
-		$outage = convertSecsHours(time() - $thisevent->{startdate});
+		$start = NMISNG::Util::returnDateStamp($thisevent->{startdate});
+		$last = NMISNG::Util::returnDateStamp($thisevent->{lastchange});
+		$outage = NMISNG::Util::convertSecsHours(time() - $thisevent->{startdate});
 		# User logic, hmmmm how will users interpret this!
-		if ( getbool($thisevent->{ack},"invert") ) {
+		if ( NMISNG::Util::getbool($thisevent->{ack},"invert") ) {
 			$button = "true";
 		}
 		else {
@@ -439,11 +439,11 @@ sub updateEvent
 			foreach my $i (@a) 
 			{
 				# check for change of event
-				if ($i ne "" and ((getbool($ack[$i]) and $par =~ /false/) 
-													or (getbool($ack[$i],"invert") and $par =~ /true/))) 
+				if ($i ne "" and ((NMISNG::Util::getbool($ack[$i]) and $par =~ /false/) 
+													or (NMISNG::Util::getbool($ack[$i],"invert") and $par =~ /true/))) 
 				{
 					# event changes
-					eventAck( ack=>$ack[$i], 
+					Compat::NMIS::eventAck( ack=>$ack[$i], 
 										node=>$nm[$i],
 										event=>$evnt[$i],
 										element=>$elmnt[$i],

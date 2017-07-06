@@ -31,13 +31,11 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
-use csv;
+use Compat::NMIS;
+use NMISNG::Util;
 use Fcntl qw(:DEFAULT :flock);
-use Sys;
-use Mib;
-use Auth;
+use NMISNG::Sys;
+use NMISNG::Auth;
 use Data::Dumper;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
@@ -45,14 +43,14 @@ use CGI qw(:standard *table *Tr *td *form *Select *div);
 my $q = new CGI;
 my $Q = $q->Vars;
 
-my $wantwidget = (!getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
+my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 if (!$C)
 {
 	print header(-status => 500);
-	pageStart(title => "NMIS Modeling") if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Modeling") if (!$wantwidget);
 	print "<div>Error: Failed to load config file!</div>";
 	pageEnd if (!$wantwidget);
 	exit 1;
@@ -60,7 +58,7 @@ if (!$C)
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require)
 {
@@ -72,7 +70,7 @@ if ($AU->Require)
 $AU->CheckAccess("table_models_view","header");
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # this table defines the actions add,delete,edit based on location paths
 # this needs to be rewritten to use dotnotation, or arrays are not supportable except at the leaf end
@@ -232,14 +230,14 @@ sub displayModel
 	my $wantedsection = $Q->{section};
 
 	print header($headeropts);
-	pageStart(title => "NMIS Model Editor", refresh => 86400) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Model Editor", refresh => 86400) if (!$wantwidget);
 
 	# a modelish thing requested? then try to load it
 	my $modelstruct;
 	if ($wantedmodel)
 	{
 		my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-		$modelstruct = readFiletoHash(file => $modelfn);
+		$modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 		bailout "cannot read model $modelfn: $!"
 				if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 	}
@@ -296,7 +294,7 @@ sub displayModel
 	}
 
 	print "</form></table>";
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 # produce html output for one section in a modelish hash structure
@@ -454,13 +452,13 @@ sub editModel
 	my $locsteps = $Q->{hash};
 
 	print header($headeropts);
-	pageStart(title => "NMIS Edit Model", refresh => 86400) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Edit Model", refresh => 86400) if (!$wantwidget);
 	$AU->CheckAccess("Table_Models_rw");
 
 	bailout("Missing model argument!") if (!$wantedmodel);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -516,7 +514,7 @@ sub editModel
 		print Tr(td({class=>'Plain',colspan=>'8'},$info));
 	}
 	print "</table></form>";
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 # show form for deletion of stuff
@@ -526,13 +524,13 @@ sub deleteModel
 	my ($wantedmodel, $wantedsection, $locsteps) = @{$Q}{"model","section","hash"};
 
 	print header($headeropts);
-	pageStart(title => "NMIS Delete Model", refresh => 86400) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Delete Model", refresh => 86400) if (!$wantwidget);
 	$AU->CheckAccess("Table_Models_rw");
 
 	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -581,7 +579,7 @@ sub deleteModel
 										 -value=>'Cancel')));
 
 	print "</form></table>";
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 # show the appropriate form for adding stuff for a given model+section+locationsteps
@@ -593,13 +591,13 @@ sub addModel
 	my ($wantedmodel,$wantedsection,$locsteps) = @{$Q}{"model","section","hash"};
 
 	print header($headeropts);
-	pageStart(title => "NMIS Add Model", refresh => 86400) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Add Model", refresh => 86400) if (!$wantwidget);
 	$AU->CheckAccess("Table_Models_rw");
 
 	bailout("Missing arguments!") if (!$wantedmodel or !$wantedsection or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -695,7 +693,7 @@ sub addModel
 	}
 
 	print "</form></table>";
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 # endpoint for post, for making in-place edits to leaf things
@@ -703,7 +701,7 @@ sub addModel
 # returns: nothing;
 sub doEditModel
 {
-	return if (getbool($Q->{cancel}));
+	return if (NMISNG::Util::getbool($Q->{cancel}));
 	$AU->CheckAccess("Table_Models_rw",'header');
 
 	my ($wantedmodel,$wantedsection,$locsteps,$value) =
@@ -713,7 +711,7 @@ sub doEditModel
 																		or !$locsteps or !defined $value);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -732,7 +730,7 @@ sub doEditModel
 	{
 		$target->{$locationsteps[-1]} = $value;
 	}
-	writeHashtoFile(file => $modelfn, data => $modelstruct);
+	NMISNG::Util::writeHashtoFile(file => $modelfn, data => $modelstruct);
 }
 
 # endpoint for post, for deleting leaves or whole subtrees
@@ -740,7 +738,7 @@ sub doEditModel
 # returns: nothing;
 sub doDeleteModel
 {
-	return if (getbool($Q->{cancel}));
+	return if (NMISNG::Util::getbool($Q->{cancel}));
 	$AU->CheckAccess("Table_Models_rw",'header');
 
 	my ($wantedmodel,$wantedsection,$locsteps) =  @{$Q}{"model","section","hash"};
@@ -749,7 +747,7 @@ sub doDeleteModel
 																		or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -773,14 +771,14 @@ sub doDeleteModel
 	{
 		bailout("invalid arguments: ".Dumper(\@locationsteps, $target));
 	}
-	writeHashtoFile(file => $modelfn, data => $modelstruct);
+	NMISNG::Util::writeHashtoFile(file => $modelfn, data => $modelstruct);
 }
 
 #  endpoint for post, for adding X fields to the area indicated by the locsteps
 # args: none, q's model, section, hash, cancel and all _field_X inputs
 sub doAddModel
 {
-	return if getbool($Q->{cancel});
+	return if NMISNG::Util::getbool($Q->{cancel});
 	$AU->CheckAccess("Table_Models_rw",'header');
 
 	my ($wantedmodel,$wantedsection,$locsteps) =
@@ -790,7 +788,7 @@ sub doAddModel
 																		or !$locsteps);
 
 	my $modelfn = $C->{'<nmis_models>'}."/$wantedmodel.nmis";
-	my $modelstruct = readFiletoHash(file => $modelfn);
+	my $modelstruct = NMISNG::Util::readFiletoHash(file => $modelfn);
 	bailout "cannot read model $modelfn: $!"
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
@@ -980,7 +978,7 @@ sub doAddModel
 		}
 	}
 
-	writeHashtoFile(file => $modelfn, data => $modelstruct);
+	NMISNG::Util::writeHashtoFile(file => $modelfn, data => $modelstruct);
 }
 
 # returns help test for given field name

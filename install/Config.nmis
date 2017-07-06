@@ -224,7 +224,7 @@ my %hash = (
 
   'files' => {
     'nmis' => '<cgi_url_base>/nmiscgi.pl',
-    'rrddraw' => '<cgi_url_base>/rrddraw.pl', #'rrddraw' => '<cgi_url_base>/opmantek_rrddraw.pl',
+    'rrddraw' => '<cgi_url_base>/rrddraw.pl',
     'network' => '<cgi_url_base>/network.pl',
     'node' => '<cgi_url_base>/node.pl',
     'ipsla' => '<cgi_url_base>/ipsla.pl',
@@ -284,23 +284,6 @@ my %hash = (
     'syslog_facility' => 'local1',
     'syslog_use_escalation' => 'true',
     'syslog_events' => 'false'
-  },
-
-  'sql' => {
-    'nmisdb' => 'nmisdb',
-    'db_server' => 'localhost',
-    'db_port' => '3306',
-    'db_user' => 'nmis',
-    'db_password' => 'nmis',
-    'db_prefix' => '',
-    'db_rootuser' => 'nmisadm',
-    'db_rootpassword' => 'nmis',
-    'db_name' => 'nmis',
-    'db_events_sql' => 'false',
-    'db_logging' => '1',
-    'db_host' => 'localhost',
-    'db_debug' => '0',
-    'db_links_sql' => 'false'
   },
 
   'daemons' => {

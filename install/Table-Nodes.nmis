@@ -27,23 +27,24 @@
 #
 # *****************************************************************************
 
-use NMIS;
-use Auth;
-use NMIS::UUID;
+use Compat::NMIS;
+use NMISNG::Auth;
+use Compat::UUID;
+use NMISNG::Util;
 
-my $C = loadConfTable();
+my $C = NMISNG::Util::loadConfTable();
 # variables used for the security mods
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 # Calling program needs to do auth, then set the ENVIRONMENT before this is called.
 $AU->SetUser($ENV{'NMIS_USER'});
 
 my @groups = ();
-my $GT = loadGroupTable();
+my $GT = Compat::NMIS::loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 
 my @nodes = ();
-my $LNT = loadLocalNodeTable(); # load from file or db
+my $LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
 foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
 
 my @models = ();
@@ -54,7 +55,7 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 }
 closedir(MDL);
 
-my $uuid = getUUID();
+my $uuid = Compat::UUID::getUUID();
 
 %hash = (
 	Nodes =>
@@ -73,9 +74,9 @@ my $uuid = getUUID();
 	 { wmipassword => { header => "WMI Password", display => 'text', value => [''] }},
 
 	 { service_management => { special => 'separator', header => 'Service Management Options',display => 'readonly',value => [""] }},
-	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{loadGenericTable('Customers')}] }},
-	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
-	 { serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
+	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Customers')}] }},
+	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{Compat::NMIS::loadGenericTable('BusinessServices')} ] }},
+	 { serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('ServiceStatus')} ] }},
 	 { extra_options => { special => 'separator', header => 'Remote Connection'}},
 	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
 	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
@@ -84,7 +85,7 @@ my $uuid = getUUID();
 	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
 	 { roleType => { header => 'Role Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
 	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }},
-	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
+	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Locations')}] }},
 	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
 	 { model => { header => 'Model',display => 'popup',value => [@models] }},
 	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
@@ -95,7 +96,7 @@ my $uuid = getUUID();
 	 { threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
 	 { webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
 	 { depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
-	 { services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
+	 { services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{Compat::NMIS::loadServicesTable()}] }},
 	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
 	 { extra_options => { special => 'separator', header => 'SNMP Settings'}},
 	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"] }},

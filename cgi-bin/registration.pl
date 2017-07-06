@@ -35,9 +35,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
-use NMIS::License;
+use Compat::NMIS;
+use NMISNG::Util;
+use Compat::License;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -51,7 +51,7 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # select function
 my $select;
@@ -75,7 +75,7 @@ sub printMenu {
 	my $url = "registration.pl?conf=$Q->{conf}&act=register";
 	print header($headeropts);
 
-	my $L = NMIS::License->new();
+	my $L = Compat::License->new();
 	my ($licenseValid,$licenseMessage) = $L->checkLicense();
 	#$registered = "true" if $licenseValid;
   $Q->{name} = $L->{details}{name} if (not $Q->{name} and $L->{details}{name});
@@ -136,7 +136,7 @@ and send changes to <a href"mailto:code\@opmantek.com">code\@opmantek.com</a>|;
 sub processRegistration {
 	print header($headeropts);
 
-	my $L = NMIS::License->new();
+	my $L = Compat::License->new();
 	$L->{details}{name} = "$Q->{name}";
 	$L->{details}{email} = "$Q->{email}";
 	$L->{details}{company} = "$Q->{company}";

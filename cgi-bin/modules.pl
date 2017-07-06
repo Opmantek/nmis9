@@ -35,8 +35,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -48,10 +48,10 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 # load NMIS configuration table
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
 # this cgi script defaults to widget mode ON
-my $widget = getbool($Q->{widget},"invert")? "false" : "true";
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
 
 moduleMenu();
@@ -65,7 +65,7 @@ sub moduleMenu {
 	my $nmisicon = "<a target=\"nmis\" href=\"$C->{'nmis'}?conf=$Q->{conf}\"><img class='logo' src=\"$C->{'nmis_icon'}\"/></a>";
 	my $header2 = "$header <a href=\"$ENV{SCRIPT_NAME}\"><img src=\"$C->{'nmis_home'}\"/></a>";
 	
-	my $portalCode = loadPortalCode(conf=>$Q->{conf});
+	my $portalCode = Compat::NMIS::loadPortalCode(conf=>$Q->{conf});
 
 	print header({-type=>"text/html",-expires=>'now'});
 	
@@ -91,7 +91,7 @@ sub moduleMenu {
 		));
 	}
 	
-	my $MOD = loadTable(dir=>'conf',name=>"Modules");
+	my $MOD = NMISNG::Util::loadTable(dir=>'conf',name=>"Modules");
 	if ( $Q->{module} and $MOD->{$Q->{module}}{description} ) {
 		print Tr(th({class=>"title",colspan=>"3"}, "NMIS $Q->{module} Module"));
 		print Tr(td({class=>"lft",width=>"33%"}, "The $Q->{module} module is not currently installed."),td({class=>"Plain",width=>"33%"},"&nbsp;"),td({class=>"Plain",width=>"33%"},"&nbsp;"));

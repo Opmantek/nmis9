@@ -123,7 +123,7 @@ sub sendNotification {
 			$error = 1;
 		}
 	
-		open(LOG,">>$smslog") or logMsg("ERROR, can not write to $smslog");
+		open(LOG,">>$smslog") or NMISNG::Util::logMsg("ERROR, can not write to $smslog");
 		print LOG qq|$smstime $to $msgstr\n|;
 		print LOG qq|DEBUG: $exec\n| if $debug or $error;
 		print LOG qq|DEBUG: $out\n| if $debug or $error;

@@ -38,13 +38,13 @@ use lib "$FindBin::Bin/../lib";
 # 
 use strict;
 use File::Basename;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 use Data::Dumper;
 use NMIS::Integration;
-use NMIS::Timing;
+use Compat::Timing;
 
-my $t = NMIS::Timing->new();
+my $t = Compat::Timing->new();
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=(which action to take)
@@ -138,7 +138,7 @@ sub processNodes {
 	my @nameCorrections;
 
 	foreach my $node (sort keys %{$LNT}) {	
-		my $S = Sys::->new; # get system object
+		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		my $NI = $S->ndinfo;
 		
@@ -157,7 +157,7 @@ sub processNodes {
 				push(@pingBad,"$node,$LNT->{$node}{host}");
 				$nodePingable = 0;
 				# clear any Node Down events attached to the node.
-				my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"");
+				my $result = Compat::NMIS::checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"");
 			}
 	
 			# Node has never responded to SNMP!
@@ -166,7 +166,7 @@ sub processNodes {
 				$LNT->{$node}{collect} = "false";
 				$nodeSnmp = 0;
 				# clear any SNMP Down events attached to the node.
-				my $result = checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"");
+				my $result = Compat::NMIS::checkEvent(sys=>$S,event=>"SNMP Down",level=>"Normal",element=>"",details=>"");
 			}
 		}
 		
@@ -261,7 +261,7 @@ sub nodeAdminReport {
 	my $filter = $args{filter} || "";
 	
 	my $noExceptions = 1;
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 	
 	#print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
 	my @headings = (
@@ -297,7 +297,7 @@ sub nodeAdminReport {
 			if ( $group eq "" or $group eq $LNT->{$node}{group} ) {
 				my $intCollect = 0;
 				my $intCount = 0;
-				my $S = Sys::->new; # get system object
+				my $S = NMISNG::Sys->new; # get system object
 				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 				my $NI = $S->ndinfo;
 				my $IF = $S->ifinfo;

@@ -4,7 +4,7 @@ package TestPlugin;
 our $VERSION = "1.0.0";
 use strict;
 
-use func; # required for logMsg
+use NMISNG::Util; # required for logMsg
 
 sub after_update_plugin
 {

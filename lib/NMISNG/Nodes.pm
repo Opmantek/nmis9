@@ -645,7 +645,7 @@ sub getNodeAddresses
 }
 
 # helper that checks if given node is licensed/activated for a given application
-# args: appkey, and  nodeinfo (= record) or node (=name)
+# args: appkey, and  nodeNMISNG::Util::info (= record) or node (=name)
 # returns 1 if licensed/active, undef otherwise
 sub node_is_active
 {
@@ -670,7 +670,7 @@ sub node_is_active
 
 
 # adds new information about a node, possibly inserting new db records
-# args: node (=name, required), info (= hash of *direct* goodies, optional),
+# args: node (=name, required), NMISNG::Util::info (= hash of *direct* goodies, optional),
 # ip_addresses (= hash of ip address records, by ip address, optional),
 # optional meta (= user and time, only expected run from gui or admin tools),
 #

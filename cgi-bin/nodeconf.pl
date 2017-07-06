@@ -32,8 +32,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
+use Compat::NMIS;
+use NMISNG::Util;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -44,10 +44,10 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # widget default on, only off if explicitely set to off
-my $wantwidget = !getbool($Q->{widget},"invert");
+my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
 my$widget = $wantwidget ? "true" : "false";
 
 my $formid = 'nodeconf';
@@ -56,11 +56,11 @@ my $formid = 'nodeconf';
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type => 'text/html', expires => 'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -71,7 +71,7 @@ if ($AU->Require) {
 $AU->CheckAccess("table_nodeconf_view","header");
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -101,12 +101,12 @@ exit;
 #
 sub displayNodemenu
 {
-	my $NT = loadLocalNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 
 	print header($headeropts);
 	if (!$wantwidget)
 	{
-			pageStart(title => $Q->{node}." Node Configuration", refresh => $Q->{refresh});
+			Compat::NMIS::pageStart(title => $Q->{node}." Node Configuration", refresh => $Q->{refresh});
 	}
 	my $menuformid = "${formid}_menu";
 
@@ -125,10 +125,10 @@ sub displayNodemenu
 
 	# row with Node selection
 	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group})
-														 and getbool($NT->{$_}{active}) } sort keys %{$NT});
+														 and NMISNG::Util::getbool($NT->{$_}{active}) } sort keys %{$NT});
 	print start_Tr;
 	print td({class=>"header"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
-			if (!getbool($Q->{widget}));
+			if (!NMISNG::Util::getbool($Q->{widget}));
 
 	print td({class=>"header",width=>'25%'},
 			"Select node<br>".
@@ -172,7 +172,7 @@ sub displayNodeConf
 
 	print start_table({width=>'100%'}) ; # first table level
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 
 	if (!($S->init(name=>$node,snmp=>'false'))) {
 		print Tr,td({class=>'error',colspan=>'3'},"Error on getting info of node $node");
@@ -183,9 +183,9 @@ sub displayNodeConf
 
 	# get any existing nodeconf overrides for this node
 	my $nodename = $NI->{system}->{name};
-	my ($errmsg, $override) = get_nodeconf(node => $nodename)
-			if (has_nodeconf(node => $nodename));
-	logMsg("ERROR $errmsg") if $errmsg;
+	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $nodename)
+			if (Compat::NMIS::has_nodeconf(node => $nodename));
+	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
 	print Tr(td({class=>"header",width=>'20%'}),td({class=>"header",width=>'20%'}),
@@ -237,7 +237,7 @@ sub displayNodeConf
 																-style => 'width: 95%',
 																-value => $override->{sysLocation}||''));
 
-	if ( !getbool($NI->{system}{collect}) ) {
+	if ( !NMISNG::Util::getbool($NI->{system}{collect}) ) {
 		print Tr(td({class=>"header"}),td({class=>"header"},"Collect"),
 				td({class=>'header'},'disabled'));
 	}
@@ -256,10 +256,10 @@ sub displayNodeConf
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
-	if ( getbool($NI->{system}{collect}) )
+	if ( NMISNG::Util::getbool($NI->{system}{collect}) )
 	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
-		foreach my $intf (sorthash( $IF, ['ifDescr'], 'fwd'))
+		foreach my $intf (NMISNG::Util::sorthash( $IF, ['ifDescr'], 'fwd'))
 		{
 			next if (ref($IF->{$intf}) ne "HASH"
 							 or !defined($IF->{$intf}->{ifDescr})
@@ -357,8 +357,8 @@ sub displayNodeConf
 
 
 
-			if ( getbool($collect) or (!getbool($collect,"invert")
-																 and getbool($NCT_collect)) )
+			if ( NMISNG::Util::getbool($collect) or (!NMISNG::Util::getbool($collect,"invert")
+																 and NMISNG::Util::getbool($NCT_collect)) )
 			{
 				my $NCT_event = $intfstatus->{nc_event} || $intfstatus->{event};
 				print Tr,td({class=>'header'}),
@@ -372,9 +372,9 @@ sub displayNodeConf
 				print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
 			}
 
-			if (getbool($NI->{system}{threshold})
-					and (getbool($collect) or (!getbool($collect,"invert")
-																		 and getbool($NCT_collect)) )) {
+			if (NMISNG::Util::getbool($NI->{system}{threshold})
+					and (NMISNG::Util::getbool($collect) or (!NMISNG::Util::getbool($collect,"invert")
+																		 and NMISNG::Util::getbool($NCT_collect)) )) {
 				my $NCT_threshold = $intfstatus->{nc_threshold} || $intfstatus->{threshold};
 				print Tr,td({class=>'header'}),
 				td({class=>'header'},"Thresholds"),td({class=>'header3'},$NCT_threshold),
@@ -406,7 +406,7 @@ sub updateNodeConf {
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 
 	if (!($S->init(name=>$node,snmp=>'false'))) {
 		##		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
@@ -417,9 +417,9 @@ sub updateNodeConf {
 
 	# get the current nodeconf overrides
 	my $nodename = $NI->{system}->{name};
-	my ($errmsg, $override) = get_nodeconf(node => $nodename)
-			if (has_nodeconf(node => $nodename));
-	logMsg("ERROR $errmsg") if $errmsg;
+	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $nodename)
+			if (Compat::NMIS::has_nodeconf(node => $nodename));
+	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
 	if  ($Q->{contact} eq "") {
@@ -484,11 +484,11 @@ sub updateNodeConf {
 	# right; anything left to save?
 	# if not, tell update_nodeconf to delete the node's data (data arg undef)
 	undef $override if (!keys %$override);
-	$errmsg = update_nodeconf(node => $node, data => $override);
-	logMsg("ERROR $errmsg") if ($errmsg);
+	$errmsg = Compat::NMIS::update_nodeconf(node => $node, data => $override);
+	NMISNG::Util::logMsg("ERROR $errmsg") if ($errmsg);
 
 	# signal from button
-	if ( getbool($Q->{update}) ) {
+	if ( NMISNG::Util::getbool($Q->{update}) ) {
 		doNodeUpdate(node=>$node);
 		return 0;
 	}
@@ -507,7 +507,7 @@ sub doNodeUpdate {
 
 	if (!$wantwidget)
 	{
-			pageStart(title => "$node update");
+			Compat::NMIS::pageStart(title => "$node update");
 	}
 
 	my $thisurl = url(-absolute => 1)."?";

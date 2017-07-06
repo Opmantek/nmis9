@@ -34,9 +34,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use func;
-use NMIS;
-use Sys;
+use NMISNG::Util;
+use Compat::NMIS;
+use NMISNG::Sys;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -44,17 +44,17 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 ## Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -62,10 +62,10 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # on unless explicitely set to false
-my $widget = getbool($Q->{widget},"invert")? 'false' : "true";
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? 'false' : "true";
 my $wantwidget = $widget eq "true";
 
 #======================================================================
@@ -94,7 +94,7 @@ sub typeTool
 	$tool =~ s/tool_system_//i;
 	my $node = $Q->{node};
 
-	my $NT = loadNodeTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 	my $host = $NT->{$node}{host};
 
 	# input sanitising - ideally we'd like to accept just [a-zA-Z0-9_-]
@@ -111,7 +111,7 @@ sub typeTool
 		exit;
 	}
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
 	my $title = escapeHTML("Command $tool for node $NT->{$node}{name} ($host)");
@@ -125,12 +125,12 @@ sub typeTool
 	}
 
 	print header($headeropts);
-	pageStartJscript(title => $title) if (!$wantwidget);
+	Compat::NMIS::pageStartJscript(title => $title) if (!$wantwidget);
 
 	return unless $AU->CheckAccess("tls_$tool");
 	my $wid = "580px";
 
-	print createHrButtons(node=>$node, system=>$S, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	#certain outputs will have their own layout
 	if ($tool eq "hostinfo") {
@@ -198,7 +198,7 @@ sub typeTool
 		print end_table,end_td,end_Tr;
 		print end_table;
 	}
-	pageEnd() if (!$wantwidget);
+	Compat::NMIS::pageEnd() if (!$wantwidget);
 }
 
 sub selectNode {
@@ -260,9 +260,9 @@ sub viewDNS {
 
 sub getInterfaceTable {
 
-	my $NT = loadNodeTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 	#Load the Interface Information file
-	my $II = loadInterfaceInfo();
+	my $II = Compat::NMIS::loadInterfaceInfo();
 	my $ii;
 
 	# build new table with unique key based on ip addr
@@ -277,8 +277,8 @@ sub getInterfaceTable {
 	       			$ip !~ /^127/
 			) {
 
-				$II->{$intHash}{ifSpeed} = convertIfSpeed($II->{$intHash}{ifSpeed});
-				my $shortInt = shortInterface($II->{$intHash}{ifDescr});
+				$II->{$intHash}{ifSpeed} = NMISNG::Util::convertIfSpeed($II->{$intHash}{ifSpeed});
+				my $shortInt = NMISNG::Util::shortInterface($II->{$intHash}{ifDescr});
 				if ( $II->{$intHash}{node} =~ /\d+\.\d+\.\d+\.\d+/
 					and $II->{$intHash}{sysName} ne ""
 				) {
@@ -322,7 +322,7 @@ sub viewHostDNS {
 		td({class=>'header'},'Speed'),
 		td({class=>'header'},'Type'));
 
-	foreach my $ip (sortall($ii,'ipAdEntAddr','fwd')) {
+	foreach my $ip (NMISNG::Util::sortall($ii,'ipAdEntAddr','fwd')) {
 		print Tr(
 			td({class=>'info'},$ii->{$ip}{ipAdEntAddr}),
 			td({class=>'info'},$ii->{$ip}{node}),
@@ -356,7 +356,7 @@ sub viewDnsDNS {
 		td({class=>'header'},'Speed'),
 		td({class=>'header'},'Type'));
 
-	foreach my $ip (sortall2($ii,'node','ipAdEntAddr','fwd')) {
+	foreach my $ip (NMISNG::Util::sortall2($ii,'node','ipAdEntAddr','fwd')) {
 		print Tr(
 			td({class=>'info'},$ii->{$ip}{node}),
 			td({class=>'info',nowrap=>undef},'IN A'),
@@ -395,7 +395,7 @@ sub viewArpaDNS {
 		my @in_addr_arpa = split (/\./,$ii->{$ip}{ipAdEntAddr});
 		$ii->{$ip}{ipAdEntAddr_arpa} = "$in_addr_arpa[3].$in_addr_arpa[2].$in_addr_arpa[1].$in_addr_arpa[0]";
 	}
-	foreach my $ip (sortall($ii,'ipAdEntAddr_arpa','fwd')) {
+	foreach my $ip (NMISNG::Util::sortall($ii,'ipAdEntAddr_arpa','fwd')) {
 		print Tr(
 			td({class=>'info'},"$ii->{$ip}{ipAdEntAddr_arpa}.in-addr.arpa."),
 			td({class=>'info'},"IN PTR"),
@@ -415,7 +415,7 @@ sub viewLocDNS {
 	#Load the Interface Information table
 	my $ii = getInterfaceTable();
 	#Load the location data.
-	my $LT = loadLocationsTable();
+	my $LT = Compat::NMIS::loadLocationsTable();
 
 
 # Extract from RFC1876 A Means for Expressing Location Information in the Domain Name System
@@ -466,11 +466,11 @@ sub viewLocDNS {
 		td({class=>'header'},'Altitude'),
 		td({class=>'header'},'Setting'));
 
-	foreach my $ip (sortall($ii,'node','fwd')) {
+	foreach my $ip (NMISNG::Util::sortall($ii,'node','fwd')) {
 		if ( $ii->{$ip}{ipAdEntAddr} ne "" ) {
 			if ( $node ne $ii->{$ip}{node} ) {
 				$node = $ii->{$ip}{node};
-				my $NI = loadNodeInfoTable($node);
+				my $NI = Compat::NMIS::loadNodeInfoTable($node);
 				$location = lc($NI->{system}{sysLocation});
 				if ( $LT->{$location}{Latitude} ne "" and
 					$LT->{$location}{Longitude} ne "" and

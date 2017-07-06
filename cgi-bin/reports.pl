@@ -51,11 +51,10 @@ use strict;
 use Fcntl qw(:DEFAULT :flock);
 
 use Time::ParseDate;
-use csv;
-use NMIS;
-use func;
-use Sys;
-use rrdfunc;
+use Compat::NMIS;
+use NMISNG::Util;
+use NMISNG::Sys;
+use NMISNG::rrdfunc;
 
 use Data::Dumper;
 use URI::Escape;
@@ -66,13 +65,13 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 
 my $C;
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-rrdfunc::require_RRDs(config=>$C);
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # if no options, assume called from web interface ....
 my $outputfile;
 if ( $#ARGV > 0 ) {
-	my %nvp = getArguements(@ARGV);
+	my %nvp = NMISNG::Util::getArguements(@ARGV);
 
 	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
 	$Q->{period} = $nvp{length};
@@ -80,8 +79,8 @@ if ( $#ARGV > 0 ) {
 	$Q->{debug} = $nvp{debug};
 	$Q->{csvfile} = $nvp{csvfile};
 	$Q->{conf} = $nvp{conf};
-	$Q->{time_start} = returnDateStamp($nvp{start}); # start time in epoch seconds
-	$Q->{time_end} = returnDateStamp($nvp{end});
+	$Q->{time_start} = NMISNG::Util::returnDateStamp($nvp{start}); # start time in epoch seconds
+	$Q->{time_end} = NMISNG::Util::returnDateStamp($nvp{end});
 	if ( $outputfile = $nvp{outfile} )
 	{
 		open (STDOUT,">$nvp{outfile}") or die "Cannot open the file $nvp{outfile}: $!\n";
@@ -90,7 +89,7 @@ if ( $#ARGV > 0 ) {
 }
 
 # this cgi script defaults to widget mode ON
-my $wantwidget = (!getbool($Q->{widget},"invert"));
+my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert"));
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
@@ -99,21 +98,21 @@ my $widget = $wantwidget ? "true" : "false";
 if ( $#ARGV > 0 ) { $C->{auth_require} = 0; }
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 }
 
-my $nodewrap = getbool($C->{'wrap_node_names'})? "wrap" : "nowrap";
+my $nodewrap = NMISNG::Util::getbool($C->{'wrap_node_names'})? "wrap" : "nowrap";
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
@@ -137,7 +136,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 	print "Reports: ERROR, act=$Q->{act}\n";
@@ -145,7 +144,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 	print pageEnd if (not $Q->{print} and not $wantwidget);
 }
 
-setFileProtDiag(file => $outputfile) if ($outputfile);
+NMISNG::Util::setFileProtDiag(file => $outputfile) if ($outputfile);
 exit 0;
 
 #===============================================================================
@@ -160,13 +159,13 @@ sub healthReport {
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = loadLocalNodeTable();
-	my $GT = loadGroupTable();
-	my $S = Sys::->new;
+	my $NT = Compat::NMIS::loadLocalNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
+	my $S = NMISNG::Sys->new;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -174,8 +173,8 @@ sub healthReport {
 		return;
 	}
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	my $header = "Summary Health Metrics from $datestamp_start to $datestamp_end";
 
@@ -184,12 +183,12 @@ sub healthReport {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 			## AS 16 Mar 02, implementing David Gay's requirement for deactiving
 		# a node, ie keep a node in nodes.csv but no collection done.
-		if ( getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			# get reachable, available, health, response
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
 	   			%reportTable = (%reportTable,%{$h});
 
 				$reportTable{$reportnode}{node} = $NT->{$reportnode}{name};
@@ -231,7 +230,7 @@ sub healthReport {
 	}
 
 	# if debug, print all
-	if ( getbool($Q->{debug}) ) {
+	if ( NMISNG::Util::getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 		print Dumper(\%summaryTable);
 	}
@@ -295,10 +294,10 @@ sub healthReport {
 
 		print Tr(
 			td({class=>'info Plain'},$aline),
-			td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($summaryTable{$group}{avgreachable}))},$summaryTable{$group}{avgreachable}),
-			td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($summaryTable{$group}{avgavailable}))},$summaryTable{$group}{avgavailable}),
-			td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($summaryTable{$group}{avghealth}))},$summaryTable{$group}{avghealth}),
-			td({class=>'info Plain',align=>'right',style=>getBGColor(colorResponseTime($summaryTable{$group}{avgresponse},$C->{response_time_threshold}))},$summaryTable{$group}{avgresponse}.' msec')
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($summaryTable{$group}{avgreachable}))},$summaryTable{$group}{avgreachable}),
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($summaryTable{$group}{avgavailable}))},$summaryTable{$group}{avgavailable}),
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($summaryTable{$group}{avghealth}))},$summaryTable{$group}{avghealth}),
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorResponseTime($summaryTable{$group}{avgresponse},$C->{response_time_threshold}))},$summaryTable{$group}{avgresponse}.' msec')
 			);
 
 	}
@@ -322,20 +321,20 @@ sub healthReport {
 			);
 
 		$Q->{sort} = 'node' if $Q->{sort} eq '';
-		for my $reportnode (sortall(\%reportTable, $Q->{sort}, $sortdir)) {
+		for my $reportnode (NMISNG::Util::sortall(\%reportTable, $Q->{sort}, $sortdir)) {
 			if ($reportTable{$reportnode}{group} eq $group) {
 				print Tr(
 					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportTable{$reportnode}{node})),
 					td({class=>'info Plain'},$reportTable{$reportnode}{devicetype}),
 					td({class=>'info Plain'},$reportTable{$reportnode}{role}),
 					td({class=>'info Plain'},$reportTable{$reportnode}{net}),
-					td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($reportTable{$reportnode}{reachable}))},
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{reachable}))},
 							sprintf($dec_format,$reportTable{$reportnode}{reachable})),
-					td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($reportTable{$reportnode}{available}))},
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{available}))},
 							sprintf($dec_format,$reportTable{$reportnode}{available})),
-					td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($reportTable{$reportnode}{health}))},
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{health}))},
 							sprintf($dec_format,$reportTable{$reportnode}{health})),
-					td({class=>'info Plain',align=>'right',style=>getBGColor(colorResponseTime($reportTable{$reportnode}{response},$C->{response_time_threshold}))},
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorResponseTime($reportTable{$reportnode}{response},$C->{response_time_threshold}))},
 							sprintf($dec_format,$reportTable{$reportnode}{response}).' msec')
 				);
 			}
@@ -358,16 +357,16 @@ sub availReport {
 	my %reportTable;
 	my %summaryTable;
 
-	my $NT = loadLocalNodeTable();
-	my $GT = loadGroupTable();
-	my $S = Sys::->new;
+	my $NT = Compat::NMIS::loadLocalNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
+	my $S = NMISNG::Sys->new;
 	my $NI;
 
 	#start of page
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
@@ -386,19 +385,19 @@ sub availReport {
 		return;
 	}
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	my $header = "Availability Metric from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
 	   			%reportTable = (%reportTable,%{$h});
 				$reportTable{$reportnode}{nodeType} = $NI->{system}{nodeType};
 				$reportTable{$reportnode}{node} = $reportnode;
@@ -407,7 +406,7 @@ sub availReport {
 	}
 
 	# if debug, print all
-	if ( getbool($Q->{debug}) ) {
+	if ( NMISNG::Util::getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 	}
 
@@ -437,12 +436,12 @@ sub availReport {
 				a({href=>"$url&sort=reachable"},'% Availability'))
 		);
 
-	foreach my $reportnode (sortall(\%reportTable,$Q->{sort},$sortdir)) {
+	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		print Tr(
 			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
-			td({class=>'info Plain',align=>'right',style=>getBGColor(colorPercentHi($reportTable{$reportnode}{reachable}))},
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{reachable}))},
 							sprintf($dec_format,$reportTable{$reportnode}{reachable}))
 			);
 	}
@@ -462,7 +461,7 @@ sub portReport
 
 	my $header;
 	my %portCount;
-	my $datestamp_end = returnDateStamp(time());
+	my $datestamp_end = NMISNG::Util::returnDateStamp(time());
 	my $percentage;
 	my $color;
 	my $print;
@@ -472,15 +471,15 @@ sub portReport
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	print start_table;
 
-	my $II = loadInterfaceInfo();
-	my $NT = loadNodeTable();
+	my $II = Compat::NMIS::loadInterfaceInfo();
+	my $NT = Compat::NMIS::loadNodeTable();
 
 	my %interfaceInfo = %{$II}; # copy
 
@@ -488,7 +487,7 @@ sub portReport
 	foreach my $intHash (keys %interfaceInfo) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$interfaceInfo{$intHash}{node}}{group})};
 		++$portCount{Total}{totalportcount};
-		if ( getbool($interfaceInfo{$intHash}{real})  ) {
+		if ( NMISNG::Util::getbool($interfaceInfo{$intHash}{real})  ) {
 			++$portCount{Total}{realportcount};
 			++$portCount{Total}{"admin-$interfaceInfo{$intHash}{ifAdminStatus}"};
 			if ($interfaceInfo{$intHash}{ifOperStatus} eq 'up') {
@@ -511,7 +510,7 @@ sub portReport
 #			++$portCount{Total}{"speed-$interfaceInfo{$intHash}{ifSpeed}"};
 #			++$portCount{Total}{"duplex-$interfaceInfo{$intHash}{portDuplex}"};
 			++$portCount{Total}{'collect'}
-			if (getbool($interfaceInfo{$intHash}{collect}));
+			if (NMISNG::Util::getbool($interfaceInfo{$intHash}{collect}));
 		}
 	}
 
@@ -557,11 +556,11 @@ sub portReport
 			sprintf("%.0f",$portCount{$intHash}{'oper-ok'} / $portCount{$intHash}{realportcount} * 100)
 			: "N/A";
 
-	$color = colorPort($percentage);
+	$color = Compat::NMIS::colorPort($percentage);
 	print Tr(
 		td({class=>'info Plain'},"Oper Up Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'oper-ok'}),
-		td({class=>'info Plain',style=>getBGColor($color),align=>'right'},"$percentage%"));
+		td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color),align=>'right'},"$percentage%"));
 
 
 $percentage = $portCount{$intHash}{realportcount}?
@@ -578,7 +577,7 @@ $percentage = $portCount{$intHash}{realportcount}?
 	print Tr(
 		td({class=>'info Plain'},"Oper Minor Fault Port Count"),
 		td({class=>'info Plain',align=>'right'},$portCount{$intHash}{'oper-minorFault'}),
-		td({class=>'info Plain',style=>getBGColor($color),align=>'right'},"$percentage%"));
+		td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color),align=>'right'},"$percentage%"));
 
 
 	$percentage = $portCount{$intHash}{realportcount}? sprintf("%.0f",$portCount{$intHash}{'speed-9999999'} / $portCount{$intHash}{realportcount} * 100) : "N/A";
@@ -635,14 +634,14 @@ sub responseReport
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
-	my $S = Sys::->new;
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
+	my $S = NMISNG::Sys->new;
 	my $NI;
 
 	my ($time_elements,$start,$end) = getPeriod();
@@ -651,18 +650,18 @@ sub responseReport
 		return;
 	}
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	my $header = "Reponse Time Summary from $datestamp_start to $datestamp_end";
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			$NI = $S->ndinfo;
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
 	   			%reportTable = (%reportTable,%{$h});
 				$reportTable{$reportnode}{nodeType} = $NI->{system}{nodeType};
 				$reportTable{$reportnode}{node} = $NT->{$reportnode}{name};
@@ -671,7 +670,7 @@ sub responseReport
 	}
 
 	# if debug, print all
-	if ( getbool($Q->{debug}) ) {
+	if ( NMISNG::Util::getbool($Q->{debug}) ) {
 		print Dumper(\%reportTable);
 	}
 
@@ -715,14 +714,14 @@ sub responseReport
 
 
 	# drop the NaN's like this: @sorted = sort { $a <=> $b } grep { $_ == $_ } @unsorted
-	foreach my $reportnode ( sortall(\%reportTable,$Q->{sort},$sortdir)) {
+	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		my $color = colorResponseTime($reportTable{$reportnode}{response});
+		my $color = NMISNG::Util::colorResponseTime($reportTable{$reportnode}{response});
 		print Tr(
 			td({class=>'info Plain'},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportTable{$reportnode}{node})),
 			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
-			td({class=>'info Plain',align=>'right',style=>getBGColor($color)},
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor($color)},
 						sprintf($dec_format,$reportTable{$reportnode}{response}).' msec')
 			);
 	}
@@ -739,11 +738,11 @@ sub responseReport
 # create report of poll and update times
 sub timesReport
 {
-	my $debug = getbool($Q->{debug});
+	my $debug = NMISNG::Util::getbool($Q->{debug});
 	if (not $Q->{print} && !$debug)
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
@@ -753,20 +752,20 @@ sub timesReport
 		return;
 	}
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 	my $header = "Collect and Update Time Summary from $datestamp_start to $datestamp_end";
 
 	my @report;
 
-	my $NT = loadNodeTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 	foreach my $reportnode (keys %{$NT})
 	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 
-		if ( getbool($NT->{$reportnode}->{active}) )
+		if ( NMISNG::Util::getbool($NT->{$reportnode}->{active}) )
 		{
-			my $S = Sys->new;
+			my $S = NMISNG::Sys->new;
 			$S->init(name => $reportnode, snmp=>'false');
 			my $normalpoll = $S->{mdl}{database}{db}{poll} || 300;
 
@@ -778,7 +777,7 @@ sub timesReport
 			# find health rrd
 			if (-f (my $rrdfilename = $S->getDBName(type => "health")))
 			{
-				my $stats = getRRDStats(sys => $S, graphtype => "health",
+				my $stats = NMISNG::rrdfunc::getRRDStats(sys => $S, graphtype => "health",
 																index => undef, item => undef,
 																start => $start,  end => $end);
 
@@ -792,7 +791,7 @@ sub timesReport
 						my $colorpct = ($normalpoll - $value)/$normalpoll/0.75;
 						$colorpct = 1 if $colorpct > 1;
 
-						$entry{"${thing}color"} = colorPercentHi(100 * $colorpct);
+						$entry{"${thing}color"} = NMISNG::Util::colorPercentHi(100 * $colorpct);
 					}
 				}
 			}
@@ -849,18 +848,18 @@ sub timesReport
 		my $thisnodegraph = $graphlinkbase ."&node=".uri_escape($node);
 
 
-		#	fixme	my $color = colorResponseTime($);
+		#	fixme	my $color = NMISNG::Util::colorResponseTime($);
 		print Tr(
 			td({class=>'info Plain', },
 				 a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($node)},$node)),
 
-			td({class=>'info Plain', style=> getBGColor($pollcolor)},
+			td({class=>'info Plain', style=> NMISNG::Util::getBGColor($pollcolor)},
 				 a({target => "Graph-$node",
 						class => "islink",
 						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
 					 $poll)),
 
-			td({class=>'info Plain', style => getBGColor($updatecolor)},
+			td({class=>'info Plain', style => NMISNG::Util::getBGColor($updatecolor)},
 				 a({target => "Graph-$node",
 						class => "islink",
 						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
@@ -888,16 +887,16 @@ sub top10Report
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
-	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
-	my $II = loadInterfaceInfo();
-	my $S = Sys::->new;
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
+	my $II = Compat::NMIS::loadInterfaceInfo();
+	my $S = NMISNG::Sys->new;
 	my $NI;
 
 	my ($time_elements,$start,$end) = getPeriod();
@@ -906,8 +905,8 @@ sub top10Report
 		return;
 	}
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 
@@ -915,19 +914,19 @@ sub top10Report
 	my %cpuTable;
 	foreach my $reportnode ( keys %{$NT} ) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $NI = $S->ndinfo;
 			# reachable, available, health, response
 			my $h;
-			if (($h = getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)))
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)))
 			{
 				%reportTable = (%reportTable,%{$h});
 				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
-				if (getbool($NI->{system}{collect}))
+				if (NMISNG::Util::getbool($NI->{system}{collect}))
 				{
 					# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-					if (($h = getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)))
+					if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)))
 					{
 						%cpuTable = (%cpuTable,%{$h});
 						$reportTable{$reportnode}{nodeType} = $NI->{nodeType} ;
@@ -952,15 +951,15 @@ sub top10Report
 	my $prev_node;
 	my %interfaceInfo = %{$II}; # copy
 
-	foreach my $int (sortall(\%interfaceInfo,'node','fwd') ) {
-		if ( getbool($interfaceInfo{$int}{collect}) ) {
+	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) {
+		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) {
 			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) };
 			# availability, inputUtil, outputUtil, totalUtil
-			my $tmpifDescr = convertIfName($interfaceInfo{$int}{ifDescr});
+			my $tmpifDescr = NMISNG::Util::convertIfName($interfaceInfo{$int}{ifDescr});
 			my $intf = $interfaceInfo{$int}{ifIndex};
 
 			# save the interface state for the down report
-			if ( getbool($interfaceInfo{$int}{collect})
+			if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect})
 				and $interfaceInfo{$int}{ifAdminStatus} eq "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "ok"
@@ -979,7 +978,7 @@ sub top10Report
 			}
 
 			# Availability, inputBits, outputBits
-			my $hash = getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
+			my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"interface",start=>$start,end=>$end,index=>$intf);
 			foreach my $k (keys %{$hash->{$intf}}) {
 				$linkTable{$int}{$k} = $hash->{$intf}{$k};
 				$linkTable{$int}{$k} =~ s/NaN/0/ ;
@@ -999,12 +998,12 @@ sub top10Report
 			my $dbname = $S->getDBName(graphtype => "pkts", index => $intf);
 			if ($hcdbname && -r $hcdbname)
 			{
-			  $hash = getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);
+			  $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);
 			  $got_pkts = "pkts_hc";
 			}
 			elsif ($dbname && -r $dbname)
 			{
-			  $hash = getSummaryStats(sys=>$S,type=>"pkts",start=>$start,end=>$end,index=>$intf);
+			  $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pkts",start=>$start,end=>$end,index=>$intf);
 			  $got_pkts = "pkts";
 			}
 
@@ -1026,7 +1025,7 @@ sub top10Report
 			if ( $interfaceInfo{$int}{ifType} =~ /frame-relay/ ) {
 				if ( $NI->{pvc} ne "") {
 					foreach my $p (keys %{$NI->{pvc}}) {
-						my $hash = getSummaryStats(sys=>$S,type=>"pvc",start=>$start,end=>$end,index=>$intf);
+						my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pvc",start=>$start,end=>$end,index=>$intf);
 							foreach my $k (keys %{$pvcTable{$intf}}) {
 							$pvcTable{$int}{$k} = $hash->{$intf}{$k};
 							$pvcTable{$int}{$k} =~ s/NaN/0/ ;
@@ -1041,7 +1040,7 @@ sub top10Report
 	}
 
 	# if debug, print all
-	if ( getbool($Q->{debug}) ) {
+	if ( NMISNG::Util::getbool($Q->{debug}) ) {
 		print "<pre>";
 		print "reportTable\n";
 		print Dumper(\%reportTable);
@@ -1088,7 +1087,7 @@ sub top10Report
 		);
 
 	my $i=10;
-	for my $reportnode ( sortall(\%reportTable,'response','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev')) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$reportTable{$reportnode}{response} =~ /(^\d+)/;
 		my $bar = $1 / 2;
@@ -1112,7 +1111,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( sortall(\%reportTable,'loss','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev')) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		last if $reportTable{$reportnode}{loss} == 0;	# early exit if rest are zero.
 		$reportTable{$reportnode}{loss} =~ /(^\d+)/;
@@ -1138,7 +1137,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( sortall(\%cpuTable,'avgBusy5min','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'avgBusy5min','rev')) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		print Tr(
@@ -1163,7 +1162,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( sortall(\%cpuTable,'ProcMemUsed','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'ProcMemUsed','rev')) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{ProcMemUsed} =~ /(^\d+)/;
 		print Tr(
@@ -1188,7 +1187,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( sortall(\%cpuTable,'IOMemUsed','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%cpuTable,'IOMemUsed','rev')) {
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
 		print Tr(
@@ -1214,7 +1213,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( sortall(\%linkTable,'totalUtil','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%linkTable,'totalUtil','rev')) {
 		last if $linkTable{$reportlink}{inputUtil} and $linkTable{$reportlink}{outputUtil} == 0;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$linkTable{$reportlink}{node}}{group}) };
 		my $reportnode = $linkTable{$reportlink}{node} ;
@@ -1248,7 +1247,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( sortall(\%linkTable,'totalBits','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%linkTable,'totalBits','rev')) {
 		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0;
 		my $reportnode = $linkTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
@@ -1257,8 +1256,8 @@ sub top10Report
 			td({class=>"info Plain $nodewrap"},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
 			td({class=>'info Plain',colspan=>'3'},"$linkTable{$reportlink}{ifDescr} $linkTable{$reportlink}{Description}"),
-			td({class=>'info Plain',colspan=>'2',align=>'right'},getBits($linkTable{$reportlink}{inputBits},'ps')),
-			td({class=>'info Plain',colspan=>'2',align=>'right'},getBits($linkTable{$reportlink}{outputBits},'ps'))
+			td({class=>'info Plain',colspan=>'2',align=>'right'},NMISNG::Util::getBits($linkTable{$reportlink}{inputBits},'ps')),
+			td({class=>'info Plain',colspan=>'2',align=>'right'},NMISNG::Util::getBits($linkTable{$reportlink}{outputBits},'ps'))
 		);
 		# loop control
 		last if --$i == 0;
@@ -1276,7 +1275,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( sortall(\%pvcTable,'totalECNS','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%pvcTable,'totalECNS','rev')) {
 		last if $pvcTable{$reportlink}{totalECNS} == 0;	# early exit if rest are zero.
 		my $reportnode = $pvcTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
@@ -1306,7 +1305,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( sortall(\%pktsTable,'totalDiscardsErrors','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%pktsTable,'totalDiscardsErrors','rev')) {
 		last if $pktsTable{$reportlink}{totalDiscardsErrors} == 0;	# early exit if rest are zero.
 		my $reportnode = $pktsTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
@@ -1334,7 +1333,7 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportlink ( sortall(\%downTable,'ifLastChange','rev')) {
+	for my $reportlink ( NMISNG::Util::sortall(\%downTable,'ifLastChange','rev')) {
 		my $reportnode = $downTable{$reportlink}{node} ;
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
 		$downTable{$reportlink}{Description} = '' if $downTable{$reportlink}{Description} =~ /nosuch/i ;
@@ -1365,7 +1364,7 @@ sub outageReport
 	if (not $Q->{print})
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
@@ -1378,11 +1377,11 @@ sub outageReport
 
 	my ($level_elements, $level) = getLevel(); # node or interface
 
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
-	my $NT = loadNodeTable();
-	my $OT = loadOutageTable();
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $OT = Compat::NMIS::loadOutageTable();
 
 	my $index;
 	my %logreport;
@@ -1510,18 +1509,18 @@ sub outageReport
 		);
 
 	if ($i > 0) {
-		for my $index ( sortall(\%logreport,$Q->{sort},$Q->{sortdir})) {
-			my $color = colorTime($logreport{$index}{outime});
+		for my $index ( NMISNG::Util::sortall(\%logreport,$Q->{sort},$Q->{sortdir})) {
+			my $color = NMISNG::Util::colorTime($logreport{$index}{outime});
 			my $reportnode = $logreport{$index}{node} ;
 			if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
 			print Tr(
-				td({class=>'info Plain',style=>getBGColor($color)},returnDateStamp($logreport{$index}{time})),
-				td({class=>'info Plain',style=>getBGColor($color)},
+				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},NMISNG::Util::returnDateStamp($logreport{$index}{time})),
+				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},
 					a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
-				td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{outype}),
-				td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{outime}),
-				eval { return $logreport{$index}{element} ? td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{element}) : td({class=>'info Plain'},'&nbsp;');},
-				eval { return $logreport{$index}{outage} ? td({class=>'info Plain',style=>getBGColor($color)},$logreport{$index}{outage}) : td({class=>'info Plain'},'&nbsp;');}
+				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{outype}),
+				td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{outime}),
+				eval { return $logreport{$index}{element} ? td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{element}) : td({class=>'info Plain'},'&nbsp;');},
+				eval { return $logreport{$index}{outage} ? td({class=>'info Plain',style=>NMISNG::Util::getBGColor($color)},$logreport{$index}{outage}) : td({class=>'info Plain'},'&nbsp;');}
 				);
 		}
 	} else {
@@ -1550,14 +1549,14 @@ sub nodedetailsReport {
 	if (not $AU->CheckAccess('rpt_dynamic','check'))
 	{
 		print header($headeropts);
-		pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 		$AU->CheckAccess('rpt_nodedetails');
 		print pageEnd if (not $Q->{print} and not $wantwidget);
 		return;
 	}
 
-	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
 
 	# this will launch Excel - as it is the default application handler for .csv files
 	print "Content-type: application/octet-stream;\n";
@@ -1575,8 +1574,8 @@ sub nodedetailsReport {
 		foreach my $node (sort keys %{$NT}) {
 			if ( $NT->{$node}{group} eq "$group" ) {
 
-				#my $NI = readFiletoHash(name=>"$node-node");
-				my $S = Sys::->new; # get system object
+				#my $NI = NMISNG::Util::readFiletoHash(name=>"$node-node");
+				my $S = NMISNG::Sys->new; # get system object
 				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 				my $NI = $S->ndinfo;
 
@@ -1632,7 +1631,7 @@ sub storedReport {
 
 	#start of page
 	print header($headeropts);
-	pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
@@ -1661,14 +1660,14 @@ sub storedReport {
 			# formulate a tidy report name
 			$dir =~ s/\.html//;
 			if ( $dir =~ m/month-(\d\d)-(\d\d\d\d)/ ) {		# month-01-2006.html
-				$reportTable{$index}{link} = 'monthly '.convertMonth($1) . " $2";
+				$reportTable{$index}{link} = 'monthly '.NMISNG::Util::convertMonth($1) . " $2";
 			}
 			elsif ( $dir =~ m/(day|week|month)-(\d\d)-(\d\d)-(\d\d\d\d)-(\w+)/ ) {		# day|week-01-01-2006-Sun.html
-				$reportTable{$index}{link} = "${1}ly ".$5 . " $2 " . convertMonth($3) . " $4";
+				$reportTable{$index}{link} = "${1}ly ".$5 . " $2 " . NMISNG::Util::convertMonth($3) . " $4";
 				$reportTable{$index}{link} =~ s/dayly/daily/;
 			}
 			elsif ( $dir =~ m/(\w+)-(\w+)-(\d\d)-(\d\d)-(\d\d\d\d)-(\w+)/ ) { 	# <type>-day|week|month-01-01-2006-Mon.html
-				$reportTable{$index}{link} = "${2}ly ".$6 . " $3 " . convertMonth($4) . " $5";
+				$reportTable{$index}{link} = "${2}ly ".$6 . " $3 " . NMISNG::Util::convertMonth($4) . " $5";
 
 			}
 			else {
@@ -1767,7 +1766,7 @@ sub purge_files
 sub fileReport {
 
 	print header($headeropts);
-	pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	return unless $AU->CheckAccess('rpt_stored'); # same as menu
 
@@ -1800,9 +1799,9 @@ sub getPeriod {
 	if ($Q->{period} ne $Q->{prevperiod} and $Q->{period} ne '') {
 		# length changed
 		if ($Q->{period} =~ /(\d+)min/) {
-			$start = convertTime($1,'minutes');
+			$start = NMISNG::Util::convertTime($1,'minutes');
 		} else {
-			$start = convertTime("1","$Q->{period}s");
+			$start = NMISNG::Util::convertTime("1","$Q->{period}s");
 		}
 		$end = time();
 	} else {
@@ -1810,8 +1809,8 @@ sub getPeriod {
 		$end = parsedate($Q->{time_end});
 		$Q->{period} = '';
 	}
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end = NMISNG::Util::returnDateStamp($end);
 
 	$elements = hidden(-name=>'prevperiod', -default=>$Q->{period},override=>'1');
 

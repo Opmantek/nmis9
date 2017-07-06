@@ -33,8 +33,8 @@ package VirtMachines;
 our $VERSION = "1.0.1";
 
 use strict;
-use func;												# for the conf table extras
-use NMIS;
+use NMISNG::Util;												# for the conf table extras
+use Compat::NMIS;
 
 sub update_plugin
 {
@@ -48,7 +48,7 @@ sub update_plugin
 
 	info("Working on $node VirtMachines");
 	
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 
 	for my $vm (keys %{$NI->{VirtMachines}})
 	{

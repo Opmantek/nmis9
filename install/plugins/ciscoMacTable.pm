@@ -34,8 +34,8 @@ our $VERSION = "1.1.0";
 
 use strict;
 
-use func;												# for the conf table extras
-use NMIS;												# lnt
+use NMISNG::Util;												# for the conf table extras
+use Compat::NMIS;												# lnt
 use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
@@ -43,7 +43,7 @@ sub update_plugin
 	my (%args) = @_;
 	my ($node,$S,$C) = @args{qw(node sys config)};
 
-	my $LNT = loadLocalNodeTable();
+	my $LNT = Compat::NMIS::loadLocalNodeTable();
 	
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
@@ -94,7 +94,7 @@ sub update_plugin
 		# Get the connected devices if the VLAN is operational
 		if ( $entry->{vtpVlanState} eq "operational" ) 
 		{
-			my $snmp = snmp->new(name => $node);
+			my $snmp = NMISNG::Snmp->new(name => $node);
 
 			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}))
 			{

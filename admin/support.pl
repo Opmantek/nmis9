@@ -50,7 +50,7 @@ public: if set to false, then credentials, community, passwords
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
 
-my %args = getArguements(@ARGV);
+my %args = &getArguments(@ARGV);
 
 my $configname = $args{config} || "Config.nmis";
 my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
@@ -63,7 +63,7 @@ my %options;										# dummy-ish, for input_yn and friends
 my $globalconf = { '<nmis_base>' => Cwd::abs_path("$FindBin::RealBin/../"),
 }; # fixme log files
 
-eval { require NMIS; NMIS->import(); require func; func->import(); };
+eval { require NMIS; NMIS->import(); require NMISNG::Util; };
 if ($@)
 {
 	warn "Attention: The NMIS modules could not be loaded: '$@'\n
@@ -77,7 +77,7 @@ installation is in $globalconf->{'<nmis_base>'}.\n\n";
 else
 {
 	# load the global config
-	$globalconf = &loadConfTable(conf => $configname);
+	$globalconf = &NMISNG::Util::loadConfTable(conf => $configname);
 }
 
 # make tempdir
@@ -87,7 +87,7 @@ if (!$@ && func->can("selftest"))
 {
 	# run the selftest in interactive mode - if our nmis is new enough
 	print "Performing Selftest, please wait...\n";
-	my ($testok, $testdetails) = func::selftest(config => $globalconf, delay_is_ok => 'true');
+	my ($testok, $testdetails) = NMISNG::Util::selftest(config => $globalconf, delay_is_ok => 'true');
 	if (!$testok)
 	{
 		print STDERR "\n\nAttention: NMIS Selftest Failed!
@@ -518,8 +518,8 @@ sub input_yn
 	}
 }
 
-# so that we don't need to "use func"
-sub getArguements {
+# so that we don't need to use NMISNG::Util et.al.
+sub getArguments {
 	my @argue = @_;
 	my (%nvp, $name, $value, $line, $i);
 	for ($i=0; $i <= $#argue; ++$i) {

@@ -32,9 +32,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use strict;
-use NMIS;
-use func;
-use NMIS::Timing;
+use Compat::NMIS;
+use NMISNG::Util;
+use Compat::Timing;
 use URI::Escape;
 use URI;
 use URI::QueryParam;
@@ -53,18 +53,18 @@ $q = new CGI;     # This processes all parameters passed via GET and POST
 $Q = $q->Vars;    # values in hash
 
 # load NMIS configuration table
-if ( !( $C = loadConfTable( conf => $Q->{conf}, debug => $Q->{debug} ) ) ) { exit 1; }
+if ( !( $C = NMISNG::Util::loadConfTable( conf => $Q->{conf}, debug => $Q->{debug} ) ) ) { exit 1; }
 
 # if options, then called from command line
 if ( $#ARGV > 0 ) { $C->{auth_require} = 0; }    # bypass auth
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 use vars qw($headeropts);
 $headeropts = {};                                #{type=>'text/html',expires=>'now'};
-$AU = Auth->new( conf => $C );                   # Auth::new will reap init values from NMIS config
+$AU = NMISNG::Auth->new( conf => $C );
 
 if ( $AU->Require )
 {
@@ -79,7 +79,7 @@ if ( $AU->Require )
 
 #======================================================================
 
-my $widget = getbool( $Q->{widget}, "invert" ) ? 'false' : 'true';
+my $widget = NMISNG::Util::getbool( $Q->{widget}, "invert" ) ? 'false' : 'true';
 $Q->{expand} = "true" if ( $widget eq "true" );
 
 ### unless told otherwise, and this is not JQuery call, widget is false!
@@ -96,9 +96,9 @@ if ( not defined $ENV{HTTP_X_REQUESTED_WITH} )
 my $wantwidget = ( $widget eq "true" );
 
 ### 2013-11-23 keiths adding some timing debug
-my $t      = NMIS::Timing->new();
+my $t      = Compat::Timing->new();
 my $timing = 0;
-$timing = 1 if getbool( $Q->{timing} );
+$timing = 1 if NMISNG::Util::getbool( $Q->{timing} );
 
 if ( $Q->{refresh} eq "" and $wantwidget )
 {
@@ -110,7 +110,7 @@ elsif ( $Q->{refresh} eq "" and !$wantwidget )
 }
 
 my $nodewrap = "nowrap";
-$nodewrap = "wrap" if getbool( $C->{'wrap_node_names'} );
+$nodewrap = "wrap" if NMISNG::Util::getbool( $C->{'wrap_node_names'} );
 
 my $smallGraphHeight = 50;
 my $smallGraphWidth  = 400;
@@ -118,9 +118,9 @@ my $smallGraphWidth  = 400;
 $smallGraphHeight = $C->{'small_graph_height'} if $C->{'small_graph_height'} ne "";
 $smallGraphWidth  = $C->{'small_graph_width'}  if $C->{'small_graph_width'} ne "";
 
-logMsg( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
+NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Begin act=$Q->{act}" ) if $timing;
 
-my $nmisng = NMIS::new_nmisng;
+my $nmisng = Compat::NMIS::new_nmisng;
 
 # select function
 my $select;
@@ -285,10 +285,10 @@ sub notfound
 	print "Request not found\n";
 }
 
-logMsg( "TIMING: " . $t->elapTime() . " Select Subs" ) if $timing;
+NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Select Subs" ) if $timing;
 
 # option to generate html to file
-if ( getbool( $Q->{http} ) )
+if ( NMISNG::Util::getbool( $Q->{http} ) )
 {
 	print start_html(
 		-title => 'NMIS Network Summary',
@@ -306,13 +306,13 @@ else
 	print header($headeropts);
 }
 
-pageStartJscript( title => "NMIS Network Status - $C->{server_name}", refresh => $Q->{refresh} )
+Compat::NMIS::pageStartJscript( title => "NMIS Network Status - $C->{server_name}", refresh => $Q->{refresh} )
 	if ( !$wantwidget );
 
-logMsg( "TIMING: " . $t->elapTime() . " Load Nodes and Groups" ) if $timing;
+NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " Load Nodes and Groups" ) if $timing;
 
-my $NT = loadNodeTable();
-my $GT = loadGroupTable();
+my $NT = Compat::NMIS::loadNodeTable();
+my $GT = Compat::NMIS::loadGroupTable();
 
 # graph request
 my $ntwrk = ( $select eq 'large' ) ? 'network' : ( $Q->{group} eq '' ) ? 'network' : $Q->{group};
@@ -344,7 +344,7 @@ my $end   = $metricsFirstPeriod;
 # Call each of the base  network display subs.
 #======================================
 
-logMsg( "TIMING: " . $t->elapTime() . " typeSummary" ) if $timing;
+NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " typeSummary" ) if $timing;
 
 print "<!-- typeSummary select=$select start -->\n";
 
@@ -364,9 +364,9 @@ elsif ( $select eq 'allgroups' ) { selectAllGroups(); }
 
 print "<!-- typeSummary select=$select end-->\n";
 
-pageEnd() if ( !$wantwidget );
+Compat::NMIS::pageEnd() if ( !$wantwidget );
 
-logMsg( "TIMING: " . $t->elapTime() . " END $Q->{act}" ) if $timing;
+NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " END $Q->{act}" ) if $timing;
 
 exit();
 
@@ -379,21 +379,21 @@ sub getSummaryStatsbyGroup
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
+	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
 
 	my $metricsFirstPeriod
 		= defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod
 		= defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
 
-	$groupSummary = getGroupSummary(
+	$groupSummary = Compat::NMIS::getGroupSummary(
 		group    => $group,
 		customer => $customer,
 		business => $business,
 		start    => $metricsFirstPeriod,
 		end      => "now"
 	);
-	$oldGroupSummary = getGroupSummary(
+	$oldGroupSummary = Compat::NMIS::getGroupSummary(
 		group    => $group,
 		customer => $customer,
 		business => $business,
@@ -401,8 +401,8 @@ sub getSummaryStatsbyGroup
 		end      => $metricsFirstPeriod
 	);
 
-	$overallStatus = overallNodeStatus( group => $group, customer => $customer, business => $business );
-	$overallColor = eventColor($overallStatus);
+	$overallStatus = Compat::NMIS::overallNodeStatus( group => $group, customer => $customer, business => $business );
+	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
 	# valid hash keys are metric reachable available health response
 
@@ -441,20 +441,20 @@ sub getSummaryStatsbyGroup
 	my $metric_color;
 	if ( $metric <= -1 )
 	{
-		$metric_color = colorPercentHi($metric);
+		$metric_color = NMISNG::Util::colorPercentHi($metric);
 		$icon{metric_icon} = 'arrow_down_big';
 	}
 	elsif ( $metric < 0 )
 	{
-		$metric_color = colorPercentHi($metric);
+		$metric_color = NMISNG::Util::colorPercentHi($metric);
 		$icon{metric_icon} = 'arrow_down';
 	}
 	elsif ( $metric < 1 )
 	{
-		$metric_color = colorPercentHi($metric);
+		$metric_color = NMISNG::Util::colorPercentHi($metric);
 		$icon{metric_icon} = 'arrow_up';
 	}
-	elsif ( $metric >= 1 ) { $metric_color = colorPercentHi($metric); $icon{metric_icon} = 'arrow_up_big'; }
+	elsif ( $metric >= 1 ) { $metric_color = NMISNG::Util::colorPercentHi($metric); $icon{metric_icon} = 'arrow_up_big'; }
 
 	## ehg 17 sep 02 add node down counter with colour
 	my $percentDown = 0;
@@ -463,7 +463,7 @@ sub getSummaryStatsbyGroup
 		$percentDown
 			= sprintf( "%2.0u", $groupSummary->{average}{countdown} / $groupSummary->{average}{counttotal} ) * 100;
 	}
-	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
+	$groupSummary->{average}{countdowncolor} = NMISNG::Util::colorPercentLo($percentDown);
 
 	my $percentDegraded = 0;
 	if ( $groupSummary->{average}{countdegraded} > 0 and $groupSummary->{average}{counttotal} > 0 )
@@ -471,12 +471,12 @@ sub getSummaryStatsbyGroup
 		$percentDegraded
 			= sprintf( "%2.0u", $groupSummary->{average}{countdegraded} / $groupSummary->{average}{counttotal} ) * 100;
 	}
-	$groupSummary->{average}{countdowncolor} = colorPercentLo($percentDown);
+	$groupSummary->{average}{countdowncolor} = NMISNG::Util::colorPercentLo($percentDown);
 
-	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = colorPercentLo(0); }
+	#if ( $groupSummary->{average}{countdown} > 0) { $groupSummary->{average}{countdowncolor} = NMISNG::Util::colorPercentLo(0); }
 	#else { $groupSummary->{average}{countdowncolor} = "$overallColor"; }
 
-	logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup end" ) if $timing;
+	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup end" ) if $timing;
 
 }    # end sub get SummaryStatsby group
 
@@ -501,13 +501,13 @@ sub selectMetrics
 	{
 		# allowed to, but do we have a problem to show?
 		# this widget is overridden for selftest alerting, iff the last nmis selftest was unsuccessful
-		my $cachefile = func::getFileName(
+		my $cachefile = NMISNG::Util::getFileName(
 			file => $C->{'<nmis_var>'} . "/nmis_system/selftest",
 			json => 'true'
 		);
 		if ( -f $cachefile )
 		{
-			my $selfteststatus = readFiletoHash( file => $cachefile, json => 'true' );
+			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );
 			if ( !$selfteststatus->{status} )
 			{
 				$showmetrics = 0;
@@ -564,8 +564,8 @@ sub selectMetrics
 			foreach my $t ( 0 .. 4 )
 			{
 				$groupSummary->{average}{$k[$t]} = int( $groupSummary->{average}{$k[$t]} );
-				$cp = colorPercentHi( $groupSummary->{average}{$k[$t]} );
-				$cp = colorPercentLo( $groupSummary->{average}{$k[$t]} ) if $t == 4;
+				$cp = NMISNG::Util::colorPercentHi( $groupSummary->{average}{$k[$t]} );
+				$cp = NMISNG::Util::colorPercentLo( $groupSummary->{average}{$k[$t]} ) if $t == 4;
 				my $img_width = $groupSummary->{average}{$k[$t]};
 				$img_width = 100 - $groupSummary->{average}{$k[$t]} if $t == 4;
 				$img_width = 15 if $img_width < 10;    # set min width so value always has bg image color
@@ -622,25 +622,25 @@ sub selectNetworkHealth
 	my $healthTitle = "All Groups Status";
 	my $healthType  = "group";
 
-	if ( $type eq "customer" and tableExists('Customers') )
+	if ( $type eq "customer" and Compat::NMIS::tableExists('Customers') )
 	{
 		@h           = qw(Customer);
 		$healthTitle = "All Nodes Status";
 		$healthType  = "customer";
 	}
-	elsif ( $type eq "business" and tableExists('BusinessServices') )
+	elsif ( $type eq "business" and Compat::NMIS::tableExists('BusinessServices') )
 	{
 		@h           = qw(Business);
 		$healthTitle = "All Nodes Status";
 		$healthType  = "business";
 	}
-	elsif ( $C->{network_health_view} eq "Customer" and tableExists('Customers') )
+	elsif ( $C->{network_health_view} eq "Customer" and Compat::NMIS::tableExists('Customers') )
 	{
 		@h           = qw(Customer);
 		$healthTitle = "All Nodes Status";
 		$healthType  = "customer";
 	}
-	elsif ( $C->{network_health_view} eq "Business" and tableExists('BusinessServices') )
+	elsif ( $C->{network_health_view} eq "Business" and Compat::NMIS::tableExists('BusinessServices') )
 	{
 		@h           = qw(Business);
 		$healthTitle = "All Nodes Status";
@@ -648,7 +648,7 @@ sub selectNetworkHealth
 	}
 
 	if ( exists $C->{display_status_summary}
-		and getbool( $C->{display_status_summary} ) )
+		and NMISNG::Util::getbool( $C->{display_status_summary} ) )
 	{
 		push( @h, qw(Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime) );
 	}
@@ -657,7 +657,7 @@ sub selectNetworkHealth
 		push( @h, qw(Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime) );
 	}
 
-	logMsg( "TIMING: " . $t->elapTime() . " selectNetworkHealth healthTitle=$healthTitle healthType=$healthType" )
+	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " selectNetworkHealth healthTitle=$healthTitle healthType=$healthType" )
 		if $timing;
 
 	print
@@ -692,11 +692,11 @@ sub selectNetworkHealth
 			td( {class => "info $overallStatus"}, "$overallStatus" ),
 			td( {class => 'info Plain'},          "$groupSummary->{average}{counttotal}" );
 		print td( {class => 'info Plain'}, "$groupSummary->{average}{countup}" )
-			if ( not getbool( $C->{display_status_summary} ) );
+			if ( not NMISNG::Util::getbool( $C->{display_status_summary} ) );
 		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 		print td( {class => "info $overallStatus"}, "$groupSummary->{average}{countdown}" );
 		print td( {class => "info $classDegraded"}, "$groupSummary->{average}{countdegraded}" )
-			if ( getbool( $C->{display_status_summary} ) );
+			if ( NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 		my @h = qw/metric reachable available health response/;
 		foreach my $t (@h)
@@ -705,8 +705,8 @@ sub selectNetworkHealth
 			my $value
 				= $t eq 'response' ? $groupSummary->{average}{$t} : sprintf( "%.1f", $groupSummary->{average}{$t} );
 			if ( $value == 100 ) { $value = 100 }
-			my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} );
-			$bg = "background-color:" . colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} )
+			my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} );
+			$bg = "background-color:" . NMISNG::Util::colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} )
 				if $t eq 'response';
 			print
 				start_td( {class => 'info Plain', style => "$bg"} ),
@@ -721,7 +721,7 @@ sub selectNetworkHealth
 
 	if ( $healthType eq "customer" )
 	{
-		my $CT = loadGenericTable('Customers');
+		my $CT = Compat::NMIS::loadGenericTable('Customers');
 		foreach my $customer ( sort keys %{$CT} )
 		{
 			getSummaryStatsbyGroup( customer => $customer );
@@ -730,7 +730,7 @@ sub selectNetworkHealth
 	}
 	elsif ( $healthType eq "business" )
 	{
-		my $BS = loadGenericTable('BusinessServices');
+		my $BS = Compat::NMIS::loadGenericTable('BusinessServices');
 		foreach my $business ( sort keys %{$BS} )
 		{
 			getSummaryStatsbyGroup( business => $business );
@@ -769,7 +769,7 @@ sub selectSmall
 	my @h = qw/Group Status NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
 
 	@h = qw(Group Status NodeDn NodeDeg Metric Reach IntfAvail Health RespTime)
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	print
 		start_table( {class => "dash"} ),
@@ -805,13 +805,13 @@ sub selectSmall
 
 		#td({class=>'info Plain'},"$groupSummary->{average}{counttotal}"),
 		print td( {class => 'info Plain'}, "$groupSummary->{average}{countup} of $groupSummary->{average}{counttotal}" )
-			if ( exists $C->{display_status_summary} and not getbool( $C->{display_status_summary} ) );
+			if ( exists $C->{display_status_summary} and not NMISNG::Util::getbool( $C->{display_status_summary} ) );
 		### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 		print td( {class => "info $overallStatus"},
 			"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}" );
 		print td( {class => "info $classDegraded"},
 			"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}" )
-			if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+			if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 		my @h = qw/metric reachable available health response/;
 		foreach my $t (@h)
@@ -819,8 +819,8 @@ sub selectSmall
 			my $units = $t eq 'response' ? 'ms' : '%';
 			my $value
 				= $t eq 'response' ? $groupSummary->{average}{$t} : sprintf( "%.1f", $groupSummary->{average}{$t} );
-			my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} );
-			$bg = "background-color:" . colorPercentLo( $groupSummary->{average}{$t} ) if $t eq 'response';
+			my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} );
+			$bg = "background-color:" . NMISNG::Util::colorPercentLo( $groupSummary->{average}{$t} ) if $t eq 'response';
 			print
 				start_td( {class => 'info Plain', style => "$bg"} ),
 				img( {src => $C->{$icon{${t}}}} ),
@@ -853,7 +853,7 @@ sub selectAllGroups
 	my @h = qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
 
 	@h = qw(Group Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime)
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	print Tr( th( {class => "header"}, \@h ) );
 
@@ -886,7 +886,7 @@ sub selectGroup
 	my @h = qw/Group Status NodeTotal NodeUp NodeDn Metric Reach IntfAvail Health RespTime/;
 
 	@h = qw(Group Status NodeTotal NodeDn NodeDeg Metric Reach IntfAvail Health RespTime)
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	print
 		start_table( {class => "dash"} ),
@@ -952,11 +952,11 @@ sub printGroup
 		td( {class => "info $overallStatus"}, $overallStatus ),
 		td( {class => 'info Plain'},          "$groupSummary->{average}{counttotal}" );
 	print td( {class => 'info Plain'}, "$groupSummary->{average}{countup}" )
-		if ( not getbool( $C->{display_status_summary} ) );
+		if ( not NMISNG::Util::getbool( $C->{display_status_summary} ) );
 	### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 	print td( {class => "info $overallStatus"}, "$groupSummary->{average}{countdown}" );
 	print td( {class => "info $classDegraded"}, "$groupSummary->{average}{countdegraded}" )
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h)
@@ -967,10 +967,10 @@ sub printGroup
 
 		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
 		if ( $value == 100 ) { $value = 100 }
-		my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} ) . ';';
+		my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} ) . ';';
 		$bg
 			= "background-color:"
-			. colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
+			. NMISNG::Util::colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
 			if $t eq 'response';
 
 		$groupSummary->{average}{$t} = int( $groupSummary->{average}{$t} );
@@ -999,7 +999,7 @@ sub selectNetworkView
 
 	my @h = (
 		exists $C->{display_status_summary}
-			and getbool( $C->{display_status_summary} )
+			and NMISNG::Util::getbool( $C->{display_status_summary} )
 		? (qw(Group NodeDn NodeDeg Metric Reach Health))
 		: (qw(Group NodeDn Metric Reach Health))
 	);
@@ -1007,7 +1007,7 @@ sub selectNetworkView
 	my $healthTitle = "All Groups Status";
 	my $healthType  = "group";
 
-	logMsg( "TIMING: " . $t->elapTime() . " selectNetworkView healthTitle=$healthTitle healthType=$healthType" )
+	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " selectNetworkView healthTitle=$healthTitle healthType=$healthType" )
 		if $timing;
 
 	my $graphGroup = $group || 'network';
@@ -1018,7 +1018,7 @@ sub selectNetworkView
 
 		Tr(
 		td( {class => 'image', colspan => $colspan},
-			htmlGraph(
+			Compat::NMIS::htmlGraph(
 				graphtype => "metrics",
 				group     => "$graphGroup",
 				node      => "",
@@ -1034,7 +1034,7 @@ sub selectNetworkView
 	print th( {class => "header", title => "A group of nodes, and the status"},  "Group" );
 	print th( {class => "header", title => "Number of nodes down in the group"}, "Nodes Down" );
 	print th( {class => "header", title => "Number of nodes down in the group"}, "Nodes Degraded" )
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 	print th( {class => "header", title => "A single metric for the group of nodes"},        "Metric" );
 	print th( {class => "header", title => "Group reachability (pingability) of the nodes"}, "Reachability" );
 	print th( {class => "header", title => "The health of the group"},                       "Health" );
@@ -1067,7 +1067,7 @@ sub selectNetworkView
 			"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}" );
 		print td( {class => "info $classDegraded"},
 			"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}" )
-			if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+			if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 		my @h = qw/metric reachable health/;
 		foreach my $t (@h)
@@ -1076,8 +1076,8 @@ sub selectNetworkView
 			my $value
 				= $t eq 'response' ? $groupSummary->{average}{$t} : sprintf( "%.1f", $groupSummary->{average}{$t} );
 			if ( $value == 100 ) { $value = 100 }
-			my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} );
-			$bg = "background-color:" . colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} )
+			my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} );
+			$bg = "background-color:" . NMISNG::Util::colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} )
 				if $t eq 'response';
 
 			print
@@ -1092,7 +1092,7 @@ sub selectNetworkView
 
 	# now compute and print the stats for as many groups as allowed
 	my $cutoff
-		= getbool( $Q->{unlimited} )
+		= NMISNG::Util::getbool( $Q->{unlimited} )
 		? undef
 		: $C->{network_summary_maxgroups} || 30;
 	my @allowed = sort( grep( $AU->InGroup($_), keys %{$GT} ) );
@@ -1109,7 +1109,7 @@ sub selectNetworkView
 	if ($havetoomany)
 	{
 		my ( $otherstate, $msg )
-			= getbool( $Q->{unlimited} ) ? ( "false", "to hide extra groups" ) : ( "true", "for a full view" );
+			= NMISNG::Util::getbool( $Q->{unlimited} ) ? ( "false", "to hide extra groups" ) : ( "true", "for a full view" );
 
 		$q->param( -name => "unlimited", -value => $otherstate );
 
@@ -1174,7 +1174,7 @@ sub printGroupView
 		"$groupSummary->{average}{countdown} of $groupSummary->{average}{counttotal}" );
 	print td( {class => "info $classDegraded"},
 		"$groupSummary->{average}{countdegraded} of $groupSummary->{average}{counttotal}" )
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	#my @h = qw/metric reachable available health response/;
 	my @h = qw/metric reachable health/;
@@ -1185,10 +1185,10 @@ sub printGroupView
 
 		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
 		if ( $value == 100 ) { $value = 100 }
-		my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} ) . ';';
+		my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} ) . ';';
 		$bg
 			= "background-color:"
-			. colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
+			. NMISNG::Util::colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
 			if $t eq 'response';
 
 		$groupSummary->{average}{$t} = int( $groupSummary->{average}{$t} );
@@ -1264,11 +1264,11 @@ sub printHealth
 		td( {class => "info $overallStatus"}, $overallStatus ),
 		td( {class => 'info Plain'},          "$groupSummary->{average}{counttotal}" );
 	print td( {class => 'info Plain'}, "$groupSummary->{average}{countup}" )
-		if ( not getbool( $C->{display_status_summary} ) );
+		if ( not NMISNG::Util::getbool( $C->{display_status_summary} ) );
 	### using overall node status in place of percentage colouring now, because in larger networks, small percentage down was green.
 	print td( {class => "info $overallStatus"}, "$groupSummary->{average}{countdown}" );
 	print td( {class => "info $classDegraded"}, "$groupSummary->{average}{countdegraded}" )
-		if ( exists $C->{display_status_summary} and getbool( $C->{display_status_summary} ) );
+		if ( exists $C->{display_status_summary} and NMISNG::Util::getbool( $C->{display_status_summary} ) );
 
 	my @h = qw/metric reachable available health response/;
 	foreach my $t (@h)
@@ -1279,10 +1279,10 @@ sub printHealth
 
 		#my $value = sprintf("%.1f",$groupSummary->{average}{$t});
 		if ( $value == 100 ) { $value = 100 }
-		my $bg = "background-color:" . colorPercentHi( $groupSummary->{average}{$t} ) . ';';
+		my $bg = "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{average}{$t} ) . ';';
 		$bg
 			= "background-color:"
-			. colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
+			. NMISNG::Util::colorResponseTime( $groupSummary->{average}{$t}, $C->{response_time_threshold} ) . ';'
 			if $t eq 'response';
 
 		$groupSummary->{average}{$t} = int( $groupSummary->{average}{$t} );
@@ -1318,15 +1318,15 @@ sub selectLarge
 	);
 
 	my $ST;
-	if ( getbool( $C->{server_master} ) )
+	if ( NMISNG::Util::getbool( $C->{server_master} ) )
 	{
-		$ST = loadServersTable();
+		$ST = Compat::NMIS::loadServersTable();
 	}
 
 	my $CT;
 	if ( $C->{network_health_view} eq "Customer" or $customer ne "" )
 	{
-		$CT = loadGenericTable('Customers');
+		$CT = Compat::NMIS::loadGenericTable('Customers');
 	}
 
 	my $groupcount = 0;
@@ -1370,7 +1370,7 @@ sub selectLarge
 			{
 				next unless $NT->{$node}{businessService} =~ /$business/ and $NT->{$node}{group} eq $group;
 			}
-			next unless getbool( $NT->{$node}{active} );    # optional skip
+			next unless NMISNG::Util::getbool( $NT->{$node}{active} );    # optional skip
 
 			if ($printGroupHeader)
 			{
@@ -1399,12 +1399,12 @@ sub selectLarge
 				);
 			}
 			#
-			#my $NI = loadNodeInfoTable($node);
+			#my $NI = Compat::NMIS::loadNodeInfoTable($node);
 			my $color;
-			if ( getbool( $NT->{$node}{active} ) )
+			if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
 			{
-				if (    !getbool( $NT->{$node}{ping} )
-					and !getbool( $NT->{$node}{collect} ) )
+				if (    !NMISNG::Util::getbool( $NT->{$node}{ping} )
+					and !NMISNG::Util::getbool( $NT->{$node}{collect} ) )
 				{
 					$color                                  = "#C8C8C8";    # grey
 					$groupSummary->{$node}{health_color}    = $color;
@@ -1432,7 +1432,7 @@ sub selectLarge
 			{
 				my $color = ( $groupSummary->{$node}{outage} eq "current" ) ? "#00AA00" : "#FFFF00";
 
-#	$outage = td({class=>'info Plain',onmouseover=>"Tooltip.show(\"$groupSummary->{$node}{outageText}\",event);",onmouseout=>"Tooltip.hide();",style=>getBGColor($color)},
+#	$outage = td({class=>'info Plain',onmouseover=>"Tooltip.show(\"$groupSummary->{$node}{outageText}\",event);",onmouseout=>"Tooltip.hide();",style=>NMISNG::Util::getBGColor($color)},
 				$outage = td(
 					{class => 'info Plain'},
 					a(  {href => "outages.pl?conf=$Q->{conf}&act=outage_table_view&node=$groupSummary->{$node}{name}"},
@@ -1451,7 +1451,7 @@ sub selectLarge
 			my $time            = $groupSummary->{$node}{lastUpdateSec};
 			if ( $time ne "" )
 			{
-				$lastUpdate = returnDateStamp($time);
+				$lastUpdate = NMISNG::Util::returnDateStamp($time);
 				if ( $time < ( time - 60 * 15 ) )
 				{
 					$colorlast       = "#ffcc00";                   # to late
@@ -1493,20 +1493,20 @@ sub selectLarge
 					#Drop the .0 from 100.0
 					if ( $groupSummary->{$node}{$t} == 100 ) { $groupSummary->{$node}{$t} = 100; }
 					$groupSummary->{$node}{"$t-bg"}
-						= "background-color:" . colorPercentHi( $groupSummary->{$node}{$t} );
+						= "background-color:" . NMISNG::Util::colorPercentHi( $groupSummary->{$node}{$t} );
 				}
 			}
 
 			# response time
 			my $responsetime;
-			if ( getbool( $groupSummary->{$node}{ping} ) )
+			if ( NMISNG::Util::getbool( $groupSummary->{$node}{ping} ) )
 			{
 				my $ms
 					= ( $groupSummary->{$node}{response} ne '' and $groupSummary->{$node}{response} ne 'NaN' )
 					? 'ms'
 					: '';
 				my $bg = "background-color:"
-					. colorResponseTime( $groupSummary->{$node}{response}, $C->{response_time_threshold} );
+					. NMISNG::Util::colorResponseTime( $groupSummary->{$node}{response}, $C->{response_time_threshold} );
 				$responsetime = td(
 					{class => 'info Plain', align => 'right', style => $bg},
 					img( {src => $C->{$groupSummary->{$node}{'response-icon'}}} ),
@@ -1516,7 +1516,7 @@ sub selectLarge
 			else
 			{
 				$responsetime
-					= td( {class => 'info Plain', align => 'right', style => getBGColor($color)}, "disabled" );
+					= td( {class => 'info Plain', align => 'right', style => NMISNG::Util::getBGColor($color)}, "disabled" );
 			}
 			my $nodelink;
 			if ( $NT->{$node}{server} eq $C->{server_name} )
@@ -1553,7 +1553,7 @@ sub selectLarge
 			my $statusClass = $groupSummary->{$node}{event_status};
 			my $statusValue = $groupSummary->{$node}{event_status};
 			if (    exists $C->{display_status_summary}
-				and getbool( $C->{display_status_summary} )
+				and NMISNG::Util::getbool( $C->{display_status_summary} )
 				and exists $groupSummary->{$node}{nodestatus}
 				and $groupSummary->{$node}{nodestatus} )
 			{
@@ -1606,12 +1606,12 @@ sub viewRunTime
 	if ( $AU->CheckAccess( "tls_nmis_runtime", "header" ) )
 	{
 		print header($headeropts);
-		pageStartJscript( title => "NMIS Run Time - $C->{server_name}" ) if ( !$wantwidget );
+		Compat::NMIS::pageStartJscript( title => "NMIS Run Time - $C->{server_name}" ) if ( !$wantwidget );
 		print start_table( {class => 'dash'} );
 		print Tr( th( {class => 'title'}, "NMIS Runtime Graph" ) );
 		print Tr(
 			td( {class => 'image'},
-				htmlGraph( graphtype => "nmis", node => "", intf => "", width => "600", height => "150" )
+				Compat::NMIS::htmlGraph( graphtype => "nmis", node => "", intf => "", width => "600", height => "150" )
 			)
 		);
 		print end_table;
@@ -1628,15 +1628,15 @@ sub viewPollingSummary
 	{
 		my $sum;
 		my $qossum;
-		my $LNT = loadLocalNodeTable();
+		my $LNT = Compat::NMIS::loadLocalNodeTable();
 		foreach my $node ( keys %{$LNT} )
 		{
 			++$sum->{count}{node};
-			if ( getbool( $LNT->{$node}{active} ) )
+			if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) )
 			{
 				++$sum->{count}{active};
 
-				my $NI = loadNodeInfoTable($node);
+				my $NI = Compat::NMIS::loadNodeInfoTable($node);
 				++$sum->{group}{$NI->{system}{group}};
 				++$sum->{nodeType}{$NI->{system}{nodeType}};
 				++$sum->{netType}{$NI->{system}{netType}};
@@ -1644,7 +1644,7 @@ sub viewPollingSummary
 				++$sum->{nodeModel}{$NI->{system}{nodeModel}};
 
 				### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
-				my $S = Sys::->new;
+				my $S = NMISNG::Sys->new;
 				if ( $S->init( name => $node, snmp => 'false' ) )
 				{
 					my $IF = $S->ifinfo;
@@ -1652,7 +1652,7 @@ sub viewPollingSummary
 					{
 						++$sum->{count}{interface};
 						++$sum->{ifType}{$IF->{$int}{ifType}};
-						if ( getbool( $IF->{$int}{collect} ) )
+						if ( NMISNG::Util::getbool( $IF->{$int}{collect} ) )
 						{
 							++$sum->{count}{interface_collect};
 						}
@@ -1684,18 +1684,18 @@ sub viewPollingSummary
 					}
 				}
 			}
-			if ( getbool( $LNT->{$node}{collect} ) )
+			if ( NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 			{
 				++$sum->{count}{collect};
 			}
-			if ( getbool( $LNT->{$node}{ping} ) )
+			if ( NMISNG::Util::getbool( $LNT->{$node}{ping} ) )
 			{
 				++$sum->{count}{ping};
 			}
 		}
 
 		print header($headeropts);
-		pageStartJscript( title => "NMIS Polling Summary - $C->{server_name}" ) if ( !$wantwidget );
+		Compat::NMIS::pageStartJscript( title => "NMIS Polling Summary - $C->{server_name}" ) if ( !$wantwidget );
 		print start_table( {class => 'dash'} );
 		print Tr( th( {class => 'title', colspan => '2'}, "NMIS Polling Summary" ) );
 		print Tr( td( {class => 'heading3'}, "Node Count" ),    td( {class => 'rht Plain'}, $sum->{count}{node} ) );
@@ -1772,19 +1772,19 @@ sub viewSelfTest
 	# using the same auth type as the nmis runtime graph
 	if ( $AU->CheckAccess( "tls_nmis_runtime", "header" ) )
 	{
-		my $cachefile = func::getFileName(
+		my $cachefile = NMISNG::Util::getFileName(
 			file => $C->{'<nmis_var>'} . "/nmis_system/selftest",
 			json => 'true'
 		);
 		if ( -f $cachefile )
 		{
-			my $selfteststatus = readFiletoHash( file => $cachefile, json => 'true' );
+			my $selfteststatus = NMISNG::Util::readFiletoHash( file => $cachefile, json => 'true' );
 
 			print header($headeropts);
-			pageStartJscript( title => "NMIS Selftest - $C->{server_name}" ) if ( !$wantwidget );
+			Compat::NMIS::pageStartJscript( title => "NMIS Selftest - $C->{server_name}" ) if ( !$wantwidget );
 			print start_table( {class => 'dash'} ), Tr( th( {class => 'title', colspan => '2'}, "NMIS Selftest" ) ),
 				Tr( td( {class => "heading3"}, "Last Selftest" ),
-				td( {class => "rht Plain"}, returnDateStamp( $selfteststatus->{lastupdate} ) ) );
+				td( {class => "rht Plain"}, NMISNG::Util::returnDateStamp( $selfteststatus->{lastupdate} ) ) );
 			my $anytrouble;
 			for my $test ( @{$selfteststatus->{tests}} )
 			{
@@ -1818,7 +1818,7 @@ sub viewMetrics
 	}
 
 	print header($headeropts);
-	pageStartJscript( title => "$group - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$group - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup($group) )
 	{
@@ -1893,7 +1893,7 @@ sub viewMetrics
 
 	print Tr(
 		td( {class => 'image'},
-			htmlGraph(
+			Compat::NMIS::htmlGraph(
 				graphtype => "metrics",
 				group     => "$group",
 				node      => "",
@@ -1913,9 +1913,9 @@ sub viewNode
 	my $node = $Q->{node};
 	
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $M    = $S->mdl;
@@ -1937,7 +1937,7 @@ sub viewNode
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	$S->readNodeView();
 	my $V = $S->view;
@@ -1945,7 +1945,7 @@ sub viewNode
 	### 2012-01-05 keiths, check if node is managed by slave server
 	if ( $nmisng_node->cluster_id ne $C->{server_name} )
 	{
-		my $ST = loadServersTable();
+		my $ST = Compat::NMIS::loadServersTable();
 		my $wd = 850;
 		my $ht = 700;
 
@@ -2033,7 +2033,7 @@ EO_HTML
 			= qq| <a href="$url" target="remote_$node" style="color:white;">$configuration->{remote_connection_name}</a>|;
 	}
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node        => $node,
 		system      => $S,
 		refresh     => $Q->{refresh},
@@ -2107,8 +2107,8 @@ EO_HTML
 						# we don't want doubly-escaped uglies.
 						$value = escapeHTML($value) if ( $value =~ /[<>]/ );
 
-						$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
-						$color = colorPercentHi(0)   if $color eq "red";
+						$color = NMISNG::Util::colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
+						$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
 
 						if ( $k eq 'status' )
 						{
@@ -2147,7 +2147,7 @@ EO_HTML
 							if ( $value ne "N/A" )
 							{
 								# convert to uptime format, time since change
-								$value = convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
+								$value = NMISNG::Util::convUpTime( $catchall_data->{TimeSinceTopologyChange} / 100 );
 
 								# did this reset in the last 1 h
 								if ( $catchall_data->{TimeSinceTopologyChange} / 100 < 360000 )
@@ -2174,22 +2174,22 @@ EO_HTML
 						}
 
 						my $printData = 1;
-						$printData = 0 if $k eq "customer"        and not tableExists('Customers');
-						$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
-						$printData = 0 if $k eq "serviceStatus"   and not tableExists('ServiceStatus');
-						$printData = 0 if $k eq "location"        and not tableExists('Locations');
+						$printData = 0 if $k eq "customer"        and not Compat::NMIS::tableExists('Customers');
+						$printData = 0 if $k eq "businessService" and not Compat::NMIS::tableExists('BusinessServices');
+						$printData = 0 if $k eq "serviceStatus"   and not Compat::NMIS::tableExists('ServiceStatus');
+						$printData = 0 if $k eq "location"        and not Compat::NMIS::tableExists('Locations');
 
 						if ($printData)
 						{
 							push @out,
 								Tr( td( {class => 'info Plain'}, escapeHTML($title) ),
-								td( {class => 'info Plain', style => getBGColor($color)}, $content ) );
+								td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $content ) );
 						}
 					}
 				}
 
 				# display events for this one node - also close one if asked to
-				if ( my %nodeevents = loadAllEvents( node => $node ) )
+				if ( my %nodeevents = Compat::NMIS::loadAllEvents( node => $node ) )
 				{
 					push @out, Tr( td( {class => 'header', colspan => '2'}, 'Events' ) );
 					my $usermayclose = $AU->CheckAccess( "src_events", "check" );
@@ -2213,7 +2213,7 @@ EO_HTML
 							&& $Q->{closeevent} eq $thisevent->{event}
 							&& $Q->{closeelement} eq $thisevent->{element} )
 						{
-							checkEvent(
+							Compat::NMIS::checkEvent(
 								sys     => $S,
 								node    => $node,
 								event   => $thisevent->{event},
@@ -2239,7 +2239,7 @@ EO_HTML
 								qq|<a href='$closethisurl' title="Close this Event"><img src="$C->{'<menu_url_base>'}/img/v8/icons/note_delete.gif"></a>|;
 						}
 
-						my $state = getbool( $thisevent->{ack}, "invert" ) ? 'active' : 'inactive';
+						my $state = NMISNG::Util::getbool( $thisevent->{ack}, "invert" ) ? 'active' : 'inactive';
 						my $details = $thisevent->{details};
 						$details = "$thisevent->{element} $details" if ( $thisevent->{event} =~ /^Proactive|^Alert/ );
 						$details = $thisevent->{element}            if ( !$details );
@@ -2269,7 +2269,7 @@ EO_HTML
 	my $validKpiData = 0;
 
 	if ( my $stats
-		= getSummaryStats( sys => $S, type => "health", start => $metricsFirstPeriod, end => time(), index => $node ) )
+		= Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $metricsFirstPeriod, end => time(), index => $node ) )
 	{
 
 		if ( $stats->{$node}{reachabilityHealth} and $stats->{$node}{availabilityHealth} )
@@ -2304,7 +2304,7 @@ EO_HTML
 			my $diskIcon;
 			my $swapIcon;
 
-			my $statsPrev = getSummaryStats(
+			my $statsPrev = Compat::NMIS::getSummaryStats(
 				sys   => $S,
 				type  => "health",
 				start => $metricsSecondPeriod,
@@ -2348,7 +2348,7 @@ EO_HTML
 				$diskMax  = 100 * $C->{weight_int} / 2;
 				$diskCell = td(
 					{   class => 'info',
-						style => getBGColor( colorPercentHi( $stats->{$node}{diskHealth} / $diskMax * 100 ) ),
+						style => NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{diskHealth} / $diskMax * 100 ) ),
 						title => "The Disk KPI measures how much disk space is in use."
 					},
 					"Disk ",
@@ -2365,7 +2365,7 @@ EO_HTML
 				$swapMax  = 100 * $C->{weight_mem} / 2;
 				$swapCell = td(
 					{   class => "info",
-						style => getBGColor( colorPercentHi( $stats->{$node}{swapHealth} / $swapMax * 100 ) ),
+						style => NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{swapHealth} / $swapMax * 100 ) ),
 						title => "The Swap KPI increases with the Swap space in use."
 					},
 					"SWAP ",
@@ -2392,8 +2392,8 @@ EO_HTML
 
 				print Tr(
 					td( {   class => 'info',
-							style => getBGColor(
-								colorPercentHi( $stats->{$node}{reachabilityHealth} / $reachabilityMax * 100 )
+							style => NMISNG::Util::getBGColor(
+								NMISNG::Util::colorPercentHi( $stats->{$node}{reachabilityHealth} / $reachabilityMax * 100 )
 							),
 							title => "The Reachability KPI measures how well the node can be reached with ping."
 						},
@@ -2407,8 +2407,8 @@ EO_HTML
 						"$stats->{$node}{reachabilityHealth}/$reachabilityMax"
 					),
 					td( {   class => 'info',
-							style => getBGColor(
-								colorPercentHi( $stats->{$node}{availabilityHealth} / $availabilityMax * 100 )
+							style => NMISNG::Util::getBGColor(
+								NMISNG::Util::colorPercentHi( $stats->{$node}{availabilityHealth} / $availabilityMax * 100 )
 							),
 							title => "Availability measures how many of the node's interfaces are available."
 						},
@@ -2423,7 +2423,7 @@ EO_HTML
 					),
 					td( {   class => 'info',
 							style =>
-								getBGColor( colorPercentHi( $stats->{$node}{responseHealth} / $responseMax * 100 ) ),
+								NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{responseHealth} / $responseMax * 100 ) ),
 							title => "The Response KPI decreases when the node's response time increases."
 						},
 						"Response ",
@@ -2436,7 +2436,7 @@ EO_HTML
 						"$stats->{$node}{responseHealth}/$responseMax"
 					),
 					td( {   class => 'info',
-							style => getBGColor( colorPercentHi( $stats->{$node}{cpuHealth} / $cpuMax * 100 ) ),
+							style => NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{cpuHealth} / $cpuMax * 100 ) ),
 							title => "The CPU utilisation KPI decreases when CPU load increases."
 						},
 						"CPU ",
@@ -2452,7 +2452,7 @@ EO_HTML
 
 				print Tr(
 					td( {   class => 'info',
-							style => getBGColor( colorPercentHi( $stats->{$node}{memHealth} / $memMax * 100 ) ),
+							style => NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{memHealth} / $memMax * 100 ) ),
 							title => "Main memory usage KPI, decreases as the memory utilisation increases."
 						},
 						"MEM ",
@@ -2465,7 +2465,7 @@ EO_HTML
 						"$stats->{$node}{memHealth}/$memMax"
 					),
 					td( {   class => 'info',
-							style => getBGColor( colorPercentHi( $stats->{$node}{intHealth} / $intMax * 100 ) ),
+							style => NMISNG::Util::getBGColor( NMISNG::Util::colorPercentHi( $stats->{$node}{intHealth} / $intMax * 100 ) ),
 							title =>
 								"The  Interface utilisation KPI reduces when the global interfaces utilisation increases."
 						},
@@ -2485,8 +2485,8 @@ EO_HTML
 			}
 		}
 	}
-	if (   getbool( $catchall_data->{collect} )
-		or getbool( $catchall_data->{ping} ) )
+	if (   NMISNG::Util::getbool( $catchall_data->{collect} )
+		or NMISNG::Util::getbool( $catchall_data->{ping} ) )
 	{
 		my $GTT    = $S->loadGraphTypeTable();             # translate graphtype to type		
 		my $cnt    = 0;
@@ -2517,14 +2517,14 @@ EO_HTML
 			next unless $GTT->{$graph} ne '';
 			next
 				if $graph eq 'response'
-				and getbool( $catchall_data->{ping}, "invert" );    # no ping done
+				and NMISNG::Util::getbool( $catchall_data->{ping}, "invert" );    # no ping done
 			                                                     # first two or all graphs
 
 			## display more graphs by default
 			if (    $cnt == 3
-				and !getbool( $Q->{expand} )
-				and getbool( $catchall_data->{collect} )
-				and getbool( $C->{auto_expand_more_graphs}, "invert" ) )
+				and !NMISNG::Util::getbool( $Q->{expand} )
+				and NMISNG::Util::getbool( $catchall_data->{collect} )
+				and NMISNG::Util::getbool( $C->{auto_expand_more_graphs}, "invert" ) )
 			{
 				if ( $#graphs > 1 )
 				{
@@ -2569,7 +2569,7 @@ EO_HTML
 				print Tr( td( {class => 'header'}, $_->[0] ) ),
 					Tr(
 					td( {class => 'image'},
-						htmlGraph(
+						Compat::NMIS::htmlGraph(
 							graphtype => $_->[1],
 							node      => $node,
 							intf      => $_->[2],
@@ -2606,14 +2606,14 @@ EO_HTML
 			print Tr( td( {class => "info Plain"}, a( {class => "islink", href => $serviceurl}, "$statustext" ) ), );
 			print Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => "service",
 						node      => $node,
 						intf      => $servicename,
 						width     => $thiswidth,
 						height    => $smallGraphHeight
 					),
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => "service-response",
 						node      => $node,
 						intf      => $servicename,
@@ -2634,7 +2634,7 @@ EO_HTML
 
 	print end_Tr, end_table;
 
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewInterface
@@ -2642,14 +2642,14 @@ sub viewInterface
 	my $intf = $Q->{intf};
 	my $node = $Q->{node};
 
-	my $S    = Sys::->new;    # get system object
+	my $S    = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my $inventory = $S->inventory( concept => 'interface', index => $intf );
 	my $data = ($inventory) ? $inventory->data : {};
 	
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
@@ -2659,7 +2659,7 @@ sub viewInterface
 
 	$S->readNodeView();
 	my $V = $S->view();
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	# order of items
 	my @order = (
@@ -2674,7 +2674,7 @@ sub viewInterface
 	map { $_ =~ s/^\d+_// } @keys;
 	map { $_ =~ s/_value$// } @keys;    # get only item
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -2738,15 +2738,15 @@ sub viewInterface
 						}
 						elsif ( $k eq "ifPhysAddress" and $value =~ /^0x[0-9a-f]+$/i )
 						{
-							$value = beautify_physaddress($value);
+							$value = NMISNG::Util::beautify_physaddress($value);
 						}
 						elsif ( $k eq "ifLastChange" )
 						{
-							$value = convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
+							$value = NMISNG::Util::convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
 						}
 						push @out,
 							Tr( td( {class => 'info Plain'}, $title ),
-							td( {class => 'info Plain', style => getBGColor($color)}, $value ) );
+							td( {class => 'info Plain', style => NMISNG::Util::getBGColor($color)}, $value ) );
 					}
 				}
 				return @out;
@@ -2766,7 +2766,7 @@ sub viewInterface
 		print Tr( td( {class => 'header'}, "Utilization" ) ),
 			Tr(
 			td( {class => 'image'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => "autil",
 					node      => $node,
 					intf      => $intf,
@@ -2778,7 +2778,7 @@ sub viewInterface
 			Tr( td( {class => 'header'}, "Bits per second" ) ),
 			Tr(
 			td( {class => 'image'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => "abits",
 					node      => $node,
 					intf      => $intf,
@@ -2792,7 +2792,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "Packets per second" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'pkts2',
 						node      => $node,
 						intf      => $intf,
@@ -2807,7 +2807,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "Packets per second" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'pkts_hc',
 						node      => $node,
 						intf      => $intf,
@@ -2823,7 +2823,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "Errors and Discards" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'errpkts2',
 						node      => $node,
 						intf      => $intf,
@@ -2838,7 +2838,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "Errors and Discards" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'errpkts_hc',
 						node      => $node,
 						intf      => $intf,
@@ -2853,7 +2853,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "CBQoS in" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'cbqos-in',
 						node      => $node,
 						intf      => $intf,
@@ -2868,7 +2868,7 @@ sub viewInterface
 			print Tr( td( {class => 'header'}, "CBQoS out" ) ),
 				Tr(
 				td( {class => 'image'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => 'cbqos-out',
 						node      => $node,
 						intf      => $intf,
@@ -2888,7 +2888,7 @@ sub viewInterface
 
 	print end_Tr, end_table;
 
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 
 }
 
@@ -2904,9 +2904,9 @@ sub viewAllIntf
 	else                                           { $dir = 'rev'; }    # direction of sort
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = Sys::->new;                                                 # get system object
+	my $S = NMISNG::Sys->new;                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
 	my $nmisng_node = $S->nmisng_node;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
@@ -2918,7 +2918,7 @@ sub viewAllIntf
 
 	$S->readNodeView();
 	my $V = $S->view();
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	# order of header
 	my @header = (
@@ -2949,11 +2949,11 @@ sub viewAllIntf
 	my @hd;
 	for (@header)
 	{
-		next if ( getbool($active) and $_ eq 'collect' );    # not interesting for active interfaces
+		next if ( NMISNG::Util::getbool($active) and $_ eq 'collect' );    # not interesting for active interfaces
 		if ( $items{$_} and $titles{$_} ne '' ) { push @hd, $_; }    # available item
 	}
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3007,9 +3007,9 @@ sub viewAllIntf
 	);
 
 	# print data
-	foreach my $intf ( sorthash( \%view, [$sort, "value"], $dir ) )
+	foreach my $intf ( NMISNG::Util::sorthash( \%view, [$sort, "value"], $dir ) )
 	{
-		next if ( getbool($active) and !getbool( $view{$intf}{collect}{value} ) );
+		next if ( NMISNG::Util::getbool($active) and !NMISNG::Util::getbool( $view{$intf}{collect}{value} ) );
 		print Tr(
 			eval {
 				my @out;
@@ -3020,13 +3020,13 @@ sub viewAllIntf
 					my $data = ($inventory) ? $inventory->data : {};
 
 					my $color
-						= getbool( $view{$intf}{collect}{value} )
+						= NMISNG::Util::getbool( $view{$intf}{collect}{value} )
 						? ( $view{$intf}{$k}{color} ne "" )
 							? $view{$intf}{$k}{color}
 							: '#FFF'
 						: "#cccccc";    # no collect gets grey background
 					push @out, td(
-						{class => 'info Plain', style => getBGColor($color)},
+						{class => 'info Plain', style => NMISNG::Util::getBGColor($color)},
 						eval {
 							my $line;
 							$view{$intf}{$k}{value}
@@ -3060,11 +3060,11 @@ sub viewAllIntf
 							#0x00cfda005ebf
 							elsif ( $k eq 'ifPhysAddress' and $view{$intf}{ifPhysAddress}{value} =~ /^0x[0-9a-f]+$/i )
 							{
-								$line = beautify_physaddress( $view{$intf}{ifPhysAddress}{value} );
+								$line = NMISNG::Util::beautify_physaddress( $view{$intf}{ifPhysAddress}{value} );
 							}
 							elsif ( $k eq "ifLastChange" )
 							{
-								$line = convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
+								$line = NMISNG::Util::convUpTime( $catchall_data->{sysUpTimeSec} - $data->{ifLastChangeSec} );
 							}
 							else
 							{
@@ -3082,7 +3082,7 @@ sub viewAllIntf
 
 	print end_table;
 
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 
 }
 
@@ -3107,9 +3107,9 @@ sub viewActivePort
 	else                                           { $dir = 'rev'; }    # direction of sort
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $S = Sys::->new;                                                 # get system object
+	my $S = NMISNG::Sys->new;                                                 # get system object
 	$S->init( name => $node, snmp => 'false' );                         # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 	my $M  = $S->mdl;
@@ -3123,7 +3123,7 @@ sub viewActivePort
 	$S->readNodeView();
 	my $V = $S->view();
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	# order of header
 	my @header
@@ -3165,7 +3165,7 @@ sub viewActivePort
 		. hidden( -override => 1, -name => "widget", -value => $widget )
 		. hidden( -override => 1, -name => "node",   -value => $node );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3270,9 +3270,9 @@ sub viewActivePort
 	);
 
 	# print data
-	foreach my $intf ( sorthash( \%view, [$sort, "value"], $dir ) )
+	foreach my $intf ( NMISNG::Util::sorthash( \%view, [$sort, "value"], $dir ) )
 	{
-		next if ( getbool($active) and !getbool( $view{$intf}{collect}{value} ) );
+		next if ( NMISNG::Util::getbool($active) and !NMISNG::Util::getbool( $view{$intf}{collect}{value} ) );
 		next if ( $graphtype =~ /cbqos/ and !grep( $intf eq $_, $S->getTypeInstances( graphtype => $graphtype ) ) );
 
 		print Tr(
@@ -3283,7 +3283,7 @@ sub viewActivePort
 					my $if = $view{$intf}{$k};
 					my $color = ( $if->{color} ne "" ) ? $if->{color} : '#FFF';
 					push @out, td(
-						{class => 'info Plain', style => getBGColor($color)},
+						{class => 'info Plain', style => NMISNG::Util::getBGColor($color)},
 						eval {
 							my $line;
 							$if->{value} = ( $if->{value} =~ /noSuch|unknow/i ) ? '' : $if->{value};
@@ -3317,7 +3317,7 @@ sub viewActivePort
 					push @out,
 						td(
 						{class => 'image', colspan => $colspan},
-						htmlGraph(
+						Compat::NMIS::htmlGraph(
 							graphtype => $graphtype,
 							node      => $node,
 							intf      => $intf,
@@ -3338,7 +3338,7 @@ sub viewActivePort
 
 	print end_table, end_form;
 
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewStorage
@@ -3346,13 +3346,13 @@ sub viewStorage
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
@@ -3360,9 +3360,9 @@ sub viewStorage
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3417,7 +3417,7 @@ sub viewStorage
 			td( {class => 'header'},     'Units' ),
 			td( {class => 'info Plain'}, $D->{hrStorageUnits} ),
 			td( {class => 'image', rowspan => $rowSpan},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -3429,8 +3429,8 @@ sub viewStorage
 		print Tr( td( {class => 'header'}, 'Size' ), td( {class => 'info Plain'}, $D->{hrStorageSize} ) );
 
 		# disks use crazy multiples to display MB, GB, etc.
-		print Tr( td( {class => 'header'}, 'Total' ), td( {class => 'info Plain'}, getDiskBytes($total) ) );
-		print Tr( td( {class => 'header'}, 'Used' ), td( {class => 'info Plain'}, getDiskBytes($used), "($util)" ) );
+		print Tr( td( {class => 'header'}, 'Total' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($total) ) );
+		print Tr( td( {class => 'header'}, 'Used' ), td( {class => 'info Plain'}, NMISNG::Util::getDiskBytes($used), "($util)" ) );
 		print Tr( td( {class => 'header'}, 'Description' ), td( {class => 'info Plain'}, $D->{hrStorageDescr} ) );
 		print Tr( td( {class => 'header'}, 'Mount Point' ), td( {class => 'info Plain'}, $D->{hrFSRemoteMountPoint} ) )
 			if defined $D->{hrFSRemoteMountPoint};
@@ -3438,7 +3438,7 @@ sub viewStorage
 		print end_Tr;
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 # show one node's monitored services, name, status and small graphs
@@ -3447,12 +3447,12 @@ sub viewService
 {
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
@@ -3460,15 +3460,15 @@ sub viewService
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	# get the current service status for this node
-	my %sstatus = loadServiceStatus( node => $node );
+	my %sstatus = Compat::NMIS::loadServiceStatus( node => $node );
 
 	# structure is server -> service -> node -> data, we don't want the outer layer
 	%sstatus = %{$sstatus{$C->{server_name}}} if ( ref( $sstatus{$C->{server_name}} ) eq "HASH" );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3520,7 +3520,7 @@ sub viewService
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
 
 			# we always the service status graph, and a response time graph iff a/v (ie. non-snmp services)
-			my $serviceGraphs = htmlGraph(
+			my $serviceGraphs = Compat::NMIS::htmlGraph(
 				graphtype => "service",
 				node      => $node,
 				intf      => $servicename,
@@ -3530,7 +3530,7 @@ sub viewService
 
 			if ( ref( $ST->{$servicename} ) eq "HASH" and $ST->{$servicename}->{"Service_Type"} ne "service" )
 			{
-				$serviceGraphs .= htmlGraph(
+				$serviceGraphs .= Compat::NMIS::htmlGraph(
 					graphtype => "service-response",
 					node      => $node,
 					intf      => $servicename,
@@ -3557,7 +3557,7 @@ sub viewService
 		print Tr( th( {class => 'title', colspan => '3'}, "No Services defined for $catchall_data->{name}" ) );
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewServiceList
@@ -3571,12 +3571,12 @@ sub viewServiceList
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
@@ -3587,9 +3587,9 @@ sub viewServiceList
 	$S->readNodeView();
 	my $V = $S->view();
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3649,8 +3649,8 @@ sub viewServiceList
 			my $inventory = $S->nmisng_node->inventory( _id => $id );
 			my $data = ($inventory) ? $inventory->data : {};
 			my $color;
-			$color = colorPercentHi(100) if $data->{hrSWRunStatus} =~ /running|runnable/;
-			$color = colorPercentHi(0)   if $color eq "red";
+			$color = NMISNG::Util::colorPercentHi(100) if $data->{hrSWRunStatus} =~ /running|runnable/;
+			$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
 			my ( $prog, $pid ) = split( ":", $data->{hrSWRunName} );
 
 			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
@@ -3676,7 +3676,7 @@ sub viewServiceList
 		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $catchall_data->{name}" ) );
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub sortServiceList
@@ -3698,12 +3698,12 @@ sub viewCpuList
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
@@ -3714,9 +3714,9 @@ sub viewCpuList
 	$S->readNodeView();
 	my $V = $S->view();
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3771,7 +3771,7 @@ sub viewCpuList
 			print Tr(
 				td( {class => 'lft Plain'}, "Server CPU $index ($data->{hrDeviceDescr})" ),
 				td( {class => 'info Plain'},
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => "hrsmpcpu",
 						node      => $node,
 						intf      => $index,
@@ -3787,7 +3787,7 @@ sub viewCpuList
 		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $catchall_data->{name}" ) );
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewStatus
@@ -3805,16 +3805,16 @@ sub viewStatus
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
-	my $NI = $S->ndinfo(); # still needed for status section
+	my $NI = $S->ndNMISNG::Util::info(); # still needed for status section
 	my $nmisng_node = $S->nmisng_node;
 	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $NI->{system}{group} ) )
 	{
@@ -3825,9 +3825,9 @@ sub viewStatus
 	$S->readNodeView();
 	my $V = $S->view();
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -3854,7 +3854,7 @@ sub viewStatus
 		);
 	}
 
-	my $color = colorPercentHi( $catchall_data->{status_summary} ) if $catchall_data->{status_summary};
+	my $color = NMISNG::Util::colorPercentHi( $catchall_data->{status_summary} ) if $catchall_data->{status_summary};
 
 	#print Tr(td({class=>'info Plain',style=>"background-color:".$color,colspan=>$colspan},'Status Summary'));
 
@@ -3892,7 +3892,7 @@ sub viewStatus
 		{
 			if ( exists $NI->{status}{$status}{updated} and $NI->{status}{$status}{updated} > time - 3600 )
 			{
-				my $updated     = returnDateStamp( $NI->{status}{$status}{updated} );
+				my $updated     = NMISNG::Util::returnDateStamp( $NI->{status}{$status}{updated} );
 				my $elementLink = $NI->{status}{$status}{element};
 				$elementLink = $node if not $elementLink;
 				if ( $NI->{status}{$status}{type} =~ "(interface|pkts)" )
@@ -3923,7 +3923,7 @@ sub viewStatus
 		print Tr( th( {class => 'title', colspan => $colspan}, "No Status Summary found for $catchall_data->{name}" ) );
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub sortStatus
@@ -3945,12 +3945,12 @@ sub viewEnvironment
 
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $NI->{system}{group} ) )
 	{
@@ -3958,9 +3958,9 @@ sub viewEnvironment
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -4003,7 +4003,7 @@ sub viewEnvironment
 			td( {class => 'header'},     'Description' ),
 			td( {class => 'info Plain'}, $D->{tempDescr} ),
 			td( {class => 'image', rowspan => '2'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -4029,7 +4029,7 @@ sub viewEnvironment
 			td( {class => 'header'},     'Description' ),
 			td( {class => 'info Plain'}, $D->{hhmsSensorTempDescr} ),
 			td( {class => 'image', rowspan => '2'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -4055,7 +4055,7 @@ sub viewEnvironment
 			td( {class => 'header'},     'Description' ),
 			td( {class => 'info Plain'}, $D->{hhmsSensorHumDescr} ),
 			td( {class => 'image', rowspan => '1'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -4067,7 +4067,7 @@ sub viewEnvironment
 		print end_Tr;
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 # display a systemhealth table for one node and its (indexed) instances of that particular section/kind
@@ -4077,7 +4077,7 @@ sub viewSystemHealth
 	my $section = shift;
 	my $node    = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
 	my $M  = $S->mdl;
@@ -4086,7 +4086,7 @@ sub viewSystemHealth
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $nmisng_node->configuration()->{group} ) )
 	{
@@ -4094,9 +4094,9 @@ sub viewSystemHealth
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node        => $node,
 		system      => $S,
 		refresh     => $Q->{refresh},
@@ -4251,7 +4251,7 @@ sub viewSystemHealth
 			{
 				push(
 					@cells,
-					htmlGraph(
+					Compat::NMIS::htmlGraph(
 						graphtype => $GT,
 						node      => $node,
 						intf      => $index,
@@ -4263,27 +4263,27 @@ sub viewSystemHealth
 			push( @cells, end_td );
 		}
 
-# push(@cells,td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight))) if $graphtype;
+# push(@cells,td({class=>'image',rowspan=>'1'},Compat::NMIS::htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight))) if $graphtype;
 		my $row = join( " ", @cells );
 		print Tr($row);
 
 #print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorHumDescr}),
-#td({class=>'image',rowspan=>'1'},htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
+#td({class=>'image',rowspan=>'1'},Compat::NMIS::htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 	}
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewCSSGroup
 {
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $NI->{system}{group} ) )
 	{
@@ -4291,7 +4291,7 @@ sub viewCSSGroup
 		return;
 	}
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -4301,7 +4301,7 @@ sub viewCSSGroup
 	);
 	print start_table( {class => 'table'} );
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
 	if ( !$status{overall} )
 	{
@@ -4330,7 +4330,7 @@ sub viewCSSGroup
 		print Tr(
 			td( {class => 'header'}, $D->{CSSGroupDesc} ),
 			td( {class => 'image', rowspan => '1'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -4343,19 +4343,19 @@ sub viewCSSGroup
 	}
 
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewCSSContent
 {
 	my $node = $Q->{node};
 
-	my $S = Sys::->new;    # get system object
+	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $NI = $S->ndinfo;
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( !$AU->InGroup( $NI->{system}{group} ) )
 	{
@@ -4363,9 +4363,9 @@ sub viewCSSContent
 		return;
 	}
 
-	my %status = PreciseNodeStatus( system => $S );
+	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-	print createHrButtons(
+	print Compat::NMIS::createHrButtons(
 		node    => $node,
 		system  => $S,
 		refresh => $Q->{refresh},
@@ -4402,7 +4402,7 @@ sub viewCSSContent
 		print Tr(
 			td( {class => 'header'}, $D->{CSSContentDesc} ),
 			td( {class => 'image', rowspan => '1'},
-				htmlGraph(
+				Compat::NMIS::htmlGraph(
 					graphtype => $graphtype,
 					node      => $node,
 					intf      => $index,
@@ -4415,7 +4415,7 @@ sub viewCSSContent
 	}
 
 	print end_table;
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewOverviewIntf
@@ -4429,11 +4429,11 @@ sub viewOverviewIntf
 	my $text;
 
 	print header($headeropts);
-	pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	my $NT     = loadNodeTable();
-	my $II     = loadInterfaceInfo();
-	my $GT     = loadGroupTable();
+	my $NT     = Compat::NMIS::loadNodeTable();
+	my $II     = Compat::NMIS::loadInterfaceInfo();
+	my $GT     = Compat::NMIS::loadGroupTable();
 	my $ii_cnt = keys %{$II};
 
 	my $gr_menu = "";
@@ -4446,7 +4446,7 @@ sub viewOverviewIntf
 
 	if ( $ii_cnt > 1000 )
 	{
-		my $GT = loadGroupTable();
+		my $GT = Compat::NMIS::loadGroupTable();
 		my @groups = ( '', sort keys %{$GT} );
 		$gr_menu = td(
 			{class => 'header', colspan => '1'},
@@ -4531,7 +4531,7 @@ sub viewOverviewIntf
 
 	print Tr( td( {class => 'info Plain', colspan => '5'}, 'The information is updated daily' ) );
 
-	foreach my $key ( sortall2( $II, 'node', 'ifDescr', 'fwd' ) )
+	foreach my $key ( NMISNG::Util::sortall2( $II, 'node', 'ifDescr', 'fwd' ) )
 	{
 		next if $Q->{group} ne '' and $NT->{$II->{$key}{node}}{group} ne $Q->{group};
 		next unless $AU->InGroup( $NT->{$II->{$key}{node}}{group} );
@@ -4557,15 +4557,15 @@ sub viewOverviewIntf
 		}
 		elsif ( $II->{$key}{ifOperStatus} eq 'up' )
 		{
-			$icon = getbool( $II->{$key}{collect} ) ? 'arrow_up_green.png' : 'arrow_up_purple.png';
+			$icon = NMISNG::Util::getbool( $II->{$key}{collect} ) ? 'arrow_up_green.png' : 'arrow_up_purple.png';
 		}
 		elsif ( $II->{$key}{ifOperStatus} eq 'dormant' )
 		{
-			$icon = getbool( $II->{$key}{collect} ) ? 'arrow_up_yellow.png' : 'arrow_up_purple.png';
+			$icon = NMISNG::Util::getbool( $II->{$key}{collect} ) ? 'arrow_up_yellow.png' : 'arrow_up_purple.png';
 		}
 		else
 		{
-			$icon = getbool( $II->{$key}{collect} ) ? 'arrow_down_red.png' : 'block_purple.png';
+			$icon = NMISNG::Util::getbool( $II->{$key}{collect} ) ? 'arrow_down_red.png' : 'block_purple.png';
 		}
 		if ( $cnt++ >= 32 )
 		{
@@ -4589,25 +4589,25 @@ sub viewOverviewIntf
 	print end_table;
 
 END_viewOverviewIntf:
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub viewTop10
 {
 
 	print header($headeropts);
-	pageStartJscript( title => "Top 10 - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "Top 10 - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	print '<!-- Top10 report start -->';
 
-	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
-	my $S  = Sys::->new;
+	my $NT = Compat::NMIS::loadNodeTable();
+	my $GT = Compat::NMIS::loadGroupTable();
+	my $S  = NMISNG::Sys->new;
 
 	my $start           = time() - ( 15 * 60 );
 	my $end             = time();
-	my $datestamp_start = returnDateStamp($start);
-	my $datestamp_end   = returnDateStamp($end);
+	my $datestamp_start = NMISNG::Util::returnDateStamp($start);
+	my $datestamp_end   = NMISNG::Util::returnDateStamp($end);
 
 	my $header = "Network Top10 from $datestamp_start to $datestamp_end";
 
@@ -4619,7 +4619,7 @@ sub viewTop10
 	foreach my $reportnode ( keys %{$NT} )
 	{
 		next unless $AU->InGroup( $NT->{$reportnode}{group} );
-		if ( getbool( $NT->{$reportnode}{active} ) )
+		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
 			$S->init( name => $reportnode, snmp => 'false' );
 			my $NI = $S->ndinfo;
@@ -4628,18 +4628,18 @@ sub viewTop10
 			# reachable, available, health, response
 			%reportTable = (
 				%reportTable,
-				%{  getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
+				%{  Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $reportnode )
 				}
 			);
 
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
 			if ( $NI->{graphtype}{nodehealth} =~ /cpu/
-				and getbool( $NI->{system}{collect} ) )
+				and NMISNG::Util::getbool( $NI->{system}{collect} ) )
 			{
 				%cpuTable = (
 					%cpuTable,
-					%{  getSummaryStats(
+					%{  Compat::NMIS::getSummaryStats(
 							sys   => $S,
 							type  => "nodehealth",
 							start => $start,
@@ -4653,13 +4653,13 @@ sub viewTop10
 
 			foreach my $int ( keys %{$IF} )
 			{
-				if ( getbool( $IF->{$int}{collect} ) )
+				if ( NMISNG::Util::getbool( $IF->{$int}{collect} ) )
 				{
 					# availability, inputUtil, outputUtil, totalUtil
 					my $intf = $IF->{$int}{ifIndex};
 
 					# Availability, inputBits, outputBits
-					my $hash = getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
+					my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
 						index => $intf );
 					foreach my $k ( keys %{$hash->{$intf}} )
 					{
@@ -4711,7 +4711,7 @@ sub viewTop10
 	);
 
 	$i = 10;
-	for my $reportnode ( sortall( \%reportTable, 'response', 'rev' ) )
+	for my $reportnode ( NMISNG::Util::sortall( \%reportTable, 'response', 'rev' ) )
 	{
 		push @out_resp,
 			td(
@@ -4725,7 +4725,7 @@ sub viewTop10
 		last if --$i == 0;
 	}
 	$i = 10;
-	for my $reportnode ( sortall( \%cpuTable, 'avgBusy5min', 'rev' ) )
+	for my $reportnode ( NMISNG::Util::sortall( \%cpuTable, 'avgBusy5min', 'rev' ) )
 	{
 		$cpuTable{$reportnode}{avgBusy5min} =~ /(^\d+)/;
 		push @out_cpu,
@@ -4769,7 +4769,7 @@ sub viewTop10
 	);
 
 	$i = 10;
-	for my $reportlink ( sortall( \%linkTable, 'totalUtil', 'rev' ) )
+	for my $reportlink ( NMISNG::Util::sortall( \%linkTable, 'totalUtil', 'rev' ) )
 	{
 		last if $linkTable{$reportlink}{inputUtil} and $linkTable{$reportlink}{outputUtil} == 0;
 		my $reportnode = $linkTable{$reportlink}{node};
@@ -4812,7 +4812,7 @@ sub viewTop10
 	);
 
 	$i = 10;
-	for my $reportlink ( sortall( \%linkTable, 'totalBits', 'rev' ) )
+	for my $reportlink ( NMISNG::Util::sortall( \%linkTable, 'totalBits', 'rev' ) )
 	{
 		last if $linkTable{$reportlink}{inputBits} and $linkTable{$reportlink}{outputBits} == 0;
 		my $reportnode = $linkTable{$reportlink}{node};
@@ -4831,8 +4831,8 @@ sub viewTop10
 					$linkTable{$reportlink}{ifDescr}
 				)
 			),
-			td( {class => 'info Plain', align => 'right'}, getBits( $linkTable{$reportlink}{inputBits} ) ),
-			td( {class => 'info Plain', align => 'right'}, getBits( $linkTable{$reportlink}{outputBits} ) )
+			td( {class => 'info Plain', align => 'right'}, NMISNG::Util::getBits( $linkTable{$reportlink}{inputBits} ) ),
+			td( {class => 'info Plain', align => 'right'}, NMISNG::Util::getBits( $linkTable{$reportlink}{outputBits} ) )
 		);
 
 		# loop control
@@ -4841,7 +4841,7 @@ sub viewTop10
 	print end_table;
 	print '<!-- Top10 report end -->';
 
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 
 }
 
@@ -4862,7 +4862,7 @@ sub nodeAdminSummary
 		$filter = 0;
 	}
 	print header($headeropts);
-	pageStartJscript( title => "$group - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
+	Compat::NMIS::pageStartJscript( title => "$group - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
 	if ( $group ne "" and !$AU->InGroup($group) )
 	{
@@ -4870,7 +4870,7 @@ sub nodeAdminSummary
 	}
 	else
 	{
-		my $LNT          = loadLocalNodeTable();
+		my $LNT          = Compat::NMIS::loadLocalNodeTable();
 		my $noExceptions = 1;
 
 #print qq|"name","group","version","active","collect","last updated","icmp working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
@@ -4886,7 +4886,7 @@ sub nodeAdminSummary
 		my $cols = @headers;
 		my $nmisLink
 			= a( {class => "wht", href => $C->{'nmis'} . "?conf=" . $Q->{conf}}, "NMIS $NMIS::VERSION" ) . "&nbsp;"
-			if ( !getbool($widget) );
+			if ( !NMISNG::Util::getbool($widget) );
 
 		my $urlsafegroup = uri_escape($group);
 
@@ -4936,7 +4936,7 @@ sub nodeAdminSummary
 				{
 					my $intCollect = 0;
 					my $intCount   = 0;
-					my $S          = Sys::->new;    # get system object
+					my $S          = NMISNG::Sys->new;    # get system object
 					$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 					my $NI        = $S->ndinfo;
 					my $IF        = $S->ifinfo;
@@ -4944,7 +4944,7 @@ sub nodeAdminSummary
 					my @issueList;
 
 					# Is the node active and are we doing stats on it.
-					if ( getbool( $LNT->{$node}{active} ) and getbool( $LNT->{$node}{collect} ) )
+					if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 					{
 						for my $ifIndex ( keys %{$IF} )
 						{
@@ -4966,13 +4966,13 @@ sub nodeAdminSummary
 
 					my $lastCollectPoll
 						= defined $NI->{system}{lastCollectPoll}
-						? returnDateStamp( $NI->{system}{lastCollectPoll} )
+						? NMISNG::Util::returnDateStamp( $NI->{system}{lastCollectPoll} )
 						: "N/A";
 					my $lastCollectClass = "info Plain";
 
 					my $lastUpdatePoll
 						= defined $NI->{system}{lastUpdatePoll}
-						? returnDateStamp( $NI->{system}{lastUpdatePoll} )
+						? NMISNG::Util::returnDateStamp( $NI->{system}{lastUpdatePoll} )
 						: "N/A";
 					my $lastUpdateClass = "info Plain";
 
@@ -5049,9 +5049,9 @@ sub nodeAdminSummary
 						}
 
 						# figure out what sources are enabled and which of those work/are misconfig'd etc
-						my %status = PreciseNodeStatus( system => $S );
+						my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
 
-						if ( !getbool( $LNT->{$node}{collect} ) or !$status{wmi_enabled} )
+						if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{wmi_enabled} )
 						{
 							$wmiworks = "N/A";
 						}
@@ -5070,7 +5070,7 @@ sub nodeAdminSummary
 							}
 						}
 
-						if ( !getbool( $LNT->{$node}{collect} ) or !$status{snmp_enabled} )
+						if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{snmp_enabled} )
 						{
 							$community = $snmpable = "N/A";
 						}
@@ -5186,7 +5186,7 @@ sub nodeAdminSummary
 		}
 		print end_table;
 	}
-	pageEnd() if ( !$wantwidget );
+	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }    # end sub nodeAdminSummary
 
 # *****************************************************************************

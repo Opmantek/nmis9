@@ -34,27 +34,27 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use URI::Escape;
 
-use func;
-use NMIS;
-use Auth;
+use NMISNG::Util;
+use Compat::NMIS;
+use NMISNG::Auth;
 use CGI;
 use Data::Dumper;
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
 
 # widget mode: default false if not told otherwise, and true if jquery-called
-my $wantwidget = exists $Q->{widget}? getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
+my $wantwidget = exists $Q->{widget}? NMISNG::Util::getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require)
 {
@@ -76,7 +76,7 @@ elsif ($Q->{act} eq 'details' && $Q->{node} && $Q->{service} )
 else
 {
 	print $q->header($headeropts);
-	pageStart(title => "NMIS Services", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Services", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Services module doesn't know how to handle act=".escape($Q->{act});
 	pageEnd if (!$wantwidget);
@@ -94,7 +94,7 @@ sub display_details
 	my $wantservice = $args{service};
 
 	print $q->header($headeropts);
-	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
+	Compat::NMIS::pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
 	my $LNT = loadLocalNodeTable;
@@ -106,7 +106,7 @@ sub display_details
 	}
 
 	my $ST = loadServicesTable;
-	my %sstatus = loadServiceStatus(node => $wantnode, service => $wantservice);
+	my %sstatus = Compat::NMIS::loadServiceStatus(node => $wantnode, service => $wantservice);
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
 
@@ -158,7 +158,7 @@ sub display_details
 	# status: when last run, status (translated and numeric), textual status
 	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status Details"), "</tr>",
 	"<tr>", $q->td({ -class=>"info Plain" }, "Last Tested"),
-		$q->td({ -class=>"info Plain $lastClass" }, returnDateStamp($thisservice->{last_run})), "</tr>";
+		$q->td({ -class=>"info Plain $lastClass" }, NMISNG::Util::returnDateStamp($thisservice->{last_run})), "</tr>";
 
 	my ($nicestatus, $statuscolor);
 	if ($thisservice->{status} == 100)
@@ -303,7 +303,7 @@ sub display_details
 
 	print "<tr>", $q->td({-class=>"header", -colspan => 2}, "Status History"), "</tr>",
 	"<tr>", $q->td({colspan => 2},
-											 htmlGraph( graphtype => "service",
+											 Compat::NMIS::htmlGraph( graphtype => "service",
 																	node => $wantnode,
 																	intf => $wantservice, width => $width, height => $height) ), "</tr>";
 
@@ -322,7 +322,7 @@ sub display_overview
 	my $sortcrit = $Q->{sort}=~/^(service|node|status|last_run|status_text)$/? $Q->{sort} : 'service';
 
 	print $q->header($headeropts);
-	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
+	Compat::NMIS::pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
 	# should we show only perfectly ok or only problematic (ie. degraded or dead) services?
@@ -413,7 +413,7 @@ sub display_overview
 
 		print $q->td({-class => "info $statuscolor"}, $statustext);
 
-		print $q->td({-class=>"info Plain $lastClass"}, returnDateStamp($one->{last_run})),
+		print $q->td({-class=>"info Plain $lastClass"}, NMISNG::Util::returnDateStamp($one->{last_run})),
 		$q->td({-class=>'info Plain'}, $one->{status_text}? escape($one->{status_text}) : "N/A");
 
 		print "</tr>";

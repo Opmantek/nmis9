@@ -123,7 +123,7 @@ sub sendNotification {
 	$mylog->{event} = $event;
 	$mylog->{message} = $message;
 	
-	open(LOG,">$file") or logMsg("ERROR, can not write to $file");
+	open(LOG,">$file") or NMISNG::Util::logMsg("ERROR, can not write to $file");
 	print LOG JSON::XS->new->pretty(1)->utf8(1)->encode($mylog);
 	close LOG;
 	# good to set permissions on file.....

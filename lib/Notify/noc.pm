@@ -42,8 +42,8 @@ use strict;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 
 use Exporter;
-use func;
-use notify;
+use NMISNG::Util;
+use NMISNG::Notify;
 
 $VERSION = 1.00;
 
@@ -64,11 +64,11 @@ sub sendNotification {
 	my $C = $arg{C};
 
 	# get syslog config from config file.
-	if (existFile(dir=>'conf',name=>'nocSyslog')) {
-		my $syslogConfig = loadTable(dir=>'conf',name=>'nocSyslog');
+	if (NMISNG::Util::existFile(dir=>'conf',name=>'nocSyslog')) {
+		my $syslogConfig = NMISNG::Util::loadTable(dir=>'conf',name=>'nocSyslog');
 		$syslog_facility = $syslogConfig->{syslog}{syslog_facility};
 		$syslog_server = $syslogConfig->{syslog}{syslog_server};
-		$extraLogging = getbool($syslogConfig->{syslog}{extra_logging});
+		$extraLogging = NMISNG::Util::getbool($syslogConfig->{syslog}{extra_logging});
 	}
 
 	my $blackListFile = "$C->{'<nmis_conf>'}/nocBlackList.txt";
@@ -88,8 +88,8 @@ sub sendNotification {
 			# the seperator for the details field.
 			my $detailSep = " -- ";
 				
-			dbg("Processing $node $event->{event}");
-			my $S = Sys::->new; # get system object
+			NMISNG::Util::dbg("Processing $node $event->{event}");
+			my $S = NMISNG::Sys->new; # get system object
 			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
 		
 			my $NI = $S->ndinfo;
@@ -123,7 +123,7 @@ sub sendNotification {
 			#remove dodgy quotes
 			$details =~ s/[\"|\']//g;
 			
-			dbg("sendSyslog $syslog_server $syslog_facility");
+			NMISNG::Util::dbg("sendSyslog $syslog_server $syslog_facility");
 		
 			my $success = sendSyslog(
 				server_string => $syslog_server,
@@ -137,18 +137,18 @@ sub sendNotification {
 				details => $details
 			);
 			if ( $success ) {
-				logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details") if $extraLogging;
+				NMISNG::Util::logMsg("INFO: syslog sent: $event->{node} $event->{event} $event->{element} $details") if $extraLogging;
 			}
 			else {
-				logMsg("ERROR: syslog failed to $syslog_server: $event->{node} $event->{event} $event->{element} $details");
+				NMISNG::Util::logMsg("ERROR: syslog failed to $syslog_server: $event->{node} $event->{event} $event->{element} $details");
 			}			
 		}
 		else {
-			logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;
+			NMISNG::Util::logMsg("INFO: event not sent as event in blacklist $event->{node} $event->{event} $event->{element}.") if $extraLogging;
 		}
 	}
 	else {
-		logMsg("ERROR: no node defined in the event, possible blank event.");
+		NMISNG::Util::logMsg("ERROR: no node defined in the event, possible blank event.");
 	}
 }
 
@@ -163,12 +163,12 @@ sub loadBlackList {
 		}
 		close(IN);
 		
-		dbg("lines=@lines");
+		NMISNG::Util::dbg("lines=@lines");
 		
 		return @lines;
 	}
 	else {
-		logMsg("ERROR: can not read black lits file $file.");
+		NMISNG::Util::logMsg("ERROR: can not read black lits file $file.");
 		return 0;
 	}
 }

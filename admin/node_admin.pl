@@ -46,9 +46,9 @@ use File::Spec;
 use Data::Dumper;
 use JSON::XS;
 
-use func;
-use NMIS;
-use NMIS::UUID;
+use NMISNG::Util;
+use Compat::NMIS;
+use Compat::UUID;
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
@@ -79,21 +79,21 @@ extras: info=1 sets general verbosity
 \n\n";
 
 die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^--?[h?]/));
-my %args = getArguements(@ARGV);
+my %args = NMISNG::Util::getArguements(@ARGV);
 
-my $debuglevel = setDebug($args{debug});
-my $infolevel = setDebug($args{info});
+my $debuglevel = NMISNG::Util::setDebug($args{debug});
+my $infolevel = NMISNG::Util::setDebug($args{info});
 my $confname = $args{conf} || "Config";
 
 # get us a common config first
-my $config = loadConfTable(conf=>$confname,
+my $config = NMISNG::Util::loadConfTable(conf=>$confname,
 													 dir=>"$FindBin::RealBin/../conf",
 													 debug => $debuglevel);
 die "could not load configuration $confname!\n"
 		if (!$config or !keys %$config);
 
 print STDERR "Reading Nodes table\n" if ($debuglevel or $infolevel);
-my $nodeinfo = loadLocalNodeTable();
+my $nodeinfo = Compat::NMIS::loadLocalNodeTable();
 
 # now for the real work!
 if ($args{act} eq "list")
@@ -205,7 +205,7 @@ or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing g
 	# ok, looks good enough. save the node info.
 	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 
 	print STDERR "Successfully updated node $node.
 You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
@@ -229,13 +229,13 @@ elsif ($args{act} eq "delete")
 	for my $mustdie (@morituri)
 	{
 		# first thing, get rid of any events
-		cleanEvent($mustdie,"node_admin");
+		Compat::NMIS::cleanEvent($mustdie,"node_admin");
 
 		# if data is to be deleted, do that FIRST (need working sys object to find stuff)
-		if (getbool($nukedata))
+		if (NMISNG::Util::getbool($nukedata))
 		{
 			print STDERR "Priming Sys object for finding RRD files\n" if ($debuglevel or $infolevel);
-			my $S = Sys->new; $S->init(name => $mustdie, snmp => "false");
+			my $S = NMISNG::Sys->new; $S->init(name => $mustdie, snmp => "false");
 
 			my $oldinfo = $S->ndinfo;
 			# find and nuke all rrds belonging to the deletable node
@@ -296,7 +296,7 @@ elsif ($args{act} eq "delete")
 	}
 
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 	exit 0;
 }
 elsif ($args{act} eq "rename")
@@ -313,7 +313,7 @@ elsif ($args{act} eq "rename")
 	# any property setting operations requested?
 	if (my @todo =  grep(/^entry\..+/, keys %args))
 	{
-		$nodeinfo = loadLocalNodeTable(); # reread after the rename
+		$nodeinfo = Compat::NMIS::loadLocalNodeTable(); # reread after the rename
 		my $noderec = $nodeinfo->{$new};
 
 		for my $name (@todo)
@@ -326,7 +326,7 @@ elsif ($args{act} eq "rename")
 			die "translation of arguments failed: $error\n" if ($error);
 		}
 		# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-		writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+		NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 		print STDERR "Successfully updated node $new.\n";
 	}
 	exit 0;
@@ -432,20 +432,20 @@ Use act=rename for renaming nodes.\n"
 	# no uuid? then we add one
 	if (!$mayberec->{uuid})
 	{
-		$mayberec->{uuid} = getUUID($node);
+		$mayberec->{uuid} = Compat::UUID::getUUID($node);
 	}
 
 	# ok, looks good enough. save the node info.
 	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
 	$nodeinfo->{$node} = $mayberec;
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 
 	# nix any pending events
 	if ($args{act} eq "update")
 	{
 		print STDERR "Removing events for node $node\n" if ($debuglevel or $infolevel);
-		cleanEvent($node,"node-admin");
+		Compat::NMIS::cleanEvent($node,"node-admin");
 	}
 
 	# check the group

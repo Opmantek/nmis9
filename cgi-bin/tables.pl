@@ -33,17 +33,16 @@ use lib "$FindBin::Bin/../lib";
 
 #
 use strict;
-use NMIS;
-use NMIS::UUID;
-use Sys;
-use func;
-use csv;
+use Compat::NMIS;
+use Compat::UUID;
+use NMISNG::Sys;
+use Compat::DBfunc;							# fixme9: should be removed
+use NMISNG::Util;
 use Net::hostent;
 use Socket;
 use Data::Dumper;
 use URI::Escape;
 
-use DBfunc;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -51,17 +50,17 @@ my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
 my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C); 
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -69,12 +68,12 @@ if ($AU->Require) {
 }
 
 # check for remote request
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 my $formid = $Q->{table} ? "nmis$Q->{table}" : "nmisTable";
 
 # this cgi script defaults to widget mode ON
-my $widget = getbool($Q->{widget},"invert")? "false" : "true";
+my $widget = NMISNG::Util::getbool($Q->{widget},"invert")? "false" : "true";
 my $wantwidget = $widget eq "true";
 
 
@@ -113,18 +112,18 @@ sub loadReqTable {
 
 	if( $table eq 'Nodes' )
 	{
-		$T = loadLocalNodeTable();
+		$T = Compat::NMIS::loadLocalNodeTable();
 	}
 	else 
 	{		
 		my $db = "db_".lc($table)."_sql";
-		if (getbool($C->{$db})) {
-			$T = DBfunc::->select(table=>$table); # full table
+		if (NMISNG::Util::getbool($C->{$db})) {
+			$T = Compat::DBfunc::->select(table=>$table); # full table
 		} else {
-			$T = loadTable(dir=>'conf',name=>$table);
+			$T = NMISNG::Util::loadTable(dir=>'conf',name=>$table);
 		}
 	}
-	if (!$T and !getbool($msg,"invert")) {
+	if (!$T and !NMISNG::Util::getbool($msg,"invert")) {
 		print Tr(td({class=>'error'},"Error on loading table $table"));
 		return;
 	}
@@ -138,7 +137,7 @@ sub loadCfgTable {
 	# Set the Environment VAR to tell the EVAL'd program who the user is.
 	$ENV{'NMIS_USER'} = $AU->{user};
 
-	my $tabCfg = loadGenericTable("Table-$table");
+	my $tabCfg = Compat::NMIS::loadGenericTable("Table-$table");
 	my %Cfg = %{$tabCfg};
 
 	if (!($Cfg{$table})) {
@@ -155,13 +154,13 @@ sub menuTable{
 	my $table = $Q->{table};
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "View Table $table") if (getbool($widget,"invert"));
+	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 
 	my $LNT;
 	if ( $table eq "Nodes" ) {
-		$LNT = loadLocalNodeTable(); # load from file or db
+		$LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
 	}
 
 	print <<EOF;
@@ -175,7 +174,7 @@ EOF
 	$T = loadReqTable(table=>$table); # load requested table
 
 	my $CT;
-	return if (!($CT = loadCfgTable(table=>$table))); # load configuration of table
+	return if (!($CT = Compat::NMIS::loadCfgTable(table=>$table))); # load configuration of table
 
 	print start_table;
 
@@ -244,7 +243,7 @@ EOF
 
 	print end_table;
 
-	pageEnd() if (getbool($widget,"invert"));
+	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 
 }
 
@@ -256,14 +255,14 @@ sub viewTable {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "View Table $table") if (getbool($widget,"invert"));
+	Compat::NMIS::pageStartJscript(title => "View Table $table") if (NMISNG::Util::getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = loadCfgTable(table=>$table); # load table configuration
+	my $CT = Compat::NMIS::loadCfgTable(table=>$table); # load table configuration
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
@@ -313,7 +312,7 @@ sub viewTable {
 
 	print end_table;
 	print end_form;
-	pageEnd() if (getbool($widget,"invert"));
+	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
 sub showTable {
@@ -325,19 +324,19 @@ sub showTable {
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "Show Table $table") if (getbool($widget,"invert"));
+	Compat::NMIS::pageStartJscript(title => "Show Table $table") if (NMISNG::Util::getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_view");
 
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = loadCfgTable(table=>$table); # load table configuration
+	my $CT = Compat::NMIS::loadCfgTable(table=>$table); # load table configuration
 
-	my $S = Sys::->new;
+	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
 
-	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	print Compat::NMIS::createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh}, widget=>$widget, conf => $Q->{conf}, AU => $AU);
 
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
@@ -370,7 +369,7 @@ sub showTable {
 
 	print end_table;
 	print end_form;
-	pageEnd() if (getbool($widget,"invert"));
+	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
 sub editTable
@@ -382,14 +381,14 @@ sub editTable
 
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "Edit Table $table") if (getbool($widget,"invert"));
+	Compat::NMIS::pageStartJscript(title => "Edit Table $table") if (NMISNG::Util::getbool($widget,"invert"));
 
 	$AU->CheckAccess("Table_${table}_rw");
 
 	my $T;
 	return if (!($T = loadReqTable(table=>$table,msg=>'false')) and $Q->{act} =~ /edit/); # load requested table
 
-	my $CT = loadCfgTable(table=>$table);
+	my $CT = Compat::NMIS::loadCfgTable(table=>$table);
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
 	my $button = ($Q->{act} eq 'config_table_add') ? 'Add' : 'Edit';
@@ -420,7 +419,7 @@ sub editTable
 			my $mandatory = "";
 			my $headerclass = "header";
 			my $headspan = 1;
-			if ( getbool($thisitem->{mandatory}) )
+			if ( NMISNG::Util::getbool($thisitem->{mandatory}) )
 			{
 				$mandatory = " <span style='color:#FF0000'>*</span>";
 				$anyMandatory = 1;
@@ -520,7 +519,7 @@ sub editTable
 
 	print end_table;
 	print end_form;
-	pageEnd() if (getbool($widget,"invert"));
+	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
 sub doeditTable
@@ -530,23 +529,23 @@ sub doeditTable
 
 	my $new_name;									# only needed for nodes table
 
-	return 1 if (getbool($Q->{cancel}));
+	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
 	my $T = loadReqTable(table=>$table,msg=>'false');
 
-	my $CT = loadCfgTable(table=>$table);
-	my $TAB = loadGenericTable('Tables');
+	my $CT = Compat::NMIS::loadCfgTable(table=>$table);
+	my $TAB = Compat::NMIS::loadGenericTable('Tables');
 
 	# combine key from values, values separated by underscrore
 	my $key = join('_', map { $Q->{$_} } split /,/,$hash );
-	$key = lc($key) if (getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
+	$key = lc($key) if (NMISNG::Util::getbool($TAB->{$table}{CaseSensitiveKey},"invert")); # let key of table Nodes equal to name
 
 	# key and 'name' property values must match up, and be space-stripped, for both users and nodes
 	if ($table eq "Nodes" or $table eq "Users")
 	{
-		$key = stripSpaces($key);
+		$key = NMISNG::Util::stripSpaces($key);
 	}
 
 	# test on existing key
@@ -585,7 +584,7 @@ sub doeditTable
 			# with Vars we get that as packed string of null-separated entries
 			# if submission was under widget mode, then javascript:get() will have transformed
 			# any such into comma-sep data - but for a standalone submission that does not happen.
-			my $value = join(",", unpack("(Z*)*", stripSpaces($Q->{$item})));
+			my $value = join(",", unpack("(Z*)*", NMISNG::Util::stripSpaces($Q->{$item})));
 			$thisentry->{$item} = $V->{$item} = $value;
 		}
 	}
@@ -605,7 +604,7 @@ sub doeditTable
 		# fixme: ipv6 not supported yet
 		if ( $thisentry->{host} !~ /\d+\.\d+\.\d+\.\d+/ )
 		{
-			my $address = resolveDNStoAddr($thisentry->{host});
+			my $address = Compat::NMIS::resolveDNStoAddr($thisentry->{host});
 			if ( $address !~ /\d+\.\d+\.\d+\.\d+/ or !$address ) {
 				print header($headeropts);
 				print Tr(td({class=>'error'} , escapeHTML("ERROR, cannot resolve IP address \'$thisentry->{host}\'")
@@ -615,14 +614,14 @@ sub doeditTable
 		}
 
 		# ensure a uuid is present
-		$thisentry->{uuid} ||= getUUID($key);
+		$thisentry->{uuid} ||= Compat::UUID::getUUID($key);
 		$V->{uuid} ||= $thisentry->{uuid};
 
 		# keep the new_name from being written to the config file
 		$new_name = $thisentry->{new_name};
 		delete $thisentry->{new_name};
 
-		my $nmisng = NMIS::new_nmisng;
+		my $nmisng = Compat::NMIS::new_nmisng;
 		# set create if addding
 		my $node = $nmisng->node( uuid => $thisentry->{uuid}, create => ($Q->{act} =~ /doadd/) ? 1 : 0 );
 		
@@ -652,9 +651,9 @@ sub doeditTable
 			$key = $new_name;
 		}
 
-		cleanEvent($key, "tables.pl.editNodeTable");
+		Compat::NMIS::cleanEvent($key, "tables.pl.editNodeTable");
 
-		if (getbool($Q->{update}))
+		if (NMISNG::Util::getbool($Q->{update}))
 		{
 			doNodeUpdate(node=>$key);
 			return 0;
@@ -663,21 +662,21 @@ sub doeditTable
 	else
 	{
 		my $db = "db_".lc($table)."_sql";
-		if ( getbool($C->{$db}) ) {
+		if ( NMISNG::Util::getbool($C->{$db}) ) {
 			my $stat;
 			$V->{index} = $key; # add this column
 			if ($Q->{act} =~ /doadd/) {
-				$stat = DBfunc::->insert(table=>$table,data=>$V);
+				$stat = Compat::DBfunc::->insert(table=>$table,data=>$V);
 			} else {
-				$stat = DBfunc::->update(table=>$table,data=>$V,index=>$key);
+				$stat = Compat::DBfunc::->update(table=>$table,data=>$V,index=>$key);
 			}
 			if (!$stat) {
 				print header({-type=>"text/html",-expires=>'now'});
-				print Tr(td({class=>'error'} , escapeHTML(DBfunc::->error())));
+				print Tr(td({class=>'error'} , escapeHTML(Compat::DBfunc::->error())));
 				return 0;
 			}
 		} else {
-			writeTable(dir=>'conf',name=>$table, data=>$T);
+			NMISNG::Util::writeTable(dir=>'conf',name=>$table, data=>$T);
 		}
 
 	}
@@ -689,16 +688,16 @@ sub dodeleteTable {
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
-	return 1 if (getbool($Q->{cancel}));
+	return 1 if (NMISNG::Util::getbool($Q->{cancel}));
 
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
 	my $T = loadReqTable(table=>$table);
 	my $db = "db_".lc($table)."_sql";
-	if (getbool($C->{$db}) ) {
-		if (!(DBfunc::->delete(table=>$table,index=>$key))) {
+	if (NMISNG::Util::getbool($C->{$db}) ) {
+		if (!(Compat::DBfunc::->delete(table=>$table,index=>$key))) {
 			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} ,escapeHTML(DBfunc::->error())));
+			print Tr(td({class=>'error'} ,escapeHTML(Compat::DBfunc::->error())));
 			return 0;
 		}
 	} else {
@@ -708,13 +707,13 @@ sub dodeleteTable {
 			if ($_ ne $key) { $TT->{$_} = $T->{$_}; }
 		}
 
-		writeTable(dir=>'conf',name=>$table,data=>$TT);
+		NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
 	}
 
 	# make sure to remove events for deleted nodes
 	if ($table eq "Nodes")
 	{
-		cleanEvent($key,"tables.pl.editNodeTable");
+		Compat::NMIS::cleanEvent($key,"tables.pl.editNodeTable");
 	}
 }
 
@@ -727,7 +726,7 @@ sub doNodeUpdate {
 
 	# now run the update and display
 	print header($headeropts);
-	pageStartJscript(title => "Run update on $node") if (getbool($widget,"invert"));
+	Compat::NMIS::pageStartJscript(title => "Run update on $node") if (NMISNG::Util::getbool($widget,"invert"));
 
 	print start_form(-id => "$formid",
 									 -href => url(-absolute=>1)."?")
@@ -792,5 +791,5 @@ sub doNodeUpdate {
 				td(button(-name=>'button', -onclick=> ($wantwidget? "get('$formid')" : "submit();" ),
 									-value=>'Ok'))));
 	print end_form;
-	pageEnd() if (getbool($widget,"invert"));
+	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }

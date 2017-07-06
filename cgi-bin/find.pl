@@ -33,13 +33,8 @@ use lib "$FindBin::Bin/../lib";
 
 #
 use strict;
-use NMIS;
-use func;
-use NMIS::Connect;
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
+use Compat::NMIS;
+use NMISNG::Util;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use URI::Escape;
@@ -49,17 +44,17 @@ my $Q = $q->Vars; # values in hash
 my $C;
 
 # load NMIS configuration table
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 # NMIS Authentication module
-use Auth;
+use NMISNG::Auth;
 
 # variables used for the security mods
 my  $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -67,17 +62,17 @@ if ($AU->Require) {
 }
 
 # widget defaults to true
-my $wantwidget = !getbool($Q->{widget},"invert");
+my $wantwidget = !NMISNG::Util::getbool($Q->{widget},"invert");
 my $widgetstate = $wantwidget?"true":"false";
 
 # check for remote request
-if ($Q->{server} ne "") { exit 1 if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit 1 if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 # prime the output
 print header($headeropts);
 if (!$wantwidget)
 {
-		pageStart(title => "NMIS Find");
+		Compat::NMIS::pageStart(title => "NMIS Find");
 }
 
 #======================================================================
@@ -95,7 +90,7 @@ else
 	print "Request not found\n";
 }
 
-pageEnd() if (!$wantwidget);
+Compat::NMIS::pageEnd() if (!$wantwidget);
 exit 0;
 
 #===================
@@ -104,7 +99,7 @@ sub menuFind
 {
 	my $obj = shift;
 
-	if ($obj eq 'interface' && getbool($C->{disable_interfaces_summary}))
+	if ($obj eq 'interface' && NMISNG::Util::getbool($C->{disable_interfaces_summary}))
 	{
 		print("Error: finding interfaces requires config option disable_interfaces_summary=false!");
 	}
@@ -147,7 +142,7 @@ sub viewInterfaceFind
 		return;
 	}
 
-	if (getbool($C->{disable_interfaces_summary}))
+	if (NMISNG::Util::getbool($C->{disable_interfaces_summary}))
 	{
 		print Tr(td({class=>'error'},'ERROR: Finding interfaces requires config option disable_interfaces_summary=false!'));
 		return;
@@ -157,13 +152,13 @@ sub viewInterfaceFind
 	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
 
-	my $II = loadInterfaceInfo();
-	my $NT = loadNodeTable();
+	my $II = Compat::NMIS::loadInterfaceInfo();
+	my $NT = Compat::NMIS::loadNodeTable();
 
 	my $counter = 0;
 	my @out;
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $intHash (sortall2($II,'node','ifDescr','fwd'))
+	foreach my $intHash (NMISNG::Util::sortall2($II,'node','ifDescr','fwd'))
 	{
 		my $thisintf = $II->{$intHash};
 
@@ -182,7 +177,7 @@ sub viewInterfaceFind
 			if ($AU->InGroup($NT->{$thisintf->{node}}{group})) {
 				++$counter;
 
-				$thisintf->{ifSpeed} = convertIfSpeed($thisintf->{ifSpeed});
+				$thisintf->{ifSpeed} = NMISNG::Util::convertIfSpeed($thisintf->{ifSpeed});
 
 				push @out,Tr(
 					td({class=>'info Plain',nowrap=>undef},
@@ -190,7 +185,7 @@ sub viewInterfaceFind
 							 id => "node_view_".uri_escape($thisintf->{node}),
 							 href=>"network.pl?conf=$Q->{conf}&act=network_node_view&node=".uri_escape($thisintf->{node})."&widget=$widgetstate"},$thisintf->{node})),
 					eval {
-						if ( getbool($thisintf->{collect}) ) {
+						if ( NMISNG::Util::getbool($thisintf->{collect}) ) {
 							return td({class=>'info Plain'},a({
 								id => "node_view_".uri_escape($thisintf->{node}),
 								href=>"network.pl?conf=$Q->{conf}&act=network_interface_view&node=".uri_escape($thisintf->{node})."&intf=$thisintf->{ifIndex}&widget=$widgetstate"},$thisintf->{ifDescr}));
@@ -251,7 +246,7 @@ sub viewNodeFind {
 	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
 
-	my $NT = loadNodeTable();
+	my $NT = Compat::NMIS::loadNodeTable();
 
 	my $counter = 0;
 	my @out;

@@ -34,27 +34,27 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use URI::Escape;
 
-use func;
-use NMIS;
-use Auth;
+use NMISNG::Util;
+use Compat::NMIS;
+use NMISNG::Auth;
 use CGI;
 use Data::Dumper;
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
 
 # widget mode: default false if not told otherwise, and true if jquery-called
-my $wantwidget = exists $Q->{widget}? getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
+my $wantwidget = exists $Q->{widget}? NMISNG::Util::getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
 my $widget = $wantwidget ? "true" : "false";
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require)
 {
@@ -77,7 +77,7 @@ elsif ($Q->{act} eq 'update')
 else 
 { 
 	print $q->header($headeropts);
-	pageStart(title => "NMIS Model Policy", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Model Policy", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Model Policy module doesn't know how to handle act=".escape($Q->{act});
 	pageEnd if (!$wantwidget);
@@ -92,10 +92,10 @@ sub display_policy
 	my (%args) = @_;
 
 	print $q->header($headeropts);
-	pageStart(title => "NMIS Model Policy", refresh => $Q->{refresh})
+	Compat::NMIS::pageStart(title => "NMIS Model Policy", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
-	my $modelpol = loadTable(dir => 'conf', name => 'Model-Policy');
+	my $modelpol = NMISNG::Util::loadTable(dir => 'conf', name => 'Model-Policy');
 
 	# find the default policy, ie. highest numbered that doesn't have a filter section
 	my ($defaultnr) = sort { $b <=> $a } grep(ref($modelpol->{$_}->{IF}) ne "HASH" || !%{$modelpol->{$_}->{IF}}, keys %$modelpol) if (ref($modelpol) eq "HASH");
@@ -134,7 +134,7 @@ sub display_policy
 
 	for my $selectable (@sortedkeys)
 	{
-		my $isenabled = getbool($thedefault->{systemHealth}->{$selectable});
+		my $isenabled = NMISNG::Util::getbool($thedefault->{systemHealth}->{$selectable});
 		print qq|<tr><td class="infolft Plain">$selectable</td><td class="infolft Plain">|
 				.$q->popup_menu(-name => "option_$selectable",
 												-values => [qw(true false)],
@@ -177,10 +177,10 @@ sub update_policy
 {
 	my (%args) = @_;
 
-	return 1 if (getbool($Q->{cancel})); # shouldn't get here in the cancel case but BSTS
+	return 1 if (NMISNG::Util::getbool($Q->{cancel})); # shouldn't get here in the cancel case but BSTS
 	$AU->CheckAccess("table_models_rw");
 
-	my $modelpol = loadTable(dir => 'conf', name => 'Model-Policy');
+	my $modelpol = NMISNG::Util::loadTable(dir => 'conf', name => 'Model-Policy');
 	# find the default policy, ie. highest numbered that doesn't have a filter section
 	my ($defaultnr) = sort { $b <=> $a } grep(ref($modelpol->{$_}->{IF}) ne "HASH" 
 																						|| !%{$modelpol->{$_}->{IF}}, 
@@ -209,7 +209,7 @@ sub update_policy
 	}
 	if ($changes)
 	{
-		writeTable(dir => 'conf', name => 'Model-Policy', data => $modelpol);
+		NMISNG::Util::writeTable(dir => 'conf', name => 'Model-Policy', data => $modelpol);
 		$Q->{message} = "Successfully saved model policy.";
 	}
 	else

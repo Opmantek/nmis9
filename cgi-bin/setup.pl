@@ -34,20 +34,20 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use URI::Escape;
 
-use func;
-use NMIS;
-use Auth;
+use NMISNG::Util;
+use Compat::NMIS;
+use NMISNG::Auth;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
 
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
+my $C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
 
 # this cgi script defaults to widget mode ON
-my $wantwidget = exists $Q->{widget}? !getbool($Q->{widget}, "invert") : 1;
+my $wantwidget = exists $Q->{widget}? !NMISNG::Util::getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
 # config key to display name, needed in two places so here we go
@@ -70,7 +70,7 @@ my %item2displayname = ( "server_name" => "Server Name",
 # an authentication login or logout request
 
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require)
 {
@@ -82,11 +82,11 @@ if ($AU->Require)
 $AU->CheckAccess("table_config_view","header");
 
 # check for remote request, fixme - this never exits!
-if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
+if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$headeropts); }
 
 
 # just two actions: showing the setup (menu/panel), handling an edit action
-if ($Q->{act} eq 'setup_menu' or getbool($Q->{cancel}))
+if ($Q->{act} eq 'setup_menu' or NMISNG::Util::getbool($Q->{cancel}))
 {
 	display_setup();
 }
@@ -99,7 +99,7 @@ elsif ($Q->{act} eq 'setup_doedit')
 else
 {
 	print header($headeropts);
-	pageStart(title => "NMIS Setup", refresh => $Q->{refresh}) if (!$wantwidget);
+	Compat::NMIS::pageStart(title => "NMIS Setup", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Setup doesn't know how to handle act=".escape($Q->{act});
 	pageEnd if (!$wantwidget);
@@ -125,12 +125,12 @@ sub display_setup
 	my (%args) = @_;
 
 	print header($headeropts);
-	pageStart(title => "NMIS Setup", refresh => $Q->{refresh})
+	Compat::NMIS::pageStart(title => "NMIS Setup", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
 	# get the current config, structure unflattened; and the default config too!
-	my $rawconf = readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
-	my $defaultconf = readFiletoHash(file => $C->{'<nmis_base>'}."/install/$C->{conf}");
+	my $rawconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
+	my $defaultconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_base>'}."/install/$C->{conf}");
 
 	my $iconok = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_accept.gif'>";
 	my $iconbad = "<img src='".$C->{'<menu_url_base>'}."/img/v8/icons/icon_alert.gif'>";
@@ -198,13 +198,13 @@ Leave this blank if you don't need to authenticate at your mail server."],
 		my $title = $item2displayname{$item};
 
 		my $curval = $rawconf->{$section}->{$item} if defined ($rawconf->{$section}); # catch a dummy!
-		my $displayinfo = findCfgEntry(section => $section, item => $item) || {};
+		my $displayinfo = Compat::NMIS::findCfgEntry(section => $section, item => $item) || {};
 		my $entryisok = 1;
 
 		if ($item eq "status_mode")	#  doesn't exist as single item in config
 		{
 			$displayinfo = { display => "popup", value => ['classic', 'coarse', 'fine-grained' ]};
-			$curval = getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
+			$curval = NMISNG::Util::getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : NMISNG::Util::getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
 			$entryisok = 1;
 		}
 
@@ -278,7 +278,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 					"You have only the default NMIS groups.")."<br/>Use the button to the left to edit groups."),
 					end_Tr;
 
-	my $NT = loadLocalNodeTable();
+	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $havecustomnodes = (keys %$NT > 1);
 	print start_Tr(),
 	td({class => "header", width => "20%"},
@@ -293,7 +293,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 
 	# and at the end include  the 'don't show this again button!'
 	print "<span title='The Setup window will reappear automatically unless you tick this box and save the settings.'>",
-	checkbox(-name => "option/system/hide_setup_widget", -value => "true", -checked => getbool($rawconf->{system}->{hide_setup_widget}),
+	checkbox(-name => "option/system/hide_setup_widget", -value => "true", -checked => NMISNG::Util::getbool($rawconf->{system}->{hide_setup_widget}),
 					 -label => "Don't show this setup window again.", -override => 1 ),
 	"</span><p/>",
 	button(-name=>"submitbutton",
@@ -320,11 +320,11 @@ sub edit_config
 {
 	my (%args) = @_;
 
-	return 1 if (getbool($Q->{cancel})); # shouldn't get here in the cancel case
+	return 1 if (NMISNG::Util::getbool($Q->{cancel})); # shouldn't get here in the cancel case
 	$AU->CheckAccess("Table_Config_rw");
 
 	# read the current config in raw, unflattened form
-	my $rawconf = readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
+	my $rawconf = NMISNG::Util::readFiletoHash(file => $C->{'<nmis_conf>'}."/$C->{conf}");
 
 	my $changes;
 	# elements are handed to us as option/<section>/<item>
@@ -373,7 +373,7 @@ sub edit_config
 
 		if ($item eq "status_mode")	# catch a dummy - section is virtual
 		{
-			my $curval = getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
+			my $curval = NMISNG::Util::getbool($rawconf->{system}->{overall_node_status_coarse})? "coarse" : NMISNG::Util::getbool($rawconf->{system}->{node_status_uses_status_summary})? "fine-grained" : "classic";
 			if ($value ne $curval)
 			{
 				$changes = 1;
@@ -421,7 +421,7 @@ sub edit_config
 	# and finally if there were changes, write the config data back
 	if ($changes)
 	{
-		writeConfData(data => $rawconf);
+		NMISNG::Util::writeConfData(data => $rawconf);
 		$Q->{success_message} = "Successfully saved all settings.";
 	}
 	else
