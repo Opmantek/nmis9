@@ -30,7 +30,7 @@ my %hash = (
 
   'directories' => {
     'rrd_lib' => '/usr/local/rrdtool/lib/perl', #  if not present or blank: let perl guess/use the standard rrd 
-    '<nmis_base>' => '/usr/local/nmis8',
+    '<nmis_base>' => '/usr/local/nmis9',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
     '<nmis_cgi>' => '<nmis_base>/cgi-bin',
@@ -80,7 +80,7 @@ my %hash = (
   },
 
   'system' => {
-    'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
+    'group_list' => 'NMIS9,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
 		"nodetype_list" => "generic,switch,router,firewall,server",
@@ -216,9 +216,9 @@ my %hash = (
   },
 
   'url' => {
-    '<url_base>' => '/nmis8',
-    '<cgi_url_base>' => '/cgi-nmis8',
-    '<menu_url_base>' => '/menu8',
+    '<url_base>' => '/nmis9',
+    '<cgi_url_base>' => '/cgi-nmis9',
+    '<menu_url_base>' => '/menu9',
     'web_report_root' => '<url_base>/reports'
   },
 
@@ -312,9 +312,9 @@ my %hash = (
     'auth_sso_domain' => '', # must be .yourdomain.tld, including the leading .
     'auth_radius_server' => '',
     'auth_expire' => '+30min',
-    'auth_login_title' => 'NMIS8 login',
+    'auth_login_title' => 'NMIS9 login',
     'auth_login_motd' => 'Authentication required: Please log in with your appropriate username and password in order to gain access to this system',
-    'auth_banner_title' => 'NMIS8',
+    'auth_banner_title' => 'NMIS9',
     'auth_buttons_visible' => 'true',
     'auth_ldaps_server' => '',
     'auth_ldap_server' => '192.168.1.5',
@@ -368,7 +368,7 @@ my %hash = (
     'menu_types_full' => 'true',
     'menu_groups_full' => 'true',
     'menu_types_foldout' => 'true',
-    'menu_title' => 'NMIS8',
+    'menu_title' => 'NMIS9',
     'menu_vendors_defer_load' => 'false',
     'menu_types_defer_load' => 'false',
     'menu_maxitems' => '30',
@@ -451,9 +451,9 @@ my %hash = (
 #    'sound_levels' => 'fatal,critical,major,minor,warning,normal',
 		'sound_levels' => '',
     'sound_type' => 'audio/wav',
-    'sound_fatal' => '/nmis8/events/critical.wav',
-    'sound_critical' => '/nmis8/events/critical.wav',
-    'sound_major' => '/nmis8/events/major.wav',
+    'sound_fatal' => '/nmis9/events/critical.wav',
+    'sound_critical' => '/nmis9/events/critical.wav',
+    'sound_major' => '/nmis9/events/major.wav',
     'sound_minor' => undef,
     'sound_warning' => undef,
     'sound_normal' => undef,

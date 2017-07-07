@@ -1,4 +1,3 @@
-// $Id: commonv8.js,v 8.37 2012/09/18 01:41:00 keiths Exp $
 //
 // Copyright Opmantek Limited (www.opmantek.com)
 //
@@ -32,7 +31,7 @@
 
 var nsRef = new Array();
 var nsHtml;
-var menu_url_base = '/menu8';
+var menu_url_base = '/menu9';
 var widget_refresh_glob = 180;
 var opCharts = false;
 var config = 'Config';

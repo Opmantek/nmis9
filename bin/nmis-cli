@@ -61,8 +61,11 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
 
-my $C      = NMISNG::Util::loadConfTable();
-die "no config available!\n" if (!$C);
+my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
+my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
+																				 debug => $Q->{debug}, info => $Q->{info});
+die "no config available!\n" if (ref($C) ne "HASH" or !keys %$C);
+
 my $logger = NMISNG::Log->new(
 	debug => $Q->{debug},
 	info  => $Q->{info},
@@ -104,7 +107,6 @@ elsif ( $Q->{act} eq "import-nodeconf-from-files" )
 
 	# this is highly inpired by "get_nodeconf"
 	# walk the dir
-	my $C     = NMISNG::Util::loadConfTable();                     # likely cached
 	my $ncdir = $C->{'<nmis_conf>'} . "/nodeconf";
 	opendir( D, $ncdir )
 		or $logger->error("Cannot open nodeconf dir: $!");

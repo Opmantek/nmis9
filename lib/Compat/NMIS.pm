@@ -415,8 +415,8 @@ sub loadCfgTable {
 
   	'url' => [
 				{ '<url_base>' => { display => 'text', value => ['/nmis8']}},
-				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis8']}},
-				{ '<menu_url_base>' => { display => 'text', value => ['/menu8']}},
+				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis9']}},
+				{ '<menu_url_base>' => { display => 'text', value => ['/menu9']}},
 				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
 
 		],
@@ -1864,7 +1864,6 @@ sub overallNodeStatus {
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
-	#print STDERR &returnDateStamp." overallNodeStatus: netType=$netType roleType=$roleType\n";
 
 	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
 		foreach $node (sort keys %{$NT} ) {
@@ -1969,7 +1968,7 @@ sub overallNodeStatus {
 
 				++$statusHash{$event_status};
 				++$statusHash{count};
-				#print STDERR &returnDateStamp." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
+				#print STDERR returnDateStamp()." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
 			}
 		}
 	}

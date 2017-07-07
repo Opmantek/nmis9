@@ -114,8 +114,8 @@ sub loadCSV {
 	return (%data);
 }
 
-sub writeCSV (\%@) {
-	# MUST BE CALLED WITH &writeCSV not writeCSV!!!!!!!!!
+sub writeCSV
+{
 	my $seperator = pop;
 	my $file = pop;
 	my %csv = @_;
@@ -189,8 +189,9 @@ sub loadCSVHeaders {
 }
 
 # just write the headers out - so the file can be added to later...
-sub writeCSVHeaders {
-	# MUST BE CALLED WITH &writeCSVHeaders
+# fixme9: unused
+sub writeCSVHeaders 
+{
 	my $seperator = pop;
 	my $file = pop;
 	my @line = @_;

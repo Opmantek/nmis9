@@ -113,7 +113,7 @@ while (grep(defined $_, @patches))
 	# but there might be new stuff, too
 	# this function only applies ONE patch, as afterwards we might 
 	# have to go back to the existing key case
-	$errmsg = &add_new;
+	$errmsg = &add_new();
 	die "Adding of new entries failed: $errmsg\n" if ($errmsg);
 }
 

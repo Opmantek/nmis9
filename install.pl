@@ -163,7 +163,7 @@ and won't be able to make certain installation adjustments!
 We recommend that you check the NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n\n");
-	&input_ok;
+	input_ok();
 }
 logInstall("Detected OS $osflavour, Major $osmajor, Minor $osminor, Patch $ospatch");
 
@@ -206,7 +206,7 @@ In its default configuration it is known to interfere with NMIS,
 and we do therefore recommend that you disable SELinux for NMIS.
 
 See \"man 8 selinux\" for details.\n";
-			&input_ok;
+			input_ok();
 		}
 	}
 	else
@@ -288,7 +288,7 @@ We recommend that you check our Wiki article on working around
 package installation without Internet access in that case:
 
 https://community.opmantek.com/x/boSG\n\n";
-		&input_ok;
+		input_ok();
 	}
 
 	if ($osflavour eq "debian" or $osflavour eq "ubuntu")
@@ -470,7 +470,7 @@ download anything from that repository.
 
 You will have to install $missing manually (downloadable
 from $repourl).\n";
-							&input_ok;
+							input_ok();
 							next;
 						}
 						else
@@ -507,7 +507,7 @@ dependencies manually before NMIS can operate properly.\n\n";
 							if ($unresolved{$missing}->{repourl});
 				}
 
-				&input_ok;
+				input_ok();
 			}
 		}
 	}
@@ -515,7 +515,7 @@ dependencies manually before NMIS can operate properly.\n\n";
 
 printBanner("Checking Perl Module Dependencies...");
 
-my ($isok,@missingones) = &check_installed_modules;
+my ($isok,@missingones) = check_installed_modules();
 if (!$isok)
 {
 	print "The installer can use CPAN to install the missing Perl packages
@@ -560,7 +560,7 @@ and then restart the installer.\n\n";
 If the CPAN configuration doesn't start automatically, then please
 enter 'o conf init' on the CPAN prompt. To return to the installer when done,
 please exit the CPAN\nshell with 'exit'.\n";
-				&input_ok;
+				input_ok();
 				system("cpan");
 			}
 			echolog("CPAN configuration complete, proceeding with module installation");
@@ -629,7 +629,7 @@ for further info.\n\n";
 		else
 		{
 			echolog("\n\nContinuing the installation as requested. NMIS won't work correctly until you install rrdtool and RRDs!\n\n");
-			&input_ok;
+			input_ok();
 		}
 	}
 }
@@ -872,7 +872,7 @@ else
 			printBanner("Non-upgradeable Table files detected");
 			print "\nThe installer has detected the following table files that require
 manual updating:\n\n" .join("", @problematic) ."\n";
-			&input_ok;
+			input_ok();
 		}
 		else
 		{
@@ -896,7 +896,7 @@ manual updating:\n\n" .join("", @problematic) ."\n";
 
 				print "\nWe recommend that you use the table upgrade tool to keep your tables up
 to date. You find this tool in $site/admin/upgrade_tables.pl.\n";
-				&input_ok;
+				input_ok();
 			}
 		}
 		else
@@ -919,7 +919,7 @@ to date. You find this tool in $site/admin/upgrade_tables.pl.\n";
 			print "\nThe installer has detected the following model files that require
 manual updating:\n\n" .join("", @problematic) ."\nYou should check the NMIS Wiki for instructions on manual
 model upgrades: https://community.opmantek.com/x/-wd4\n";
-			&input_ok;
+			input_ok();
 		}
 		else
 		{
@@ -945,7 +945,7 @@ model upgrades: https://community.opmantek.com/x/-wd4\n";
 to date. You find this tool in $site/admin/upgrade_models.pl
 and the NMIS Wiki has extra information about it at
 https://community.opmantek.com/x/-wd4\n";
-				&input_ok;
+				input_ok();
 			}
 		}
 		else
@@ -972,7 +972,7 @@ db conversion tool to migrate your NMIS to JSON.\n\n";
 
 				print "\nWe recommend that you use the db conversion tool to
 switch to JSON. You can find this tool in $site/admin/convert_nmis_db.pl.\n";
-				&input_ok;
+				input_ok();
 			}
 		}
 		else
@@ -1006,7 +1006,7 @@ switch to JSON. You can find this tool in $site/admin/convert_nmis_db.pl.\n";
 		echolog("Continuing without configuration updates as directed.
 Please note that you will likely have to perform various configuration updates manually
 to ensure NMIS performs correctly.");
-		&input_ok;
+		input_ok();
 	}
 }
 
@@ -1031,7 +1031,7 @@ on this procedure.
 
 If you do not plan to use WMI-based models you can safely ignore
 this issue.\n\n|;
-	&input_ok;
+	input_ok();
 }
 else
 {
@@ -1106,7 +1106,7 @@ The RRD migration script could not complete its test run successfully.
 The RRD migration will therefore NOT be performed.
 
 Please check the installation log and diagnostic output for details.\n");
-				&input_ok;
+				input_ok();
 			}
 			else
 			{
@@ -1116,7 +1116,7 @@ Please check the installation log and diagnostic output for details.\n");
 				{
 					echolog("Error: RRD migration failed! Please use the rollback script
 listed above to revert to the original status!\n");
-					&input_ok;
+					input_ok();
 				}
 				else
 				{
@@ -1133,7 +1133,7 @@ simulation mode where it only shows what it WOULD do without making any
 changes.
 
 It is highly recommended that you perform the RRD migration.");
-			&input_ok;
+			input_ok();
 		}
 	}
 }
@@ -1185,7 +1185,7 @@ Please use the output of 'nmis.pl type=apache' and check the
 NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n";
-		&input_ok;
+		input_ok();
 	}
 	else
 	{
@@ -1232,7 +1232,7 @@ Please use the output of 'nmis.pl type=apache' (or type=apache24) and
 check the NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n";
-			&input_ok;
+			input_ok();
 		}
 	}
 }
@@ -1271,7 +1271,7 @@ The installer could not determine the version of your \"logrotate\" tool,
 and you will have to configure log rotation manually. There are two default
 log rotation configuration files in $site/install
 that you should use as the basis for your setup.\n";
-	&input_ok;
+	input_ok();
 }
 
 printBanner("NMIS Cron Setup");
@@ -1363,7 +1363,7 @@ but feel free to adjust it.\n\n";
 and a backup of the crontab was saved in $site/conf/crontab.root.\n\n";
 				}
 
-				&input_ok;
+				input_ok();
 				logInstall("New system crontab was installed in /etc/cron.d/nmis");
 			}
 		}
@@ -1377,7 +1377,7 @@ An example default Cron schedule is available
 in $newcronfile, and you can use
 \"$site/bin/nmis.pl type=crontab system=true >/tmp/somefile\"
 to regenerate that default.\n";
-	&input_ok;
+	input_ok();
 }
 
 ###************************************************************************###
@@ -1396,7 +1396,7 @@ else
 	print "Continuing without the update run as directed.\n\n
 It's highly recommended to run nmis.pl type=update once initially
 and after every NMIS upgrade - you should do this manually.\n";
-	&input_ok;
+	input_ok();
 
 	logInstall("continuing without the update run.\nIt's highly recommended to run nmis.pl type=update once initially and after every NMIS upgrade - you should do this manually.");
 }
@@ -1543,7 +1543,7 @@ EOF
 		}
 	}
 	# returns status, list of critical missing
-	my ($status, @missing) = &listModules;
+	my ($status, @missing) = listModules();
 	return ($status, @missing);
 }
 

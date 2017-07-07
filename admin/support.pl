@@ -474,7 +474,7 @@ sub collect_evidence
 		}
 		elsif ($thisnode)
 		{
-			my $lnt = &loadLocalNodeTable;
+			my $lnt = Compat::NMIS::loadLocalNodeTable;
 			for my $nextnode (split(/\s*,\s*/,$thisnode))
 			{
 				if ($lnt->{$nextnode})
