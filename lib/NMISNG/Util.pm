@@ -43,6 +43,7 @@ use Time::Local;
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
+use Carp;
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -703,6 +704,8 @@ sub alpha
 
 # reads and returns the nmis config file data 
 # reads from the given directory or the default one; uses cached data if possible.
+# ATTENTION: no dir argument on a subsequent call means that the PREVIOUS
+# dir and file are checked!
 #
 # attention: this massages in certain values: info, debug  etc!
 # this function must be self-contained, as most stuff in NMISNG::Util:: calls loadconftable
@@ -718,10 +721,18 @@ sub loadConfTable
 	my $debug = $args{debug} || 0;
 	my $info = $args{info} || 0;
 
-	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only
+	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
+	# ...but the caller may have given us a dir in a previous call and NONE now
+	# in which case we assume they want the cached goodies, so we look at
+	# the file of the previous call.
+	$fn = $config_cache->{configfile} if (ref($config_cache) eq "HASH"
+																				&& !defined $args{dir});
 	my $stat = stat($fn);
-
-	return undef if (!$stat);			# no config, no hope, no future.
+	if (!$stat)			# no config, no hope, no future.
+	{
+		confess("configuration file $fn unreadable: $!\n");
+		return undef;
+	}
 
 	# read the file if not read yet, or different dir requested
 	if ( !$config_cache 
@@ -1127,7 +1138,7 @@ sub getFileName
 	my $file = $args{file};
 	my $dir = $args{dir};
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 
 	# are we in/under var? fixme unsafe and misleading
 	my $fileundervar = ($dir and $dir =~ m!(^|/)var(/|$)!)
@@ -1201,7 +1212,7 @@ sub writeHashtoFile {
 	my $handle = $args{handle}; # if handle specified then file is locked EX
 	my $json = NMISNG::Util::getbool($args{json});
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 	
 	# pretty printing: if arg given, that overrides config
 	my $pretty = NMISNG::Util::getbool( (exists $args{pretty})? $args{pretty} : $C->{use_json_pretty} );
@@ -1373,7 +1384,7 @@ sub info
 	my ($msg, $level) = @_;
 	$level ||= 1;
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 
 	if ($C->{debug})
 	{
@@ -1399,7 +1410,7 @@ sub info
 # return the current debug level from the config cache
 sub getDebug
 {
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 	return $C->{debug};
 }
 
@@ -1411,7 +1422,7 @@ sub dbg
 	my $level = shift || 1;
 	my $upCall = shift || undef;
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 
 	my $string;
 	my $caller;
@@ -1458,7 +1469,7 @@ sub dbgPolling {
 	my $string;
 	my $caller;
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 	
 	if ($C->{debug_polling} >= $level or $level == 0) {
 		if ($level == 1) {
@@ -1491,7 +1502,7 @@ sub NMISNG::Util::logMsg
 	my ($msg, $do_not_lock) = @_;
 	$do_not_lock = NMISNG::Util::getbool($do_not_lock); # ie. true only if explicitely set
 
-	my $C = &loadConfTable;
+	my $C = loadConfTable();
 	my $handle;
 
 	if (ref($C) ne "HASH") {
