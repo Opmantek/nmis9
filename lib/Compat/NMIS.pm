@@ -46,7 +46,7 @@ $Data::Dumper::Indent = 1;
 
 
 use Compat::IP;
-use Compat::CSV;								# fixme9: should be replaced with text::csv!
+use NMISNG::CSV;
 use Compat::DBfunc;							# fixme9: should be removed
 
 use NMISNG;
@@ -95,13 +95,6 @@ sub new_nmisng
 	);
 	return $nmisng;
 }
-
-sub loadLinkDetails {
-	my $C = NMISNG::Util::loadConfTable();
-	my %linkTable = Compat::CSV::loadCSV($C->{Links_Table},$C->{Links_Key},"\t");
-	return \%linkTable;
-} #sub loadLinkDetails
-
 
 # load local node table and store also in cache
 sub loadLocalNodeTable {
@@ -2031,11 +2024,13 @@ sub convertConfFiles {
 	#==== check Nodes ====
 
 	if (!NMISNG::Util::existFile(dir=>'conf',name=>'Nodes')) {
-		my %nodeTable;
-		my $NT;
+		my (%nodeTable, $NT, $error);
 		# Load the old CSV first for upgrading to NMIS8 format
-		if ( -r $C->{Nodes_Table} ) {
-			if ( (%nodeTable = Compat::CSV::loadCSV($C->{Nodes_Table},$C->{Nodes_Key},"\t")) ) {
+		if ( -r $C->{Nodes_Table} ) 
+		{
+			($error, %nodeTable) = NMISNG::CSV::loadCSV($C->{Nodes_Table},
+																									$C->{Nodes_Key});
+			if (!$error) {
 				NMISNG::Util::dbg("Loaded $C->{Nodes_Table}");
 				rename "$C->{Nodes_Table}","$C->{Nodes_Table}.old";
 				# copy what we need
@@ -2113,8 +2108,10 @@ sub convertConfFiles {
 	#====================
 
 	if (!NMISNG::Util::existFile(dir=>'conf',name=>'Escalations')) {
-		if ( -r "$C->{'Escalation_Table'}") {
-			my %table_data = Compat::CSV::loadCSV($C->{'Escalation_Table'},$C->{'Escalation_Key'});
+		if ( -r "$C->{'Escalation_Table'}") 
+		{
+			my ($error, %table_data)  = NMISNG::CSV::loadCSV($C->{'Escalation_Table'},
+																											 $C->{'Escalation_Key'});
 			foreach my $k (keys %table_data) {
 				if (not exists $table_data{$k}{Event_Element}) {
 					$table_data{$k}{Event_Element} = $table_data{$k}{Event_Details} ;
@@ -2145,7 +2142,9 @@ sub convertConfFiles {
 		my $C = NMISNG::Util::loadConfTable();
 		if (!NMISNG::Util::existFile(dir=>'conf',name=>$name)) {
 			if ( -r "$C->{\"${name}_Table\"}") {
-				my %table_data = Compat::CSV::loadCSV($C->{"${name}_Table"},$C->{"${name}_Key"});
+				my ($error, %table_data) = NMISNG::CSV::loadCSV($C->{"${name}_Table"},
+																												$C->{"${name}_Key"});
+				
 				NMISNG::Util::writeTable(dir=>'conf',name=>$name,data=>\%table_data);
 
 				my $ext = NMISNG::Util::getExtension(dir=>'conf');

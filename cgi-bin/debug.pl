@@ -37,7 +37,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use Compat::NMIS;
 use NMISNG::Util;
-use Compat::CSV;
+use NMISNG::CSV;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -338,9 +338,10 @@ print "<p>\$urlhost:&nbsp;$urlhost</p><br>";
 my @TB = qw( Nodes Logs Contacts Locations Events Escalation Thresholds Model SysNode SysInt Services );
 foreach my $id ( @TB ) {
 
-	my %TB = Compat::CSV::loadCSV($C->{$id.'_Table'},$C->{$id.'_Key'},"\t");
+	my ($error,%TB) = NMISNG::CSV::loadCSV(	$C->{$id.'_Table'}, 
+																					$C->{$id.'_Key'});
 	print "<h2>$id"."_Table</h2>";
-	print dumper_html(\%TB);
+	print dumper_html(\$error, \%TB);
 }
 
 
@@ -359,12 +360,12 @@ print dumper_html($overrides);
 print '<h2>Group Table [\$GT]</h2>';
 print dumper_html($GT);
 
-my $x = loadInterfaceInfo;
+my $x = Compat::NMIS::loadInterfaceInfo;
 print "<h2>InterfaceInfo Table ( all node interfaces)</h2>";
 print dumper_html($x);
 
 print "<h2>Current Events</h2>";
-my %allevents = loadAllEvents;
+my %allevents = Compat::NMIS::loadAllEvents;
 print dumper_html(\%allevents);
 
 my $OT = Compat::NMIS::loadOutageTable();

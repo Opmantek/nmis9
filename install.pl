@@ -224,7 +224,7 @@ my $can_use_web;
 if ($osflavour)
 {
 	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
-libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
+libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libgd-graph-perl libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
