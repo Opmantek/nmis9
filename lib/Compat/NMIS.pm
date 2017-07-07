@@ -80,6 +80,7 @@ sub new_nmisng
 {
 	my $C = NMISNG::Util::loadConfTable();
 	my $debug = NMISNG::Util::getDebug();
+	die "Config required" if ( ref( $C ) ne "HASH" );
 
 	# log level is controlled by debug (from commandline or config file),
 	# output is stderr if debug came from command line, log file otherwise

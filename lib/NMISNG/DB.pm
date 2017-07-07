@@ -897,6 +897,8 @@ sub get_db
 
 # opens a new connection to the configured db server
 # args: app_key, conf; optional: connection_timeout, query_timeout
+#  conf must have a db_server entry, dealing with errors because of no conf down the road
+#   us much harder than finding out earlyu
 #
 # if app_key is given, it's used to select application-specific db settings where available
 # fall back is always to the global db_XXX settings.
@@ -914,6 +916,12 @@ sub get_db_connection
 	my %args    = @_;
 	my $app_key = $args{app_key} // '';
 	my $CONF    = $args{conf};
+
+	if( ref($CONF) ne 'HASH' || $CONF->{db_server} eq '' )
+	{	
+		$error_string = "No config provided to get_db_connection, not attempting any type of connection\n";
+		return;
+	}
 
 	my $server  = $CONF->{db_server} // 'localhost';
 	my $port    = $CONF->{db_port}   // '27017';
@@ -980,23 +988,24 @@ sub get_db_connection
 	{
 		return $new_conn;
 	}
-
-	# authenticate to admin so we can run serverStatus
-	my $auth = $new_conn->authenticate( "admin", $username, $password );
-
-	# print STDERR "AUTH: $auth".Dumper($auth);
-
-	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
+	# authenticate to the dbs
+	foreach my $db ('admin',$db_name)
 	{
-		$error_string = "Error authenticating to MongoDB admin database\n";
-		return;
-	}
-	$auth = $new_conn->authenticate( $db_name, $username, $password );
-
-	if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
-	{
-		$error_string = "Error authenticating to MongoDB $db_name database\n";
-		return;
+		try
+		{
+			# authenticate to admin so we can run serverStatus
+			my $auth = $new_conn->authenticate( $db, $username, $password );		
+			if ( $auth =~ /auth fail/ || ref($auth) eq "HASH" && $auth->{ok} != 1 )
+			{
+				$error_string = "Error authenticating to MongoDB db:$db database\n";
+				return;
+			}
+		}
+		catch
+		{
+			$error_string = "Error attempting to authenticate, parameters incorrect.\nError info:$_";
+		};
+		return if ($error_string);
 	}
 	return $new_conn;
 }
