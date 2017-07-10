@@ -1,0 +1,37 @@
+# NMIS9 Cron Configuration
+
+# if you DON'T want any NMIS cron mails to go to root,
+# uncomment and adjust the next line
+# MAILTO=WhoeverYouAre@yourdomain.tld
+
+# some tools like fping reside outside the minimal path
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# m h dom month dow user command
+
+# Run Full Statistics Collection
+*/5 * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true
+
+# Optionally run a more frequent Services-only Collection
+# */3 * * * * root /usr/local/nmis9/bin/poll type=services mthread=true
+
+# Run Summary Update every 2 minutes
+*/2 * * * * root /usr/local/nmis9/bin/poll type=summary
+
+# Run the interfaces 4 times an hour with Thresholding on
+# if threshold_poll_cycle is set to false, then enable cron based thresholding
+#*/5 * * * *  root /usr/local/nmis9/bin/poll type=threshold
+
+# Run the update once a day
+30 20 * * *  root /usr/local/nmis9/bin/poll type=update mthread=true
+
+# backup configuration, models and crontabs once a day (kept for 30 days)
+22 8 * * *  root /usr/local/nmis9/bin/nmis-cli act=config-backup
+
+# purge old files every few days
+2 2 */3 * *  root /usr/local/nmis9/bin/nmis-cli act=purge
+
+# create reports, Daily Monthly Weekly
+9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all
+9 1 * * 0  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=week type=all
+9 2 1 * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports.pl period=month type=all

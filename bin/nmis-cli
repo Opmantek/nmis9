@@ -35,7 +35,14 @@ use lib "$FindBin::Bin/../lib";
 
 use POSIX qw();
 use File::Basename;
+use File::Spec;
+use File::Find;
 use Data::Dumper;
+
+# this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
+use Fcntl qw(:DEFAULT :flock :mode);
+use Errno qw(EAGAIN ESRCH EPERM);
+
 
 use Compat::NMIS;			# fixme9: should we rewrite add-outage code to not use loadLocalNodeTable?
 use NMISNG;
@@ -56,6 +63,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=add-outage {node|group}=name start=HH:MM end=HH:MM [comment=text]
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
+ act=config-backup
+ act=purge [simulate=t/f]
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
@@ -213,7 +222,8 @@ elsif ($Q->{act} eq "run-reports")
 	NMISNG::Util::createDir($reportdir) if (!-d $reportdir);
 	my ($start, $end, $outfile);
 	my $time = time();
-	
+
+	# fixme9: is this warning still applicable at all?
 	# attention: the file naming logic here must match purge_files() in cgi-bin/reports.pl,
 	# or unwanted ancient reports will be left behind!
 	if ($period eq 'day') 
@@ -250,13 +260,225 @@ elsif ($Q->{act} eq "run-reports")
 	{
 		my $file = "$reportdir/${thisreport}-${outfile}";
 		my $status = system("$C->{'<nmis_cgi>'}/reports.pl", "report=$thisreport",
-												"start=$start", "end=$end", "outfile=$file");
+												"start=$start", "end=$end", "outfile=$file") >> 8;
 		NMISNG::Util::logMsg("ERROR (report) generating report=$thisreport file=$file: $!") if ($status);
 		NMISNG::Util::setFileProt($file) if (-f $file);
 	}
+}
+elsif ($Q->{act} eq "config-backup")
+{
+	my $backupdir = $C->{'<nmis_backups>'};
+
+	if (!-d $backupdir)
+	{
+		mkdir($backupdir,0700) or die "Cannot create $backupdir: $!\n";
+	}
+	
+	die "Cannot write to directory $backupdir, check permissions!\n"
+			if (!-w $backupdir);
+	die "Cannot read directory $backupdir, check permissions!\n"
+			if (!-r $backupdir or !-x $backupdir);
+	
+	# now let's take a new backup...
+	my $backupprefix = "nmis-config-backup-";
+	my $backupfilename = "$backupdir/$backupprefix".POSIX::strftime("%Y-%m-%d-%H%M",localtime).".tar";
+	
+	# ...of _custom_ (and default models for good measure),
+	# and configuration...
+	my @relativepaths = (map { File::Spec->abs2rel($_, $C->{'<nmis_base>'}) } 
+											 ($C->{'<nmis_models>'}, 
+												$C->{'<nmis_default_models>'}, 
+												$C->{'<nmis_conf>'}));
+	
+	my $status = system("tar","-cf",$backupfilename,
+											"-C", $C->{'<nmis_base>'},
+											@relativepaths);
+	if ($status == -1)
+	{
+		die "Failed to execute tar!\n";
+	}
+	elsif ($status & 127)
+	{
+		die "Backup failed, tar killed with signal ".($status & 127)."\n";
+	}
+	elsif ($status >> 8)
+	{
+		die "Backup failed, tar exited with exit code ".($status >> 8)."\n";
+	}
+
+	# ...and the various cron files
+	my $td = File::Temp::tempdir(CLEANUP => 1);
+	chdir $td or die "cannot chdir to $td: $!\n";
+	mkdir("$td/cron",0755) or die "Cannot create $td/cron: $!\n"; 
+	system("cp -a /etc/cron* cron/ 2>/dev/null");
+	system("crontab -l -u root > cron/root_crontab 2>/dev/null");
+	system("crontab -l -u nmis > cron/nmis_crontab 2>/dev/null");
+
+	$status = system("tar","-rf",$backupfilename,"cron");
+	if ($status == -1)
+	{
+		die "Failed to execute tar!\n";
+	}
+	elsif ($status & 127)
+	{
+		die "Backup failed, tar killed with signal ".($status & 127)."\n";
+	}
+	elsif ($status >> 8)
+	{
+		die "Backup failed, tar exited with exit code ".($status >> 8)."\n";
+	}
+	$status = system("gzip",$backupfilename);
+	chdir("/");											# so that the tempdir can be cleaned up
+	exit $status >> 8;
+}
+elsif ($Q->{act} eq 'purge')
+{
+	my $res = purge_files(simulate => $Q->{simulate});
+	die "$res\n" if ($res);
 }
 else
 {
 	die $usage;
 }
+exit 0;
+
+# this is a maintenance command for removing old, broken or unwanted files,
+# replaces and extends the old admin/nmis_file_cleanup.sh
+#
+# args: simulate (default: false, if true only prints
+# what it would do)
+# returns: undef if ok, error message otherwise
+sub purge_files
+{
+	my (%args) = @_;
+	my %nukem;
+
+	my $simulate = NMISNG::Util::getbool( $args{simulate} );
+	
+	NMISNG::Util::info("Starting to look for purgable files"
+										 .($simulate? ", in simulation mode":"") );
+
+	# config option, extension, where to look...
+	my @purgatory = (
+		{   ext          => qr/\.rrd$/,
+			minage       => $C->{purge_rrd_after} || 30 * 86400,
+			location     => $C->{database_root},
+			also_empties => 1,
+			description  => "Old RRD files",
+		},
+		{   ext          => qr/\.(tgz|tar\.gz)$/,
+			minage       => $C->{purge_backup_after} || 30 * 86400,
+			location     => $C->{'<nmis_backups>'},
+			also_empties => 1,
+			description  => "Old Backup files",
+		},
+		{
+			# old nmis state files - legacy .nmis under var
+			minage => $C->{purge_state_after} || 30 * 86400,
+			ext => qr/\.nmis$/,
+			location     => $C->{'<nmis_var>'},
+			also_empties => 1,
+			description  => "Legacy .nmis files",
+		},
+		{
+			# old nmis state files - json files but only directly in var,
+			# or in network or in service_status
+			minage => $C->{purge_state_after} || 30 * 86400,
+			location     => $C->{'<nmis_var>'},
+			path         => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
+			also_empties => 1,
+			description  => "Old JSON state files",
+		},
+		{
+			# old nmis state files - json files under nmis_system,
+			# except auth_failure files
+			minage => $C->{purge_state_after} || 30 * 86400,
+			location     => $C->{'<nmis_var>'} . "/nmis_system",
+			notpath      => qr!^$C->{'<nmis_var>'}/nmis_system/auth_failures/!,
+			ext          => qr/\.json$/,
+			also_empties => 1,
+			description  => "Old internal JSON state files",
+		},
+		{
+			# broken empty json files - don't nuke them immediately, they may be tempfiles!
+			minage       => 3600,                       # 60 minutes seems a safe upper limit for tempfiles
+			ext          => qr/\.json$/,
+			location     => $C->{'<nmis_var>'},
+			only_empties => 1,
+			description  => "Empty JSON state files",
+		},
+		{   minage => $C->{purge_event_after} || 30 * 86400,
+			path => qr!events/.+?/history/.+\.json$!,
+			also_empties => 1,
+			location     => $C->{'<nmis_var>'} . "/events",
+			description  => "Old event history files",
+		},
+		{   minage => $C->{purge_jsonlog_after} || 30 * 86400,
+			also_empties => 1,
+			ext          => qr/\.json/,
+			location     => $C->{json_logs},
+			description  => "Old JSON log files",
+		},
+	);
+
+	for my $rule (@purgatory)
+	{
+		my $olderthan = time - $rule->{minage};
+		next if ( !$rule->{location} );
+		NMISNG::Util::info("checking dir $rule->{location} for $rule->{description}");
+
+		File::Find::find(
+			{   wanted => sub {
+					my $localname = $_;
+
+					# don't need it at the moment my $dir = $File::Find::dir;
+					my $fn   = $File::Find::name;
+					my @stat = stat($fn);
+
+					next
+						if (
+						!S_ISREG( $stat[2] )    # not a file
+						or ( $rule->{ext}     and $localname !~ $rule->{ext} )    # not a matching ext
+						or ( $rule->{path}    and $fn !~ $rule->{path} )          # not a matching path
+						or ( $rule->{notpath} and $fn =~ $rule->{notpath} )
+						);                                                        # or an excluded path
+
+					# also_empties: purge by age or empty, versus only_empties: only purge empties
+					if ( $rule->{only_empties} )
+					{
+						next if ( $stat[7] );                                     # size
+					}
+					else
+					{
+						next
+							if (
+							( $stat[7] or !$rule->{also_empties} )                # zero size allowed if empties is off
+							and ( $stat[9] >= $olderthan )
+							);                                                    # younger than the cutoff?
+					}
+					$nukem{$fn} = $rule->{description};
+				},
+				follow => 1,
+			},
+			$rule->{location}
+		);
+	}
+
+	for my $fn ( sort keys %nukem )
+	{
+		my $shortfn = File::Spec->abs2rel( $fn, $C->{'<nmis_base>'} );
+		if ($simulate)
+		{
+			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
+		}
+		else
+		{
+			NMISNG::Util::info("removing $shortfn (rule '$nukem{$fn}')");
+			unlink($fn) or return "Failed to unlink $fn: $!";
+		}
+	}
+	NMISNG::Util::info("Purging complete");
+	return;
+}
+
 

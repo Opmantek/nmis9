@@ -190,30 +190,23 @@ if ( $type =~ /^(collect|update|services)$/ )
 elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included in type=collect
 
 
-
+# fixme9: move those two to nmis-cli
 elsif ( $type eq "config" ) { checkConfig( change => "true" ); }
 elsif ( $type eq "audit" ) { checkConfig( audit => "true", change => "false" ); }
+
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
-elsif ( $type eq "apache" )     { printApache(); }
-elsif ( $type eq "apache24" )   { printApache24(); }
-elsif ( $type eq "crontab" )    { printCrontab(); }
 elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # included in type=collect
 elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # included in type=collect
 elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # included in type=collect
+
+# fixme9: move this to nmis-cli or admin/node-admin
 elsif ( $type eq "groupsync" )  { sync_groups(); }
-elsif ( $type eq "purge" )      { my $error = purge_files(); die "$error\n" if $error; }
-elsif ( $type eq 'list_nodes' ) { list_nodes() }
+
 else                            { checkArgs(); }
 
 exit;
 
-#=========================================================================================
-sub list_nodes
-{
-	my $lnt = Compat::NMIS::loadLocalNodeTable();
-	print "Nodes:" . Dumper($lnt);
-}
 
 # run collection-type functions, possibly spread across multiple processes
 sub runThreads
@@ -9979,229 +9972,6 @@ sub checkConfig
 	NMISNG::Util::info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
 }
 
-#=========================================================================================
-
-# two modes: default, for the root user's personal crontab
-# if system=true is given, then a crontab for /etc/cron.d/XXX is printed
-# (= with the extra 'root' user column)
-sub printCrontab
-{
-	my $C = NMISNG::Util::loadConfTable();
-
-	NMISNG::Util::dbg( " Crontab Config for NMIS for config file=$nvp{conf}", 3 );
-
-	my $usercol = NMISNG::Util::getbool( $nvp{system} ) ? "\troot\t" : '';
-
-	print qq|
-# if you DON'T want any NMIS cron mails to go to root,
-# uncomment and adjust the next line
-# MAILTO=WhoeverYouAre\@yourdomain.tld
-
-# some tools like fping reside outside the minimal path
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-######################################################
-# NMIS8 Config
-######################################################
-# Run Full Statistics Collection
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-# ######################################################
-# Optionally run a more frequent Services-only Collection
-# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
-######################################################
-# Run Summary Update every 2 minutes
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
-#####################################################
-# Run the interfaces 4 times an hour with Thresholding on!!!
-# if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
-######################################################
-# Run the update once a day
-30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true
-######################################################
-# Log Rotation is now handled with /etc/logrotate.d/nmis, which
-# the installer offers to setup using install/logrotate*.conf
-#
-# backup configuration, models and crontabs once a day, and keep 30 backups
-22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
-##################################################
-# purge old files every few days
-2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
-########################################
-# Save the Reports, Daily Monthly Weekly
-9 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day all
-9 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week all
-9 2 1 * *  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl month all
-|;
-}
-
-#=========================================================================================
-
-# apache 2.4 needs a different configuration layout
-sub printApache24
-{
-	my $C = NMISNG::Util::loadConfTable;
-	print qq|
-# Apache configuration snippet for NMIS
-
-# this should either be made part of your preferred VirtualHost,
-# or saved in /etc/apache2/sites-enabled as <somefile>.conf
-
-# Further documentation about Apache: http://httpd.apache.org/docs/2.4/
-
-# NMIS Aliases for static files:
-Alias $C->{'<url_base>'} "$C->{web_root}"
-<Directory "$C->{web_root}">
-  Options Indexes FollowSymLinks MultiViews
-	AllowOverride None
-  Require all granted
-</Directory>
-
-Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
-<Directory "$C->{'<nmis_menu>'}">
-  Options Indexes FollowSymLinks MultiViews
-  AllowOverride None
-  Require all granted
-</Directory>
-
-# Alias and Activation for the CGI scripts
-ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
-<Directory "$C->{'<nmis_cgi>'}">
-  Options +ExecCGI
-  Require all granted
-</Directory>
-
-# This is now optional, if using internal NMIS Authentication
-<Location "$C->{'<url_base>'}/">
-#  # For IP address based permissions
-#  <RequireAny>
-#  Require ip 10.0.0.0/8
-#  Require ip 172.16.0.0/16
-#  Require ip 192.168.1.1
-#  Require host .opmantek.com
-#  Require all denied
-#</RequireAny>
-
-#  # For Username based authentication
-#  AuthType Basic
-#  AuthName "NMIS8"
-#  AuthUserFile $C->{'auth_htpasswd_file'}
-#  Require valid-user
-</Location>
-
-<Location "$C->{'<cgi_url_base>'}/">
-#  # For IP address based permissions
-#  <RequireAny>
-#  Require ip 10.0.0.0/8
-#  Require ip 172.16.0.0/16
-#  Require ip 192.168.1.1
-#  Require host .opmantek.com
-#  Require all denied
-#</RequireAny>
-
-#  # For Username based authentication
-#  AuthType Basic
-#  AuthName "NMIS8"
-#  AuthUserFile $C->{'auth_htpasswd_file'}
-#  Require valid-user
-</Location>
-|;
-
-}
-
-sub printApache
-{
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	NMISNG::Util::dbg( " Apache HTTPD Config for NMIS for config file=$nvp{conf}", 3 );
-
-	print <<EO_TEXT;
-
-## For more information on the listed Apache features read:
-## Alias directive:        http://httpd.apache.org/docs/mod/mod_alias.html#alias
-## ScriptAlias directive:  http://httpd.apache.org/docs/mod/mod_alias.html#scriptalias
-## Order directive:        http://httpd.apache.org/docs/mod/mod_access.html#order
-## Allow directive:        http://httpd.apache.org/docs/mod/mod_access.html#allow
-## Deny directive:         http://httpd.apache.org/docs/mod/mod_access.html#deny
-## AuthType directive:     http://httpd.apache.org/docs/mod/core.html#authtype
-## AuthName directive:     http://httpd.apache.org/docs/mod/core.html#authname
-## AuthUserFile directive: http://httpd.apache.org/docs/mod/mod_auth.html#authuserfile
-## Require directive:      http://httpd.apache.org/docs/mod/core.html#require
-
-# Usual Apache Config File!
-#<apache_root>/conf/httpd.conf
-
-# add a password to the users.dat file!
-#<apache_root>/bin/htpasswd $C->{'<nmis_base>'}/conf/users.dat nmis
-
-# restart the daemon!
-#<apache_root>/bin/apachectl restart
-#
-# NOTE:
-# <apache_root> is normally /usr/local/apache
-# the "bin" directory might be "sbin"
-# the "conf" directory might be "etc"
-# the httpd.conf might be split across httpd.conf, access.conf and srm.conf
-
-# NMIS Aliases
-
-Alias $C->{'<url_base>'} "$C->{web_root}"
-<Directory "$C->{web_root}">
-		Options Indexes FollowSymLinks MultiViews
-		AllowOverride None
-		Order allow,deny
-		Allow from all
-</Directory>
-
-Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
-<Directory "$C->{'<nmis_menu>'}">
-		Options Indexes FollowSymLinks MultiViews
-		AllowOverride None
-		Order allow,deny
-		Allow from all
-</Directory>
-
-ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
-<Directory "$C->{'<nmis_cgi>'}">
-		Options +ExecCGI
-		Order allow,deny
-		Allow from all
-</Directory>
-
-# This is now optional if using internal NMIS Authentication
-<Location "$C->{'<url_base>'}/">
-				## For IP address based permissions
-				#Order deny,allow
-				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
-				## For Username based authentication
-				#AuthType Basic
-				#AuthName "NMIS8"
-				#AuthUserFile $C->{'auth_htpasswd_file'}
-				#Require valid-user
-</Location>
-
-# This is now optional if using internal NMIS Authentication
-<Location "$C->{'<cgi_url_base>'}/">
-				## For IP address based permissions
-				#Order deny,allow
-				#deny from all
-				#allow from 10.0.0.0/8 172.16.0.0/16 192.168.1.1 .opmantek.com
-				## For Username based authentication
-				#AuthType Basic
-				#AuthName "NMIS8"
-				#AuthUserFile $C->{'auth_htpasswd_file'}
-				#Require valid-user
-</Location>
-
-#*** URL required in browser ***
-#http://$C->{'nmis_host'}$C->{'<cgi_url_base>'}/nmiscgi.pl
-#If host address is not correct change this in NMIS config.
-#***
-
-EO_TEXT
-}
 
 #=========================================================================================
 
@@ -10230,16 +10000,8 @@ command line options are:
       services  Run Services data collection only
       master    Run NMIS Master Functions
       escalate  Run the escalation routine only ( debug use only)
-      config    Validate the chosen configuration file
-      audit     Audit the configuration without changes
-      apache    Produce Apache 2.0/2.2 configuration for NMIS
-      apache24  Produce Apache 2.4 configuration for NMIS
-      crontab   Produce Crontab configuration for NMIS
-                (add system=true for /etc/cron.d snippet)
       links     Generate the links.csv file.
       rme       Read and generate a node.csv file from a Ciscoworks RME file
-      groupsync Check all nodes and add any missing groups to the configuration
-      purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
@@ -11155,141 +10917,6 @@ sub sync_groups
 	return;
 }
 
-# this is a maintenance command for removing old, broken or unwanted files,
-# replaces and extends the old admin/nmis_file_cleanup.sh
-#
-# args: none, but checks nvp simulate (default: false, if true only prints
-# what it would do)
-# returns: undef if ok, error message otherwise
-sub purge_files
-{
-	my %nukem;
-
-	NMISNG::Util::info("Starting to look for purgable files");
-
-	# config option, extension, where to look...
-	my @purgatory = (
-		{   ext          => qr/\.rrd$/,
-			minage       => $C->{purge_rrd_after} || 30 * 86400,
-			location     => $C->{database_root},
-			also_empties => 1,
-			description  => "Old RRD files",
-		},
-		{   ext          => qr/\.(tgz|tar\.gz)$/,
-			minage       => $C->{purge_backup_after} || 30 * 86400,
-			location     => $C->{'<nmis_backups>'},
-			also_empties => 1,
-			description  => "Old Backup files",
-		},
-		{
-			# old nmis state files - legacy .nmis under var
-			minage => $C->{purge_state_after} || 30 * 86400,
-			ext => qr/\.nmis$/,
-			location     => $C->{'<nmis_var>'},
-			also_empties => 1,
-			description  => "Legacy .nmis files",
-		},
-		{
-			# old nmis state files - json files but only directly in var,
-			# or in network or in service_status
-			minage => $C->{purge_state_after} || 30 * 86400,
-			location     => $C->{'<nmis_var>'},
-			path         => qr!^$C->{'<nmis_var>'}/*(network|service_status)?/*[^/]+\.json$!,
-			also_empties => 1,
-			description  => "Old JSON state files",
-		},
-		{
-			# old nmis state files - json files under nmis_system,
-			# except auth_failure files
-			minage => $C->{purge_state_after} || 30 * 86400,
-			location     => $C->{'<nmis_var>'} . "/nmis_system",
-			notpath      => qr!^$C->{'<nmis_var>'}/nmis_system/auth_failures/!,
-			ext          => qr/\.json$/,
-			also_empties => 1,
-			description  => "Old internal JSON state files",
-		},
-		{
-			# broken empty json files - don't nuke them immediately, they may be tempfiles!
-			minage       => 3600,                       # 60 minutes seems a safe upper limit for tempfiles
-			ext          => qr/\.json$/,
-			location     => $C->{'<nmis_var>'},
-			only_empties => 1,
-			description  => "Empty JSON state files",
-		},
-		{   minage => $C->{purge_event_after} || 30 * 86400,
-			path => qr!events/.+?/history/.+\.json$!,
-			also_empties => 1,
-			location     => $C->{'<nmis_var>'} . "/events",
-			description  => "Old event history files",
-		},
-		{   minage => $C->{purge_jsonlog_after} || 30 * 86400,
-			also_empties => 1,
-			ext          => qr/\.json/,
-			location     => $C->{json_logs},
-			description  => "Old JSON log files",
-		},
-	);
-	my $simulate = NMISNG::Util::getbool( $nvp{simulate} );
-
-	for my $rule (@purgatory)
-	{
-		my $olderthan = time - $rule->{minage};
-		next if ( !$rule->{location} );
-		NMISNG::Util::info("checking dir $rule->{location} for $rule->{description}");
-
-		File::Find::find(
-			{   wanted => sub {
-					my $localname = $_;
-
-					# don't need it at the moment my $dir = $File::Find::dir;
-					my $fn   = $File::Find::name;
-					my @stat = stat($fn);
-
-					next
-						if (
-						!S_ISREG( $stat[2] )    # not a file
-						or ( $rule->{ext}     and $localname !~ $rule->{ext} )    # not a matching ext
-						or ( $rule->{path}    and $fn !~ $rule->{path} )          # not a matching path
-						or ( $rule->{notpath} and $fn =~ $rule->{notpath} )
-						);                                                        # or an excluded path
-
-					# also_empties: purge by age or empty, versus only_empties: only purge empties
-					if ( $rule->{only_empties} )
-					{
-						next if ( $stat[7] );                                     # size
-					}
-					else
-					{
-						next
-							if (
-							( $stat[7] or !$rule->{also_empties} )                # zero size allowed if empties is off
-							and ( $stat[9] >= $olderthan )
-							);                                                    # younger than the cutoff?
-					}
-					$nukem{$fn} = $rule->{description};
-				},
-				follow => 1,
-			},
-			$rule->{location}
-		);
-	}
-
-	for my $fn ( sort keys %nukem )
-	{
-		my $shortfn = File::Spec->abs2rel( $fn, $C->{'<nmis_base>'} );
-		if ($simulate)
-		{
-			print "purge: rule '$nukem{$fn}' matches $shortfn\n";
-		}
-		else
-		{
-			NMISNG::Util::info("removing $shortfn (rule '$nukem{$fn}')");
-			unlink($fn) or return "Failed to unlink $fn: $!";
-		}
-	}
-	NMISNG::Util::info("Purging complete");
-	return;
-}
 
 # sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
 # in nonreversible format on the go,
