@@ -1828,7 +1828,7 @@ sub viewMetrics
 
 	#prepend the network group!
 	#my @grouplist = split(",","network,$C->{group_list}");
-	my $GT        = loadGroupTable;
+	my $GT        = Compat::NMIS::loadGroupTable;
 	my @grouplist = values %{$GT};
 	my @groups    = grep { $AU->InGroup($_) } sort (@grouplist);
 
@@ -3498,7 +3498,7 @@ sub viewService
 	print Tr( th( {class => 'title', colspan => '3'}, "Monitored services on node $catchall_data->{name}" ) );
 
 	# for the type determination
-	my $ST = loadServicesTable;
+	my $ST = Compat::NMIS::loadServicesTable;
 
 	if ( my @servicelist = split( ",", $catchall_data->{services} ) )
 	{

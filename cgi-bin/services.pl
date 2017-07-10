@@ -79,7 +79,7 @@ else
 	Compat::NMIS::pageStart(title => "NMIS Services", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Services module doesn't know how to handle act=".escape($Q->{act});
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 	exit 1;
 }
@@ -97,15 +97,15 @@ sub display_details
 	Compat::NMIS::pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
-	my $LNT = loadLocalNodeTable;
+	my $LNT = Compat::NMIS::loadLocalNodeTable;
 	if (!$wantnode or !$LNT->{$wantnode} or !$AU->InGroup($LNT->{$wantnode}->{group}))
 	{
 		print "You are not Authorized to view services on node '$wantnode'!";
-		pageEnd if (!$wantwidget);
+		Compat::NMIS::pageEnd if (!$wantwidget);
 		return;
 	}
 
-	my $ST = loadServicesTable;
+	my $ST = Compat::NMIS::loadServicesTable;
 	my %sstatus = Compat::NMIS::loadServiceStatus(node => $wantnode, service => $wantservice);
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
@@ -113,7 +113,7 @@ sub display_details
 	if (!keys %sstatus or !$sstatus{$wantservice} or !$sstatus{$wantservice}->{$wantnode})
 	{
 		print "No such service or node!";
-		pageEnd if (!$wantwidget);
+		Compat::NMIS::pageEnd if (!$wantwidget);
 		return;
 	}
 
@@ -308,7 +308,7 @@ sub display_details
 																	intf => $wantservice, width => $width, height => $height) ), "</tr>";
 
 	print $q->end_table();
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 # lists all active+visible services as a table
@@ -352,13 +352,13 @@ sub display_overview
 	$q->td({-class=>"header"}, $q->a({-class=>"wht", -href=>$url."&sort=status_text"}, "Last Status Text")),
 	"</tr>";
 
-	my $LNT = loadLocalNodeTable;
+	my $LNT = Compat::NMIS::loadLocalNodeTable;
 
 	# get all known service statuses, all nodes, all services.
 	# service -> node -> data
-	my %sstatus = loadServiceStatus;
+	my %sstatus = Compat::NMIS::loadServiceStatus;
 	# also need the service table for interval config
-	my $ST = loadServicesTable;
+	my $ST = Compat::NMIS::loadServicesTable;
 
 	# only interested in this server's services!
 	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
@@ -420,7 +420,7 @@ sub display_overview
 	}
 
 	print $q->end_table();
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 # some small helpers

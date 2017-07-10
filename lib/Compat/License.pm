@@ -94,9 +94,9 @@ sub updateLicense {
 	my $file = shift;
 
 	if ( $self->{details}{created} eq "" ) {
-		$self->{details}{created} = returnDateStamp;
+		$self->{details}{created} = NMISNG::Util::returnDateStamp;
 	}
-	$self->{details}{updated} = returnDateStamp;
+	$self->{details}{updated} = NMISNG::Util::returnDateStamp;
 	NMISNG::Util::writeTable(dir=>'conf',name=>"License",data=>$self->{details});
 
 }

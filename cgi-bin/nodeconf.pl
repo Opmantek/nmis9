@@ -150,7 +150,7 @@ sub displayNodemenu
 
 	print end_td,end_Tr,end_table;
 
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 }
 

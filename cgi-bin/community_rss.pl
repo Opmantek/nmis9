@@ -91,6 +91,6 @@ sub printFeed {
 
 	print end_table;
 
-	pageEnd if (!NMISNG::Util::getbool($Q->{widget}));
+	Compat::NMIS::pageEnd if (!NMISNG::Util::getbool($Q->{widget}));
 
 }

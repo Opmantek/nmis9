@@ -102,7 +102,7 @@ else
 	Compat::NMIS::pageStart(title => "NMIS Setup", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Setup doesn't know how to handle act=".escape($Q->{act});
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 	exit 1;
 }
@@ -309,7 +309,7 @@ Leave this blank if you don't need to authenticate at your mail server."],
 
 	print end_form;
 	print "</div>";
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 

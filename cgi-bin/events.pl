@@ -184,7 +184,7 @@ sub listEvent
 
 	print start_table;
 
-	my %localevents = loadAllEvents;
+	my %localevents = Compat::NMIS::loadAllEvents;
 	displayEvents(\%localevents, $C->{'server_name'}); #single server
 
 	if (NMISNG::Util::getbool($C->{server_master})) {

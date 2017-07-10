@@ -99,7 +99,7 @@ sub notfound {
 
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Request not found\n";
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 exit 1;
@@ -160,7 +160,7 @@ sub displayConfig{
 
 End_page:
 	print end_table();
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 }
 
@@ -370,7 +370,7 @@ sub editConfig{
 
 	print end_table();
 	print end_form;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 sub doEditConfig {
@@ -493,7 +493,7 @@ sub deleteConfig {
 
 End_deleteConfig:
 	print end_table;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 
@@ -559,7 +559,7 @@ sub addConfig{
 	print end_form;
 
 	print end_table();
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 }
 
@@ -665,7 +665,7 @@ sub storeTable {
 
 	print end_table;
 	print end_form;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 
 }
 
@@ -693,7 +693,7 @@ sub doStoreTable {
 
 						print "\n</pre>\n";
 						print Compat::DBfunc->error."<br>\n";
-						pageEnd if (!$wantwidget);
+						Compat::NMIS::pageEnd if (!$wantwidget);
 						last;
 					}
 				}
