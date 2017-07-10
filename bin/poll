@@ -75,7 +75,12 @@ my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
 # load configuration table, memorize startup time
 my $starttime = Time::HiRes::time;
-my $C = NMISNG::Util::loadConfTable( conf => $nvp{conf}, debug => $nvp{debug}, info => $nvp{info} );
+
+my $customconfdir = $nvp{dir}? $nvp{dir}."/conf": undef;
+
+my $C = NMISNG::Util::loadConfTable( dir => $customconfdir, 
+																		 debug => $nvp{debug}, 
+																		 info => $nvp{info} );
 die "nmis cannot operate without config!\n" if ( ref($C) ne "HASH" );
 NMISNG::rrdfunc::require_RRDs(config=>$C);
 
@@ -183,6 +188,9 @@ if ( $type =~ /^(collect|update|services)$/ )
 	runThreads( type => $type, node => $node, mthread => $mthread, mthreadDebug => $mthreadDebug );
 }
 elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included in type=collect
+
+
+
 elsif ( $type eq "config" ) { checkConfig( change => "true" ); }
 elsif ( $type eq "audit" ) { checkConfig( audit => "true", change => "false" ); }
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
@@ -360,7 +368,7 @@ sub runThreads
 	if ( $type eq 'collect' or $type eq "update" )
 	{
 		# unrelated but also for collect and update only
-		@active_plugins = &load_plugins;
+		@active_plugins = load_plugins();
 
 		# first find all other nmis collect processes
 		my $others = NMISNG::Util::find_nmis_processes( type => $type, config => $C );

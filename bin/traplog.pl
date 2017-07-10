@@ -126,7 +126,7 @@ my $out = join("\t",$hostname,$ipaddress,@buffer);
 if ( !defined($trapfilter) || $out !~ $trapfilter )
 {
 	open (DATA, ">>$filename") || die "Cannot open the file $filename: $!\n";
-	print DATA &returnDateStamp."\t$out\n";
+	print DATA returnDateStamp()."\t$out\n";
 	close(DATA);
 }
 

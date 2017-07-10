@@ -52,9 +52,8 @@ use Fcntl qw(:DEFAULT :flock);
 
 
 use Compat::NMIS;
-use Compat::CSV;
 
-use NMISNG::BER;
+use BER;
 use NMISNG::rrdfunc;
 use NMISNG::Util;
 
