@@ -996,10 +996,10 @@ sub getSummaryStats
 	{
 		no strict;
 		$database = $db; # global
-		my $inventory = $S->inventory( concept => "interface", index => $index );
-		if( $inventory )
+		my $intf_inventory = $S->inventory( concept => "interface", index => $index );
+		if( $intf_inventory )
 		{
-			my $data = $inventory->data();
+			my $data = $intf_inventory->data();
 			$speed = $data->{ifSpeed} if $index ne "";
 			$inSpeed = $data->{ifSpeed} if $index ne "";
 			$outSpeed = $data->{ifSpeed} if $index ne "";
@@ -1119,8 +1119,8 @@ sub getSubconceptStats
 
 	# escape any : chars which might be in the database name, e.g handling C: in the RPN
 	$db =~ s/:/\\:/g;
-	# NOTE: is there any reason we don't use parse string or some other generic function here?
-	if( $index )
+
+	# NOTE: is there any reason we don't use parse string or some other generic function here?	
 	{
 		no strict;
 		$database = $db; # global
@@ -1145,6 +1145,7 @@ sub getSubconceptStats
 			push @option, $s;
 		}
 	}
+
 	if (NMISNG::Util::getbool($C->{debug})) {
 		foreach (@option) {
 			NMISNG::Util::dbg("option=$_",2);
@@ -1152,13 +1153,18 @@ sub getSubconceptStats
 	}
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error())) {
+	if (($ERROR = RRDs::error())) 
+	{
 		NMISNG::Util::logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
-	} else {
+	} 
+	else 
+	{
 		##NMISNG::Util::logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
-		if ( scalar(@$graphret) ) {
+		if ( scalar(@$graphret) ) 
+		{
 			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
-			foreach my $line ( @$graphret ) {
+			foreach my $line ( @$graphret ) 
+			{
 				my ($name,$value) = split "=", $line;				
 				$summaryStats{$name} = $value;
 				
@@ -1166,7 +1172,9 @@ sub getSubconceptStats
 				##NMISNG::Util::logMsg("INFO name=$name, index=$index, value=$value");
 			}
 			return \%summaryStats;
-		} else {
+		} 
+		else 
+		{
 			NMISNG::Util::logMsg("INFO ($S->{name}) no info return from RRD for subconcept=$subconcept index=$index");
 		}
 	}
