@@ -65,10 +65,13 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
  act=config-backup
  act=purge [simulate=t/f]
+ act=fixperms
 \n";
 
 die $usage if ( !@ARGV || $ARGV[0] =~ /^-(h|\?|-help)$/ );
 my $Q = NMISNG::Util::get_args_multi(@ARGV);
+
+my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
@@ -194,7 +197,7 @@ elsif ($Q->{act} eq "add-outage")
 	die "group \"$Q->{group}\" has no members, aborting!\n" if (!@candidates);
 	
 	print "Outage window is from ".localtime($begtime)." to ".
-			localtime($endtime)."\n" if (NMISNG::Util::getbool($Q->{verbose}));
+			localtime($endtime)."\n" if ($wantverbose);
 
 	for my $node (@candidates)
 	{
@@ -205,7 +208,7 @@ elsif ($Q->{act} eq "add-outage")
 			change => $Q->{comment} };
 		
 		print "Applying to node $node\n" 
-				if (NMISNG::Util::getbool($Q->{verbose}));
+				if ($wantverbose);
 	}
 	NMISNG::Util::writeTable(dir=> "conf", name => "Outage", data => $outages);
 }
@@ -335,6 +338,70 @@ elsif ($Q->{act} eq 'purge')
 {
 	my $res = purge_files(simulate => $Q->{simulate});
 	die "$res\n" if ($res);
+}
+elsif ($Q->{act} eq "fixperms")
+{
+	if ($wantverbose)
+	{
+		print "Fixing the permissions for NMIS9 based on the configuration $C->{configfile}\nOperating on base directory: $C->{'<nmis_base>'}\nSetting owner to $C->{nmis_user}, group $C->{nmis_group}\n";
+	}
+
+	if ( $< != 0) 
+	{
+		print "\nWARNING: Not running with root privileges, so this operation may not work fully!\n\n";
+	}
+	else 
+	{
+		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}",$C->{'<nmis_base>'});
+		system("chmod","-R","g+rw", $C->{'<nmis_base>'});
+
+		if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} )
+		{
+			system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}",
+						 $C->{'<nmis_data>'});
+			
+			system("chmod","-R","g+rw", $C->{'<nmis_data>'});
+		}
+	}
+
+	# single depth directories
+	my %done;
+	for my $location ($C->{'<nmis_data>'}, # commonly same as base
+										$C->{'<nmis_base>'},
+										$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
+										$C->{'<nmis_models>'},
+										$C->{'<nmis_default_models>'},
+										$C->{'<nmis_logs>'},
+										$C->{'log_root'}, # should be the same as nmis_logs
+										$C->{'config_logs'},
+										$C->{'json_logs'},
+										$C->{'<menu_base>'},
+										$C->{'report_root'},
+										$C->{'script_root'}, # commonly under nmis_conf
+										$C->{'plugin_root'}, ) # ditto
+	{
+		NMISNG::Util::setFileProtDirectory($location, "false")
+				if (!$done{$location});
+		$done{$location} = 1;
+	}
+	
+	# deeper dirs with recursion
+	%done = ();
+	for my $location ($C->{'<nmis_base>'}."/lib",
+										$C->{'<nmis_conf>'},
+										$C->{'<nmis_var>'},
+										$C->{'<nmis_menu>'},
+										$C->{'mib_root'},
+										$C->{'database_root'},
+										$C->{'web_root'}, )
+	{
+		NMISNG::Util::setFileProtDirectory($location, "true") 	if (!$done{$location});
+		$done{$location} = 1;
+	}
+	
+	# remove the selftest cache file to ensure it's regenerated;
+	# otherwise we may show stale warnings about permissions that were already fixed
+	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
 }
 else
 {
