@@ -614,7 +614,7 @@ sub runThreads
 
 			# NOTE!!! catchall needs to be written before this runs as it' loads the data
 			# locally, it has no $S
-			nmisSummary() if NMISNG::Util::getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
+			nmisSummary(update_operations_stamp => 1) if NMISNG::Util::getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
 		}
 		else
 		{
@@ -968,9 +968,21 @@ sub doUpdate
 	}
 	$reachdata->{polltime} = {value => $prevval, option => "gauge,0:U,"};
 
-	if ( !$S->create_update_rrd( data => $reachdata, type => "health" ) )
+	# runReach makes sure this is created
+	my $inventory = $S->inventory( concept => 'health' );
+	if ( !$S->create_update_rrd( data => $reachdata, type => "health", inventory => $inventory ) )
 	{
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+	}
+	else
+	{		
+		my $pit = {};
+		my $previous_pit = $inventory->get_newest_timed_data();
+		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+		# $inventory->data($data);
+		$inventory->save();
 	}
 	$S->close;
 
@@ -1296,9 +1308,21 @@ sub doCollect
 	}
 	$reachdata->{updatetime} = {value => $prevval, option => "gauge,0:U," . ( 86400 * 3 )};
 
-	if ( !$S->create_update_rrd( data => $reachdata, type => "health" ) )
+	# runReach makes sure this is created
+	my $inventory = $S->inventory( concept => 'health' );
+	if ( !$S->create_update_rrd( data => $reachdata, type => "health", inventory => $inventory ) )
 	{
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+	}
+	else
+	{		
+		my $pit = {};
+		my $previous_pit = $inventory->get_newest_timed_data();
+		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );		
+		# $inventory->data($data);
+		$inventory->save();
 	}
 	$S->close;
 
@@ -7352,10 +7376,9 @@ sub runReach
 	my %args           = @_;
 	my $S              = $args{sys};                      # system object
 	my $donotupdaterrd = NMISNG::Util::getbool( $args{delayupdate} );
-
-	my $IF = $S->ifinfo;                                  # interface info
+	
 	my $RI = $S->reach;                                   # reach info
-	my $C  = NMISNG::Util::loadConfTable();
+	my $C  = NMISNG::Util::loadConfTable();	
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $cpuWeight;
@@ -7603,45 +7626,47 @@ sub runReach
 			NMISNG::Util::dbg("Getting Interface Utilisation Health");
 			$intcount   = 0;
 			$intsummary = 0;
-
-			# check if interface file exists - node may not be updated as yet....
-			foreach my $index ( keys %{$IF} )
+			my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
+				
+			# get all collected interfaces
+			foreach my $id (@$ids)
 			{
-				# Don't do any stats cause the interface is not one we collect
-				if ( NMISNG::Util::getbool( $IF->{$index}{collect} ) )
+				my ($intf_inventory,$error) = $S->nmisng_node->inventory( _id => $id );
+				my $data = $intf_inventory->data();
+				my $index = $data->{index};
+			
+				# Get the link availability from the local node!!!
+				my $util = Compat::NMIS::getSummaryStats(
+					sys   => $S,
+					type  => "interface",
+					start => "-15 minutes",
+					end   => time(),
+					index => $index
+				);
+				if ( $util->{$index}{inputUtil} eq 'NaN' or $util->{$index}{outputUtil} eq 'NaN' )
 				{
-					# Get the link availability from the local node!!!
-					my $util = Compat::NMIS::getSummaryStats(
-						sys   => $S,
-						type  => "interface",
-						start => "-15 minutes",
-						end   => time(),
-						index => $index
+					NMISNG::Util::dbg("SummaryStats for interface=$index of node $S->{name} skipped because value is NaN"
 					);
-					if ( $util->{$index}{inputUtil} eq 'NaN' or $util->{$index}{outputUtil} eq 'NaN' )
-					{
-						NMISNG::Util::dbg("SummaryStats for interface=$index of node $S->{name} skipped because value is NaN"
-						);
-						next;
-					}
-
-					# lets make the interface metric the largest of input or output
-					my $intUtil = $util->{$index}{inputUtil};
-					if ( $intUtil < $util->{$index}{outputUtil} )
-					{
-						$intUtil = $util->{$index}{outputUtil};
-					}
-
-					# only add interfaces with utilisation above metric_int_utilisation_above configuration option
-					if ( $intUtil > $C->{'metric_int_utilisation_above'} or $C->{'metric_int_utilisation_above'} eq "" )
-					{
-						$intsummary = $intsummary + ( 100 - $intUtil );
-						++$intcount;
-						NMISNG::Util::info(
-							"Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount"
-						);
-					}
+					next;
 				}
+
+				# lets make the interface metric the largest of input or output
+				my $intUtil = $util->{$index}{inputUtil};
+				if ( $intUtil < $util->{$index}{outputUtil} )
+				{
+					$intUtil = $util->{$index}{outputUtil};
+				}
+
+				# only add interfaces with utilisation above metric_int_utilisation_above configuration option
+				if ( $intUtil > $C->{'metric_int_utilisation_above'} or $C->{'metric_int_utilisation_above'} eq "" )
+				{
+					$intsummary = $intsummary + ( 100 - $intUtil );
+					++$intcount;
+					NMISNG::Util::info(
+						"Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount"
+					);
+				}
+			
 			}    # FOR LOOP
 			if ( $intsummary != 0 )
 			{
@@ -7842,13 +7867,42 @@ sub runReach
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option}   = "gauge,0:U";
 
+	# make sure inventory exists so delayed saves don't have to create it
+	my $section = 'health';
+	my $inventory = $S->inventory( concept => $section, nolog => 1);
+	if( !$inventory )
+	{
+		my $path = $S->nmisng_node->inventory_path( concept => $section, path_keys => [], data => {} );
+		($inventory,my $error) = $S->nmisng_node->inventory(
+			concept => $section,
+			data => {},
+			path => $path,
+			path_keys => [],
+			create => 1
+		);
+		$inventory->enabled(1);
+		$inventory->historic(0);
+		$inventory->save();
+	}
+
 	# update the rrd or leave it to a caller?
 	if ( !$donotupdaterrd )
 	{
-		my $db = $S->create_update_rrd( data => \%reachVal, type => "health" );    # database name is normally 'reach'
+		# goes into catchall/general
+		my $db = $S->create_update_rrd( data => \%reachVal, type => "health", inventory => $inventory );    # database name is normally 'reach'
 		if ( !$db )
 		{
 			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
+		}
+		else
+		{
+			my $pit = {};
+			my $previous_pit = $inventory->get_newest_timed_data();
+			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
+			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
+			$inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			# $inventory->data($data);
+			$inventory->save();
 		}
 	}
 	if ( $catchall_data->{nodeModel} eq 'PingOnly' )
@@ -7868,6 +7922,47 @@ sub runReach
 	return \%reachVal;
 }
 
+# calculate the summary8 and summary16 data like it used to be, this will be stored in the db as 
+# derived data
+# NB: in the future this can be removed, summary8/16 should be calculatable from the PIT data, there
+#   really is no need to do this. aggregations or something should be able to pull this off.
+sub nodeSummaryStats
+{
+	my %args = (@_);
+	my $S = $args{S};
+	my $C = $args{C};
+	my $inventory = $args{inventory};
+	my $catchall_data = $args{catchall_data};
+
+	my $section = 'health';
+	my $metricsFirstPeriod  = $C->{'metric_comparison_first_period'} // "-8 hours";
+	my $metricsSecondPeriod	= $C->{'metric_comparison_second_period'} // "-16 hours";
+
+	my $stats8  = Compat::NMIS::getSubconceptStats(
+		sys => $S, 
+		inventory => $inventory, 
+		subconcept => $section, 
+		start => $metricsFirstPeriod, 
+		end => time
+	);
+	my $stats16 = Compat::NMIS::getSubconceptStats(
+		sys => $S, 
+		inventory => $inventory, 
+		subconcept => $section, 
+		start => $metricsSecondPeriod, 
+		end => $metricsFirstPeriod
+	);
+	
+	# nodedown isn't needed in summary info anymore
+	# $stats8->{nodedown} = 'false';
+	# $stats8->{nodedown} = 'true' if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
+
+	# map all stats into one package for derived, don't know if we want to keep it this way
+	my %allstats = ();
+	map { $allstats{'08_'.$_} = $stats8->{$_} } (keys %$stats8);
+	map { $allstats{'16_'.$_} = $stats8->{$_} } (keys %$stats16);
+	return \%allstats;
+}
 #=========================================================================================
 
 # this generates the data for nmis-interfaces.json,
@@ -8126,7 +8221,7 @@ sub nmisMaster
 sub nmisSummary
 {
 	my %args = @_;
-
+	my $update_operations_stamp = $args{update_operations_stamp} // 1;
 	my $pollTimer = Compat::Timing->new;
 
 	NMISNG::Util::dbg("Calculating NMIS network stats for cgi cache");
@@ -8154,7 +8249,7 @@ sub nmisSummary
 	NMISNG::Util::writeTable( dir => 'var', name => $file, data => $NS );
 	NMISNG::Util::dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
 	NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => Time::HiRes::time() )
-		if ( $type eq "summary" );    # not if part of collect
+		if ( $update_operations_stamp );    # not if part of collect
 
 	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
 	{
@@ -10162,7 +10257,8 @@ sub doSummaryBuild
 				# get all collected interfaces
 				foreach my $id (@$ids)
 				{
-					my $data = $S->nmisng_node->inventory( _id => $id )->data();
+					my ($intf_inventory,$intf_error) = $S->nmisng_node->inventory( _id => $id );
+					my $data = $intf_inventory->data();
 					my $index = $data->{index};
 					
 					my $sts = Compat::NMIS::getSummaryStats(

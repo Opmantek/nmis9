@@ -2435,7 +2435,7 @@ sub selftest
 	# check iowait and general busyness of the system
 	# however, do that ONLY if we are allowed to delay for a few seconds
 	# (otherwise we get only the avg since boot!)
-	if ($candelay)
+	if ($candelay && -f '/proc/stat')
 	{
 		my (@total, @busy, @iowait);
 		for my $run (0,1)
@@ -2488,27 +2488,31 @@ sub selftest
 
 	# check the swap status, more than 50% is a bad sign
 	my $max_swap = $config->{selftest_max_swap} || 50;
-	open(F,"/proc/meminfo") or die "cannot read /proc/meminfo: $!\n";
-	my ($swaptotal, $swapfree, $swapstatus);
-	for my $line (<F>)
+	if( -f '/proc/meminfo')
 	{
-		if ($line =~ /^Swap(Total|Free):\s*(\d+)\s+(\S+)\s*$/)
+		open(F,"/proc/meminfo") or die "cannot read /proc/meminfo: $!\n";
+		my ($swaptotal, $swapfree, $swapstatus);
+		for my $line (<F>)
 		{
-			my ($name,$value,$unit) = ($1,$2,$3);
-			$value *= 1024 if ($unit eq "kB");
-			($name eq "Total"? $swaptotal : $swapfree ) = $value;
+			if ($line =~ /^Swap(Total|Free):\s*(\d+)\s+(\S+)\s*$/)
+			{
+				my ($name,$value,$unit) = ($1,$2,$3);
+				$value *= 1024 if ($unit eq "kB");
+				($name eq "Total"? $swaptotal : $swapfree ) = $value;
+			}
 		}
+		close(F);
+		my $swapused = $swaptotal - $swapfree;
+		if ($swaptotal && 100*$swapused/$swaptotal > $max_swap)
+		{
+			$swapstatus = sprintf("Swap memory use %.2f%% is above threshold %.2f%%",
+														$swapused/$swaptotal * 100, $max_swap);
+			$allok=0;
+		}
+		
+		push @details, ["Server Swap Memory", $swapstatus];
 	}
-	close(F);
-	my $swapused = $swaptotal - $swapfree;
-	if ($swaptotal && 100*$swapused/$swaptotal > $max_swap)
-	{
-		$swapstatus = sprintf("Swap memory use %.2f%% is above threshold %.2f%%",
-													$swapused/$swaptotal * 100, $max_swap);
-		$allok=0;
-	}
-	push @details, ["Server Swap Memory", $swapstatus];
-
+	
 	# check the last successful operation completion, see if it was too long ago
 	my $max_update_age = $config->{selftest_max_update_age} || 604800;
 	my $max_collect_age = $config->{selftest_max_collect_age} || 900;
