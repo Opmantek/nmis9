@@ -364,7 +364,7 @@ sub loadLogFile {
 	foreach my $file ( @fileList ) {
 		my $readLogFile = ($file =~ /\.gz$/i) ? "$zcat $file | $tac" : "$tac $file" ;
 
-		open (DATA, "$readLogFile |") or warn returnTime." Log.pl, Cannot open the file $readLogFile $!\n";
+		open (DATA, "$readLogFile |") or warn NMISNG::Util::returnTime." Log.pl, Cannot open the file $readLogFile $!\n";
 		while (<DATA>) {
 			chomp;
 			$_ =~ s/  / /g;

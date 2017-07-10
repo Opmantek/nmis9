@@ -52,7 +52,7 @@ if (!$C)
 	print header(-status => 500);
 	Compat::NMIS::pageStart(title => "NMIS Modeling") if (!$wantwidget);
 	print "<div>Error: Failed to load config file!</div>";
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 	exit 1;
 }
 
@@ -217,7 +217,7 @@ sub bailout
 {
 	my (@msgs) = @_;
 	print "<p>".join("<br/>", @msgs)."</p>";
-	pageEnd if ($wantwidget);
+	Compat::NMIS::pageEnd if ($wantwidget);
 	exit 0;
 }
 

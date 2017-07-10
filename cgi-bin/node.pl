@@ -473,7 +473,7 @@ sub typeGraph {
 		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i ) 
 		{
 			$db = $S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item);
-			$time = RRDs::last $db;
+			$time = RRDs::last($db);
 			$lastUpdate = NMISNG::Util::returnDateStamp($time);
 		}
 

@@ -80,7 +80,7 @@ else
 	Compat::NMIS::pageStart(title => "NMIS Model Policy", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	print "ERROR: Model Policy module doesn't know how to handle act=".escape($Q->{act});
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 	
 	exit 1;
 }
@@ -103,7 +103,7 @@ sub display_policy
 	if (ref($modelpol) ne "HASH" or !defined($defaultnr))
 	{
 		print "Failed to read the model policy!";
-		pageEnd if (!$wantwidget);
+		Compat::NMIS::pageEnd if (!$wantwidget);
 		return;
 	}
 	
@@ -167,7 +167,7 @@ sub display_policy
 						 onclick => ( $wantwidget? "var id = \$(this).parents('.ui-dialog').attr('id'); \$('div#NMISV8').data('NMISV8'+id).widgetHandle.dialog('close');" : "document.location = '$C->{nmis}?conf=$Q->{conf}';" ),
 						 -value=>"Cancel"),
 	$q->end_form;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 	
 # changes the default model policy

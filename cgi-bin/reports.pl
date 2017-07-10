@@ -141,7 +141,7 @@ if ($Q->{act} eq 'report_dynamic_health') {			healthReport();
 
 	print "Reports: ERROR, act=$Q->{act}\n";
 	print "Request not found\n";
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 }
 
 NMISNG::Util::setFileProtDiag(file => $outputfile) if ($outputfile);
@@ -344,7 +344,7 @@ sub healthReport {
 	print end_table;
 	print end_form if not $Q->{print};
 
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 	purge_files('health') if $Q->{print};
 }
 
@@ -450,7 +450,7 @@ sub availReport {
 	print end_form if not $Q->{print};
 
 	purge_files('avail') if $Q->{print};
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -619,7 +619,7 @@ $percentage = $portCount{$intHash}{realportcount}?
 	print end_table;
 
 	purge_files('port') if $Q->{print};
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -730,7 +730,7 @@ sub responseReport
 	print end_form if not $Q->{print};
 
 	purge_files('response') if $Q->{print};
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -775,7 +775,7 @@ sub timesReport
 										polltimecolor => "#000000",
 										updatetimecolor => "#000000" );
 			# find health rrd
-			if (-f (my $rrdfilename = $S->getDBName(type => "health")))
+			if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
 			{
 				my $stats = NMISNG::rrdfunc::getRRDStats(sys => $S, graphtype => "health",
 																index => undef, item => undef,
@@ -872,7 +872,7 @@ sub timesReport
 
 	purge_files('times') if $Q->{print};
 
-	pageEnd if (not $Q->{print} and not $wantwidget);
+	Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 	return;
 }
 
@@ -1351,7 +1351,7 @@ sub top10Report
 	print end_form if not $Q->{print};
 
 	purge_files('top10') if $Q->{print};
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 }
 
@@ -1437,7 +1437,7 @@ sub outageReport
 			$logfile = "gzip -dc $logfile |";
 		}
 		# Handling gzip files which are not files which need to be locked.
-		open (DATA, $logfile) or warn returnTime." outageReport, Cannot open the file $logfile. $!\n";
+		open (DATA, $logfile) or warn NMISNG::Util::returnTime." outageReport, Cannot open the file $logfile. $!\n";
 		# find the line with the entry in and store in hash
 		while (<DATA>) {
 			chomp;
@@ -1537,7 +1537,7 @@ sub outageReport
 
 
 	purge_files('outage') if $Q->{print};
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 } # end of report = outage
 
@@ -1551,7 +1551,7 @@ sub nodedetailsReport {
 		print header($headeropts);
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 		$AU->CheckAccess('rpt_nodedetails');
-		print pageEnd if (not $Q->{print} and not $wantwidget);
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 		return;
 	}
 
@@ -1704,7 +1704,7 @@ sub storedReport {
 	}
 
 	print end_table;
-	print pageEnd if (not $Q->{print} and not $wantwidget);
+	print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 
 	sub printa {
 		my $index = shift;
@@ -1776,11 +1776,11 @@ sub fileReport {
 			$line =~ s/<a[^>]*>(.*?)<\/a>/$1/g; # remove links
 			print $line;
 		}
-		print pageEnd if (not $Q->{print} and not $wantwidget);
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 		close HTML;
 	} else {
 		print Tr(td({class=>'error'},"Cannot read report file $C->{report_root}/$Q->{file}"));
-		print pageEnd if (not $Q->{print} and not $wantwidget);
+		print Compat::NMIS::pageEnd if (not $Q->{print} and not $wantwidget);
 	}
 }
 
