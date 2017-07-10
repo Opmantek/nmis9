@@ -337,12 +337,12 @@ sub get_newest_timed_data
 		query => NMISNG::DB::get_query(and_part => { inventory_id => $self->id }),
 		limit => 1,
 		sort => { time => -1 },
-		fields_hash => { time => 1, data => 1 });
+		fields_hash => { time => 1, data => 1, derived_data => 1 });
 	return { success => 0, error => NMISNG::DB::get_error_string } if (!$cursor);
 	return { success => 1 } if (!$cursor->count);
 
 	my $reading = $cursor->next;
-	return { success => 1, data => $reading->{data}, time  => $reading->{time} };
+	return { success => 1, data => $reading->{data}, derived_data => $reading->{derived_data}, time  => $reading->{time} };
 }
 
 # RO, returns cluster_id of this Inventory

@@ -7966,8 +7966,8 @@ sub nodeSummaryStats
 
 	# map all stats into one package for derived, don't know if we want to keep it this way
 	my %allstats = ();
-	map { $allstats{'summary8_'.$_} = $stats8->{$_} } (keys %$stats8);
-	map { $allstats{'summary16_'.$_} = $stats8->{$_} } (keys %$stats16);
+	map { $allstats{'08_'.$_} = $stats8->{$_} } (keys %$stats8);
+	map { $allstats{'16_'.$_} = $stats8->{$_} } (keys %$stats16);
 	return \%allstats;
 }
 #=========================================================================================
