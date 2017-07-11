@@ -894,7 +894,7 @@ sub runRRDcreate {
 		NMISNG::Util::logIpsla("IPSLAD: RRDcreate, created database $database, freq. $frequence sec.") if $debug;
 	}
 	# set file owner and permission, default: nmis, 0775.
-	NMISNG::Util::setFileProt($database);
+	NMISNG::Util::setFileProtDiag(file =>$database);
 
 	return 1;
 }
@@ -1315,7 +1315,7 @@ sub writeHashtoVar {
 	print DB Data::Dumper->Dump([$data], [qw(*hash)]);
 	close DB;
 
-	NMISNG::Util::setFileProt($datafile);
+	NMISNG::Util::setFileProtDiag(file =>$datafile);
 	print NMISNG::Util::returnTime." writeHashtoVar: wrote @{[ scalar keys %{$data} ]} records to $datafile\n" if $debug > 1;
 
 }

@@ -271,7 +271,7 @@ elsif ($Q->{act} eq "run-reports")
 		my $status = system("$C->{'<nmis_cgi>'}/reports.pl", "report=$thisreport",
 												"start=$start", "end=$end", "outfile=$file") >> 8;
 		NMISNG::Util::logMsg("ERROR (report) generating report=$thisreport file=$file: $!") if ($status);
-		NMISNG::Util::setFileProt($file) if (-f $file);
+		NMISNG::Util::setFileProtDiag(file =>$file) if (-f $file);
 	}
 }
 elsif ($Q->{act} eq "config-backup")

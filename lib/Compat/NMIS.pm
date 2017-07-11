@@ -2313,7 +2313,7 @@ sub outageRemove {
 			close $handle;
 			map { NMISNG::Util::logMsg("ERROR (nmis) $_") } (@problems);
 
-			NMISNG::Util::setFileProt($C->{outage_log});
+			NMISNG::Util::setFileProtDiag(file =>$C->{outage_log});
 		} else {
 			NMISNG::Util::logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
 		}
@@ -3188,7 +3188,7 @@ sub eventUpdate
 	close(F) or push(@problems, "Cannot close file $efn: $!");
 	&NMISNG::Util::leave_critical;
 
-	NMISNG::Util::setFileProt($efn);
+	NMISNG::Util::setFileProtDiag(file =>$efn);
 	if (@problems)
 	{
 		return join("\n", @problems);
@@ -3430,7 +3430,7 @@ sub logEvent
 	print DATAFILE "$time,$node,$event,$level,$element,$details\n";
 	close(DATAFILE) or push(@problems, "Cannot close $C->{event_log}: $!");
 	&NMISNG::Util::leave_critical;
-	NMISNG::Util::setFileProt($C->{event_log}); # set file owner/permission, default: nmis, 0775
+	NMISNG::Util::setFileProtDiag(file =>$C->{event_log}); # set file owner/permission, default: nmis, 0775
 
 	if (@problems)
 	{
@@ -3917,7 +3917,7 @@ sub event_to_filename
 	if (! -d $eventbasedir)
 	{
 		NMISNG::Util::createDir($eventbasedir);
-		NMISNG::Util::setFileProt($eventbasedir);
+		NMISNG::Util::setFileProtDiag(file =>$eventbasedir);
 	}
 
 	# overridden, or not current then history, or
@@ -4248,7 +4248,7 @@ sub renameRRD
 					print STDERR "cannot create directory $curdir: $!\n"  if ($wantdiag);
 					return undef;
 				}
-				NMISNG::Util::setFileProt($curdir);
+				NMISNG::Util::setFileProtDiag(file =>$curdir);
 			}
 		}
 	}

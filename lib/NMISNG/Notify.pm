@@ -310,7 +310,7 @@ sub logJsonEvent {
 	open(JSON,">$file") or NMISNG::Util::logMsg("ERROR, can not write to $file");
 	print JSON $json_event;
 	close JSON;
-	NMISNG::Util::setFileProt($file);
+	NMISNG::Util::setFileProtDiag(file =>$file);
 }
 
 

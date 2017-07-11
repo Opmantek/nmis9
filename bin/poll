@@ -100,7 +100,7 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 	if ( !-d $varsysdir )
 	{
 		NMISNG::Util::createDir($varsysdir);
-		NMISNG::Util::setFileProt($varsysdir);
+		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 	}
 	my $selftest_cache = "$varsysdir/selftest";
 
@@ -240,7 +240,7 @@ sub runThreads
 		if ( !-d $varsysdir )
 		{
 			NMISNG::Util::createDir($varsysdir);
-			NMISNG::Util::setFileProt($varsysdir);
+			NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 		}
 
 		my $selftest_cache = "$varsysdir/selftest";
@@ -9951,14 +9951,14 @@ sub checkConfig
 		{
 			open( LOG, ">>$C->{'<nmis_logs>'}/nmis.log" );
 			close LOG;
-			NMISNG::Util::setFileProt("$C->{'<nmis_logs>'}/nmis.log");
+			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/nmis.log");
 		}
 
 		if ( not NMISNG::Util::existFile( dir => 'logs', name => 'auth.log' ) )
 		{
 			open( LOG, ">>$C->{'<nmis_logs>'}/auth.log" );
 			close LOG;
-			NMISNG::Util::setFileProt("$C->{'<nmis_logs>'}/auth.log");
+			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/auth.log");
 		}
 
 		if ( not NMISNG::Util::existFile( dir => 'var', name => 'nmis-system' ) )

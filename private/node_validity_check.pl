@@ -226,7 +226,7 @@ sub processNodes {
 	if ( not $simulate ) {
 		my $backupFile = $nodesFile .".". time();
 		my $backup = backupFile(file => $nodesFile, backup => $backupFile);
-		setFileProt($backupFile);
+		setFileProtDiag(file =>$backupFile);
 		if ( $backup ) {
 			printSum("$nodesFile backup'ed up to $backupFile");
 			writeHashtoFile(file => $nodesFile, data => $LNT);
@@ -479,7 +479,7 @@ sub nodeAdminReport {
 		}
 	}
 	end_xlsx(xls => $xls);
-	setFileProt($xlsPath);
+	setFileProtDiag(file =>$xlsPath);
 
 
 }  # end sub nodeAdminSummary

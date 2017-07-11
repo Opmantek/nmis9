@@ -845,9 +845,7 @@ sub loadConfTable
 
 
 # sets file ownership and permissions, with diagnostic return values
-# note: DO NOT USE NMISNG::Util::setFileProt() from NMISNG::Util::logMsg - use this one!
-#
-# args: file (required), username, groupname, permission
+# args: file (required, path to file or dir), username, groupname, permission
 # if run as root, then ownership is changed to username and to config nmis_group
 # if NOT root, then just the file group ownership is changed, to config nmis_group (if possible).
 #
@@ -942,25 +940,6 @@ sub setFileProtDiag
 
 
 
-# this is the backwards-compatible version of setfileprotdiag,
-# which doesn't return anything AND uses logmsg.
-
-# set file owner and permission, default nmis and 0775.
-# change the default by conf/nmis.conf parameters "username" and "fileperm".
-sub setFileProt {
-	my $filename = shift;
-	my $username = shift;
-	my $permission = shift;
-
-	my $errmsg = NMISNG::Util::setFileProtDiag(file => $filename, username => $username,
-															 permission => $permission);
-	if ($errmsg)
-	{
-		NMISNG::Util::logMsg("ERROR, $errmsg");
-	}
-	return;
-}
-
 # fix up the file permissions for given directory,
 # and all its parents up to (but excluding) the given top (or nmis_base)
 # args: directory in question, topdir
@@ -988,7 +967,7 @@ sub setFileProtParents
 	{
 		next if !$component;
 		$curdir.="/$component";
-		NMISNG::Util::setFileProt($curdir);
+		NMISNG::Util::setFileProtDiag(file =>$curdir);
 	}
 	return;
 }
@@ -1293,7 +1272,7 @@ sub writeHashtoFile {
 		NMISNG::Util::info($errormsg);
 	}
 
-	NMISNG::Util::setFileProt($file);
+	NMISNG::Util::setFileProtDiag(file =>$file);
 
 	# store updated filename in table with time stamp
 	if (NMISNG::Util::getbool($C->{server_remote}) and $file !~ /nmis-files-modified/) {
@@ -1656,7 +1635,7 @@ sub NMISNG::Util::logAuth2($;$) {
 	flock($handle, LOCK_EX)  or warn "logAuth, can't lock filename: $!";
 	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logAuth, can't write file $C->{auth_log}. $!\n";
 	close $handle or warn "logAuth, can't close filename: $!";
-	NMISNG::Util::setFileProt($C->{auth_log});
+	NMISNG::Util::setFileProtDiag(file =>$C->{auth_log});
 }
 
 # message with (class::)method names and line number
@@ -1704,7 +1683,7 @@ sub logAuth {
 	flock($handle, LOCK_EX)  or warn "logAuth, can't lock filename: $!";
 	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logAuth, can't write file $C->{auth_log}. $!\n";
 	close $handle or warn "logAuth, can't close filename: $!";
-	NMISNG::Util::setFileProt($C->{auth_log});
+	NMISNG::Util::setFileProtDiag(file =>$C->{auth_log});
 }
 
 # message with (class::)method names and line number
@@ -1754,7 +1733,7 @@ sub logIpsla {
 	flock($handle, LOCK_EX)  or warn "logIpsla, can't lock filename: $!";
 	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logIpsla, can't write file $C->{ipsla_log}. $!\n";
 	close $handle or warn "logIpsla, can't close filename: $!";
-	NMISNG::Util::setFileProt($C->{ipsla_log});
+	NMISNG::Util::setFileProtDiag(file =>$C->{ipsla_log});
 }
 
 sub logPolling {
@@ -1777,7 +1756,7 @@ sub logPolling {
 		flock($handle, LOCK_EX)  or warn "logPolling, can't lock filename: $!";
 		print $handle NMISNG::Util::returnDateStamp().",$msg\n" or warn returnTime." logPolling, can't write file $C->{polling_log}. $!\n";
 		close $handle or warn "logPolling, can't close filename: $!";
-		NMISNG::Util::setFileProt($C->{polling_log});
+		NMISNG::Util::setFileProtDiag(file =>$C->{polling_log});
 	}
 }
 
@@ -1803,7 +1782,7 @@ sub logDebug {
 		flock($handle, LOCK_EX)  or warn "logDebug, can't lock filename: $!";
 		print $handle NMISNG::Util::returnDateStamp().",$output\n" or warn returnTime." logDebug, can't write file $file. $!\n";
 		close $handle or warn "logDebug, can't close filename: $!";
-		NMISNG::Util::setFileProt($file);
+		NMISNG::Util::setFileProtDiag(file =>$file);
 	}
 }
 
@@ -2137,17 +2116,17 @@ sub setFileProtDirectory {
 
 	NMISNG::Util::dbg("setFileProtDirectory $dir, recurse=$recurse",1);
 
-	NMISNG::Util::setFileProt($dir);						# the dir itself must be checked and fixed, too!
+	NMISNG::Util::setFileProtDiag(file =>$dir);						# the dir itself must be checked and fixed, too!
 	opendir (DIR, "$dir");
 	my @dirlist = readdir DIR;
 	closedir DIR;
 
 	foreach my $file (@dirlist) {
 		if ( -f "$dir/$file" and $file !~ /^\./ ) {
-			NMISNG::Util::setFileProt("$dir/$file");
+			NMISNG::Util::setFileProtDiag(file =>"$dir/$file");
 		}
 		elsif ( -d "$dir/$file" and $recurse and $file !~ /^\./ ) {
-			NMISNG::Util::setFileProt("$dir/$file");
+			NMISNG::Util::setFileProtDiag(file =>"$dir/$file");
 			NMISNG::Util::setFileProtDirectory("$dir/$file",$recurse);
 		}
 	}
@@ -2602,7 +2581,7 @@ sub update_operations_stamp
 		if (!-d $maybedir)
 		{
 			mkdir($maybedir,0755) or die "cannot create $maybedir: $!\n";
-			NMISNG::Util::setFileProt($maybedir);
+			NMISNG::Util::setFileProtDiag(file =>$maybedir);
 		}
 	}
 
@@ -2615,7 +2594,7 @@ sub update_operations_stamp
 	{
 		open(F,">$startstamp") or die "cannot write to $startstamp: $!\n";
 		close(F);
-		NMISNG::Util::setFileProt($startstamp);
+		NMISNG::Util::setFileProtDiag(file =>$startstamp);
 	}
 	else
 	{
@@ -2625,13 +2604,13 @@ sub update_operations_stamp
 		{
 			rename($startstamp,$endstamp)
 					or die "cannot rename $startstamp to $endstamp: $!\n";
-			NMISNG::Util::setFileProt($endstamp);
+			NMISNG::Util::setFileProtDiag(file =>$endstamp);
 		}
 		else
 		{
 			open(F,">$endstamp") or die "cannot write to $endstamp: $!\n";
 			close(F);
-			NMISNG::Util::setFileProt($endstamp);
+			NMISNG::Util::setFileProtDiag(file =>$endstamp);
 		}
 
 		# now be a good camper and ensure that we don't leave too many

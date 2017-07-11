@@ -92,7 +92,7 @@ sub getFileFromRemote {
 		flock(OUT, LOCK_EX);
 		print OUT $data or NMISNG::Util::logMsg("Could not write: $!"); 
 		close(OUT);
-		NMISNG::Util::setFileProt($file);
+		NMISNG::Util::setFileProtDiag(file =>$file);
 		return 1;
 	}
 	elsif ( $data =~ /SERVER ERROR/ ) {

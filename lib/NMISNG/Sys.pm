@@ -1367,7 +1367,7 @@ sub loadModel
 	if ( !-d $modelcachedir )
 	{
 		NMISNG::Util::createDir($modelcachedir);
-		NMISNG::Util::setFileProt($modelcachedir);
+		NMISNG::Util::setFileProtDiag(file =>$modelcachedir);
 	}
 	my $thiscf = "$modelcachedir/$model.json";
 
