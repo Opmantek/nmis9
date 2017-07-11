@@ -71,7 +71,7 @@ NMISNG::rrdfunc::require_RRDs(config=>$C);
 # if no options, assume called from web interface ....
 my $outputfile;
 if ( $#ARGV > 0 ) {
-	my %nvp = NMISNG::Util::getArguements(@ARGV);
+	my %nvp = ( NMISNG::Util::get_args_multi(@ARGV) );
 
 	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
 	$Q->{period} = $nvp{length};
