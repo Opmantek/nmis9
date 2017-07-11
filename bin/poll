@@ -140,8 +140,8 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 }
 
 # all arguments are now stored in nvp (name value pairs)
-my $type     = lc $nvp{type};
-my $node     = lc $nvp{node};
+my $type     = $nvp{type};
+my $node     = $nvp{node}? lc($nvp{node}) : undef;
 my $rmefile  = $nvp{rmefile};
 my $runGroup = $nvp{group};
 my $sleep    = $nvp{sleep};
@@ -163,13 +163,7 @@ Proc::Queue::trace(0);          # trace mode on
 Proc::Queue::debug(0);          # debug is off
 Proc::Queue::delay(0.02);       # set 20 milliseconds as minimum delay between fork calls, reduce to speed collect times
 
-# if no type given, just run the command line options
-if ( $type eq "" )
-{
-	print "No runtime option type= on command line\n\n";
-	checkArgs();
-	exit(1);
-}
+$type //= "collect";
 
 print qq/
 Copyright (C) Opmantek Limited (www.opmantek.com)
@@ -182,8 +176,6 @@ NMIS version $Compat::NMIS::VERSION
 
 / if $C->{debug} or $C->{info};
 
-
-$type //= "collect";
 
 if ( $type =~ /^(collect|update|services)$/ )
 {
@@ -205,9 +197,47 @@ elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }               
 # fixme9: move this to nmis-cli or admin/node-admin
 elsif ( $type eq "groupsync" )  { sync_groups(); }
 
-else                            { checkArgs(); }
+else                            
+{
+		print qq!
 
-exit;
+NMIS Polling Engine - Network Management Information System
+
+Copyright (C) Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software licensed under GNU GPL, and you are welcome to
+redistribute it under certain conditions; see www.opmantek.com or email
+contact\@opmantek.com
+
+NMIS version $Compat::NMIS::VERSION
+
+Usage: $0 <type=action> [option=value...]
+
+command line options are:
+  type=<option>
+    Where <option> is one of the following:
+      collect   NMIS will collect all statistics (incl. Services)
+      update    Update all the dynamic NMIS configuration
+      threshold Calculate thresholds
+      services  Run Services data collection only
+      master    Run NMIS Master Functions
+      escalate  Run the escalation routine only ( debug use only)
+      links     Generate the links.csv file.
+      rme       Read and generate a node.csv file from a Ciscoworks RME file
+  [conf=<file name>]     Optional alternate configuation file in conf directory
+  [node=<node name>]     Run operations on a single node;
+  [group=<group name>]   Run operations on all nodes in the named group;
+  [force=true|false]     Makes an update operation run from scratch, without optimisations
+  [debug=true|false|0-9] default=false - Show debugging information
+  [rmefile=<file name>]  RME file to import.
+  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
+  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
+!;
+
+	exit 1;
+}
+exit 0;
 
 
 # run collection-type functions, possibly spread across multiple processes
@@ -1336,7 +1366,7 @@ sub doCollect
 	return;
 }
 
-# normally a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/nmis-fping.xxxx
+# normally a daemon fpingd is running (if set in NMIS config) and stores the result in var/nmis-fping.xxxx
 # if node info missing then ping.pm is used
 # returns: 1 if pingable, 0 otherwise
 sub runPing
@@ -9857,7 +9887,7 @@ sub runDaemons
 
 		if (!$alreadyrunning)
 		{
-			my $fpingpath  = "$C->{<nmis_bin>}/$C->{daemon_fping_filename}";
+			my $fpingpath  = $C->{'<nmis_bin>'}."/".$C->{daemon_fping_filename};
 			die "cannot start fpingd, $fpingpath not executable!\n" if (!-x $fpingpath);
 
 			system($fpingpath, "restart=true");
@@ -9885,7 +9915,7 @@ sub runDaemons
 
 		if (!$alreadyrunning)
 		{
-			my $ipslapath  = "$C->{<nmis_bin>}/$C->{daemon_ipsla_filename}";
+			my $ipslapath  = $C->{'<nmis_bin>'}."/".$C->{daemon_ipsla_filename};
 			die "cannot start ipslad, $ipslapath not executable!\n" if (!-x $ipslapath);
 
 			system($ipslapath);
@@ -10072,46 +10102,6 @@ sub checkConfig
 }
 
 
-#=========================================================================================
-
-sub checkArgs
-{
-	print qq!
-
-NMIS Polling Engine - Network Management Information System
-
-Copyright (C) Opmantek Limited (www.opmantek.com)
-This program comes with ABSOLUTELY NO WARRANTY;
-This is free software licensed under GNU GPL, and you are welcome to
-redistribute it under certain conditions; see www.opmantek.com or email
-contact\@opmantek.com
-
-NMIS version $Compat::NMIS::VERSION
-
-Usage: $0 <type=action> [option=value...]
-
-command line options are:
-  type=<option>
-    Where <option> is one of the following:
-      collect   NMIS will collect all statistics (incl. Services)
-      update    Update all the dynamic NMIS configuration
-      threshold Calculate thresholds
-      services  Run Services data collection only
-      master    Run NMIS Master Functions
-      escalate  Run the escalation routine only ( debug use only)
-      links     Generate the links.csv file.
-      rme       Read and generate a node.csv file from a Ciscoworks RME file
-  [conf=<file name>]     Optional alternate configuation file in conf directory
-  [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the named group;
-  [force=true|false]     Makes an update operation run from scratch, without optimisations
-  [debug=true|false|0-9] default=false - Show debugging information
-  [rmefile=<file name>]  RME file to import.
-  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
-  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
-  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
-!;
-}
 
 #=========================================================================================
 
