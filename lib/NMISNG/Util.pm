@@ -45,6 +45,7 @@ use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
 use Carp;
+use UUID::Tiny qw(:std);				# for loadconftable and cluster_id
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -764,10 +765,22 @@ sub loadConfTable
 			}
 		}
 
+		# this one is vital for NMIS9 in particular: the cluster_id must be unique AND not change
+		if (!$config_cache->{cluster_id})
+		{
+			$deepdata{id}->{cluster_id} = $config_cache->{cluster_id} = create_uuid_as_string(UUID_RANDOM);
+			# and write back the updated config file - cannot use writehashtofile yet!
+			open(F, ">$fn") or die "cannot write $fn: $!\n";
+			print F Data::Dumper->Dump([\%deepdata], [qw(*hash)]);
+			close F;
+			# and restat to get the new mtime
+			$stat = stat($fn);
+		}
+
 		# certain values get massaged in/to the config
 		$config_cache->{conf} = "Config"; # fixme9: this is no longer very useful, only one config supported
 		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
-		$config_cache->{server} = $config_cache->{server_name};
+		$config_cache->{server} = $config_cache->{server_name}; # fixme9: still necessary?
 
 		# fixme9: possibly a bad idea, config vs. command line
 		$config_cache->{debug} = NMISNG::Util::setDebug($debug); # include debug setting in conf table

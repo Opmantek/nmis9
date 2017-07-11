@@ -88,7 +88,7 @@ sub new_nmisng
 		level => $debug // $C->{log_level},
 		path  =>  ($debug? undef :  $C->{'<nmis_logs>'} . "/nmisng.log")
 			);
-	
+
 	my $nmisng = NMISNG->new(
 		config => $C,
 		log => $logger,
@@ -103,7 +103,7 @@ sub loadLocalNodeTable {
 	my $modelData = $nmisng->get_nodes_model();
 	my $data = $modelData->data();
 	my %map = map { $_->{name} => $_ } @$data;
-	return \%map;	
+	return \%map;
 }
 
 sub loadNodeTable {
@@ -1113,11 +1113,11 @@ sub getSubconceptStats
 	# escape any : chars which might be in the database name, e.g handling C: in the RPN
 	$db =~ s/:/\\:/g;
 
-	# NOTE: is there any reason we don't use parse string or some other generic function here?	
+	# NOTE: is there any reason we don't use parse string or some other generic function here?
 	{
 		no strict;
 		$database = $db; # global
-		
+
 		if( $inventory->concept eq 'interface' )
 		{
 			my $data = $inventory->data();
@@ -1146,27 +1146,27 @@ sub getSubconceptStats
 	}
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
-	if (($ERROR = RRDs::error())) 
+	if (($ERROR = RRDs::error()))
 	{
 		NMISNG::Util::logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
-	} 
-	else 
+	}
+	else
 	{
 		##NMISNG::Util::logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
-		if ( scalar(@$graphret) ) 
+		if ( scalar(@$graphret) )
 		{
 			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
-			foreach my $line ( @$graphret ) 
+			foreach my $line ( @$graphret )
 			{
-				my ($name,$value) = split "=", $line;				
+				my ($name,$value) = split "=", $line;
 				$summaryStats{$name} = $value;
-				
+
 				NMISNG::Util::dbg("name=$name, index=$index, value=$value",2);
 				##NMISNG::Util::logMsg("INFO name=$name, index=$index, value=$value");
 			}
 			return \%summaryStats;
-		} 
-		else 
+		}
+		else
 		{
 			NMISNG::Util::logMsg("INFO ($S->{name}) no info return from RRD for subconcept=$subconcept index=$index");
 		}
@@ -1196,7 +1196,7 @@ sub getNodeSummary {
 	foreach my $nd (keys %{$NT}) {
 		next if (!NMISNG::Util::getbool($NT->{$nd}{active}));
 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
-		
+
 		# could use name here I guess
 		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
 		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
@@ -1694,7 +1694,7 @@ sub getOperColor {
 	my ($ifAdminStatus,$ifOperStatus,$collect) = @args{'ifAdminStatus','ifOperStatus','collect'};
 
 	my $operColor;
-	 
+
 	if( defined($S) && defined($index) )
 	{
 		my $inventory = $S->inventory( concept => 'interface', index => $index );
@@ -1704,7 +1704,7 @@ sub getOperColor {
 		$ifOperStatus = $data->{ifOperStatus};
 		$collect = $data->{collect};
 	}
-	
+
 	if ( $ifAdminStatus =~ /down|testing|null|unknown/ or !NMISNG::Util::getbool($collect)) {
 		$operColor="#ffffff"; # white
 	} else {
@@ -2034,7 +2034,7 @@ sub convertConfFiles {
 	if (!NMISNG::Util::existFile(dir=>'conf',name=>'Nodes')) {
 		my (%nodeTable, $NT, $error);
 		# Load the old CSV first for upgrading to NMIS8 format
-		if ( -r $C->{Nodes_Table} ) 
+		if ( -r $C->{Nodes_Table} )
 		{
 			($error, %nodeTable) = NMISNG::CSV::loadCSV($C->{Nodes_Table},
 																									$C->{Nodes_Key});
@@ -2116,7 +2116,7 @@ sub convertConfFiles {
 	#====================
 
 	if (!NMISNG::Util::existFile(dir=>'conf',name=>'Escalations')) {
-		if ( -r "$C->{'Escalation_Table'}") 
+		if ( -r "$C->{'Escalation_Table'}")
 		{
 			my ($error, %table_data)  = NMISNG::CSV::loadCSV($C->{'Escalation_Table'},
 																											 $C->{'Escalation_Key'});
@@ -2152,7 +2152,7 @@ sub convertConfFiles {
 			if ( -r "$C->{\"${name}_Table\"}") {
 				my ($error, %table_data) = NMISNG::CSV::loadCSV($C->{"${name}_Table"},
 																												$C->{"${name}_Key"});
-				
+
 				NMISNG::Util::writeTable(dir=>'conf',name=>$name,data=>\%table_data);
 
 				my $ext = NMISNG::Util::getExtension(dir=>'conf');
@@ -2472,7 +2472,7 @@ sub createHrButtons
 	my $refresh = $args{refresh};
 	my $widget = $args{widget};
 	my $AU = $args{AU};
-	my $confname = $args{conf};	
+	my $confname = $args{conf};
 
 	return "" if (!$node);
 	$refresh = "false" if (!NMISNG::Util::getbool($refresh));
@@ -2480,11 +2480,11 @@ sub createHrButtons
 	my @out;
 
 	# still need this for things not switched over, like 'status'
-	my $NI = loadNodeInfoTable($node); 
+	my $NI = loadNodeInfoTable($node);
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
 	my $nmisng_node = $S->nmisng_node;
-	
+
 	my $C = NMISNG::Util::loadConfTable();
 
 	return unless $AU->InGroup($catchall_data->{group});
@@ -2530,7 +2530,7 @@ sub createHrButtons
 			push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
 		}
-		# this should potentially be querying for active/not-historic		
+		# this should potentially be querying for active/not-historic
 		$ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
 		if ( @$ids > 0 )
 		{
@@ -2554,10 +2554,10 @@ sub createHrButtons
 		if ( defined $S->{mdl}{systemHealth}{sys} )
 		{
     	my @systemHealth = split(",",$S->{mdl}{systemHealth}{sections});
-			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";			
+			push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>System Health &#x25BE<ul>";
 			foreach my $sysHealth (@systemHealth)
 			{
-				my $ids = $nmisng_node->get_inventory_ids( concept => $sysHealth );				
+				my $ids = $nmisng_node->get_inventory_ids( concept => $sysHealth );
 				# don't show spurious blank entries
 				if ( @$ids > 0 )
 				{
@@ -2924,7 +2924,7 @@ sub loadCBQoS
 
 	# this is still used by huaweiqos, nothing else should be using it
 	my $NI = $S->ndinfo;
-	
+
 	my $M = $S->mdl;
 	my $node = $catchall_data->{name};
 
@@ -3192,10 +3192,9 @@ sub eventUpdate
 
 # loads one or more service statuses
 #
-# args: service, node, server, only_known (all optional)
+# args: service, node, cluster_id, only_known (all optional)
 # if service or node are given, only matching services are returned.
-# server defaults to the local server, and is IGNORED unless only_known is 0.
-# note: assumption is that local server_name == cluster_id!
+# cluster_id defaults to the local one, and is IGNORED unless only_known is 0.
 #
 # only_known is 1 by default, which ensures that only locally known, active services
 # listed in Services.nmis and attached to active nodes are returned.
@@ -3203,7 +3202,7 @@ sub eventUpdate
 # if only_known is set to zero, then all services, remote or local,
 # active or not are returned.
 #
-# returns: hash of server -> service -> node -> data; empty if invalid args
+# returns: hash of cluster_id -> service -> node -> data; empty if invalid args
 sub loadServiceStatus
 {
 	my (%args) = @_;
@@ -3211,29 +3210,29 @@ sub loadServiceStatus
 
 	my $wantnode = $args{node};
 	my $wantservice = $args{service};
-	my $wantserver = $args{server} || $C->{server_name};
+	my $wantcluster = $args{cluster_id} || $C->{cluster_id};
 	my $only_known = !(NMISNG::Util::getbool($args{only_known}, "invert")); # default is 1
 
 	my $nmisng = new_nmisng();
 
 	my %result;
-	my @selectors = ( concept => "service", filter => 
+	my @selectors = ( concept => "service", filter =>
 										{ historic => 0,
 											enabled => $only_known? 1 : undef, # don't care if not onlyknown
-										} ); 
+										} );
 	if ($wantnode)
 	{
 		my $noderec = $nmisng->node(name => $wantnode);
 		return %result if (!$noderec);
 
-		push @selectors, ( "node_uuid" =>  $noderec->uuid, 
+		push @selectors, ( "node_uuid" =>  $noderec->uuid,
 											 "cluster_id" => $noderec->cluster_id,
 											);
 	}
-	push @selectors, ("cluster_id" => $wantserver) if ($wantserver);
+	push @selectors, ("cluster_id" => $wantcluster) if ($wantcluster);
 	push @selectors, ("data.service" => $wantservice ) if ($wantservice);
-			
-	
+
+
 	# first find all inventory instances that match,
 	# then get the newest timed data for them
 	my $modeldata = $nmisng->get_inventory_model(@selectors);
@@ -3251,7 +3250,7 @@ sub loadServiceStatus
 		{
 			my $thisnode = $nodeobjs{$maybe->node_uuid} || $nmisng->node(uuid => $maybe->node_uuid);
 			$nodeobjs{$maybe->node_uuid} ||= $thisnode;
-			
+
 			next if (!NMISNG::Util::getbool($thisnode->configuration->{active}) # disabled node
 							 or ( !$maybe->enabled ) ); # service disabled (both count with only_known)
 		}
@@ -3265,7 +3264,7 @@ sub loadServiceStatus
 		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
 										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata}))
 				);
-		
+
 		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
 	}
 
@@ -3951,7 +3950,7 @@ sub update_nodeconf
 			if (!exists($args{data}));				# present but explicitely undef is ok
 
 	my $nmisng = new_nmisng;
-	
+
 	my $node = $nmisng->node( name => $nodename );
 	return if(!$node);
 
@@ -3970,7 +3969,7 @@ sub update_nodeconf
 		$node->overrides( $data );
 		my $op = $node->save();
 		return "Error saving nodeconf for $nodename"
-			if ($op < 1);		
+			if ($op < 1);
 	}
 	return;
 }
@@ -3987,13 +3986,13 @@ sub has_nodeconf
 	return if (!$nodename);
 
 	my $nmisng = new_nmisng;
-	
+
 	my $node = $nmisng->node( name => $nodename );
 	return if(!$node);
 
 	# overrides will always be a hashref
 	my $overrides = $node->overrides();
-	
+
 	my @confkeys = keys %$overrides;
 	return (@confkeys > 0) ? 1 : 0;
 }
@@ -4008,7 +4007,7 @@ sub get_nodeconf
 	my (%args) = @_;
 	my $nodename = $args{node};
 	my $nmisng = new_nmisng;
-	
+
 	if (exists($args{node}))
 	{
 		return "Cannot get nodeconf for unnamed node!" if (!$nodename);
@@ -4025,13 +4024,13 @@ sub get_nodeconf
 		return (undef, $data );
 	}
 	else
-	{		
+	{
 		my %allofthem;
 
 		my $cands = $nmisng->get_node_uuids();
 		for my $uuid (@$cands)
 		{
-			my $node = $nmisng->node( uuid => $uuid );			
+			my $node = $nmisng->node( uuid => $uuid );
 			my $overrides = $node->overrides();
 
 			if (ref($overrides) ne "HASH" or !keys %$overrides )
@@ -4094,7 +4093,7 @@ sub rename_node
 	my $configuration = $node->configuration();
 	$configuration->{name} = $new;
 	$node->configuration($configuration);
-	
+
 	# now write out the new nodes file, so that the new node becomes
 	# workable (with sys etc)
 	# fixme lowprio: if db_nodes_sql is enabled we need to use a

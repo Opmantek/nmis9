@@ -99,11 +99,10 @@ if ( $Q->{act} eq "import-nodes-from-nodes-file" )
 		my $node_configuration = $node_table->{$node_name_key};
 		my $node = $nmisng->node( uuid => $node_configuration->{uuid}, create => 1 );
 
-		# set the configuration
+		# set the configuration, ensure that the right cluster_id is set
  		if ( $node->is_new )
 		{
-			# make sure cluster_id is set
-			$node_configuration->{cluster_id} ||= $C->{server_name} // 'localhost';
+			$node_configuration->{cluster_id} = $C->{cluster_id};
 			$node->configuration($node_configuration);
 		}
 
@@ -157,24 +156,24 @@ elsif ($Q->{act} eq "add-outage")
 	my $outages = NMISNG::Util::loadTable(dir => "conf", name => "Outage");
 	my $nodes = Compat::NMIS::loadLocalNodeTable;
 
-	die "Invalid arguments!\n$usage" 
+	die "Invalid arguments!\n$usage"
 			if (!$Q->{start} || !$Q->{end}
 					|| !( $Q->{group} xor $Q->{node} )
 					|| $Q->{start} !~ /^\d+:\d+$/ || $Q->{end} !~ /^\d+:\d+$/ );
-	
+
 	die "Unknown node \"$Q->{node}\" given, aborting!\n"
 			if ($Q->{node} && !$nodes->{$Q->{node}});
 
 	my @now = localtime;
 	my @hm = split(/:/, $Q->{start});
-	
-	die "start time \"$Q->{start}\" unparseable!\n" 
+
+	die "start time \"$Q->{start}\" unparseable!\n"
 			if ($hm[0]>=24 || $hm[1]>=60);
 
 	my $begtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
 	@hm = split(/:/, $Q->{end});
-	
-	die "end time \"$Q->{end}\" unparseable!\n" 
+
+	die "end time \"$Q->{end}\" unparseable!\n"
 			if ($hm[0]>=24 || $hm[1]>=60);
 
 	my $endtime = POSIX::mktime(0,$hm[1],$hm[0],@now[3..5]);
@@ -190,12 +189,12 @@ elsif ($Q->{act} eq "add-outage")
 		$begtime += 86400;
 		$endtime += 86400;
 	}
-	
-	my @candidates = $Q->{node}? ($Q->{node}) 
+
+	my @candidates = $Q->{node}? ($Q->{node})
 			: (grep { $nodes->{$_}->{group} eq $Q->{group} } keys %{$nodes}); # fixme9 better way to get the nodes of a group?
-	
+
 	die "group \"$Q->{group}\" has no members, aborting!\n" if (!@candidates);
-	
+
 	print "Outage window is from ".localtime($begtime)." to ".
 			localtime($endtime)."\n" if ($wantverbose);
 
@@ -206,8 +205,8 @@ elsif ($Q->{act} eq "add-outage")
 			start => $begtime,
 			end => $endtime,
 			change => $Q->{comment} };
-		
-		print "Applying to node $node\n" 
+
+		print "Applying to node $node\n"
 				if ($wantverbose);
 	}
 	NMISNG::Util::writeTable(dir=> "conf", name => "Outage", data => $outages);
@@ -229,23 +228,23 @@ elsif ($Q->{act} eq "run-reports")
 	# fixme9: is this warning still applicable at all?
 	# attention: the file naming logic here must match purge_files() in cgi-bin/reports.pl,
 	# or unwanted ancient reports will be left behind!
-	if ($period eq 'day') 
+	if ($period eq 'day')
 	{
 		my ($s,$m,$h) = (localtime($time))[0..2];
 		$end = $time-($s+($m*60)+($h*60*60));
 		$start = $end - (60*60*24); # yesterday
 
 		$outfile= POSIX::strftime("day-%d-%m-%Y-%a.html",localtime($start));
-	} 
-	elsif ($period eq 'week') 
+	}
+	elsif ($period eq 'week')
 	{
 		my ($s,$m,$h,$wd) = (localtime($time))[0..2,6];
 		$end = $time-($s+($m*60)+($h*60*60)+($wd*60*60*24));
 		$start = $end - (60*60*24*7); # last weekend
 
 		$outfile = POSIX::strftime("week-%d-%m-%Y-%a.html",localtime($start));
-	} 
-	elsif ($period eq 'month') 
+	}
+	elsif ($period eq 'month')
 	{
 		my ($m,$y) = (localtime($time))[4,5];
 		$end = timelocal(0,0,0,1,$m,$y);
@@ -254,10 +253,10 @@ elsif ($Q->{act} eq "run-reports")
 			$m = 11; $y -= 1;
 		}
 		$start = timelocal(0,0,0,1,$m,$y);
-		
+
 		$outfile =  POSIX::strftime("month-%m-%Y.html",localtime($start));
 	}
-	
+
 	my @todos = ($reporttype eq "all"? (qw(times health top10 outage response avail port)) : $reporttype);
 	for my $thisreport (@todos)
 	{
@@ -276,23 +275,23 @@ elsif ($Q->{act} eq "config-backup")
 	{
 		mkdir($backupdir,0700) or die "Cannot create $backupdir: $!\n";
 	}
-	
+
 	die "Cannot write to directory $backupdir, check permissions!\n"
 			if (!-w $backupdir);
 	die "Cannot read directory $backupdir, check permissions!\n"
 			if (!-r $backupdir or !-x $backupdir);
-	
+
 	# now let's take a new backup...
 	my $backupprefix = "nmis-config-backup-";
 	my $backupfilename = "$backupdir/$backupprefix".POSIX::strftime("%Y-%m-%d-%H%M",localtime).".tar";
-	
+
 	# ...of _custom_ (and default models for good measure),
 	# and configuration...
-	my @relativepaths = (map { File::Spec->abs2rel($_, $C->{'<nmis_base>'}) } 
-											 ($C->{'<nmis_models>'}, 
-												$C->{'<nmis_default_models>'}, 
+	my @relativepaths = (map { File::Spec->abs2rel($_, $C->{'<nmis_base>'}) }
+											 ($C->{'<nmis_models>'},
+												$C->{'<nmis_default_models>'},
 												$C->{'<nmis_conf>'}));
-	
+
 	my $status = system("tar","-cf",$backupfilename,
 											"-C", $C->{'<nmis_base>'},
 											@relativepaths);
@@ -312,7 +311,7 @@ elsif ($Q->{act} eq "config-backup")
 	# ...and the various cron files
 	my $td = File::Temp::tempdir(CLEANUP => 1);
 	chdir $td or die "cannot chdir to $td: $!\n";
-	mkdir("$td/cron",0755) or die "Cannot create $td/cron: $!\n"; 
+	mkdir("$td/cron",0755) or die "Cannot create $td/cron: $!\n";
 	system("cp -a /etc/cron* cron/ 2>/dev/null");
 	system("crontab -l -u root > cron/root_crontab 2>/dev/null");
 	system("crontab -l -u nmis > cron/nmis_crontab 2>/dev/null");
@@ -346,11 +345,11 @@ elsif ($Q->{act} eq "fixperms")
 		print "Fixing the permissions for NMIS9 based on the configuration $C->{configfile}\nOperating on base directory: $C->{'<nmis_base>'}\nSetting owner to $C->{nmis_user}, group $C->{nmis_group}\n";
 	}
 
-	if ( $< != 0) 
+	if ( $< != 0)
 	{
 		print "\nWARNING: Not running with root privileges, so this operation may not work fully!\n\n";
 	}
-	else 
+	else
 	{
 		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}",$C->{'<nmis_base>'});
 		system("chmod","-R","g+rw", $C->{'<nmis_base>'});
@@ -359,7 +358,7 @@ elsif ($Q->{act} eq "fixperms")
 		{
 			system("chown","-R", "$C->{nmis_user}:$C->{nmis_group}",
 						 $C->{'<nmis_data>'});
-			
+
 			system("chmod","-R","g+rw", $C->{'<nmis_data>'});
 		}
 	}
@@ -384,7 +383,7 @@ elsif ($Q->{act} eq "fixperms")
 				if (!$done{$location});
 		$done{$location} = 1;
 	}
-	
+
 	# deeper dirs with recursion
 	%done = ();
 	for my $location ($C->{'<nmis_base>'}."/lib",
@@ -398,7 +397,7 @@ elsif ($Q->{act} eq "fixperms")
 		NMISNG::Util::setFileProtDirectory($location, "true") 	if (!$done{$location});
 		$done{$location} = 1;
 	}
-	
+
 	# remove the selftest cache file to ensure it's regenerated;
 	# otherwise we may show stale warnings about permissions that were already fixed
 	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
@@ -421,7 +420,7 @@ sub purge_files
 	my %nukem;
 
 	my $simulate = NMISNG::Util::getbool( $args{simulate} );
-	
+
 	NMISNG::Util::info("Starting to look for purgable files"
 										 .($simulate? ", in simulation mode":"") );
 
@@ -547,5 +546,3 @@ sub purge_files
 	NMISNG::Util::info("Purging complete");
 	return;
 }
-
-
