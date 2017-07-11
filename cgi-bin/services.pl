@@ -108,7 +108,7 @@ sub display_details
 	my $ST = Compat::NMIS::loadServicesTable;
 	my %sstatus = Compat::NMIS::loadServiceStatus(node => $wantnode, service => $wantservice);
 	# only interested in this server's services!
-	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
+	%sstatus = %{$sstatus{$C->{cluster_id}}} if (ref($sstatus{$C->{cluster_id}}) eq "HASH");
 
 	if (!keys %sstatus or !$sstatus{$wantservice} or !$sstatus{$wantservice}->{$wantnode})
 	{
@@ -361,7 +361,7 @@ sub display_overview
 	my $ST = Compat::NMIS::loadServicesTable;
 
 	# only interested in this server's services!
-	%sstatus = %{$sstatus{$C->{server_name}}} if (ref($sstatus{$C->{server_name}}) eq "HASH");
+	%sstatus = %{$sstatus{$C->{cluster_id}}} if (ref($sstatus{$C->{cluster_id}}) eq "HASH");
 
 	my @statuslist;
 
@@ -385,7 +385,7 @@ sub display_overview
 		my $detailurl = $serviceurl . "&node=".uri_escape($one->{node})
 				."&service=".uri_escape($one->{service});
 
-		# need separate view id per node+service to show more than one widget at at time, 
+		# need separate view id per node+service to show more than one widget at at time,
 		# but spaces and () badly confuse the js widget code...
 		my $viewid = "service_view_$one->{node}_$one->{service}";
 		$viewid =~ s/[^a-zA-Z0-9_-]+//g;

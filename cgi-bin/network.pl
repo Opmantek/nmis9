@@ -3467,8 +3467,8 @@ sub viewService
 	# get the current service status for this node
 	my %sstatus = Compat::NMIS::loadServiceStatus( node => $node );
 
-	# structure is server -> service -> node -> data, we don't want the outer layer
-	%sstatus = %{$sstatus{$C->{server_name}}} if ( ref( $sstatus{$C->{server_name}} ) eq "HASH" );
+	# structure is cluster_id -> service -> node -> data, we don't want the outer layer
+	%sstatus = %{$sstatus{$C->{cluster_id}}} if ( ref( $sstatus{$C->{cluster_id}} ) eq "HASH" );
 
 	print Compat::NMIS::createHrButtons(
 		node    => $node,
