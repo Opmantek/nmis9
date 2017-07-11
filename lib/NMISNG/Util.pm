@@ -38,6 +38,7 @@ use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
 use File::stat;
 use File::Spec;
+use File::Copy;
 use Time::ParseDate; # fixme: actually NOT used by func
 use Time::Local;
 use POSIX qw();			 # we want just strftime
@@ -702,17 +703,17 @@ sub alpha
 	return lc($f) cmp lc($s);
 }
 
-# reads and returns the nmis config file data 
+# reads and returns the nmis config file data
 # reads from the given directory or the default one; uses cached data if possible.
 # ATTENTION: no dir argument on a subsequent call means that the PREVIOUS
 # dir and file are checked!
 #
 # attention: this massages in certain values: info, debug  etc!
 # this function must be self-contained, as most stuff in NMISNG::Util:: calls loadconftable
-# 
+#
 # args: dir, debug, NMISNG::Util::info (all optional)
 # returns: hash ref or undef on failure
-sub loadConfTable 
+sub loadConfTable
 {
 	my %args = @_;
 	state ($config_cache);
@@ -735,13 +736,13 @@ sub loadConfTable
 	}
 
 	# read the file if not read yet, or different dir requested
-	if ( !$config_cache 
+	if ( !$config_cache
 			 or $config_cache->{configfile} ne $fn
 			 or $stat->mtime > $config_cache->{mtime} )
 	{
 		$config_cache = {};				# clear it
 
-		# cannot use readfiletohash here: infinite recursion as 
+		# cannot use readfiletohash here: infinite recursion as
 		# most helper functions (have to) call loadConfTable first!
 		my %deepdata = do $fn;
 		# should the file have unwanted gunk after the %hash = ();
@@ -751,11 +752,11 @@ sub loadConfTable
 			warn("configuration file $fn unparseable: $@\n");
 			return undef;
 		}
-		
+
 		# strip the outer of two levels, does not flatten any deeper structure
-		for my $k (keys %deepdata) 
+		for my $k (keys %deepdata)
 		{
-			for my $kk (keys %{$deepdata{$k}}) 
+			for my $kk (keys %{$deepdata{$k}})
 			{
 				warn("Config section \"$k\" contains clashing config entry \"$kk\"!\n")
 						if (defined($config_cache->{$kk}));
@@ -777,13 +778,13 @@ sub loadConfTable
 
 		# config is loaded, all plain <xyz> -> "static stuff" macros need to be resolved
 		# walk all things in need of macro expansion and fix them up as much as possible each iteration
-		my @todos = grep(!ref($config_cache->{$_}) 
+		my @todos = grep(!ref($config_cache->{$_})
 										 && $config_cache->{$_} =~ /<\w+>/, keys %$config_cache);
 		while (@todos)
 		{
 			my $atstart = @todos;
 			my @stilltodo;
-			
+
 			while (my $needsmacro = shift @todos)
 			{
 				my $value = $config_cache->{$needsmacro};
@@ -795,7 +796,7 @@ sub loadConfTable
 					my ($pre, $macroname) = ($1,$2);
 					$newvalue .= $pre;
 					my $fallbackname = $macroname; $fallbackname =~ s/^<(.*)>$/$1/;
-					
+
 					if (defined($config_cache->{$macroname}))
 					{
 						$newvalue .= $config_cache->{$macroname};
@@ -982,7 +983,7 @@ sub setFileProtParents
 # expand directory name if its one of the short names var, models, conf, logs, mibs;
 # args: dir
 # returns expanded value or original input
-sub getDir 
+sub getDir
 {
 	my (%args) = @_;
 	my $dir = $args{dir};
@@ -998,13 +999,13 @@ sub getDir
 
 # takes dir and name, possibly shortnames, possibly w/o extension,
 # mangles that and returns 0/1 if the file exists.
-sub existFile 
+sub existFile
 {
 	my %args = @_;
 	my $dir = $args{dir};
 	my $name = $args{name};
 	return 0 if (!$dir or !$name);
-	
+
 	my $file;
 	$file = getDir(dir=>$dir)."/$name"; # expands dir args like 'conf' or 'logs'
 	$file = NMISNG::Util::getFileName(file => $file); # mangles that into path with extension
@@ -1038,12 +1039,12 @@ sub mtimeFile {
 # extra argument: suppress_errors, if set loadTable will not log errors but just return
 #
 # ATTENTION: fixme dir logic is very convoluted! dir is generally NOT a garden-variety real dir path!
-sub loadTable 
+sub loadTable
 {
 	my %args = @_;
 	my $dir =  $args{dir}; # name of directory
 	my $name = $args{name};	# name of table or short file name
-	
+
 	my $check = NMISNG::Util::getbool($args{check}); # if 'true' then check only if table is valid in cache
 	my $mtime = NMISNG::Util::getbool($args{mtime}); # if 'true' then mtime is also returned
 	my $lock = NMISNG::Util::getbool($args{lock}); # if lock is true then no caching
@@ -1055,30 +1056,30 @@ sub loadTable
 		NMISNG::Util::logMsg("ERROR: invalid arguments, name or dir missing!");
 		return {};
 	}
-	
+
 	my $file = getDir(dir=>$dir)."/$name"; # expands dirs like 'conf' or 'logs' into full location
 	$file = NMISNG::Util::getFileName(file => $file);		 # mangles file name into extension'd one
 
 	if (!-e $file)
 	{
-		NMISNG::Util::logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)") 
+		NMISNG::Util::logMsg("ERROR file $file does not exist or has bad permissions (dir=$dir name=$name)")
 				if (!$args{suppress_errors});
 		return {};
 	}
 
 	print STDERR "DEBUG loadTable: name=$name dir=$dir file=$file\n" if $confdebug;
-	if ($lock) 
+	if ($lock)
 	{
 		return NMISNG::Util::readFiletoHash(file=>$file, lock=>$lock);
-	} 
+	}
 	else
 	{
 		# known dir
 		my $index = lc "$dir$name";
-		if (exists $Table_cache{$index}{data}) 
+		if (exists $Table_cache{$index}{data})
 		{
 			# already in cache, check for update of file
-			if (stat($file)->mtime eq $Table_cache{$index}{mtime}) 
+			if (stat($file)->mtime eq $Table_cache{$index}{mtime})
 			{
 				return 1 if ($check);
 				# else
@@ -1125,7 +1126,7 @@ sub writeTable {
 #
 # args: file (relative) and dir, or file (full path), json (optional), only_extension (optional)
 # variant with file+dir is used not commonly
-# 
+#
 # attention: this function name clashes with a function in rrdfunc.pm!
 # ATTENTION: fixme dir logic is very very convoluted!
 # fixme: passing json=false DOES NOT WORK if the config says use_json=true!
@@ -1177,7 +1178,7 @@ sub getExtension
 
 # look up model file in models-custom, falling back to models-default,
 # args: model (= model name, without extension)
-# returns: hashref (success, error, data, is_custom) 
+# returns: hashref (success, error, data, is_custom)
 # with success 1/0, error message, data structure, and is_custom is 1 if the model came from models-custom
 # success is set IFF valid data came back.
 # note: not exported.
@@ -1213,7 +1214,7 @@ sub writeHashtoFile {
 	my $json = NMISNG::Util::getbool($args{json});
 
 	my $C = loadConfTable();
-	
+
 	# pretty printing: if arg given, that overrides config
 	my $pretty = NMISNG::Util::getbool( (exists $args{pretty})? $args{pretty} : $C->{use_json_pretty} );
 
@@ -1470,7 +1471,7 @@ sub dbgPolling {
 	my $caller;
 
 	my $C = loadConfTable();
-	
+
 	if ($C->{debug_polling} >= $level or $level == 0) {
 		if ($level == 1) {
 			($string = (caller(1))[3]) =~ s/\w+:://;
@@ -1509,7 +1510,7 @@ sub NMISNG::Util::logMsg
 		# no config loaded
 		die "FATAL NMISNG::Util::logMsg, NO Config Loaded: $msg\n";
 	}
-	elsif ( not -d $C->{'<nmis_logs>'} ) 
+	elsif ( not -d $C->{'<nmis_logs>'} )
 	{
 		print "ERROR, NMISNG::Util::logMsg can't do anything but NAG YOU\n";
 		warn "ERROR NMISNG::Util::logMsg: the message which killed me was: $msg\n";
@@ -1821,7 +1822,7 @@ sub getbool
 # difference to loadConfTable: loadconftable flattens and adds a few entries
 # args: none
 # returns: hashref, file name
-sub readConfData 
+sub readConfData
 {
 	my %args = @_;
 
@@ -1835,7 +1836,7 @@ sub readConfData
 # trivial wrapper around writeHashtoFile
 # args: data, required
 # returns: nothing
-sub writeConfData 
+sub writeConfData
 {
 	my %args = @_;
 	my $CC = $args{data};
@@ -1844,9 +1845,9 @@ sub writeConfData
 	my $configfile = $C->{configfile};
 
 	# save old one
-	rename($configfile, "$configfile.bak") # this overwrites any existing backup file
+	File::Copy::cp($configfile, "$configfile.bak") # this overwrites any existing backup file
 			if (-r "$configfile");
-	
+
 	NMISNG::Util::writeHashtoFile(file=>$configfile, data=>$CC);
 }
 
@@ -2509,10 +2510,10 @@ sub selftest
 														$swapused/$swaptotal * 100, $max_swap);
 			$allok=0;
 		}
-		
+
 		push @details, ["Server Swap Memory", $swapstatus];
 	}
-	
+
 	# check the last successful operation completion, see if it was too long ago
 	my $max_update_age = $config->{selftest_max_update_age} || 604800;
 	my $max_collect_age = $config->{selftest_max_collect_age} || 900;
