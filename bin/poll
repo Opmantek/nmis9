@@ -324,11 +324,8 @@ sub runThreads
 		my $active_ping = grep( NMISNG::Util::getbool( $_->{active} ) && NMISNG::Util::getbool( $_->{ping} ), values %{$NT} );
 
 		# missing more then 10 nodes that should have been pinged?
-		if ( $cnt_pt + 10 < $active_ping )
-		{
-			NMISNG::Util::logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping");
-			$C->{daemon_fping_failed} = 'true';                      # remember for runPing
-		}
+		NMISNG::Util::logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping")
+				if ( $cnt_pt + 10 < $active_ping );
 	}
 	NMISNG::Util::dbg("all relevant tables loaded");
 
@@ -1339,7 +1336,7 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
+# normally a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/nmis-fping.xxxx
 # if node info missing then ping.pm is used
 # returns: 1 if pingable, 0 otherwise
 sub runPing
@@ -1380,18 +1377,13 @@ sub runPing
 		}
 		else
 		{
-			# fallback to OLD system
-			NMISNG::Util::logMsg("INFO ($S->{name}) using standard ping system, no ping info of daemon fpingd")
-				if (NMISNG::Util::getbool( $C->{daemon_fping_active} )
-				and !NMISNG::Util::getbool( $C->{daemon_fping_failed} )
-				and !NMISNG::Util::getbool( $S->{update} ) );    # fixme: unclean access to internal property
-
+			# fallback to internal/synchronous system
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
 			my $timeout = $C->{ping_timeout} ? $C->{ping_timeout} : 300;
 			my $packet  = $C->{ping_packet}  ? $C->{ping_packet}  : 56;
 			my $host = $NC->{node}{host};          # ip name/adress of node
 
-			NMISNG::Util::info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
+			NMISNG::Util::info("Pinging $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss ) = NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
@@ -9842,51 +9834,62 @@ sub runLinks
 # starts up fpingd and/or opslad
 sub runDaemons
 {
-
 	my $C = NMISNG::Util::loadConfTable();
-
 	NMISNG::Util::dbg("Starting");
 
-	# get process table of OS
-	my @p_names;
-	my $pt = new Proc::ProcessTable();
-	my %pnames;
-	foreach my $p ( @{$pt->table} )
-	{
-		$pnames{$p->fname} = 1;
-	}
-
-	# start fast ping daemon
+	# fast ping daemon desired and in need of being started?
 	if ( NMISNG::Util::getbool( $C->{daemon_fping_active} ) )
 	{
-		if ( !exists $pnames{$C->{daemon_fping_filename}} )
+		# check the pid file first
+		my $pidfile = $C->{fpingd_pidfile} || "/var/run/fpingd.pid";
+		my $alreadyrunning;
+		if (-f $pidfile)
 		{
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
-			{
-				system( "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}", "restart=true" );
-				NMISNG::Util::logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
-			}
-			else
-			{
-				NMISNG::Util::logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
-			}
+			# starting more than one daemon is bad
+			open(F, "$pidfile") or die "cannot open $pidfile: $!\n";
+			$alreadyrunning = <F>;
+			close(F);
+			chomp($alreadyrunning);
+
+			undef $alreadyrunning if (!$alreadyrunning # nothing there
+																or !kill(0, $alreadyrunning)); # or not alive
+		}
+
+		if (!$alreadyrunning)
+		{
+			my $fpingpath  = "$C->{<nmis_bin>}/$C->{daemon_fping_filename}";
+			die "cannot start fpingd, $fpingpath not executable!\n" if (!-x $fpingpath);
+
+			system($fpingpath, "restart=true");
+			NMISNG::Util::logMsg("INFO launched $C->{daemon_fping_filename} daemon");
 		}
 	}
 
-	# start ipsla daemon
+	# ipsla daemon desired and in need of being started?
 	if ( NMISNG::Util::getbool( $C->{daemon_ipsla_active} ) )
 	{
-		if ( !exists $pnames{$C->{daemon_ipsla_filename}} )
+		# check the pid file first
+		my $pidfile = $C->{ipsla_pidfile} || "/var/run/ipslad.pid";
+		my $alreadyrunning;
+		if (-f $pidfile)
 		{
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
-			{
-				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
-				NMISNG::Util::logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			}
-			else
-			{
-				NMISNG::Util::logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
-			}
+			# starting more than one daemon is bad
+			open(F, "$pidfile") or die "cannot open $pidfile: $!\n";
+			$alreadyrunning = <F>;
+			close(F);
+			chomp($alreadyrunning);
+
+			undef $alreadyrunning if (!$alreadyrunning # nothing there
+																or !kill(0, $alreadyrunning)); # or not alive
+		}
+
+		if (!$alreadyrunning)
+		{
+			my $ipslapath  = "$C->{<nmis_bin>}/$C->{daemon_ipsla_filename}";
+			die "cannot start ipslad, $ipslapath not executable!\n" if (!-x $ipslapath);
+
+			system($ipslapath);
+			NMISNG::Util::logMsg("INFO launched $ipslapath daemon");
 		}
 	}
 

@@ -92,10 +92,6 @@ foreach my $file ( "CISCO-RTTMON-MIB.oid" ) {
 }
 my %revOIDS = reverse %SNMP_util::OIDS; # the power of perl
 
-# Initialize globals
-
-my $restartcmd = "$0 '$vardir'";
-
 ### 2012-02-23 keiths, ipsla configuration options from the NMIS config.
 # collect interval time in seconds
 my $collect_time = $C->{ipsla_collect_time} ? $C->{ipsla_collect_time} : 60; 
@@ -118,25 +114,26 @@ if ( $nvp{type} eq "update") {
 }
 
 # See if another instance of ourself is running, if so kill the process
-my $pidfile = "/var/run/ipslad.pid";
+my $pidfile = $C->{ipsla_pidfile} || "/var/run/ipslad.pid";
 
-if (-f $pidfile) {
+if (-f $pidfile) 
+{
   open(F, "<$pidfile");
   $pid = <F>;
   close(F);
   chomp $pid;
-  if ($pid != $$) {
-    NMISNG::Util::logIpsla("IPSLAD: pidfile exists killing the pidfile process $pid");
-    kill 9, $pid;
+	
+  if (int($pid)											# exists
+			&& $pid != $$								# # and not this one (should be impossible)
+			&& kill(0,$pid))								# and alive
+	{
+    NMISNG::Util::logIpsla("IPSLAD: killing process $pid");
+    kill $pid;
+		sleep(1);
+		kill(9,$pid);
     unlink($pidfile);
-    NMISNG::Util::logIpsla("IPSLAD: pidfile $pidfile deleted");
   }
 }
-
-# As we are paranoid and running as root, chroot to a safe directory:
-# note: if we go anywhere else that will break the file paths.
-#chroot("/") or die "Couldn't chroot to /: $!";
-
 
 FORK: {
     if ($pid = fork) {
@@ -174,7 +171,7 @@ FORK: {
 		# code body here.
 
 		# setup a log file and trap any error messages as well.
-		umask 0;
+		# umask 0;										# fixme9 umask 0 is an extremely bad idea.
 		open STDOUT, ">>$C->{log_root}/ipsla.log" or die "Can't write to $C->{log_root}/ipsla.log: $!";
 		open STDERR, ">>$C->{log_root}/ipsla.log" or die "Can't write to $C->{log_root}/ipsla.log: $!";
 

@@ -233,8 +233,10 @@ my %hash = (
     'outage_file' => '<nmis_conf>/outage.dat',
     'nmis_log' => '<nmis_logs>/nmis.log',
     'fpingd_log' => '<nmis_logs>/fpingd.log',
+		'fpingd_pidfile' => "/var/run/fpingd.pid",
     'auth_log' => '<nmis_logs>/auth.log',
     'ipsla_log' => '<nmis_logs>/ipsla.log',
+		'ipsla_pidfile' => "/var/run/ipslad.pid",
     'polling_log' => '<nmis_logs>/polling.log',
     'syslog_log' => '<nmis_logs>/cisco.log',
     'event_log' => '<nmis_logs>/event.log',
@@ -289,10 +291,10 @@ my %hash = (
   'daemons' => {
     'logwatch' => 'false',
     'daemon_ipsla_active' => 'false',
-    'daemon_ipsla_filename' => 'ipslad.pl',
+    'daemon_ipsla_filename' => 'ipslad',
     'daemon_fping_active' => 'true',
     'daemon_fping_dns_cache' => 'true',
-    'daemon_fping_filename' => 'fpingd.pl'
+    'daemon_fping_filename' => 'fpingd'
   },
 
   'authentication' => {
