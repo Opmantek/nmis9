@@ -84,10 +84,16 @@ sub new_nmisng
 
 	# log level is controlled by debug (from commandline or config file),
 	# output is stderr if debug came from command line, log file otherwise
+	my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
+	my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
+			if (-f $logfile);
+	warn "failed to set permissions: $error\n" if ($error);
 	my $logger = NMISNG::Log->new(
 		level => $debug // $C->{log_level},
-		path  =>  ($debug? undef :  $C->{'<nmis_logs>'} . "/nmisng.log")
+		path  =>  ($debug? undef : $logfile ),
 			);
+
+	
 
 	my $nmisng = NMISNG->new(
 		config => $C,
