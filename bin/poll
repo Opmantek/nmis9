@@ -78,8 +78,8 @@ my $starttime = Time::HiRes::time;
 
 my $customconfdir = $nvp{dir}? $nvp{dir}."/conf": undef;
 
-my $C = NMISNG::Util::loadConfTable( dir => $customconfdir, 
-																		 debug => $nvp{debug}, 
+my $C = NMISNG::Util::loadConfTable( dir => $customconfdir,
+																		 debug => $nvp{debug},
 																		 info => $nvp{info} );
 die "nmis cannot operate without config!\n" if ( ref($C) ne "HASH" );
 NMISNG::rrdfunc::require_RRDs(config=>$C);
@@ -100,7 +100,7 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 	if ( !-d $varsysdir )
 	{
 		NMISNG::Util::createDir($varsysdir);
-		NMISNG::Util::setFileProt($varsysdir);
+		NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 	}
 	my $selftest_cache = "$varsysdir/selftest";
 
@@ -140,8 +140,8 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 }
 
 # all arguments are now stored in nvp (name value pairs)
-my $type     = lc $nvp{type};
-my $node     = lc $nvp{node};
+my $type     = $nvp{type};
+my $node     = $nvp{node}? lc($nvp{node}) : undef;
 my $rmefile  = $nvp{rmefile};
 my $runGroup = $nvp{group};
 my $sleep    = $nvp{sleep};
@@ -163,13 +163,7 @@ Proc::Queue::trace(0);          # trace mode on
 Proc::Queue::debug(0);          # debug is off
 Proc::Queue::delay(0.02);       # set 20 milliseconds as minimum delay between fork calls, reduce to speed collect times
 
-# if no type given, just run the command line options
-if ( $type eq "" )
-{
-	print "No runtime option type= on command line\n\n";
-	checkArgs();
-	exit(1);
-}
+$type //= "collect";
 
 print qq/
 Copyright (C) Opmantek Limited (www.opmantek.com)
@@ -203,9 +197,47 @@ elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }               
 # fixme9: move this to nmis-cli or admin/node-admin
 elsif ( $type eq "groupsync" )  { sync_groups(); }
 
-else                            { checkArgs(); }
+else                            
+{
+		print qq!
 
-exit;
+NMIS Polling Engine - Network Management Information System
+
+Copyright (C) Opmantek Limited (www.opmantek.com)
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software licensed under GNU GPL, and you are welcome to
+redistribute it under certain conditions; see www.opmantek.com or email
+contact\@opmantek.com
+
+NMIS version $Compat::NMIS::VERSION
+
+Usage: $0 <type=action> [option=value...]
+
+command line options are:
+  type=<option>
+    Where <option> is one of the following:
+      collect   NMIS will collect all statistics (incl. Services)
+      update    Update all the dynamic NMIS configuration
+      threshold Calculate thresholds
+      services  Run Services data collection only
+      master    Run NMIS Master Functions
+      escalate  Run the escalation routine only ( debug use only)
+      links     Generate the links.csv file.
+      rme       Read and generate a node.csv file from a Ciscoworks RME file
+  [conf=<file name>]     Optional alternate configuation file in conf directory
+  [node=<node name>]     Run operations on a single node;
+  [group=<group name>]   Run operations on all nodes in the named group;
+  [force=true|false]     Makes an update operation run from scratch, without optimisations
+  [debug=true|false|0-9] default=false - Show debugging information
+  [rmefile=<file name>]  RME file to import.
+  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
+  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
+  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
+!;
+
+	exit 1;
+}
+exit 0;
 
 
 # run collection-type functions, possibly spread across multiple processes
@@ -238,7 +270,7 @@ sub runThreads
 		if ( !-d $varsysdir )
 		{
 			NMISNG::Util::createDir($varsysdir);
-			NMISNG::Util::setFileProt($varsysdir);
+			NMISNG::Util::setFileProtDiag(file =>$varsysdir);
 		}
 
 		my $selftest_cache = "$varsysdir/selftest";
@@ -322,11 +354,8 @@ sub runThreads
 		my $active_ping = grep( NMISNG::Util::getbool( $_->{active} ) && NMISNG::Util::getbool( $_->{ping} ), values %{$NT} );
 
 		# missing more then 10 nodes that should have been pinged?
-		if ( $cnt_pt + 10 < $active_ping )
-		{
-			NMISNG::Util::logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping");
-			$C->{daemon_fping_failed} = 'true';                      # remember for runPing
-		}
+		NMISNG::Util::logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping")
+				if ( $cnt_pt + 10 < $active_ping );
 	}
 	NMISNG::Util::dbg("all relevant tables loaded");
 
@@ -804,7 +833,7 @@ sub doUpdate
 	# create the update lock now.
 	my $lockHandle = NMISNG::Util::createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
-	# lets change our name, always, for process runtime checking 
+	# lets change our name, always, for process runtime checking
 	$0 = "poll-update-$name";
 
 	my $S = NMISNG::Sys->new;    # create system object
@@ -975,7 +1004,7 @@ sub doUpdate
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
 	else
-	{		
+	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
@@ -1236,7 +1265,7 @@ sub doCollect
 
 			# Custom Alerts
 			runAlerts( sys => $S ) if defined $S->{mdl}{alerts};
-			
+
 		}
 		else
 		{
@@ -1315,12 +1344,12 @@ sub doCollect
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
 	else
-	{		
+	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );		
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1337,7 +1366,7 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
+# normally a daemon fpingd is running (if set in NMIS config) and stores the result in var/nmis-fping.xxxx
 # if node info missing then ping.pm is used
 # returns: 1 if pingable, 0 otherwise
 sub runPing
@@ -1378,18 +1407,13 @@ sub runPing
 		}
 		else
 		{
-			# fallback to OLD system
-			NMISNG::Util::logMsg("INFO ($S->{name}) using standard ping system, no ping info of daemon fpingd")
-				if (NMISNG::Util::getbool( $C->{daemon_fping_active} )
-				and !NMISNG::Util::getbool( $C->{daemon_fping_failed} )
-				and !NMISNG::Util::getbool( $S->{update} ) );    # fixme: unclean access to internal property
-
+			# fallback to internal/synchronous system
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
 			my $timeout = $C->{ping_timeout} ? $C->{ping_timeout} : 300;
 			my $packet  = $C->{ping_packet}  ? $C->{ping_packet}  : 56;
 			my $host = $NC->{node}{host};          # ip name/adress of node
 
-			NMISNG::Util::info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
+			NMISNG::Util::info("Pinging $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss ) = NMISNG::Ping::ext_ping( $host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;    # ping_min is undef if unreachable.
@@ -2191,7 +2215,7 @@ sub getIntfInfo
 				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");
 			NMISNG::Util::logMsg("INFO ($S->{name}) marked historic:$result->{marked_historic}, matched_historic:$result->{matched_historic},".
 				"marked marked_nothistoric:$result->{marked_nothistoric}, matched_nothistoric:$result->{matched_nothistoric}");    # test info
-			
+
 			delete $V->{interface};    # rebuild interface view table
 		}
 
@@ -3140,11 +3164,11 @@ sub getEnvInfo
 			NMISNG::Util::logMsg( "ERROR ($S->{name}) on get environment index table: " . $SNMP->error );
 			HandleNodeDown( sys => $S, type => "snmp", details => "get environment index table: " . $SNMP->error );
 		}
-		
+
 		my @active_indices = (sort keys %envIndexNum);
 		$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
 
-		# fixme: this loadinfo run is only required for snmp		
+		# fixme: this loadinfo run is only required for snmp
 		foreach my $index ( @active_indices )
 		{
 			my $target = {};
@@ -3230,7 +3254,7 @@ sub getEnvData
 	for my $section (@wantsections)
 	{
 		my $ids = $S->nmisng_node->get_inventory_ids( concept => $section, filter => { enabled => 1, historic => 0 } );
-		
+
 		for my $id ( @$ids )
 		{
 			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
@@ -3731,7 +3755,7 @@ sub getSystemHealthData
 				}
 				NMISNG::Util::info("section=$section index=$index read and stored $count values");
 				# technically the path shouldn't change during collect so for now don't recalculate path
-				# put the new values into the inventory and save				
+				# put the new values into the inventory and save
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
@@ -4038,7 +4062,7 @@ sub getNodeData
 	my $rrdData    = $S->getData( class => 'system', model => $model );
 	my $howdiditgo = $S->status;
 	my $anyerror   = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
-	
+
 	if ( !$anyerror )
 	{
 		my ($alldata,$allstats) = ({},{});
@@ -4514,7 +4538,7 @@ sub getIntfData
 			# add data and stats
 			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
-			# can't reu-se stats here because these run on default 6h, normal stats run on 15m			
+			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
 			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'interface', start => $period, end => time);
 
@@ -4639,7 +4663,7 @@ sub getCBQoSdata
 	{
 		my $concept = "cbqos-$direction";
 		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept, filter => { enabled => 1, historic => 0 });
-		
+
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
 		foreach my $id ( @$ids )
 		{
@@ -5522,7 +5546,7 @@ sub getCallswalk
 		# traverse the callsTable hash one last time and populate descriptive fields; also count total voice ports
 		my $InstalledVoice;
 		my @active_indices = ( keys %callsTable );
-		$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'calls' );		
+		$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => 'calls' );
 		foreach my $callsintf ( @active_indices )
 		{
 			my $data = $callsTable{$callsintf};
@@ -5576,7 +5600,7 @@ sub getPVC
 
 	my $S  = $args{sys};
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
-	
+
 	if ( !$S->status->{snmp_enabled} )
 	{
 		NMISNG::Util::info("Not performing getPVC for $S->{name}: SNMP not enabled for this node");
@@ -5672,7 +5696,7 @@ sub getPVC
 			}
 
 			foreach $pvc ( keys %{$pvcStats{$port}} )
-			{				
+			{
 				my $key = "${port}-${pvc}";
 
 				# massage some values
@@ -5722,7 +5746,7 @@ sub getPVC
 
 				my $path = $nmisng_node->inventory_path( concept => $concept, data => $target, path_keys => $path_keys );
 				$S->nmisng->log->error("Failed to create path for pvc key:$key") && next if( ref($path) ne 'ARRAY');
-			
+
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
 					concept   => $concept,
 					data      => $target,
@@ -5740,12 +5764,12 @@ sub getPVC
 
 				# if collect is off then this interface is disabled
 				$inventory->enabled(1);
-				
+
 				my ( $op, $error ) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 					if ($error);
-			
+
 				if (my $db = $S->create_update_rrd( inventory => $inventory, data => $D, type => $concept, item => $key ) )
 				{
 					my ($alldata,$allstats) = ({},{});
@@ -5941,7 +5965,7 @@ sub runServer
 					);
 					$S->nmisng->log->error("Failed to get storage inventory, error_message:$error") if(!$inventory);
 				}
-				
+
 				my $D; #used to be %Val
 				my $subconcept = 'notset'; # this will be filled in with the subconcept found
 
@@ -6017,7 +6041,7 @@ sub runServer
 					### 2014-08-28 keiths, fix for VMware Real Memory as HOST-RESOURCES-MIB::hrStorageType.7 = OID: HOST-RESOURCES-MIB::hrStorageTypes.20
 					elsif ($storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.2'
 						or $storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.20' )
-					{    # Memory	
+					{    # Memory
 						$subconcept = 'hrmem';
 						$D->{hrMemSize}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageSize};
 						$D->{hrMemUsed}{value} = $storage_target->{hrStorageUnits} * $storage_target->{hrStorageUsed};
@@ -6039,7 +6063,7 @@ sub runServer
 
 					# in net-snmp, virtualmemory is used as type for both swap and 'virtual memory' (=phys + swap)
 					elsif ( $storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.3' )
-					{    # VirtualMemory						
+					{    # VirtualMemory
 						my ( $itemname, $typename )
 							= ( $storage_target->{hrStorageDescr} =~ /Swap/i ) ? (qw(hrSwapMem hrswapmem)) : (qw(hrVMem hrvmem));
 						$subconcept = $typename;
@@ -6071,7 +6095,7 @@ sub runServer
 						$storage_target->{hrStorageType} eq '1.3.6.1.2.1.25.2.1.1'    # StorageOther
 						and $storage_target->{hrStorageDescr} =~ /^(Memory buffers|Cached memory)$/i
 						)
-					{						
+					{
 						my ( $itemname, $typename )
 							= ( $storage_target->{hrStorageDescr} =~ /^Memory buffers$/i )
 							? (qw(hrBufMem hrbufmem))
@@ -6111,7 +6135,7 @@ sub runServer
 				# get stats
 				my $period = getThresholdPeriod(subconcept => $subconcept);
 				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $subconcept, start => $period, end => time);
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );				
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
 				($op,$error) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
@@ -6282,7 +6306,7 @@ sub runServices
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			(my $op, $error) = $processinventory->save();
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
-			$error = $processinventory->add_timed_data(data => \%services);
+			$error = $processinventory->add_timed_data(data => \%services, derived_data => {});
 			NMISNG::Util::logMsg("ERROR: snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
@@ -6342,10 +6366,9 @@ sub runServices
 		# load the service inventory, most recent point-in-time data and check the last run time
 		my $inventorydata = {
 			service     => $service, # == key in Services.nmis, primary identifier
-			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-			uuid        => Compat::UUID::getComponentUUID( $C->{server_name}, $service,
+			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+cluster_id+service+node's uuid
+			uuid        => Compat::UUID::getComponentUUID( $C->{cluster_id}, $service,
 																									 $catchall_data->{uuid} ),
-			server      => $C->{server_name}, # backwards-compat, cluster_id is the more modern approach
 			description => $ST->{$service}->{Description},
 			display_name => $ST->{$service}->{Name}, # logic-free, no idea why that can differ from $service
 			node => $node, # backwards-compat
@@ -7071,7 +7094,7 @@ sub runServices
 		NMISNG::Util::logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
-		$error = $inventory->add_timed_data(data => \%status, time => NMISNG::Util::numify($thisrun));
+		$error = $inventory->add_timed_data(data => \%status, derived_data => {}, time => NMISNG::Util::numify($thisrun));
 		NMISNG::Util::logMsg("ERROR: service timed data saving failed: $error") if ($error);
 	}
 
@@ -7376,9 +7399,9 @@ sub runReach
 	my %args           = @_;
 	my $S              = $args{sys};                      # system object
 	my $donotupdaterrd = NMISNG::Util::getbool( $args{delayupdate} );
-	
+
 	my $RI = $S->reach;                                   # reach info
-	my $C  = NMISNG::Util::loadConfTable();	
+	my $C  = NMISNG::Util::loadConfTable();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $cpuWeight;
@@ -7627,14 +7650,14 @@ sub runReach
 			$intcount   = 0;
 			$intsummary = 0;
 			my $ids = $S->nmisng_node->get_inventory_ids( concept => 'interface', filter => { enabled => 1, historic => 0 } );
-				
+
 			# get all collected interfaces
 			foreach my $id (@$ids)
 			{
 				my ($intf_inventory,$error) = $S->nmisng_node->inventory( _id => $id );
 				my $data = $intf_inventory->data();
 				my $index = $data->{index};
-			
+
 				# Get the link availability from the local node!!!
 				my $util = Compat::NMIS::getSummaryStats(
 					sys   => $S,
@@ -7666,7 +7689,7 @@ sub runReach
 						"Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount"
 					);
 				}
-			
+
 			}    # FOR LOOP
 			if ( $intsummary != 0 )
 			{
@@ -7922,7 +7945,7 @@ sub runReach
 	return \%reachVal;
 }
 
-# calculate the summary8 and summary16 data like it used to be, this will be stored in the db as 
+# calculate the summary8 and summary16 data like it used to be, this will be stored in the db as
 # derived data
 # NB: in the future this can be removed, summary8/16 should be calculatable from the PIT data, there
 #   really is no need to do this. aggregations or something should be able to pull this off.
@@ -7939,20 +7962,20 @@ sub nodeSummaryStats
 	my $metricsSecondPeriod	= $C->{'metric_comparison_second_period'} // "-16 hours";
 
 	my $stats8  = Compat::NMIS::getSubconceptStats(
-		sys => $S, 
-		inventory => $inventory, 
-		subconcept => $section, 
-		start => $metricsFirstPeriod, 
+		sys => $S,
+		inventory => $inventory,
+		subconcept => $section,
+		start => $metricsFirstPeriod,
 		end => time
 	);
 	my $stats16 = Compat::NMIS::getSubconceptStats(
-		sys => $S, 
-		inventory => $inventory, 
-		subconcept => $section, 
-		start => $metricsSecondPeriod, 
+		sys => $S,
+		inventory => $inventory,
+		subconcept => $section,
+		start => $metricsSecondPeriod,
 		end => $metricsFirstPeriod
 	);
-	
+
 	# nodedown isn't needed in summary info anymore
 	# $stats8->{nodedown} = 'false';
 	# $stats8->{nodedown} = 'true' if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
@@ -9841,51 +9864,62 @@ sub runLinks
 # starts up fpingd and/or opslad
 sub runDaemons
 {
-
 	my $C = NMISNG::Util::loadConfTable();
-
 	NMISNG::Util::dbg("Starting");
 
-	# get process table of OS
-	my @p_names;
-	my $pt = new Proc::ProcessTable();
-	my %pnames;
-	foreach my $p ( @{$pt->table} )
-	{
-		$pnames{$p->fname} = 1;
-	}
-
-	# start fast ping daemon
+	# fast ping daemon desired and in need of being started?
 	if ( NMISNG::Util::getbool( $C->{daemon_fping_active} ) )
 	{
-		if ( !exists $pnames{$C->{daemon_fping_filename}} )
+		# check the pid file first
+		my $pidfile = $C->{fpingd_pidfile} || "/var/run/fpingd.pid";
+		my $alreadyrunning;
+		if (-f $pidfile)
 		{
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
-			{
-				system( "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}", "restart=true" );
-				NMISNG::Util::logMsg("INFO launched $C->{daemon_fping_filename} as daemon");
-			}
-			else
-			{
-				NMISNG::Util::logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
-			}
+			# starting more than one daemon is bad
+			open(F, "$pidfile") or die "cannot open $pidfile: $!\n";
+			$alreadyrunning = <F>;
+			close(F);
+			chomp($alreadyrunning);
+
+			undef $alreadyrunning if (!$alreadyrunning # nothing there
+																or !kill(0, $alreadyrunning)); # or not alive
+		}
+
+		if (!$alreadyrunning)
+		{
+			my $fpingpath  = $C->{'<nmis_bin>'}."/".$C->{daemon_fping_filename};
+			die "cannot start fpingd, $fpingpath not executable!\n" if (!-x $fpingpath);
+
+			system($fpingpath, "restart=true");
+			NMISNG::Util::logMsg("INFO launched $C->{daemon_fping_filename} daemon");
 		}
 	}
 
-	# start ipsla daemon
+	# ipsla daemon desired and in need of being started?
 	if ( NMISNG::Util::getbool( $C->{daemon_ipsla_active} ) )
 	{
-		if ( !exists $pnames{$C->{daemon_ipsla_filename}} )
+		# check the pid file first
+		my $pidfile = $C->{ipsla_pidfile} || "/var/run/ipslad.pid";
+		my $alreadyrunning;
+		if (-f $pidfile)
 		{
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
-			{
-				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
-				NMISNG::Util::logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			}
-			else
-			{
-				NMISNG::Util::logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
-			}
+			# starting more than one daemon is bad
+			open(F, "$pidfile") or die "cannot open $pidfile: $!\n";
+			$alreadyrunning = <F>;
+			close(F);
+			chomp($alreadyrunning);
+
+			undef $alreadyrunning if (!$alreadyrunning # nothing there
+																or !kill(0, $alreadyrunning)); # or not alive
+		}
+
+		if (!$alreadyrunning)
+		{
+			my $ipslapath  = $C->{'<nmis_bin>'}."/".$C->{daemon_ipsla_filename};
+			die "cannot start ipslad, $ipslapath not executable!\n" if (!-x $ipslapath);
+
+			system($ipslapath);
+			NMISNG::Util::logMsg("INFO launched $ipslapath daemon");
 		}
 	}
 
@@ -9950,14 +9984,14 @@ sub checkConfig
 		{
 			open( LOG, ">>$C->{'<nmis_logs>'}/nmis.log" );
 			close LOG;
-			NMISNG::Util::setFileProt("$C->{'<nmis_logs>'}/nmis.log");
+			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/nmis.log");
 		}
 
 		if ( not NMISNG::Util::existFile( dir => 'logs', name => 'auth.log' ) )
 		{
 			open( LOG, ">>$C->{'<nmis_logs>'}/auth.log" );
 			close LOG;
-			NMISNG::Util::setFileProt("$C->{'<nmis_logs>'}/auth.log");
+			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/auth.log");
 		}
 
 		if ( not NMISNG::Util::existFile( dir => 'var', name => 'nmis-system' ) )
@@ -10068,46 +10102,6 @@ sub checkConfig
 }
 
 
-#=========================================================================================
-
-sub checkArgs
-{
-	print qq!
-
-NMIS Polling Engine - Network Management Information System
-
-Copyright (C) Opmantek Limited (www.opmantek.com)
-This program comes with ABSOLUTELY NO WARRANTY;
-This is free software licensed under GNU GPL, and you are welcome to
-redistribute it under certain conditions; see www.opmantek.com or email
-contact\@opmantek.com
-
-NMIS version $Compat::NMIS::VERSION
-
-Usage: $0 <type=action> [option=value...]
-
-command line options are:
-  type=<option>
-    Where <option> is one of the following:
-      collect   NMIS will collect all statistics (incl. Services)
-      update    Update all the dynamic NMIS configuration
-      threshold Calculate thresholds
-      services  Run Services data collection only
-      master    Run NMIS Master Functions
-      escalate  Run the escalation routine only ( debug use only)
-      links     Generate the links.csv file.
-      rme       Read and generate a node.csv file from a Ciscoworks RME file
-  [conf=<file name>]     Optional alternate configuation file in conf directory
-  [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the named group;
-  [force=true|false]     Makes an update operation run from scratch, without optimisations
-  [debug=true|false|0-9] default=false - Show debugging information
-  [rmefile=<file name>]  RME file to import.
-  [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
-  [mthreaddebug=true|false] default=false - Extra debug for Multithreading code;
-  [maxthreads=<1..XX>]  default=$C->{nmis_maxthreads} - How many threads should nmis use, at most\n
-!;
-}
 
 #=========================================================================================
 
@@ -10247,7 +10241,7 @@ sub doSummaryBuild
 					}
 				}
 
-				# reset the threshold period, may have been changed to threshold_period-<something>				
+				# reset the threshold period, may have been changed to threshold_period-<something>
 				my $tp = "interface";
 				$threshold_period = getThresholdPeriod( subconcept => $tp );
 
@@ -10260,7 +10254,7 @@ sub doSummaryBuild
 					my ($intf_inventory,$intf_error) = $S->nmisng_node->inventory( _id => $id );
 					my $data = $intf_inventory->data();
 					my $index = $data->{index};
-					
+
 					my $sts = Compat::NMIS::getSummaryStats(
 						sys   => $S,
 						type  => $tp,

@@ -102,7 +102,7 @@ sub sendEmail
 			$priWord = &setSMTPPriority($arg{priority});
 		}
 		
-		$mailtext = "X-Mailer: NMIS $NMIS::VERSION\nX-Priority: $priNum\nX-MSMail-Priority: $priWord\n"
+		$mailtext = "X-Mailer: NMIS $Compat::NMIS::VERSION\nX-Priority: $priNum\nX-MSMail-Priority: $priWord\n"
 				."Importance: $priWord\nPriority: $priWord\n";
 		$mailtext .= "Subject: $arg{subject}\nFrom: $arg{from}\nTo: $arg{to}\n\n$arg{body}\n";
 		$arg{text} = $mailtext;
@@ -310,7 +310,7 @@ sub logJsonEvent {
 	open(JSON,">$file") or NMISNG::Util::logMsg("ERROR, can not write to $file");
 	print JSON $json_event;
 	close JSON;
-	NMISNG::Util::setFileProt($file);
+	NMISNG::Util::setFileProtDiag(file =>$file);
 }
 
 

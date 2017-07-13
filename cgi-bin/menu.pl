@@ -580,11 +580,11 @@ sub menu_about_view {
 	print table(Tr(td({class=>'info'},<<EO_TEXT)));
 <br/>
 Network Management Information System<br/>
-NMIS Version $NMIS::VERSION<br/>
-Copyright (C) <a href="http://www.opmantek.com">Opmantek Limited (www.opmantek.com)</a><br/>
+NMIS Version $Compat::NMIS::VERSION<br/>
+Copyright (C) <a href="https://opmantek.com">Opmantek Limited (www.opmantek.com)</a><br/>
 This program comes with ABSOLUTELY NO WARRANTY;<br/>
 This is free software licensed under GNU GPL, and you are welcome to<br/>
-redistribute it under certain conditions; see <a href="http://www.opmantek.com">www.opmantek.com</a> or email<br/>
+redistribute it under certain conditions; see <a href="https://opmantek.com">opmantek.com</a> or email<br/>
  <a href="mailto:contact\@opmantek.com">contact\@opmantek.com<br/>
 
 EO_TEXT

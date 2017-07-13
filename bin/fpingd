@@ -74,7 +74,7 @@ my $C = NMISNG::Util::loadConfTable(debug=>$nvp{debug});
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
 if (-f $lockoutfile or NMISNG::Util::getbool($C->{global_collect},"invert"))
 {
-	die ("Attention: NMIS is currently disabled, fpingd.pl is terminating!\n"
+	die ("Attention: NMIS is currently disabled, fpingd is terminating!\n"
 			 .(-f $lockoutfile? "Remove the file $lockoutfile to re-enable.\n\n" :
 				 "Set the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n"))
 }
@@ -82,7 +82,7 @@ if (-f $lockoutfile or NMISNG::Util::getbool($C->{global_collect},"invert"))
 ## setting debug levels
 $debug =  NMISNG::Util::setDebug($nvp{debug});
 my $logfile     = $C->{'fpingd_log'};
-my $runfile     = "/var/run/fpingd.pid";
+my $pidfile = $C->{fpingd_pidfile} || "/var/run/fpingd.pid";
 
 #----------------------------------------
 # check that fping is available!
@@ -99,28 +99,31 @@ else
 	&debug("found fping version $fpingver");
 }
 
+my $restartwanted = NMISNG::Util::getbool($nvp{restart});
+my $killwanted = NMISNG::Util::getbool($nvp{kill});
 
-#----------------------------------------
-
-# Process Control
-# check for a running fpingd
+# check for any running fpingd instance
 my $alreadyrunning;
-if ( -f $runfile ) {
-	open(F, "<$runfile");
+if ( -f $pidfile ) {
+	open(F, "<$pidfile") or die "failed to read $pidfile: $!\n";
 	$alreadyrunning = <F>;
 	chomp $alreadyrunning;
 	close(F);
 }
-if ( $alreadyrunning and ( NMISNG::Util::getbool($nvp{kill}) or NMISNG::Util::getbool($nvp{restart}) ))
+if ( int($alreadyrunning)				# it's a number
+		 and $alreadyrunning != $$	# and it's not me (should be impossible)
+		 and kill(0, $alreadyrunning) # and it's really alive
+		 and ( $killwanted or $restartwanted )) # and we're to get rid of it
 {
-	killall($alreadyrunning);
+	kill($alreadyrunning);				# polite then firm
+	sleep(1);
+	kill(9, $alreadyrunning);
+	unlink($pidfile);
+
+	debug("Killed process $alreadyrunning");
 }
 
-if (defined $nvp{kill} and NMISNG::Util::getbool($nvp{kill}))
-{
-	debug("Killed process $FindBin::Script, deleted $runfile");
-	exit(0);
-}
+exit(0) if ($killwanted);
 
 
 #----------------------------------------
@@ -131,7 +134,6 @@ if (defined $nvp{kill} and NMISNG::Util::getbool($nvp{kill}))
 # values will be subsituted from nmis.conf, or defaults used
 # this one for linux: http://fping.sourceforge.net/
 # 'timeout' is subbed for '$timeout' later, etc..
-
 
 my $fpingcmd;
 # use 'C' [uppercase] for correct parsing of results.
@@ -169,7 +171,6 @@ my $ext = NMISNG::Util::getExtension(dir=>'var');
 
 &debug( "logfile = $FindBin::Bin/../logs/fpingd.log") if defined $nvp{logging};
 &debug( "logging not enabled - set cmdline option \'logging=true\' if logging required") if !defined $nvp{logging};
-&debug( "pidfile = $runfile");
 &debug( "ping result file = $FindBin::Bin/../var/fping.$ext");
 &debug( "fping cmd: $fpingcmd");
 #---------------------------------------
@@ -209,18 +210,19 @@ if (!NMISNG::Util::getbool($nvp{"foreground"}))
 }
 
 # Announce our presence via a PID file
-open(PID, ">$runfile") or warn "\t Could not create $runfile: $!\n";
+open(PID, ">$pidfile") or die("Could not create $pidfile: $!\n");
 print PID $$;
 close PID;
-&debug("daemon started, pidfile $runfile created with pid: $$");
-NMISNG::Util::logMsg("INFO daemon fpingd started, pidfile $runfile created with pid: $$");
-umask 0;
+&debug("daemon started, pidfile $pidfile created with pid: $$");
+NMISNG::Util::logMsg("INFO daemon fpingd started, pidfile $pidfile created with pid: $$");
+# umask 0;												# fixme9 why umask 0? this is a bad idea.
 
-if ( !NMISNG::Util::getbool($C->{daemon_fping_dns_cache},"invert") ) {
-        NMISNG::Util::logMsg("INFO daemon fpingd will cache DNS for improved name resolution");
+if ( !NMISNG::Util::getbool($C->{daemon_fping_dns_cache},"invert") ) 
+{
+	NMISNG::Util::logMsg("INFO daemon fpingd will cache DNS for improved name resolution");
 }
 else {
-        NMISNG::Util::logMsg("WARNING daemon fpingd will not CACHE DNS, use under adult supervision");
+	NMISNG::Util::logMsg("WARNING daemon fpingd will not CACHE DNS, use under adult supervision");
 }
 
 
@@ -503,13 +505,41 @@ sub fastping
 		&debug("sleeping ...");
 		# Generate random # from 1-10 + $C->{fastping_sleep}
 
-		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
-		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
+		# run the NMIS escalation process for faster outage notifications,
+		# but don't wait for it to finish
+		fork || exec("$C->{'<nmis_bin>'}/poll","type=escalate");
 
+		# reap any zombies, likely none there yet
+		reaper();
 		sleep(int(5-rand(10)) + $sleep);
-
+		# rereap again
+		reaper();
 	}
 }
+
+# this is a general-purpose reaper of zombies
+# args: none, returns: hash of process ids -> statuses that were reaped
+#
+# you can use this to just periodically collect zombies,
+# or as a signal handler, but:
+#
+# PLEASE NOTE: if you attach it to $SIG{CHLD}, then
+# this CAN AND WILL interfere with getting exit codes from
+# backticks, system, and open-with-pipe, because the child handler
+# can run before the perl standard wait() for these ipc ops,
+# hence $? becomes -1 because the wait() was preempted.
+#
+sub reaper
+{
+	my %exparrots;
+
+	while ((my $pid = waitpid(-1, POSIX::WNOHANG)) > 0)
+	{
+		$exparrots{$pid} = $?;
+	}
+	return %exparrots;
+}
+
 
 # check-and-remove existing node down event
 # args: node name
@@ -573,20 +603,8 @@ sub catch_zap {
 	&debug("I was killed by $_[0]");
 	NMISNG::Util::logMsg("INFO daemon fpingd killed by $_[0]",
 				 do_not_lock => 1);
-	unlink $runfile;
+	unlink $pidfile;
 	die "I was killed by $_[0]: $!\n";
-}
-
-# kill all given processes except me..!
-sub killall {
-	my (@shootthem) = @_;
-
-	foreach my $p (@shootthem)
-	{
-		next if !$p or $p eq $$;
-		kill 9, $p;
-		&debug("killed running process pid $p ");
-	}
 }
 
 # read node info from file. maybe cached, or from db

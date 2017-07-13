@@ -381,7 +381,7 @@ sub addDStoRRD
 							else
 							{
 								NMISNG::Util::dbg("$rrd created");
-								NMISNG::Util::setFileProt($rrd); # set file owner/permission, default: nmis, 0775
+								NMISNG::Util::setFileProtDiag(file =>$rrd); # set file owner/permission, default: nmis, 0775
 								unlink $rrd.".xml";
 								NMISNG::Util::dbg("$rrd.xml deleted");
 								unlink $rrd.".bak";
@@ -740,7 +740,7 @@ sub createRRD
 				$exit = 0;
 			}
 			# set file owner and permission, default: nmis, 0775.
-			NMISNG::Util::setFileProt($database);
+			NMISNG::Util::setFileProtDiag(file =>$database);
 			# Double check created OK for this user
 			if ( -f $database and -r $database and -w $database )
 			{

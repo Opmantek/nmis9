@@ -128,7 +128,7 @@ sub displayFlow{
 	print start_table;
 
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 
 	# first print header and boxes for event flow analyzing
 	print Tr(td({class=>'header',colspan=>'4'},"${homelink}View Event Flow"));
@@ -183,7 +183,7 @@ sub displayEventList
 	# second print a list of event database entries
 	print start_table;
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 
 	print Tr(td({class=>'header',colspan=>'3'},"${homelink}View Event Database"));
 	my $flag = 0;
@@ -223,7 +223,7 @@ sub	displayEvent {
 	print start_table;
 
 	# show a link home if not in widget mode
-	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;");
+	my $homelink = $wantwidget? "" : (a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;");
 	
 	print Tr(td({class=>'header',colspan=>'6'},"${homelink}View Event Database - $Q->{node}"));
 	

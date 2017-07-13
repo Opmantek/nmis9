@@ -1117,7 +1117,7 @@ sub writeHashtoVar {
 	print DB Data::Dumper->Dump([$data], [qw(*hash)]);
 	close DB;
 
-	NMISNG::Util::setFileProt($datafile);
+	NMISNG::Util::setFileProtDiag(file =>$datafile);
 	print returnTime." writeHashtoVar: wrote @{[ scalar keys %{$data} ]} records to $datafile\n" if $debug > 1;
 
 }

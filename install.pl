@@ -729,6 +729,9 @@ for (@candidates)
 	}
 }
 
+# create missing empty dirs
+safemkdir("$site/htdocs/reports") if (!-d "$site/htdocs/reports");
+
 # catch missing nmis user, regardless of upgrade/new install
 if (!getpwnam("nmis"))
 {
@@ -754,7 +757,7 @@ if ($isnewinstall)
 {
 	printBanner("Installing default config files...");
 	safemkdir("$site/conf") if (!-d "$site/conf");
-	safemkdir("$site/models") if (!-d "$site/models");
+# fixme no longer correct	safemkdir("$site/models") if (!-d "$site/models");
 
 	# -n(oclobber) should not be required as conf site/conf/ and site/models/ should be empty
 	# exexprint returns exit code, ie. 0 if ok

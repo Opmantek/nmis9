@@ -1112,7 +1112,7 @@ $javascript
 sub do_login_banner {
 	my $self = shift;
 	my @banner = ();
-	my $banner_string = "NMIS $NMIS::VERSION";
+	my $banner_string = "NMIS $Compat::NMIS::VERSION";
 
 	if ( defined $self->{banner}  ) {
 		$banner_string = $self->{banner};

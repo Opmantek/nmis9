@@ -44,18 +44,18 @@ sub new
 	return if ( !$nmisng );    # check this so we can use it to log
 
 	# validate data section
-	# services must be named (in property service), must mention the server name and have a uuid.
+	# services must be named (in property service)
+	# and must have a uuid.
 	# anything else is optional
 	my $data = $args{data};
 
 	return if ( !$data->{service} );
-	return if ( !$data->{server} );
 	return if ( !$data->{uuid} );
 
 	my $self = $class->SUPER::new(%args);
 	$nmisng->log->error(__PACKAGE__." failed to get parent new!") && return
 			if (!ref($self));
-	
+
 	bless($self, $class);
 	return $self;
 }
@@ -70,9 +70,9 @@ sub make_path
 	# make up for object deref invocation being passed in as first argument
 	# expecting a hash which has even # of inputs
 	shift if ( !( $#_ % 2 ) );
-	
+
 	my (%args) = @_;
-	
+
 	my $path = NMISNG::Inventory::make_path_from_keys(
 		cluster_id => $args{cluster_id},
 		node_uuid => $args{node_uuid},

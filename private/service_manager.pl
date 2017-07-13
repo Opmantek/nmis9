@@ -597,6 +597,6 @@ sub nodeServiceReport {
 	}
 
 	end_xlsx(xls => $xls);
-	setFileProt($xlsPath);
+	setFileProtDiag(file =>$xlsPath);
 
 }  # end sub nodeAdminSummary

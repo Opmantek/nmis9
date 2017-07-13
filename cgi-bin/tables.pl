@@ -130,7 +130,7 @@ sub loadReqTable {
 	return $T;
 }
 
-sub loadCfgTable {
+sub localLoadCfgTable {
 	my %args = @_;
 	my $table = $args{table};
 
@@ -174,8 +174,7 @@ EOF
 	$T = loadReqTable(table=>$table); # load requested table
 
 	my $CT;
-	return if (!($CT = Compat::NMIS::loadCfgTable(table=>$table))); # load configuration of table
-
+	return if (!($CT = localLoadCfgTable(table=>$table))); # load configuration of table
 	print start_table;
 
 	my $url = url(-absolute=>1)."?conf=$Q->{conf}&table=$table";
@@ -262,7 +261,7 @@ sub viewTable {
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = Compat::NMIS::loadCfgTable(table=>$table); # load table configuration
+	my $CT = localLoadCfgTable(table=>$table); # load table configuration
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
@@ -331,7 +330,7 @@ sub showTable {
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = Compat::NMIS::loadCfgTable(table=>$table); # load table configuration
+	my $CT = localLoadCfgTable(table=>$table); # load table configuration
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -388,7 +387,7 @@ sub editTable
 	my $T;
 	return if (!($T = loadReqTable(table=>$table,msg=>'false')) and $Q->{act} =~ /edit/); # load requested table
 
-	my $CT = Compat::NMIS::loadCfgTable(table=>$table);
+	my $CT = localLoadCfgTable(table=>$table);
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
 	my $button = ($Q->{act} eq 'config_table_add') ? 'Add' : 'Edit';
@@ -535,7 +534,7 @@ sub doeditTable
 
 	my $T = loadReqTable(table=>$table,msg=>'false');
 
-	my $CT = Compat::NMIS::loadCfgTable(table=>$table);
+	my $CT = localLoadCfgTable(table=>$table);
 	my $TAB = Compat::NMIS::loadGenericTable('Tables');
 
 	# combine key from values, values separated by underscrore
