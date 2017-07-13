@@ -127,7 +127,7 @@ sub displayNodemenu
 	my @nodes = ("",grep { $AU->InGroup($NT->{$_}{group})
 														 and NMISNG::Util::getbool($NT->{$_}{active}) } sort keys %{$NT});
 	print start_Tr;
-	print td({class=>"header"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION"))
+	print td({class=>"header"}, a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION"))
 			if (!NMISNG::Util::getbool($Q->{widget}));
 
 	print td({class=>"header",width=>'25%'},

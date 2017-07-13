@@ -505,13 +505,41 @@ sub fastping
 		&debug("sleeping ...");
 		# Generate random # from 1-10 + $C->{fastping_sleep}
 
-		### 2013-02-14 keiths, run the NMIS escalation process for faster outage notifications.
-		my $lines = `$C->{'<nmis_bin>'}/nmis.pl type=escalate debug=$debug`;
+		# run the NMIS escalation process for faster outage notifications,
+		# but don't wait for it to finish
+		fork || exec("$C->{'<nmis_bin>'}/poll","type=escalate");
 
+		# reap any zombies, likely none there yet
+		reaper();
 		sleep(int(5-rand(10)) + $sleep);
-
+		# rereap again
+		reaper();
 	}
 }
+
+# this is a general-purpose reaper of zombies
+# args: none, returns: hash of process ids -> statuses that were reaped
+#
+# you can use this to just periodically collect zombies,
+# or as a signal handler, but:
+#
+# PLEASE NOTE: if you attach it to $SIG{CHLD}, then
+# this CAN AND WILL interfere with getting exit codes from
+# backticks, system, and open-with-pipe, because the child handler
+# can run before the perl standard wait() for these ipc ops,
+# hence $? becomes -1 because the wait() was preempted.
+#
+sub reaper
+{
+	my %exparrots;
+
+	while ((my $pid = waitpid(-1, POSIX::WNOHANG)) > 0)
+	{
+		$exparrots{$pid} = $?;
+	}
+	return %exparrots;
+}
+
 
 # check-and-remove existing node down event
 # args: node name
