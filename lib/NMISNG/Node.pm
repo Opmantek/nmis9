@@ -220,6 +220,21 @@ sub get_inventory_model
 	return $model_data;
 }
 
+# find all unique values for key from collection and filter provided
+# makes sure unique values are for this node
+sub get_distinct_values
+{
+	my ($self, %args) = @_;	
+	my $collection = $args{collection};
+	my $key = $args{key};
+	my $filter = $args{filter};
+
+	$filter->{cluster_id} = $self->cluster_id;
+	$filter->{node_uuid} = $self->uuid;
+
+	return $self->nmisng->get_distinct_values( collection => $collection, key => $key, filter => $filter );
+}
+
 # find or create inventory object based on arguments
 # object returned will have base class NMISNG::Inventory but will be a
 # subclass of it specific to its concept; if no specific implementation is found

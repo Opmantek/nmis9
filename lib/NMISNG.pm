@@ -443,6 +443,23 @@ sub get_timed_data_model
 	return NMISNG::ModelData->new(modelname => "timed_data", data => \@rawtimedata);
 }
 
+# find all unique values for key from collection and filter provided
+sub get_distinct_values
+{
+	my ($self, %args) = @_;	
+	my $collection = $args{collection};
+	my $key = $args{key};
+	my $filter = $args{filter};
+
+	my $query = NMISNG::DB::get_query( and_part => $filter );
+	my $values = NMISNG::DB::distinct(
+		collection => $collection,
+		key => $key,
+		query => $query
+	);
+	return $values;
+}
+
 # helper to get/set inventory collection, primes the indices on set
 # args: new collection handle, optional drop - unwanted indices are dropped if this is 1
 # returns: current collection handle
