@@ -118,7 +118,7 @@ sub display_details
 	}
 
 	my $homelink = $wantwidget? ''
-			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;";
+			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
 
 	print $q->start_table({class=>"table"}),
 	"<tr>", $q->th({-class=>"title", -colspan => 2}, $homelink, "Service $wantservice on ",
@@ -334,7 +334,7 @@ sub display_overview
 	my $serviceurl = $q->url(-absolute=>1)."?conf=$Q->{conf}&act=details&widget=$widget"; # append node and service query params
 
 	my $homelink = $wantwidget? ''
-			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $NMIS::VERSION") . "&nbsp;";
+			: $q->a({class=>"wht", href=>$C->{'nmis'}."?conf=".$Q->{conf}}, "NMIS $Compat::NMIS::VERSION") . "&nbsp;";
 	# just append the nodename to complete
 	my $nodelink = "$C->{'<cgi_url_base>'}/network.pl?conf=$Q->{conf}&act=network_service_view&refresh=$Q->{refresh}&widget=$widget&server=$Q->{server}&node=";
 

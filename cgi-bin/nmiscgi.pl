@@ -172,8 +172,8 @@ print qq|
 <div id="body_wrapper">
 	<div id="header">
 		<div class="nav">
-		  <a href="http://www.opmantek.com"><img height="30px" width="30px" class="logo" src="$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png"/></a>
-			<span class="title">NMIS $NMIS::VERSION - $C->{server_name}</span>
+		  <a href="https://opmantek.com"><img height="30px" width="30px" class="logo" src="$C->{'<menu_url_base>'}/img/opmantek-logo-tiny.png"/></a>
+			<span class="title">NMIS $Compat::NMIS::VERSION - $C->{server_name}</span>
 			$tenantCode
 			$serverCode
 			$moduleCode

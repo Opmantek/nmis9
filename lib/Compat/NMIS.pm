@@ -2501,7 +2501,8 @@ sub createHrButtons
 	push @out, "<table class='table'><tr>\n";
 
 	# provide link back to the main dashboard if not in widget mode
-	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"}, "NMIS $NMIS::VERSION"))
+	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"}, 
+																												"NMIS $Compat::NMIS::VERSION"))
 			if (!NMISNG::Util::getbool($widget));
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',

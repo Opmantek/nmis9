@@ -4887,7 +4887,7 @@ sub nodeAdminSummary
 		my $extra = " for $group" if $group ne "";
 		my $cols = @headers;
 		my $nmisLink
-			= a( {class => "wht", href => $C->{'nmis'} . "?conf=" . $Q->{conf}}, "NMIS $NMIS::VERSION" ) . "&nbsp;"
+			= a( {class => "wht", href => $C->{'nmis'} . "?conf=" . $Q->{conf}}, "NMIS $Compat::NMIS::VERSION" ) . "&nbsp;"
 			if ( !NMISNG::Util::getbool($widget) );
 
 		my $urlsafegroup = uri_escape($group);
