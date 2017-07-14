@@ -128,9 +128,9 @@ if (-f $pidfile)
 			&& kill(0,$pid))								# and alive
 	{
     NMISNG::Util::logIpsla("IPSLAD: killing process $pid");
-    kill $pid;
+    kill('TERM',$pid);
 		sleep(1);
-		kill(9,$pid);
+		kill('KILL',$pid);
     unlink($pidfile);
   }
 }

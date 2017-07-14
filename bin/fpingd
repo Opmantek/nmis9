@@ -115,9 +115,9 @@ if ( int($alreadyrunning)				# it's a number
 		 and kill(0, $alreadyrunning) # and it's really alive
 		 and ( $killwanted or $restartwanted )) # and we're to get rid of it
 {
-	kill($alreadyrunning);				# polite then firm
+	kill('TERM', $alreadyrunning);				# polite then firm
 	sleep(1);
-	kill(9, $alreadyrunning);
+	kill('KILL', $alreadyrunning);
 	unlink($pidfile);
 
 	debug("Killed process $alreadyrunning");

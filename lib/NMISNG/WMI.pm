@@ -197,7 +197,7 @@ sub _run_query
 		{
 			# don't want the wmic process to hang around, we stopped consuming its output
 			# and it can't do anything useful anymore
-			kill("SIGKILL",$pid);
+			kill("KILL",$pid);
 			unlink($tfn);
 			return (error => "timeout after $timeout seconds");
 		}
