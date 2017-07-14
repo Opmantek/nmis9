@@ -748,7 +748,7 @@ sub doNodeUpdate {
 	my %args = @_;
 	my $node = $args{node};
 
-	# note that this will force nmis.pl to skip the pingtest as we are a non-root user !!
+	# note that this will force poll to skip the pingtest as we are a non-root user !!
 	# for now - just pipe the output of a debug run, so the user can see what is going on !
 
 	# now run the update and display
@@ -781,7 +781,7 @@ sub doNodeUpdate {
 	{
 		# child
 		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
-		exec("$C->{'<nmis_bin>'}/nmis.pl","type=update", "node=$node", "info=true", "force=true");
+		exec("$C->{'<nmis_bin>'}/poll","type=update", "node=$node", "info=true", "force=true");
 		die "Failed to exec: $!\n";
 	}
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
@@ -803,7 +803,7 @@ sub doNodeUpdate {
 	{
 		# child
 		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
-		exec("$C->{'<nmis_bin>'}/nmis.pl","type=collect", "node=$node", "info=true");
+		exec("$C->{'<nmis_bin>'}/poll","type=collect", "node=$node", "info=true");
 		die "Failed to exec: $!\n";
 	}
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe

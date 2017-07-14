@@ -149,7 +149,7 @@ sub typeGraph {
 		'a3errors'		=> 'Errors'	);
 
 	# graphtypes for custom service graphs are fixed and not found in the model system
-	# note: format known here, in services.pl and nmis.pl
+	# note: format known here, in services.pl and poll
 	my $heading;
 	if ($graphtype =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
 	{

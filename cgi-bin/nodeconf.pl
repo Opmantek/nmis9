@@ -499,7 +499,7 @@ sub doNodeUpdate {
 	my %args = @_;
 	my $node = $args{node};
 
-	# note that this will force nmis.pl to skip the pingtest as we are a non-root user !!
+	# note that this will force poll to skip the pingtest as we are a non-root user !!
 	# for now - just pipe the output of a debug run, so the user can see what is going on !
 
 	# now run the update and display
@@ -524,7 +524,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running update on node $node - Please wait.....\n\n\n";
 
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true force=true 2>&1 |");
+	open(PIPE, "$C->{'<nmis_bin>'}/poll type=update node=$node info=true force=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
@@ -537,7 +537,7 @@ sub doNodeUpdate {
 	print "<pre>\n";
 	print "Running collect on node $node - Please wait.....\n\n\n";
 
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |");
+	open(PIPE, "$C->{'<nmis_bin>'}/poll type=collect node=$node info=true 2>&1 |");
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
 	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
 
