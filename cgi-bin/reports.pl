@@ -30,7 +30,7 @@
 #
 # commmand line
 # if no outfile file, defaults to stdout
-# typically called from /nmis/bin/run-reports.pl - sets outfile names based on report type etc.
+# typically called from /nmis/bin/nmis-cli - sets outfile names based on report type etc.
 # can be tested from cmd line like this..
 # reports.pl report=health start=time end=time outfile=file
 #
@@ -70,8 +70,9 @@ NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # if no options, assume called from web interface ....
 my $outputfile;
-if ( $#ARGV > 0 ) {
-	my %nvp = ( NMISNG::Util::get_args_multi(@ARGV) );
+if ( @ARGV ) 
+{
+	my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
 	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
 	$Q->{period} = $nvp{length};
