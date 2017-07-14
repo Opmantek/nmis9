@@ -218,9 +218,10 @@ EOF
 
 		if ($AU->CheckAccess("Table_${table}_rw","check")) {
 			$bt = '&nbsp;'
-					.	a({href=>"$url&act=config_table_edit&key=$safekey&widget=$widget"},
-							'edit')
-					. '&nbsp;'
+					# polling-policy: not editable, only add and delete
+					. ($table eq "Polling-Policy"? '' :
+						 (a({href=>"$url&act=config_table_edit&key=$safekey&widget=$widget"},
+								'edit') . '&nbsp;'))
 					. a({href=>"$url&act=config_table_delete&key=$safekey&widget=$widget"},
 							'delete');
 			# if looking at the users table AND lockout feature is enabled, offer a failure count reset
@@ -289,6 +290,25 @@ sub viewTable {
 
 	if ($Q->{act} =~ /delete/)
 	{
+		# Polling Policy: should not be deletable if there are nodes with this policy
+		my $forbidden;
+		if ($table eq "Polling-Policy")
+		{
+			my $LNT = Compat::NMIS::loadLocalNodeTable();
+			my $problematic = scalar grep($_->{polling_policy} eq $key, values %$LNT);
+			$forbidden = "Policy \"$key\" is used by $problematic nodes, cannot be deleted!" if ($problematic);
+		}
+		
+		if ($forbidden)
+		{
+			print Tr(td({class=>"Error", colspan => 2 }, $forbidden,
+									'&nbsp;', button(-name=>'button',
+																	 onclick=> '$("#cancelinput").val("true");'
+																	 . ($wantwidget? "get('$formid');" : 'submit();'),
+																	 -value=>"Ok")));
+		}
+		else
+		{
 			print Tr(td('&nbsp;'),
 							 td(button(-name=>"button",onclick => ($wantwidget? "get('$formid');" : 'submit()'),
 												 -value=>"Delete"),
@@ -298,6 +318,7 @@ sub viewTable {
 												 onclick=> '$("#cancelinput").val("true");'
 												 . ($wantwidget? "get('$formid');" : 'submit();'),
 												 -value=>"Cancel")));
+		}
 	}
 	else
 	{
@@ -376,6 +397,9 @@ sub editTable
 	my $table = $Q->{table};
 	my $key = $Q->{key};
 
+	# polling policy: add and delete, no edit
+	return menuTable() if ($table eq "Polling-Policy" and $Q->{act} eq 'config_table_edit');
+	
 	my @hash; # items of key
 
 	#start of page
@@ -521,10 +545,14 @@ sub editTable
 	Compat::NMIS::pageEnd() if (NMISNG::Util::getbool($widget,"invert"));
 }
 
+# called for both adding and editing
 sub doeditTable
 {
 	my $table = $Q->{table};
 	my $hash = $Q->{hash};
+
+	# no editing for the Polling Policy, only add and delete
+	return 1 if ($table eq "Polling-Policy" and $Q->{act} eq "config_table_doedit");
 
 	my $new_name;									# only needed for nodes table
 

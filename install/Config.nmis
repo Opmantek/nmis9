@@ -294,6 +294,7 @@ my %hash = (
     'daemon_ipsla_filename' => 'ipslad',
     'daemon_fping_active' => 'true',
     'daemon_fping_dns_cache' => 'true',
+    'daemon_fping_run_escalation' => 'true', 
     'daemon_fping_filename' => 'fpingd'
   },
 

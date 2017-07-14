@@ -99,6 +99,13 @@
     'DisplayName' => 'Portal',
     'Table' => 'Portal'
   },
+	'Polling-Policy' =>
+	{
+		'CaseSensitiveKey' => 'true',
+		'Description' => "Definition of custom Polling Policies",
+		'DisplayName' => 'Polling Policy',
+		'Table' => "Polling-Policy",
+	},
   'PrivMap' => {
     'CaseSensitiveKey' => 'false',
     'Description' => 'Privilege Map for assigning roles to users',

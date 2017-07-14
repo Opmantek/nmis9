@@ -1,0 +1,26 @@
+%hash = (
+	"Polling-Policy" => [
+		{ 'name'  => { mandatory => 'true', 
+									 header => 'Policy Name', 
+									 display => 'key,header,text', 
+									 value => [ "" ] }},
+		{  'ping' => { mandatory => 'true',
+									 header => 'ICMP/Ping Frequency',
+									 display => 'header,popup',
+									 value => [ "1m", "2m", "5m", "15m", "30m", "1h", "6h", "1d" ] }},
+
+		{  'snmp' => { mandatory => 'true',
+									 header => 'SNMP Polling Frequency',
+									 display => 'header,popup',
+									 value => [ "5m", "1m", "2m", "15m", "30m", "1h", "6h", "1d" ] }},
+
+		{  'wmi' => { mandatory => 'true',
+									header => 'WMI Polling Frequency',
+									display => 'header,popup',
+									value => [ "5m", "1m", "2m", "15m", "30m", "1h", "6h", "1d" ] }},
+
+		{ 'description' => { header => "Description", 
+												 display => "header,textbox", 
+												 value => [ '' ] }},
+
+	]);
