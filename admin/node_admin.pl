@@ -254,13 +254,15 @@ elsif ($args{act} eq "delete")
 							for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
 							{
 								my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
-								push @todelete, $S->getDBName(graphtype => $subsection,
-																							index => $index, item => $item);
+								push @todelete, $S->makeRRDname(graphtype => $subsection,
+																								index => $index, 
+																								item => $item);
 							}
 						}
 						else
 						{
-							push @todelete, $S->getDBName(graphtype => $subsection, index => $index);
+							push @todelete, $S->makeRRDname(graphtype => $subsection, 
+																							index => $index);
 						}
 					}
 				}

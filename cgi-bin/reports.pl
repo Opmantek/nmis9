@@ -995,8 +995,8 @@ sub top10Report
 			# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
 
 			# check if this node does have pkts or pkts_hc, based on graphtype
-			my $hcdbname = $S->getDBName(graphtype => "pkts_hc", index => $intf);
-			my $dbname = $S->getDBName(graphtype => "pkts", index => $intf);
+			my $hcdbname = $S->makeRRDname(graphtype => "pkts_hc", index => $intf);
+			my $dbname = $S->makeRRDname(graphtype => "pkts", index => $intf);
 			if ($hcdbname && -r $hcdbname)
 			{
 			  $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);
