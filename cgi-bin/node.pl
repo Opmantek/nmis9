@@ -80,8 +80,8 @@ if ($Q->{server} ne "") { exit if Compat::NMIS::requestServer(headeropts=>$heade
 # select function
 
 if ($Q->{act} eq 'network_graph_view') {		typeGraph();
-} elsif ($Q->{act} eq 'network_export') {		typeExport(); # unreachable dead code as of 2016-08
-} elsif ($Q->{act} eq 'network_stats') {		typeStats(); # unreachable dead code as of 2016-08
+} elsif ($Q->{act} eq 'network_export') {		typeExport();
+} elsif ($Q->{act} eq 'network_stats') {		typeStats();
 } else { notfound(); }
 
 sub notfound {
@@ -630,7 +630,10 @@ sub typeExport {
 		}
 	}
 
-	my ($statval,$head) = NMISNG::rrdfunc::getRRDasHash(sys=>$S,graphtype=>$graphtype,mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
+	my $db = $S->makeRRDname(graphtype => $graphtype, index=>$Q->{intf},item=>$Q->{item});
+	my ($statval,$head) = NMISNG::rrdfunc::getRRDasHash(database=>$db, sys=>$S,
+																											graphtype=>$graphtype,mode=>"AVERAGE",
+																											start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
 	my $filename = "$Q->{node}"."-"."$graphtype";
 	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$graphtype" }
 	print "Content-type: text/csv;\n";
@@ -705,7 +708,14 @@ sub typeStats {
 
 	$Q->{intf} = $Q->{group} if $Q->{group} ne '';
 
-	my $statval = NMISNG::rrdfunc::getRRDStats(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
+	my $db = $S->makeRRDname(graphtype => $Q->{graphtype}, index=>$Q->{intf},item=>$Q->{item});
+	my $statval = (-f $db? NMISNG::rrdfunc::getRRDStats(sys=>$S,
+																											database => $db, 
+																											graphtype=>$Q->{graphtype},
+																											mode=>"AVERAGE",
+																											start=>$Q->{start},
+																											end=>$Q->{end},
+																											index=>$Q->{intf},item=>$Q->{item}) : {});
 	my $f = 1;
 	my $starttime = NMISNG::Util::returnDateStamp($Q->{start});
 	my $endtime = NMISNG::Util::returnDateStamp($Q->{end});

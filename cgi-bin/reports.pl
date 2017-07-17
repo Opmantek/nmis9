@@ -778,10 +778,11 @@ sub timesReport
 			# find health rrd
 			if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
 			{
-				my $stats = NMISNG::rrdfunc::getRRDStats(sys => $S, graphtype => "health",
-																index => undef, item => undef,
-																start => $start,  end => $end);
-
+				my $stats = NMISNG::rrdfunc::getRRDStats(database => $rrdfilename,
+																								 sys => $S, graphtype => "health",
+																								 index => undef, item => undef,
+																								 start => $start,  end => $end);
+				
 				for my $thing (qw(polltime updatetime))
 				{
 					my $value = $stats->{$thing}->{mean};
