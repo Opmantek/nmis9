@@ -171,9 +171,11 @@ sub make_path
 #  target - where to put the parsed data
 #  previous_pit - previous entry for this thing, note: could be looked up if we want, not done right now
 # NOTE: does not handle counter wrapping at this time
+# returns hashref with keys defined for datasets that have values
 sub parse_rrd_update_data
 {
 	my ($rrd_data,$target,$previous_pit) = @_;
+	my %key_meta;
 	foreach my $key (keys %$rrd_data)
 	{
 		my $key_raw = $key."_raw";
@@ -187,13 +189,19 @@ sub parse_rrd_update_data
 			$target->{$key} = ($prev_value) ? ($entry->{value} - $prev_value) : 0;
 			# TODO: handle wrapping
 			# $target->{$key} = ???!?!? if( $target->{$key} < $prev_value );
+
+			# keep track of dataset
+			$key_meta{$key} = 1;
 		}
 		else
 		{
 			$target->{$key} = $entry->{value};
+			$key_meta{$key} = 1;
 		}
 	}
-	return; # all changes are done in place
+	 # all changes are done in place
+	 # 
+	return \%key_meta;
 }
 
 ###########
@@ -276,27 +284,63 @@ path path_keys storage description)))
 }
 
 # add one point-in-time data record for this concept instance
+#  automatically adds/merges dataset info into the inventory
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
 #     time (optional, defaults to now)
 #   delay_insert - delay inserting until save is called (if it's never called it's not saved)
 #     if data has already been queued for the time/concept then data provided will overwrite existing
 #     if provided, otherwise existing will be kept (so data can be set one place and derived_data in another)
+#   subconcept/datasets - one of these must be defined, subconcept - string, or datasets - hashref with
+#     structure { subconcept => { key => 1 }} all new keys will be merged, this is useful when multiple
+#     subconcepts need to be added at one time (because no merging of new time data yet)
 # returns: undef or error message
 sub add_timed_data
 {
 	my ($self,%args) = @_;
 	
-	return "cannod add timed data, invalid data argument!"
+	return "cannot add timed data, invalid data argument!"
 			if (ref($args{data}) ne "HASH"); # empty hash is acceptable
-	return "cannod add timed data, invalid derived_data argument!"
+	return "cannot add timed data, invalid derived_data argument!"
 			if (ref($args{derived_data}) ne "HASH"); # empty hash is acceptable			
+	my ($data,$derived_data,$time,$delay_insert) = @args{'data','derived_data','time','delay_insert'};
 
-	my $delay = $args{delay_insert};
+	# automatically take care of datasets
+	# one of these two must be defined
+	my ($subconcept,$datasets) = @args{'subconcept','datasets'};
+	return "one of subconcept or datasets needs to be defined"
+		if( !$subconcept && ref($datasets) ne 'HASH' );
 
-	my $timedrecord = { time => $args{time} // Time::HiRes::time,
-											data => $args{data},
-											derived_data => $args{derived_data} };
-	if( !$delay )
+	my $timedrecord = { time => $time // Time::HiRes::time,
+											data => $data,
+											derived_data => $derived_data };
+
+	# if just the subconcept was given find the keys and make it look
+	# like the whole thing was provided as datasets
+	if( $subconcept )
+	{
+		$datasets->{$subconcept} = { map { $_ => 1 } (keys %$data) };
+	}
+
+	# loop through all provided datasets and make sure they merged into
+	# the existing, keeping track if any modifications are actually made
+	my $datasets_modfied = 0;
+	foreach my $subc (keys %$datasets)
+	{
+		my $new_datasets = $datasets->{$subc};
+		my $existing_datasets = $self->datasets(subconcept => $subc);
+		foreach my $key (keys %$new_datasets)
+		{
+			if( !defined($existing_datasets->{$key}) )
+			{
+				$existing_datasets->{$key} = 1;
+				$datasets_modfied++;
+			}
+		}
+		$self->datasets( subconcept => $subc, datasets => $existing_datasets )
+			if( $datasets_modfied );
+	}
+
+	if( !$delay_insert )
 	{
 		return "cannot add timed data to unsaved inventory instance!"
 			if ($self->is_new);
@@ -304,8 +348,10 @@ sub add_timed_data
 		$timedrecord->{inventory_id} = $self->id;
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection(concept => $self->concept()),
-			record => $timedrecord );
+			record => $timedrecord );		
 		return "failed to insert record: $dbres->{error}" if (!$dbres->{success});
+		# if the datasets were modified they need to be saved
+		$self->save()	if( $datasets_modfied )
 	}
 	else
 	{
@@ -561,6 +607,32 @@ sub data_live
 	return $self->{_data};
 }
 
+# returns hashref of datasets defined for the specified subconcept or empty hash
+# arguments: subconcept - string, [newvalue] - new dataset hashref for given subconcept
+# right now dataset subconcepts are not hooked up to subconcept list
+use Carp;
+sub datasets
+{
+	my ( $self, %args ) = @_;
+	my ($subconcept,$datasets) = @args{'subconcept','datasets'};
+	
+	return "cannot get or set datasets, invalid subconcept argument:$subconcept!"
+		if (!$subconcept); # must be something
+
+	# $self->{_datasets} //= {};
+	# $self->{_datasets}{$subconcept} //= {};
+
+	if ( defined($datasets) )
+	{
+		return "cannot set datasets, invalid newvalue argument!"
+			if (ref($datasets) ne "HASH"); # empty hash is acceptable
+		$self->{_datasets}{$subconcept} = $datasets;
+
+#		print "set datasets for $subconcept to ".Dumper($self->{_datasets}{$subconcept});
+	}	
+	return $self->{_datasets}{$subconcept} // {};
+}
+
 # remove this inventory entry from the db
 # can't delete if its new, or if it's already been deleted or if it doesn't have an id
 #  (which is_new checks but not a bad idea to double check)
@@ -724,6 +796,12 @@ sub save
 	for(my $i = 0; $i < @$path; $i++)
 	{
 		$path->[$i] = NMISNG::Util::numify($path->[$i])
+	}
+
+	# right now dataset subconcepts are not hooked up to subconcept list
+	foreach my $subconcept (keys %{$self->{_datasets}})
+	{
+		$record->{datasets}{$subconcept} = $self->datasets(subconcept => $subconcept);
 	}
 
 	if ( $self->is_new() )
