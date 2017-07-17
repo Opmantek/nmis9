@@ -307,7 +307,7 @@ sub add_timed_data
 	# automatically take care of datasets
 	# one of these two must be defined
 	my ($subconcept,$datasets) = @args{'subconcept','datasets'};
-	return "one of subconcept or datasets needs to be defined"
+	return "one of subconcept or datasets needs to be defined, stack:".Carp::longmess()
 		if( !$subconcept && ref($datasets) ne 'HASH' );
 
 	my $timedrecord = { time => $time // Time::HiRes::time,
@@ -610,7 +610,6 @@ sub data_live
 # returns hashref of datasets defined for the specified subconcept or empty hash
 # arguments: subconcept - string, [newvalue] - new dataset hashref for given subconcept
 # right now dataset subconcepts are not hooked up to subconcept list
-use Carp;
 sub datasets
 {
 	my ( $self, %args ) = @_;
@@ -836,9 +835,12 @@ sub save
 	{
 		foreach my $key (@queued_keys)
 		{
-			my $record = $self->{_queued_pit}{$key};
+			my $pit_record = $self->{_queued_pit}{$key};
+			# sending datasets this way so less special case handling required, this is not optimal but shoul
+			# not cause problems either
+			$pit_record->{datasets} = $record->{datasets};
 			# using ourself means id will be added (so new inventories will work, no save first required)
-			my $error = $self->add_timed_data( %$record );
+			my $error = $self->add_timed_data( %$pit_record );
 			if( $error )
 			{
 				$result->{success} = 0;

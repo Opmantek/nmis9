@@ -1007,9 +1007,10 @@ sub doUpdate
 	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
-		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, 
+			datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1347,9 +1348,10 @@ sub doCollect
 	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
-		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, 
+			datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -3274,7 +3276,7 @@ sub getEnvData
 			if ( !$anyerror )
 			{
 				processAlerts( S => $S );
-				my ($alldata,$allstats) = ({},{});
+				my ($alldata,$allstats,$datasets) = ({},{},{});
 				my $previous_pit = $inventory->get_newest_timed_data();
 
 				foreach my $sect ( keys %{$rrdData} )
@@ -3289,14 +3291,15 @@ sub getEnvData
 					}
 					else
 					{
-						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
 						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 					}
 				}
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+				 datasets => $datasets,	time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 				# new subconcepts may have been added
 				$inventory->save();
 			}
@@ -3711,7 +3714,7 @@ sub getSystemHealthData
 			my $howdiditgo = $S->status;
 
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
-			my ($alldata,$allstats) = ({},{});
+			my ($alldata,$allstats,$datasets) = ({},{},{});
 
 			# were there any errors?
 			if ( !$anyerror && !$howdiditgo->{skipped} )
@@ -3746,7 +3749,7 @@ sub getSystemHealthData
 					else
 					{
 						# convert data into values we can use in pit (eg resolve counters)
-						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
@@ -3756,7 +3759,8 @@ sub getSystemHealthData
 				NMISNG::Util::info("section=$section index=$index read and stored $count values");
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
+					datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
 			}
@@ -4065,7 +4069,7 @@ sub getNodeData
 
 	if ( !$anyerror )
 	{
-		my ($alldata,$allstats) = ({},{});
+		my ($alldata,$allstats,$datasets) = ({},{});
 		my $previous_pit = $inventory->get_newest_timed_data();
 
 		processAlerts( S => $S );
@@ -4085,14 +4089,15 @@ sub getNodeData
 			}
 			else
 			{
-				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 				my $period = getThresholdPeriod( subconcept => $sect );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
 				map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 			}
 		}
 		# add data and stats, catchall should be saved at the end of the cycle which will save
-		$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+		$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+			datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 	}
 	elsif( $howdiditgo->{skipped} ) {}
 	else
@@ -4338,7 +4343,7 @@ sub getIntfData
 		{
 			processAlerts( S => $S );
 
-			my ($alldata,$allstats) = ({},{});
+			my ($alldata,$allstats,$datasets) = ({},{});
 			foreach my $sect ( keys %{$rrdData} )
 			{
 				my $D = $rrdData->{$sect}{$index};
@@ -4529,14 +4534,15 @@ sub getIntfData
 				else
 				{
 					# convert data into values we can use in pit (eg resolve counters)
-					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 					my $period = getThresholdPeriod( subconcept => $sect );
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
 					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 				}
 			}
 			# add data and stats
-			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+				datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
@@ -5391,11 +5397,12 @@ sub getCallsdata
 			{
 				my ($alldata,$allstats) = ({},{});
 				my $previous_pit = $inventory->get_newest_timed_data();
-				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 				my $period = getThresholdPeriod(subconcept => $concept);
 				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+					datasets => { $concept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
 				# save because create_update_rrd may set storage
 				$inventory->save();
@@ -5775,11 +5782,12 @@ sub getPVC
 					my ($alldata,$allstats) = ({},{});
 					my $previous_pit = $inventory->get_newest_timed_data();
 					# shouldn't need to save twice but this all could be optimise
-					NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 					# get stats
 					my $period = getThresholdPeriod(subconcept => $concept);
 					$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
-					$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+					$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+						datasets => { $concept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 					# new subconcepts may have been added
 					$inventory->save();
 				}
@@ -5888,11 +5896,14 @@ sub runServer
 						my ($alldata,$allstats) = ({},{});
 						my $previous_pit = $inventory->get_newest_timed_data();
 						# shouldn't need to save twice but this all could be optimise
-						NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => 'hrsmpcpu');
-						$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'hrsmpcpu', start => $period, end => time);
-						$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+						$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, 
+							subconcept => 'hrsmpcpu', start => $period, end => time);
+
+						$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+							datasets => { 'hrsmpcpu' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
 						($op,$error) = $inventory->save();
 						NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -6131,11 +6142,14 @@ sub runServer
 				# make sure the data is set and save
 				$inventory->data( $storage_target );
 
-				NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 				# get stats
 				my $period = getThresholdPeriod(subconcept => $subconcept);
-				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $subconcept, start => $period, end => time);
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, 
+					subconcept => $subconcept, start => $period, end => time);
+
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+					datasets => { $subconcept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 
 				($op,$error) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
@@ -6306,7 +6320,7 @@ sub runServices
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
 			(my $op, $error) = $processinventory->save();
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
-			$error = $processinventory->add_timed_data(data => \%services, derived_data => {});
+			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, subconcept => 'snmp_services');
 			NMISNG::Util::logMsg("ERROR: snmp_services timed data saving failed: $error") if ($error);
 
 			# now clear events that applied to processes that no longer exist
@@ -7094,7 +7108,7 @@ sub runServices
 		NMISNG::Util::logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
-		$error = $inventory->add_timed_data(data => \%status, derived_data => {}, time => NMISNG::Util::numify($thisrun));
+		$error = $inventory->add_timed_data(data => \%status, derived_data => {}, time => NMISNG::Util::numify($thisrun), subconcept => 'service');
 		NMISNG::Util::logMsg("ERROR: service timed data saving failed: $error") if ($error);
 	}
 
@@ -7921,9 +7935,10 @@ sub runReach
 		{
 			my $pit = {};
 			my $previous_pit = $inventory->get_newest_timed_data();
-			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
+			my $datasets = NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
 			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-			$inventory->add_timed_data( data => $pit, derived_data => $stats, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			$inventory->add_timed_data( data => $pit, derived_data => $stats, 
+				datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
 			# $inventory->data($data);
 			$inventory->save();
 		}
