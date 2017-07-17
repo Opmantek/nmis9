@@ -22,13 +22,24 @@
      #      'tempStatus' => 'false', # remove if present
      # 	 },
      # },
-     
-     # 20 => {
-     # 	 IF => { 'node.name' => 'nodeC' },
-     # 	 systemHealth => { 
-     #      diskIOTable => 'false' # this node runs off r/o flash disk
-     # 	 },
-     # },
+
+     # more examples:
+		 #     20 => {
+		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
+		 #      	 systemHealth => { 
+		 #            jnxDestinationClassUsage => 'true',
+		 #            jnxSourceClassUsage => 'true',
+		 #      	 },
+		 #      },
+		 #     
+		 #      30 => {
+		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
+		 #      	 systemHealth => { 
+		 #            jnxDestinationClassUsage => 'true',
+		 #            jnxSourceClassUsage => 'true',
+		 #      	 },
+		 #      },
+		 #     
      
      999 => {    # the fallback/defaults, without filter
        systemHealth => { 
@@ -60,6 +71,9 @@
          mplsL3VpnVrfRT => 'false',
          mplsVpnVrfRouteTarget => 'false',
          mplsLdpEntity => 'false',
+         Juniper_CoS => 'false',
+         jnxDestinationClassUsage => 'false',
+         jnxSourceClassUsage => 'false',
          
        },
        # should include all possible values
@@ -98,7 +112,10 @@
          mplsL3VpnVrfRT => [ 10, "Logical Network Inventory - MPLS Route Targets" ],
          mplsVpnVrfRouteTarget => [ 10, "Logical Network Inventory - MPLS Route Targets" ],
          mplsLdpEntity => [ 10, "Logical Network Inventory - MPLS Label Distribution Protocol Information" ],
-
-      },     
-    },
+         
+         Juniper_CoS => [ 12, "Juniper Routers jnX - CBQoS statistics" ],
+         jnxDestinationClassUsage => [ 12, "Juniper Routers jnX - Juniper Destination Class Filter Usage" ],
+         jnxSourceClassUsage => [ 12, "Juniper Routers jnX - Juniper Source Class Filter Usage" ],
+      	 },
+      },
 	);

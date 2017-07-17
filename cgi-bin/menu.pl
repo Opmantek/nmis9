@@ -197,15 +197,6 @@ sub menu_bar_site {
 		push @netperf, qq|<a id='ntw_links' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Links">Link List</a>|
 								if ($AU->CheckAccess("Table_Links_view","check"));
 		
-		### 2012-11-26 keiths, Optional opFlow Widgets if opFlow Installed.
-		if ($M->moduleInstalled(module => "opFlow") ) {
-			push @netperf, qq|--------|;
-			push @netperf, qq|<a id='ntw_flowSummary' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetflowSummary">Application Flows</a>|;
-			push @netperf, qq|<a id='ntw_topnApps' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnApps">TopN Applications</a>|;
-			push @netperf, qq|<a id='ntw_topnAppSrc' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnAppSrc">TopN Application Sources</a>|;
-			push @netperf, qq|<a id='ntw_topnEndpoints' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnTalkers">TopN Talkers</a>|;
-			push @netperf, qq|<a id='ntw_topnEndpoints' href="$modules->{opFlow}{link}?widget=true&amp;act=widgetTopnListeners">TopN Listeners</a>|;
-		}
 		push @menu_site,(qq|Network Performance|,[ @netperf ]);		
 
 				
@@ -332,30 +323,6 @@ sub menu_bar_site {
 		my (@systemitems, @setupitems);
 
 
-		#if ($AU->CheckAccess("table_config_view","check"))
-		#{
-		#	push @systemitems,	qq|<a id='cfg_groups' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_edit&amp;section=system&amp;item=group_list">Add/Edit Groups</a>|;
-		#}
-    #
-		#push @systemitems, qq|<a id='cfg_nodes' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_add&amp;table=Nodes">Add/Edit Nodes and Devices</a>|
-		#		if ($AU->CheckAccess("Table_Nodes_view","check"));
-    #
-		#push @systemitems, qq|<a id='cfg_nodecfg' href="nodeconf.pl?conf=$Q->{conf}&amp;act=config_nodeconf_view">Node Customisation</a>|
-		#		if ($AU->CheckAccess("table_nodeconf_view","check"));
-    #
-		#push @systemitems, qq|<a id='cfg_nmis' href="config.pl?conf=$Q->{conf}&amp;act=config_nmis_menu&amp;section=system">System Configuration</a>|
-		#		if ($AU->CheckAccess("table_config_view","check"));
-    #
-		#push @systemitems, qq|<a id="cfg_Escalations" href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Escalations">Emails, Notifications and Escalations</a>| 
-		#		if ($AU->CheckAccess("Table_Escalations_view","check"));
-		#		
-		#push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=threshold">Thresholding Alerts</a>| 
-		#		if ($AU->CheckAccess("table_models_view","check"));				
-    #
-		#push @systemitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
-		#		if ($AU->CheckAccess("table_models_view","check"));				
-    #
-		#push @systemitems, qq|------| if (@tableMenu); # no separator if there's nothing to separate...
 
 		push @systemitems, qq|System Configuration|, \@tableMenu if (@tableMenu);
 
@@ -428,6 +395,9 @@ sub menu_bar_site {
 
 		push @setupitems, qq|<a id='cfg_modelpolicy' href="model_policy.pl?conf=$Q->{conf}">Model Policy</a>|
 				if ($AU->CheckAccess("table_models_view","check"));
+
+		push @setupitems, qq|<a id='cfg_pollingpolicy' href="tables.pl?conf=$Q->{conf}&amp;act=config_table_menu&amp;table=Polling-Policy">Polling Policy</a>|
+				if ($AU->CheckAccess("table_polling-policy_view","check"));
 
 		#push @setupitems, qq|<a id="cfg_models" href="models.pl?conf=$Q->{conf}&amp;act=config_model_menu&amp;model=Default&amp;section=event">Event Logging and Syslog</a>| 
 		#		if ($AU->CheckAccess("table_models_view","check"));				

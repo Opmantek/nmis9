@@ -246,7 +246,7 @@ sub display_details
 			$value .= " $unit" if ($unit and $unit ne "c"); # "counter"
 
 
-			# note: naming schema is known here, in node.pl and nmis.pl
+			# note: naming schema is known here, in node.pl and poll
 			my $safeservice = lc($wantservice); $safeservice =~ s/[^a-z0-9\._]//g;
 			my $safereading = lc($extrareading); $safereading =~ s/[^a-z0-9\._-]//g;
 			my $thisgraphname = "service-custom-$safeservice-$safereading";

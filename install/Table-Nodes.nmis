@@ -43,6 +43,8 @@ my @groups = ();
 my $GT = Compat::NMIS::loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 
+my @pollingpolicies = ("default", sort keys %{ Compat::NMIS::loadGenericTable("Polling-Policy") || {}});
+
 my @nodes = ();
 my $LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
 foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
@@ -81,12 +83,13 @@ my $uuid = Compat::UUID::getUUID();
 	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
 	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
 	 { extra_options => { special => 'separator', header => 'Extra Options'}},
-	 { display_name => { header => "Display Name", display => "header,text", value => "" }},
+	 { display_name => { header => "Display Name", display => "header,text", value => [""] }},
 	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
 	 { roleType => { header => 'Role Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
 	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }},
 	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{Compat::NMIS::loadGenericTable('Locations')}] }},
 	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
+	 { polling_policy => { header => "Polling Policy", display => 'header,popup', value => [@pollingpolicies]}},
 	 { model => { header => 'Model',display => 'popup',value => [@models] }},
 	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 	 { ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},

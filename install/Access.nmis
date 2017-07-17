@@ -1224,6 +1224,30 @@
     'level5' => '0',
     'name' => 'Table_Services_view'
   },
+
+  'table_polling-policy_rw' => {
+    'descr' => 'Write access to table Polling-Policy',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '0',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Polling-Policy_rw'
+  },
+  'table_polling-policy_view' => {
+    'descr' => 'View access to table Polling-Policy',
+    'group' => 'access',
+    'level0' => '1',
+    'level1' => '1',
+    'level2' => '0',
+    'level3' => '0',
+    'level4' => '0',
+    'level5' => '0',
+    'name' => 'Table_Polling-Policy_view'
+  },
+
   'table_tables_rw' => {
     'descr' => 'View access to table $table',
     'group' => 'access',

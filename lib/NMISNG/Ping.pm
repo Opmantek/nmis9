@@ -112,7 +112,7 @@ sub ext_ping
 	{
 		die unless $@ eq "alarm\n";	# propagate unexpected errors
 		# timed out: kill child
-		kill $pid;
+		kill('TERM', $pid);
 		close(PING);
 
 		# ... and set return values to dead values

@@ -689,7 +689,7 @@ if ($mustmovelog)
 }
 
 # before copying anything, kill fpingd and lock nmis (fpingd doesn't even start if locked out)
-execPrint("$site/bin/fpingd.pl kill=true") if (-x "$site/bin/fpingd.pl");
+execPrint("$site/bin/fpingd kill=true") if (-x "$site/bin/fpingd");
 open(F,">$site/conf/NMIS_IS_LOCKED");
 print F "$0 is operating, started at ".(scalar localtime)."\n";
 close F;
@@ -1151,11 +1151,11 @@ unlink("/tmp/nmis_install_running");
 
 # daemon restarting should only be done after nmis is unlocked
 printBanner("Restart the fping daemon...");
-execPrint("$site/bin/fpingd.pl restart=true");
+execPrint("$site/bin/fpingd restart=true");
 
-if ( -x "$site/bin/opslad.pl" ) {
+if ( -x "$site/bin/opslad" ) {
 	printBanner("Restarting the opSLA Daemon...");
-	execPrint("$site/bin/opslad.pl"); # starts a new one and kills any existing ones
+	execPrint("$site/bin/opslad"); # starts a new one and kills any existing ones
 }
 
 

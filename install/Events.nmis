@@ -517,5 +517,14 @@
     'Stateful' => 'true',
     'Status' => 'true'
   },
+  'NMIS runtime exceeded' => {
+    'Event' => 'NMIS runtime exceeded',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'true',
+    'CancelingEvent' => 'N/A',
+    'Description' => 'The collect process for a node has been killed to ensure that polling continues for other nodes.',
+  },
 
 );

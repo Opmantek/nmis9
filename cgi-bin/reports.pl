@@ -30,7 +30,7 @@
 #
 # commmand line
 # if no outfile file, defaults to stdout
-# typically called from /nmis/bin/run-reports.pl - sets outfile names based on report type etc.
+# typically called from /nmis/bin/nmis-cli - sets outfile names based on report type etc.
 # can be tested from cmd line like this..
 # reports.pl report=health start=time end=time outfile=file
 #
@@ -70,8 +70,9 @@ NMISNG::rrdfunc::require_RRDs(config=>$C);
 
 # if no options, assume called from web interface ....
 my $outputfile;
-if ( $#ARGV > 0 ) {
-	my %nvp = ( NMISNG::Util::get_args_multi(@ARGV) );
+if ( @ARGV ) 
+{
+	my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
 	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
 	$Q->{period} = $nvp{length};
@@ -777,10 +778,11 @@ sub timesReport
 			# find health rrd
 			if (-f (my $rrdfilename = $S->makeRRDname(type => "health")))
 			{
-				my $stats = NMISNG::rrdfunc::getRRDStats(sys => $S, graphtype => "health",
-																index => undef, item => undef,
-																start => $start,  end => $end);
-
+				my $stats = NMISNG::rrdfunc::getRRDStats(database => $rrdfilename,
+																								 sys => $S, graphtype => "health",
+																								 index => undef, item => undef,
+																								 start => $start,  end => $end);
+				
 				for my $thing (qw(polltime updatetime))
 				{
 					my $value = $stats->{$thing}->{mean};
@@ -994,8 +996,8 @@ sub top10Report
 			# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors
 
 			# check if this node does have pkts or pkts_hc, based on graphtype
-			my $hcdbname = $S->getDBName(graphtype => "pkts_hc", index => $intf);
-			my $dbname = $S->getDBName(graphtype => "pkts", index => $intf);
+			my $hcdbname = $S->makeRRDname(graphtype => "pkts_hc", index => $intf);
+			my $dbname = $S->makeRRDname(graphtype => "pkts", index => $intf);
 			if ($hcdbname && -r $hcdbname)
 			{
 			  $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pkts_hc",start=>$start,end=>$end,index=>$intf);

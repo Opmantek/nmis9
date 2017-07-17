@@ -787,7 +787,7 @@ sub getHelp {
 		'cmd_read_file_reverse' => 'Format string<br>system command for reading file reverse, default is tac',
 		'report_files_max'	=>	'Format: number, up from 10<br>max report files per type of report',
 		'cache_var_tables' => 	'Format: true | false<br>set if you wish to cache tables in directory /var to save loading time',
-		'cache_summary_tables' => 	'Format: true | false<br>set if you wish to cache nmis summary stats in nmis.pl, to save recalc time',
+		'cache_summary_tables' => 	'Format: true | false<br>set if you wish to cache nmis summary stats to save recalc time',
 # menu
 		'menu_types_active' => 	'Format: true | false<br>set if you wish to load this type of Menu',
 		'menu_types_full' => 	'Format: true | false | defer<br>if you wish to load the full Menu at once (true)<br>'.
