@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::Sapi;
-our $VERSION = "2.0.0";
+our $VERSION = "2.1.0";
 
 use strict;
 use IO::Socket::INET;
@@ -60,7 +60,6 @@ sub sapi_send
 {
 	my $SH = shift;
 	my $msg = shift;
-	my $nonewline = shift;
 
 	defined send($SH,$msg,0) or return 0,$!;
 	return 1,undef;
@@ -122,8 +121,13 @@ sub sapi
 			last;
 		}
 
-		if ($type eq "send") {                                # Send a string
-			($ok,$errmsg) = sapi_send($SH,$str."\n");
+		if ($type eq "send")                                 # Send a string
+		{
+			# if the string contains none of the typical line terminator escapes (\r or \n)
+			# and none of the generic \x{hex} escapes, fall back to \n
+			$str .= "\n"
+					if (!($str =~ s/(\\[rn]|\\x\{\w+\})/qq{"$1"}/gee));
+			($ok,$errmsg) = sapi_send($SH,$str);
 
 		} elsif ($str eq "EOF") {                             # Receive data until EOF
 			$eof = 0;
@@ -168,8 +172,9 @@ sub sapi
 	}
 
 	sapi_close($SH);
-	return 0,$errmsg . "Partial results (if any):$result" if $errmsg;
-	return 1,$result;
+	return ($errmsg?
+					(0, $errmsg . "Partial results (if any): $result")
+					: ( 1, $result));
 }
 
 1;
@@ -203,6 +208,9 @@ Scripts are in the form
   send:   more_data_to_send
   expect: another_string_to_match
 
+If the data_to_send does not contain '\r' or '\n' or other '\x{hex}'
+escapes, then a newline character (\n) is appended to the data_to_send.
+
 For example, to see if a HTTP server is responding you might use
 the following script:
 
@@ -212,12 +220,10 @@ the following script:
 
 All expect values are case-insensitive with the exception of a
 special value: EOF which means to wait until an EOF condition occurs.
+
 For example, to query a HTTP server for all header information you
 might use the following script:
 
-  send: HEAD / HTTP/1.0
-  send:
+  send: HEAD / HTTP/1.0\r\n\r\n
   expect: EOF
 
-(Note to send a blank line "\n" as in the above example, do not give
-send: any value)
