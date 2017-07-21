@@ -1,3 +1,2 @@
-send: HEAD / HTTP/1.0
-send: 
+send: HEAD / HTTP/1.0\r\n\r\n
 expect: 302 Redirect
