@@ -304,6 +304,67 @@ sub inventory
 	return ( $inventory, undef );
 }
 
+# get all subconcepts and any dataset found within that subconcept
+# returns array of hashes { subconcept => $subconcept, datasets => [...] }
+# args: - filters, basically any filter that can be put on an inventory can be used
+#  enough rope to hang yourself here.  special case: subconcepts gets mapped into datasets.subconcepts
+sub inventory_datasets_by_subconcept
+{
+	my ( $self, %args ) = @_;
+	my $filters = $args{filters};
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
+
+	if( $filters->{subconcepts} )
+	{
+		$filters->{'datasets.subconcept'} = $filters->{subconcepts};
+		delete $filters->{subconcepts};
+	}
+	
+	my $q = NMISNG::DB::get_query(and_part => $filters);	
+	my $path;
+
+	# fill in starting args if given
+	my $index = 0;
+	foreach my $arg_name (qw(cluster_id node_uuid concept))
+	{
+		if ( $args{$arg_name} )
+		{
+			$path->[$index] = $args{$arg_name};
+			delete $args{$arg_name};
+		}
+		$index++;
+	}
+	map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );	
+	# print "q".Dumper($q);
+	my @prepipeline = (
+		{ '$unwind' => '$datasets' },
+		{ '$match' => $q },		
+		{ '$unwind' => '$datasets.datasets' },
+		{ '$group' => 
+			{ '_id' => { "subconcept" => '$datasets.subconcept'},  # group by subconcepts
+			"datasets" => { '$addToSet' => '$datasets.datasets'}, # accumulate all unique datasets
+			"indexed" => { '$max' => '$data.index' } # if this != null then it's indexed
+		}}
+  );
+	my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
+		allowtempfiles => 1
+	);
+	foreach my $entry (@$entries)
+	{
+		$entry->{subconcept} = $entry->{_id}{subconcept};
+		delete $entry->{_id};
+	}
+	return ($error) ? $error : $entries;
+}
+
+# sub inventory_indices_by_subconcept
+# {
+
+# }
+
 # create the correct path for an inventory item, calling the make_path
 # method on the class that relates to the specified concept
 # args must contain concept and data, along with any other info required
