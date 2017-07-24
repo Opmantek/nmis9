@@ -305,9 +305,9 @@ sub inventory
 }
 
 # get all subconcepts and any dataset found within that subconcept
-# returns array of hashes { subconcept => $subconcept, datasets => [...] }
+# returns hash keyed by subconcept which holds hashes { subconcept => $subconcept, datasets => [...], indexed => 0/1 }
 # args: - filters, basically any filter that can be put on an inventory can be used
-#  enough rope to hang yourself here.  special case: subconcepts gets mapped into datasets.subconcepts
+#  enough rope to hang yourself here.  special case arg: subconcepts gets mapped into datasets.subconcepts
 sub inventory_datasets_by_subconcept
 {
 	my ( $self, %args ) = @_;
@@ -323,6 +323,7 @@ sub inventory_datasets_by_subconcept
 	
 	my $q = NMISNG::DB::get_query(and_part => $filters);	
 	my $path;
+	my $retval;
 
 	# fill in starting args if given
 	my $index = 0;
@@ -353,11 +354,14 @@ sub inventory_datasets_by_subconcept
 		allowtempfiles => 1
 	);
 	foreach my $entry (@$entries)
-	{
+	{	
+		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;	
 		$entry->{subconcept} = $entry->{_id}{subconcept};
 		delete $entry->{_id};
+		$retval->{ $entry->{subconcept} } = $entry;
+
 	}
-	return ($error) ? $error : $entries;
+	return ($error) ? $error : $retval;
 }
 
 # sub inventory_indices_by_subconcept
