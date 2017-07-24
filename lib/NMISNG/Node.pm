@@ -190,6 +190,28 @@ sub configuration
 	return Clone::clone( $self->{_configuration} );
 }
 
+# remove this node from the db
+sub delete
+{
+	my ($self) = @_;
+
+	if ( !$self->is_new && !$self->{_deleted} && $self->{_id} )
+	{
+		my $result = NMISNG::DB::remove(
+			collection => $self->nmisng->nodes_collection,
+			query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} } ),
+			just_one   => 1
+		);
+		# print STDERR "delete: $result->{error}\n";
+		$self->{_deleted} = 1 if ( $result->{success} );
+		return ( $result->{success}, $result->{error} );
+	}
+	else
+	{
+		return ( undef, "Node did not meet criteria for deleting" );
+	}
+}
+
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
 # filters/arguments:

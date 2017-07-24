@@ -518,7 +518,12 @@ sub node
 
 	my $node;
 	my $modeldata = $self->get_nodes_model(%args);
-	if ( $modeldata->count() > 0 )
+	if( $modeldata->count() > 1 )
+	{
+		$self->log->warn("Node request returned more than one node, returning nothing");
+		return;
+	}
+	elsif ( $modeldata->count() == 1 )
 	{
 		my $model = $modeldata->data()->[0];
 		$node = NMISNG::Node->new(

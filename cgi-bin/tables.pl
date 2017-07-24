@@ -720,27 +720,32 @@ sub dodeleteTable {
 	$AU->CheckAccess("Table_${table}_rw",'header');
 
 	my $T = loadReqTable(table=>$table);
-	my $db = "db_".lc($table)."_sql";
-	if (NMISNG::Util::getbool($C->{$db}) ) {
-		if (!(Compat::DBfunc::->delete(table=>$table,index=>$key))) {
-			print header({-type=>"text/html",-expires=>'now'});
-			print Tr(td({class=>'error'} ,escapeHTML(Compat::DBfunc::->error())));
-			return 0;
-		}
-	} else {
-		# remote key
-		my $TT;
-		foreach (keys %{$T}) {
-			if ($_ ne $key) { $TT->{$_} = $T->{$_}; }
-		}
-
+	# remote key
+	my $TT;
+	foreach (keys %{$T}) 
+	{
+		$TT->{$_} = $T->{$_}
+			if ($_ ne $key);
 		NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
 	}
 
+	# nodes are special
 	# make sure to remove events for deleted nodes
 	if ($table eq "Nodes")
 	{
-		Compat::NMIS::cleanEvent($key,"tables.pl.editNodeTable");
+		my $nmisng = Compat::NMIS::new_nmisng;
+		my $node = $nmisng->node( name => $key );
+		if( $node )
+		{
+			my ($success,$error) = $node->delete();
+			if (!$success)
+			{
+				print header($headeropts);
+				print Tr(td({class=>'error'} , escapeHTML("Error removing node: $error")));
+				return 0;
+			}
+			Compat::NMIS::cleanEvent($key,"tables.pl.editNodeTable");
+		}
 	}
 }
 
