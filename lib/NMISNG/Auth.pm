@@ -1583,7 +1583,7 @@ sub _GetPrivs {
 	}
 
 	# leading/trailing space is gone after stripspaces, rest after split
-	my @groups = sort(split /\s*,\s*/, stripSpaces($grouplistraw));
+	my @groups = sort(split /\s*,\s*/, NMISNG::Util::stripSpaces($grouplistraw));
 	# note: the main health status graphs uses the implied virtual group network,
 	# this group must be explicitly stated if you want to see this graph
 	push @groups, "network";
