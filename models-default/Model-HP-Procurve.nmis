@@ -32,7 +32,7 @@
 %hash = (
   '-common-' => {
     'class' => {
-      'database' => {
+       'database' => {
         'common-model' => 'database'
       },
       'threshold' => {
@@ -47,154 +47,184 @@
       'event' => {
         'common-model' => 'event'
       },
-      'routing' => {
-        'common-model' => 'routing'
+      'lldp' => {
+        'common-model' => 'lldp'
       },
       'entityMib' => {
         'common-model' => 'entityMib'
       },
-      #Juniper  ERX does not support jnxOperations.
-      #'jnxOperations' => {
-      #  'common-model' => 'Juniper-jnxOperations'
-      #},
-    }
-  },
-  'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,entityMib',
-  },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'false', # default = true
-      'ifNumber' => 'false', # default = true
-      'ifLastChange' => 'false', # default = false
-      'ifTableLastChange' => 'false', # default = false
-      'skipIfComment' => 'This is used for mega devices to get rid of unwanted interfaces.  Big SP switches for example.  If skipIfType or skipIfDescr regex is matched, then just skip this interface all together. Must be used with ifNumber = false, ifAdminStatus = false, ifLastChange = false, ifTableLastChange = false',
-      'skipIfType' => 'ppp',
-			'skipIfDescr' => 'PPPoE\d+|PPP\d+|IP\d+|IPLAGL2|IPLAG4L2|noSuchInstance'
+      'routing' => {
+        'common-model' => 'routing'
+      },
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,routenumber',
-    'nodeModel' => 'Juniper-ERX',
-    'nodeType' => 'router',
-    'sys' => {
-      'standard' => {
-        'snmp' => {
-          'sysLocation' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysLocation',
-            'title' => 'Location'
-          },
-          'sysDescr' => {
-            'oid' => 'sysDescr',
-            'title' => 'Description'
-          },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
-          },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
-          },
-          'ifNumber' => {
-            'oid' => 'ifNumber',
-            'title' => 'Interfaces'
-          },
-          'sysContact' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
-          },
-          'sysName' => {
-            'oid' => 'sysName'
-          }
-        }
-      }
-    },
+    'nodegraph' => 'health,response,ip',
+    'nodeModel' => 'HP-Procurve',
+    'nodeType' => 'switch',
+    'nodegraph' => 'health,response,topo,routenumber,ip,frag',
     'rrd' => {
-      'nodehealth' => {
-        'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'routenumber',
-        'snmp' => {
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
-        },
-      },
       'mib2ip' => {
+        'graphtype' => 'ip,frag',
         'snmp' => {
-          'ipInAddrErrors' => {
-            'oid' => 'ipInAddrErrors',
+          'ipForwDatagrams' => {
+            'oid' => 'ipForwDatagrams',
             'option' => 'counter,0:U'
           },
           'ipFragCreates' => {
             'oid' => 'ipFragCreates',
             'option' => 'counter,0:U'
           },
-          'ipInDiscards' => {
-            'oid' => 'ipInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ipInReceives' => {
-            'oid' => 'ipInReceives',
+          'ipFragFails' => {
+            'oid' => 'ipFragFails',
             'option' => 'counter,0:U'
           },
           'ipFragOKs' => {
             'oid' => 'ipFragOKs',
             'option' => 'counter,0:U'
           },
+          'ipInAddrErrors' => {
+            'oid' => 'ipInAddrErrors',
+            'option' => 'counter,0:U'
+          },
           'ipInDelivers' => {
             'oid' => 'ipInDelivers',
             'option' => 'counter,0:U'
           },
-          'ipReasmFails' => {
-            'oid' => 'ipReasmFails',
+          'ipInDiscards' => {
+            'oid' => 'ipInDiscards',
             'option' => 'counter,0:U'
-          },
-          'ipReasmReqds' => {
-            'oid' => 'ipReasmReqds',
-            'option' => 'counter,0:U'
-          },
-          'ipFragFails' => {
-            'oid' => 'ipFragFails',
-            'option' => 'counter,0:U'
-          },
-          'ipOutRequests' => {
-            'oid' => 'ipOutRequests',
-            'option' => 'counter,0:U'
-          },
-          'ipOutNoRoutes' => {
-            'oid' => 'ipOutNoRoutes'
           },
           'ipInHdrErrors' => {
             'oid' => 'ipInHdrErrors',
             'option' => 'counter,0:U'
           },
-          'ipForwDatagrams' => {
-            'oid' => 'ipForwDatagrams',
+          'ipInReceives' => {
+            'oid' => 'ipInReceives',
+            'option' => 'counter,0:U'
+          },
+          'ipInUnknownProtos' => {
+            'oid' => 'ipInUnknownProtos',
             'option' => 'counter,0:U'
           },
           'ipOutDiscards' => {
             'oid' => 'ipOutDiscards',
             'option' => 'counter,0:U'
           },
+          'ipOutNoRoutes' => {
+            'oid' => 'ipOutNoRoutes',
+            'option' => 'counter,0:U'
+          },
+          'ipOutRequests' => {
+            'oid' => 'ipOutRequests',
+            'option' => 'counter,0:U'
+          },
+          'ipReasmFails' => {
+            'oid' => 'ipReasmFails',
+            'option' => 'counter,0:U'
+          },
           'ipReasmOKs' => {
             'oid' => 'ipReasmOKs',
             'option' => 'counter,0:U'
           },
-          'ipInUnknownProtos' => {
-            'oid' => 'ipInUnknownProtos',
+          'ipReasmReqds' => {
+            'oid' => 'ipReasmReqds',
             'option' => 'counter,0:U'
           }
+        }
+      },
+      # SWITCHES HAVE dot1dStpTopChanges
+      'nodehealth' => {
+        'graphtype' => 'topo,routenumber',
+        'threshold' => '',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+          'TopChanges' => {
+            'oid' => 'dot1dStpTopChanges',
+            'option' => 'counter,0:U'
+          },
+
         },
-        'graphtype' => 'ip,frag'
       }
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'oid' => 'sysContact',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Contact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation',
+            'replace' => {
+              '' => 'default'
+            },
+            'title' => 'Location'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'calculate' => '$r * 100',
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime'
+          }
+        }
+      },
     }
   },
+    
+
+  
+'systemHealth' => {
+    'sections' => 'bgpPeer,ospfNbr,macTable,lldp,lldpLocal,entityMib',
+    'sys' => {
+      'macTable' => {
+        'headers' => 'ifDescr,dot1qTpFdbAddress,vlan,dot1qTpFdbPort,dot1qTpFdbStatus',
+        'index_oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+        'index_regex' => '7\.1\.2\.2\.1\.2\.(\d+\..+)$',
+        'indexed' => 'dot1qTpFdbPort',
+        'snmp' => {
+          'dot1qTpFdbPort' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.2',
+            'sysObjectName' => 'dot1qTpFdbPort',
+            'title' => 'Port'
+          },
+          'dot1qTpFdbStatus' => {
+            'oid' => '1.3.6.1.2.1.17.7.1.2.2.1.3',
+            'sysObjectName' => 'dot1qTpFdbStatus',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'invalid',
+              '3' => 'learned',
+              '4' => 'self',
+              '5' => 'mgmt',
+            },
+            'title' => 'Status'
+          },
+        }
+      },
+    },
+  },
+  
+  
+  
   'interface' => {
     'sys' => {
       'standard' => {
@@ -217,6 +247,11 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
@@ -370,10 +405,10 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'Loopback|Null|IP|PPPoE|sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
-      'Description' => '^#|noSuchInstance',
-      'noDescription' => 'false',
-      'ifType' => 'other|ieee8023adLag|l2vlan|noSuchInstance'
+      'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
     },
     'noevent' => {
       'Description' => '^!',

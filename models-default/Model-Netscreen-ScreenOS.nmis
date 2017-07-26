@@ -46,37 +46,14 @@
       },
       'event' => {
         'common-model' => 'event'
-      },
-      'routing' => {
-        'common-model' => 'routing'
-      },
-      'entityMib' => {
-        'common-model' => 'entityMib'
-      },
-      #Juniper  ERX does not support jnxOperations.
-      #'jnxOperations' => {
-      #  'common-model' => 'Juniper-jnxOperations'
-      #},
-    }
-  },
-  'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,entityMib',
-  },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'false', # default = true
-      'ifNumber' => 'false', # default = true
-      'ifLastChange' => 'false', # default = false
-      'ifTableLastChange' => 'false', # default = false
-      'skipIfComment' => 'This is used for mega devices to get rid of unwanted interfaces.  Big SP switches for example.  If skipIfType or skipIfDescr regex is matched, then just skip this interface all together. Must be used with ifNumber = false, ifAdminStatus = false, ifLastChange = false, ifTableLastChange = false',
-      'skipIfType' => 'ppp',
-			'skipIfDescr' => 'PPPoE\d+|PPP\d+|IP\d+|IPLAGL2|IPLAG4L2|noSuchInstance'
+      }
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,ip,routenumber',
-    'nodeModel' => 'Juniper-ERX',
-    'nodeType' => 'router',
+    'nodegraph' => 'health,response,ip',
+    'nodeModel' => 'Netscreen-ScreenOS',
+    'nodeType' => 'firewall',
+    'nodeVendor' => 'NetScreen Technologies, Inc.',
     'sys' => {
       'standard' => {
         'snmp' => {
@@ -116,15 +93,6 @@
       }
     },
     'rrd' => {
-      'nodehealth' => {
-        'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'routenumber',
-        'snmp' => {
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
-        },
-      },
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {
@@ -217,6 +185,11 @@
             'oid' => 'ifDescr',
             'title' => 'Name (ifDescr)'
           },
+					'ifPhysAddress' => {
+            'oid' => 'ifPhysAddress',
+            'title' => 'Physical Address',
+          },
+
           'ifSpeed' => {
             'oid' => 'ifSpeed',
             'title' => 'Bandwidth'
@@ -251,8 +224,8 @@
   					'oid' => 'ifHighSpeed'
   				},
   				'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description (ifAlias)'
+            'oid' => 'ifDescr',
+            'title' => 'Description (ifDescr)'
           }
         }
       }
@@ -370,10 +343,10 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'Loopback|Null|IP|PPPoE|sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
-      'Description' => '^#|noSuchInstance',
-      'noDescription' => 'false',
-      'ifType' => 'other|ieee8023adLag|l2vlan|noSuchInstance'
+      'ifDescr' => 'bbgroup|vlan|sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
+      'noDescription' => 'true',
+      'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
     },
     'noevent' => {
       'Description' => '^!',

@@ -56,10 +56,18 @@
       'asset' => {
         'common-model' => 'Cisco-asset'
       },
+      'adsl' => {
+        'common-model' => 'ADSL'
+      },
+      'ifStack' => {
+        'common-model' => 'ifStack'
+      },
     }
   },
   'systemHealth' => {
-    'sections' => 'entityMib,ciscoAsset',
+    'sections' => 'ADSL_Physical,ADSL_Channel,ifStack,entityMib,ciscoAsset',
+    'sys' => {
+    },
   },
   'system' => {
     'nodeModel' => 'CiscoDSL',

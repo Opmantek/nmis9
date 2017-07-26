@@ -73,12 +73,12 @@
       'tempStatus' => {
         'type' => 'threshold-rising',
         'threshold' => {
-          'Normal' => '50',
-          'Warning' => '60',
-          'Minor' => '70',
-          'Major' => '75',
-          'Critical' => '80',
-          'Fatal' => '85',
+          'Normal' => '79',
+          'Warning' => '80',
+          'Minor' => '85',
+          'Major' => '80',
+          'Critical' => '95',
+          'Fatal' => '100',
         },
         'control' => 'CVAR=tempDescr;$CVAR =~ /(inlet|asic|device|Inlet|Crossbar|CPU|DDR)/',
         'element' => 'tempDescr',

@@ -1,0 +1,122 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'alerts' => {
+    'env-temp' => {
+      'tempStatus' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '79',
+          'Warning' => '80',
+          'Minor' => '85',
+          'Major' => '80',
+          'Critical' => '95',
+          'Fatal' => '100',
+        },
+        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        'element' => 'tempDescr',
+        'event' => 'High Temperature',
+        'test' => '',
+        'unit' => 'celsius',
+        'value' => 'CVAR1=currentTemp;int($CVAR1)'
+      }
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'env-temp' => {
+        'indexed' => 'true',
+        'graphtype' => 'env-temp',
+        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        #'control' => 'CVAR=tempDescr;$CVAR =~ /(Inlet Temperature)/',
+        'snmp' => {
+          'currentTemp' => {
+            'oid' => 'entSensorValue',
+            'calculate' => 'CVAR1=tempPrecision; return $CVAR1 == 0 ? ($r / 1) : ($r / 10);',
+          },
+          'tempPrecision' => {
+            'oid' => '1.3.6.1.4.1.9.9.91.1.1.1.1.3',
+            'snmpObjectName' => 'entSensorPrecision',
+          }
+        },
+      },
+    },
+    'sys' => {
+      'env-temp' => {
+        'indexed' => 'entSensorStatus',
+        'headers' => 'tempDescr,currentTemp',
+        'snmp' => {
+          'tempDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'title' => 'Descr.'
+          },
+          'tempStatus' => {
+  					'replace' => {
+  						'1' => 'ok',
+  						'2' => 'unavailable',
+  						'3' => 'nonoperational',
+  					},
+            'oid' => 'entSensorStatus',
+            'title' => 'Status'
+          },
+          'tempType' => {
+  					'replace' => {
+  						'1' => 'other',
+  						'2' => 'unknown',
+  						'3' => 'voltsAC',
+  						'4' => 'voltsDC',
+  						'5' => 'amperes',
+  						'6' => 'watts',
+  						'7' => 'hertz',
+  						'8' => 'celsius',
+  						'9' => 'percentRH',
+  						'10' => 'rpm',
+  						'11' => 'cmm',
+  						'12' => 'truthvalue',
+  						'13' => 'specialEnum',
+  						'14' => 'dBm',
+  					},
+            'oid' => 'entSensorType',
+            'title' => 'Status'
+          },
+          'currentTemp' => {
+            'oid' => 'entSensorValue',
+            'calculate' => 'CVAR1=tempPrecision; return $CVAR1 == 0 ? ($r / 1) : ($r / 10);',
+            'title' => 'Current Temp (C)'
+          },
+          'tempPrecision' => {
+            'oid' => '1.3.6.1.4.1.9.9.91.1.1.1.1.3',
+            'snmpObjectName' => 'entSensorPrecision',
+          }
+        },
+      },
+    }
+  }
+);

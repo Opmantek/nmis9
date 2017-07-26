@@ -1,0 +1,248 @@
+#
+## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'systemHealth' => {
+    'sys' => {
+
+#IF-MIB::ifIndex.18 = INTEGER: 18
+#IF-MIB::ifDescr.18 = STRING: ATM1/2 - adsl layer
+#IF-MIB::ifType.18 = INTEGER: adsl(94)
+#IF-MIB::ifMtu.18 = INTEGER: 4470
+#IF-MIB::ifSpeed.18 = Gauge32: 160000
+#IF-MIB::ifPhysAddress.18 = STRING: 
+#IF-MIB::ifAdminStatus.18 = INTEGER: up(1)
+#IF-MIB::ifOperStatus.18 = INTEGER: up(1)
+#IF-MIB::ifLastChange.18 = Timeticks: (3119333970) 361 days, 0:48:59.70
+#
+#ADSL-LINE-MIB::adslLineCoding.18 = INTEGER: dmt(2)
+#ADSL-LINE-MIB::adslLineType.18 = INTEGER: interleavedOnly(3)
+#ADSL-LINE-MIB::adslLineConfProfile.18 = STRING: "DP-128-128kbps"
+#ADSL-LINE-MIB::adslAtucInvSerialNumber.18 = STRING: "SAL08207VVD"
+#ADSL-LINE-MIB::adslAtucInvVendorID.18 = STRING: "0046"
+#ADSL-LINE-MIB::adslAtucInvVersionNumber.18 = STRING: "4.0"
+#ADSL-LINE-MIB::adslAtucCurrSnrMgn.18 = Gauge32: 330 tenth dB
+#ADSL-LINE-MIB::adslAtucCurrAtn.18 = Gauge32: 260 tenth dB
+#ADSL-LINE-MIB::adslAtucCurrStatus.18 = Hex-STRING: 80 00 
+#ADSL-LINE-MIB::adslAtucCurrOutputPwr.18 = Gauge32: 130 tenth dBm
+#ADSL-LINE-MIB::adslAtucCurrAttainableRate.18 = Gauge32: 10304000 bps
+#ADSL-LINE-MIB::adslAturInvSerialNumber.18 = ""
+#ADSL-LINE-MIB::adslAturInvVendorID.18 = STRING: "19796"
+#ADSL-LINE-MIB::adslAturInvVersionNumber.18 = STRING: "0"
+#ADSL-LINE-MIB::adslAturCurrSnrMgn.18 = Gauge32: 310 tenth dB
+#ADSL-LINE-MIB::adslAturCurrAtn.18 = Gauge32: 360 tenth dB
+#ADSL-LINE-MIB::adslAturCurrStatus.18 = Hex-STRING: 80 00 
+#ADSL-LINE-MIB::adslAturCurrOutputPwr.18 = Gauge32: 119 tenth dBm
+#ADSL-LINE-MIB::adslAturCurrAttainableRate.18 = Gauge32: 928000 bps
+#
+#IF-MIB::ifName.18 = STRING: AT1/2 adsl
+#IF-MIB::ifLinkUpDownTrapEnable.18 = INTEGER: enabled(1)
+#IF-MIB::ifHighSpeed.18 = Gauge32: 0
+#IF-MIB::ifPromiscuousMode.18 = INTEGER: false(2)
+#IF-MIB::ifConnectorPresent.18 = INTEGER: true(1)
+#IF-MIB::ifAlias.18 = STRING: BancaReal
+#IF-MIB::ifCounterDiscontinuityTime.18 = Timeticks: (0) 0:00:00.00
+#IF-MIB::ifStackStatus.16.18 = INTEGER: active(1)
+#IF-MIB::ifStackStatus.17.18 = INTEGER: active(1)
+
+      'ADSL_Physical' => {             
+        #'indexed' => 'adslLineCoding',
+        #'index_oid' => '1.3.6.1.2.1.10.94.1.1.1.1.1',
+        'indexed' => 'adslLineType',
+        'index_oid' => '1.3.6.1.2.1.10.94.1.1.1.1.2',
+        'headers' => 'index,ifDescr,adslLineCoding,adslLineType,adslLineConfProfile,adslAtucCurrAttainableRate,adslAturCurrAttainableRate',
+        'snmp' => {
+          'index' => {
+            'title' => 'ifIndex',
+            'title_export' => 'Index of port',
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'adslLineCoding' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.1.1.1',
+            'title' => 'adslLineCoding',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'dmt',
+              '3' => 'cap',
+              '4' => 'qam',
+            },
+          },
+          'adslLineType' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.1.1.2',
+            'title' => 'adslLineType',
+            'replace' => {
+              '1' => 'noChannel',
+              '2' => 'fastOnly',
+              '3' => 'interleavedOnly',
+              '4' => 'fastOrInterleaved',
+              '5' => 'fastAndInterleaved',
+            },
+          },
+          'adslLineConfProfile' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.1.1.4',
+            'snmpObjectName' => 'adslLineConfProfile',        
+            'title' => 'adslLineConfProfile',
+            'title_export' => 'Nombre_Profile',
+          },
+
+          'adslAturCurrSnrMgn' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.3.1.4',
+            'title' => 'adslAturCurrSnrMgn',
+            'title_export' => 'Ruido_Bajada',
+          },
+          'adslAtucCurrSnrMgn' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.2.1.4',
+            'title' => 'adslAtucCurrSnrMgn',
+            'title_export' => 'Ruido_Subida',
+          },
+
+          'adslAturCurrAtn' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.3.1.5',
+            'title' => 'adslAturCurrAtn',
+            'title_export' => 'Senal_Atenuacion_Bajada',
+          },
+          'adslAtucCurrAtn' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.2.1.5',
+            'title' => 'adslAtucCurrAtn',
+            'title_export' => 'Senal_Atenuacion_Subida',
+          },
+
+          'adslAtucCurrAttainableRate' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.2.1.8',
+            'title' => 'adslAtucCurrAttainableRate',
+            'title_export' => 'Maxima_Velocidad_Bajada',
+          },
+          'adslAturCurrAttainableRate' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.3.1.8',
+            'title' => 'adslAturCurrAttainableRate',
+            'title_export' => 'Maxima_Velocidad_Subida',
+          },
+
+          'adslAtucCurrOutputPwr' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.2.1.7',
+            'title' => 'adslAtucCurrOutputPwr',
+          },
+          'adslAturCurrOutputPwr' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.3.1.7',
+            'title' => 'adslAturCurrOutputPwr',
+          },
+        },
+      },
+
+#IF-MIB::ifIndex.16 = INTEGER: 16
+#IF-MIB::ifDescr.16 = STRING: ATM1/2 - interleave layer
+#IF-MIB::ifType.16 = INTEGER: interleave(124)
+#IF-MIB::ifMtu.16 = INTEGER: 4470
+#IF-MIB::ifSpeed.16 = Gauge32: 160000
+#IF-MIB::ifPhysAddress.16 = STRING: 
+#IF-MIB::ifAdminStatus.16 = INTEGER: up(1)
+#IF-MIB::ifOperStatus.16 = INTEGER: up(1)
+#IF-MIB::ifLastChange.16 = Timeticks: (3119333970) 361 days, 0:48:59.70
+#ADSL-LINE-MIB::adslAtucChanInterleaveDelay.16 = Gauge32: 16 milli-seconds
+#ADSL-LINE-MIB::adslAtucChanCurrTxRate.16 = Gauge32: 160000 bps
+#ADSL-LINE-MIB::adslAturChanInterleaveDelay.16 = Gauge32: 16 milli-seconds
+#ADSL-LINE-MIB::adslAturChanCurrTxRate.16 = Gauge32: 160000 bps
+#
+#ADSL-LINE-MIB::adslAtucChanReceivedBlks.16 = Counter32: 4251808457
+#ADSL-LINE-MIB::adslAtucChanTransmittedBlks.16 = Counter32: 4252228336
+#ADSL-LINE-MIB::adslAtucChanCorrectedBlks.16 = Counter32: 15179781
+#ADSL-LINE-MIB::adslAtucChanUncorrectBlks.16 = Counter32: 2503159
+#ADSL-LINE-MIB::adslAtucChanPerfValidIntervals.16 = INTEGER: 96
+#ADSL-LINE-MIB::adslAtucChanPerfInvalidIntervals.16 = INTEGER: 0
+#
+#IF-MIB::ifName.16 = STRING: AT1/2 interleave
+#IF-MIB::ifLinkUpDownTrapEnable.16 = INTEGER: disabled(2)
+#IF-MIB::ifHighSpeed.16 = Gauge32: 0
+#IF-MIB::ifPromiscuousMode.16 = INTEGER: false(2)
+#IF-MIB::ifConnectorPresent.16 = INTEGER: false(2)
+#IF-MIB::ifAlias.16 = STRING: 
+#IF-MIB::ifCounterDiscontinuityTime.16 = Timeticks: (0) 0:00:00.00
+#IF-MIB::ifStackStatus.15.16 = INTEGER: active(1)
+      
+      'ADSL_Channel' => {        
+        'indexed' => 'adslAtucChanCurrTxRate',
+        'index_oid' => '1.3.6.1.2.1.10.94.1.1.4.1.2',
+        'headers' => 'index,ifDescr,adslAtucChanCurrTxRate,adslAturChanCurrTxRate,adslAtucChanReceivedBlks,adslAtucChanTransmittedBlks,adslAtucChanCorrectedBlks,adslAtucChanUncorrectBlks',
+        'snmp' => {
+          'index' => {
+            'title' => 'ifIndex',
+            'title_export' => 'Index of port',
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'adslAtucChanCurrTxRate' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.4.1.2',
+            'title' => 'adslAtucChanCurrTxRate',
+            'title_export' => 'Velocidad_Puerto_DN',
+          },
+          'adslAturChanCurrTxRate' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.5.1.2',
+            'title' => 'adslAturChanCurrTxRate',
+            'title_export' => 'Velocidad_Puerto_UP',
+          },
+
+          'adslAtucChanReceivedBlks' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.1',
+            'title' => 'adslAtucChanReceivedBlks',
+          },
+          'adslAtucChanTransmittedBlks' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.2',
+            'title' => 'adslAtucChanTransmittedBlks',
+          },
+
+          'adslAtucChanCorrectedBlks' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.3',
+            'title' => 'adslAtucChanCorrectedBlks',
+          },
+          'adslAtucChanUncorrectBlks' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.4',
+            'title' => 'adslAtucChanUncorrectBlks',
+          },
+
+          'adslAtucChanPerfValidIntervals' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.5',
+            'title' => 'adslAtucChanPerfValidIntervals',
+          },
+          'adslAtucChanPerfInvalidIntervals' => {
+            'oid' => '1.3.6.1.2.1.10.94.1.1.10.1.6',
+            'title' => 'adslAtucChanPerfInvalidIntervals',
+          },
+        },
+      },
+
+    }
+  }
+);

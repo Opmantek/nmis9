@@ -72,6 +72,9 @@
       'status' => {
         'common-model' => 'Cisco-status'
       },
+      'temp' => {
+        'common-model' => 'Cisco-temp'
+      },
   	}
   },
   'system' => {
@@ -287,7 +290,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,env-temp,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   #'environment' => {
   #  'sys' => {

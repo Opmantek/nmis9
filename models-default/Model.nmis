@@ -1,82 +1,43 @@
-#
-## $Id: Model.nmis,v 8.13 2012/12/03 07:47:26 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#
-#  This file is part of Network Management Information System (“NMIS”).
-#
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).
-#  If not, see <http://www.gnu.org/licenses/>
-#
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com
-#
-#  User group details:
-#  http://support.opmantek.com/users/
-#
-# *****************************************************************************
-
 %hash = (
   'database' => {
     'db' => {
-      'hbeat' => '900',
-      'poll' => '300',
       'size' => {
         'default' => {
-          'step_year' => '288',
-          'rows_year' => '1890',
+          'rows_day' => '2304',
           'rows_month' => '2268',
+          'rows_week' => '1536',
+          'rows_year' => '1890',
           'step_day' => '1',
           'step_month' => '24',
           'step_week' => '6',
-          'rows_week' => '1536',
-          'rows_day' => '2304'
+          'step_year' => '288'
+        }
+      },
+      'timing' => {
+        'default' => {
+          'heartbeat' => 900,
+          'poll' => 300
+        },
+        'nmis' => {
+          'heartbeat' => 7200,
+          'poll' => 60
         }
       }
     },
     'type' => {
-      'nmis' => '/metrics/nmis-system.rrd',
-      'nodehealth' => '/nodes/$node/health/health.rrd',
-      'metrics' => '/metrics/$item.rrd',
       'health' => '/nodes/$node/health/reach.rrd',
+      'metrics' => '/metrics/$item.rrd',
+      'nmis' => '/metrics/nmis-system.rrd',
+      'nodehealth' => '/nodes/$node/health/health.rrd'
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'metrics' => 'Metrics',
+      'nmis' => 'NMIS collect runtime'
     }
   },
   'models' => {
-    'Microsoft' => {
-      'order' => {
-        '10' => {
-          'Windows2003' => 'Windows Version 5\.2'
-        },
-        '15' => {
-          'Windows2008' => 'Windows Version 6\.0'
-        },
-        '20' => {
-          'Windows2008R2' => 'Windows Version 6\.1'
-        },
-        '25' => {
-          'Windows2012' => 'Windows Version 6\.2'
-        },
-        '30' => {
-          'Windows2012' => 'Windows Version 6\.3'
-        },
-        '40' => {
-          'Windows2000' => 'Windows (2000 )?Version 5\.0',
-		    }
-      }
-    },
     '3COM Enterprise' => {
       'order' => {
         '10' => {
@@ -84,64 +45,98 @@
         }
       }
     },
-    'Sun Microsystems' => {
+    'ALCOMA, Ltd' => {
       'order' => {
         '10' => {
-          'SunSolaris' => 'sol|Sun SNMP|SunOS'
+          'Alcoma' => 'ALCOMA IP-Stack'
         }
       }
     },
-    'Foundry Networks' => {
+    'Acme Packet' => {
       'order' => {
         '10' => {
-          'FoundrySwitch' => 'IronWare|ServerIron'
+          'ACME-Packet' => 'Acme Packet'
         }
       }
     },
-
-    'Juniper Networks/Unisphere' => {
+    'Alcatel' => {
       'order' => {
         '10' => {
-          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
-        },
-        '99' => {
-          'Juniper-ERX' => '.'
-        },
+          'OmniSwitch' => 'Alcatel-Lucent OS6400'
+        }
       }
     },
-    'Juniper Networks, Inc.' => {
+    'Alcatel Data Network' => {
       'order' => {
         '10' => {
-          'Juniper-ERX' => 'Juniper Networks Inc. E\d+ Edge Routing Switch'
+          'AlcatelASAM' => 'ASAM'
+        }
+      }
+    },
+    'American Power Conversion Corp.' => {
+      'order' => {
+        '10' => {
+          'APC-ups' => 'PowerNet'
         },
         '20' => {
-          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+          'APC-pdu' => 'AP8641'
+        },
+        '25' => {
+          'APC-pdu-ap7932' => 'AP7932'
         },
         '30' => {
-          'JuniperSwitch' => 'Juniper Networks, Inc. .+ Switch'
-        },
-        '99' => {
-          'JuniperRouter' => '.'
+          'APC-pdu-ap7900' => 'AP7900'
         }
       }
     },
-    'KCP, Inc.' => {
+    'Arista Networks' => {
       'order' => {
         '10' => {
-          'AKCP-sensor' => 'sensorProbe2'
+          'AristaSwitch' => 'Arista Networks EOS'
+        }
+      }
+    },
+    'Ascend Communications Inc.' => {
+      'order' => {
+        '10' => {
+          'LucentStinger' => 'Lucent Stinger'
+        }
+      }
+    },
+    'BTI Photonic Systems' => {
+      'order' => {
+        '10' => {
+          'BTI-7800' => 'BTI 7800'
+        },
+        '20' => {
+          'BTI-7000' => 'BTI 7000'
+        }
+      }
+    },
+    'Cerent Corporation' => {
+      'order' => {
+        '10' => {
+          'ONS15454' => 'ONS 15454'
+        }
+      }
+    },
+    'Check Point Software Technologies Ltd' => {
+      'order' => {
+        '10' => {
+          'Checkpoint' => 'Linux'
         }
       }
     },
     'Cisco Systems' => {
       'order' => {
-        '2' => {
-          'Cisco10000' => 'Cisco IOS Software, 10000 Software'
-        },
         '10' => {
           'Catalyst6000' => 'WS-C6'
         },
         '15' => {
           'Catalyst5000Sup3' => 'WS-C*5.5*|WS-C5.*6.1|WS-C*6.3*'
+        },
+        '2' => {
+          'Cisco10000' => 'Cisco IOS Software, 10000 Software'
         },
         '20' => {
           'Catalyst5000' => 'WS-C5|WS-C2980|WS-C2948|WS-C2926|FastHub'
@@ -150,7 +145,7 @@
           'Catalyst4000' => 'WS-C4'
         },
         '28' => {
-          'CiscoDSL' => 'IOS \(tm\) \w+ Software \(\w+-DSL'
+          'CiscoDSL' => 'IOS \\(tm\\) \\w+ Software \\(\\w+-DSL'
         },
         '30' => {
           'CiscoRouter' => 'C1900-UNIVERSAL|C2900-UNIVERSAL'
@@ -165,10 +160,10 @@
           'CiscoIOSXR' => 'IOS XR Software'
         },
         '40' => {
-          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x|IOS \(tm\) CIGESM Software'
+          'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x|IOS \\(tm\\) CIGESM Software'
         },
         '45' => {
-          'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|IOS \(tm\) s222_rp Software|IOS \(tm\) c6sup2_rp|Cisco IOS Software, Catalyst 4500|Cisco IOS Software, Catalyst 4000|Cisco IOS Software, Catalyst L3 Switch'
+          'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \\(tm\\) s72033_rp|IOS \\(tm\\) s3223_rp|IOS \\(tm\\) s222_rp Software|IOS \\(tm\\) c6sup2_rp|Cisco IOS Software, Catalyst 4500|Cisco IOS Software, Catalyst 4000|Cisco IOS Software, Catalyst L3 Switch'
         },
         '46' => {
           'Cisco7600' => 'IOS Software, c7600|Cisco IOS Software c7600'
@@ -192,7 +187,7 @@
           'CiscoASA' => 'Cisco Adaptive Security Appliance'
         },
         '80' => {
-          'CiscoVG' => 'Cisco IOS.+vg\d+'
+          'CiscoVG' => 'Cisco IOS.+vg\\d+'
         },
         '90' => {
           'CiscoRouter' => 'IOS'
@@ -212,56 +207,20 @@
         }
       }
     },
-    'Riverstone Networks' => {
+    'ELTEK Energy AS' => {
       'order' => {
         '10' => {
-          'Riverstone' => 'Riverstone Networks'
+          'Eltek' => 'WebPower'
         }
       }
     },
-    'Synoptics' => {
+    'Emerson Energy Systems' => {
       'order' => {
         '10' => {
-          'BayStack' => 'BayStack|325-24T|5510-48T'
+          'EES' => 'AP7C70AA'
         }
       }
     },
-    'Cerent Corporation' => {
-      'order' => {
-        '10' => {
-          'ONS15454' => 'ONS 15454'
-        }
-      }
-    },
-    'PingOnly' => {
-      'order' => {
-        '10' => {
-          'PingOnly' => 'PingOnly'
-        }
-      }
-    },
-    'UC Davis ECE Dept' => {
-      'order' => {
-        '10' => {
-          'FreeBSD' => 'FreeBSD *'
-        }
-      }
-    },
-    'Merlin Gerin' => {
-      'order' => {
-        '10' => {
-          'MGE-ups' => 'GALAXY'
-        }
-      }
-    },
-    'RedBack Networks' => {
-      'order' => {
-        '10' => {
-          'Redback' => 'Redback Networks'
-        }
-      }
-    },
-
     'Extreme Networks' => {
       'order' => {
         '10' => {
@@ -269,13 +228,20 @@
         }
       }
     },
-    'NBT Technology, Inc,' => {
+    'Fortinet, Inc.' => {
       'order' => {
         '10' => {
-          'Riverbed' => 'rbt'
+          'Fortinet-FG' => 'fort|Fort'
         },
         '20' => {
-          'Riverbed' => 'Linux'
+          'Fortinet-FG' => '.'
+        }
+      }
+    },
+    'Foundry Networks' => {
+      'order' => {
+        '10' => {
+          'FoundrySwitch' => 'IronWare|ServerIron'
         }
       }
     },
@@ -289,16 +255,187 @@
         }
       }
     },
-    'net-snmp' => {
+    'HUAWEI Technology Co.,Ltd' => {
       'order' => {
-        '5' => {
-          'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
-        },
         '10' => {
-          'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
+          'Huawei-MA5600' => 'Huawei Integrated Access Software'
         },
         '20' => {
-          'net-snmp' => '.'
+          'Huawei-NetEngine' => 'Huawei Versatile Routing Platform'
+        },
+        '30' => {
+          'HuaweiRouter' => 'AR2220|AR1220'
+        },
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'Hewlett Packard' => {
+      'order' => {
+        '10' => {
+          'CGESM' => 'CGESM'
+        },
+        '15' => {
+          'HP-Procurve' => 'ProCurve'
+        },
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
+    'Juniper Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Juniper-ERX' => 'Juniper Networks Inc. E\\d+ Edge Routing Switch'
+        },
+        '20' => {
+          'JuniperRouter' => 'Juniper Networks, Inc. .+ internet router'
+        },
+        '30' => {
+          'JuniperSwitch' => 'Juniper Networks, Inc. .+ Switch'
+        },
+        '99' => {
+          'JuniperRouter' => '.'
+        }
+      }
+    },
+    'Juniper Networks/Unisphere' => {
+      'order' => {
+        '10' => {
+          'Juniper-ERX' => 'Juniper Networks Inc. E\\d+ Edge Routing Switch'
+        },
+        '99' => {
+          'Juniper-ERX' => '.'
+        }
+      }
+    },
+    'KCP, Inc.' => {
+      'order' => {
+        '10' => {
+          'AKCP-sensor' => 'sensorProbe2'
+        }
+      }
+    },
+    'Merlin Gerin' => {
+      'order' => {
+        '10' => {
+          'MGE-ups' => 'GALAXY'
+        }
+      }
+    },
+    'Microchip Technology Inc.' => {
+      'order' => {
+        '10' => {
+          'ServersCheck' => 'Temperature \\& Sensor Gateway'
+        }
+      }
+    },
+    'Microsoft' => {
+      'order' => {
+        '10' => {
+          'Windows2003' => 'Windows Version 5\\.2'
+        },
+        '15' => {
+          'Windows2008' => 'Windows Version 6\\.0'
+        },
+        '20' => {
+          'Windows2008R2' => 'Windows Version 6\\.1'
+        },
+        '25' => {
+          'Windows2012' => 'Windows Version 6\\.2'
+        },
+        '30' => {
+          'Windows2012' => 'Windows Version 6\\.3'
+        },
+        '40' => {
+          'Windows2000' => 'Windows (2000 )?Version 5\\.0'
+        }
+      }
+    },
+    'MikroTik' => {
+      'order' => {
+        '10' => {
+          'MikroTikRouter' => 'RouterOS (CHR|CCR)'
+        },
+        '99' => {
+          'MikroTik' => 'RouterOS'
+        }
+      }
+    },
+    'Mimosa' => {
+      'order' => {
+        '10' => {
+          'Mimosa' => '.'
+        }
+      }
+    },
+    'NBT Technology, Inc,' => {
+      'order' => {
+        '10' => {
+          'Riverbed' => 'rbt'
+        },
+        '20' => {
+          'Riverbed' => 'Linux'
+        }
+      }
+    },
+    'NetScreen Technologies, Inc.' => {
+      'order' => {
+        '10' => {
+          'Netscreen-ScreenOS' => '.'
+        }
+      }
+    },
+    'Netgear' => {
+      'order' => {
+        '10' => {
+          'Netgear-GS108T' => 'GS108T'
+        },
+        '20' => {
+          'Netgear-GS724T' => 'GS724Tv3'
+        }
+      }
+    },
+    'Nortel Networks' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Accelar-1[12]00|Passport-8610'
+        }
+      }
+    },
+    'Northern Telecom, Ltd.' => {
+      'order' => {
+        '10' => {
+          'Ericsson-PPX' => 'Ericsson PPX'
+        }
+      }
+    },
+    'NovelSat' => {
+      'order' => {
+        '10' => {
+          'NovelSat' => '.'
+        }
+      }
+    },
+    'Oplink Communications, Inc.' => {
+      'order' => {
+        '10' => {
+          'BTI-OPS' => 'oplink snmp-agent'
+        }
+      }
+    },
+    'Palo Alto Networks' => {
+      'order' => {
+        '10' => {
+          'PaloAltoNetworks' => 'Palo Alto Networks'
+        }
+      }
+    },
+    'PingOnly' => {
+      'order' => {
+        '10' => {
+          'PingOnly' => 'PingOnly'
         }
       }
     },
@@ -309,38 +446,101 @@
         }
       }
     },
+    'QNAP SYSTEMS, INC' => {
+      'order' => {
+        '10' => {
+          'QNAP' => 'Linux TS'
+        }
+      }
+    },
+    'Rad Data Communications Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadOptimux' => 'OP-155[13]'
+        }
+      }
+    },
+    'Radwin Ltd.' => {
+      'order' => {
+        '10' => {
+          'RadwinWireless' => 'Wireless Link'
+        }
+      }
+    },
+    'Rapid City Communication' => {
+      'order' => {
+        '10' => {
+          'Accelar' => 'Passport-8606'
+        }
+      }
+    },
+    'RedBack Networks' => {
+      'order' => {
+        '10' => {
+          'Redback' => 'Redback Networks'
+        }
+      }
+    },
+    'Riverstone Networks' => {
+      'order' => {
+        '10' => {
+          'Riverstone' => 'Riverstone Networks'
+        }
+      }
+    },
+    'Scientific-Atlanta, Inc.' => {
+      'order' => {
+        '10' => {
+          'SciAtl' => 'D98xx'
+        }
+      }
+    },
+    'Sun Microsystems' => {
+      'order' => {
+        '10' => {
+          'SunSolaris' => 'sol|Sun SNMP|SunOS'
+        }
+      }
+    },
+    'Synoptics' => {
+      'order' => {
+        '10' => {
+          'BayStack' => 'BayStack|325-24T|5510-48T'
+        }
+      }
+    },
+    'Trango Systems, Inc.' => {
+      'order' => {
+        '10' => {
+          'Trango' => 'Apex Lynx-2.0.1'
+        }
+      }
+    },
+    'Tyco Electronics Power Systems' => {
+      'order' => {
+        '10' => {
+          'GE-QS941' => 'QS941A'
+        }
+      }
+    },
+    'UC Davis ECE Dept' => {
+      'order' => {
+        '10' => {
+          'FreeBSD' => 'FreeBSD *'
+        }
+      }
+    },
+    'Ubiquiti Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Ubiquiti' => 'Linux'
+        }
+      }
+    },
     'VMware Inc.' => {
       'order' => {
         '10' => {
           'ESXi' => 'VMware ESX'
-        }
-      }
-    },
-    'Ascend Communications Inc.' => {
-      'order' => {
-        '10' => {
-          'LucentStinger' => 'Lucent Stinger'
-        }
-      }
-    },
-    'Alcatel Data Network' => {
-      'order' => {
-        '10' => {
-          'AlcatelASAM' => 'ASAM'
-        }
-      }
-    },
-    'Alcatel' => {
-      'order' => {
-        '10' => {
-          'OmniSwitch' => 'Alcatel-Lucent OS6400'
-        }
-      }
-    },
-    'Palo Alto Networks' => {
-      'order' => {
-        '10' => {
-          'PaloAltoNetworks' => 'Palo Alto Networks'
         }
       }
     },
@@ -360,288 +560,77 @@
         }
       }
     },
-    'Rapid City Communication' => {
+    'net-snmp' => {
       'order' => {
         '10' => {
-          'Accelar' => 'Passport-8606'
-        }
-      }
-    },
-    'Nortel Networks' => {
-      'order' => {
-        '10' => {
-          'Accelar' => 'Accelar-1[12]00|Passport-8610'
-        }
-      }
-    },
-    'Hewlett Packard' => {
-      'order' => {
-        '10' => {
-          'CGESM' => 'CGESM'
-        },
-        '99' => {
-          'Default-HC' => '.'
-        }
-      }
-    },
-    'Netgear' => {
-      'order' => {
-        '10' => {
-          'Netgear-GS108T' => 'GS108T'
+          'net-snmp' => 'Linux|SunOS|Darwin|HP-UX'
         },
         '20' => {
-          'Netgear-GS724T' => 'GS724Tv3'
-        }
-      }
-    },
-    'MikroTik' => {
-      'order' => {
-        '10' => {
-          'MikroTikRouter' => 'RouterOS (CHR|CCR)'
+          'net-snmp' => '.'
         },
-        '99' => {
-          'MikroTik' => 'RouterOS'
+        '5' => {
+          'Checkpoint' => '2.6.18-92cp|2.6.18-92cpx86_64|2.4.21-21cpsmp'
         }
       }
-    },
-    'Emerson Energy Systems' => {
-      'order' => {
-        '10' => {
-          'EES' => 'AP7C70AA'
-        }
-      }
-    },
-    'Microchip Technology Inc.' => {
-      'order' => {
-        '10' => {
-          'ServersCheck' => 'Temperature \& Sensor Gateway'
-        }
-      }
-    },
-    'Rad Data Communications Ltd.' => {
-      'order' => {
-        '10' => {
-          'RadOptimux' => 'OP-155[13]',
-        },
-      },
-    },
-    'ELTEK Energy AS' => {
-      'order' => {
-        '10' => {
-          'Eltek' => 'WebPower',
-        },
-      },
-    },
-    'QNAP SYSTEMS, INC' => {
-      'order' => {
-        '10' => {
-          'QNAP' => 'Linux TS'
-        }
-      }
-    },
-    'Tyco Electronics Power Systems' => {
-      'order' => {
-        '10' => {
-          'GE-QS941' => 'QS941A'
-        }
-      }
-    },
-		'Scientific-Atlanta, Inc.' => {
-			'order' => {
-				'10' => {
-					'SciAtl' => "D98xx",
-				},
-			},
-		},
-    'Northern Telecom, Ltd.' => {
-      'order' => {
-        '10' => {
-          'Ericsson-PPX' => 'Ericsson PPX'
-        }
-      }
-    },
-    'Acme Packet' => {
-      'order' => {
-        '10' => {
-          'ACME-Packet' => 'Acme Packet'
-        }
-      }
-    },
-    'American Power Conversion Corp.' => {
-      'order' => {
-        '10' => {
-          'APC-ups' => 'PowerNet',
-        },
-				'20' => {
-					'APC-pdu' => 'AP8641',
-				},
-				'25' => {
-					'APC-pdu-ap7932' => 'AP7932',
-				},
-				'30' => {
-					'APC-pdu-ap7900' => 'AP7900',
-				},
-      },
-    },
-		'Check Point Software Technologies Ltd' => {
-			'order' => {
-				'10' => {
-					'Checkpoint' => 'Linux',
-				},
-			},
-		},
-    'Arista Networks' => {
-      'order' => {
-        '10' => {
-          'AristaSwitch' => 'Arista Networks EOS'
-        }
-      }
-    },
-    'Fortinet, Inc.' => {
-      'order' => {
-        '10' => {
-          'Fortinet-FG' => 'fort|Fort'
-        },
-        '20' => {
-          'Fortinet-FG' => '.'
-        }
-      }
-    },
-    'NovelSat' => {
-      'order' => {
-        '10' => {
-          'NovelSat' => '.'
-        },
-      },
-    },
-    'HUAWEI Technology Co.,Ltd' => {
-      'order' => {
-        '10' => {
-          'Huawei-MA5600' => 'Huawei Integrated Access Software'
-        },
-        '20' => {
-          'Huawei-NetEngine' => 'Huawei Versatile Routing Platform'
-        },
-        '30' => {
-          'HuaweiRouter' => 'AR2220|AR1220'
-        },
-        #'40' => {
-        #  'HuaweiSwitches' => 'S5700|S7700'
-        #},
-        #'50' => {
-        #  'HuaweiRouterAR2240' => 'AR2240'
-        #},
-        '99' => {
-          'Default-HC' => '.'
-        }
-      }
-    },
-    'Radwin Ltd.' => {
-      'order' => {
-        '10' => {
-          'RadwinWireless' => 'Wireless Link'
-        }
-      }
-    },  
-    'ALCOMA, Ltd' => {
-      'order' => {
-        '10' => {
-          'Alcoma' => 'ALCOMA IP-Stack'
-        }
-      }
-    },
-    'Trango Systems, Inc.' => {
-      'order' => {
-        '10' => {
-          'Trango' => 'Apex Lynx-2.0.1'
-        }
-      }
-    },
-    'Mimosa' => {
-      'order' => {
-        '10' => {
-          'Mimosa' => '.'
-        }
-      }
-    },
-    'Ubiquiti Networks, Inc.' => {
-      'order' => {
-        '10' => {
-          'Ubiquiti' => 'Linux'
-        },
-      }
-    },
+    }
   },
   'system' => {
     'nodeModel' => 'Default',
     'nodeType' => 'generic',
-
     'sys' => {
-			# contents of this section are required for automatic model determination
-      'standard' =>
-			{
-        'snmp' =>
-				{
-          'sysLocation' => {
-            'oid' => 'sysLocation',
-          },
-					'sysObjectID' => {
-            'oid' => 'sysObjectID',
-          },
-          'sysDescr' => {
-            'oid' => 'sysDescr',
-          },
+      'standard' => {
+        'snmp' => {
           'ifNumber' => {
-            'oid' => 'ifNumber',
-          },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-          },
-          'sysName' => {
-            'oid' => 'sysName',
+            'oid' => 'ifNumber'
           },
           'sysContact' => {
-            'oid' => 'sysContact',
+            'oid' => 'sysContact'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr'
+          },
+          'sysLocation' => {
+            'oid' => 'sysLocation'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime'
           }
         },
-
-				'wmi' =>
-				{
-					'winbuild' => {
-						query => "select * from win32_operatingsystem",
-						field => "BuildNumber",
-					},
-					'winosname' => {
-						query => "select * from win32_operatingsystem",
-						field => "Caption",	# note: field Name is similar but gunk-infested
-					},
-					'winversion' => {
-						query => "select * from win32_operatingsystem",
-						field => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
-					},
-					'winsysname' => {
-						query => "select * from win32_operatingsystem",
-						field => "CSName",
-					},
-					'wintime' => {
-						query => "select * from win32_operatingsystem",
-						field => "LocalDateTime", # 20160824173101.375199+600
-						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
-					},
-					'winboottime' => {
-						query => "select * from win32_operatingsystem",
-						field => "LastBootUpTime", # 20160824173101.375199+600
-						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
-					}
-				},
-      },
-    },
-  },
-
-  'heading' => {
-    'graphtype' => {
-      'nmis' => 'NMIS collect runtime',
-      'metrics' => 'Metrics'
+        'wmi' => {
+          'winboottime' => {
+            'calculate' => '($r =~ /^(\\d{4})(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})\\.\\d+([\\+-]\\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+            'field' => 'LastBootUpTime',
+            'query' => 'select * from win32_operatingsystem'
+          },
+          'winbuild' => {
+            'field' => 'BuildNumber',
+            'query' => 'select * from win32_operatingsystem'
+          },
+          'winosname' => {
+            'field' => 'Caption',
+            'query' => 'select * from win32_operatingsystem'
+          },
+          'winsysname' => {
+            'field' => 'CSName',
+            'query' => 'select * from win32_operatingsystem'
+          },
+          'wintime' => {
+            'calculate' => '($r =~ /^(\\d{4})(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})\\.\\d+([\\+-]\\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+            'field' => 'LocalDateTime',
+            'query' => 'select * from win32_operatingsystem'
+          },
+          'winversion' => {
+            'field' => 'Version',
+            'query' => 'select * from win32_operatingsystem'
+          }
+        }
+      }
     }
   }
 );
