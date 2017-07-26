@@ -58,14 +58,9 @@
 #					password=>$Q->{auth_password},headeropts=>$headeropts) ;
 #
 package NMISNG::Auth;
-our $VERSION = "1.3.0";
+our $VERSION = "1.4.0";
 
 use strict;
-
-# fixme9: is that required??
-# Auto configure to the <nmis-base>/lib
-# use FindBin;
-# use lib "$FindBin::Bin/../lib";
 
 my $C;													# fixme9: that looks dodgy
 
@@ -87,8 +82,7 @@ use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
 # for handling errors in javascript
 use JSON::XS;
 
-# You should change this to be unique for your site
-#
+# You should set config's auth_web_key (or edit this source file), so that cookies are unique for your site
 my $CHOCOLATE_CHIP = '8fhmgBC4YSVcZMnBsWtY32KQvTE9JBeuIp1y';
 my $auth_user_name_regex = qr/[\w \-\.\@\`\']+/;
 
@@ -120,6 +114,7 @@ sub new
 		privlevel => 0, # default all
 		cookie => undef,
 		groups => undef,
+		all_groups_allowed => undef,
 	};
 	bless $self, $class;
 	$self->_auth_init;
@@ -1473,7 +1468,8 @@ sub SetUser {
 		# set default privileges to lowest level
 		$self->{priv} = "anonymous";
 		$self->{privlevel} = 5;
-		$self->_GetPrivs($self->{user});
+		delete $self->{all_groups_allowed}; # bsts, if the auth object gets reused
+		$self->_GetPrivs($self->{user});		# this potentially sets all_groups_allowed
 		return 1;
 	}
 	else {
@@ -1490,20 +1486,26 @@ sub InGroup {
 	my $group = shift;
 	return 1 unless $self->{_require};
 	# If user can see all groups, they immediately pass
-	if ( $self->{groups} eq "all" ) {
-		NMISNG::Util::logAuth("InGroup: $self->{user}, all $group, 1") if $debug;
+	if ( $self->{all_groups_allowed} )
+	{
+		NMISNG::Util::logAuth("InGroup: $self->{user}, all group: ok for $group")
+				if $debug;
 		return 1;
 	}
-	return 0 unless defined $group or $group;
-	foreach my $g (@{$self->{groups}}) {
-		NMISNG::Util::logAuth("  DEBUG AUTH: @{$self->{groups}} g=$g group=$group") if $debug;
-		if ( lc($g) eq lc($group) ) {
-			NMISNG::Util::logAuth("InGroup: $self->{user}, $group, 1") if $debug;
+	return 0 if (!$group); # fixme why after the all logic?
+
+	foreach my $g (@{$self->{groups}})
+	{
+		if (lc($g) eq lc($group))
+		{
+			NMISNG::Util::logAuth("InGroup: $self->{user}, ok for $group") if $debug;
 			return 1;
 		}
-
 	}
-	NMISNG::Util::logAuth("InGroup: $self->{user}, $group, 0") if $debug;
+	NMISNG::Util::logAuth("InGroup: $self->{user}, groups: "
+												.join(",", @{$self->{groups}})
+												.", NOT ok for $group")
+			if $debug;
 	return 0;
 }
 
@@ -1572,28 +1574,37 @@ sub _GetPrivs {
 	}
 	NMISNG::Util::logAuth("INFO User \"$user\" has priv=$self->{priv} and privlevel=$self->{privlevel}") if $debug;
 
-#	NMISNG::Util::dbg("USER groups \n".Dumper($C->{group_list}) );
-
-	my @groups = split /,/, $UT->{$user}{groups};
-	if ( not @groups and $C->{auth_default_groups} ne "" ) {
-		@groups = split /,/, $C->{auth_default_groups};
-		my $ext = NMISNG::Util::getExtension(dir=>'conf');
-		NMISNG::Util::logAuth("INFO Groups not found for User \"$user\" using groups configured in Config.$ext -> auth_default_groups");
+	# groups come from the user sertting or the auth_default_groups
+	my $grouplistraw = $UT->{$user}{groups};
+	if (!$grouplistraw && $C->{auth_default_groups})
+	{
+		$grouplistraw = $C->{auth_default_groups};
+		NMISNG::Util::logAuth("INFO Groups not found for User \"$user\", using auth_default_groups from configuration");
 	}
 
-	if ( grep { $_ eq 'all' } @groups) {
-		@{$self->{groups}} = sort split(',',$C->{group_list});
-		# put the virtual network group on the list
-		push @{$self->{groups}}, "network";
-	} elsif ( $UT->{$user}{groups} eq "none" or $UT->{$user}{groups} eq "" ) {
-		@{$self->{groups}} = [];
-	} else {
-		# note: the main health status graphs uses the implied virtual group network,
-  	# this group must be explicitly stated if you want to see this graph
-		@{$self->{groups}} = @groups;
-	}
-	map { NMISNG::Util::stripSpaces($_) } @{$self->{groups}};
+	# leading/trailing space is gone after stripspaces, rest after split
+	my @groups = sort(split /\s*,\s*/, stripSpaces($grouplistraw));
+	# note: the main health status graphs uses the implied virtual group network,
+	# this group must be explicitly stated if you want to see this graph
+	push @groups, "network";
 
+	# is the user authorised for all (known and unknown) groups? then record that
+	if ( grep { $_ eq 'all' } @groups)
+	{
+		$self->{all_groups_allowed} = 1;
+		$self->{groups} = \@groups;
+	}
+	elsif ($UT->{$user}{groups} eq "none"
+				 or !$grouplistraw)
+	{
+		$self->{groups} = [];
+		delete $self->{all_groups_allowed};
+	}
+	else
+	{
+		$self->{groups} = \@groups;
+		delete $self->{all_groups_allowed};
+	}
 	return 1;
 }
 
