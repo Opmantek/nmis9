@@ -222,6 +222,7 @@ sub get_inventory_available_concepts
 #
 #. filter - hashref, will be added to the query
 #.   [fields_hash] - which fields should be returned, if not provided the whole record is returned
+# returns: model_data object
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
@@ -284,7 +285,7 @@ sub get_inventory_model
 		$model_data->[$index++] = $entry;
 	}
 
-	my $model_data_object = NMISNG::ModelData->new( modelName => "inventory", data => $model_data );
+	my $model_data_object = NMISNG::ModelData->new( model_name => "inventory", data => $model_data );
 	return $model_data_object;
 }
 
@@ -336,7 +337,7 @@ sub get_nodes_model
 		$model_data->[$index++] = $entry;
 	}
 
-	my $model_data_object = NMISNG::ModelData->new( modelName => "nodes", data => $model_data );
+	my $model_data_object = NMISNG::ModelData->new( model_name => "nodes", data => $model_data );
 	return $model_data_object;
 }
 
@@ -440,7 +441,7 @@ sub get_timed_data_model
 			push @rawtimedata, $tdata;
 		}
 	}
-	return NMISNG::ModelData->new(modelname => "timed_data", data => \@rawtimedata);
+	return NMISNG::ModelData->new(model_name => "timed_data", data => \@rawtimedata);
 }
 
 # find all unique values for key from collection and filter provided
@@ -518,7 +519,12 @@ sub node
 
 	my $node;
 	my $modeldata = $self->get_nodes_model(%args);
-	if ( $modeldata->count() > 0 )
+	if( $modeldata->count() > 1 )
+	{
+		$self->log->warn("Node request returned more than one node, returning nothing");
+		return;
+	}
+	elsif ( $modeldata->count() == 1 )
 	{
 		my $model = $modeldata->data()->[0];
 		$node = NMISNG::Node->new(

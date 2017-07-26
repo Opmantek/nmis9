@@ -41,7 +41,7 @@ sub new
 
 	die "Data must be array if defined" if ( $args{data} && ref( $args{data} ) ne "ARRAY" );
 	my $self = bless(
-		{   _modelName => $args{modelName} // undef,
+		{   _model_name => $args{model_name} // undef,
 			_data      => $args{data}      // undef
 		},
 		$class

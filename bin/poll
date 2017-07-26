@@ -2808,6 +2808,7 @@ sub getIntfInfo
 				$S->nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
+				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
 				# through things found on the device so it's not historic
@@ -3199,6 +3200,18 @@ sub getEnvInfo
 
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
+				# TODO: add in nice description for environment, tempDescr is one place to look, perhaps all could be joined as only one will work?
+				# eg tempDescr || hhmsSensorTempDescr || hhmsSensorHumDescr
+				my $description_map = {
+			# hrsmpcpu => { section => 'device', property => 'hrDeviceDescr' },
+					hrdisk => { section => 'storage', name => 'hrStorageDescr'},
+					env_temp => { section => 'env_temp', name => 'tempDescr'},
+					akcp_temp => { section => 'akcp_temp', name => 'hhmsSensorTempDescr'},
+					akcp_hum => { section => 'akcp_hum', name => 'hhmsSensorHumDescr'},
+					cssgroup => { section => 'cssgroup', name => 'CSSGroupDesc'},
+					env_temp => { section => 'csscontent', name => 'CSSContentDesc'}, 
+				};
+				$inventory->description( $target->{ $description_map->{$section}{name} } );
 				$inventory->historic(0);
 				# the above will put data into inventory, so save
 				my ( $op, $error ) = $inventory->save();
@@ -5837,7 +5850,13 @@ sub runServer
 		$S->loadInfo( class => 'device', model => $model, target => $overall_target );    # get cpu load without index
 
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
-		my ($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device_global', path => $path, path_keys => [], data => $overall_target, create => 1 );
+		my ($inventory,$error_message) = $S->nmisng_node->inventory( 
+			concept => 'device_global', 
+			path => $path, 
+			path_keys => [], 
+			data => $overall_target, 
+			create => 1 
+		);
 		$S->nmisng->log->error("Failed to get inventory for device_global, error_message:$error_message") if(!$inventory);
 		# create is set so we should have an inventory here
 		if($inventory)
@@ -5877,7 +5896,13 @@ sub runServer
 
 					# lookup/create inventory before create_update_rrd so it can be passed in
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
-					($inventory,$error_message) = $S->nmisng_node->inventory( concept => 'device', path => $path, path_keys => ['index'], data => $device_target, create => 1 );
+					($inventory,$error_message) = $S->nmisng_node->inventory( 
+						concept => 'device', 
+						path => $path, 
+						path_keys => ['index'], 
+						data => $device_target, 
+						create => 1 
+					);					
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
 
 					if (! ( my $db = $S->create_update_rrd( data => $D, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
@@ -5890,6 +5915,7 @@ sub runServer
 					if($inventory)
 					{
 						$inventory->data($device_target);
+						$inventory->description( $device_target->{hrDeviceDescr} ) if( $device_target->{hrDeviceDescr} );
 						$inventory->historic(0);
 						$inventory->enabled(1);
 
@@ -6141,6 +6167,8 @@ sub runServer
 
 				# make sure the data is set and save
 				$inventory->data( $storage_target );
+				$inventory->description( $storage_target->{hrStorageDescr} ) 
+					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
 				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 				# get stats
@@ -6157,7 +6185,7 @@ sub runServer
 			}
 			elsif( $oldstorage )
 			{
-				NMISNG::Util::logMsg("ERROR failed to retrieve storage info for index=$index, continuing with OLD data!");
+				NMISNG::Util::logMsg("ERROR failed to retrieve storage info for index=$index, $oldstorage->{hrStorageDescr}, continuing with OLD data!");
 				if( $inventory )
 				{
 					$inventory->historic(1);

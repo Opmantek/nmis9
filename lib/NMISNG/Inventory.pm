@@ -263,6 +263,7 @@ sub new
 		my $nodenames = $nmisng->get_node_names(uuid => $args{node_uuid});
 		my $thisnodename = $nodenames->[0] // "UNKNOWN"; # can that happen?
 		$args{description} = "concept $args{concept} on node $thisnodename and server $args{cluster_id}";
+		$args{description} .= " with index ".$data->{index} if( defined($data->{index})&& $data->{index});
 	}
 
 	# set default properties, then update with args
@@ -270,13 +271,30 @@ sub new
 		_enabled => 1,
 		_historic => 0,
 		( map { ("_$_" => $args{$_}) } (qw(concept node_uuid cluster_id data id nmisng
-path path_keys storage description)))
+path path_keys storage subconcepts description lastupdate)))
  										}, $class);
 	# enabled and historic: override defaults only if explicitely given
 	for my $onlyifgiven (qw(enabled historic))
 	{
 		$self->{"_$onlyifgiven"} = ($args{$onlyifgiven}?1:0) if (exists $args{$onlyifgiven});
 	}
+
+	# in the object datasets are stored optimally for adding/checking (hash of hashes)
+	# in the db they are stored optimally for querying/aggregating (array of arrays)
+	my $datasets = $args{datasets} // [];
+	die "datasets must be an array".Carp::longmess() if( ref($datasets) ne 'ARRAY');
+	$self->{_datasets} = {};
+	foreach my $entry (@$datasets)
+	{		
+		my $subconcept = $entry->{subconcept};
+		my $subconcept_datasets = $entry->{datasets};
+		# turn arrays into hashes here, we store as array in db because we can't do much with keys in mongo
+		my %dataset_map = map { $_ => 1 } (@$subconcept_datasets);
+		$self->datasets( subconcept => $subconcept, datasets => \%dataset_map );
+	}
+
+	# make it empty so tests are easier
+	$self->{_queued_pit} = {};
 
 	# in addition to these, there's also on-demand _deleted
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
@@ -618,16 +636,13 @@ sub datasets
 	return "cannot get or set datasets, invalid subconcept argument:$subconcept!"
 		if (!$subconcept); # must be something
 
-	# $self->{_datasets} //= {};
-	# $self->{_datasets}{$subconcept} //= {};
-
 	if ( defined($datasets) )
 	{
 		return "cannot set datasets, invalid newvalue argument!"
 			if (ref($datasets) ne "HASH"); # empty hash is acceptable
 		$self->{_datasets}{$subconcept} = $datasets;
 
-#		print "set datasets for $subconcept to ".Dumper($self->{_datasets}{$subconcept});
+		# print "set datasets for $subconcept to ".Dumper($self->{_datasets}{$subconcept});
 	}	
 	return $self->{_datasets}{$subconcept} // {};
 }
@@ -681,6 +696,13 @@ sub is_new
 	return ($has_id) ? 0 : 1;
 }
 
+sub lastupdate
+{
+	my ($self) = @_;	
+	return $self->{_lastupdate} if(!$self->is_new);
+	return;
+}
+
 # reload this object from db, handy for testing to make sure update has been successful
 # args: none, just needs self's id
 # returns: undef or error message
@@ -694,7 +716,7 @@ sub reload
 		return "no inventory object with id ".$self->id." in database!" if (!$modeldata->count);
 		my $newme = $modeldata->data()->[0];
 
-		# some things are ro/no settergetter, path MUST be set directly, its accessor gets confused by id/is_new!
+		# some things are ro/no settergetter, path MUST be set directly, its accessor gets confused by id/is_new!		
 		for my $copyable (qw(cluster_id node_uuid concept path lastupdate))
 		{
 			$self->{"_$copyable"} = $newme->{$copyable};
@@ -789,6 +811,7 @@ sub save
 		lastupdate => $lastupdate,
 	};
 
+
 	# numify anything in path
 	my $path = $record->{path};
 
@@ -798,9 +821,11 @@ sub save
 	}
 
 	# right now dataset subconcepts are not hooked up to subconcept list
+	$record->{datasets} = [];
 	foreach my $subconcept (keys %{$self->{_datasets}})
 	{
-		$record->{datasets}{$subconcept} = $self->datasets(subconcept => $subconcept);
+		my @datasets = keys %{$self->datasets(subconcept => $subconcept)};
+		push @{$record->{datasets}}, { subconcept => $subconcept, datasets => \@datasets };
 	}
 
 	if ( $self->is_new() )
@@ -838,7 +863,7 @@ sub save
 			my $pit_record = $self->{_queued_pit}{$key};
 			# sending datasets this way so less special case handling required, this is not optimal but shoul
 			# not cause problems either
-			$pit_record->{datasets} = $record->{datasets};
+			$pit_record->{datasets} = $self->{_datasets};
 			# using ourself means id will be added (so new inventories will work, no save first required)
 			my $error = $self->add_timed_data( %$pit_record );
 			if( $error )
@@ -854,7 +879,7 @@ sub save
 		}
 	}
 
-	# TODO: set lastupdate into object?
+	$self->{_lastupdate} = $lastupdate if( $result->{success});
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
 

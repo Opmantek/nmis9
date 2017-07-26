@@ -190,6 +190,28 @@ sub configuration
 	return Clone::clone( $self->{_configuration} );
 }
 
+# remove this node from the db
+sub delete
+{
+	my ($self) = @_;
+
+	if ( !$self->is_new && !$self->{_deleted} && $self->{_id} )
+	{
+		my $result = NMISNG::DB::remove(
+			collection => $self->nmisng->nodes_collection,
+			query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} } ),
+			just_one   => 1
+		);
+		# print STDERR "delete: $result->{error}\n";
+		$self->{_deleted} = 1 if ( $result->{success} );
+		return ( $result->{success}, $result->{error} );
+	}
+	else
+	{
+		return ( undef, "Node did not meet criteria for deleting" );
+	}
+}
+
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
 # filters/arguments:
@@ -303,6 +325,71 @@ sub inventory
 
 	return ( $inventory, undef );
 }
+
+# get all subconcepts and any dataset found within that subconcept
+# returns hash keyed by subconcept which holds hashes { subconcept => $subconcept, datasets => [...], indexed => 0/1 }
+# args: - filters, basically any filter that can be put on an inventory can be used
+#  enough rope to hang yourself here.  special case arg: subconcepts gets mapped into datasets.subconcepts
+sub inventory_datasets_by_subconcept
+{
+	my ( $self, %args ) = @_;
+	my $filters = $args{filters};
+	$args{cluster_id} = $self->cluster_id();
+	$args{node_uuid}  = $self->uuid();
+
+	if( $filters->{subconcepts} )
+	{
+		$filters->{'datasets.subconcept'} = $filters->{subconcepts};
+		delete $filters->{subconcepts};
+	}
+	
+	my $q = NMISNG::DB::get_query(and_part => $filters);	
+	my $path;
+	my $retval;
+
+	# fill in starting args if given
+	my $index = 0;
+	foreach my $arg_name (qw(cluster_id node_uuid concept))
+	{
+		if ( $args{$arg_name} )
+		{
+			$path->[$index] = $args{$arg_name};
+			delete $args{$arg_name};
+		}
+		$index++;
+	}
+	map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );	
+	# print "q".Dumper($q);
+	my @prepipeline = (
+		{ '$unwind' => '$datasets' },
+		{ '$match' => $q },		
+		{ '$unwind' => '$datasets.datasets' },
+		{ '$group' => 
+			{ '_id' => { "subconcept" => '$datasets.subconcept'},  # group by subconcepts
+			"datasets" => { '$addToSet' => '$datasets.datasets'}, # accumulate all unique datasets
+			"indexed" => { '$max' => '$data.index' } # if this != null then it's indexed
+		}}
+  );
+	my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->nmisng->inventory_collection,
+		pre_count_pipeline => \@prepipeline, #use either pipe, doesn't matter
+		allowtempfiles => 1
+	);
+	foreach my $entry (@$entries)
+	{	
+		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;	
+		$entry->{subconcept} = $entry->{_id}{subconcept};
+		delete $entry->{_id};
+		$retval->{ $entry->{subconcept} } = $entry;
+
+	}
+	return ($error) ? $error : $retval;
+}
+
+# sub inventory_indices_by_subconcept
+# {
+
+# }
 
 # create the correct path for an inventory item, calling the make_path
 # method on the class that relates to the specified concept
