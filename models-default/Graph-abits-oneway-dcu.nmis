@@ -1,5 +1,5 @@
 #
-## $Id: Graph-maxbits.nmis,v 8.2 2011/08/28 15:11:48 nmisdev Exp $
+## $Id: Graph-abits.nmis,v 8.3 2011/11/28 05:36:52 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -30,30 +30,32 @@
 # *****************************************************************************
 
 %hash = (
-	'heading' => "Interface $ifDescr Max. Bits/Second Utilisation",
+	'heading' => 'Destination Class Usage BitsPerSec',
 	'title' => {
-		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
-		'short' => '$node: $ifDescr - $length'
+		'standard' => '$node from $datestamp_start to $datestamp_end',
+		'short' => '$node'
 	},
 	'vlabel' => {
-		'standard' => 'Max bps',
-		'split' => 'In(-) Out(+) Max bps'
+		'standard' => 'Avg bps',
 	},
 	'option' => {
 		'standard' => [
-			'DEF:input=$database:ifInOctets:MAX',
-			'DEF:output=$database:ifOutOctets:MAX',
-			'DEF:status=$database:ifOperStatus:AVERAGE',
-			'CDEF:inputBitsSplit=input,8,*,$split,*',
-			'CDEF:inputBits=input,8,*',
-			'CDEF:outputBits=output,8,*',
-			'LINE1:inputBitsSplit#0000ff:In bits/sec',
-			'LINE1:outputBits#00ff00:Out bits/sec',
-			'GPRINT:status:AVERAGE:Avg Availability %1.2lf',
-			'GPRINT:inputBits:MAX:Max In bits/sec %1.2lf',
-			'GPRINT:outputBits:MAX:Max Out bits/sec %1.2lf',
-			'HRULE:$ifSpeed#ff0000',
-			'COMMENT:Interface Speed $speed'
+			'DEF:throughput=$database:Octets:AVERAGE',
+			'CDEF:throughputBits=throughput,8,*',
+			'$GLINE:throughputBits#00BFFF:throughput\\t',
+			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec\\t',
+			'GPRINT:throughputBits:AVERAGE:Average %6.0lf %Sbits/sec\\t',
+			'GPRINT:throughputBits:MAX:Maximum %6.0lf %Sbits/sec\\n',
+
+		],
+		'small' => [
+			'DEF:throughput=$database:Octets:AVERAGE',
+			'CDEF:throughputBits=throughput,8,*',
+			'$GLINE:throughputBits#00BFFF:throughput',
+			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec',
+			'GPRINT:throughputBits:AVERAGE:Avg. %6.0lf %Sbits/sec',
+			'GPRINT:throughputBits:MAX:Max %6.0lf %Sbits/sec\\n',
+
 		]
 	}
 );

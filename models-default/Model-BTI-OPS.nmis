@@ -1,0 +1,307 @@
+#
+## $Id: Model-Generic.nmis,v 8.7 2012/11/26 05:02:35 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      # 'stats' => {
+      #   'common-model' => 'stats'
+      # },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'system' => {
+    'nodegraph' => 'health,response',
+    'nodeType' => 'switch',
+    'nodeModel' => 'BTI-OPS',
+    'nodeVendor' => 'Oplink Communications, Inc.',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
+      }
+    },
+  },
+
+#"opsmEntry"			"1.3.6.1.4.1.19547.1.7.1.2.1"
+#"opsmMfgName"			"1.3.6.1.4.1.19547.1.7.1.2.1.1"
+#"opsmPartNum"			"1.3.6.1.4.1.19547.1.7.1.2.1.2"
+#"opsmSerialNum"			"1.3.6.1.4.1.19547.1.7.1.2.1.3"
+#"opsmMfgDate"			"1.3.6.1.4.1.19547.1.7.1.2.1.4"
+#"opsmCaliDate"			"1.3.6.1.4.1.19547.1.7.1.2.1.5"
+#"opsmHardwareVer"			"1.3.6.1.4.1.19547.1.7.1.2.1.6"
+#"opsmVendorID"			"1.3.6.1.4.1.19547.1.7.1.2.1.7"
+#"opsmModuleType"			"1.3.6.1.4.1.19547.1.7.1.2.1.8"
+#"opsmFirmwareVer"			"1.3.6.1.4.1.19547.1.7.1.2.1.9"
+#"opsmReset"			"1.3.6.1.4.1.19547.1.7.1.2.1.10"
+
+
+#OPLINK-BTI-OPS-MIB::opsmProtectionMode.1.1.1 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmProtectionMode.1.1.2 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmRevertiveSetting.1.1.1 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmRevertiveSetting.1.1.2 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmDiffSwitchSetting.1.1.1 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmDiffSwitchSetting.1.1.2 = INTEGER: 0
+#OPLINK-BTI-OPS-MIB::opsmDiffAlarmThreshold.1.1.1 = INTEGER: 1.0
+#OPLINK-BTI-OPS-MIB::opsmDiffAlarmThreshold.1.1.2 = INTEGER: 1.0
+#OPLINK-BTI-OPS-MIB::opsmDiffSwitchThreshold.1.1.1 = INTEGER: 2.0
+#OPLINK-BTI-OPS-MIB::opsmDiffSwitchThreshold.1.1.2 = INTEGER: 2.0
+#OPLINK-BTI-OPS-MIB::opsmInherentDiffOffset.1.1.1 = INTEGER: .0
+#OPLINK-BTI-OPS-MIB::opsmInherentDiffOffset.1.1.2 = INTEGER: .0
+#OPLINK-BTI-OPS-MIB::opsmWTRTime.1.1.1 = INTEGER: 5
+#OPLINK-BTI-OPS-MIB::opsmWTRTime.1.1.2 = INTEGER: 5
+#OPLINK-BTI-OPS-MIB::opsmSwitchStatus.1.1.1 = INTEGER: 2
+#OPLINK-BTI-OPS-MIB::opsmSwitchStatus.1.1.2 = INTEGER: 2
+#OPLINK-BTI-OPS-MIB::opsmSwitchPosition.1.1.1 = INTEGER: 1
+#OPLINK-BTI-OPS-MIB::opsmSwitchPosition.1.1.2 = INTEGER: 1
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmThrPathP.1.1.1 = INTEGER: -25.0
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmThrPathP.1.1.2 = INTEGER: -25.0
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmThrPathS.1.1.1 = INTEGER: -25.0
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmThrPathS.1.1.2 = INTEGER: -25.0
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmHys.1.1.1 = INTEGER: 1.0
+#OPLINK-BTI-OPS-MIB::opsmInputLosAlarmHys.1.1.2 = INTEGER: 1.0
+#OPLINK-BTI-OPS-MIB::opsmInputPowerPathP.1.1.1 = INTEGER: -27
+#OPLINK-BTI-OPS-MIB::opsmInputPowerPathP.1.1.2 = INTEGER: -600
+#OPLINK-BTI-OPS-MIB::opsmInputPowerPathS.1.1.1 = INTEGER: -30
+#OPLINK-BTI-OPS-MIB::opsmInputPowerPathS.1.1.2 = INTEGER: -600
+#OPLINK-BTI-OPS-MIB::opsmSwitchCount.1.1.1 = INTEGER: 22
+#OPLINK-BTI-OPS-MIB::opsmSwitchCount.1.1.2 = INTEGER: 15
+
+#"opsmProtectionMode"			"1.3.6.1.4.1.19547.1.7.1.2.1.20"
+#"opsmRevertiveSetting"			"1.3.6.1.4.1.19547.1.7.1.2.1.21"
+#"opsmDiffSwitchSetting"			"1.3.6.1.4.1.19547.1.7.1.2.1.22"
+#"opsmDiffAlarmThreshold"			"1.3.6.1.4.1.19547.1.7.1.2.1.23"
+#"opsmDiffSwitchThreshold"			"1.3.6.1.4.1.19547.1.7.1.2.1.24"
+#"opsmInherentDiffOffset"			"1.3.6.1.4.1.19547.1.7.1.2.1.25"
+#"opsmWTRTime"			"1.3.6.1.4.1.19547.1.7.1.2.1.26"
+#"opsmSwitchStatus"			"1.3.6.1.4.1.19547.1.7.1.2.1.27"
+#"opsmSwitchPosition"			"1.3.6.1.4.1.19547.1.7.1.2.1.28"
+#"opsmInputLosAlarmThrPathP"			"1.3.6.1.4.1.19547.1.7.1.2.1.40"
+#"opsmInputLosAlarmThrPathS"			"1.3.6.1.4.1.19547.1.7.1.2.1.41"
+#"opsmInputLosAlarmHys"			"1.3.6.1.4.1.19547.1.7.1.2.1.42"
+#"opsmInputPowerPathP"			"1.3.6.1.4.1.19547.1.7.1.2.1.43"
+#"opsmInputPowerPathS"			"1.3.6.1.4.1.19547.1.7.1.2.1.44"
+#"opsmSwitchCount"			"1.3.6.1.4.1.19547.1.7.1.2.1.45"
+
+
+  'systemHealth' => {
+    'sections' => 'OPS_Status',
+    'sys' => {
+      'OPS_Status' => {
+        'indexed' => 'opsmProtectionMode',
+        'index_oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.20',        
+        'index_regex' => '\.(\d+\.\d+\.\d+)$',
+        'headers' => 'index,opsmProtectionMode,opsmRevertiveSetting,opsmDiffSwitchSetting,opsmDiffAlarmThreshold,opsmDiffSwitchThreshold,opsmInherentDiffOffset,opsmWTRTime,opsmSwitchStatus,opsmSwitchPosition,opsmInputLosAlarmThrPathP,opsmInputLosAlarmThrPathS,opsmInputLosAlarmHys,opsmInputPowerPathP,opsmInputPowerPathS,opsmSwitchCount',
+        'snmp' => {
+          'opsmProtectionMode' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.20',
+            'replace' => {
+              '0' => 'clear',
+              '1' => 'force to primary',
+              '2' => 'force to secondary',
+            },
+            'title' => 'ProtectionMode'
+          },
+          'opsmRevertiveSetting' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.21',
+            'replace' => {
+              '0' => 'Non-Revertive',
+              '1' => 'Revertive',
+            },
+            'title' => 'RevertiveSetting'
+          },
+          'opsmDiffSwitchSetting' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.22',
+            'replace' => {
+              '0' => 'Disable',
+              '1' => 'Enable',
+            },
+            'title' => 'DiffSwitchSetting'
+          },
+          'opsmDiffAlarmThreshold' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.23',
+            'title' => 'DiffAlarmThreshold'
+          },
+          'opsmDiffSwitchThreshold' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.24',
+            'title' => 'DiffSwitchThreshold'
+          },
+          'opsmInherentDiffOffset' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.25',
+            'title' => 'InherentDiffOffset'
+          },
+          'opsmWTRTime' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.26',
+            'title' => 'WTRTime'
+          },
+          'opsmSwitchStatus' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.27',
+            'replace' => {
+              '0' => 'IDLE',
+              '1' => 'WTR',
+              '2' => 'Auto',
+              '3' => 'SF_ALL',
+              '4' => 'N/A',
+              '5' => 'Forced',
+            },              
+            'title' => 'SwitchStatus'
+          },
+          'opsmSwitchPosition' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.28',
+            'replace' => {
+              '0' => 'Secondary',
+              '1' => 'Primary',
+            },
+            'title' => 'SwitchPosition'
+          },
+          'opsmInputLosAlarmThrPathP' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.40',
+            'title' => 'InputLosAlarmThrPathP'
+          },
+          'opsmInputLosAlarmThrPathS' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.41',
+            'title' => 'InputLosAlarmThrPathS'
+          },
+          'opsmInputLosAlarmHys' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.42',
+            'title' => 'InputLosAlarmHys'
+          },
+          'opsmInputPowerPathP' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.43',
+            'title' => 'InputPowerPathP'
+          },
+          'opsmInputPowerPathS' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.44',
+            'title' => 'InputPowerPathS'
+          },
+          'opsmSwitchCount' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.45',
+            'title' => 'SwitchCount'
+          },
+        }
+      },
+    },
+    'rrd' => {
+      'OPS_Status' => {
+        'indexed' => 'true',
+        'graphtype' => 'ops-status',
+        'snmp' => {
+          'opsmSwitchStatus' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.27',
+            'replace' => {
+              '0' => 'IDLE',
+              '1' => 'WTR',
+              '2' => 'Auto',
+              '3' => 'SF_ALL',
+              '4' => 'N/A',
+              '5' => 'Forced',
+            },
+            'option' => 'nosave',              
+            'title' => 'SwitchStatus'
+          },
+          'opsmSwitchPosition' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.28',
+            'replace' => {
+              '0' => 'Secondary',
+              '1' => 'Primary',
+            },              
+            'option' => 'nosave',              
+            'title' => 'SwitchPosition'
+          },
+          'opsmInputLosAlarmThrPathP' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.40',
+            'option' => 'nosave',              
+            'title' => 'InputLosAlarmThrPathP'
+          },
+          'opsmInputLosAlarmThrPathS' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.41',
+            'title' => 'InputLosAlarmThrPathS'
+          },
+          'opsmInputLosAlarmHys' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.42',
+            'option' => 'nosave',              
+            'title' => 'InputLosAlarmHys'
+          },
+          'opsmInputPowerPathP' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.43',
+            'option' => 'nosave',              
+            'title' => 'InputPowerPathP'
+          },
+          'opsmInputPowerPathS' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.44',
+            'option' => 'nosave',              
+            'title' => 'InputPowerPathS'
+          },
+          'opsmSwitchCount' => {
+            'oid' => '1.3.6.1.4.1.19547.1.7.1.2.1.45',
+            'option' => 'nosave',              
+            'title' => 'SwitchCount'
+          },
+        }
+      },
+    },
+  },
+);

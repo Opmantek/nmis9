@@ -1,0 +1,201 @@
+#
+## $Id: Model-Generic.nmis,v 8.7 2012/11/26 05:02:35 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      # 'stats' => {
+      #   'common-model' => 'stats'
+      # },
+      'event' => {
+        'common-model' => 'event'
+      }
+    }
+  },
+  'alerts' => {
+    'ifTable' => {
+      'ifOperStatus' => {
+        'element' => 'index',
+        'event' => 'Interface Down',
+        'level' => 'Major',
+        'test' => 'CVAR1=ifOperStatus;$CVAR1 ne "up"',
+        'type' => 'test',
+        'unit' => '',
+      }
+    },
+  },
+  'system' => {
+    'nodegraph' => 'health,response',
+    'nodeType' => 'switch',
+    'nodeModel' => 'BTI-7800',
+    'nodeVendor' => 'BTI Photonic Systems',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          }
+        }
+      }
+    },
+  },
+  'systemHealth' => {
+    'sections' => 'ifTable',
+    'sys' => {
+      'ifTable' => {
+        'indexed' => 'ifIndex',
+        'headers' => 'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
+        'snmp' => {
+          'ifIndex' => {
+            'oid' => 'ifIndex',
+            'title' => 'Interface Index'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr',
+            'title' => 'Name (ifDescr)'
+          },
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)',
+            'replace' => {
+              '6' => 'ethernetCsmacd',
+              '37' => 'atm',
+              '135' => 'l2vlan',
+              '194' => 'atmVciEndPt',
+              '195' => 'opticalChannel',
+              '209' => 'bridge',
+              '244' => 'wwanPP2',
+              '249' => 'aluELP',
+              '250' => 'gpon',
+              '260' => 'otnOdu',
+              '261' => 'otnOtu',
+            },              
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant',
+              'noSuchInstance' => 'N/A',
+            },
+            'oid' => 'ifAdminStatus',
+            'title' => 'Admin Status'
+          },
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant',
+              'noSuchInstance' => 'N/A',
+            },
+            'oid' => 'ifOperStatus',
+            'title' => 'Oper Status'
+          },
+          'ifName' => {
+            'oid' => 'ifName',
+            'title' => 'Name (ifName)'
+          },
+        }
+      },
+    },
+    'rrd' => {
+      'ifTable' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus',
+            'option' => 'nosave'
+          },
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '4' => 'unknown',
+              '1' => 'up',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'nosave'
+          },
+        }
+      },
+    },
+  },
+);

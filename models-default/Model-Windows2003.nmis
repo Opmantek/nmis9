@@ -109,17 +109,14 @@
             'oid' => 'sysContact',
             'title' => 'Contact'
           },
-          # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
-          #              has been running for, not the uptime of the box.  hrSystemUpTime
-          #              is the same as 'uptime' on the bash command line.
-          'sysUpTime' => {
+          # hrSystemUptime was not reliable on Windows 2003, sysUpTime is more accurate.
+          'hrSystemUptime' => {
             'oid' => 'hrSystemUptime',
-            'title' => 'Uptime',
-            'calculate' => 'return int($r/10);',
+            'title' => 'HR Uptime',
           },
-          'snmpUpTime' => {
+          'sysUpTime' => {
             'oid' => 'sysUpTime',
-            'title' => 'SNMP_Uptime',
+            'title' => 'Uptime',
 					},
         },
 

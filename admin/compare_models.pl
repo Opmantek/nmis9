@@ -8,7 +8,7 @@ use POSIX;
 my $script = basename($0);
 
 my $usage = "Usage: $script <current models dir> <new models dir>
-e.g. $script /usr/local/nmis8/models /usr/local/nmis8/models-install
+e.g. $script /usr/local/nmis9/models-custom /usr/local/nmis9/models-default
 
 Exit code: 0 if no differences, 1 if differences were found,
 255 on internal errors.\n\n";
@@ -24,7 +24,7 @@ unlink($difflogfile) if (-f $difflogfile);
 # try for the difftool in the same admin dir as this wrapper
 # fall back to default location
 my $difftool = dirname($0)."/diffconfigs.pl";
-$difftool = "/usr/local/nmis8/admin/diffconfigs.pl" if (!-x $difftool);
+$difftool = "/usr/local/nmis9/admin/diffconfigs.pl" if (!-x $difftool);
 
 die "Error: cannot find diffconfigs.pl\n" if (!-x $difftool);
 

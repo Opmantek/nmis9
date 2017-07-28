@@ -39,7 +39,10 @@
   		},
   		'event' => {
   			'common-model' => 'event'
-  		}
+  		},
+      'adsl' => {
+        'common-model' => 'ADSL'
+      },
   	}
   },
   'system' => {
@@ -191,7 +194,7 @@
   	},
   },
   'systemHealth' => {
-    'sections' => 'cpuUtil',
+    'sections' => 'cpuUtil,ADSL_Physical,ADSL_Channel',
     'sys' => {
       'cpuUtil' => {
         'indexed' => 'cpuUtil',

@@ -46,7 +46,13 @@
       },
       'event' => {
         'common-model' => 'event'
-      }
+      },
+      'adsl' => {
+        'common-model' => 'ADSL'
+      },
+      'ifStack' => {
+        'common-model' => 'ifStack'
+      },
     }
   },
   'custom' => {
@@ -57,6 +63,9 @@
       'ifTableLastChange' => 'true',
       'skipIpAddressTableOnSingle' => 'true',
     }
+  },
+  'systemHealth' => {
+    'sections' => 'ADSL_Physical,ADSL_Channel,ifStack',
   },
   'system' => {
     'nodeVendor' => 'Ascend Communications Inc.',

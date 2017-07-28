@@ -28,6 +28,10 @@
       'jnxOperations' => {
         'common-model' => 'Juniper-jnxOperations'
       },
+      'jnxCoS' => {
+      ### this section is off by default as controlled by model_policy.nmis
+        'common-model' => 'Juniper-jnxCoS'
+      },
     }
   },
   'interface' => {
@@ -426,8 +430,94 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'bgpPeer,ospfNbr,jnxOperations,lldp,lldpLocal,entityMib',
+    'sections' => 'bgpPeer,ospfNbr,jnxOperations,lldp,lldpLocal,entityMib,Juniper_CoS,jnxDestinationClassUsage,jnxSourceClassUsage',
+###  Note:  the following sections are turned off by model_policy.nmis by default Juniper_CoS, jnxDestinationClassUsage, jnxSourceClassUsage
+
+     
+   'rrd' => {
+   ###  This section is OFF by default as controlled by model_policy.nmis
+      'jnxDestinationClassUsage' => {
+        'graphtype' => 'abits-oneway-dcu',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+        'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+        'snmp' => {
+          'Octets' => {
+            'oid' => '1.3.6.1.4.1.2636.3.6.2.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxDcuStatsBytes'
+             },
+        },
+     },
+     
+     'jnxSourceClassUsage' => {
+     ###  This section is OFF by default as controlled by model_policy.nmis
+        'graphtype' => 'abits-oneway-scu',
+        'indexed' => 'true',
+        'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+        'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+        'snmp' => {
+          'Octets' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.5',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'jnxScuStatsBytes'
+          },
+        },
+     },
   },
+    
+    'sys' => {
+        'jnxDestinationClassUsage' => {
+	###  This section is OFF by default as controlled by model_policy.nmis
+            'headers' =>'jnxDcuStatsClName,ifDescr,jnxXcuStatsBytes',
+            'index_oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+            'index_regex' => '\.2636\.3\.6\.2\.1\.6\.(.+)$',
+            'indexed' => 'jnxDcuStatsClName',
+            'snmp' => {               
+              'jnxDcuStatsClName' => {
+                'oid' => '1.3.6.1.4.1.2636.3.6.2.1.6',
+                'sysObjectName' => 'jnxDcuStatsClName',
+                'title' => 'Class Name'
+              },
+              'jnxXcuStatsBytes' => {
+                'oid' => '1.3.6.1.4.1.2636.3.6.2.1.5',
+                'sysObjectName' => 'jnxDcuStatsBytes',
+                'title' => 'Total Bytes',
+              },
+              'ifDescr' => {
+                'title' => 'Local Interface'
+              }, 
+            },
+        },
+
+    'jnxSourceClassUsage' => {
+    ###  This section is OFF by default as controlled by model_policy.nmis
+        'headers' =>'jnxScuStatsClName,ifDescr,jnxXcuStatsBytes',
+        'index_oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.6',
+        'index_regex' => '\.2636\.3\.16\.1\.1\.1\.6\.(.+)$',
+        'indexed' => 'jnxScuStatsClName',
+        'snmp' => {
+            'ifDescr' => {
+            'title' => 'Local Interface'
+          },              
+          'jnxScuStatsClName' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.6',
+            'sysObjectName' => 'jnxScuStatsClName',
+            'title' => 'Class Name'
+          },
+          'jnxXcuStatsBytes' => {
+            'oid' => '1.3.6.1.4.1.2636.3.16.1.1.1.5',
+            'sysObjectName' => 'jnxScuStatsBytes',
+            'title' => 'Total Bytes',
+          },
+        },
+    },
+     
+    }, 
+  },
+  
+  
+  
   'stats' => {
   	'type' => {
       'health' => [

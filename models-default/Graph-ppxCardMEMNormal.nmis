@@ -1,0 +1,96 @@
+#
+## $Id: Graph-cpu.nmis,v 8.2 2011/08/28 15:11:46 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node $length'
+	},
+	'vlabel' => {
+		'standard' => 'Normal Memory Usage.'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:memCapNormalRam=$database:memCapNormalRam:AVERAGE',
+			'DEF:memUsageNormalRam=$database:memUsageNormalRam:AVERAGE',
+			'DEF:memAvgNormalRam=$database:memAvgNormalRam:AVERAGE',
+			'DEF:memMinNormalRam=$database:memMinNormalRam:AVERAGE',
+			'DEF:memMaxNormalRam=$database:memMaxNormalRam:AVERAGE',
+
+			'LINE1:memCapNormalRam#00CED1:Capacity Normal RAM',
+			'GPRINT:memCapNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memCapNormalRam:MAX:Max %4.0lf\\n',
+			
+			'LINE1:memUsageNormalRam#4682B4:Usage Normal RAM',
+			'GPRINT:memUsageNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memUsageNormalRam:MAX:Max %4.0lf\\n',
+
+			'LINE1:memAvgNormalRam#FF82B4:Avg Normal RAM',
+			'GPRINT:memAvgNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memAvgNormalRam:MAX:Max %4.0lf\\n',
+
+			'LINE1:memMinNormalRam#46FFB4:Min Normal RAM',
+			'GPRINT:memMinNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memMinNormalRam:MAX:Max %4.0lf\\n',
+			
+			'LINE1:memMaxNormalRam#4682FF:Max Normal RAM',
+			'GPRINT:memMaxNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memMaxNormalRam:MAX:Max %4.0lf\\n'			
+		],
+		'small' => [
+			'DEF:memCapNormalRam=$database:memCapNormalRam:AVERAGE',
+			'DEF:memUsageNormalRam=$database:memUsageNormalRam:AVERAGE',
+			'DEF:memAvgNormalRam=$database:memAvgNormalRam:AVERAGE',
+			'DEF:memMinNormalRam=$database:memMinNormalRam:AVERAGE',
+			'DEF:memMaxNormalRam=$database:memMaxNormalRam:AVERAGE',
+
+			'LINE1:memCapNormalRam#00CED1:Capacity Normal RAM',
+			'GPRINT:memCapNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memCapNormalRam:MAX:Max %4.0lf\\n',
+			
+			'LINE1:memUsageNormalRam#4682B4:Usage Normal RAM',
+			'GPRINT:memUsageNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memUsageNormalRam:MAX:Max %4.0lf\\n',
+
+			'LINE1:memAvgNormalRam#FF82B4:Avg Normal RAM',
+			'GPRINT:memAvgNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memAvgNormalRam:MAX:Max %4.0lf\\n',
+
+			'LINE1:memMinNormalRam#46FFB4:Min Normal RAM',
+			'GPRINT:memMinNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memMinNormalRam:MAX:Max %4.0lf\\n',
+			
+			'LINE1:memMaxNormalRam#4682FF:Max Normal RAM',
+			'GPRINT:memMaxNormalRam:AVERAGE:Avg %4.0lf',
+			'GPRINT:memMaxNormalRam:MAX:Max %4.0lf\\n'			
+    ]
+	}
+);

@@ -1,34 +1,3 @@
-#
-## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (.NMIS.).
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#    
-# *****************************************************************************
-
 %hash = (
   '-common-' => {
     'class' => {
@@ -103,8 +72,22 @@
 #    ::= { mtxrWlApEntry 3 }
   
   'systemHealth' => {
-    'sections' => 'AccessPoint,Registration',
+    'sections' => 'AccessPoint,Registration,hrProcessorLoad',
     'sys' => {
+      'hrProcessorLoad' => {
+        'headers' => 'hrDeviceDescr',
+        'indexed' => 'hrDeviceDescr',
+        'snmp' => {
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr',
+            'title' => 'Device Description'
+          },
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'title' => 'Processor Load'
+          }
+        }
+      },
       'AccessPoint' => {
         'headers' => 'SSID,BSSID,Frequency,Band,ClientCount,AuthClientCount',
         'indexed' => 'SSID',
@@ -236,6 +219,16 @@
 #"mtxrWlRtabTxStrength"			"1.3.6.1.4.1.14988.1.1.1.2.1.19"
          
     'rrd' => {
+      'hrProcessorLoad' => {
+        'graphtype' => 'hrprocload',
+        'indexed' => 'true',
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'option' => 'gauge,0:U'
+          },
+        },
+      },
       'AccessPoint' => {
         'graphtype' => 'LinkRateAp',
         'indexed' => 'true',
@@ -335,12 +328,24 @@
     }, #rrd
   },  
   'system' => {
-    'nodegraph' => 'health,response,env-temp,systemvoltage',
+    'nodegraph' => 'health,response,env-temp,systemvoltage,hrmem,mikrotikCpu',
     'nodeModel' => 'MikroTik',
     'nodeType' => 'router',
     'rrd' => {
+      'mikrotikCpu' => {
+        #'indexed' => 'true',
+        'graphtype' => 'mikrotikCpu',
+        'snmp' => {
+          'mikrotikCpu' => {
+            #'oid' => '1.3.6.1.4.1.2021.11.10',
+            'oid' => 'ssCpuSystem',
+            'option' => 'gauge,0:100',
+          },
+        },
+      },
       'mikrotik' => {
-        'control' => '$sysDescr !~ /RB951G/',
+         # this control needs to be verified to determine which devices DO NOT support systemvoltage, RB951G|RB433AH definitely do not.
+        'control' => '$sysDescr !~ /RB951G|RB433AH|RB\d+/',
         'graphtype' => 'env-temp,systemvoltage',
         'snmp' => {
           'systemvoltage' => {
@@ -656,6 +661,33 @@
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
+    }
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
     }
   },
 
