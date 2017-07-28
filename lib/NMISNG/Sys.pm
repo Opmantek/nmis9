@@ -1676,7 +1676,6 @@ sub prep_extras_with_catchalls
 		$extras->{$key} = $data->{$key};
 	}
 	$extras->{InstalledModems} //= 0;
-
 	# if I am wanting a storage thingy, then lets populate the variables I need.
 	if ( $index ne ''
 		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
@@ -1700,18 +1699,22 @@ sub prep_extras_with_catchalls
 		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1);
 		if( $interface_inventory )
 		{
+
 			# no fallback to info section as interface update is running
 			# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
+			# DON"T bring in ifSpeed directly, it does not merge nicely with ifSpeedIn/Out
 			$data = $interface_inventory->data();
-			foreach my $key (qw(ifAlias Description ifDescr ifType ifSpeed))
+			foreach my $key (qw(ifAlias Description ifDescr ifType))
 			{
-				$extras->{$key} = $data->{$key}
+				$extras->{$key} = $interface_inventory->$key();
 			}
 			$extras->{ifDescr} = NMISNG::Util::convertIfName( $extras->{ifDescr} );
-			$extras->{ifMaxOctets} = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 8 ) : 'U';
-			$extras->{maxBytes}    = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 4 ) : 'U';
-			$extras->{maxPackets}  = ( $extras->{ifSpeed} ne 'U' ) ? int( $extras->{ifSpeed} / 50 ) : 'U';
-
+			$extras->{ifMaxOctets} = $interface_inventory->max_octets();
+			$extras->{maxBytes}    = $interface_inventory->max_bytes();
+			$extras->{maxPackets}  = $interface_inventory->max_packets();
+			$extras->{ifSpeedIn}   = $interface_inventory->ifSpeedIn();
+			$extras->{ifSpeedOut}  = $interface_inventory->ifSpeedOut();
+			$extras->{speed}       = $interface_inventory->speed();
 		}
 	}
 	else
@@ -1744,6 +1747,12 @@ sub parseString
 	my ( $str, $indx, $itm, $sect, $type, $extras, $eval ) = @args{"string", "index", "item", "sect", "type", "extras", "eval"};
 
 	NMISNG::Util::dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
+
+	# if there is no eval and no variables for substiting are found return
+	if( !$eval && $str !~ /\$/ )
+	{
+		return $str;
+	}
 
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
@@ -1780,7 +1789,6 @@ sub parseString
 
 	$extras //= {};
 	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
-
 	NMISNG::Util::dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 
 	# massage the string and replace any available variables from extras,
@@ -1801,6 +1809,7 @@ sub parseString
 			if ( $str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g )
 			{
 				NMISNG::Util::dbg( "substituted '$maybe', str before '$presubst', after '$str'", 3 );
+				# print "substituted '$maybe', str before '$presubst', after '$str'\n";
 			}
 		}
 	}
