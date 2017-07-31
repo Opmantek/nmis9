@@ -116,6 +116,8 @@ sub rrdDraw
 	$S->init(name=>$nodename, snmp=>'false');
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
+	my $subconcept = $S->loadGraphTypeTable->{$graphtype};
+
 	### 2012-02-06 keiths, handling default graph length
 	# default is hours!
 	my $graphlength = $C->{graph_amount};
@@ -136,9 +138,10 @@ sub rrdDraw
 	my $graphret;
 	my $xs;
 	my $ys;
-	my @options;
-	my @opt;
-	my $db;
+	my (@opt,											# rrd options, pre-expansion
+		@finalopts, 							# rrd optiosn, expanded
+		$db												# or the no-strict stuff fails...
+		);
 
 	if ($graphtype eq 'metrics') 
 	{
@@ -242,15 +245,15 @@ sub rrdDraw
 	}
 	my $extras = {
 		node => $nodename,
-		datestamp_start => OMK::Common::returnDateStamp($start),
-		datestamp_end => OMK::Common::returnDateStamp($end),
-		datestamp => OMK::Common::returnDateStamp(time),
+		datestamp_start => NMISNG::Util::returnDateStamp($start),
+		datestamp_end => NMISNG::Util::returnDateStamp($end),
+		datestamp => NMISNG::Util::returnDateStamp(time),
 		database => $db,
 		length => $length,
 		group => $grp,
 		itm => $item,
-		split => OMK::Common::getBool($C->{graph_split}) ? -1 : 1 ,
-		GLINE => OMK::Common::getBool($C->{graph_split}) ? "AREA" : "LINE1",
+		split => NMISNG::Util::getbool($C->{graph_split}) ? -1 : 1 ,
+		GLINE => NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1",
 		weight => 0.983,
 	};
 	# escape any : chars which might be in the database name e.g handling C: in the RPN
@@ -272,11 +275,11 @@ sub rrdDraw
 		# buffer stdout to avoid Apache timing out on the header tag while waiting for the PNG image stream from RRDs
 		select((select(STDOUT), $| = 1)[0]);
 		print "Content-type: image/png\n\n";
-		($graphret,$xs,$ys) = RRDs::graph('-', @options);
+		($graphret,$xs,$ys) = RRDs::graph('-', @finalopts);
 		select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout
 	}
 	else {
-		($graphret,$xs,$ys) = RRDs::graph($filename, @options);
+		($graphret,$xs,$ys) = RRDs::graph($filename, @finalopts);
 	}
 
 	if ($ERROR = RRDs::error()) 
