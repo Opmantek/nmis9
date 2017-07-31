@@ -116,6 +116,8 @@ sub rrdDraw
 	$S->init(name=>$nodename, snmp=>'false');
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
+	my $subconcept = $S->loadGraphTypeTable->{$graphtype};
+
 	### 2012-02-06 keiths, handling default graph length
 	# default is hours!
 	my $graphlength = $C->{graph_amount};
@@ -136,9 +138,10 @@ sub rrdDraw
 	my $graphret;
 	my $xs;
 	my $ys;
-	my @options;
-	my @opt;
-	my $db;
+	my (@opt,											# rrd options, pre-expansion
+		@finalopts, 							# rrd optiosn, expanded
+		$db												# or the no-strict stuff fails...
+		);
 
 	if ($graphtype eq 'metrics') 
 	{
@@ -232,68 +235,38 @@ sub rrdDraw
 	}
 
 	# define length of graph
-	my $l;
+	my $length;
 	if (($end - $start) < 3600) {
-		$l = int(($end - $start) / 60) . " minutes";
+		$length = int(($end - $start) / 60) . " minutes";
 	} elsif (($end - $start) < (3600*48)) {
-		$l = int(($end - $start) / (3600)) . " hours";
+		$length = int(($end - $start) / (3600)) . " hours";
 	} else {
-		$l = int(($end - $start) / (3600*24)) . " days";
+		$length = int(($end - $start) / (3600*24)) . " days";
 	}
+	my $extras = {
+		node => $nodename,
+		datestamp_start => NMISNG::Util::returnDateStamp($start),
+		datestamp_end => NMISNG::Util::returnDateStamp($end),
+		datestamp => NMISNG::Util::returnDateStamp(time),
+		database => $db,
+		length => $length,
+		group => $grp,
+		itm => $item,
+		split => NMISNG::Util::getbool($C->{graph_split}) ? -1 : 1 ,
+		GLINE => NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1",
+		weight => 0.983,
+	};
+	# escape any : chars which might be in the database name e.g handling C: in the RPN
+	$extras->{database} =~ s/:/\\:/g;
 
+	foreach my $str (@opt) 
 	{
-		# scalars must be global
-		no strict;									# *shudder*
-		if ($intf ne "") 
-		{
-			# this is very likely to fail
-			NMISNG::Util::TODO("Find a way to only load this if it's needed!");
-			my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 1 );
-			my $data = ($inventory) ? $inventory->data : {};
-
-			# indx is used by graphs so it needs setting
-			$indx = $intf;
-			$ifDescr = $data->{ifDescr};
-			$ifSpeed = $data->{ifSpeed};
-			$ifSpeedIn = $data->{ifSpeed};
-			$ifSpeedOut = $data->{ifSpeed};
-			$ifSpeedIn = $data->{ifSpeedIn} if $data->{ifSpeedIn};
-			$ifSpeedOut = $data->{ifSpeedOut} if $data->{ifSpeedOut};
-			if ($ifSpeed eq "auto" ) {
-				$ifSpeed = 10000000;
-			}
-
-			if ( $data->{ifSpeedIn} and $data->{ifSpeedOut} ) {
-				$speed = "IN\\: ". NMISNG::Util::convertIfSpeed($ifSpeedIn) ." OUT\\: ". NMISNG::Util::convertIfSpeed($ifSpeedOut);
-			}
-			else {
-				$speed = NMISNG::Util::convertIfSpeed($ifSpeed);
-			}
-		}
-		$node = $catchall_data->{name};
-		$datestamp_start = NMISNG::Util::returnDateStamp($start);
-		$datestamp_end = NMISNG::Util::returnDateStamp($end);
-		$datestamp = NMISNG::Util::returnDateStamp(time);
-		$database = $db;
-		
-		# escape any : chars which might be in the database name e.g handling C: in the RPN
-		$database =~ s/:/\\:/g;
-		
-		$group = $grp;
-		$itm = $item;
-		$length = $l;
-		$split = NMISNG::Util::getbool($C->{graph_split}) ? -1 : 1 ;
-		$GLINE = NMISNG::Util::getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
-		$weight = 0.983;
-
-		foreach my $str (@opt) {
-			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \'\$$1\' ";}}egx;
-			if ($str =~ /ERROR/) {
-				NMISNG::Util::logMsg("ERROR in expanding variables, $str");
-				return;
-			}
-			push @options,$str;
-		}
+	# each call to this funciton modifies the extras, not sure if that matters but 
+		# give a copy for now to make sure
+		# should add a way of telling the function it doesn't need to do any extra figuring
+		my $extras_copy = { %$extras };
+		my $parsed = $S->parseString( string => $str, index => $intf, item => $item, sect => $subconcept, extras => $extras_copy, eval => 0 );
+		push @finalopts,$parsed;
 	}
 
 	# Do the graph!
@@ -302,11 +275,11 @@ sub rrdDraw
 		# buffer stdout to avoid Apache timing out on the header tag while waiting for the PNG image stream from RRDs
 		select((select(STDOUT), $| = 1)[0]);
 		print "Content-type: image/png\n\n";
-		($graphret,$xs,$ys) = RRDs::graph('-', @options);
+		($graphret,$xs,$ys) = RRDs::graph('-', @finalopts);
 		select((select(STDOUT), $| = 0)[0]);			# unbuffer stdout
 	}
 	else {
-		($graphret,$xs,$ys) = RRDs::graph($filename, @options);
+		($graphret,$xs,$ys) = RRDs::graph($filename, @finalopts);
 	}
 
 	if ($ERROR = RRDs::error()) 

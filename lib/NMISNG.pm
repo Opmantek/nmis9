@@ -228,11 +228,45 @@ sub get_inventory_model
 	my ( $self, %args ) = @_;
 
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
-	my $path;
+
+	my $q = $self->get_inventory_model_query( %args );
+	
+	my $model_data = [];
+	if ( $args{paginate} )
+	{
+		# fudge up a dummy result to make it reflect the total number
+		my $count = NMISNG::DB::count( collection => $self->_inventory_collection, query => $q );
+		$model_data->[$count - 1] = {} if ($count);
+	}
+	# print "get_inventory_model: q:".Dumper($q);
+	my $entries = NMISNG::DB::find(
+		collection => $self->inventory_collection,
+		query      => $q,
+		sort       => $args{sort},
+		limit      => $args{limit},
+		skip       => $args{skip},
+		fields_hash => $args{fields_hash},
+	);
+
+	my $index = 0;
+	while ( my $entry = $entries->next )
+	{
+		$model_data->[$index++] = $entry;
+	}
+
+	my $model_data_object = NMISNG::ModelData->new( model_name => "inventory", data => $model_data );
+	return $model_data_object;
+}
+
+# this does not need to be a member function, could be 'static'
+sub get_inventory_model_query
+{
+	my ($self,%args) = @_;
 
 	# start with a plain query; with _id that'll be enough already
 	my %queryinputs = (	'_id' => $args{_id} );    # this is a bit inconsistent
 	my $q = NMISNG::DB::get_query( and_part => \%queryinputs );
+	my $path;
 
 	# there is no point in adding any other filters if _id is specified
 	if( !$args{_id} )
@@ -262,31 +296,7 @@ sub get_inventory_model
 			map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
 		}
 	}
-	my $model_data = [];
-	if ( $args{paginate} )
-	{
-		# fudge up a dummy result to make it reflect the total number
-		my $count = NMISNG::DB::count( collection => $self->_inventory_collection, query => $q );
-		$model_data->[$count - 1] = {} if ($count);
-	}
-	# print "get_inventory_model: q:".Dumper($q);
-	my $entries = NMISNG::DB::find(
-		collection => $self->inventory_collection,
-		query      => $q,
-		sort       => $args{sort},
-		limit      => $args{limit},
-		skip       => $args{skip},
-		fields_hash => $args{fields_hash},
-	);
-
-	my $index = 0;
-	while ( my $entry = $entries->next )
-	{
-		$model_data->[$index++] = $entry;
-	}
-
-	my $model_data_object = NMISNG::ModelData->new( model_name => "inventory", data => $model_data );
-	return $model_data_object;
+	return $q;
 }
 
 # returns selection of nodes, as array of hashes
