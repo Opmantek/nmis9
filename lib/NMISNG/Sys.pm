@@ -145,11 +145,11 @@ sub inventory
 			# instead of having one magic place that makes it and that has to be run first
 			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);
 		}
-		$self->nmisng->log->error("Failed to get inventory, concept:$concept error_message:$error_message, path:".join(',', @$path)) if(!$inventory && !$nolog);
+		$self->nmisng->log->error("Failed to get inventory for node:".$node->name.", concept:$concept error_message:$error_message path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
 	else
 	{
-		$self->nmisng->log->error("Failed to get inventory path for concept:$concept, index:$index, path:$path") if (!$nolog);
+		$self->nmisng->log->error("Failed to get inventory path for node:".$node->name.", concept:$concept, index:$index path:$path") if (!$nolog);
 	}
 
 	$self->{_inventory_cache}{$concept} = $inventory

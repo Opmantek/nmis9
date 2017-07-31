@@ -453,6 +453,12 @@ sub load_part
 	}
 }
 
+sub name
+{
+	my ($self) = @_;
+	return $self->configuration()->{name};
+}
+
 # get/set the overrides for this node
 # setting data means the overrides is dirty and will
 #  be saved next time save is called, even if it is identical to what

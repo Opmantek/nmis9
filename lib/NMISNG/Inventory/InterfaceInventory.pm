@@ -44,6 +44,7 @@ sub new
 	# for now leave the original attributes as well
 	my $data = $args{data};
 	my $cnt = 1;
+	$data->{ip} = [];
 	while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
 	{
 		my $dest = {};
@@ -51,7 +52,6 @@ sub new
 		{
 			$dest->{$attr} = $data->{$attr.$cnt};
 		}
-		$data->{ip} //= [];
 		push @{$data->{ip}}, $dest;
 		$cnt++;
 	}
