@@ -35,11 +35,38 @@ use strict;
 
 our $VERSION = "1.0.0";
 
+# make a path suitable for interfaces, ifDescr has been added as it's handy to also key off if it
+#  this means than many lookups for this path will need partial => 1 as the caller probably won't have 
+#  both index and ifDescr
+# attention: MUST be a class function, NOT an instance method! no self!
+# args: cluster_id, node_uuid, concept, data, (all required),
+# path_keys (ignored if given, we set it here), partial (optional)
+# returns; path ref or error message
+sub make_path
+{
+	# make up for object deref invocation being passed in as first argument
+	# expecting a hash which has even # of inputs
+	shift if ( !( $#_ % 2 ) );
+
+	my (%args) = @_;
+	my $path = NMISNG::Inventory::make_path_from_keys(
+		cluster_id => $args{cluster_id},
+		node_uuid => $args{node_uuid},
+		concept => $args{concept},
+		path_keys => ['index','ifDescr'],		# override
+		data => $args{data},
+		partial => $args{partial});
+	return $path;
+}
+
 # pull out ip info and put it into an array for easier searching
 sub new
 {
 	my ( $class, %args ) = @_;
 	
+	# see make_path
+	$args{path_keys} = ['index','ifDescr'];
+
 	# modify data section, put IP into a format we can search/use (array of hashes with consistent keys)
 	# for now leave the original attributes as well
 	my $data = $args{data};

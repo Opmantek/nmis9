@@ -108,15 +108,19 @@ sub nmisng_node    { my $self = shift; return $self->{_nmisng_node} };
 # this assumes that a data section with a single entry 'index' is enough to find what is needed
 # or that no index is necessary at all
 # arguments:
-#  concept
-#  [index]
+#  concept - string
+#  [index] - optional, for now all things that are indexed use the key 'index' to find them
+#  partial - set to 1 if the path may have a partial match (generally it won't and you don't want this)
+#   the case where you do is when the key has two pieces of unique data and either can be used to find it
+#   eg, interfaces, ifIndex and ifDescr
+#  nolog - set to 1 if it's ok that the inventory is not found and an error should not be logged
 # NOTE: for now this caches the catchall/global inventory object because it's used all over the place
 #  and needs to have a longer life
 sub inventory
 {
 	my ($self,%args) = @_;
 	my $node = $self->nmisng_node;
-	my ($concept,$index,$nolog) = @args{'concept','index','nolog'};
+	my ($concept,$index,$partial,$nolog) = @args{'concept','index','partial','nolog'};
 	return if(!$node);
 	return if(!$concept);
 
@@ -134,7 +138,7 @@ sub inventory
 		$data->{index} = $index;
 		$path_keys = ['index'];
 	}
-	my $path = $node->inventory_path(concept => $concept, data => $data, path_keys => $path_keys);
+	my $path = $node->inventory_path(concept => $concept, data => $data, path_keys => $path_keys, partial => $partial);
 	my ($inventory,$error_message);
 	if( ref($path) eq 'ARRAY' )
 	{
@@ -1696,7 +1700,8 @@ sub prep_extras_with_catchalls
 	# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 	if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
 	{
-		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1);
+		#inventory keyed by index and ifDescr so we need partial
+		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
 		if( $interface_inventory )
 		{
 
