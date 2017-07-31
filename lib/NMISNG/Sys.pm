@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::Sys;
-our $VERSION = "2.0.0";
+our $VERSION = "2.1.0";
 
 use strict;
 
@@ -195,10 +195,12 @@ sub status
 #
 # node config is loaded if snmp or wmi args are true
 # args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
-# update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0)
+# update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0),
+# policy (default unset)
 #
 # update means ignore model loading errors, also disables cache_models
 # force means ignore the old node file, only relevant if update is enabled as well.
+# if policy is given (hashref of ping/wmi/snmp => numeric seconds) then the rrd db params are overridden
 #
 # returns: 1 if _everything_ was successful, 0 otherwise, also sets details for status()
 sub init
@@ -210,6 +212,8 @@ sub init
 
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool( $args{update} );
+
+	my $policy = $args{policy};		# optional
 
 	# flag for init snmp accessor, default is yes
 	my $snmp = NMISNG::Util::getbool( exists $args{snmp} ? $args{snmp} : 1 );
@@ -336,11 +340,10 @@ sub init
 	my $loadthis       = "Model";
 
 	# get the specific model
-	if ( $curmodel and not $self->{update} )
+	if ( $curmodel and $curmodel ne "Model" and not $self->{update} )
 	{
 		$loadthis = "Model-$curmodel";
 	}
-
 	# no specific model, update yes, ping yes, collect no -> pingonly
 	elsif ( NMISNG::Util::getbool( $thisnodeconfig->{ping} )
 		and !NMISNG::Util::getbool( $thisnodeconfig->{collect} )
@@ -355,6 +358,94 @@ sub init
 	# model loading failures are terminal
 	return 0 if ( !$self->loadModel( model => $loadthis ) );
 
+	# if a policy is given, override the database timing part of the model data
+	# traverse all the model sections, find out which sections are subject to which timing policy
+	if (ref($policy) eq "HASH")
+	{
+		# must get that before it's overwritten
+		my $standardstep = $self->{mdl}->{database}->{db}->{timing}->{default}->{poll} // 300;
+		my %resizeme;								# section name -> factor
+
+		for my $topsect (keys %{$self->{mdl}})
+		{
+			next if (ref($self->{mdl}->{$topsect}->{rrd}) ne "HASH");
+			for my $subsect (keys %{$self->{mdl}->{$topsect}->{rrd}})
+			{
+				my $interesting = $self->{mdl}->{$topsect}->{rrd}->{$subsect};
+				my $haswmi = ref($interesting->{wmi}) eq "HASH";
+				my $hassnmp = ref($interesting->{snmp}) eq "HASH";
+
+				if ($hassnmp and $haswmi)
+				{
+					NMISNG::Util::dbg("section $subsect subject to both snmp and wmi poll policy overrides: "
+														. "poll snmp $policy->{snmp}, wmi $policy->{wmi}") if ($self->{debug} > 1);
+					# poll: smaller of the two, heartbeat: larger of the two
+					my $poll = defined($policy->{snmp})?  $policy->{snmp} : 300;
+					$poll = $policy->{wmi} if (defined($policy->{wmi}) && $policy->{wmi} < $poll);
+					$poll ||= 300;
+
+					my $heartbeat = defined($policy->{snmp})?  $policy->{snmp} : 300;
+					$heartbeat = $policy->{wmi} if (defined($policy->{wmi}) && $policy->{wmi} > $heartbeat);
+					$heartbeat ||= 300;
+					$heartbeat *= 3;
+
+					my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
+
+					$thistiming->{poll} = $poll;
+					$thistiming->{heartbeat} = $heartbeat;
+
+					NMISNG::Util::dbg("overrode rrd timings for $subsect with step $poll, heartbeat $heartbeat");
+					$resizeme{$subsect} = $standardstep / $poll;
+				}
+				elsif ($haswmi or $hassnmp)
+				{
+					my $which = $hassnmp? "snmp" : "wmi";
+					if (defined $policy->{$which})
+					{
+						NMISNG::Util::dbg("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}")
+								if ($self->{debug} > 1);
+
+						my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
+						$thistiming->{poll} = $policy->{$which} || 300;
+						$thistiming->{heartbeat} = 3*( $policy->{$which} || 900);
+
+						$resizeme{$subsect} = $standardstep / $thistiming->{poll};
+					}
+				}
+			}
+		}
+		# AND set the default to the snmp timing, to cover unmodelled sections
+		# (which are currently all snmp-based, e.g. hrsmpcpu)
+		if ($policy->{snmp})				# not null
+		{
+			$self->{mdl}->{database}->{db}->{timing}->{default}->{poll} = $policy->{snmp};
+			$self->{mdl}->{database}->{db}->{timing}->{default}->{heartbeat} = 3* $policy->{snmp};
+			$resizeme{default} = $standardstep / $policy->{snmp};
+		}
+
+		# increase the rows_* sizes for these sections, if the step is shorter than the default
+		# use 'default' or hardcoded default if missing
+		my $standardsize = (ref($self->{mdl}->{database}->{db}->{size}) eq "HASH"
+												&& ref($self->{mdl}->{database}->{db}->{size}->{default}) eq "HASH"?
+												{ %{$self->{mdl}->{database}->{db}->{size}->{default} }} # shallow clone required, default is ALSO changed!
+												: { step_day => 1, step_week => 6, step_month => 24, step_year => 288,
+														rows_day => 2304, rows_week => 1536, rows_month => 2268, rows_year => 1890 });
+		for my $maybe (sort keys %resizeme)
+		{
+			my $factor = $resizeme{$maybe};
+			next if ($factor <= 1);
+
+			my $sizesection = $self->{mdl}->{database}->{db}->{size} ||= {};
+			$sizesection->{$maybe} ||= { %$standardsize }; # shallow clone
+			for my $period (qw(day week month year))
+			{
+				$sizesection->{$maybe}->{"rows_$period"} =
+						int($factor * $sizesection->{$maybe}->{"rows_$period"} + 0.5); # round up/down
+			}
+			NMISNG::Util::dbg(sprintf("overrode rrd row counts for $maybe by factor %.2f",$factor)) if ($self->{debug} > 1);
+		}
+	}
+	
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
 	if ( $self->{name} and $snmp and $thisnodeconfig->{collect} )
 	{
