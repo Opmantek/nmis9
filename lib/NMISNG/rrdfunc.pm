@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMISNG::rrdfunc;
-our $VERSION = "2.3.0";
+our $VERSION = "2.4.0";
 
 use strict;
 use feature 'state';
@@ -572,9 +572,11 @@ sub updateRRD
 	NMISNG::Util::dbg("Finished");
 } # end updateRRD
 
-# define the DataSource configuration for RRD
-# args: sys (required, for finding model data), data, type, index(optional);
-# 
+# the optionsRRD function creates the configuration options
+# for creating an rrd file.
+# args: sys, data, type (all pretty much required),
+# index (optional, for string expansion)
+# returns: array of rrdcreate parameters; updates global %stats
 sub optionsRRD
 {
 	my %args = @_;
@@ -583,21 +585,24 @@ sub optionsRRD
 	my $type = $args{type};
 	my $index = $args{index}; # optional
 
-	my $time  = 30*int(time/30);	# (time - (time % 30)) would be faster.
-	my $START = $time;
-	my @options;
-
 	die "optionsRRD cannot work without Sys argument!\n" if (!$S);
-	NMISNG::Util::dbg("type $type");
+	NMISNG::Util::dbg("type $type, index $index");
 
-	# fixme autovivify
-	# rrd step, from model database or our standard 5min
-	my $RRD_poll = $M->{mdl}{database}{db}{poll} || 300;
-	# rrd heartbeat, either from model database or 3 times the step
-	# note: overridable by passing in 'heartbeat' in data!
-	my $RRD_hbeat = $M->{mdl}{database}{db}{hbeat} || ($RRD_poll*3);
+	my $mdlinfo = $S->mdl;
+	# find out rrd step and heartbeat values, possibly use type-specific values (which the polling policy would supply)
+	my $timinginfo = (ref($mdlinfo->{database}) eq "HASH"
+										&& ref($mdlinfo->{database}->{db}) eq "HASH"
+										&& ref($mdlinfo->{database}->{db}->{timing}) eq "HASH")?
+										$mdlinfo->{database}->{db}->{timing}->{$type} // $mdlinfo->{database}->{db}->{timing}->{"default"} 
+	:  undef;
+	$timinginfo //= { heartbeat => 900, poll => 300 };
+	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
+	NMISNG::Util::dbg("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
 
-	@options = ("-b", $START, "-s", $RRD_poll);
+
+	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
+	my $starttime = time - (time % $timinginfo->{poll}) - $timinginfo->{poll};
+	my @options = ("-b", $starttime, "-s", $timinginfo->{poll});
 
 	# $data{ds_name}{value} contains the values
 	# $data{ds_name}{option} contains the info for creating the dds, format is "source,low:high,heartbeat"
@@ -605,7 +610,7 @@ sub optionsRRD
 	# is for overriding the rrdfile-level heartbeat. range and heartbeat are optional, the ',' are clearly needed
 	# even if you skip range but provide heartbeat.
 	#
-	# default is GAUGE,"U:U",standard heartbeat
+	# default is GAUGE,"U:U", and the standard heartbeat
 	foreach my $id (sort keys %{$data})
 	{
 		if (length($id) > 19)
@@ -626,53 +631,36 @@ sub optionsRRD
 
 			($source,$range,$heartbeat) = split (/\,/,$data->{$id}{option});
 
-			# no CVARs as no section given
+			# no CVARs possible as no section given
 			# not a full expression so no eval
-			$range = $S->parseString(string=>$range, type=>$type, index=>$index, eval => 0) if $S ne "";
+			$range = $S->parseString(string=>$range, type=>$type, index=>$index, eval => 0);
 			$source = uc $source;
 		}
 		$source ||= "GAUGE";
 		$range ||= "U:U";
-		$heartbeat ||= $RRD_hbeat;
+		$heartbeat ||= $timinginfo->{heartbeat};
 
 		NMISNG::Util::dbg("ID of data is $id, source $source, range $range, heartbeat $heartbeat",2);
 		push @options,"DS:$id:$source:$heartbeat:$range";
 	}
 
-	my $DB;
-	# fixme autovivifies
-	if (exists $M->{mdl}{database}{db}{size}{$type}) {
-		$DB = $M->{mdl}{database}{db}{size}{$type};
-	} elsif (exists $M->{mdl}{database}{db}{size}{default}) {
-		$DB = $M->{mdl}{database}{db}{size}{default};
-		NMISNG::Util::dbg("INFO, using database format \'default\'");
-	}
-
-	if ($DB eq "")
+	# now figure out the consolidation parameters, again possibly type-specific plus fallback
+	my $sizeinfo = (ref($mdlinfo->{database}) eq "HASH"
+									&& ref($mdlinfo->{database}->{db}) eq "HASH"
+									&& ref($mdlinfo->{database}->{db}->{size}) eq "HASH")?
+									$mdlinfo->{database}->{db}->{size}->{$type} // $mdlinfo->{database}->{db}->{size}->{"default"} :  undef;
+	$sizeinfo //= { step_day => 1, step_week => 6, step_month => 24, step_year => 288,
+									rows_day => 2304, rows_week => 1536, rows_month => 2268, rows_year => 1890 };
+	
+	for my $period (qw(day week month year))
 	{
-		NMISNG::Util::dbg("ERROR ($S->{name}) database format for type=$type not found");
-		$stats{error} = "($S->{name}) database format for type=$type not found";
+		for my $rra (qw(AVERAGE MIN MAX))
+		{
+			push @options,  join(":", "RRA", $rra, 0.5, $sizeinfo->{"step_$period"}, $sizeinfo->{"rows_$period"});
+		}
 	}
-	else
-	{
-		push @options,"RRA:AVERAGE:0.5:$DB->{step_day}:$DB->{rows_day}";
-		push @options,"RRA:AVERAGE:0.5:$DB->{step_week}:$DB->{rows_week}";
-		push @options,"RRA:AVERAGE:0.5:$DB->{step_month}:$DB->{rows_month}";
-		push @options,"RRA:AVERAGE:0.5:$DB->{step_year}:$DB->{rows_year}";
-		push @options,"RRA:MAX:0.5:$DB->{step_day}:$DB->{rows_day}";
-		push @options,"RRA:MAX:0.5:$DB->{step_week}:$DB->{rows_week}";
-		push @options,"RRA:MAX:0.5:$DB->{step_month}:$DB->{rows_month}";
-		push @options,"RRA:MAX:0.5:$DB->{step_year}:$DB->{rows_year}";
-		push @options,"RRA:MIN:0.5:$DB->{step_day}:$DB->{rows_day}";
-		push @options,"RRA:MIN:0.5:$DB->{step_week}:$DB->{rows_week}";
-		push @options,"RRA:MIN:0.5:$DB->{step_month}:$DB->{rows_month}";
-		push @options,"RRA:MIN:0.5:$DB->{step_year}:$DB->{rows_year}";
-
-		return @options;
-	}
-	return;
-} # end optionsRRD
-
+	return @options;
+}
 
 ### createRRD now checks if RRD exists and only creates if doesn't exist.
 ### also add node directory create for node directories, if rrd is not found

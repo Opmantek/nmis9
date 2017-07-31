@@ -9,18 +9,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # m h dom month dow user command
 
-# Run Full Statistics Collection
-*/5 * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true
-
-# Optionally run a more frequent Services-only Collection
-# */3 * * * * root /usr/local/nmis9/bin/poll type=services mthread=true
-
-# Run Summary Update every 2 minutes
-*/2 * * * * root /usr/local/nmis9/bin/poll type=summary
-
-# Run the interfaces 4 times an hour with Thresholding on
-# if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * *  root /usr/local/nmis9/bin/poll type=threshold
+# Run (selective) Statistics Collection
+* * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true
+# Run Summary Update every 5 minutes
+*/5 * * * * root /usr/local/nmis9/bin/poll type=summary
 
 # Run the update once a day
 30 20 * * *  root /usr/local/nmis9/bin/poll type=update mthread=true
@@ -34,4 +26,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # create reports, Daily Monthly Weekly
 9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all
 9 1 * * 0  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=week type=all
-9 2 1 * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports.pl period=month type=all
+9 2 1 * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=month type=all
