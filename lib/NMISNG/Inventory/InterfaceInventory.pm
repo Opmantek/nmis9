@@ -61,7 +61,7 @@ sub new
 
 # quick get/setters for plain attributes
 # having setters for these isn't really necessary
-for my $name (qw(ifAdminStatus ifAlias ifDescr ifIndex ifOperStatus ifSpeed ifType Description))
+for my $name (qw(ifAdminStatus ifAlias ifDescr ifIndex ifOperStatus ifType Description))
 {
 		no strict 'refs';
 		*$name = sub
@@ -71,6 +71,14 @@ for my $name (qw(ifAdminStatus ifAlias ifDescr ifIndex ifOperStatus ifSpeed ifTy
 								: $self->_generic_getset(name => $name));
 		}
 }
+
+sub ifSpeed
+{
+	my ($self) = @_;
+	my $data = $self->data();
+	return ($data->{ifSpeedIn} ne 'auto') ? $data->{ifSpeed} : 10000000;
+}
+
 sub ifSpeedIn
 {
 	my ($self) = @_;
