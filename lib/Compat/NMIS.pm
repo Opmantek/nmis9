@@ -995,7 +995,8 @@ sub getSummaryStats
 	{
 		no strict;
 		$database = $db; # global
-		my $intf_inventory = $S->inventory( concept => "interface", index => $index );
+		#inventory keyed by index and ifDescr so we need partial
+		my $intf_inventory = $S->inventory( concept => "interface", index => $index, partial => 1 );
 		if( $intf_inventory )
 		{
 			my $data = $intf_inventory->data();
@@ -1662,20 +1663,27 @@ NODE:
 
 #=========================================================================================
 
+# if you think this function and the next look very similar you are correct
 sub getAdminColor {
 	my %args = @_;
-	my ($S,$index,$IF);
-	if ( exists $args{sys} ) {
-		$S = $args{sys};
-		$index = $args{index};
-		$IF = $S->ifinfo;
-	}
+	my ($S,$index) = @args{'sys','index'};
+	my ($ifAdminStatus,$ifOperStatus,$collect,$data) = @args{'ifAdminStatus','ifOperStatus','collect','data'};
 	my $adminColor;
 
-	my $ifAdminStatus = $IF->{$index}{ifAdminStatus};
-	my $collect = $IF->{$index}{collect};
+	if( defined($S) && defined($index) && !$data )
+	{
+		#inventory keyed by index and ifDescr so we need partial
+		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 ); 
+		# if data not found use args
+		$data = ($inventory) ? $inventory->data : \%args;
+	}
 
-	if ( $index eq "" ) {
+	if( $data )
+	{
+		$ifAdminStatus = $data->{ifAdminStatus};
+		$collect = $data->{collect};
+	}
+	elsif ( $index eq "" ) {
 		$ifAdminStatus = $args{ifAdminStatus};
 		$collect = $args{collect};
 	}
@@ -1697,15 +1705,18 @@ sub getAdminColor {
 sub getOperColor {
 	my (%args) = @_;
 	my ($S,$index) = @args{'sys','index'};
-	my ($ifAdminStatus,$ifOperStatus,$collect) = @args{'ifAdminStatus','ifOperStatus','collect'};
+	my ($ifAdminStatus,$ifOperStatus,$collect,$data) = @args{'ifAdminStatus','ifOperStatus','collect','data'};
 
 	my $operColor;
 
-	if( defined($S) && defined($index) )
+	if( defined($S) && defined($index) && !$data )
 	{
-		my $inventory = $S->inventory( concept => 'interface', index => $index );
+		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 ); 
 		# if data not found use args
-		my $data = ($inventory) ? $inventory->data : \%args;
+		$data = ($inventory) ? $inventory->data : \%args;	
+	}
+	if( $data )
+	{
 		$ifAdminStatus = $data->{ifAdminStatus};
 		$ifOperStatus = $data->{ifOperStatus};
 		$collect = $data->{collect};
