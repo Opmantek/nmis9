@@ -2606,6 +2606,12 @@ sub createHrButtons
 	# and let's combine these in a 'diagnostic' menu as well
 	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
 
+	# drill-in for the node's collect/update time
+	push @out, CGI::li(CGI::a({class=>"wht",
+														 href=> "$C->{'<cgi_url_base>'}/node.pl?conf=$confname&act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
+																 target=>"_blank"},
+														"Collect/Update Runtime"));
+
 	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$catchall_data->{host}",target=>'_blank'},"telnet"))
 			if (NMISNG::Util::getbool($C->{view_telnet}));
 
