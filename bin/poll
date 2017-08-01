@@ -2795,7 +2795,8 @@ sub getIntfInfo
 
 			# For now, create inventory at the very end
 			# get the inventory object for this, path_keys required as we don't know what type it will be
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target );
+			#  NOTE: allow partial here for now, remove before shipping, only needed to upgrade existing
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target, partial => 1 );
 			if( ref($path) eq 'ARRAY')
 			{
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
