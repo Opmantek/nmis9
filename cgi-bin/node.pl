@@ -382,21 +382,22 @@ sub typeGraph {
 				Tr(
 				# Start date field
 				td({class=>'header',align=>'center',colspan=>'1'},"Start",
-					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23')),
+					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
 				# Node select menu
 				td({class=>'header',align=>'center',colspan=>'1'},eval {
 						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
 							if $graphtype eq 'metrics' or $graphtype  eq 'nmis';
-						return "Node ",popup_menu(-name=>'node', -override=>'1',
-							-values=>[@nodelist],
-							-default=>"$Q->{node}",
-							-onChange=>'JavaScript:this.form.submit()');
+						return "Node ",popup_menu(-name=>'node', -override=>'1', 
+																			tabindex=>"3",
+																			-values=>[@nodelist],
+																			-default=>"$Q->{node}",
+																			-onChange=>'JavaScript:this.form.submit()');
 					}),
 				# Graphtype select menu
 				# NOTE: this list needs to be adjusted to only show things are actually collect/storing
 				#   cbqos-in/out is one example that isn't working
 				td({class=>'header',align=>'center',colspan=>'1'},"Type ",
-					popup_menu(-name=>'graphtype', -override=>'1',
+					popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
 						-values=>[sort keys %{$GTT}],
 						-default=>"$graphtype",
 						-onChange=>'JavaScript:this.form.submit()')),
@@ -407,7 +408,7 @@ sub typeGraph {
 				Tr(
 				# End date field
 				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
-					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23')),
+					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
 				# Group or Interface select menu
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
 						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
@@ -418,21 +419,21 @@ sub typeGraph {
 							my @values = map { $_->{data}{index} } @sorted;
 							my %labels = ( defined($def->{label_key}) ) ? map { $_->{data}{index} => $_->{data}{ $def->{label_key} } } @sorted : undef;
 							unshift @sorted, '';
-							return "$def->{name} ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return "$def->{name} ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['', @values],
 										-default=>"$index",
 										-labels=> \%labels,
 										-onChange=>'JavaScript:this.form.submit()');
 						}
 						elsif ( $graphtype eq "metrics") {
-							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1',
+							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
 										-default=>"$group",
 										-onChange=>'JavaScript:this.form.submit()'),
 										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
 						}
 					 	elsif ($graphtype =~ /service|service-cpumem|service-response/) {
-							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',tabindex=>"5",
 										-values=>['',sort $S->getTypeInstances(section => "service")],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
@@ -445,15 +446,17 @@ sub typeGraph {
 						foreach my $gtp (keys %graph_button_table) {
 							foreach my $gt (keys %{$GTT}) {
 								if ($gtp eq $gt) {
-									push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
+									push @out,a({class=>'button', tabindex=>"-1", 
+															 href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},
+															$graph_button_table{$gtp});
 								}
 							}
 						}
 						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
+							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
+							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
 						}
-						push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
+						push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
 						return @out;
 					})) ))));
 
@@ -560,7 +563,7 @@ sub typeGraph {
 		my $chartDiv = "";
 		
 		if ( $graphtype ne "service-cpumem" or $index_model->{data}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE',-tabindex=>"-1")));
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		}
 		else {
