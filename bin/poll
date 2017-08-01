@@ -10437,9 +10437,14 @@ sub doThreshold
 
 				  	# NOTE: getting interface data for cbqos here
 				  	my $concept = $type;
-				  	$concept = 'interface' if ( $type =~ /cbqos|interface|pkts/ );
+				  	my $partial = 0;
+				  	if ( $type =~ /cbqos|interface|pkts/ )
+				  	{
+				  		$concept = 'interface';
+				  		$partial = 1;
+						}
 
-		   			my $inventory = $S->inventory( concept => $type, index => $index );
+		   			my $inventory = $S->inventory( concept => $type, index => $index, partial => $partial );
 		   			my $data = ($inventory) ? $inventory->data() : {};
 						if ($s eq "systemHealth" && !$inventory)
 							# and (  ref( $NI->{$type} ) ne "HASH" or ( !keys %{$NI->{$type}} )
