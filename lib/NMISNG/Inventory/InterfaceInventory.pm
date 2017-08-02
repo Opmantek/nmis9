@@ -88,7 +88,7 @@ sub new
 
 # quick get/setters for plain attributes
 # having setters for these isn't really necessary
-for my $name (qw(ifAdminStatus ifAlias ifDescr ifIndex ifOperStatus ifType Description))
+for my $name (qw(ifAdminStatus ifAlias ifDescr ifIndex ifOperStatus ifType Description ip))
 {
 		no strict 'refs';
 		*$name = sub
