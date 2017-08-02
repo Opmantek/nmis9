@@ -230,8 +230,15 @@ sub init
 
 	# fixme9: assumption is that the caller has loaded compat::nmis, usually justified i guess...
 	$self->{_nmisng} = Compat::NMIS::new_nmisng();
+
+	# fixme9: non-node sys objects needed but not supported right now
 	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
-	return 0 if( !$self->{_nmisng_node} );
+	if( !$self->{_nmisng_node} )
+	{
+		Carp::carp("sys without node not supported");
+		return 0;
+	}
+
 	my $catchall_data;
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
@@ -582,7 +589,6 @@ sub ifDescrInfo
 			my $thisentry = ($inventory) ? $inventory->data : {};
 			if( !$inventory || $error_message)
 			{
-				use Carp;
 				print "no inventory for node:$self->{name}, id:$id, error_message:$error_message".Carp::longmess();
 			}
 			my $ifDescr   = $thisentry->{ifDescr};
@@ -1798,7 +1804,6 @@ sub prep_extras_with_catchalls
 
 			# no fallback to info section as interface update is running
 			# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
-			# DON"T bring in ifSpeed directly, it does not merge nicely with ifSpeedIn/Out
 			$data = $interface_inventory->data();
 			foreach my $key (qw(ifAlias Description ifDescr ifType))
 			{
@@ -1810,6 +1815,7 @@ sub prep_extras_with_catchalls
 			$extras->{maxPackets}  = $interface_inventory->max_packets();
 			$extras->{ifSpeedIn}   = $interface_inventory->ifSpeedIn();
 			$extras->{ifSpeedOut}  = $interface_inventory->ifSpeedOut();
+			$extras->{ifSpeed} = $interface_inventory->ifSpeed();
 			$extras->{speed}       = $interface_inventory->speed();
 		}
 	}
@@ -1894,7 +1900,8 @@ sub parseString
 	# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
 	if ( ref($extras) eq "HASH" )
 	{
-		for my $maybe ( sort keys %$extras )
+		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
+		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
 		{
 			$extras->{$maybe} = '"'.$extras->{$maybe}.'"'	if ($eval && $extras->{$maybe} !~  /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 			my $presubst = $str;
@@ -1909,7 +1916,7 @@ sub parseString
 			}
 		}
 	}
-	die Dumper($str,$extras) if( !$eval && $str =~ /\$/);
+	die "parsestring failed: ".Dumper($str,$extras) if( !$eval && $str =~ /\$/);
 	my $product = ($eval) ? eval $str : $str;
 
 	NMISNG::Util::logMsg("parseString failed for str:$str, error:$@") if($@);

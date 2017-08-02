@@ -39,6 +39,7 @@ use Cwd qw();
 use Time::HiRes;
 use Socket;
 use Net::SNMP qw(oid_lex_sort);
+use Net::DNS;	# used for plotting major events on world map in 'Current Events' display
 use Proc::ProcessTable;
 use Proc::Queue ':all';
 use Data::Dumper;
@@ -161,7 +162,7 @@ my @active_plugins;
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0);          # trace mode on
 Proc::Queue::debug(0);          # debug is off
-Proc::Queue::delay(0.02);       # set 20 milliseconds as minimum delay between fork calls, reduce to speed collect times
+Proc::Queue::delay(0);
 
 $type //= "collect";
 
@@ -189,10 +190,10 @@ elsif ( $type eq "config" ) { checkConfig( change => "true" ); }
 elsif ( $type eq "audit" ) { checkConfig( audit => "true", change => "false" ); }
 
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
-elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # included in type=collect
+elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # MIGHT BE included in type=collect
 elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # included in type=collect
-elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # included in type=collect
+elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
+elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # MIGHT be included in type=collect
 
 # fixme9: move this to nmis-cli or admin/node-admin
 elsif ( $type eq "groupsync" )  { sync_groups(); }
@@ -248,12 +249,12 @@ sub runThreads
 	my $node_select  = $args{'node'};
 	my $mthread      = NMISNG::Util::getbool( $args{mthread} );
 	my $mthreadDebug = NMISNG::Util::getbool( $args{mthreadDebug} );
-	my $debug_watch;
 
 	NMISNG::Util::dbg("Starting, operation is $type");
 
-	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
-	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
+	# do a selftest and cache the result, but not too often
+	# this takes about five seconds (for the process stats)
+	# however, DON'T do one if nmis is run in handle-just-this-node mode
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if ( !$node_select and $type ne "services" )
 	{
@@ -265,7 +266,7 @@ sub runThreads
 		# that's the dir of shipped=default models
 		NMISNG::Util::setFileProtDirectory( $C->{'<nmis_default_models>'}, 0 );    # no recursion required
 
-		NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
+		
 		my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
 		if ( !-d $varsysdir )
 		{
@@ -277,17 +278,25 @@ sub runThreads
 
 		# check the current state, to see if a perms check is due? once every 2 hours
 		my $laststate = NMISNG::Util::readFiletoHash( file => $selftest_cache, json => 1 );
-		my $wantpermsnow = 1
-			if ( ref($laststate) ne "HASH"
-			|| !defined( $laststate->{lastupdate_perms} )
-			|| $laststate->{lastupdate_perms} + 7200 < time );
-
-		my ( $allok, $tests ) = NMISNG::Util::selftest(
-			config                 => $C,
-			delay_is_ok            => 'true',
-			perms                  => $wantpermsnow,
-			report_database_status => \$selftest_dbdir_status
-		);
+		# check if a selftest is due? once every 15 minutes
+		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
+																|| !defined($laststate->{lastupdate})
+																|| ($laststate->{lastupdate} + 900 < time));
+		# check the current state, to see if a perms check is due? once every 2 hours
+		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
+														 || !defined($laststate->{lastupdate_perms})
+														 || $laststate->{lastupdate_perms} + 7200 < time);
+		
+		if ($wantselftestnow)
+		{
+			NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
+			
+			my ( $allok, $tests ) = NMISNG::Util::selftest(
+				config                 => $C,
+				delay_is_ok            => 'true',
+				perms                  => $wantpermsnow,
+				report_database_status => \$selftest_dbdir_status
+					);
 
 		# keep the old permissions state if this test did not run a permissions test
 		# hardcoded test name isn't great, though.
@@ -295,10 +304,12 @@ sub runThreads
 		{
 			$laststate ||= {tests => []};
 
-			my ($oldstate) = grep( $_->[0] eq "Permissions", @{$laststate->{tests}} );    # there will at most one
+			my ($oldstate) = grep( $_->[0] eq "Permissions", 
+														 @{$laststate->{tests}} );    # there will at most one
 			if ( defined $oldstate )
 			{
-				my ($targetidx) = grep( $tests->[$_]->[0] eq "Permissions", ( 0 .. $#{$tests} ) );
+				my ($targetidx) = grep( $tests->[$_]->[0] eq "Permissions", 
+																( 0 .. $#{$tests} ) );
 				if ( defined $targetidx )
 				{
 					$tests->[$targetidx] = $oldstate;
@@ -311,21 +322,27 @@ sub runThreads
 			}
 		}
 
-		NMISNG::Util::writeHashtoFile(
-			file => $selftest_cache,
-			json => 1,
-			data => {
-				status           => $allok,
-				lastupdate       => time,
-				lastupdate_perms => (
+			NMISNG::Util::writeHashtoFile(
+				file => $selftest_cache,
+				json => 1,
+				data => {
+					status           => $allok,
+					lastupdate       => time,
+					lastupdate_perms => (
 					  $wantpermsnow ? time
-					: $laststate    ? $laststate->{lastupdate_perms}
-					:                 undef
-				),
-				tests => $tests
-			}
-		);
-		NMISNG::Util::info( "Selftest completed (status " . ( $allok ? "ok" : "FAILED!" ) . "), cache file written" );
+						: $laststate    ? $laststate->{lastupdate_perms}
+						:                 undef
+							),
+								tests => $tests
+				}
+					);
+			NMISNG::Util::info( "Selftest completed (status " . ( $allok ? "ok" : "FAILED!" ) . "), cache file written" );
+		}
+		else
+		{
+			NMISNG::Util::info("Skipping selftest, last run at "
+												 . NMISNG::Util::returnDateStamp($laststate->{lastupdate}));
+		}
 	}
 
 	# load all the files we need here
@@ -359,99 +376,14 @@ sub runThreads
 	}
 	NMISNG::Util::dbg("all relevant tables loaded");
 
+	my $nmisng = Compat::NMIS::new_nmisng();
+
 	my $debug_global = $C->{debug};
 	my $debug        = $C->{debug};
 	my $PIDFILE;
 	my $pid;
 
-	# used for plotting major events on world map in 'Current Events' display
-	$C->{netDNS} = 0;
-	if ( NMISNG::Util::getbool( $C->{DNSLoc} ) )
-	{
-		# decide if Net::DNS is available to us or not
-		if ( eval "require Net::DNS" )
-		{
-			$C->{netDNS} = 1;
-			require Net::DNS;
-		}
-		else
-		{
-			print "Perl Module Net::DNS not found, Can't use DNS LOC records for Geo info, will try sysLocation\n"
-				if $debug;
-		}
-	}
-
-	runDaemons();    # start daemon processes
-
-	### test if we are still running, or zombied, and cron will email somebody if we are
-	### collects should not run past 5mins - if they do we have a problem
-	### updates can run past 5 mins, BUT no two updates should run at the same time
-	### for potentially frequent type=services we don't do any of these.
-	if ( $type eq 'collect' or $type eq "update" )
-	{
-		# unrelated but also for collect and update only
-		@active_plugins = load_plugins();
-
-		# first find all other nmis collect processes
-		my $others = NMISNG::Util::find_nmis_processes( type => $type, config => $C );
-
-		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
-		# then only warn about processes and don't shoot them.
-		# the same should be done if this is an interactive run with info or debug
-		if ((   $type eq "collect" and ( NMISNG::Util::getbool( $nvp{ignore_running} )
-					or $C->{debug}
-					or $C->{info} )
-			)
-			or ( $type eq "update" and ( $C->{debug} or $C->{info} ) )
-			)
-		{
-			for my $pid ( keys %{$others} )
-			{
-				NMISNG::Util::logMsg(
-					"INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at "
-						. NMISNG::Util::returnDateStamp( $others->{$pid}->{start} ) );
-			}
-		}
-		else
-		{
-			my $eventconfig       = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
-			my $event             = "NMIS runtime exceeded";
-			my $thisevent_control = $eventconfig->{$event} || {Log => "true", Notify => "true", Status => "true"};
-
-			# if not told otherwise, shoot the others politely
-			for my $pid ( keys %{$others} )
-			{
-				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
-				NMISNG::Util::logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
-
-				kill( "TERM", $pid );
-
-			   # and raise an event to inform the operator - unless told NOT to
-			   # ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
-				if ((      !defined $C->{disable_nmis_process_events}
-						or !NMISNG::Util::getbool( $C->{disable_nmis_process_events} ) and NMISNG::Util::getbool( $thisevent_control->{Log} )
-					)
-					)
-				{
-					# logging this event as the node name so it shows up as a problem with the node
-					Compat::NMIS::logEvent(
-						node    => $others->{$pid}->{node},
-						event   => $event,
-						level   => "Warning",
-						element => $others->{$pid}->{node},
-						details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
-							. NMISNG::Util::returnDateStamp( $others->{$pid}->{start} )
-					);
-				}
-			}
-			if ( keys %{$others} )    # for the others to shut down cleanly
-			{
-				my $grace = 5;
-				NMISNG::Util::logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
-				sleep($grace);
-			}
-		}
-	}
+	runDaemons();    # (re)start daemon processes
 
 	# the signal handler handles termination more-or-less gracefully,
 	# and knows about critical sections
@@ -483,127 +415,337 @@ sub runThreads
 	NMISNG::Util::logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
-	NMISNG::Util::update_operations_stamp( type => $type, start => $starttime, stop => undef );
-	my $maxruntime = defined( $C->{max_child_runtime} ) && $C->{max_child_runtime} > 0 ? $C->{max_child_runtime} : 0;
+	NMISNG::Util::update_operations_stamp( type => $type, 
+																				 start => $starttime, stop => undef );
+	my $maxruntime = defined( $C->{max_child_runtime} ) 
+			&& $C->{max_child_runtime} > 0 ? $C->{max_child_runtime} : 0;
 
-	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
-	alarm($maxruntime) if ( $maxruntime && ( !$mthread or $node_select ) );
+	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
+			@todo_nodes,							# for the actual update/polling work
+			@cand_nodes,
+			%whichflavours);					# attempt smmp, wmi or both
 
-	my @list_of_handled_nodes;    # for any after_x_plugin() functions
-	if ( $node_select eq "" )
+
+	# what to work on? one named node, or the nodes that are members of a given group or all nodes
+	# iff active and the polling policy agrees, that is...
+	@cand_nodes = $node_select? $node_select
+			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
+	
+	# get the polling policies and translate into seconds (for rrd file options)
+	my $policies = NMISNG::Util::loadTable(dir => 'conf', 
+																				 name => "Polling-Policy") || {};
+	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
+	# translate period specs X.Ys, A.Bm, etc. into seconds
+	for my $polname (keys %$policies)
 	{
-		# operate on all nodes, sort the nodes so we get consistent polling cycles
-		# sort could be more sophisticated if we like, eg sort by core, dist, access or group
-		foreach my $onenode ( sort keys %{$NT} )
+		next if (ref($policies->{$polname}) ne "HASH");
+		for my $subtype (qw(snmp wmi ping))
 		{
-			# This will allow debugging to be turned on for a
-			# specific node where there is a problem
-			if ( $onenode eq "$debug_watch" )
+			my $interval = $policies->{$polname}->{$subtype};
+			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
 			{
-				$debug = "true";
+				my ($rawvalue, $unit) = ($1, $3);
+				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 
+																 : $unit eq 'd'? 86400 : 1);
 			}
-			else { $debug = $debug_global; }
-
-			# KS 16 Mar 02, implementing David Gay's requirement for deactiving
-			# a node, ie keep a node in nodes.csv but no collection done.
-			# also if $runGroup set, only do the nodes for that group.
-			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup )
-			{
-				if ( NMISNG::Util::getbool( $NT->{$onenode}{active} ) )
-				{
-					++$nodecount;
-					push @list_of_handled_nodes, $onenode;
-
-					# One process for each node until maxThreads is reached.
-					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread)
-					{
-						my $pid = fork;
-						if ( defined($pid) and $pid == 0 )
-						{
-
-							# this will be run only by the child
-							if ($mthreadDebug)
-							{
-								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
-							}
-
-							# don't run longer than X seconds
-							alarm($maxruntime) if ($maxruntime);
-							&$meth( name => $onenode );
-							alarm(0) if ($maxruntime);
-
-							# all the work in this thread is done now this child will die.
-							if ($mthreadDebug)
-							{
-								print "CHILD $$-> $onenode will now exit\n";
-							}
-
-							# killing child
-							exit 0;
-						}    # end of child
-						else
-						{
-							# parent
-							my $others = NMISNG::Util::find_nmis_processes( config => $C );
-							my $procs_now = 1 + scalar keys %$others;    # the current process isn't returned
-							$maxprocs = $procs_now if $procs_now > $maxprocs;
-						}
-					}
-					else
-					{
-						# iterate over nodes in this process, if mthread is false
-						&$meth( name => $onenode );
-					}
-				}    #if active
-				else
-				{
-					NMISNG::Util::dbg("Skipping as $onenode is marked 'inactive'");
-				}
-			}    #if runGroup
-		}    # foreach $onenode
-
-		# only do the child process cleanup if we have mthread enabled
-		if ($mthread)
-		{
-			# cleanup
-			# wait this will block until children are done
-			1 while wait != -1;
+			$intervals{$polname}->{$subtype} = $interval; # now in seconds
 		}
+	}
+
+	# find all other nmis processes of the same type
+	my $otherprocesses = NMISNG::Util::find_nmis_processes(type => $type, config => $C)
+			if ($type eq "update" or $type eq "collect"); # relevant only for these
+	my %problematic;
+
+	if ($type eq "update" or $type eq "services")
+	{
+		@todo_nodes = grep(NMISNG::Util::getbool($NT->{$_}->{active}), 
+											 @cand_nodes);
 	}
 	else
 	{
-		# specific node is given to work on, threading not relevant
-		if ( ( my $node = Compat::NMIS::checkNodeName($node_select) ) )
-		{    # ignore lc & uc
-			if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
+		# find out what nodes are due as per polling policy - also honor force,
+		# and any in-progress polling that hasn't finished yet
+
+		# unfortunately we require each candidate node's nodeinfo/catchall data to make the 
+		# candidate-or-not decision...
+		#	fixme9 should we add the node uuid as filter?
+		my $accessor = $nmisng->get_inventory_model(concept => "catchall", 
+																								cluster_id => $C->{cluster_id});
+		# node information, by node uuid
+		my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
+
+		my $now = time;
+		for my $maybe (@cand_nodes)
+		{
+			next if (ref($NT->{$maybe}) ne "HASH" or !NMISNG::Util::getbool($NT->{$maybe}->{active}));
+			# save it back for the xyz-node file, and cgi-bin/network...
+			my $polname = ($NT->{$maybe}->{polling_policy} ||= "default");
+			NMISNG::Util::dbg("Node $maybe is using polling policy \"$polname\"");
+
+			my $ninfo = $node_info_ro{ $NT->{$maybe}->{uuid} } // {};
+						
+			my $lastpolicy = $ninfo->{last_polling_policy};
+			my $lastsnmp = $ninfo->{last_poll_snmp};
+			my $lastwmi = $ninfo->{last_poll_wmi};
+
+			# that's it for completed polls - for in-progress uncompleted 
+			# we need other time logic,
+			# overriding these markers from the active process' start time
+			my @isinprogress = grep($otherprocesses->{$_}->{node} &&
+															$otherprocesses->{$_}->{node} eq $maybe,
+															keys %$otherprocesses);
+			map { $problematic{$maybe} = $_; } (@isinprogress);
+
+			if (!NMISNG::Util::getbool($nvp{force}) and @isinprogress)
 			{
-				++$nodecount;
-				push @list_of_handled_nodes, $node;
-				&$meth( name => $node );
+				# there should be at most one, we ignore any unexpected others
+				my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
+				NMISNG::Util::dbg("Node $maybe: collect in progress, using process start $otherstart instead of last_poll markers");
+				$lastsnmp = $lastwmi = $otherstart;
+				$lastpolicy = $polname;	# and no policy change triggering either...
+			}
+
+			# handle the case of a changed polling policy: move all rrd files
+			# out of the way, and poll now
+			# note that this does NOT work with non-standard common-database structures
+			if (defined($lastpolicy) && $lastpolicy ne $polname)
+			{
+				NMISNG::Util::logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+				my $lcnode = lc($maybe);
+				my $curdir = $C->{'database_root'}."/nodes/$lcnode";
+				my $backupdir = "$curdir.policy-$lastpolicy.".time();
+
+				if (!-d $curdir)
+				{
+					NMISNG::Util::logMsg("WARN Node $maybe doesn't have RRD files under $curdir!");
+				}
+				else
+				{
+					rename($curdir,$backupdir) 
+							or NMISNG::Util::logMsg("WARN failed to mv rrd files for $maybe: $!");
+				}
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
+			elsif (NMISNG::Util::getbool($nvp{force}))
+			{
+				NMISNG::Util::dbg("force is enabled, Node $maybe will be polled at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
+			# nodes that have not been pollable since forever: run at most once hourly
+			elsif (!$ninfo->{nodeModel} or $ninfo->{nodeModel} eq "Model")
+			{
+				my $lasttry = $ninfo->{last_poll} // 0;
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
+				NMISNG::Util::dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+				if ($nexttry <= $now)
+				{
+					push @todo_nodes, $maybe;
+					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+			}
+			# logic for collect now or later: candidate if no past successful collect whatsoever,
+			# or if either of the two worked and was done long enough ago.
+			#
+			# if no history is known for a source, then disregard it for the now-or-later logic
+			# but DO enable it for trying!
+			# note that collect=false, i.e. ping-only nodes need to be excepted,
+			elsif (!defined($lastsnmp) && !defined($lastwmi)
+						 && NMISNG::Util::getbool($NT->{$maybe}->{collect}))
+			{
+				NMISNG::Util::dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
 			}
 			else
 			{
-				NMISNG::Util::dbg("Skipping as $node_select is marked 'inactive'");
+				# for collect false/pingonly nodes the single 'generic' collect run counts,
+				# and the 'snmp' policy is applied
+				if (!NMISNG::Util::getbool($NT->{$maybe}->{collect}))
+				{
+					$lastsnmp = $ninfo->{last_poll} // 0;
+					NMISNG::Util::dbg("Node $maybe is non-collecting, applying snmp policy to last check at $lastsnmp");
+				}
+
+				# accept delta-previous-now interval if it's at least 95% of the configured interval
+				# strict 100% would mean that we might skip a full interval when polling takes longer
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
+
+				# only flavours which worked in the past contribute to the now-or-later logic
+				if ((defined($lastsnmp) && $nextsnmp <= $now )
+						|| (defined($lastwmi) && $nextwmi <= $now))
+				{
+					NMISNG::Util::dbg("Node $maybe is due for poll at $now, last snmp: ".($lastsnmp//"never")
+							.", last wmi: ".($lastwmi//"never")
+							. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
+							.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
+					push @todo_nodes, $maybe;
+
+					# but if we've decided on polling, then DO try flavours that have not worked in the past!
+					# nextwmi <= now also covers the case of undefined lastwmi...
+					$whichflavours{$maybe}->{wmi} = ($nextwmi <= $now);
+					$whichflavours{$maybe}->{snmp} = ($nextsnmp <= $now);
+				}
+				else
+				{
+					NMISNG::Util::dbg("Node $maybe is NOT due for poll at $now, last snmp: "
+														.($lastsnmp//"never")
+														.", last wmi: ".($lastwmi//"never")
+														. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
+														.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+				}
+			}
+		}
+	}
+	
+	# anything to do?
+	if (!@todo_nodes)
+	{
+		NMISNG::Util::info("Found no nodes due for $type.");
+		NMISNG::Util::logMsg("Found no nodes due for $type.");
+		return;
+	}
+
+	NMISNG::Util::logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
+	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
+
+	# now perform process safety operations
+	# test if there are any collect processes running for any of the todo nodes
+	# for updates, just test
+	### updates can run past 5 mins, BUT no two updates should run at the same time
+	### for potentially frequent type=services we don't do any of these.
+	if ( $type eq 'collect' or $type eq "update")
+	{
+		# unrelated but also for collect and update only
+		@active_plugins = &load_plugins;
+
+		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
+		# then only warn about processes and don't shoot them.
+		if ($type eq "collect" and NMISNG::Util::getbool($nvp{ignore_running}))
+		{
+			for my $pid (keys %$otherprocesses)
+			{
+				NMISNG::Util::logMsg("INFO ignoring old $type process $pid that is still running: $otherprocesses->{$pid}->{node}, started at ".NMISNG::Util::returnDateStamp($otherprocesses->{$pid}->{start}));
 			}
 		}
 		else
 		{
-			print "\t Invalid node $node_select No node of that name!\n";
-			return;
+			my $eventconfig = NMISNG::Util::loadTable(dir => 'conf', name => 'Events');
+			my $event = "NMIS runtime exceeded";
+			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+			# if not told otherwise, shoot the others politely
+			my $needgrace;
+			for my $node (@todo_nodes)
+			{
+				my $pid = $problematic{$node};
+				next if (!$pid);
+
+				$needgrace = 1;
+				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n";
+				NMISNG::Util::logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
+				kill("TERM",$pid);
+
+				# and raise an event to inform the operator - unless told NOT to
+				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
+				if ((!defined $C->{disable_nmis_process_events}
+						 or !NMISNG::Util::getbool($C->{disable_nmis_process_events})
+						 and NMISNG::Util::getbool($thisevent_control->{Log})))
+				{
+					# logging this event as the node name so it shows up as a problem with the node
+					Compat::NMIS::logEvent(node => $otherprocesses->{$pid}->{node},
+																 event => $event,
+																 level => "Warning",
+																 element => $otherprocesses->{$pid}->{node},
+																 details => "Killed process $pid, $type of $otherprocesses->{$pid}->{node}, started at "
+																 .NMISNG::Util::returnDateStamp($otherprocesses->{$pid}->{start}));
+				}
+			}
+			
+			if ($needgrace) # give the others a moment to shut down cleanly
+			{
+				my $grace = 2;
+				NMISNG::Util::logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
+				sleep($grace);
+			}
 		}
 	}
-	alarm(0) if ( $maxruntime && ( !$mthread or $node_select ) );
 
-	NMISNG::Util::dbg("### continue normally ###");
+	for my $onenode (@todo_nodes)
+	{
+		++$nodecount;
+		push @list_of_handled_nodes, $onenode;
+
+		# One process per node, until maxThreads is reached (then block and wait)
+		if ($mthread)
+		{
+			my $pid=fork;
+			if ( defined ($pid) and $pid==0)
+			{
+				# this will be run only by the child
+				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
+						if ($mthreadDebug);
+
+				# don't run longer than X seconds
+				alarm($maxruntime) if ($maxruntime);
+				my @methodargs = ( name => $onenode,
+													 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
+				# try both flavours if force is on
+				push @methodargs, (wantsnmp => NMISNG::Util::getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+													 wantwmi => NMISNG::Util::getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+						if ($type eq "collect"); # flavours irrelevant for update
+				&$meth(@methodargs);
+
+
+				# all the work in this thread is done now this child will die.
+				print "CHILD $$-> $onenode is done, exiting\n"
+						if ($mthreadDebug);
+				exit 0;
+			} # end of child
+			else
+			{
+				# parent
+				my $others = NMISNG::Util::find_nmis_processes(config => $C);
+				my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
+				$maxprocs = $procs_now if $procs_now > $maxprocs;
+			}
+		}
+		else
+		{
+			# just one node or no multi-processing wanted -> work in this process.
+			alarm($maxruntime);
+			my @methodargs = ( name => $onenode,
+												 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
+			# try both flavours if force is on
+			push @methodargs, (wantsnmp => NMISNG::Util::getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+												 wantwmi => NMISNG::Util::getbool($nvp{force}) || $whichflavours{$onenode}->{wmi},)
+					if ($type eq "collect"); # flavours irrelevant for update
+
+			# would like to retain the non-collect/update cmdline...and restore it once done
+			my $oldargs=$0;
+			&$meth(@methodargs);
+			alarm(0) if ($maxruntime);
+			$0=$oldargs;
+		}
+	}
+	# outermost parent process: collects exit codes
+	if ($mthread)
+	{
+		print "PARENT $$-> waiting for child processes to complete...\n"
+						if ($mthreadDebug);
+		# wait blockingly until all worker children are done
+		1 while wait != -1;
+	}
+	
 	my $collecttime = Time::HiRes::time();
-
 	my $S;
 
 	# on update prime the interface summary
 	if ( $type eq "update" )
 	{
-		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 		getNodeAllInfo();    # store node info in <nmis_var>/nmis-nodeinfo.xxxx
 		if ( !NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
 		{
@@ -612,42 +754,33 @@ sub runThreads
 		}
 	}
 
-	# some collect post-processing, but only if running on all nodes
-	elsif ( $type eq "collect" and $node_select eq "" )
+	# some collect post-processing
+	elsif ( $type eq "collect")
 	{
 		$S = NMISNG::Sys->new;           # object nmis-system
 		$S->init();
-
-		my $NI = $S->ndinfo;
-		delete $NI->{database};    # remove pre-8.5.0 key as it's not used anymore
-
-		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
-		if ( NMISNG::Util::getbool( $C->{'nmis_master_poll_cycle'} ) or !NMISNG::Util::getbool( $C->{'nmis_master_poll_cycle'}, "invert" ) )
+		
+		# do some masterly type things
+		if ( !NMISNG::Util::getbool( $C->{'nmis_master_poll_cycle'},"invert")  # if not false
+				 && NMISNG::Util::getbool( $C->{server_master} ) )
 		{
 			my $pollTimer = Compat::Timing->new;
 
 			NMISNG::Util::dbg("Starting nmisMaster");
-			nmisMaster() if NMISNG::Util::getbool( $C->{server_master} );    # do some masterly type things.
-
+			nmisMaster(); 
 			NMISNG::Util::logMsg( "Poll Time: nmisMaster, " . $pollTimer->elapTime() )
-				if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) );
+			if (NMISNG::Util::getbool($C->{log_polling_time}) );
 		}
-		else
-		{
-			NMISNG::Util::dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
-		}
-
-		if ( NMISNG::Util::getbool( $C->{'nmis_summary_poll_cycle'} ) or !NMISNG::Util::getbool( $C->{'nmis_summary_poll_cycle'}, "invert" ) )
+		
+		# calculate and cache the summary stats
+		if (!NMISNG::Util::getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
+				&& NMISNG::Util::getbool($C->{cache_summary_tables}))
 		{
 			NMISNG::Util::dbg("Starting nmisSummary");
-
-			# NOTE!!! catchall needs to be written before this runs as it' loads the data
+		
+			# fixme9: catchall needs to be written before this runs as it loads the data
 			# locally, it has no $S
-			nmisSummary(update_operations_stamp => 1) if NMISNG::Util::getbool( $C->{cache_summary_tables} );    # calculate and cache the summary stats
-		}
-		else
-		{
-			NMISNG::Util::dbg("Skipping nmisSummary with configuration 'nmis_summary_poll_cycle' = $C->{'nmis_summary_poll_cycle'}");
+			nmisSummary(update_operations_stamp => 1);
 		}
 
 		NMISNG::Util::dbg("Starting runMetrics");
@@ -662,7 +795,8 @@ sub runThreads
 			{
 				NMISNG::Util::dbg("Starting runThreshold (for all selected nodes)");
 				# the 0 here tells it that it's running in a collect cycle
-				runThreshold($node_select,0);
+				# fixme9: teach this to run on N nodes, not all and not just one!
+				runThreshold(undef, 0);
 			}
 			else
 			{
@@ -674,7 +808,7 @@ sub runThreads
 		runEscalate();
 
 		# nmis collect runtime, process counts and save
-		my $D;
+		my $D = {};
 		$D->{collect}{value}  = $collecttime - $starttime;
 		$D->{collect}{option} = 'gauge,0:U';
 		$D->{total}{value}    = Time::HiRes::time() - $starttime;
@@ -691,8 +825,10 @@ sub runThreads
 			value  => $maxprocs
 		};
 
+		# fixme9: fails utterly: database name not found for graphtype=, type=nmis, index=, item=, sect=nmis
 		if ( ( my $db = $S->create_update_rrd( data => $D, type => "nmis" ) ) )
 		{
+			# fixme9: what about this stuff?
 			# $NI->{graphtype}{nmis} = 'nmis';
 			# $NI->{graphtype}->{network}->{metrics} = 'metrics';
 		}
@@ -700,6 +836,7 @@ sub runThreads
 		{
 			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 		}
+		
 		$S->writeNodeInfo;    # var/nmis-system.xxxx, the base info system
 	}
 
@@ -941,7 +1078,7 @@ sub doUpdate
 			}
 		}
 		$S->close;    # close snmp session if one is open
-		$catchall_data->{lastUpdatePoll} = time();
+		$catchall_data->{last_update} = time();
 	}
 
 	my $reachdata
@@ -1010,7 +1147,7 @@ sub doUpdate
 		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
 		$inventory->add_timed_data( data => $pit, derived_data => $stats, 
-			datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1120,15 +1257,18 @@ sub doServices
 	return;
 }
 
+# perform collect run on ONE node
 sub doCollect
 {
 	my %args = @_;
-	my $name = $args{name};
+	my ($name,$wantsnmp,$wantwmi, $policy) = @args{"name","wantsnmp","wantwmi","policy"};
+
 
 	my $pollTimer = Compat::Timing->new;
 
 	NMISNG::Util::info("================================");
-	NMISNG::Util::info("Starting collect, node $name");
+	NMISNG::Util::info("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
+			 .", want WMI: ".($wantwmi?"yes":"no"));
 
 	# Check for both update and collect LOCKs
 	if ( NMISNG::Util::existsPollLock( type => "update", conf => $C->{conf}, node => $name ) )
@@ -1150,8 +1290,12 @@ sub doCollect
 	# lets change our name, so a ps will report who we are
 	$0 = "poll-collect-$name";
 
-	my $S = NMISNG::Sys->new;    # create system object
-	if ( !$S->init( name => $name ) )    # init will usually load node info data, model etc, returns 1 if _all_ is ok
+	my $S = NMISNG::Sys->new;
+	if ( !$S->init( name => $name,
+									snmp => $wantsnmp,
+									wmi => $wantwmi,
+									policy => $policy,
+									debug => $C->{debug} ) )  
 	{
 		NMISNG::Util::dbg( "Sys init for $name failed: "
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
@@ -1176,7 +1320,7 @@ sub doCollect
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# run an update if no update poll time is known
-	if ( !exists( $catchall_data->{lastUpdatePoll} ) or !$catchall_data->{lastUpdatePoll} )
+	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
 	{
 		NMISNG::Util::info("no cached node data available, running an update now");
 		doUpdate( name => $name );
@@ -1187,7 +1331,8 @@ sub doCollect
 	NMISNG::Util::info("vendor=$catchall_data->{nodeVendor} model=$catchall_data->{nodeModel} interfaces=$catchall_data->{ifNumber}");
 
 	# are we meant to and able to talk to the node?
-	if ( runPing( sys => $S ) && NMISNG::Util::getbool( $configuration->{collect} ) )
+	# runping sets the last_poll marker - fixme9: no idea why
+	if ( runPing( sys => $S, time_marker => $starttime ) && NMISNG::Util::getbool( $configuration->{collect} ) )
 	{
 	# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
 		$S->open(
@@ -1209,8 +1354,9 @@ sub doCollect
 			$S->disable_source("snmp");
 		}
 
-		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
-		my $updatewasok = updateNodeInfo( sys => $S );
+		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo/catchall
+		# and sets the relevant last_poll_xyz markers
+		my $updatewasok = updateNodeInfo(sys=>$S, time_marker => $starttime);
 		my $curstate = $S->status;    # updatenodeinfo does NOT disable faulty sources!
 
 	# was snmp ok? should we bail out? note that this is interpreted to apply to ALL sources being down simultaneously,
@@ -1243,12 +1389,12 @@ sub doCollect
 					$S->disable_source($source);
 				}
 			}
-
+			# if runping hasn't set the last_poll marker, set it here unconditionally
+			# remember when the collect poll last completed (doesn't mean successfully!), 
+			# this isn't saved  until later so set it early so functions can use it
+			$catchall_data->{last_poll} = $starttime;
+			
 			# fixme: why no error handling for any of these?
-
-			# remember when the collect poll last completed successfully, this isn't saved
-			# until later so set it early so functions can use it
-			$catchall_data->{lastCollectPoll} = time();
 
 			# get node data and store in rrd
 			getNodeData( sys => $S );
@@ -1351,7 +1497,7 @@ sub doCollect
 		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
 		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, 
-			datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1379,7 +1525,11 @@ sub runPing
 	my $V    = $S->view;      # web view
 	my $RI   = $S->reach;     # reach table
 	my $NC   = $S->ndcfg;     # node config
+
+	my $time_marker = $args{time_marker} || time;
+	
 	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
+
 
 	my ( $ping_min, $ping_avg, $ping_max, $ping_loss, $pingresult );
 
@@ -1470,7 +1620,10 @@ sub runPing
 		# info for web page
 		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$catchall_data->{lastUpdateSec}   = time();
+
+		# fixme9: why is that set by runping, ever?
+		$catchall_data->{last_poll}   = $time_marker;
+		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
 	}
 	else
 	{
@@ -1858,7 +2011,7 @@ sub getDNSloc
 	# collect DNS location info. Update this info every update pass.
 	$catchall_data->{loc_DNSloc} = "unknown";
 	my $tmphostname = $catchall_data->{host};
-	if ( NMISNG::Util::getbool( $C->{loc_from_DNSloc} ) and $C->{netDNS} )
+	if ( NMISNG::Util::getbool( $C->{loc_from_DNSloc} ))
 	{
 		my ( $rr, $lat, $lon );
 		my $res = Net::DNS::Resolver->new;
@@ -3311,7 +3464,7 @@ sub getEnvData
 					}
 				}
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-				 datasets => $datasets,	time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				 datasets => $datasets,	time => $catchall_data->{last_poll}, delay_insert => 1 );
 				# new subconcepts may have been added
 				$inventory->save();
 			}
@@ -3772,7 +3925,7 @@ sub getSystemHealthData
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-					datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+					datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
 			}
@@ -3804,49 +3957,61 @@ sub updateNodeInfo
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $RI   = $S->reach;
 	my $NC   = $S->ndcfg;    # node config
+	my $NI = $S->ndinfo;		 # fixme9: az doubts this is the right spot to write to???
 	my $M    = $S->mdl;
+
+	my $time_marker = $args{time_marker} || time;
+	
 	my $result;
 	my $exit = 1;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	NMISNG::Util::info("Starting Update Node Info, node $S->{name}");
-
+	
 	# clear the node reset indication from the last run
 	$catchall_data->{node_was_reset} = 0;
-
+	
 	# save what we need now for check of this node
 	my $sysObjectID  = $catchall_data->{sysObjectID};
 	my $ifNumber     = $catchall_data->{ifNumber};
 	my $sysUpTimeSec = $catchall_data->{sysUpTimeSec};
 	my $sysUpTime    = $catchall_data->{sysUpTime};
-
+	
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo( class => 'system', model => $model, target => $catchall_data );
+	
+	# polling policy needs saving regardless of success/failure
+	$catchall_data->{last_polling_policy} = $NC->{node}->{polling_policy} || 'default';
 
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
 	for my $source (qw(snmp wmi))
 	{
-		# ok if enabled and no errors
-		if ( $curstate->{"${source}_enabled"} && !$curstate->{"${source}_error"} )
-		{
-			my $sourcename = uc($source);
-			$RI->{"${source}result"} = 100;
-			HandleNodeDown( sys => $S, type => $source, up => 1, details => "$sourcename ok" );
-		}
+		
+		if ($curstate->{"${source}_enabled"})
+		{	
+			# ok if enabled and no errors
+			if (!$curstate->{"${source}_error"} )
+			{
+				my $sourcename = uc($source);
+				$RI->{"${source}result"} = 100;
+				HandleNodeDown( sys => $S, type => $source, up => 1, details => "$sourcename ok" );
 
-		# not ok if enabled and error
-		elsif ( $curstate->{"${source}_enabled"} && $curstate->{"${source}_error"} )
-		{
-			HandleNodeDown( sys => $S, type => $source, details => $curstate->{"${source}_error"} );
-			$RI->{"${source}result"} = 0;
-		}
+				# record a _successful_ collect for the different sources,
+				# the collect now-or-later logic needs that, not just attempted at time x
+				$catchall_data->{"last_poll_$source"} = $time_marker;
 
-		# don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
+			}
+			else
+			{
+				HandleNodeDown( sys => $S, type => $source, details => $curstate->{"${source}_error"} );
+				$RI->{"${source}result"} = 0;
+			}
+		}
+		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
 	if ($loadsuccess)
@@ -3922,7 +4087,9 @@ sub updateNodeInfo
 
 		$V->{system}{lastUpdate_value} = NMISNG::Util::returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$catchall_data->{lastUpdateSec}   = time();
+		# that's actually critical for other functions down the track
+		$catchall_data->{last_poll}   = $time_marker;
+		delete $catchall_data->{lastCollectPoll}; # replaced by last_poll
 
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $catchall_data->{name};
@@ -4109,7 +4276,7 @@ sub getNodeData
 		}
 		# add data and stats, catchall should be saved at the end of the cycle which will save
 		$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-			datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+			datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 	}
 	elsif( $howdiditgo->{skipped} ) {}
 	else
@@ -4554,7 +4721,7 @@ sub getIntfData
 			}
 			# add data and stats
 			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-				datasets => $datasets, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
@@ -5414,7 +5581,7 @@ sub getCallsdata
 				my $period = getThresholdPeriod(subconcept => $concept);
 				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-					datasets => { $concept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+					datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 				# save because create_update_rrd may set storage
 				$inventory->save();
@@ -5799,7 +5966,7 @@ sub getPVC
 					my $period = getThresholdPeriod(subconcept => $concept);
 					$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
 					$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-						datasets => { $concept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+						datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 					# new subconcepts may have been added
 					$inventory->save();
 				}
@@ -5928,7 +6095,7 @@ sub runServer
 							subconcept => 'hrsmpcpu', start => $period, end => time);
 
 						$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-							datasets => { 'hrsmpcpu' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+							datasets => { 'hrsmpcpu' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 						($op,$error) = $inventory->save();
 						NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -6176,7 +6343,7 @@ sub runServer
 					subconcept => $subconcept, start => $period, end => time);
 
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
-					datasets => { $subconcept => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+					datasets => { $subconcept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 				($op,$error) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
@@ -7343,9 +7510,6 @@ sub runCheckValues
 	my $C = NMISNG::Util::loadConfTable();
 
 	if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )    #  don't bother with dead nodes
-
-		#			 and !NMISNG::Util::getbool($NI->{system}{snmpdown}) # snmp not dead
-		#			 and $S->status->{snmp_enabled} )			 # snmp still known to be enabled
 	{
 		NMISNG::Util::dbg("Node $S->{name} is down, not looking for check values");
 		return;
@@ -7428,6 +7592,7 @@ sub HandleNodeDown
 
 	return;
 }
+
 
 # performs various node health status checks
 # optionally! updates rrd
@@ -7965,7 +8130,7 @@ sub runReach
 			my $datasets = NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
 			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
 			$inventory->add_timed_data( data => $pit, derived_data => $stats, 
-				datasets => { 'health' => $datasets }, time => $catchall_data->{lastCollectPoll}, delay_insert => 1 );
+				datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 			# $inventory->data($data);
 			$inventory->save();
 		}
@@ -7986,6 +8151,7 @@ sub runReach
 
 	return \%reachVal;
 }
+
 
 # calculate the summary8 and summary16 data like it used to be, this will be stored in the db as
 # derived data
@@ -10152,6 +10318,7 @@ sub checkConfig
 #   node - (optional),
 #   running_independently - set to 1 if not in collect/outer loop that will do saves
 # returns: nothing
+# fixme9: needs to be taught to run for N nodes which are not all and not just a single one!
 sub runThreshold
 {
 	my ($node,$running_independently) = @_;

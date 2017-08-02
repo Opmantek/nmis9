@@ -1448,7 +1448,7 @@ sub selectLarge
 			my $lastUpdate      = "";
 			my $colorlast       = $color;
 			my $lastUpdateClass = "info Plain nowrap";
-			my $time            = $groupSummary->{$node}{lastUpdateSec};
+			my $time            = $groupSummary->{$node}{last_poll};
 			if ( $time ne "" )
 			{
 				$lastUpdate = NMISNG::Util::returnDateStamp($time);
@@ -2134,7 +2134,7 @@ EO_HTML
 						if ( $k eq 'lastUpdate' )
 						{
 							# check lastupdate
-							my $time = $catchall_data->{lastUpdateSec};
+							my $time = $catchall_data->{last_poll};
 							if ( $time ne "" )
 							{
 								if ( $time < ( time - 60 * 15 ) )
@@ -2586,7 +2586,7 @@ EO_HTML
 	elsif ( defined $catchall_data->{services} and $catchall_data->{services} ne "" )
 	{
 		print Tr( td( {class => 'header'}, 'Monitored Services' ) );
-		# TODO: figure out!
+		# TODO: figure out! fixme9
 		my $serviceStatus = {}; #$NI->{service_status};
 		foreach my $servicename ( keys %{$serviceStatus} )
 		{
@@ -4966,17 +4966,18 @@ sub nodeAdminSummary
 					my $community = "OK";
 					my $commClass = "info Plain";
 
-					my $lastCollectPoll
-						= defined $NI->{system}{lastCollectPoll}
-						? NMISNG::Util::returnDateStamp( $NI->{system}{lastCollectPoll} )
+					# fixme9 utterly wrong data source
+					my $lastpoll = defined $NI->{system}{last_poll}
+						? NMISNG::Util::returnDateStamp( $NI->{system}{last_poll} )
 						: "N/A";
-					my $lastCollectClass = "info Plain";
+					my $lastpollclass = "info Plain";
 
-					my $lastUpdatePoll
-						= defined $NI->{system}{lastUpdatePoll}
-						? NMISNG::Util::returnDateStamp( $NI->{system}{lastUpdatePoll} )
+					# fixme9 utterly wrong data source
+					my $lastupdate
+						= defined $NI->{system}{last_update}
+						? NMISNG::Util::returnDateStamp( $NI->{system}{last_update} )
 						: "N/A";
-					my $lastUpdateClass = "info Plain";
+					my $lastupdateclass = "info Plain";
 
 					my $pingable  = "unknown";
 					my $pingClass = "info Plain";
@@ -4999,36 +5000,37 @@ sub nodeAdminSummary
 						$actClass = "info Plain";
 						if ( $LNT->{$node}{active} eq "false" )
 						{
-							$lastCollectPoll = "N/A";
+							$lastpoll = "N/A"; # fixme wrong logic - still should show last poll before inactivation!
 						}
-						elsif ( not defined $NI->{system}{lastCollectPoll} )
+						# fixme9 wrong data source
+						elsif ( not defined $NI->{system}{last_poll} )
 						{
-							$lastCollectPoll  = "unknown";
-							$lastCollectClass = "info Plain Minor";
+							$lastpoll  = "unknown";
+							$lastpollclass = "info Plain Minor";
 							$exception        = 1;
 							push( @issueList, "Last collect poll is unknown" );
 						}
-						elsif ( $NI->{system}{lastCollectPoll} < ( time - 60 * 15 ) )
+						elsif ( $NI->{system}{last_poll} < ( time - 60 * 15 ) )
 						{
-							$lastCollectClass = "info Plain Major";
+							$lastpollclass = "info Plain Major";
 							$exception        = 1;
 							push( @issueList, "Last collect poll was over 5 minutes ago" );
 						}
 
 						if ( $LNT->{$node}{active} eq "false" )
 						{
-							$lastUpdatePoll = "N/A";
+							$lastupdate = "N/A"; # fixme wrong logic, should show last time  before deactivation
 						}
-						elsif ( not defined $NI->{system}{lastUpdatePoll} )
+						elsif ( not defined $NI->{system}{last_update} )
 						{
-							$lastUpdatePoll  = "unknown";
-							$lastUpdateClass = "info Plain Minor";
+							$lastupdate  = "unknown";
+							$lastupdateclass = "info Plain Minor";
 							$exception       = 1;
 							push( @issueList, "Last update poll is unknown" );
 						}
-						elsif ( $NI->{system}{lastUpdatePoll} < ( time - 86400 ) )
+						elsif ( $NI->{system}{last_update} < ( time - 86400 ) )
 						{
-							$lastUpdateClass = "info Plain Major";
+							$lastupdateclass = "info Plain Major";
 							$exception       = 1;
 							push( @issueList, "Last update poll was over 1 day ago" );
 						}
@@ -5157,8 +5159,8 @@ sub nodeAdminSummary
 							),
 							td( {class => 'infolft Plain'},   $issues ),
 							td( {class => $actClass},         $LNT->{$node}{active} ),
-							td( {class => $lastCollectClass}, $lastCollectPoll ),
-							td( {class => $lastUpdateClass},  $lastUpdatePoll ),
+							td( {class => $lastpollclass}, $lastpoll ),
+							td( {class => $lastupdateclass},  $lastupdate ),
 
 							td( {class => 'info Plain'}, $LNT->{$node}{ping} ),
 							td( {class => $pingClass},   $pingable ),
