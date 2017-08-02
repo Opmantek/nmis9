@@ -125,11 +125,18 @@ sub typeGraph {
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 
-	my $S = NMISNG::Sys->new; # get system object
-	 # load node info and Model if name exists
-	notfound("Node not found") && return if( !$S->init(name=>$node) );
-	
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $S = NMISNG::Sys->new;
+
+	# load node info and Model iff name exists
+	# otherwise, use dodgy non-node mode - fixme9 is that sufficient for minimal operation?
+	my $loadok = $S->init(name => $node);
+	if ($node && !$loadok)
+	{
+		return notfound("Node $node not found");
+	}
+	# fixme9: catchall_data is not even used?!?
+	my $catchall_data = $node? $S->inventory( concept => 'catchall' )->data_live() : {};
+			
 	my $M = $S->mdl;
 	my $V = $S->view;
 
@@ -193,8 +200,6 @@ sub typeGraph {
 			return 0;
 		}
 	}
-
-
 	my $time = time();
 
 	my $width = $C->{graph_width};
