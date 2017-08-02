@@ -202,13 +202,15 @@ sub status
 # force means ignore the old node file, only relevant if update is enabled as well.
 # if policy is given (hashref of ping/wmi/snmp => numeric seconds) then the rrd db params are overridden
 #
+# fixme9: the 'global' non-node mode is severly crippled and doesn't allow most operations.
+#
 # returns: 1 if _everything_ was successful, 0 otherwise, also sets details for status()
 sub init
 {
 	my ( $self, %args ) = @_;
 
 	$self->{name} = $args{name};
-	$self->{node} = lc $args{name};    # always lower case
+	$self->{node} = lc $args{name} if ($args{name});    # always lower case
 
 	$self->{debug}  = $args{debug};
 	$self->{update} = NMISNG::Util::getbool( $args{update} );
@@ -231,15 +233,16 @@ sub init
 	# fixme9: assumption is that the caller has loaded compat::nmis, usually justified i guess...
 	$self->{_nmisng} = Compat::NMIS::new_nmisng();
 
-	# fixme9: non-node sys objects needed but not supported right now
-	$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
-	if( !$self->{_nmisng_node} )
+	# fixme9: assumptions about availability of certain features conflict with non-node mode,
+	# which we need to update metrics and other global stuff :-(
+	if ($self->{name})
 	{
-		Carp::carp("sys without node not supported");
-		return 0;
+		$self->{_nmisng_node} = $self->{_nmisng}->node( name => $self->{name} );
+		Carp::confess("Cannot instantiate sys object for $self->{name}!\n")
+				if (!$self->{_nmisng_node});
 	}
 
-	my $catchall_data;
+	my $catchall_data = {};
 
 	# sys uses end-to-end model-file-level caching, NOT per contributing common file!
 	# caching can be chosen with argument cache_models here.
@@ -318,10 +321,11 @@ sub init
 		$self->{error} = "Failed to load nmis-system info!";
 	}
 
-	# load node configuration - attention: only done if snmp or wmi are true!
-	if (    !$self->{error}
-		and ( $snmp or $wantwmi )
-		and $self->{name} ne "" )
+	# load node configuration - attention: only done if snmp or wmi are true
+	# and if there's a node
+	if (!$self->{error}
+			and ( $snmp or $wantwmi )
+			and $self->{name} )
 	{
 		$self->{cfg}->{node} = $self->nmisng_node->configuration()
 			if ( $self->nmisng_node );
@@ -342,32 +346,37 @@ sub init
 	}
 
 	# load Model of node or the base Model, or give up
-	my $thisnodeconfig = $self->{cfg}->{node};
-	my $curmodel       = $catchall_data->{nodeModel};
 	my $loadthis       = "Model";
+	my $thisnodeconfig = {};
 
-	# get the specific model
-	if ( $curmodel and $curmodel ne "Model" and not $self->{update} )
+	if ($self->{name})
 	{
-		$loadthis = "Model-$curmodel";
-	}
-	# no specific model, update yes, ping yes, collect no -> pingonly
-	elsif ( NMISNG::Util::getbool( $thisnodeconfig->{ping} )
-		and !NMISNG::Util::getbool( $thisnodeconfig->{collect} )
-		and $self->{update} )
-	{
-		$loadthis = "Model-PingOnly";
-	}
+		$thisnodeconfig = $self->{cfg}->{node};
+		my $curmodel       = $catchall_data->{nodeModel};
 
-	# default model otherwise
-	NMISNG::Util::dbg("loading model $loadthis for node $self->{name}");
+		# get the specific model
+		if ( $curmodel and $curmodel ne "Model" and not $self->{update} )
+		{
+			$loadthis = "Model-$curmodel";
+		}
+		# no specific model, update yes, ping yes, collect no -> pingonly
+		elsif ( NMISNG::Util::getbool( $thisnodeconfig->{ping} )
+						and !NMISNG::Util::getbool( $thisnodeconfig->{collect} )
+						and $self->{update} )
+		{
+			$loadthis = "Model-PingOnly";
+		}
+
+		# default model otherwise
+		NMISNG::Util::dbg("loading model $loadthis for node $self->{name}");
+	}
 
 	# model loading failures are terminal
 	return 0 if ( !$self->loadModel( model => $loadthis ) );
 
 	# if a policy is given, override the database timing part of the model data
 	# traverse all the model sections, find out which sections are subject to which timing policy
-	if (ref($policy) eq "HASH")
+	if ($self->{node} && ref($policy) eq "HASH")
 	{
 		# must get that before it's overwritten
 		my $standardstep = $self->{mdl}->{database}->{db}->{timing}->{default}->{poll} // 300;
@@ -452,7 +461,7 @@ sub init
 			NMISNG::Util::dbg(sprintf("overrode rrd row counts for $maybe by factor %.2f",$factor)) if ($self->{debug} > 1);
 		}
 	}
-	
+
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
 	if ( $self->{name} and $snmp and $thisnodeconfig->{collect} )
 	{
@@ -1443,6 +1452,7 @@ sub selectNodeModel
 # also updates the graph-subconcept relationship cache
 #
 # args: model, required
+# fixme9: non-node mode is a dirty hack
 #
 # returns: 1 if ok, 0 if not; sets internal error status for status().
 sub loadModel
@@ -1452,7 +1462,8 @@ sub loadModel
 	my $exit  = 1;
 
 	my ( $name, $mdl );
-	my $catchall_data = $self->inventory( concept => 'catchall' )->data_live();
+	# in non-node mode we don't have any catchall or other database a/v...
+	my $catchall_data = $self->{name}? $self->inventory( concept => 'catchall' )->data_live() : {};
 
 	my $C = NMISNG::Util::loadConfTable();    # needed to determine the correct dir; generally cached and a/v anyway
 
@@ -1535,8 +1546,8 @@ sub loadModel
 	}
 
 	# if the loading has succeeded (cache or from source), optionally amend with rules from the policy
-	# and record what subconcepts are involved in providing what graphs
-	if ($exit)
+	# and record what subconcepts are involved in providing what graphs - iff in node mode
+	if ($exit && $self->{name})
 	{
 		# find the first matching policy rule
 	NEXTRULE:
@@ -1755,6 +1766,8 @@ sub getTitle
 #.  we need to be tell us when that is!
 # so for now if the section|type are interface|pkts, or the $str has interface in it (assuming we are making a filename) and we have
 # a valid index then load interface info
+#
+# fixme9: operation in non-node mode is a dirty hack
 sub prep_extras_with_catchalls
 {
 	my ($self, %args) = @_;
@@ -1768,61 +1781,66 @@ sub prep_extras_with_catchalls
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
 
-	# if new one is there use it
-	my $data = $self->inventory(concept => "catchall")->data_live();
-	$extras->{node} = $self->{node};
-
-	foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
+	# this can only work in node-mode. fixme9: is op w/o extras enough for even rudimentary non-nodemode?
+	if ($self->{name})
 	{
-		$extras->{$key} = $data->{$key};
-	}
-	$extras->{InstalledModems} //= 0;
-	# if I am wanting a storage thingy, then lets populate the variables I need.
-	if ( $index ne ''
-		and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
-	{
-		my $data;
-		my $storage_inventory = $self->inventory(concept => 'storage', index => $index, nolog => 1);
-		$data = $storage_inventory->data() if( $storage_inventory );
+		# if new one is there use it
+		my $data = $self->inventory(concept => "catchall")->data_live();
+		$extras->{node} = $self->{node};
 
-		foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
+		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
 		{
 			$extras->{$key} = $data->{$key};
 		}
-		$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
-		$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
-		$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
-	}
+		$extras->{InstalledModems} //= 0;
 
-	# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
-	if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
-	{
-		#inventory keyed by index and ifDescr so we need partial
-		my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
-		if( $interface_inventory )
+		# if I am wanting a storage thingy, then lets populate the variables I need.
+		if ( $index ne ''
+				 and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
 		{
+			my $data;
+			my $storage_inventory = $self->inventory(concept => 'storage', index => $index, nolog => 1);
+			$data = $storage_inventory->data() if( $storage_inventory );
 
-			# no fallback to info section as interface update is running
-			# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
-			$data = $interface_inventory->data();
-			foreach my $key (qw(ifAlias Description ifDescr ifType))
+			foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 			{
-				$extras->{$key} = $interface_inventory->$key();
+				$extras->{$key} = $data->{$key};
 			}
-			$extras->{ifDescr} = NMISNG::Util::convertIfName( $extras->{ifDescr} );
-			$extras->{ifMaxOctets} = $interface_inventory->max_octets();
-			$extras->{maxBytes}    = $interface_inventory->max_bytes();
-			$extras->{maxPackets}  = $interface_inventory->max_packets();
-			$extras->{ifSpeedIn}   = $interface_inventory->ifSpeedIn();
-			$extras->{ifSpeedOut}  = $interface_inventory->ifSpeedOut();
-			$extras->{ifSpeed} = $interface_inventory->ifSpeed();
-			$extras->{speed}       = $interface_inventory->speed();
+			$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
+			$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
+			$extras->{hrDiskFree} = $extras->{hrDiskSize} - $extras->{hrDiskUsed};
 		}
-	}
-	else
-	{
-		$extras->{ifDescr} = $extras->{ifType}      = '';
-		$extras->{ifSpeed} = $extras->{ifMaxOctets} = 'U';
+
+		# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
+		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
+		{
+			#inventory keyed by index and ifDescr so we need partial
+			my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
+			if( $interface_inventory )
+			{
+
+				# no fallback to info section as interface update is running
+				# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
+				$data = $interface_inventory->data();
+				foreach my $key (qw(ifAlias Description ifDescr ifType))
+				{
+					$extras->{$key} = $interface_inventory->$key();
+				}
+				$extras->{ifDescr} = NMISNG::Util::convertIfName( $extras->{ifDescr} );
+				$extras->{ifMaxOctets} = $interface_inventory->max_octets();
+				$extras->{maxBytes}    = $interface_inventory->max_bytes();
+				$extras->{maxPackets}  = $interface_inventory->max_packets();
+				$extras->{ifSpeedIn}   = $interface_inventory->ifSpeedIn();
+				$extras->{ifSpeedOut}  = $interface_inventory->ifSpeedOut();
+				$extras->{ifSpeed} = $interface_inventory->ifSpeed();
+				$extras->{speed}       = $interface_inventory->speed();
+			}
+		}
+		else
+		{
+			$extras->{ifDescr} = $extras->{ifType}      = '';
+			$extras->{ifSpeed} = $extras->{ifMaxOctets} = 'U';
+		}
 	}
 
 	$extras->{item}            = $item;
@@ -1890,6 +1908,7 @@ sub parseString
 	}
 
 	$extras //= {};
+
 	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
 	NMISNG::Util::dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 
@@ -1898,7 +1917,7 @@ sub parseString
 	#
 	# if the extras substitution were to be done first, then the identically named
 	# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
-	if ( ref($extras) eq "HASH" )
+	if ( ref($extras) eq "HASH" && keys %$extras)
 	{
 		# must be done longest-first or we'll wreck $ifSpeedIn by replacing it with <value of ifSpeed>In...
 		for my $maybe ( sort { length($b) <=> length($a) } keys %$extras )
@@ -2131,7 +2150,8 @@ sub makeRRDname
 
 	my $dbpath = $self->parseString(string => $template,
 																	type => $safetype,
-																	index => $safeindex, item => $safeitem,
+																	index => $safeindex,
+																	item => $safeitem,
 																	extras => \%safeextras,
 																	'eval' => 0); # only expand, no expression to evaluate
 	if (!$dbpath)

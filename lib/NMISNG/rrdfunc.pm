@@ -41,18 +41,18 @@ use NMISNG::Util;
 
 # This function should be called if using any RRDS:: functionality directly
 # Functions in this file will also call it for you (but you have to give them a config)
-# it can also be called on it's own before using rrdfunc::'s, doing this means calls to 
+# it can also be called on it's own before using rrdfunc::'s, doing this means calls to
 # rrdfunc's functions to do not need the config as a parameter
 sub require_RRDs
 {
-	my (%args) = @_;	
+	my (%args) = @_;
 	state $RRD_included = 0;
 
 	if( !$RRD_included )
 	{
-		my $config = $args{config};	
+		my $config = $args{config};
 		die "no config!" if (!$config);
-		
+
 		$RRD_included = 1;
 		if ($config->{rrd_lib} ne '')
 		{
@@ -593,7 +593,7 @@ sub optionsRRD
 	my $timinginfo = (ref($mdlinfo->{database}) eq "HASH"
 										&& ref($mdlinfo->{database}->{db}) eq "HASH"
 										&& ref($mdlinfo->{database}->{db}->{timing}) eq "HASH")?
-										$mdlinfo->{database}->{db}->{timing}->{$type} // $mdlinfo->{database}->{db}->{timing}->{"default"} 
+										$mdlinfo->{database}->{db}->{timing}->{$type} // $mdlinfo->{database}->{db}->{timing}->{"default"}
 	:  undef;
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
@@ -651,7 +651,7 @@ sub optionsRRD
 									$mdlinfo->{database}->{db}->{size}->{$type} // $mdlinfo->{database}->{db}->{size}->{"default"} :  undef;
 	$sizeinfo //= { step_day => 1, step_week => 6, step_month => 24, step_year => 288,
 									rows_day => 2304, rows_week => 1536, rows_month => 2268, rows_year => 1890 };
-	
+
 	for my $period (qw(day week month year))
 	{
 		for my $rra (qw(AVERAGE MIN MAX))
@@ -733,7 +733,6 @@ sub createRRD
 			if ( -f $database and -r $database and -w $database )
 			{
 				NMISNG::Util::logMsg("INFO ($S->{name}) created RRD $database");
-				sleep 1;		# wait at least 1 sec to avoid rrd 1 sec step errors as next call is RRDBupdate
 			}
 			else
 			{
