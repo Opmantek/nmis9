@@ -1844,19 +1844,21 @@ sub writeConfData
 }
 
 # creates the dir in question, and all missing intermediate
-# directories in the path.
-sub createDir {
-	my $dir = shift;
-	my $C = NMISNG::Util::loadConfTable();
-	if ( not -d $dir ) {
-		my $permission = "0770"; # default
-		if ( $C->{'os_execperm'} ne "" ) {
-			$permission = $C->{'os_execperm'} ;
-		}
+# directories in the path; also sets ownership up to nmis_base.
+sub createDir 
+{
+	my ($dir) = @_;
+	
+	my $C = NMISNG::Util::loadConfTable(); # normally cached
+	
+	if ( not -d $dir ) 
+	{
+		my $permission = $C->{'os_execperm'} || "0770"; # fixme dirperm should be separate from execperm...
 
 		my $umask = umask(0);
-		mkpath($dir,{verbose => 0, mode => oct($permission)});
+		mkpath($dir, {verbose => 0, mode => oct($permission)});
 		umask($umask);
+		setFileProtParents($dir);
 	}
 }
 
