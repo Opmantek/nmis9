@@ -194,7 +194,8 @@ sub parse_rrd_update_data
 				? $previous_pit->{data}->{$key_raw}
 				: undef;
 			$target->{$key} = ($prev_value) ? ( $entry->{value} - $prev_value ) : 0;
-
+			# try and force to a number
+			$target->{$key} += 0.0;
 			# TODO: handle wrapping
 			# $target->{$key} = ???!?!? if( $target->{$key} < $prev_value );
 
@@ -203,7 +204,8 @@ sub parse_rrd_update_data
 		}
 		else
 		{
-			$target->{$key} = $entry->{value};
+			# try and force to a number
+			$target->{$key} = $entry->{value} + 0.0;
 			$key_meta{$key} = 1;
 		}
 	}

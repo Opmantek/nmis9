@@ -1166,7 +1166,7 @@ sub getSubconceptStats
 			foreach my $line ( @$graphret )
 			{
 				my ($name,$value) = split "=", $line;
-				$summaryStats{$name} = $value;
+				$summaryStats{$name} = $value + 0.0; # force to number
 
 				NMISNG::Util::dbg("name=$name, index=$index, value=$value",2);
 				##NMISNG::Util::logMsg("INFO name=$name, index=$index, value=$value");
