@@ -113,8 +113,14 @@ sub rrdDraw
 	my $filename = $Q->{filename};
 
 	my $S = NMISNG::Sys->new; # get system object
+
 	$S->init(name=>$nodename, snmp=>'false');
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	# fixme9: non-node mode is a dirty hack.
+	# fixme9: catchall_data is not used?!
+	if ($nodename)
+	{
+		my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	}
 
 	my $subconcept = $S->loadGraphTypeTable->{$graphtype};
 
@@ -304,7 +310,7 @@ sub graphCBQoS
 	my $width = $args{width};
 	my $height = $args{height};
 	my $debug = $Q->{debug};
-	
+
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 	my $database;
