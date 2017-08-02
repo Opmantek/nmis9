@@ -283,8 +283,6 @@ sub typeGraph {
 
 	my $GTT = $S->loadGraphTypeTable(index=>$index);
 
-	#print STDERR "DEBUG: ", %$GTT, "\n";
-
 	my $itm;
 	if ($Q->{graphtype} eq 'metrics') {
 		$group = 'network' if $group eq "";
@@ -315,9 +313,14 @@ sub typeGraph {
 			}
 		}
 	}
-
 	print comment("typeGraph begin");
-	my $modeldata = $S->getTypeInstances(graphtype => $graphtype, want_modeldata => 1, want_active => 1);
+
+	my $modeldata = $S->getTypeInstances(graphtype => $graphtype, 
+																			 want_modeldata => 1, 
+																			 want_active => 1 );
+	# fixme9: non-node mode means no graphttypetable means no menu and nothing works...
+	$GTT->{$graphtype} = $graphtype if (!$node && !$modeldata->count && !keys %$GTT);
+			
 	my $data = $modeldata->data;
 	# we can assume that the concept is the same in all entries
 	my $concept = ($modeldata->count > 0) ? $data->[0]{concept} : undef;	
@@ -343,6 +346,7 @@ sub typeGraph {
 		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
 		calls => { name => 'Interface', label_key => 'ifDescr' },
 	);
+
 	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index");
 	# get the dropdown info for system health, we need to figure out which of the 
 	# inventory data entries should be used for the label_key and name

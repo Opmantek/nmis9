@@ -38,6 +38,7 @@ use NMISNG::Util;          # common functions
 use NMISNG::Snmp;
 use NMISNG::rrdfunc;
 use NMISNG::WMI;
+use NMISNG::ModelData;					# gettypeinstances needs help
 
 #! this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
@@ -1944,7 +1945,9 @@ sub parseString
 }
 
 
-# fixme: left for backwards-compatibility only!
+# fixme9: left for backwards-compatibility only!
+# fixme9: this CANNOT work for non-node mode
+#
 # returns a r/o hash of graphtype -> subconcept (=rrd section) name for this node
 # args: none
 # returns: hashref
@@ -1972,6 +1975,8 @@ sub loadGraphTypeTable
 # belong to that section, then highly misleading data will be returned!
 # [want_modeldata] - 0/1, if set the function will return a model_data object
 #
+# fixme9: non-node mode is a dirty hack
+#
 # returns: list of matching indices - for indexed stuff the data.index property,
 # for services the data.service name.
 sub getTypeInstances
@@ -1980,9 +1985,10 @@ sub getTypeInstances
 	my ($graphtype,$section,$want_modeldata,$want_active) = @args{qw(graphtype section want_modeldata want_active)};
 
 	my (@instances,$modeldata);
-
+	
 	# query the inventory model for concept same as section (if section was given)...
-	if (defined $section)
+	# fixme9: can only work in node mode
+	if (defined $section && $self->{name})
 	{
 		# in case of indexed, return the index; for service return the service name
 		my $modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
@@ -2037,33 +2043,37 @@ sub getTypeInstances
 		if (@instances && defined($section) && (($section eq $concept) || ($section eq $graphtype)))
 		{
 			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
-			return @instances;
+			return $want_modeldata? NMISNG::ModelData->new(data => \@instances) : @instances; 
 		}
 
-		# and ask ONLY for the ones where a suitable storage element is present!
-		# note: doesn't check deeper, ie. for rrd key. storage knowledge embedded here is not ideal,
-		# but at least only the agreed-upon 'subconcept will have a key if available' is required
-		my $fields_hash = ($want_modeldata) ? undef : { "data.index" => 1,"data.service" => 1 };
-		my $filter = { "storage.$subconcept" => { '$exists' => 1 }};
-		if( $want_active )
+		# fixme9: can only work in node mode
+		if ($self->{name})
 		{
-			$filter->{enabled} = 1;
-			$filter->{historic} = 0;
-		}
-		$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
-																										node_uuid => $self->nmisng_node->uuid,
-																										concept => $concept,
-																										filter => $filter,
-																										fields_hash => $fields_hash );
-		if ($modeldata->count && !$want_modeldata)
-		{
-			for my $entry (@{$modeldata->data})
+			# and ask ONLY for the ones where a suitable storage element is present!
+			# note: doesn't check deeper, ie. for rrd key. storage knowledge embedded here is not ideal,
+			# but at least only the agreed-upon 'subconcept will have a key if available' is required
+			my $fields_hash = ($want_modeldata) ? undef : { "data.index" => 1,"data.service" => 1 };
+			my $filter = { "storage.$subconcept" => { '$exists' => 1 }};
+			if( $want_active )
 			{
-				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
+				$filter->{enabled} = 1;
+				$filter->{historic} = 0;
+			}
+			$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																											node_uuid => $self->nmisng_node->uuid,
+																											concept => $concept,
+																											filter => $filter,
+																											fields_hash => $fields_hash );
+			if ($modeldata->count && !$want_modeldata)
+			{
+				for my $entry (@{$modeldata->data})
+				{
+					push @instances, $entry->{data}->{index} // $entry->{data}->{service};
+				}
 			}
 		}
 	}
-	return ($want_modeldata) ? $modeldata : @instances;
+	return ($want_modeldata) ? ($modeldata || NMISNG::ModelData->new()) : @instances;
 }
 
 # compute the rrd file path for this graphtype+node+index/item
