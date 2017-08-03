@@ -3810,7 +3810,7 @@ sub viewStatus
 	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
-	my $NI = $S->ndNMISNG::Util::info(); # still needed for status section
+	my $NI = $S->ndinfo; # still needed for status section
 	my $nmisng_node = $S->nmisng_node;
 	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
