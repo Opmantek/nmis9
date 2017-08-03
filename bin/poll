@@ -68,9 +68,6 @@ use Compat::DBfunc;							# fixme9: should be removed
 use NMISNG::MIB;
 use NMISNG::Sys;
 
-# this costs heaps of time
-$Data::Dumper::Indent = 1;
-
 # Variables for command line munging
 my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
@@ -198,7 +195,7 @@ elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }               
 # fixme9: move this to nmis-cli or admin/node-admin
 elsif ( $type eq "groupsync" )  { sync_groups(); }
 
-else                            
+else
 {
 		print qq!
 
@@ -266,7 +263,7 @@ sub runThreads
 		# that's the dir of shipped=default models
 		NMISNG::Util::setFileProtDirectory( $C->{'<nmis_default_models>'}, 0 );    # no recursion required
 
-		
+
 		my $varsysdir = $C->{'<nmis_var>'} . "/nmis_system";
 		if ( !-d $varsysdir )
 		{
@@ -286,11 +283,11 @@ sub runThreads
 		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
 														 || !defined($laststate->{lastupdate_perms})
 														 || $laststate->{lastupdate_perms} + 7200 < time);
-		
+
 		if ($wantselftestnow)
 		{
 			NMISNG::Util::info("Starting selftest (takes about 5 seconds)...");
-			
+
 			my ( $allok, $tests ) = NMISNG::Util::selftest(
 				config                 => $C,
 				delay_is_ok            => 'true',
@@ -304,11 +301,11 @@ sub runThreads
 		{
 			$laststate ||= {tests => []};
 
-			my ($oldstate) = grep( $_->[0] eq "Permissions", 
+			my ($oldstate) = grep( $_->[0] eq "Permissions",
 														 @{$laststate->{tests}} );    # there will at most one
 			if ( defined $oldstate )
 			{
-				my ($targetidx) = grep( $tests->[$_]->[0] eq "Permissions", 
+				my ($targetidx) = grep( $tests->[$_]->[0] eq "Permissions",
 																( 0 .. $#{$tests} ) );
 				if ( defined $targetidx )
 				{
@@ -415,9 +412,9 @@ sub runThreads
 	NMISNG::Util::logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
-	NMISNG::Util::update_operations_stamp( type => $type, 
+	NMISNG::Util::update_operations_stamp( type => $type,
 																				 start => $starttime, stop => undef );
-	my $maxruntime = defined( $C->{max_child_runtime} ) 
+	my $maxruntime = defined( $C->{max_child_runtime} )
 			&& $C->{max_child_runtime} > 0 ? $C->{max_child_runtime} : 0;
 
 	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
@@ -430,9 +427,9 @@ sub runThreads
 	# iff active and the polling policy agrees, that is...
 	@cand_nodes = $node_select? $node_select
 			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
-	
+
 	# get the polling policies and translate into seconds (for rrd file options)
-	my $policies = NMISNG::Util::loadTable(dir => 'conf', 
+	my $policies = NMISNG::Util::loadTable(dir => 'conf',
 																				 name => "Polling-Policy") || {};
 	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
 	# translate period specs X.Ys, A.Bm, etc. into seconds
@@ -445,7 +442,7 @@ sub runThreads
 			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
 			{
 				my ($rawvalue, $unit) = ($1, $3);
-				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 
+				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600
 																 : $unit eq 'd'? 86400 : 1);
 			}
 			$intervals{$polname}->{$subtype} = $interval; # now in seconds
@@ -459,7 +456,7 @@ sub runThreads
 
 	if ($type eq "update" or $type eq "services")
 	{
-		@todo_nodes = grep(NMISNG::Util::getbool($NT->{$_}->{active}), 
+		@todo_nodes = grep(NMISNG::Util::getbool($NT->{$_}->{active}),
 											 @cand_nodes);
 	}
 	else
@@ -467,10 +464,10 @@ sub runThreads
 		# find out what nodes are due as per polling policy - also honor force,
 		# and any in-progress polling that hasn't finished yet
 
-		# unfortunately we require each candidate node's nodeinfo/catchall data to make the 
+		# unfortunately we require each candidate node's nodeinfo/catchall data to make the
 		# candidate-or-not decision...
 		#	fixme9 should we add the node uuid as filter?
-		my $accessor = $nmisng->get_inventory_model(concept => "catchall", 
+		my $accessor = $nmisng->get_inventory_model(concept => "catchall",
 																								cluster_id => $C->{cluster_id});
 		# node information, by node uuid
 		my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
@@ -484,12 +481,12 @@ sub runThreads
 			NMISNG::Util::dbg("Node $maybe is using polling policy \"$polname\"");
 
 			my $ninfo = $node_info_ro{ $NT->{$maybe}->{uuid} } // {};
-						
+
 			my $lastpolicy = $ninfo->{last_polling_policy};
 			my $lastsnmp = $ninfo->{last_poll_snmp};
 			my $lastwmi = $ninfo->{last_poll_wmi};
 
-			# that's it for completed polls - for in-progress uncompleted 
+			# that's it for completed polls - for in-progress uncompleted
 			# we need other time logic,
 			# overriding these markers from the active process' start time
 			my @isinprogress = grep($otherprocesses->{$_}->{node} &&
@@ -522,7 +519,7 @@ sub runThreads
 				}
 				else
 				{
-					rename($curdir,$backupdir) 
+					rename($curdir,$backupdir)
 							or NMISNG::Util::logMsg("WARN failed to mv rrd files for $maybe: $!");
 				}
 				push @todo_nodes, $maybe;
@@ -600,7 +597,7 @@ sub runThreads
 			}
 		}
 	}
-	
+
 	# anything to do?
 	if (!@todo_nodes)
 	{
@@ -664,7 +661,7 @@ sub runThreads
 																 .NMISNG::Util::returnDateStamp($otherprocesses->{$pid}->{start}));
 				}
 			}
-			
+
 			if ($needgrace) # give the others a moment to shut down cleanly
 			{
 				my $grace = 2;
@@ -739,7 +736,7 @@ sub runThreads
 		# wait blockingly until all worker children are done
 		1 while wait != -1;
 	}
-	
+
 	my $collecttime = Time::HiRes::time();
 	my $S;
 
@@ -759,7 +756,7 @@ sub runThreads
 	{
 		$S = NMISNG::Sys->new;           # object nmis-system
 		$S->init();
-		
+
 		# do some masterly type things
 		if ( !NMISNG::Util::getbool( $C->{'nmis_master_poll_cycle'},"invert")  # if not false
 				 && NMISNG::Util::getbool( $C->{server_master} ) )
@@ -767,17 +764,17 @@ sub runThreads
 			my $pollTimer = Compat::Timing->new;
 
 			NMISNG::Util::dbg("Starting nmisMaster");
-			nmisMaster(); 
+			nmisMaster();
 			NMISNG::Util::logMsg( "Poll Time: nmisMaster, " . $pollTimer->elapTime() )
 			if (NMISNG::Util::getbool($C->{log_polling_time}) );
 		}
-		
+
 		# calculate and cache the summary stats
 		if (!NMISNG::Util::getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
 				&& NMISNG::Util::getbool($C->{cache_summary_tables}))
 		{
 			NMISNG::Util::dbg("Starting nmisSummary");
-		
+
 			# fixme9: catchall needs to be written before this runs as it loads the data
 			# locally, it has no $S
 			nmisSummary(update_operations_stamp => 1);
@@ -836,7 +833,7 @@ sub runThreads
 		{
 			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 		}
-		
+
 		$S->writeNodeInfo;    # var/nmis-system.xxxx, the base info system
 	}
 
@@ -1146,7 +1143,7 @@ sub doUpdate
 		my $previous_pit = $inventory->get_newest_timed_data();
 		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, 
+		$inventory->add_timed_data( data => $pit, derived_data => $stats,
 			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
@@ -1295,7 +1292,7 @@ sub doCollect
 									snmp => $wantsnmp,
 									wmi => $wantwmi,
 									policy => $policy,
-									debug => $C->{debug} ) )  
+									debug => $C->{debug} ) )
 	{
 		NMISNG::Util::dbg( "Sys init for $name failed: "
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
@@ -1390,10 +1387,10 @@ sub doCollect
 				}
 			}
 			# if runping hasn't set the last_poll marker, set it here unconditionally
-			# remember when the collect poll last completed (doesn't mean successfully!), 
+			# remember when the collect poll last completed (doesn't mean successfully!),
 			# this isn't saved  until later so set it early so functions can use it
 			$catchall_data->{last_poll} = $starttime;
-			
+
 			# fixme: why no error handling for any of these?
 
 			# get node data and store in rrd
@@ -1496,7 +1493,7 @@ sub doCollect
 		my $previous_pit = $inventory->get_newest_timed_data();
 		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, 
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats,
 			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
@@ -1527,7 +1524,7 @@ sub runPing
 	my $NC   = $S->ndcfg;     # node config
 
 	my $time_marker = $args{time_marker} || time;
-	
+
 	my $catchall_data = $S->inventory(concept => 'catchall')->data_live();
 
 
@@ -2932,7 +2929,7 @@ sub getIntfInfo
 			}
 
 			# get color depending of state
-			# NMISNG - TODO: trying to get the color from something not in the db, problem, causing warning			
+			# NMISNG - TODO: trying to get the color from something not in the db, problem, causing warning
 			$V->{interface}{"${index}_ifAdminStatus_color"} = Compat::NMIS::getAdminColor( sys => $S, index => $index, data => $target );
 			$V->{interface}{"${index}_ifOperStatus_color"} = Compat::NMIS::getOperColor( sys => $S, index => $index, data => $target );
 
@@ -3361,7 +3358,7 @@ sub getEnvInfo
 					akcp_temp => { section => 'akcp_temp', name => 'hhmsSensorTempDescr'},
 					akcp_hum => { section => 'akcp_hum', name => 'hhmsSensorHumDescr'},
 					cssgroup => { section => 'cssgroup', name => 'CSSGroupDesc'},
-					env_temp => { section => 'csscontent', name => 'CSSContentDesc'}, 
+					env_temp => { section => 'csscontent', name => 'CSSContentDesc'},
 				};
 				$inventory->description( $target->{ $description_map->{$section}{name} } );
 				$inventory->historic(0);
@@ -3463,7 +3460,7 @@ sub getEnvData
 						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 					}
 				}
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 				 datasets => $datasets,	time => $catchall_data->{last_poll}, delay_insert => 1 );
 				# new subconcepts may have been added
 				$inventory->save();
@@ -3964,25 +3961,25 @@ sub updateNodeInfo
 	my $M    = $S->mdl;
 
 	my $time_marker = $args{time_marker} || time;
-	
+
 	my $result;
 	my $exit = 1;
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	NMISNG::Util::info("Starting Update Node Info, node $S->{name}");
-	
+
 	# clear the node reset indication from the last run
 	$catchall_data->{node_was_reset} = 0;
-	
+
 	# save what we need now for check of this node
 	my $sysObjectID  = $catchall_data->{sysObjectID};
 	my $ifNumber     = $catchall_data->{ifNumber};
 	my $sysUpTimeSec = $catchall_data->{sysUpTimeSec};
 	my $sysUpTime    = $catchall_data->{sysUpTime};
-	
+
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo( class => 'system', model => $model, target => $catchall_data );
-	
+
 	# polling policy needs saving regardless of success/failure
 	$catchall_data->{last_polling_policy} = $NC->{node}->{polling_policy} || 'default';
 
@@ -3990,9 +3987,9 @@ sub updateNodeInfo
 	my $curstate = $S->status;
 	for my $source (qw(snmp wmi))
 	{
-		
+
 		if ($curstate->{"${source}_enabled"})
-		{	
+		{
 			# ok if enabled and no errors
 			if (!$curstate->{"${source}_error"} )
 			{
@@ -4275,7 +4272,7 @@ sub getNodeData
 			}
 		}
 		# add data and stats, catchall should be saved at the end of the cycle which will save
-		$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+		$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 			datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 	}
 	elsif( $howdiditgo->{skipped} ) {}
@@ -4720,7 +4717,7 @@ sub getIntfData
 				}
 			}
 			# add data and stats
-			$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+			$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 				datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
@@ -5580,7 +5577,7 @@ sub getCallsdata
 						# get stats
 				my $period = getThresholdPeriod(subconcept => $concept);
 				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 					datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 				# save because create_update_rrd may set storage
@@ -5965,7 +5962,7 @@ sub getPVC
 					# get stats
 					my $period = getThresholdPeriod(subconcept => $concept);
 					$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
-					$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+					$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 						datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 					# new subconcepts may have been added
 					$inventory->save();
@@ -6016,12 +6013,12 @@ sub runServer
 		$S->loadInfo( class => 'device', model => $model, target => $overall_target );    # get cpu load without index
 
 		my $path = $S->nmisng_node->inventory_path( concept => 'device_global', path_keys => [], data => $overall_target );
-		my ($inventory,$error_message) = $S->nmisng_node->inventory( 
-			concept => 'device_global', 
-			path => $path, 
-			path_keys => [], 
-			data => $overall_target, 
-			create => 1 
+		my ($inventory,$error_message) = $S->nmisng_node->inventory(
+			concept => 'device_global',
+			path => $path,
+			path_keys => [],
+			data => $overall_target,
+			create => 1
 		);
 		$S->nmisng->log->error("Failed to get inventory for device_global, error_message:$error_message") if(!$inventory);
 		# create is set so we should have an inventory here
@@ -6062,13 +6059,13 @@ sub runServer
 
 					# lookup/create inventory before create_update_rrd so it can be passed in
 					my $path = $S->nmisng_node->inventory_path( concept => 'device', path_keys => ['index'], data => $device_target );
-					($inventory,$error_message) = $S->nmisng_node->inventory( 
-						concept => 'device', 
-						path => $path, 
-						path_keys => ['index'], 
-						data => $device_target, 
-						create => 1 
-					);					
+					($inventory,$error_message) = $S->nmisng_node->inventory(
+						concept => 'device',
+						path => $path,
+						path_keys => ['index'],
+						data => $device_target,
+						create => 1
+					);
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
 
 					if (! ( my $db = $S->create_update_rrd( data => $D, type => "hrsmpcpu", index => $index, inventory => $inventory ) ) )
@@ -6091,10 +6088,10 @@ sub runServer
 						my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => 'hrsmpcpu');
-						$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, 
+						$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 							subconcept => 'hrsmpcpu', start => $period, end => time);
 
-						$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+						$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 							datasets => { 'hrsmpcpu' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 						($op,$error) = $inventory->save();
@@ -6333,16 +6330,16 @@ sub runServer
 
 				# make sure the data is set and save
 				$inventory->data( $storage_target );
-				$inventory->description( $storage_target->{hrStorageDescr} ) 
+				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
 				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 				# get stats
 				my $period = getThresholdPeriod(subconcept => $subconcept);
-				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, 
+				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 					subconcept => $subconcept, start => $period, end => time);
 
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats, 
+				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 					datasets => { $subconcept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 				($op,$error) = $inventory->save();
@@ -6430,7 +6427,7 @@ sub runServices
 	# do an snmp service poll first, regardless of whether any specific services being enabled or not
 	my %snmpTable;
 	my $timeout = 3;
-	my ( $snmpcmd, @ret, $var, $i, $key );
+	my ( $snmpcmd, @ret, $var, $i );
 	my $write = 0;
 
 	# do we have snmp-based services and are we allowed to check them? ie node active and collect on
@@ -6482,24 +6479,28 @@ sub runServices
 		# don't do anything with the (incomplete and unusable) snmp data if snmp failed just now
 		if ($snmp_allowed)
 		{
-			# prepare service list for all observed services
-			foreach ( sort keys %{$snmpTable{hrSWRunName}} )
+			# prepare service list for all observed services, but ditch 'invalid' == zombies
+			for my $pid ( keys %{$snmpTable{hrSWRunName}} )
 			{
-				# key services by name_pid
-				$key                               = $snmpTable{hrSWRunName}{$_} . ':' . $_;
-				$services{$key}{hrSWRunName}       = $key;
-				$services{$key}{hrSWRunPath}       = $snmpTable{hrSWRunPath}{$_};
-				$services{$key}{hrSWRunParameters} = $snmpTable{hrSWRunParameters}{$_};
-				$services{$key}{hrSWRunType}
-					= ( '', 'unknown', 'operatingSystem', 'deviceDriver', 'application' )[$snmpTable{hrSWRunType}{$_}];
-				$services{$key}{hrSWRunStatus}
-					= ( '', 'running', 'runnable', 'notRunnable', 'invalid' )[$snmpTable{hrSWRunStatus}{$_}];
-				$services{$key}{hrSWRunPerfCPU} = $snmpTable{hrSWRunPerfCPU}{$_};
-				$services{$key}{hrSWRunPerfMem} = $snmpTable{hrSWRunPerfMem}{$_};
+				# nmis keys services by name:pid (*sigh*)
+				my $newkey = "$snmpTable{hrSWRunName}{$pid}:$pid";
+				my %newrecord = ( pid => $pid, # cleaner/more useful
+													hrSWRunName => $newkey, # name mangling is bad
+													map { ($_ => $snmpTable{$_}->{$pid}) } (qw(hrSWRunPath hrSWRunParameters
+hrSWRunPerfCPU hrSWRunPerfMem)) );
+				$newrecord{hrSWRunType} = ( '', 'unknown', 'operatingSystem',
+																		'deviceDriver', 'application' )[ $snmpTable{hrSWRunType}->{$pid}];
+				$newrecord{hrSWRunStatus} = ( '', 'running', 'runnable',
+																			'notRunnable', 'invalid' )[ $snmpTable{hrSWRunStatus}->{$pid}];
+				if ($newrecord{hrSWRunStatus} eq "invalid")
+				{
+					NMISNG::Util::dbg("skipping process in state 'invalid': ".
+														Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump, 3);
+					next;
+				}
 
-				NMISNG::Util::dbg("$services{$key}{hrSWRunName} type=$services{$key}{hrSWRunType} status=$services{$key}{hrSWRunStatus} cpu=$services{$key}{hrSWRunPerfCPU} memory=$services{$key}{hrSWRunPerfMem}",
-					2
-				);
+				$services{$newkey} = \%newrecord;
+				NMISNG::Util::dbg("Found process: ".Data::Dumper->new([\%newrecord])->Terse(1)->Indent(0)->Pair("=")->Dump, 2);
 			}
 
 			# keep all processes for display, not rrd - park this as timed-data
@@ -6568,13 +6569,13 @@ sub runServices
 	for my $service (sort keys %desiredservices)
 	{
 		my $thisservice = $ST->{$service};
-		
+
 		# check for invalid service table data
-		next if ( !$service  
-							or $service =~ m!^n\/a$!i 
+		next if ( !$service
+							or $service =~ m!^n\/a$!i
 							or $thisservice->{Service_Type} =~ m!^n\/a$!i );
-		
-		my ($name, $servicename, $servicetype) 
+
+		my ($name, $servicename, $servicetype)
 				= @{$thisservice}{"Name","Service_Name","Service_Type"};
 
 		# are we supposed to run this service now?
@@ -6621,7 +6622,7 @@ sub runServices
 		# so allow up to 10% underrun
 		# note that force overrules the timing  policy
 		if ( !NMISNG::Util::getbool($nvp{force})
-				 && $lastrun 
+				 && $lastrun
 				 && ( ( time - $lastrun ) < $serviceinterval * 0.9 ) )
 		{
 			$msg .= "skipping this time.";
@@ -6848,7 +6849,7 @@ sub runServices
 		# now the sapi 'scripts' (similar to expect scripts)
 		elsif ( $servicetype eq "script" )
 		{
-			# OMK-3237, use sensible and non-clashing config source: 
+			# OMK-3237, use sensible and non-clashing config source:
 			# now service_name sets the script file name, temporarily falling back to $service
 			my $scriptfn = "$C->{script_root}/". $servicename || $service;
 			if (!open(F, $scriptfn))
@@ -8140,7 +8141,7 @@ sub runReach
 			my $previous_pit = $inventory->get_newest_timed_data();
 			my $datasets = NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
 			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-			$inventory->add_timed_data( data => $pit, derived_data => $stats, 
+			$inventory->add_timed_data( data => $pit, derived_data => $stats,
 				datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 			# $inventory->data($data);
 			$inventory->save();
