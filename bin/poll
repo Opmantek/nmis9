@@ -7576,7 +7576,7 @@ sub HandleNodeDown
 {
 	my %args = @_;
 	my ( $S, $typeofdown, $details, $goingup ) = @args{"sys", "type", "details", "up"};
-	return if ( ref($S) ne "Sys" or $typeofdown !~ /^(snmp|wmi|node)$/ );
+	return if ( ref($S) ne "NMISNG::Sys" or $typeofdown !~ /^(snmp|wmi|node)$/ );
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	$goingup = NMISNG::Util::getbool($goingup);

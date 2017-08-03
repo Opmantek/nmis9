@@ -783,7 +783,7 @@ sub PreciseNodeStatus
 {
 	my (%args) = @_;
 	my $S = $args{system};
-	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "Sys");
+	return ( error => "Invalid arguments, no Sys object!" ) if (ref($S) ne "NMISNG::Sys");
 
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 	my $C = NMISNG::Util::loadConfTable();
