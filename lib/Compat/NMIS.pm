@@ -3273,6 +3273,7 @@ sub loadServiceStatus
 		if ($only_known)
 		{
 			my $thisnode = $nodeobjs{$maybe->node_uuid} || $nmisng->node(uuid => $maybe->node_uuid);
+			next if (ref($thisnode) ne "NMISNG::Node"); # ignore unexpectedly orphaned service info
 			$nodeobjs{$maybe->node_uuid} ||= $thisnode;
 
 			next if (!NMISNG::Util::getbool($thisnode->configuration->{active}) # disabled node
