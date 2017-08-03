@@ -112,7 +112,7 @@ sub sapi
 
 	$errmsg = "Nothing in script";
 	foreach $line (split(/\n/,$script)) {
-		next unless $line;
+		next if ($line =~ /^\s*(#.*)?$/);
 		$errmsg = "";
 		($type,$str) = $line =~ /^\s*((?:send|expect))\s*:\s*(.*)$/;
 
@@ -207,6 +207,8 @@ Scripts are in the form
   expect: string_to_match
   send:   more_data_to_send
   expect: another_string_to_match
+
+lines that start with a # character are ignored.
 
 If the data_to_send does not contain '\r' or '\n' or other '\x{hex}'
 escapes, then a newline character (\n) is appended to the data_to_send.

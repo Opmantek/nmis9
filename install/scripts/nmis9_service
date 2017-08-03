@@ -1,0 +1,3 @@
+# a small sapi script to test the web/integration side of NMIS9
+send: HEAD /cgi-nmis9/nmiscgi.pl HTTP/1.0\r\n\r\n
+expect: 200 OK
