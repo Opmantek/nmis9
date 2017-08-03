@@ -41,12 +41,12 @@
 	'option' => {
 		'standard' => [
 			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:responsetime#FFA500:Service $indx',
+			'LINE2:responsetime#FFA500:Service $index',
 			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs\\n',
 		],
 		'small' => [
 			'DEF:responsetime=$database:responsetime:AVERAGE',
-			'LINE2:responsetime#FFA500:$indx',
+			'LINE2:responsetime#FFA500:$index',
 			'GPRINT:responsetime:AVERAGE:Avg response time %.2lfs\\n',
 		]
 	}

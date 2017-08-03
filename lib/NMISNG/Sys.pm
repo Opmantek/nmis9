@@ -1936,9 +1936,14 @@ sub parseString
 			}
 		}
 	}
-	die "parsestring failed: ".Dumper($str,$extras) if( !$eval && $str =~ /\$/);
-	my $product = ($eval) ? eval $str : $str;
+	# no luck and no evaluation possible/allowed? give up, and do it loudly!
+	if( !$eval && $str =~ /\$/)
+	{
+		NMISNG::Util::logMsg("FATAL parseString failed to fully expand \"$str\"! extras were: ".Dumper($extras));
+		Carp::confess("parseString failed to fully expand \"$str\"!");
+	}
 
+	my $product = ($eval) ? eval $str : $str;
 	NMISNG::Util::logMsg("parseString failed for str:$str, error:$@") if($@);
 	NMISNG::Util::dbg( "parseString:: result is str=$product", 3 );
 	return $product;
@@ -1985,7 +1990,7 @@ sub getTypeInstances
 	my ($graphtype,$section,$want_modeldata,$want_active) = @args{qw(graphtype section want_modeldata want_active)};
 
 	my (@instances,$modeldata);
-	
+
 	# query the inventory model for concept same as section (if section was given)...
 	# fixme9: can only work in node mode
 	if (defined $section && $self->{name})
@@ -2043,7 +2048,7 @@ sub getTypeInstances
 		if (@instances && defined($section) && (($section eq $concept) || ($section eq $graphtype)))
 		{
 			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
-			return $want_modeldata? NMISNG::ModelData->new(data => \@instances) : @instances; 
+			return $want_modeldata? NMISNG::ModelData->new(data => \@instances) : @instances;
 		}
 
 		# fixme9: can only work in node mode
