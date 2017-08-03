@@ -93,5 +93,15 @@
     'Poll_Interval' => '5m',
     'Service_Name' => 'DNS',
     'Name' => 'port53'
-  }
+  },
+  'nmis cgi' => {
+    'Collect_Output' => 'false',
+    'Description' => 'NMIS9 Web Interface',
+    'Max_Runtime' => '10',
+    'Name' => 'nmis cgi',
+    'Poll_Interval' => '5m',
+    'Port' => '80',
+    'Service_Name' => 'nmis9_service',
+    'Service_Type' => 'script'
+  },
 );
