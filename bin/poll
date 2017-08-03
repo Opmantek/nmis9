@@ -6567,8 +6567,15 @@ sub runServices
 	# note that this also covers the snmp-based services
 	for my $service (sort keys %desiredservices)
 	{
+		my $thisservice = $ST->{$service};
+		
 		# check for invalid service table data
-		next if ( $service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i );
+		next if ( !$service  
+							or $service =~ m!^n\/a$!i 
+							or $thisservice->{Service_Type} =~ m!^n\/a$!i );
+		
+		my ($name, $servicename, $servicetype) 
+				= @{$thisservice}{"Name","Service_Name","Service_Type"};
 
 		# are we supposed to run this service now?
 		# load the service inventory, most recent point-in-time data and check the last run time
@@ -6577,8 +6584,8 @@ sub runServices
 			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+cluster_id+service+node's uuid
 			uuid        => Compat::UUID::getComponentUUID( $C->{cluster_id}, $service,
 																									 $catchall_data->{uuid} ),
-			description => $ST->{$service}->{Description},
-			display_name => $ST->{$service}->{Name}, # logic-free, no idea why that can differ from $service
+			description => $thisservice->{Description},
+			display_name => $name, # logic-free, no idea why/how that can differ from $service
 			node => $node, # backwards-compat
 		};
 
@@ -6601,7 +6608,7 @@ sub runServices
 		my $lastrun = ref($inventory->data) eq "HASH"? $inventory->data->{last_run} : 0;
 
 
-		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300;                       # 5min
+		my $serviceinterval = $thisservice->{Poll_Interval} || 300;                       # 5min
 		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at "
 			. NMISNG::Util::returnDateStamp($lastrun) . ", ";
 		if ( $serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/ )
@@ -6643,7 +6650,7 @@ sub runServices
 		my (%Val, %status);
 
 		NMISNG::Util::info(
-			"Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}"
+			"Checking service_type=$servicetype name=$name service_name=$servicename"
 		);
 
 		# clear global hash each time around as this is used to pass results to rrd update
@@ -6656,10 +6663,10 @@ sub runServices
 
 		# DNS: lookup whatever Service_name contains (fqdn or ip address),
 		# nameserver being the host in question
-		if ( $ST->{$service}{Service_Type} eq "dns" )
+		if ( $servicetype eq "dns" )
 		{
 			use Net::DNS;
-			my $lookfor = $ST->{$service}{Service_Name};
+			my $lookfor = $servicename;
 			if ( !$lookfor )
 			{
 				NMISNG::Util::dbg("Service_Name for $catchall_data->{host} must be a FQDN or IP address");
@@ -6689,10 +6696,10 @@ sub runServices
 
 		# now the 'port' service checks, which rely on nmap
 		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
-		elsif ( $ST->{$service}{Service_Type} eq "port" )
+		elsif ( $servicetype eq "port" )
 		{
 			$msg = '';
-			my ( $scan, $port ) = split ':', $ST->{$service}{Port};
+			my ( $scan, $port ) = split ':', $thisservice->{Port};
 
 			my $nmap = (
 				$scan =~ /^udp$/i
@@ -6741,7 +6748,7 @@ sub runServices
 		}
 
 		# now the snmp services - but only if snmp is on
-		elsif ( $ST->{$service}{Service_Type} eq "service"
+		elsif ( $servicetype eq "service"
 			and NMISNG::Util::getbool( $NT->{$node}{collect} ) )
 		{
 			# only do the SNMP checking if and when you are supposed to!
@@ -6756,8 +6763,8 @@ sub runServices
 					and !NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
 				)
 			{
-				my $wantedprocname = $ST->{$service}{Service_Name};
-				my $parametercheck = $ST->{$service}{Service_Parameters};
+				my $wantedprocname = $servicename;
+				my $parametercheck = $thisservice->{Service_Parameters};
 
 				if ( !$wantedprocname and !$parametercheck )
 				{
@@ -6805,7 +6812,7 @@ sub runServices
 					$memory    = 0;
 					$gotMemCpu = 1;
 					NMISNG::Util::logMsg(
-						"INFO, service $ST->{$service}{Name} is down, "
+						"INFO, service $name is down, "
 							. (
 							@matchingpids
 							? "only non-running processes"
@@ -6828,7 +6835,7 @@ sub runServices
 				  #					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
 					NMISNG::Util::info(
-						"INFO, service $ST->{$service}{Name} is up, " . scalar(@livingpids) . " running process(es)" );
+						"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
 				}
 			}
 			else
@@ -6839,32 +6846,33 @@ sub runServices
 		}
 
 		# now the sapi 'scripts' (similar to expect scripts)
-		elsif ( $ST->{$service}{Service_Type} eq "script" )
+		elsif ( $servicetype eq "script" )
 		{
-			### lets do the user defined scripts
-			my $scripttext;
-			if ( !open( F, "$C->{script_root}/$service" ) )
+			# OMK-3237, use sensible and non-clashing config source: 
+			# now service_name sets the script file name, temporarily falling back to $service
+			my $scriptfn = "$C->{script_root}/". $servicename || $service;
+			if (!open(F, $scriptfn))
 			{
-				NMISNG::Util::dbg("ERROR, can't open script file for $service: $!");
+				NMISNG::Util::dbg("ERROR, can't open script file $scriptfn for $service: $!");
 			}
 			else
 			{
-				$scripttext = join( "", <F> );
+				my $scripttext = join( "", <F> );
 				close(F);
 
-				my $timeout = ( $ST->{$service}->{Max_Runtime} > 0 ) ? $ST->{$service}->{Max_Runtime} : 3;
+				my $timeout = ( $thisservice->{Max_Runtime} > 0 ) ? $thisservice->{Max_Runtime} : 3;
 
-				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $ST->{$service}{Port}, $scripttext, $timeout );
+				( $ret, $msg ) = NMISNG::Sapi::sapi( $catchall_data->{host}, $thisservice->{Port}, $scripttext, $timeout );
 				NMISNG::Util::dbg("Results of $service is $ret, msg is $msg");
 			}
 		}
 
 		# 'real' scripts, or more precisely external programs
 		# which also covers nagios plugins - https://nagios-plugins.org/doc/guidelines.html
-		elsif ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )
+		elsif ( $servicetype =~ /^(program|nagios-plugin)$/ )
 		{
 			$ret = 0;
-			my $svc = $ST->{$service};
+			my $svc = $thisservice;
 			if ( !$svc->{Program} or !-x $svc->{Program} )
 			{
 				NMISNG::Util::info("ERROR, service $service defined with no working Program to run!");
@@ -7106,11 +7114,11 @@ sub runServices
 		my $thisrun = time;
 
 		# external programs return 0..100 directly, rest has 0..1
-		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
+		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ ) ? $ret : $ret * 100;
 		$status{status} = NMISNG::Util::numify($serviceValue);
 
-		#NMISNG::Util::logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
-		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
+		#NMISNG::Util::logMsg("Updating $node Service, $name, $ret, gotMemCpu=$gotMemCpu");
+		$V->{system}{"${service}_title"} = "Service $name";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0 ? "degraded" : 'down';
 		$V->{system}{"${service}_color"} = $serviceValue == 100 ? 'white' : $serviceValue > 0 ? "orange" : 'red';
 
@@ -7128,21 +7136,21 @@ sub runServices
 		# let's raise or clear service events based on the status
 		if ($snmpdown)    # only set IFF this is an snmp-based service AND snmp is broken/down.
 		{
-			NMISNG::Util::dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
+			NMISNG::Util::dbg("$servicetype $name is not checked, snmp is down");
 			$V->{system}{"${service}_value"} = 'unknown';
 			$V->{system}{"${service}_color"} = 'gray';
 			$serviceValue                    = '';
 		}
 		elsif ( $serviceValue == 100 )    # service is fully up
 		{
-			NMISNG::Util::dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available ($serviceValue)");
+			NMISNG::Util::dbg("$servicetype $name is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
 			Compat::NMIS::checkEvent(
 				sys     => $S,
 				event   => "Service Down",
 				level   => "Normal",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" )
 			);
 
@@ -7150,13 +7158,13 @@ sub runServices
 				sys     => $S,
 				event   => "Service Degraded",
 				level   => "Warning",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" )
 			);
 		}
 		elsif ( $serviceValue > 0 )    # service is up but degraded
 		{
-			NMISNG::Util::dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is degraded ($serviceValue)");
+			NMISNG::Util::dbg("$servicetype $name is degraded ($serviceValue)");
 
 			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
@@ -7164,7 +7172,7 @@ sub runServices
 				sys     => $S,
 				event   => "Service Down",
 				level   => "Fatal",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" )
 			);
 
@@ -7173,14 +7181,14 @@ sub runServices
 				sys     => $S,
 				event   => "Service Degraded",
 				level   => "Warning",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"}
 			);
 		}
 		else    # Service is down
 		{
-			NMISNG::Util::dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is down");
+			NMISNG::Util::dbg("$servicetype $name is down");
 
 			# clear the degraded event
 			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
@@ -7188,7 +7196,7 @@ sub runServices
 				sys     => $S,
 				event   => "Service Degraded",
 				level   => "Warning",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" )
 			);
 
@@ -7197,7 +7205,7 @@ sub runServices
 				sys     => $S,
 				event   => "Service Down",
 				level   => "Fatal",
-				element => $ST->{$service}{Name},
+				element => $name,
 				details => ( $status{status_text} || "" ),
 				context => {type => "service"}
 			);
