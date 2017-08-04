@@ -96,7 +96,7 @@
         'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf',
         'PRINT:perIUsedMem:AVERAGE:IOMemUsed=%1.2lf',
         'PRINT:perIFreeMem:AVERAGE:IOMemFree=%1.2lf',
-        'PRINT:avgBusy5:AVERAGE:cpuLoad=%1.2lf'
+        'PRINT:avgBusy5:AVERAGE:cpuLoad=%1.2lf',
         'PRINT:perPUsedMem:AVERAGE:memoryUtil=%1.2lf'
       ],
       'env_temp' => [
