@@ -139,7 +139,7 @@ if ( -f $lockoutfile or NMISNG::Util::getbool( $C->{global_collect}, "invert" ) 
 
 # all arguments are now stored in nvp (name value pairs)
 my $type     = $nvp{type};
-my $node     = $nvp{node}? lc($nvp{node}) : undef;
+my $node     = $nvp{node};
 my $rmefile  = $nvp{rmefile};
 my $runGroup = $nvp{group};
 my $sleep    = $nvp{sleep};
@@ -822,19 +822,10 @@ sub runThreads
 			value  => $maxprocs
 		};
 
-		# fixme9: fails utterly: database name not found for graphtype=, type=nmis, index=, item=, sect=nmis
-		if ( ( my $db = $S->create_update_rrd( data => $D, type => "nmis" ) ) )
-		{
-			# fixme9: what about this stuff?
-			# $NI->{graphtype}{nmis} = 'nmis';
-			# $NI->{graphtype}->{network}->{metrics} = 'metrics';
-		}
-		else
+		if (!$S->create_update_rrd( data => $D, type => "nmis" ))
 		{
 			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 		}
-
-		$S->writeNodeInfo;    # var/nmis-system.xxxx, the base info system
 	}
 
 	if ( $type eq "collect" or $type eq "update" )
@@ -1065,7 +1056,7 @@ sub doUpdate
 
 				getSystemHealthInfo( sys => $S ) if defined $S->{mdl}{systemHealth};
 				getEnvInfo( sys => $S );
-				getCBQoS( sys => $S );
+				getCBQoS( sys => $S, update => 1 );
 				getCalls( sys => $S );
 
 			}
@@ -4804,54 +4795,60 @@ sub getIntfData
 }
 
 ### Class Based Qos handling
+# this wrapper function performs both type=update and type=collect ops
+# args: sys, update;
+# returns: 1
 sub getCBQoS
 {
 	my %args = @_;
-	my $S    = $args{sys};
-	my $NC   = $S->ndcfg;
+	my ($S,$isupdate)    = @args{"sys","update"};
 
-	if ( $NC->{node}{cbqos} !~ /true|input|output|both/ )
+	my $NC = $S->ndcfg;
+
+	if ( $NC->{node}{cbqos} !~ /^(true|input|output|both)$/ )
 	{
-		NMISNG::Util::info("no collecting ($NC->{node}{cbqos}) for node $S->{name}");
-		return;
+		NMISNG::Util::info("no CBQoS collecting ($NC->{node}{cbqos}) for node $S->{name}");
+		return 1;
 	}
 
 	NMISNG::Util::info("Starting for node $S->{name}");
 
-	## oke,lets go
-	if ( NMISNG::Util::getbool( $S->{update} ) )    # fixme unclean access to internal property
+	if ($isupdate)
 	{
 		getCBQoSwalk( sys => $S );    # get indexes
 	}
 	elsif ( !getCBQoSdata( sys => $S ) )
 	{
-		getCBQoSwalk( sys => $S );    # get indexes
-		getCBQoSdata( sys => $S );    # get data
+		getCBQoSwalk( sys => $S );    # (re)get indexes
+		getCBQoSdata( sys => $S );    # and reget data
 	}
 
 	NMISNG::Util::info("Finished");
-
 	return 1;
 }
 
-# note that while this function could work with wmi,
+# this function performs a collect-type operation for cbqos
+# note that while this function could theoretically work with wmi,
 # the priming/update function getCBQoSwalk doesn't.
+# returns: 1 if successful, 0 otherwise
 sub getCBQoSdata
 {
 	my (%args)  = @_;
 	my $S     = $args{sys};
 
+	my $happy;
 	foreach my $direction ( "in", "out" )
 	{
 		my $concept = "cbqos-$direction";
-		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept, filter => { enabled => 1, historic => 0 });
+		my $ids = $S->nmisng_node->get_inventory_ids(concept => $concept,
+																								 filter => { enabled => 1, historic => 0 });
 
 		# oke, we have get now the PolicyIndex and ObjectsIndex directly
 		foreach my $id ( @$ids )
 		{
 			my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
-			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message") && next
-				if(!$inventory);
+			$S->nmisng->log->error("Failed to get inventory for id:$id, concept:$concept, error_message:$error_message")
+					&& next if(!$inventory);
 
 			my $data = $inventory->data();
 			# for now ifIndex is stored in the index attribute
@@ -4867,6 +4864,8 @@ sub getCBQoSdata
 				);
 				next;
 			}
+
+			++$happy;
 
 			my $PIndex = $CB->{'PolicyMap'}{'Index'};
 			foreach my $key ( keys %{$CB->{'ClassMap'}} )
@@ -4899,12 +4898,14 @@ sub getCBQoSdata
 					NMISNG::Util::dbg("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
 					NMISNG::Util::dbg("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
 					NMISNG::Util::dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
-					#
-					# update RRD
+
+
+					# update RRD, rrd file info comes from inventory,
+					# storage/subconcept: class name == subconcept
 					my $db = $S->create_update_rrd( data  => $D,
-																					type  => $concept,
-																					index => $intf,
-																					item  => $CMName,
+																					type  => $CMName, # subconcept
+#																					index => $intf,		# not needed
+#																					item  => $CMName, # not needed
 																					inventory => $inventory );
 					if ( !$db )
 					{
@@ -4935,13 +4936,12 @@ sub getCBQoSdata
 			# it's not chagned
 			$inventory->save();
 		}
-
 	}
-	return 1;
+	return $happy? 1 : 0;
 }
 
 # collect cbqos overview data from snmp, for update operation
-# this is expected to run AFTER getintfNMISNG::Util::info (because that's where overrides are transferred into NI)
+# this is expected to run AFTER getintfinfo (because that's where overrides are transferred into NI)
 # fixme: this function does not work for wmi-only nodes
 # args: sys
 # returns: 1 if ok
@@ -4959,24 +4959,17 @@ sub getCBQoSwalk
 	my $NC   = $S->ndcfg;
 	my $SNMP = $S->snmp;
 
-	my $message;
-	my %qosIntfTable;
-	my @arrOID;
-	my %cbQosTable;
-	my $ifIndexTable;
-
-	# get the qos interface indexes and objects from the snmp table
-
 	NMISNG::Util::info("start table scanning");
 
-	# read qos interface table
-	if ( $ifIndexTable = $SNMP->getindex('cbQosIfIndex') )
+	# get the qos interface indexes and objects from the snmp table
+	if ( my $ifIndexTable = $SNMP->getindex('cbQosIfIndex') )
 	{
 		# grab all the interface data required to run this function
 		# no writing back to the IF information is done so plain models
 		# are good
 		my $nmisng = $S->nmisng;
 		my $nmisng_node = $S->nmisng_node;
+
 		my $model_data = $nmisng_node->get_inventory_model(
 			'concept' => 'interface',
 			fields_hash => {
@@ -4992,7 +4985,8 @@ sub getCBQoSwalk
 				'enabled' => 1,
 				'historic' => 1
 			}
-		);
+				);
+
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $model_data->data();
 		my %if_data_map = map
@@ -5000,10 +4994,11 @@ sub getCBQoSwalk
 				$_->{data}{_id} = $_->{_id};
 				$_->{data}{enabled} = $_->{enabled};
 				$_->{data}{historic} = $_->{historic};
-				$_->{data}{ifIndex} => $_->{data}
+				$_->{data}{ifIndex} => $_->{data};
 			}
 			(@$data);
 
+		my %cbQosTable;
 		foreach my $PIndex ( keys %{$ifIndexTable} )
 		{
 			my $intf = $ifIndexTable->{$PIndex};    # the interface number from the snmp qos table
@@ -5012,28 +5007,26 @@ sub getCBQoSwalk
 				if( !defined($if_data_map{$intf}) );
 			my $if_data = $if_data_map{$intf};
 
-			### 2014-03-27 keiths, skipping CBQoS if not collecting data
+			# skip CBQoS if interface has collection disabled
 			if ( $if_data->{historic} || !$if_data->{enabled} )
 			{
 				NMISNG::Util::dbg("Skipping CBQoS, No collect on interface $if_data->{ifDescr} ifIndex=$intf");
 				next;
 			}
 
-			# oke, go
-			my $answer;
+			my $answer = {};
 			my %CMValues;
-			my $direction;
 
 			# check direction of qos with node table
 			( $answer->{'cbQosPolicyDirection'} ) = $SNMP->getarray("cbQosPolicyDirection.$PIndex");
-			NMISNG::Util::dbg("direction of policy is $answer->{'cbQosPolicyDirection'}, Node table $NC->{node}{cbqos}");
+			NMISNG::Util::dbg("direction in policy is $answer->{'cbQosPolicyDirection'}, node wants $NC->{node}{cbqos}");
 
-			if (   ( $answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /input|both/ )
-				or ( $answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /output|true|both/ ) )
+			if (( $answer->{'cbQosPolicyDirection'} == 1 and $NC->{node}{cbqos} =~ /^(input|both)$/ )
+				or ( $answer->{'cbQosPolicyDirection'} == 2 and $NC->{node}{cbqos} =~ /^(output|true|both)$/ ) )
 			{
 				# interface found with QoS input or output configured
 
-				$direction = ( $answer->{'cbQosPolicyDirection'} == 1 ) ? "in" : "out";
+				my $direction = ( $answer->{'cbQosPolicyDirection'} == 1 ) ? "in" : "out";
 				NMISNG::Util::info("Interface $intf found, direction $direction, PolicyIndex $PIndex");
 
 				my $ifSpeedIn    = $if_data->{ifSpeedIn}  ? $if_data->{ifSpeedIn}  : $if_data->{ifSpeed};
@@ -5042,11 +5035,7 @@ sub getCBQoSwalk
 
 				# get the policy config table for this interface
 				my $qosIndexTable = $SNMP->getindex("cbQosConfigIndex.$PIndex");
-
-				if ( $C->{debug} > 5 )
-				{
-					print Dumper ($qosIndexTable);
-				}
+				NMIS::Util::dbg("qos index table $PIndex: ".Dumper ($qosIndexTable)) if ( $C->{debug} > 5 );
 
 				# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
 			BLOCK2:
@@ -5215,11 +5204,7 @@ sub getCBQoSwalk
 							= $answer->{'cbQosPoliceCfgRate'};
 					}
 
-					if ( $C->{debug} > 5 )
-					{
-						print Dumper ($answer);
-					}
-
+					NMISNG::Util::dbg(Dumper($answer)) if ( $C->{debug} > 5 );
 				}
 
 				if ( $answer->{'cbQosPolicyMapName'} eq "" )
@@ -5279,97 +5264,106 @@ sub getCBQoSwalk
 			{
 				NMISNG::Util::dbg("No collect requested in Node table");
 			}
-
 		}
 
-		if ( scalar( keys %{$ifIndexTable} ) )
+		# Finished with SNMP QoS info collection, store inventory info and tune any existing rrds
+
+		# that's an ifindex
+		for my $index ( keys %cbQosTable )
 		{
-			# Finished with SNMP QoS, store object index values for the next run and CM names for WWW
-			# cbqos info structure is a tad different from interfaces, but the rrds also need tuning
+			my $thisqosinfo = $cbQosTable{$index};
 
-			# that's an ifindex
-			for my $index ( keys %cbQosTable )
-			{
-				my $thisqosinfo = $cbQosTable{$index};
-				# we rely on index to be there for the path key (right now)
+			# we rely on index to be there for the path key (right now)
+			my $if_data = $if_data_map{$index};
 
-				my $if_data = $if_data_map{$index};
-				next
-					if ( ref( $if_data_map{$index} ) ne "HASH"
-					or !$if_data->{ifSpeed}
-					or $if_data->{setlimits} !~ /^(normal|strict|off)$/
-					or !NMISNG::Util::getbool( $if_data->{collect} ) )
-					;    # don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
+			# don't care about interfaces w/o descr or no speed or uncollected or invalid limit config
+			next if ( ref( $if_data_map{$index} ) ne "HASH"
+								or !$if_data->{ifSpeed}
+								or $if_data->{setlimits} !~ /^(normal|strict|off)$/
+								or !NMISNG::Util::getbool( $if_data->{collect} ) );
 
-				my $thisintf     = $if_data;
-				my $desiredlimit = $thisintf->{setlimits};
+			my $thisintf     = $if_data;
+			my $desiredlimit = $thisintf->{setlimits};
 
-				NMISNG::Util::info(
-					"performing rrd speed limit tuning for cbqos on $thisintf->{ifDescr}, limit enforcement: $desiredlimit, interface speed is "
-						. NMISNG::Util::convertIfSpeed( $thisintf->{ifSpeed} )
-						. " ($thisintf->{ifSpeed})" );
+			NMISNG::Util::info(
+				"performing rrd speed limit tuning for cbqos on $thisintf->{ifDescr}, limit enforcement: $desiredlimit, interface speed is "
+				. NMISNG::Util::convertIfSpeed( $thisintf->{ifSpeed} )
+				. " ($thisintf->{ifSpeed})" );
 
 			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
-				my $maxbytes
+			my $maxbytes
 					= $desiredlimit eq "off"    ? "U"
 					: $desiredlimit eq "normal" ? int( $thisintf->{ifSpeed} / 4 )
 					:                             int( $thisintf->{ifSpeed} / 8 );
-				my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
+			my $maxpkts = $maxbytes eq "U" ? "U" : int( $maxbytes / 50 );    # this is a dodgy heuristic
 
-				for my $direction (qw(in out))
+			for my $direction (qw(in out))
+			{
+				# save the QoS Data, do it before tuning so inventory can be found when looking for name
+				my $data = $thisqosinfo->{$direction};
+				$data->{index} = $index;
+
+				# create inventory entry, data is not changed below so do it here,
+				# add index entry for now, may want to modify this later, or create a specialised Inventory class
+				my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
+				my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction",
+																								 data => $data, path_keys => $path_keys );
+
+				# only add if we have data, which we may not have in both directions, at this time
+				# i can't see a better way to find out when to skip and setting it to be disabled
+				# does not seem correct as the cbqos info isn't there
+				if( ref($path) eq 'ARRAY' && defined($data->{ClassMap}))
 				{
-					# save the QoS Data, do it before tuning so inventory can be found when looking for name
-					NMISNG::Util::TODO("Subclass Inventory for CBQoS");
-					my $data = $thisqosinfo->{$direction};
-					$data->{index} = $index;
+					my ( $inventory, $error_message ) = $nmisng_node->inventory(
+						concept   => "cbqos-$direction",
+						data      => $data,
+						path      => $path,
+						path_keys => $path_keys,
+						create    => 1
+							);
 
-					# create inventory entry, data is not changed below so do it here,
-					# add index entry for now, may want to modify this later, or create a specialised Inventory class
-					my $path_keys = ['index'];    # for now use this, loadInfo guarnatees it will exist
-					my $path = $nmisng_node->inventory_path( concept => "cbqos-$direction", data => $data, path_keys => $path_keys );
+					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
-					# only add if we have data, which we may not have in both directions, at this time
-					# i can't see a better way to find out when to skip and setting it to be disabled
-					# does not seem correct as the cbqos info isn't there
-					if( ref($path) eq 'ARRAY' && defined($data->{ClassMap}))
+					$inventory->data($data); # fixme why twice? already given in  the constructor...
+
+					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+					$inventory->path( recalculate => 1 );
+					$inventory->historic(0);
+					$inventory->enabled(1);
+
+					# remove all unwanted storage info - classes that are gone
+					my $knownones = $inventory->storage;
+					my %keepthese = map { ($_->{Name} => 1)	} (values %{$data->{ClassMap}});
+					for my $maybegone (keys %$knownones)
 					{
-						my ( $inventory, $error_message ) = $nmisng_node->inventory(
-							concept   => "cbqos-$direction",
-							data      => $data,
-							path      => $path,
-							path_keys => $path_keys,
-							create    => 1
-						);
-						$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
-						$inventory->data($data);
-						# regenerate the path, if this thing wasn't new the path may have changed, which is ok
-						$inventory->path( recalculate => 1 );
-						$inventory->historic(0);
-						$inventory->enabled(1);
-						my ( $op, $error ) = $inventory->save();
-						NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
-						$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
-							if ($error);
+						next if ($keepthese{$maybegone});
+						$inventory->set_subconcept_type_storage(type => "rrd",
+																										subconcept => $maybegone,
+																										data => undef);
 					}
 
-					foreach my $class ( keys %{$data->{ClassMap}} )
+					# set up the subconcept/storage infrastructure: one subconcept and rrd file per class (name)
+					for my $class (keys %{$data->{ClassMap}})
 					{
-						# rrd file exists and readable?
-						if (-r (my $rrdfile = $S->makeRRDname(
-									graphtype => "cbqos-$direction",
-									index     => $index,
-									item      => $data->{ClassMap}->{$class}->{Name}
-								)
-							)
-							)
+						my $classname = $data->{ClassMap}->{$class}->{Name};
+						my $dbname = $S->makeRRDname(type => "cbqos-$direction",
+																				 index     => $index,
+																				 item      => $classname,
+																				 relative => 1 );
+
+						$inventory->set_subconcept_type_storage(type => "rrd",
+																										subconcept => $classname,
+																										data => $dbname);
+
+						# does the rrd file already exist?
+						if (-f (my $rrdfile =  $C->{database_root}."/".$dbname))
 						{
 							my $fileinfo = RRDs::info($rrdfile);
 							for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
 							{
-								next
-									if ( $matching
-									!~ /ds\[(PrePolicyByte|DropByte|PostPolicyByte|PrePolicyPkt|DropPkt|NoBufDropPkt)\]\.max/
-									);
+								next if ( $matching
+											 !~ /ds\[(PrePolicyByte|DropByte|PostPolicyByte|PrePolicyPkt|DropPkt|NoBufDropPkt)\]\.max/
+										);
 								my $dsname = $1;
 								my $curval = $fileinfo->{$matching};
 
@@ -5379,25 +5373,29 @@ sub getCBQoSwalk
 								if ( $curval ne $desiredval )
 								{
 									NMISNG::Util::info(
-										"rrd cbqos-$direction-$class, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit"
-									);
+										"rrd cbqos-$direction-$classname, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit"
+											);
 									RRDs::tune( $rrdfile, "--maximum", "$dsname:$desiredval" );
 								}
 								else
 								{
-									NMISNG::Util::info("rrd cbqos-$direction-$class, ds $dsname, current limit $curval is correct");
+									NMISNG::Util::info("rrd cbqos-$direction-$classname, ds $dsname, current limit $curval is correct");
 								}
 							}
 						}
 					}
 
+					my ( $op, $error ) = $inventory->save();
+					NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
+					$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
+							if ($error);
 				}
 			}
 		}
-		else
-		{
-			NMISNG::Util::dbg("no entries found in QoS table of node $S->{name}");
-		}
+	}
+	else
+	{
+		NMISNG::Util::dbg("no entries found in QoS table of node $S->{name}");
 	}
 	return 1;
 }
