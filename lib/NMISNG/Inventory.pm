@@ -351,6 +351,10 @@ sub _generic_getset
 #     structure { subconcept => { key => 1 }} all new keys will be merged, this is useful when multiple
 #     subconcepts need to be added at one time (because no merging of new time data yet)
 # returns: undef or error message
+# NOTE: inventory->save will call this function to saved "delayed_insert", the insert code below actually
+#   calls inventory->save again, this seems like a possible bad thing. the reason it's working right now is
+#   the second call to this function (from save) should not alter the datasets which is what triggers the save to be called
+#  so it will never happen
 sub add_timed_data
 {
 	my ( $self, %args ) = @_;
@@ -411,6 +415,14 @@ sub add_timed_data
 		);
 		return "failed to insert record: $dbres->{error}" if ( !$dbres->{success} );
 
+		$dbres = NMISNG::DB::update(
+			collection => $self->nmisng->latest_data_collection(),
+			query => { inventory_id => $self->id },
+			record => $timedrecord,
+			upsert => 1
+		);
+		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
+		
 		# if the datasets were modified they need to be saved
 		$self->save() if ($datasets_modfied);
 	}

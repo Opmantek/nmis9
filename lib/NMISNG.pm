@@ -82,7 +82,7 @@ sub new
 	$self->{_db} = $db;
 
 	# load and prime the statically defined collections
-	for my $collname (qw(nodes inventory ip))
+	for my $collname (qw(nodes inventory ip latest_data))
 	{
 		my $collhandle = NMISNG::DB::get_collection( db => $db, name => $collname );
 		if (ref($collhandle) ne "MongoDB::Collection")
@@ -487,9 +487,10 @@ sub inventory_collection
 			collection    => $self->{_db_inventory},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[{"concept"    => 1}, {unique => 0}],
-				[{"lastupdate" => 1}, {unique => 0}],
-				[{"path"       => 1}, {unique => 0}],		# can't make this unique, index would be unique per array element!
+				[{"concept"     => 1}, {unique => 0}],
+				[{"lastupdate"  => 1}, {unique => 0}],
+				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
+				[{"subconcepts" => 1}, {unique => 0}]
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
@@ -515,6 +516,29 @@ sub ip_collection
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
 	return $self->{_db_inventory};
+}
+
+# helper to get/set latest_derived_data collection, primes the indices on set
+# args: new collection handle, optional drop - unwanted indices are dropped if this is 1
+# returns: current collection handle
+sub latest_data_collection
+{
+	my ( $self, $newvalue, $drop_unwanted ) = @_;
+	if ( ref($newvalue) eq "MongoDB::Collection" )
+	{
+		$self->{_db_latest_data} = $newvalue;
+
+		NMISNG::Util::TODO("NMISNG::new INDEXES - figure out what we need");
+
+		my $err = NMISNG::DB::ensure_index(
+			collection    => $self->{_db_latest_data},
+			drop_unwanted => $drop_unwanted,
+			indices       => [
+				[{"inventory_id" => 1}, {unique => 1}]				
+			] );
+		$self->log->error("index setup failed for inventory: $err") if ($err);
+	}
+	return $self->{_db_latest_data};
 }
 
 # get an NMISNG::Node object given arguments that will make it unique

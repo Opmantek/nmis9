@@ -68,7 +68,8 @@
       ],
       'hrsmpcpu' => [
         'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
-        'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf'
+        'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf',
+        'PRINT:hrCpuLoad:AVERAGE:cpuLoad=%1.2lf'
       ],
       'cpu-cpm' => [
         'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
@@ -94,7 +95,9 @@
         'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
         'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf',
         'PRINT:perIUsedMem:AVERAGE:IOMemUsed=%1.2lf',
-        'PRINT:perIFreeMem:AVERAGE:IOMemFree=%1.2lf'
+        'PRINT:perIFreeMem:AVERAGE:IOMemFree=%1.2lf',
+        'PRINT:avgBusy5:AVERAGE:cpuLoad=%1.2lf'
+        'PRINT:perPUsedMem:AVERAGE:memoryUtil=%1.2lf'
       ],
       'env_temp' => [
         'DEF:currentTemp=$database:currentTemp:AVERAGE',
@@ -269,6 +272,7 @@
         'CDEF:ssCpuRawKernelP=ssCpuRawKernel,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawInterruptP=ssCpuRawInterrupt,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawSoftIRQP=ssCpuRawSoftIRQ,ssCpuTotal,/,100,*',
+        'CDEF:cpuLoad=100,ssCpuRawIdleP,-',
 
         'PRINT:ssCpuRawUserP:AVERAGE:ssCpuRawUser=%1.2lf',
         'PRINT:ssCpuRawNiceP:AVERAGE:ssCpuRawNice=%1.2lf',
@@ -278,20 +282,24 @@
         'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf',
+        'PRINT:cpuLoad:AVERAGE:cpuLoad=%1.2lf'
       ],
       'cpuUtil' => [
         'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
         'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
+        'PRINT:cpuUtil:AVERAGE:cpuLoad=%1.2lf',
       ],
       'memUtil' => [
         'DEF:memUtil=$database:memUtil:AVERAGE',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'memUsageUtil' => [
         'DEF:memTotal=$database:memTotal:AVERAGE',
         'DEF:memUsed=$database:memUsed:AVERAGE',
         'CDEF:memUtil=memUsed,memTotal,/,100,*',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'cempMemPool' => [
         'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
@@ -299,6 +307,7 @@
         'CDEF:memTotal=MemUsed,MemFree,+',
         'CDEF:memUtil=MemUsed,memTotal,/,100,*',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'ciscoMemoryPool' => [
         'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
@@ -306,6 +315,7 @@
         'CDEF:memTotal=MemUsed,MemFree,+',
         'CDEF:memUtil=MemUsed,memTotal,/,100,*',
         'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'cempMemBuffer' => [
         'DEF:BufferTotal=$database:BufferTotal:AVERAGE', 
