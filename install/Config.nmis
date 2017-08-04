@@ -29,7 +29,7 @@ my %hash = (
   },
 
   'directories' => {
-    'rrd_lib' => '/usr/local/rrdtool/lib/perl', #  if not present or blank: let perl guess/use the standard rrd 
+    'rrd_lib' => '/usr/local/rrdtool/lib/perl', #  if not present or blank: let perl guess/use the standard rrd
     '<nmis_base>' => '/usr/local/nmis9',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
@@ -38,7 +38,7 @@ my %hash = (
     '<nmis_data>' => '<nmis_base>',
     '<nmis_logs>' => '<nmis_base>/logs',
     '<nmis_menu>' => '<nmis_base>/menu',
-		
+
 	'<nmis_models>' => '<nmis_base>/models-custom',
 	'<nmis_default_models>' => '<nmis_base>/models-default',
 
@@ -294,7 +294,7 @@ my %hash = (
     'daemon_ipsla_filename' => 'ipslad',
     'daemon_fping_active' => 'true',
     'daemon_fping_dns_cache' => 'true',
-    'daemon_fping_run_escalation' => 'true', 
+    'daemon_fping_run_escalation' => 'true',
     'daemon_fping_filename' => 'fpingd'
   },
 
@@ -497,5 +497,6 @@ my %hash = (
 		'purge_state_after' => 30*86400,	 # unused nmis state files
 		'purge_event_after' => 30*86400,	 # historic, closed events
 		'purge_jsonlog_after' => 30*86400, # json log files
+		'purge_timeddata_after' => 7*86400,		 # timed data
 	},
 );

@@ -2019,8 +2019,6 @@ EO_HTML
 		$editconf = qq| <a href="$url" id="cfg_nodecfg" style="color:white;">Node Configuration</a>|;
 	}
 
-	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
-
 	my $remote;
 	if ( defined $configuration->{remote_connection_name} and $configuration->{remote_connection_name} ne "" )
 	{
@@ -3562,14 +3560,15 @@ sub viewService
 	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
+# show a node's snmp-sourced list of running processes.
+# this is totally different from 'services' which means monitored things.
+#
 sub viewServiceList
 {
-
 	my $sort = $Q->{sort} ? $Q->{sort} : "Service";
 
-	my $sortField = "hrSWRunName";
-	$sortField = "hrSWRunPerfCPU" if $sort eq "CPU";
-	$sortField = "hrSWRunPerfMem" if $sort eq "Memory";
+	my $sortField = $sort eq "CPU"? "hrSWRunPerfCPU" :
+			$sort eq "Memory"? "hrSWRunPerfMem" : "hrSWRunName";
 
 	my $node = $Q->{node};
 
@@ -3619,79 +3618,85 @@ sub viewServiceList
 		);
 	}
 
-	print Tr( th( {class => 'title', colspan => '7'}, "List of Services on node $catchall_data->{name}" ) );
-
-	#'AppleMobileDeviceService.exe:1756' => {
-	#  'hrSWRunStatus' => 'running',
-	#  'hrSWRunPerfMem' => 2584,
-	#  'hrSWRunType' => '',
-	#  'hrSWRunPerfCPU' => 7301,
-	#  'hrSWRunName' => 'AppleMobileDeviceService.exe:1756'
-	#},
-	my $url
-		= url( -absolute => 1 )
-		. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
-		. uri_escape($node);
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'service' );
-	if ( @$ids > 0 )
+	my $processlist;
+	# there should be at most one inventory item for this
+	my ($processinventory, $error) = $S->nmisng_node->inventory( concept => 'snmp_services', create => 0 );
+	if ($processinventory)
 	{
-		print Tr(
-			td( {class => 'header'}, a( {href => "$url&sort=Service", class => "wht"}, "Service" ) ),
-			td( {class => 'header'}, "Parameters" ),
-			td( {class => 'header'}, "Type" ),
-			td( {class => 'header'}, "Status" ),
-			td( {class => 'header'}, "PID" ),
-			td( {class => 'header'}, a( {href => "$url&sort=CPU",     class => "wht"}, "Total CPU Time" ) ),
-			td( {class => 'header'}, a( {href => "$url&sort=Memory",  class => "wht"}, "Allocated Memory" ) )
-		);
-		NMISNG::Util::TODO("Sort service list here needs to be brought back in some way!");
-		# foreach my $service ( sort { sortServiceList( $sort, $sortField, $NI, $a, $b ) } keys %{$NI->{services}} )
-		foreach my $id (@$ids)
-		{
-			my $inventory = $S->nmisng_node->inventory( _id => $id );
-			my $data = ($inventory) ? $inventory->data : {};
-			my $color;
-			$color = NMISNG::Util::colorPercentHi(100) if $data->{hrSWRunStatus} =~ /running|runnable/;
-			$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
-			my ( $prog, $pid ) = split( ":", $data->{hrSWRunName} );
+		my $banner = "Running services on node $catchall_data->{name}";
 
-			# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
-			my $cpusecs = $data->{hrSWRunPerfCPU} / 100;
-			my $parameters
-				= $data->{hrSWRunPath} . " " . $data->{hrSWRunParameters};
+		my $res = $processinventory->get_newest_timed_data();
+		if ($res->{success} && $res->{data})
+		{
+			$processlist = $res->{data};
+			$banner .= " (at ". NMISNG::Util::returnDateStamp($res->{time}).")";
+
+			print Tr( th( {class => 'title', colspan => '7'}, $banner ) );
+
+			my $url
+					= url( -absolute => 1 )
+					. "?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node="
+					. uri_escape($node);
 
 			print Tr(
-				td( {class => 'info Plain'}, $prog ),
-				td( {class => 'info Plain'}, $parameters ),
-				td( {class => 'info Plain'}, $data->{hrSWRunType} ),
-				td( {class => 'info Plain', style => "background-color:" . $color},
-					$data->{hrSWRunStatus}
-				),
-				td( {class => 'info Plain'}, $pid ),
-				td( {class => 'info Plain'}, sprintf( "%.3f s", $cpusecs ) ),
-				td( {class => 'info Plain'}, $data->{hrSWRunPerfMem} . " KBytes" )
-			);
+				td( {class => 'header'}, a( {href => "$url&sort=Service", class => "wht"}, "Service" ) ),
+				td( {class => 'header'}, "Parameters" ),
+				td( {class => 'header'}, "Type" ),
+				td( {class => 'header'}, "Status" ),
+				td( {class => 'header'}, "PID" ),
+				td( {class => 'header'}, a( {href => "$url&sort=CPU",     class => "wht"}, "Total CPU Time" ) ),
+				td( {class => 'header'}, a( {href => "$url&sort=Memory",  class => "wht"}, "Allocated Memory" ) )
+					);
+
+			for my $id ( sort { sortServiceList( $sort, $sortField, $processlist, $a, $b ) } keys %$processlist)
+			{
+				my $thisservice = $processlist->{$id};
+
+				# ignore status 'invalid', these are generally zombies without useful information
+				next if ($thisservice->{hrSWRunStatus} eq "invalid");
+
+				my $color;
+				$color = NMISNG::Util::colorPercentHi(100) if $thisservice->{hrSWRunStatus} =~ /running|runnable/;
+				$color = NMISNG::Util::colorPercentHi(0)   if $color eq "red";
+				my ( $prog, $pid ) = split( ":", $thisservice->{hrSWRunName} );
+
+				# cpu time is reported in centi-seconds, which results in hard-to-read big numbers
+				my $cpusecs = $thisservice->{hrSWRunPerfCPU} / 100;
+				my $parameters
+						= $thisservice->{hrSWRunPath} . " " . $thisservice->{hrSWRunParameters};
+
+				print Tr(
+					td( {class => 'info Plain'}, $prog ),
+					td( {class => 'info Plain'}, $parameters ),
+					td( {class => 'info Plain'}, $thisservice->{hrSWRunType} ),
+					td( {class => 'info Plain', style => "background-color:" . $color},
+							$thisservice->{hrSWRunStatus}
+					),
+					td( {class => 'info Plain'}, $pid ),
+					td( {class => 'info Plain'}, sprintf( "%.3f s", $cpusecs ) ),
+					td( {class => 'info Plain'}, $thisservice->{hrSWRunPerfMem} . " KBytes" )
+						);
+			}
 		}
 	}
-	else
-	{
-		print Tr( th( {class => 'title', colspan => '6'}, "No Services found for $catchall_data->{name}" ) );
-	}
+
+	print Tr( th( {class => 'title', colspan => '6'}, "No Running services found for $catchall_data->{name}" ) )
+			if (!$processlist);
 	print end_table;
 	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }
 
 sub sortServiceList
 {
-	my ( $sort, $sortField, $NI, $a, $b ) = @_;
+	my ( $sort, $sortField, $bigset, $a, $b ) = @_;
 
 	if ( $sort eq "Service" )
 	{
-		return $NI->{services}{$a}{$sortField} cmp $NI->{services}{$b}{$sortField};
+		return $bigset->{$a}->{$sortField} cmp $bigset->{$b}->{$sortField};
 	}
 	else
 	{
-		return $NI->{services}{$b}{$sortField} <=> $NI->{services}{$a}{$sortField};
+		return $bigset->{$b}->{$sortField} <=> $bigset->{$a}->{$sortField};
 	}
 }
 

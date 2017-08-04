@@ -158,19 +158,19 @@ sub get_db
 
 # find all unique concep/subconcept pairs for the given path/filter
 # filtering for active things possible (eg, enabled => 1, historic => 0)
-# NOTE: INCOMPLETE, can't be done in aggregation right now, map/reduce or 
+# NOTE: INCOMPLETE, can't be done in aggregation right now, map/reduce or
 #  perl are an option
 sub get_inventory_available_concepts
 {
 	my ( $self, %args ) = @_;
 	my $path;
-	
+
 	# start with a plain query; with _id that'll be enough already
 	my %queryinputs = ();
 	if ($args{filter})
 	{
 		map { $queryinputs{$_} = $args{filter}->{$_}; } (keys %{$args{filter}});
-	}	
+	}
 	my $q = NMISNG::DB::get_query( and_part => \%queryinputs );
 
 	# translate the path components into the lookup path
@@ -192,7 +192,7 @@ sub get_inventory_available_concepts
 		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) if ( defined( $path->[$_] ) ) } ( 0 .. $#$path );
 	}
 	my @pipeline = ();
-	# 	{ '$match' => $q }, 
+	# 	{ '$match' => $q },
 	# 	{ '$unwind' => 'subconcepts' },
 	# 	{ '$group' => {
 	# 		'_id' : { 'concept': '$concept', 'subconcept': '$subconcepts' }
@@ -208,7 +208,7 @@ sub get_inventory_available_concepts
 		collection => $self->inventory_collection,
 		post_count_pipeline => \@pipeline,
 	);
-	
+
 }
 
 # note: should _id use args{id}? or _id?
@@ -230,7 +230,7 @@ sub get_inventory_model
 	NMISNG::Util::TODO("Figure out search options for get_inventory_model");
 
 	my $q = $self->get_inventory_model_query( %args );
-	
+
 	my $model_data = [];
 	if ( $args{paginate} )
 	{
@@ -457,7 +457,7 @@ sub get_timed_data_model
 # find all unique values for key from collection and filter provided
 sub get_distinct_values
 {
-	my ($self, %args) = @_;	
+	my ($self, %args) = @_;
 	my $collection = $args{collection};
 	my $key = $args{key};
 	my $filter = $args{filter};
@@ -660,6 +660,7 @@ sub timed_concept_collection
 			indices       => [
 				[ Tie::IxHash->new( "time" => 1, "inventory_id" => 1 ) ], # for global 'find last X readings for all instances'
 				[ Tie::IxHash->new( "inventory_id" => 1, "time" => 1 ) ],	# for 'find last X readings for THIS instance'
+				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
 		$self->log->error("index setup failed for $collname: $err") if ($err);
 	}

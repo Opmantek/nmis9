@@ -41,6 +41,8 @@ use Module::Load;       # for getting subclasses in instantiate
 use Scalar::Util;       # for weaken
 use Data::Dumper;
 use Time::HiRes;
+use Time::Moment;								# for ttl indices
+use DateTime;										# ditto
 use List::MoreUtils;    # for uniq
 use Carp;
 
@@ -369,10 +371,21 @@ sub add_timed_data
 	# one of these two must be defined
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
 	return "one of subconcept or datasets needs to be defined, stack:" . Carp::longmess()
-		if ( !$subconcept && ref($datasets) ne 'HASH' );
+			if ( !$subconcept && ref($datasets) ne 'HASH' );
+
+	# ttl: record time plus purge_timeddata_after seconds (default 7 days)
+	$time ||= Time::HiRes::time;
+	my $expire_at = $time + ($self->nmisng->config->{purge_timeddata_after} || 7*86400);
+
+	# to make the db ttl expiration work this must be
+	# an acceptable date type for the driver version
+	$expire_at = $NMISNG::DB::new_driver?
+			Time::Moment->from_epoch($expire_at)
+			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
 
 	my $timedrecord = {
-		time => $time // Time::HiRes::time,
+		time => $time,
+		expire_at => $expire_at,
 		data => $data,
 		derived_data => $derived_data
 	};
