@@ -115,7 +115,6 @@ my %MT = (
 		'^alerts,\w+,\w+$',
 	],
 	'add,delete' => [
-		'^calls,rrd,\w+,snmp,\w+$',
 		'^event,event,\w+$',
 		'^\w+,(rrd|sys|power),\w+$',
 		'^\w+,(rrd|sys|power),\w+,snmp,\w+$',

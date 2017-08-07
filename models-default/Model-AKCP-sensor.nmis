@@ -30,55 +30,6 @@
 # *****************************************************************************
 
 %hash = (
-  'environment' => {
-    'rrd' => {
-      'akcp_hum' => {
-        'snmp' => {
-          'hhmsSensorHum' => {
-            'oid' => 'hhmsSensorArrayHumidityPercent'
-          }
-        },
-        'indexed' => 'true',
-        'graphtype' => 'sensorhum'
-      },
-      'akcp_temp' => {
-        'snmp' => {
-          'hhmsSensorTemp' => {
-            'oid' => 'hhmsSensorArrayTemp',
-            'calculate' => '${r}*0.1'
-          }
-        },
-        'indexed' => 'true',
-        'graphtype' => 'sensortemp'
-      }
-    },
-    'sys' => {
-      'akcp_hum' => {
-        'snmp' => {
-          'hhmsSensorHumDescr' => {
-            'oid' => 'hhmsSensorArrayHumidityDescription'
-          }
-        },
-        'indexed' => 'hhmsSensorArrayHumidityIndex'
-      },
-      'akcp_temp' => {
-        'snmp' => {
-          'hhmsSensorTempType' => {
-            'replace' => {
-              '1' => 'degrees',
-              '0' => 'fahrenheit'
-            },
-            'oid' => 'hhmsSensorArrayTempDegreeType'
-          },
-          'hhmsSensorTempDescr' => {
-            'oid' => 'hhmsSensorArrayTempDescription',
-            'title' => 'Descr.'
-          }
-        },
-        'indexed' => 'hhmsSensorArrayTempIndex'
-      }
-    }
-  },
   '-common-' => {
     'class' => {
       'database' => {

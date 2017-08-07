@@ -88,31 +88,6 @@
         'threshold' => 'cpu,mem-proc',
         'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router'
       },
-      'modem' => {
-        'snmp' => {
-          'ModemsInUse' => {
-            'oid' => 'cmSystemModemsInUse'
-          },
-          'ModemsAvailable' => {
-            'oid' => 'cmSystemModemsAvailable'
-          },
-          'ModemsOffline' => {
-            'oid' => 'cmSystemModemsOffline'
-          },
-          'ModemsDead' => {
-            'oid' => 'cmSystemModemsDead'
-          },
-          'ModemsUnavailable' => {
-            'oid' => 'cmSystemModemsUnavailable'
-          },
-          'InstalledModem' => {
-            'oid' => 'cmSystemInstalledModem'
-          }
-        },
-        'threshold' => 'modem_dead,modem_unav',
-        'graphtype' => 'modem',
-        'control' => '$InstalledModems > 0'
-      }
     },
     'sys' => {
       'standard' => {
@@ -142,13 +117,6 @@
             'calculate' => '$r * 100',
             'oid' => 'snmpEngineTime',
             'title' => 'Uptime'
-          },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
           },
           'sysContact' => {
             'replace' => {

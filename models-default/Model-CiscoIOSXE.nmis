@@ -30,9 +30,6 @@
 %hash = (
   '-common-' => {
     'class' => {
-      'calls' => {
-        'common-model' => 'calls'
-      },
       'cbqos-in' => {
         'common-model' => 'cbqos-in'
       },

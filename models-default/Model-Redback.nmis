@@ -162,13 +162,6 @@
             'oid' => 'sysUpTime',
             'title' => 'Uptime'
           },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
-          },
           'sysContact' => {
             'replace' => {
               '' => 'default'

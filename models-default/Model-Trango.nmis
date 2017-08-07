@@ -49,7 +49,7 @@
     }
   },
   'system' => {
-    'nodegraph' => 'health,response,env-temp,modemMSE,power,inDropPackets,lockstat',
+    'nodegraph' => 'health,response,env-temp,power,inDropPackets,lockstat',
     'nodeModel' => 'Trango',
     'nodeType' => 'generic',
     'sys' => {
@@ -89,92 +89,9 @@
           },
         },
       },
-      'modem' => {
-        'snmp' => {
-           'TxCapacity' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.11.0',
-              'sysObjectName' => 'modemSpeedCurrent',
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
-              'title' => ''
-           },
-           'modemMSE' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.4.2.1.0', 
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
-              'sysObjectName' => 'modemMSE',
-           },
-           'sysRemoteMSE' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.1.33.4.1.0', 
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
-              'sysObjectName' => 'sysRemoteLinkMSE',
-           },
-           'rfPowerInt' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.4.2.0',
-              'sysObjectName' => 'rfPowerInt',
-           },
-           'InDropPackets' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.16.3.0',
-              'sysObjectName' => 'InDropPackets',
-           },
-           'currentTemp' => { #rfODUTemp
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.13.0',
-              'sysObjectName' => 'currentTemp',
-           },
-           'rfInPortUtil' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.16.5.0',
-              'sysObjectName' => 'rfInPortUtil',
-           },
-           'modemLockStat' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.5.1.0',
-              'sysObjectName' => 'modemLockStat',
-           },
-        },
-      },
     },
     'rrd' => {
-      'modem' => {
-        'graphtype' => 'env-temp,modemMSE,power,inDropPackets,lockstat',
-        'snmp' => {
-           'TxCapacity' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.11.0',
-              'sysObjectName' => 'modemSpeedCurrent',
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));'
-           },
-           'modemMSE' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.4.2.1.0', 
-              'sysObjectName' => 'modemMSE',
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
-              'option' => 'gauge,U:U',
-           },
-           'sysRemoteMSE' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.1.33.4.1.0', 
-              'sysObjectName' => 'sysRemoteLinkMSE',
-              'calculate' => '$r = unpack("f", (pack "L", hex $r));',
-              'option' => 'gauge,U:U',
-           },
-           'power' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.4.2.0',
-              'sysObjectName' => 'rfPowerInt',
-           },
-           'InDropPackets' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.16.3.0',
-              'sysObjectName' => 'InDropPackets',
-           },
-           'currentTemp' => { #rfODUTemp
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.13.0',
-              'sysObjectName' => 'currentTemp',
-           },
-           'rfInPortUtil' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.3.16.5.0',
-              'sysObjectName' => 'rfInPortUtil',
-           },
-           'modemLockStat' => {
-              'oid' => '.1.3.6.1.4.1.5454.1.80.2.5.1.0',
-              'sysObjectName' => 'modemLockStat',
-              'option' => 'gauge,0:1',
-           },
-        },
-      },
-      
+     
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {

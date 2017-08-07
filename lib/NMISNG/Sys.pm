@@ -1787,11 +1787,10 @@ sub prep_extras_with_catchalls
 		my $data = $self->inventory(concept => "catchall")->data_live();
 		$extras->{node} = $self->{node};
 
-		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
+		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location))
 		{
 			$extras->{$key} = $data->{$key};
 		}
-		$extras->{InstalledModems} //= 0;
 
 		# if I am wanting a storage thingy, then lets populate the variables I need.
 		if ( $index ne ''

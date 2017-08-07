@@ -445,39 +445,9 @@
           }
         }
       },
-      'modem_unav' => {
-        'item' => 'ModemsUnavailable',
-        'event' => 'Proactive Modem Utilisation',
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '40',
-              'fatal' => '50',
-              'minor' => '20',
-              'warning' => '10',
-              'major' => '30'
-            }
-          }
-        }
-      },
       'ccpu' => {
         'item' => 'avgBusy5min',
         'event' => 'Proactive CPU',
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            }
-          }
-        }
-      },
-      'calls_util' => {
-        'item' => 'percIdle',
-        'event' => 'Proactive Calls Utilisation',
         'select' => {
           'default' => {
             'value' => {
@@ -542,21 +512,6 @@
               'major' => '60'
             },
             'control' => '$ifSpeed == 10000000'
-          }
-        }
-      },
-      'modem_dead' => {
-        'item' => 'ModemsDead',
-        'event' => 'Proactive Dead Modem',
-        'select' => {
-          'default' => {
-            'value' => {
-              'critical' => '70',
-              'fatal' => '80',
-              'minor' => '50',
-              'warning' => '40',
-              'major' => '60'
-            }
           }
         }
       },
