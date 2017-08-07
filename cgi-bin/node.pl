@@ -115,6 +115,7 @@ sub typeGraph {
 	my $p_date_end = $Q->{p_date_end};
 	my $graphx = $Q->{'graphimg.x'}; # points
 	my $graphy = $Q->{'graphimg.y'};
+
 	my $graphtype = $Q->{graphtype};
 
 	my $urlsafenode = uri_escape($node);
@@ -279,16 +280,18 @@ sub typeGraph {
 	$date_start = NMISNG::Util::returnDateStamp($start);
 	$date_end = NMISNG::Util::returnDateStamp($end);
 
-	#==== calculation done
 
 	my $GTT = $S->loadGraphTypeTable(index=>$index);
-
-	my $itm;
+	my $section;
 	if ($Q->{graphtype} eq 'metrics') {
 		$group = 'network' if $group eq "";
 		$item = $group;
-	} elsif ($Q->{graphtype} =~ /cbqos/) {
-	} elsif ($GTT->{$graphtype} eq 'interface') {
+	}
+	elsif ($Q->{graphtype} =~ /cbqos/) 
+	{
+		$section = $Q->{graphtype};
+	} 
+	elsif ($GTT->{$graphtype} eq 'interface') {
 		$item = '';
 	}
 
@@ -315,7 +318,9 @@ sub typeGraph {
 	}
 	print comment("typeGraph begin");
 
-	my $modeldata = $S->getTypeInstances(graphtype => $graphtype, 
+	# section needed to find cbqos instances
+	my $modeldata = $S->getTypeInstances(section => $section, 
+																			 graphtype => $graphtype, 
 																			 want_modeldata => 1, 
 																			 want_active => 1 );
 	# fixme9: non-node mode means no graphttypetable means no menu and nothing works...
@@ -418,6 +423,7 @@ sub typeGraph {
 				# End date field
 				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
 					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
+
 				# Group or Interface select menu
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
 						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
