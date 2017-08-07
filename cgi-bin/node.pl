@@ -337,11 +337,6 @@ sub typeGraph {
 	# that and allows grabbing the data from the inventory model
 	# do this by subconcept, concept is too broad, things like storage break it
 	my %title_struct = (
-		akcp_temp => { name => 'Sensor', label_key => 'hhmsSensorTempDescr' },
-		akcp_hum => { name => 'Sensor', label_key => 'hhmsSensorHumDescr' },
-		csscontent => { name => 'Sensor', label_key => 'CSSContentDesc' },		
-		cssgroup => { name => 'Group', label_key => 'CSSGroupDesc' },
-		env_temp => { name => 'Sensor', label_key => 'tempDescr' },
 		hrsmpcpu => { name => 'CPU' },
 		hrdisk => { name => 'Disk', label_key =>'hrStorageDescr' },
 		interface => { name => 'Interface', label_key => 'ifDescr' },

@@ -2600,28 +2600,6 @@ sub createHrButtons
 			}
 			push @out, "</ul></li></ul></td>";
 		}
-
-		# NOTE: Inventory, what do we do with this?
-		### 2012-12-13 keiths, adding generic temp support
-		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ($NI->{cssgroup} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
- 		if ($NI->{csscontent} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
-		}
 	}
 
 	push @out, CGI::td({class=>'header litehead'},
