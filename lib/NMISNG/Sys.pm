@@ -92,11 +92,10 @@ sub mdl       { my $self = shift; return $self->{mdl} };                   # my 
 sub ndinfo    { my $self = shift; return $self->{info} };                  # my $NI = $S->ndinfo
 sub view      { my $self = shift; return $self->{view} };                  # my $V = $S->view
 sub ifinfo    { my $self = shift; return $self->{info}{interface} };       # my $IF = $S->ifinfo
-sub pvcinfo   { my $self = shift; return $self->{info}{pvc} };             # my $PVC = $S->pvcinfo
-sub callsinfo { my $self = shift; return $self->{info}{calls} };           # my $CALL = $S->callsinfo
+
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub ndcfg     { my $self = shift; return $self->{cfg} };                   # my $NC = $S->ndcfg
-sub envinfo   { my $self = shift; return $self->{info}{environment} };     # my $ENV = $S->envinfo
+
 sub syshealth { my $self = shift; return $self->{info}{systemHealth} };    # my $SH = $S->syshealth
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 

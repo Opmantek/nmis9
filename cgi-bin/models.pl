@@ -80,8 +80,6 @@ my %MT = (
 	],
 	'add' => [
 		'^\w+$',
-		'^calls,rrd,\w+$',
-		'^calls,rrd,\w+,snmp$',
 		'^cbqosin,rrd,cbqos$',
 		'^cbqosout,rrd,cbqos$',
 		'^cbqosin,rrd,cbqos,snmp$',

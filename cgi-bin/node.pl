@@ -344,7 +344,6 @@ sub typeGraph {
 		pkts_hc => { name => 'Interface', label_key => 'ifDescr' },
 		'cbqos-in' => { name => 'Interface', label_key => 'ifDescr' },
 		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
-		calls => { name => 'Interface', label_key => 'ifDescr' },
 	);
 
 	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index");
@@ -462,7 +461,7 @@ sub typeGraph {
 								}
 							}
 						}
-						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
+						if (not($graphtype =~ /cbqos/ and $Q->{item} eq '')) {
 							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
 							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
 						}
@@ -523,7 +522,7 @@ sub typeGraph {
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
 											suppress_errors=>'true'))
-			 or $graphtype =~ /calls|cbqos/) {
+			 or $graphtype =~ /cbqos/) {
 
 		my %buttons;
 		my $htitle;
@@ -542,15 +541,6 @@ sub typeGraph {
 				$buttons{$i}{name} = $CBQosNames->[$i];
 				$buttons{$i}{intf} = $index;
 				$buttons{$i}{item} = $CBQosNames->[$i];
-			}
-		}
-
-		# display Call buttons if there is more then one call port for this node
-		if ( $graphtype eq "calls" ) {
-			for my $i ($S->getTypeInstances(section => "calls")) {				
-				$buttons{$i}{name} = $index_model->{data}{ifDescr};
-				$buttons{$i}{intf} = $i;
-				$buttons{$i}{item} = '';
 			}
 		}
 

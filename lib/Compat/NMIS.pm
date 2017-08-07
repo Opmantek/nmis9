@@ -2126,7 +2126,7 @@ sub convertConfFiles {
 					$NT->{$node}{community} = $nodeTable{$i}{community};
 					$NT->{$node}{port} = $nodeTable{$i}{port} || '161';
 					$NT->{$node}{cbqos} = $nodeTable{$i}{cbqos} || 'none';
-					$NT->{$node}{calls} = $nodeTable{$i}{calls} || 'false';
+
 					$NT->{$node}{rancid} = $nodeTable{$i}{rancid} || 'false';
 					$NT->{$node}{services} = $nodeTable{$i}{services} ;
 				#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
