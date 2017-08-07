@@ -425,7 +425,7 @@ sub runThreads
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@cand_nodes = $node_select? $node_select
+	@cand_nodes = ref($node_select) eq "ARRAY"? @$node_select : $node_select ? $node_select
 			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
 
 	# get the polling policies and translate into seconds (for rrd file options)
