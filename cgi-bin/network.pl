@@ -1662,7 +1662,7 @@ sub viewPollingSummary
 				my @cbqosdb = qw(cbqos-in cbqos-out);
 				foreach my $cbqos (@cbqosdb)
 				{
-					my @instances = $S->getTypeInstances( graphtype => $cbqos );
+					my @instances = $S->getTypeInstances( section => $cbqos );
 					if (@instances)
 					{
 						++$sum->{count}{$cbqos};
@@ -2848,7 +2848,8 @@ sub viewInterface
 				)
 				);
 		}
-		if ( grep( $_ eq $intf, $S->getTypeInstances( graphtype => 'cbqos-in' ) ) )
+
+		if ( grep( $_ eq $intf, $S->getTypeInstances( section => 'cbqos-in' ) ) )
 		{
 			print Tr( td( {class => 'header'}, "CBQoS in" ) ),
 				Tr(
@@ -2863,7 +2864,8 @@ sub viewInterface
 				)
 				);
 		}
-		if ( grep( $_ eq $intf, $S->getTypeInstances( graphtype => 'cbqos-out' ) ) )
+		
+		if ( grep( $_ eq $intf, $S->getTypeInstances( section => 'cbqos-out' ) ) )
 		{
 			print Tr( td( {class => 'header'}, "CBQoS out" ) ),
 				Tr(
@@ -3232,7 +3234,7 @@ sub viewActivePort
 					);
 			}
 			push @out, td( {class => 'header', align => 'center'}, 'Graph' );
-			if ( $S->getTypeInstances( graphtype => 'cbqos-in', section => 'cbqos-in' ) )
+			if ( $S->getTypeInstances( section => 'cbqos-in' ) )
 			{
 				push @out,
 					td(
@@ -3245,7 +3247,7 @@ sub viewActivePort
 					);
 				$colspan++;
 			}
-			if ( $S->getTypeInstances( graphtype => 'cbqos-in', section => 'cbqos-out' ) )
+			if ( $S->getTypeInstances( section => 'cbqos-out' ) )
 			{
 				push @out,
 					td(
@@ -3273,7 +3275,8 @@ sub viewActivePort
 	foreach my $intf ( NMISNG::Util::sorthash( \%view, [$sort, "value"], $dir ) )
 	{
 		next if ( NMISNG::Util::getbool($active) and !NMISNG::Util::getbool( $view{$intf}{collect}{value} ) );
-		next if ( $graphtype =~ /cbqos/ and !grep( $intf eq $_, $S->getTypeInstances( graphtype => $graphtype ) ) );
+		next if ( $graphtype =~ /cbqos/ 
+							and !grep( $intf eq $_, $S->getTypeInstances( section => $graphtype ) ) );
 
 		print Tr(
 			eval {
