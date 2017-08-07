@@ -2039,14 +2039,14 @@ sub getTypeInstances
 		}
 
 		# fixme harsh, but better we see gotchas now...
-		die "error: no subconcept known for graptype $graphtype!"
+		die "error: no subconcept known for graphtype $graphtype!"
 				if (!$subconcept);
-		die "error: no concept known for graptype $graphtype!"
+		die "error: no concept known for graphtype $graphtype!"
 				if (!$concept);
 
 		# graphtype ALSO given but same as (handled) section or points to that section,
 		# and we have instances? then ignore the graphtype,  or we'll get duplicates
-		if (($want_modeldata && $modeldata->count || @instances) 
+		if (($want_modeldata && $modeldata && $modeldata->count || @instances) 
 				&& defined($section) 
 				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
