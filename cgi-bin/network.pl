@@ -2645,7 +2645,7 @@ sub viewInterface
 	my $S    = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $inventory = $S->inventory( concept => 'interface', index => $intf );
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, partial => 1);
 	my $data = ($inventory) ? $inventory->data : {};
 
 	print header($headeropts);
@@ -3018,7 +3018,7 @@ sub viewAllIntf
 
 				foreach my $k (@hd)
 				{
-					my $inventory = $S->inventory( concept => 'interface', index => $intf );
+					my $inventory = $S->inventory( concept => 'interface', index => $intf, partial => 1 );
 					my $data = ($inventory) ? $inventory->data : {};
 
 					my $color

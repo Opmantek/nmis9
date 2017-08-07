@@ -479,7 +479,7 @@ sub typeGraph {
 		# cbqos shows interface data so load if if we are doing cbqos
 		if( $subconcept =~ /cbqos/ && $index != '')
 		{
-			$intf_data = $S->inventory( concept => 'interface', index => $index )->data();
+			$intf_data = $S->inventory( concept => 'interface', index => $index, partial => 1 )->data();
 		}
 		# NOTE: this could use the inventory last update time
 		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i ) 
@@ -533,7 +533,7 @@ sub typeGraph {
 		# figure out the available policy or classifier names and other cbqos details
 		if ( $graphtype =~ /cbqos/ )
 		{
-			my ($CBQosNames,undef) = NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
+			my ($CBQosNames,undef) = Compat::NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
 			$htitle = 'Policy name';
 			$hvalue = $CBQosNames->[0] || "N/A";
 

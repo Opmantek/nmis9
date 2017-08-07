@@ -318,10 +318,10 @@ sub graphCBQoS
 	my $title;
 	
 	# order the names, find colors and bandwidth limits, index and section names
-	my ($CBQosNames,$CBQosValues) = NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
+	my ($CBQosNames,$CBQosValues) = Compat::NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
 	
 	# because cbqos we should find interface
-	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0, partial => 1 );
 	my $if_data = ($inventory) ? $inventory->data : {};
 
 	if ( $item eq "" ) {
@@ -592,7 +592,7 @@ sub graphCalls
 	my $device = "total";
 	if( $intf )
 	{
-		my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
+		my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0, partial => 1 );
 		my $if_data = ($inventory) ? $inventory->data : {};
 		$device = $if_data->{ifDescr};
 	}
