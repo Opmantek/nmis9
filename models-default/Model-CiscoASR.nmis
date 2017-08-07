@@ -34,9 +34,6 @@
       'database' => {
         'common-model' => 'database'
       },
-      'calls' => {
-        'common-model' => 'calls'
-      },
       'threshold' => {
         'common-model' => 'threshold'
       },

@@ -206,24 +206,9 @@ elsif ( $Q->{act} eq 'network_status_view' )
 	viewStatus();
 	exit;
 }
-elsif ( $Q->{act} eq 'network_environment_view' )
-{
-	viewEnvironment();
-	exit;
-}
 elsif ( $Q->{act} eq 'network_system_health_view' )
 {
 	viewSystemHealth( $Q->{section} );
-	exit;
-}
-elsif ( $Q->{act} eq 'network_cssgroup_view' )
-{
-	viewCSSGroup();
-	exit;
-}
-elsif ( $Q->{act} eq 'network_csscontent_view' )
-{
-	viewCSSContent();
 	exit;
 }
 elsif ( $Q->{act} eq 'network_port_view' )
@@ -1662,7 +1647,7 @@ sub viewPollingSummary
 				my @cbqosdb = qw(cbqos-in cbqos-out);
 				foreach my $cbqos (@cbqosdb)
 				{
-					my @instances = $S->getTypeInstances( graphtype => $cbqos );
+					my @instances = $S->getTypeInstances( section => $cbqos );
 					if (@instances)
 					{
 						++$sum->{count}{$cbqos};
@@ -2645,7 +2630,7 @@ sub viewInterface
 	my $S    = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $inventory = $S->inventory( concept => 'interface', index => $intf );
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, partial => 1);
 	my $data = ($inventory) ? $inventory->data : {};
 
 	print header($headeropts);
@@ -2848,7 +2833,8 @@ sub viewInterface
 				)
 				);
 		}
-		if ( grep( $_ eq $intf, $S->getTypeInstances( graphtype => 'cbqos-in' ) ) )
+
+		if ( grep( $_ eq $intf, $S->getTypeInstances( section => 'cbqos-in' ) ) )
 		{
 			print Tr( td( {class => 'header'}, "CBQoS in" ) ),
 				Tr(
@@ -2863,7 +2849,8 @@ sub viewInterface
 				)
 				);
 		}
-		if ( grep( $_ eq $intf, $S->getTypeInstances( graphtype => 'cbqos-out' ) ) )
+		
+		if ( grep( $_ eq $intf, $S->getTypeInstances( section => 'cbqos-out' ) ) )
 		{
 			print Tr( td( {class => 'header'}, "CBQoS out" ) ),
 				Tr(
@@ -3016,7 +3003,7 @@ sub viewAllIntf
 
 				foreach my $k (@hd)
 				{
-					my $inventory = $S->inventory( concept => 'interface', index => $intf );
+					my $inventory = $S->inventory( concept => 'interface', index => $intf, partial => 1 );
 					my $data = ($inventory) ? $inventory->data : {};
 
 					my $color
@@ -3232,7 +3219,7 @@ sub viewActivePort
 					);
 			}
 			push @out, td( {class => 'header', align => 'center'}, 'Graph' );
-			if ( $S->getTypeInstances( graphtype => 'cbqos-in', section => 'cbqos-in' ) )
+			if ( $S->getTypeInstances( section => 'cbqos-in' ) )
 			{
 				push @out,
 					td(
@@ -3245,7 +3232,7 @@ sub viewActivePort
 					);
 				$colspan++;
 			}
-			if ( $S->getTypeInstances( graphtype => 'cbqos-in', section => 'cbqos-out' ) )
+			if ( $S->getTypeInstances( section => 'cbqos-out' ) )
 			{
 				push @out,
 					td(
@@ -3273,7 +3260,8 @@ sub viewActivePort
 	foreach my $intf ( NMISNG::Util::sorthash( \%view, [$sort, "value"], $dir ) )
 	{
 		next if ( NMISNG::Util::getbool($active) and !NMISNG::Util::getbool( $view{$intf}{collect}{value} ) );
-		next if ( $graphtype =~ /cbqos/ and !grep( $intf eq $_, $S->getTypeInstances( graphtype => $graphtype ) ) );
+		next if ( $graphtype =~ /cbqos/ 
+							and !grep( $intf eq $_, $S->getTypeInstances( section => $graphtype ) ) );
 
 		print Tr(
 			eval {
@@ -3947,135 +3935,6 @@ sub sortStatus
 	}
 }
 
-sub viewEnvironment
-{
-
-	my $node = $Q->{node};
-
-	my $S = NMISNG::Sys->new;    # get system object
-	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
-
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
-	{
-		print 'You are not authorized for this request';
-		return;
-	}
-
-	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
-
-	print Compat::NMIS::createHrButtons(
-		node    => $node,
-		system  => $S,
-		refresh => $Q->{refresh},
-		widget  => $widget,
-		conf    => $Q->{conf},
-		AU      => $AU
-	);
-	print start_table( {class => 'table'} );
-
-	if ( !$status{overall} )
-	{
-		print Tr( td( {class => 'Critical', colspan => '3'}, 'Node unreachable' ) );
-	}
-	elsif ( $status{overall} == -1 )
-	{
-		my @causes;
-		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
-		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
-
-		print Tr(
-			td( {class => 'Warning', colspan => '3'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
-			)
-		);
-	}
-
-	print Tr( th( {class => 'title', colspan => '3'}, "Environment of node $NI->{system}{name}" ) );
-
-	foreach my $index ( sort keys %{$NI->{env_temp}} )
-	{
-		my $graphtype = $NI->{graphtype}{$index}{env_temp};
-		my $D         = $NI->{env_temp}{$index};
-		print start_Tr;
-		print Tr(
-			td( {class => 'header'}, 'Sensor' ),
-			td( {class => 'info Plain', width => '40%'}, ( $index + 1 ) ),
-			td( {class => 'header'}, $D->{tempDescr} )
-		);
-		print Tr(
-			td( {class => 'header'},     'Description' ),
-			td( {class => 'info Plain'}, $D->{tempDescr} ),
-			td( {class => 'image', rowspan => '2'},
-				Compat::NMIS::htmlGraph(
-					graphtype => $graphtype,
-					node      => $node,
-					intf      => $index,
-					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
-				)
-			)
-		);
-		print Tr( td( {class => 'header'}, 'Temp. Type' ), td( {class => 'info Plain'}, $D->{tempType} ) );
-		print end_Tr;
-	}
-	foreach my $index ( sort keys %{$NI->{akcp_temp}} )
-	{
-		my $graphtype = $NI->{graphtype}{$index}{akcp_temp};
-		my $D         = $NI->{akcp_temp}{$index};
-		print start_Tr;
-		print Tr(
-			td( {class => 'header'}, 'Sensor' ),
-			td( {class => 'info Plain', width => '40%'}, ( $index + 1 ) ),
-			td( {class => 'header'}, $D->{hhmsSensorTempDescr} )
-		);
-		print Tr(
-			td( {class => 'header'},     'Description' ),
-			td( {class => 'info Plain'}, $D->{hhmsSensorTempDescr} ),
-			td( {class => 'image', rowspan => '2'},
-				Compat::NMIS::htmlGraph(
-					graphtype => $graphtype,
-					node      => $node,
-					intf      => $index,
-					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
-				)
-			)
-		);
-		print Tr( td( {class => 'header'}, 'Temp. Type' ), td( {class => 'info Plain'}, $D->{hhmsSensorTempType} ) );
-		print end_Tr;
-	}
-	foreach my $index ( sort keys %{$NI->{akcp_hum}} )
-	{
-		my $graphtype = $NI->{graphtype}{$index}{akcp_hum};
-		my $D         = $NI->{akcp_hum}{$index};
-		print start_Tr;
-		print Tr(
-			td( {class => 'header'}, 'Sensor' ),
-			td( {class => 'info Plain', width => '40%'}, ( $index + 1 ) ),
-			td( {class => 'header'}, $D->{hhmsSensorHumDescr} )
-		);
-		print Tr(
-			td( {class => 'header'},     'Description' ),
-			td( {class => 'info Plain'}, $D->{hhmsSensorHumDescr} ),
-			td( {class => 'image', rowspan => '1'},
-				Compat::NMIS::htmlGraph(
-					graphtype => $graphtype,
-					node      => $node,
-					intf      => $index,
-					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
-				)
-			)
-		);
-		print end_Tr;
-	}
-	print end_table;
-	Compat::NMIS::pageEnd() if ( !$wantwidget );
-}
 
 # display a systemhealth table for one node and its (indexed) instances of that particular section/kind
 # args: section, also uses Q
@@ -4277,150 +4136,6 @@ sub viewSystemHealth
 #print Tr(td({class=>'header'},'Description'),td({class=>'info Plain'},$D->{hhmsSensorHumDescr}),
 #td({class=>'image',rowspan=>'1'},Compat::NMIS::htmlGraph(graphtype=>$graphtype,node=>$node,intf=>$index,width=>$smallGraphWidth,height=>$smallGraphHeight)));
 	}
-	print end_table;
-	Compat::NMIS::pageEnd() if ( !$wantwidget );
-}
-
-sub viewCSSGroup
-{
-	my $node = $Q->{node};
-
-	my $S = NMISNG::Sys->new;    # get system object
-	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
-
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
-	{
-		print 'You are not authorized for this request';
-		return;
-	}
-
-	print Compat::NMIS::createHrButtons(
-		node    => $node,
-		system  => $S,
-		refresh => $Q->{refresh},
-		widget  => $widget,
-		conf    => $Q->{conf},
-		AU      => $AU
-	);
-	print start_table( {class => 'table'} );
-
-	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
-
-	if ( !$status{overall} )
-	{
-		print Tr( td( {class => 'Critical', colspan => '3'}, 'Node unreachable' ) );
-	}
-	elsif ( $status{overall} == -1 )
-	{
-		my @causes;
-		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
-		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
-
-		print Tr(
-			td( {class => 'Warning', colspan => '3'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
-			)
-		);
-	}
-
-	print Tr( td( {class => 'tabletitle', colspan => '3'}, "Groups of node $NI->{system}{name}" ) );
-
-	foreach my $index ( sort keys %{$NI->{cssgroup}} )
-	{
-		my $graphtype = $NI->{graphtype}{$index}{cssgroup};
-		my $D         = $NI->{cssgroup}{$index};
-		print start_Tr;
-		print Tr(
-			td( {class => 'header'}, $D->{CSSGroupDesc} ),
-			td( {class => 'image', rowspan => '1'},
-				Compat::NMIS::htmlGraph(
-					graphtype => $graphtype,
-					node      => $node,
-					intf      => $index,
-					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
-				)
-			)
-		);
-		print end_Tr;
-	}
-
-	print end_table;
-	Compat::NMIS::pageEnd() if ( !$wantwidget );
-}
-
-sub viewCSSContent
-{
-	my $node = $Q->{node};
-
-	my $S = NMISNG::Sys->new;    # get system object
-	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-	my $NI = $S->ndinfo;
-
-	print header($headeropts);
-	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
-
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
-	{
-		print 'You are not authorized for this request';
-		return;
-	}
-
-	my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
-
-	print Compat::NMIS::createHrButtons(
-		node    => $node,
-		system  => $S,
-		refresh => $Q->{refresh},
-		widget  => $widget,
-		conf    => $Q->{conf},
-		AU      => $AU
-	);
-	print start_table( {class => 'table'} );
-
-	if ( !$status{overall} )
-	{
-		print Tr( td( {class => 'Critical', colspan => '3'}, 'Node unreachable' ) );
-	}
-	elsif ( $status{overall} == -1 )
-	{
-		my @causes;
-		push @causes, "SNMP " . ( $status{snmp_status} ? "Up" : "Down" ) if ( $status{snmp_enabled} );
-		push @causes, "WMI " .  ( $status{wmi_status}  ? "Up" : "Down" ) if ( $status{wmi_enabled} );
-
-		print Tr(
-			td( {class => 'Warning', colspan => '3'},
-				"Node degraded, " . join( ", ", @causes ) . ", status=$NI->{system}{status_summary}"
-			)
-		);
-	}
-
-	print Tr( td( {class => 'tabletitle', colspan => '3'}, "Content of node $NI->{system}{name}" ) );
-
-	foreach my $index ( sort keys %{$NI->{csscontent}} )
-	{
-		my $graphtype = $NI->{graphtype}{$index}{csscontent};
-		my $D         = $NI->{csscontent}{$index};
-		print start_Tr;
-		print Tr(
-			td( {class => 'header'}, $D->{CSSContentDesc} ),
-			td( {class => 'image', rowspan => '1'},
-				Compat::NMIS::htmlGraph(
-					graphtype => $graphtype,
-					node      => $node,
-					intf      => $index,
-					width     => $smallGraphWidth,
-					height    => $smallGraphHeight
-				)
-			)
-		);
-		print end_Tr;
-	}
-
 	print end_table;
 	Compat::NMIS::pageEnd() if ( !$wantwidget );
 }

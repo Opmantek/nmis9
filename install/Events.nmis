@@ -263,15 +263,6 @@
     'CancelingEvent' => 'Proactive Temp Closed',
     'Description' => 'The configured threshold for temperature of the node has been exceeded.',
   },
-  'Proactive Modem Utilisation' => {
-    'Event' => 'Proactive Modem Utilisation',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'CancelingEvent' => 'Proactive Modem Utilisation Closed',
-    'Description' => 'The modems are being overused, and should probably be retired now.',
-  },
   'Proactive Buffer Utilisation' => {
     'Event' => 'Proactive Buffer Utilisation',
     'Notify' => 'true',
@@ -280,15 +271,6 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive Buffer Utilisation Closed',
     'Description' => 'The buffers are overloaded.',
-  },
-  'Proactive Calls Utilisation' => {
-    'Event' => 'Proactive Calls Utilisation',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'CancelingEvent' => 'Proactive Calls Utilisation Closed',
-    'Description' => 'There are too many calls, and you need more lines.',
   },
   'Proactive CPU User' => {
     'Event' => 'Proactive CPU User',
@@ -334,15 +316,6 @@
     'Stateful' => 'true',
     'CancelingEvent' => 'Proactive Memory Utilisation Closed',
     'Description' => 'The memory utilisation has exceeded the configured threshold.',
-  },
-  'Proactive Dead Modem' => {
-    'Event' => 'Proactive Dead Modem',
-    'Notify' => 'true',
-    'Status' => 'true',
-    'Log' => 'true',
-    'Stateful' => 'true',
-    'CancelingEvent' => 'Proactive Dead Modem Closed',
-    'Description' => 'A modem is dead and probably should be put out to pasture.',
   },
   'Proactive CPU IO Wait' => {
     'Event' => 'Proactive CPU IO Wait',

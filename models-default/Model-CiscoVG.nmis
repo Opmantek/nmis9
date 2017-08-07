@@ -193,13 +193,6 @@
             'title' => 'Uptime',
             'calculate' => '$r * 100'
           },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
-          },
           'sysContact' => {
             'replace' => {
               '' => 'default'

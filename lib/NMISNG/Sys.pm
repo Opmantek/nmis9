@@ -92,11 +92,10 @@ sub mdl       { my $self = shift; return $self->{mdl} };                   # my 
 sub ndinfo    { my $self = shift; return $self->{info} };                  # my $NI = $S->ndinfo
 sub view      { my $self = shift; return $self->{view} };                  # my $V = $S->view
 sub ifinfo    { my $self = shift; return $self->{info}{interface} };       # my $IF = $S->ifinfo
-sub pvcinfo   { my $self = shift; return $self->{info}{pvc} };             # my $PVC = $S->pvcinfo
-sub callsinfo { my $self = shift; return $self->{info}{calls} };           # my $CALL = $S->callsinfo
+
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub ndcfg     { my $self = shift; return $self->{cfg} };                   # my $NC = $S->ndcfg
-sub envinfo   { my $self = shift; return $self->{info}{environment} };     # my $ENV = $S->envinfo
+
 sub syshealth { my $self = shift; return $self->{info}{systemHealth} };    # my $SH = $S->syshealth
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
 
@@ -1788,11 +1787,10 @@ sub prep_extras_with_catchalls
 		my $data = $self->inventory(concept => "catchall")->data_live();
 		$extras->{node} = $self->{node};
 
-		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location InstalledModems))
+		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location))
 		{
 			$extras->{$key} = $data->{$key};
 		}
-		$extras->{InstalledModems} //= 0;
 
 		# if I am wanting a storage thingy, then lets populate the variables I need.
 		if ( $index ne ''
@@ -1971,18 +1969,18 @@ sub loadGraphTypeTable
 #
 # this function returns the indices of instances/things for a
 # particular graphtype, eg. all the known disk indices when asked for graphtype=hrdisk,
-# or all interface indices when asked for section=interface.
+# or all interface indices when asked for section=interface;
+# OR all the inventory data (wrapped in modeldata obj) if want_modeldata is set.
 #
 # arguments: graphtype(=subconcept for inventory) or section (=concept);
 # if both are given, then inventory instances that match either will be returned
 # fixme: if both graphtype and section are given, but the graphtype doesn't
 # belong to that section, then highly misleading data will be returned!
-# [want_modeldata] - 0/1, if set the function will return a model_data object
 #
 # fixme9: non-node mode is a dirty hack
 #
 # returns: list of matching indices - for indexed stuff the data.index property,
-# for services the data.service name.
+# for services the data.service name; or modeldata with all inventory data.
 sub getTypeInstances
 {
 	my ( $self, %args ) = @_;
@@ -1994,13 +1992,14 @@ sub getTypeInstances
 	# fixme9: can only work in node mode
 	if (defined $section && $self->{name})
 	{
+		my $fields_hash = ($want_modeldata) ? undef :  { "data.index" => 1, "data.service" => 1 };
+																										 
 		# in case of indexed, return the index; for service return the service name
-		my $modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+		$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
 																											 node_uuid => $self->nmisng_node->uuid,
 																											 concept => $section,
-																											 fields_hash => { "data.index" => 1,
-																																				"data.service" => 1 });
-		if ($modeldata->count)
+																											 fields_hash => $fields_hash );
+		if ($modeldata->count && !$want_modeldata)
 		{
 			for my $entry (@{$modeldata->data})
 			{
@@ -2008,6 +2007,7 @@ sub getTypeInstances
 			}
 		}
 	}
+	
 	# if a graphtype is given, infer the concept from that via graphtype2subconcept,
 	# subconcept == concept for anything but concept service (has more), and concept
 	# interface (has subconcepts pkts, pkts_hc, interface).
@@ -2037,17 +2037,19 @@ sub getTypeInstances
 		}
 
 		# fixme harsh, but better we see gotchas now...
-		die "error: no subconcept known for graptype $graphtype!"
+		die "error: no subconcept known for graphtype $graphtype!"
 				if (!$subconcept);
-		die "error: no concept known for graptype $graphtype!"
+		die "error: no concept known for graphtype $graphtype!"
 				if (!$concept);
 
 		# graphtype ALSO given but same as (handled) section or points to that section,
 		# and we have instances? then ignore the graphtype,  or we'll get duplicates
-		if (@instances && defined($section) && (($section eq $concept) || ($section eq $graphtype)))
+		if (($want_modeldata && $modeldata && $modeldata->count || @instances) 
+				&& defined($section) 
+				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
 			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
-			return $want_modeldata? NMISNG::ModelData->new(data => \@instances) : @instances;
+			return $want_modeldata? ($modeldata || NMISNG::ModelData->new(data => \@instances)) : @instances;
 		}
 
 		# fixme9: can only work in node mode

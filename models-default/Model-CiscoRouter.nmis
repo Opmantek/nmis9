@@ -35,9 +35,6 @@
       'database' => {
         'common-model' => 'database'
       },
-      'calls' => {
-        'common-model' => 'calls'
-      },
       'threshold' => {
         'common-model' => 'threshold'
       },
@@ -84,7 +81,7 @@
     'nodeType' => 'router',
     'nbarpd_check' => 'true',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer',
     'cbqos' => {
       'nocollect' => 'regex for cbqos control',
     },
@@ -127,32 +124,7 @@
 	        }
         },
       },
-      'modem' => {
-        'threshold' => 'modem_dead',
-        'graphtype' => 'modem',
-        'control' => '$InstalledModems > 0',
-        'snmp' => {
-          'ModemsInUse' => {
-            'oid' => 'cmSystemModemsInUse'
-          },
-          'ModemsAvailable' => {
-            'oid' => 'cmSystemModemsAvailable'
-          },
-          'ModemsOffline' => {
-            'oid' => 'cmSystemModemsOffline'
-          },
-          'ModemsDead' => {
-            'oid' => 'cmSystemModemsDead'
-          },
-          'ModemsUnavailable' => {
-            'threshold' => 'modem_unav',
-            'oid' => 'cmSystemModemsUnavailable'
-          },
-          'InstalledModem' => {
-            'oid' => 'cmSystemInstalledModem'
-          }
-        },
-      },
+
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -251,13 +223,6 @@
             'oid' => 'snmpEngineTime',
             'title' => 'Uptime',
             'calculate' => '$r * 100'
-          },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
           },
           'sysContact' => {
             'replace' => {
@@ -399,15 +364,6 @@
           },
         }
       },
-      'modem' => {
-        'snmp' => {
-          'InstalledModems' => {
-            'oid' => 'cmSystemInstalledModem',
-            'title' => 'Modems'
-          }
-        },
-        'control' => '$InstalledModems > 0'
-      }
     }
   },
   'interface' => {

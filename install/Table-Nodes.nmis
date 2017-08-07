@@ -95,7 +95,6 @@ my $uuid = Compat::UUID::getUUID();
 	 { ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
 	 { collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
 	 { cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"] }},
-	 { calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
 	 { threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
 	 { webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
 	 { depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},

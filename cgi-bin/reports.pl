@@ -949,7 +949,6 @@ sub top10Report
 	my %linkTable;
 	my %pktsTable;
 	my %downTable;
-	my %pvcTable;
 	my $prev_node;
 	my %interfaceInfo = %{$II}; # copy
 
@@ -1022,22 +1021,6 @@ sub top10Report
 				$pktsTable{$int}{totalDiscardsErrors} = ($pktsTable{$int}{ifInDiscards} + $pktsTable{$int}{ifOutDiscards}
 					+ $pktsTable{$int}{ifInErrors} + $pktsTable{$int}{ifOutErrors} ) / 4 ;
 			}
-			# now for the PVC stats !
-			# check if this interface is a frame
-			if ( $interfaceInfo{$int}{ifType} =~ /frame-relay/ ) {
-				if ( $NI->{pvc} ne "") {
-					foreach my $p (keys %{$NI->{pvc}}) {
-						my $hash = Compat::NMIS::getSummaryStats(sys=>$S,type=>"pvc",start=>$start,end=>$end,index=>$intf);
-							foreach my $k (keys %{$pvcTable{$intf}}) {
-							$pvcTable{$int}{$k} = $hash->{$intf}{$k};
-							$pvcTable{$int}{$k} =~ s/NaN/0/ ;
-						}
-						$pvcTable{$int}{totalECNS} = $pvcTable{$int}{ReceivedBECNs} + $pvcTable{$int}{ReceivedFECNs} ;
-						$pvcTable{$int}{pvc} = $p ;
-						$pvcTable{$int}{node} = $interfaceInfo{$int}{node} ;
-					}
-				}
-			}
 		}
 	}
 
@@ -1052,8 +1035,6 @@ sub top10Report
 		print Dumper(\%linkTable);
 		print "pktsTable\n";
 		print Dumper(\%pktsTable);
-		print "pvcTable\n";
-		print Dumper(\%pvcTable);
 		print "</pre>";
 	}
 
@@ -1265,33 +1246,6 @@ sub top10Report
 		last if --$i == 0;
 	}
 
-	# top10 table - PVC fecns and becns
-	# ReceivedBECNs, ReceivedFECNs
-
-	print Tr(th({class=>'title',align=>'center',colspan=>'8'},"Top 10 PVC BECN's and FECN's"));
- 	print Tr(
-			td({class=>'header',align=>'center'},'Node'),
-			td({class=>'header',align=>'center',colspan=>'3'},'PVC'),
-			td({class=>'header',align=>'center',colspan=>'2'},'Receive BECNS'),
-			td({class=>'header',align=>'center',colspan=>'2'},'Receive FECNS')
-		);
-
-	$i=10;
-	for my $reportlink ( NMISNG::Util::sortall(\%pvcTable,'totalECNS','rev')) {
-		last if $pvcTable{$reportlink}{totalECNS} == 0;	# early exit if rest are zero.
-		my $reportnode = $pvcTable{$reportlink}{node} ;
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
-		$cpuTable{$reportnode}{IOMemUsed} =~ /(^\d+)/;
-		print Tr(
-			td({class=>"info Plain $nodewrap"},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
-			td({class=>'info Plain',colspan=>'3'},$pvcTable{$reportlink}{pvc}),
-			td({class=>'info Plain',colspan=>'2',align=>'right'},$pvcTable{$reportlink}{ReceivedBECNs}),
-			td({class=>'info Plain',colspan=>'2',align=>'right'},$pvcTable{$reportlink}{ReceivedFECNs})
-		);
-		# loop control
-		last if --$i == 0;
-	}
 
 	# top10 table - Errors and Discards
 	# ifInUcastPkts, ifInNUcastPkts, ifInDiscards, ifInErrors, ifOutUcastPkts, ifOutNUcastPkts, ifOutDiscards, ifOutErrors

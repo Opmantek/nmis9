@@ -28,86 +28,10 @@
 # *****************************************************************************
 
 %hash = (
-    'environment' => {
-      'rrd' => {
-        'csscontent' => {
-	  'snmp'=> {
-  	    'CSScontentHits' => {
-	      'oid' => 'apCntHits',
-	      'option' => 'counter,U:U',
-	      'title' => 'Hits',
-            },         
-  	    'CSScontentBytes' => {
-	      'oid' => 'apCntByteCount',
- 	      'option' => 'counter,U:U',
-	      'title' => 'Bytes',
-            },         
-     	    'CSScontentFrames' => {
-	      'oid' => 'apCntFrameCount',
- 	      'option' => 'counter,U:U',
-	      'title' => 'Frames',
-            },         
-	  },            
-	  'indexed' => 'apCntIndex',
-          'graphtype' => 'csscontent',
-        },
-        'cssgroup' => {
-	  'snmp'=> {
-  	    'CSSgroupHits' => {
-	      'oid' => 'CSSgroupHits',
-	      'option' => 'counter,U:U',
-	      'title' => 'Hits',
-            },         
-  	    'CSSgroupBytes' => {
-	      'oid' => 'CSSGroupBytes',
- 	      'option' => 'counter,U:U',
-	      'title' => 'Bytes',
-            },         
-     	    'CSSgroupFrames' => {
-	      'oid' => 'CSSGroupFrames',
- 	      'option' => 'counter,U:U',
-	      'title' => 'Frames',
-            },         
-    	    'CSSgroupMaxCon' => {
-	      'oid' => 'CSSGroupMaxCon',
- 	      'option' => 'counter,U:U',
-	      'title' => 'Total Connectons ',
-            },         
-   	    'CSSgroupCurCon' => {
-	      'oid' => 'CSSGroupCurCon',
-	      'title' => 'Current Connections',
-            },         
-	  },            
-	  'indexed' => 'CSSgroupIndex',
-          'graphtype' => 'cssgroup',
-        },
-    },
-    'sys' => {
-      'cssgroup' => {
-        'snmp' => {
-	  'CSSGroupDesc' => {
-	    'oid' => 'CSSGroupDesc',
-	  },
-	},
- 	  'indexed' => 'CSSgroupIndex',
-      },
-      'csscontent' => {
-        'snmp' => {
-	  'CSSContentDesc' => {
-	    'oid' => 'apCntName',
-	  },
-	},
- 	  'indexed' => 'apCntIndex',
-      },
-    },
-  },
   '-common-' => {
     'class' => {
       'database' => {
         'common-model' => 'database'
-      },
-      'calls' => {
-        'common-model' => 'calls'
       },
       'threshold' => {
         'common-model' => 'threshold'

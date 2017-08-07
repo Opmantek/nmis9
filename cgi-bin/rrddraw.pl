@@ -155,7 +155,7 @@ sub rrdDraw
 		$intf = "";
 	}
 
-	# special graphtypes: cbqos is dynamic (multiple inputs create one graph), ditto calls
+	# special graphtypes: cbqos is dynamic (multiple inputs create one graph)
 	if ($graphtype =~ /cbqos/) 
 	{
 		@opt = graphCBQoS(sys=>$S,
@@ -163,10 +163,6 @@ sub rrdDraw
 											intf=>$intf,
 											item=>$item,
 											start=>$start,end=>$end,width=>$width,height=>$height);
-	} 
-	elsif ($graphtype eq "calls") 
-	{
-		@opt = graphCalls(sys=>$S,graphtype=>$graphtype,intf=>$intf,item=>$item,start=>$start,end=>$end,width=>$width,height=>$height);
 	} 
 	else 
 	{
@@ -318,10 +314,10 @@ sub graphCBQoS
 	my $title;
 	
 	# order the names, find colors and bandwidth limits, index and section names
-	my ($CBQosNames,$CBQosValues) = NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
+	my ($CBQosNames,$CBQosValues) = Compat::NMIS::loadCBQoS(sys=>$S, graphtype=>$graphtype, index=>$intf);
 	
 	# because cbqos we should find interface
-	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
+	my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0, partial => 1 );
 	my $if_data = ($inventory) ? $inventory->data : {};
 
 	if ( $item eq "" ) {
@@ -571,109 +567,4 @@ sub graphCBQoS
 	return @opt;
 }
 
-sub graphCalls 
-{
-	my %args = @_;
-	my $S = $args{sys};
-	my $graphtype = $args{graphtype};
-	my $intf = $args{intf};
-	my $start = $args{start};
-	my $end = $args{end};
-	my $width = $args{width};
-	my $height = $args{height};
-
-
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-
-	my $database;
-	my @opt;
-	my $title;
-
-	my $device = "total";
-	if( $intf )
-	{
-		my $inventory = $S->inventory( concept => 'interface', index => $intf, nolog => 0 );
-		my $if_data = ($inventory) ? $inventory->data : {};
-		$device = $if_data->{ifDescr};
-	}
-	
-	if ( $width <= 400 ) { $title = "$catchall_data->{name} Calls ".'$length'; }
-	else { $title = "$catchall_data->{name} - $device - ".'$length from $datestamp_start to $datestamp_end'; }
-
-	# display Calls summarized or only one port
-	@opt = (
-		"--title", $title,
-		"--vertical-label","Call Stats",
-		"--start", "$start",
-		"--end", "$end",
-		"--width", "$width",
-		"--height", "$height",
-		"--imgformat", "PNG",
-		"--interlaced",
-		"--disable-rrdtool-tag"
-			);
-
-	my $CallCount = "CDEF:CallCount=0";
-	my $AvailableCallCount = "CDEF:AvailableCallCount=0";
-	my $totalIdle = "CDEF:totalIdle=0";
-	my $totalUnknown = "CDEF:totalUnknown=0";
-	my $totalAnalog = "CDEF:totalAnalog=0";
-	my $totalDigital = "CDEF:totalDigital=0";
-	my $totalV110 = "CDEF:totalV110=0";
-	my $totalV120 = "CDEF:totalV120=0";
-	my $totalVoice = "CDEF:totalVoice=0";
-
-
-	foreach my $i ($S->getTypeInstances(section => 'calls')) {
-		next unless $intf eq "" or $intf eq $i;
-		$database = $S->makeRRDname(graphtype => 'calls',
-															index => $i);
-		next if (!$database);
-
-		push(@opt,"DEF:CallCount$i=$database:CallCount:MAX");
-		push(@opt,"DEF:AvailableCallCount$i=$database:AvailableCallCount:MAX");
-		push(@opt,"DEF:totalIdle$i=$database:totalIdle:MAX");
-		push(@opt,"DEF:totalUnknown$i=$database:totalUnknown:MAX");
-		push(@opt,"DEF:totalAnalog$i=$database:totalAnalog:MAX");
-		push(@opt,"DEF:totalDigital$i=$database:totalDigital:MAX");
-		push(@opt,"DEF:totalV110$i=$database:totalV110:MAX");
-		push(@opt,"DEF:totalV120$i=$database:totalV120:MAX");
-		push(@opt,"DEF:totalVoice$i=$database:totalVoice:MAX");
-
-		$CallCount .= ",CallCount$i,+";
-		$AvailableCallCount .= ",AvailableCallCount$i,+";
-		$totalIdle .= ",totalIdle$i,+";
-		$totalUnknown .= ",totalUnknown$i,+";
-		$totalAnalog .= ",totalAnalog$i,+";
-		$totalDigital .= ",totalDigital$i,+";
-		$totalV110 .= ",totalV110$i,+";
-		$totalV120 .= ",totalV120$i,+";
-		$totalVoice .= ",totalVoice$i,+";
-		if ($intf ne "") { last; }
-	}
-
-	push(@opt,$CallCount);
-	push(@opt,$AvailableCallCount);
-	push(@opt,$totalIdle);
-	push(@opt,$totalUnknown);
-	push(@opt,$totalAnalog);
-	push(@opt,$totalDigital);
-	push(@opt,$totalV110);
-	push(@opt,$totalV120);
-	push(@opt,$totalVoice);
-
-	push(@opt,"LINE1:AvailableCallCount#FFFF00:AvailableCallCount");
-	push(@opt,"LINE2:totalIdle#000000:totalIdle");
-	push(@opt,"LINE2:totalUnknown#FF0000:totalUnknown");
-	push(@opt,"LINE2:totalAnalog#00FFFF:totalAnalog");
-	push(@opt,"LINE2:totalDigital#0000FF:totalDigital");
-	push(@opt,"LINE2:totalV110#FF0080:totalV110");
-	push(@opt,"LINE2:totalV120#800080:totalV120");
-	push(@opt,"LINE2:totalVoice#00FF00:totalVoice");
-	push(@opt,"COMMENT:\\l");
-	push(@opt,"GPRINT:AvailableCallCount:MAX:Available Call Count %1.2lf");
-	push(@opt,"GPRINT:CallCount:MAX:Total Call Count %1.0lf");
-
-	return @opt;
-}
 

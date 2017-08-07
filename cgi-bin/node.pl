@@ -115,6 +115,7 @@ sub typeGraph {
 	my $p_date_end = $Q->{p_date_end};
 	my $graphx = $Q->{'graphimg.x'}; # points
 	my $graphy = $Q->{'graphimg.y'};
+
 	my $graphtype = $Q->{graphtype};
 
 	my $urlsafenode = uri_escape($node);
@@ -279,16 +280,18 @@ sub typeGraph {
 	$date_start = NMISNG::Util::returnDateStamp($start);
 	$date_end = NMISNG::Util::returnDateStamp($end);
 
-	#==== calculation done
 
 	my $GTT = $S->loadGraphTypeTable(index=>$index);
-
-	my $itm;
+	my $section;
 	if ($Q->{graphtype} eq 'metrics') {
 		$group = 'network' if $group eq "";
 		$item = $group;
-	} elsif ($Q->{graphtype} =~ /cbqos/) {
-	} elsif ($GTT->{$graphtype} eq 'interface') {
+	}
+	elsif ($Q->{graphtype} =~ /cbqos/) 
+	{
+		$section = $Q->{graphtype};
+	} 
+	elsif ($GTT->{$graphtype} eq 'interface') {
 		$item = '';
 	}
 
@@ -315,7 +318,9 @@ sub typeGraph {
 	}
 	print comment("typeGraph begin");
 
-	my $modeldata = $S->getTypeInstances(graphtype => $graphtype, 
+	# section needed to find cbqos instances
+	my $modeldata = $S->getTypeInstances(section => $section, 
+																			 graphtype => $graphtype, 
 																			 want_modeldata => 1, 
 																			 want_active => 1 );
 	# fixme9: non-node mode means no graphttypetable means no menu and nothing works...
@@ -332,11 +337,6 @@ sub typeGraph {
 	# that and allows grabbing the data from the inventory model
 	# do this by subconcept, concept is too broad, things like storage break it
 	my %title_struct = (
-		akcp_temp => { name => 'Sensor', label_key => 'hhmsSensorTempDescr' },
-		akcp_hum => { name => 'Sensor', label_key => 'hhmsSensorHumDescr' },
-		csscontent => { name => 'Sensor', label_key => 'CSSContentDesc' },		
-		cssgroup => { name => 'Group', label_key => 'CSSGroupDesc' },
-		env_temp => { name => 'Sensor', label_key => 'tempDescr' },
 		hrsmpcpu => { name => 'CPU' },
 		hrdisk => { name => 'Disk', label_key =>'hrStorageDescr' },
 		interface => { name => 'Interface', label_key => 'ifDescr' },
@@ -344,7 +344,6 @@ sub typeGraph {
 		pkts_hc => { name => 'Interface', label_key => 'ifDescr' },
 		'cbqos-in' => { name => 'Interface', label_key => 'ifDescr' },
 		'cbqos-out' => { name => 'Interface', label_key => 'ifDescr' },
-		calls => { name => 'Interface', label_key => 'ifDescr' },
 	);
 
 	$S->nmisng->log->debug("concept:$concept,subconcept:$subconcept,graphtype:$graphtype index:$index");
@@ -418,6 +417,7 @@ sub typeGraph {
 				# End date field
 				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
 					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
+
 				# Group or Interface select menu
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
 						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $graphtype eq 'nmis';
@@ -461,7 +461,7 @@ sub typeGraph {
 								}
 							}
 						}
-						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
+						if (not($graphtype =~ /cbqos/ and $Q->{item} eq '')) {
 							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$graphtype"},"Export");
 							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$graphtype"},"Stats");
 						}
@@ -479,7 +479,7 @@ sub typeGraph {
 		# cbqos shows interface data so load if if we are doing cbqos
 		if( $subconcept =~ /cbqos/ && $index != '')
 		{
-			$intf_data = $S->inventory( concept => 'interface', index => $index )->data();
+			$intf_data = $S->inventory( concept => 'interface', index => $index, partial => 1 )->data();
 		}
 		# NOTE: this could use the inventory last update time
 		if (($subconcept =~ /cbqos/i and $item ne "") or $subconcept =~ /interface|pkts/i ) 
@@ -522,7 +522,7 @@ sub typeGraph {
 	# check if database selectable with this info
 	if ( ($S->makeRRDname(graphtype=>$graphtype,index=>$index,item=>$item,
 											suppress_errors=>'true'))
-			 or $graphtype =~ /calls|cbqos/) {
+			 or $graphtype =~ /cbqos/) {
 
 		my %buttons;
 		my $htitle;
@@ -533,7 +533,7 @@ sub typeGraph {
 		# figure out the available policy or classifier names and other cbqos details
 		if ( $graphtype =~ /cbqos/ )
 		{
-			my ($CBQosNames,undef) = NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
+			my ($CBQosNames,undef) = Compat::NMIS::loadCBQoS(sys=>$S,graphtype=>$graphtype,index=>$index);
 			$htitle = 'Policy name';
 			$hvalue = $CBQosNames->[0] || "N/A";
 
@@ -541,15 +541,6 @@ sub typeGraph {
 				$buttons{$i}{name} = $CBQosNames->[$i];
 				$buttons{$i}{intf} = $index;
 				$buttons{$i}{item} = $CBQosNames->[$i];
-			}
-		}
-
-		# display Call buttons if there is more then one call port for this node
-		if ( $graphtype eq "calls" ) {
-			for my $i ($S->getTypeInstances(section => "calls")) {				
-				$buttons{$i}{name} = $index_model->{data}{ifDescr};
-				$buttons{$i}{intf} = $i;
-				$buttons{$i}{item} = '';
 			}
 		}
 

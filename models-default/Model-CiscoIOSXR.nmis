@@ -33,9 +33,6 @@
   		'database' => {
   			'common-model' => 'database',
   		},
-  		'calls' => {
-  			'common-model' => 'calls'
-  		},
   		'threshold' => {
   			'common-model' => 'threshold'
   		},
@@ -292,60 +289,6 @@
   'systemHealth' => {
     'sections' => 'Cisco_CBQoS,cpu_cpm,cempMemPool,env-temp,cdp,entityMib,ciscoAsset,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
-  #'environment' => {
-  #  'sys' => {
-  #    'env_temp' => {
-  #      'snmp' => {
-  #        'tempDescr' => {
-  #          'oid' => 'entPhysicalDescr',
-  #          'title' => 'Descr.'
-  #        },
-  #        'tempStatus' => {
-  #					'replace' => {
-  #						'1' => 'ok',
-  #						'2' => 'unavailable',
-  #						'3' => 'nonoperational',
-  #					},
-  #          'oid' => 'entSensorStatus',
-  #          'title' => 'Status'
-  #        },
-  #        'tempType' => {
-  #					'replace' => {
-  #						'1' => 'other',
-  #						'2' => 'unknown',
-  #						'3' => 'voltsAC',
-  #						'4' => 'voltsDC',
-  #						'5' => 'amperes',
-  #						'6' => 'watts',
-  #						'7' => 'hertz',
-  #						'8' => 'celsius',
-  #						'9' => 'percentRH',
-  #						'10' => 'rpm',
-  #						'11' => 'cmm',
-  #						'12' => 'truthvalue',
-  #						'13' => 'specialEnum',
-  #						'14' => 'dBm',
-  #					},
-  #          'oid' => 'entSensorType',
-  #          'title' => 'Status'
-  #        }
-  #      },
-  #      'indexed' => 'entSensorStatus'
-  #    }
-  #  },
-  #  'rrd' => {
-  #    'env_temp' => {
-  #      'snmp' => {
-  #        'currentTemp' => {
-  #          'oid' => 'entSensorValue',
-  #        }
-  #      },
-  #      'indexed' => 'true',
-  #      'threshold' => 'env_temp',
-  #      'graphtype' => 'env-temp'
-  #    },
-  #  }
-  #},
   'interface' => {
   	'sys' => {
   		'standard' => {

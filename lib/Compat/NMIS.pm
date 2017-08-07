@@ -93,7 +93,7 @@ sub new_nmisng
 		path  =>  ($debug? undef : $logfile ),
 			);
 
-	
+
 
 	my $nmisng = NMISNG->new(
 		config => $C,
@@ -1029,6 +1029,9 @@ sub getSummaryStats
 	} else {
 		##NMISNG::Util::logMsg("INFO result type=$type, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
 		if ( scalar(@$graphret) ) {
+			# fixme9: this should NOT return nan, but undef - upstreams should check for undef, not string NaN;
+			# fixme9: must also numify the values
+			# fixme9:  see getsubconceptstats for implementation
 			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
 			foreach my $line ( @$graphret ) {
 				my ($name,$value) = split "=", $line;
@@ -1048,6 +1051,10 @@ sub getSummaryStats
 	return;
 }
 
+# compute stats via rrd for a given subconcept,
+# returns: hashref with numeric values - or undef if infty or nan
+#
+# note: this does NOT return the string NaN, because json::xs utterly misencodes that
 sub getSubconceptStats
 {
 	my %args = @_;
@@ -1162,14 +1169,23 @@ sub getSubconceptStats
 		##NMISNG::Util::logMsg("INFO result subconcept=$subconcept, node=$catchall_data->{name}, $catchall_data->{nodeType}, $catchall_data->{nodeModel}, @$graphret");
 		if ( scalar(@$graphret) )
 		{
-			map { s/nan/NaN/g } @$graphret;			# make sure a NaN is returned !!
 			foreach my $line ( @$graphret )
 			{
 				my ($name,$value) = split "=", $line;
-				$summaryStats{$name} = $value + 0.0; # force to number
+
+				# set value to undef if this is infty or NaN/nan...
+				if ($value != $value) 	# standard nan test
+				{
+					$value = undef;
+				}
+				else
+				{
+					$value += 0.0;												# force to number
+				}
+
+				$summaryStats{$name} = $value;
 
 				NMISNG::Util::dbg("name=$name, index=$index, value=$value",2);
-				##NMISNG::Util::logMsg("INFO name=$name, index=$index, value=$value");
 			}
 			return \%summaryStats;
 		}
@@ -1673,7 +1689,7 @@ sub getAdminColor {
 	if( defined($S) && defined($index) && !$data )
 	{
 		#inventory keyed by index and ifDescr so we need partial
-		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 ); 
+		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 );
 		# if data not found use args
 		$data = ($inventory) ? $inventory->data : \%args;
 	}
@@ -1711,9 +1727,9 @@ sub getOperColor {
 
 	if( defined($S) && defined($index) && !$data )
 	{
-		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 ); 
+		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 );
 		# if data not found use args
-		$data = ($inventory) ? $inventory->data : \%args;	
+		$data = ($inventory) ? $inventory->data : \%args;
 	}
 	if( $data )
 	{
@@ -2110,7 +2126,7 @@ sub convertConfFiles {
 					$NT->{$node}{community} = $nodeTable{$i}{community};
 					$NT->{$node}{port} = $nodeTable{$i}{port} || '161';
 					$NT->{$node}{cbqos} = $nodeTable{$i}{cbqos} || 'none';
-					$NT->{$node}{calls} = $nodeTable{$i}{calls} || 'false';
+
 					$NT->{$node}{rancid} = $nodeTable{$i}{rancid} || 'false';
 					$NT->{$node}{services} = $nodeTable{$i}{services} ;
 				#	$NT->{$node}{runupdate} = $nodeTable{$i}{runupdate} ;
@@ -2512,7 +2528,7 @@ sub createHrButtons
 	push @out, "<table class='table'><tr>\n";
 
 	# provide link back to the main dashboard if not in widget mode
-	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"}, 
+	push @out, CGI::td({class=>"header litehead"}, CGI::a({class=>"wht", href=>$C->{'nmis'}."?conf=$confname"},
 																												"NMIS $Compat::NMIS::VERSION"))
 			if (!NMISNG::Util::getbool($widget));
 
@@ -2583,28 +2599,6 @@ sub createHrButtons
 				}
 			}
 			push @out, "</ul></li></ul></td>";
-		}
-
-		# NOTE: Inventory, what do we do with this?
-		### 2012-12-13 keiths, adding generic temp support
-		if ($NI->{env_temp} ne '' or $NI->{env_temp} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ($NI->{akcp_temp} ne '' or $NI->{akcp_hum} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_environment_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"environment"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
-		if ($NI->{cssgroup} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_cssgroup_view&node=$urlsafenode&refresh=false&server=$server"},"Group"));
-		}
-		#2011-11-11 Integrating changes from Kai-Uwe Poenisch
- 		if ($NI->{csscontent} ne '') {
-			push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_csscontent_view&node=$urlsafenode&refresh=false&server=$server"},"Content"));
 		}
 	}
 
