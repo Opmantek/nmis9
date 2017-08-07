@@ -9,8 +9,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # m h dom month dow user command
 
-# Run (selective) Statistics Collection
-* * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true
+# Run (selective) Statistics and Service Status Collection
+* * * * *  root /usr/local/nmis9/bin/poll type=collect mthread=true; /usr/local/nmis9/bin/poll type=services mthread=true
 # Run Summary Update every 5 minutes
 */5 * * * * root /usr/local/nmis9/bin/poll type=summary
 
