@@ -3447,7 +3447,8 @@ sub getEnvData
 						$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => $sect);
-						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																												 subconcept => $sect, start => $period, end => time);
 						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 					}
 				}
@@ -3905,7 +3906,8 @@ sub getSystemHealthData
 						$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => $sect);
-						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																												 subconcept => $sect, start => $period, end => time);
 						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 					}
 				}
@@ -4258,7 +4260,8 @@ sub getNodeData
 			{
 				$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 				my $period = getThresholdPeriod( subconcept => $sect );
-				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																										 subconcept => $sect, start => $period, end => time);
 				map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 			}
 		}
@@ -4703,7 +4706,8 @@ sub getIntfData
 					# convert data into values we can use in pit (eg resolve counters)
 					$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 					my $period = getThresholdPeriod( subconcept => $sect );
-					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $sect, start => $period, end => time);
+					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																											 subconcept => $sect, start => $period, end => time);
 					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
 				}
 			}
@@ -4713,7 +4717,10 @@ sub getIntfData
 
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
-			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => 'interface', start => $period, end => time);
+			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
+																																	inventory => $inventory,
+																																	subconcept => 'interface',
+																																	start => $period, end => time);
 
 			$V->{interface}{"${index}_operAvail_value"} = $interface_util_stats->{availability};
 			$V->{interface}{"${index}_totalUtil_value"} = $interface_util_stats->{totalUtil};
@@ -5574,7 +5581,9 @@ sub getCallsdata
 				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 						# get stats
 				my $period = getThresholdPeriod(subconcept => $concept);
-				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
+				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																										 subconcept => $concept,
+																										 start => $period, end => time);
 				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 					datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 
@@ -5959,7 +5968,8 @@ sub getPVC
 					my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
 					# get stats
 					my $period = getThresholdPeriod(subconcept => $concept);
-					$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory, subconcept => $concept, start => $period, end => time);
+					$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+																											 subconcept => $concept, start => $period, end => time);
 					$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
 						datasets => { $concept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
 					# new subconcepts may have been added
