@@ -9721,10 +9721,9 @@ sub doThreshold
 			next if ( !$S->init( name => $onenode, snmp => 'false' ) );
 		}
 
-		# my $NI = $S->ndinfo;    # pointer to node info table
 		my $M  = $S->mdl;       # pointer to Model table
-		# my $IF = $S->ifinfo;
-		my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+		my $catchall_inventory = $S->inventory( concept => 'catchall' );
+		my $catchall_data = $catchall_inventory->data_live();
 		my $status_table = $S->ndinfo->{status};
 
 		# skip if node down
@@ -9780,47 +9779,28 @@ sub doThreshold
 				}
 				else
 				{
-			  # this can be misleading, b/c not everything updates the instance index -> graphtype association reliably,
-					# so you could get an instance index that's long gone...
-					# fixme: this is wrong, type should be either given as graphtype or as section
-					my @instances = $S->getTypeInstances( graphtype => $type, section => $type );
-					NMISNG::Util::dbg( "threshold instances=" . ( join( ", ", @instances ) || "none" ) );
+					# find all instances for this particular subconcept
+					my $instances = $S->nmisng_node->get_inventory_model(filter => { subconcepts => $type }) ;
 
-					for my $index (@instances)
+# fixme					NMISNG::Util::dbg( "threshold instances=" . ( join( ", ", @instances ) || "none" ) );
+
+					for my $item (@{$instances->data})
 					{
-				  	# instances that don't have a valid nodeinfo section mustn't be touched
-				  	# however logic only works in some cases: some model source sections don't have nodeinfo sections associated.
+						# fixme what does that mean?
+						# instances that don't have a valid nodeinfo section mustn't be touched
+				  	# however logic only works in some cases: some model source sections don't 
+						# have nodeinfo sections associated.
 
-				  	# NOTE: getting interface data for cbqos here
-				  	my $concept = $type;
-				  	my $partial = 0;
-				  	if ( $type =~ /cbqos|interface|pkts/ )
-				  	{
-				  		$concept = 'interface';
-				  		$partial = 1;
-						}
-
-		   			my $inventory = $S->inventory( concept => $type, index => $index, partial => $partial );
-		   			my $data = ($inventory) ? $inventory->data() : {};
-						if ($s eq "systemHealth" && !$inventory)
-							# and (  ref( $NI->{$type} ) ne "HASH" or ( !keys %{$NI->{$type}} )
-							# 	or ref( $NI->{$type}->{$index} ) ne "HASH"
-							# 	or $index ne $NI->{$type}->{$index}->{index} )
-						{
-							NMISNG::Util::logMsg(
-								"ERROR invalid data for section $type and index $index, cannot run threshold for this index!"
-							);
-							NMISNG::Util::info(
-								"ERROR invalid data for section $type and index $index, cannot run threshold for this index!"
-							);
-							next;
-						}
+						my $data = $item->{data};
+						my $index = $data->{index};
 
 						# control must be checked individually, too!
 						if ($control)
 						{
 							NMISNG::Util::dbg( "control found:$control for s=$s type=$type, index=$index", 1 );
-							if ( !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, eval => 1 ) )
+							if ( !$S->parseString( string => "($control) ? 1:0", 
+																		 sect => $type, 
+																		 index => $index, eval => 1 ) )
 							{
 								NMISNG::Util::dbg("threshold of type $type, index $index skipped by control=$control");
 								next;
@@ -9831,7 +9811,7 @@ sub doThreshold
 						if ( $type =~ /interface|pkts/ )
 						{
 							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo
-							if ( $data && $data->{threshold} )
+							if ($data->{threshold} )
 							{
 								if ( NMISNG::Util::getbool( $data->{threshold} ) )
 								{
@@ -9851,10 +9831,10 @@ sub doThreshold
 							}
 						}
 						# this autovivifies but it does not matter
-						elsif ( $type =~ /cbqos/ and defined $data->{threshold} eq 'true')
+						elsif ( $type =~ /cbqos/ and $data->{threshold} eq 'true')
 						{
 							my ( $cbqos, $direction ) = split( /\-/, $type );
-							$inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
+							my $inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
 							$data = $inventory->data();
 							NMISNG::Util::dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
 							foreach my $class ( keys %{$data->{ClassMap}} )
@@ -9953,7 +9933,7 @@ sub doThreshold
 		if( $running_independently )
 		{
 			$S->writeNodeInfo();
-			$catchall_data->save();
+			$catchall_inventory->save();
 		}
 
 	}

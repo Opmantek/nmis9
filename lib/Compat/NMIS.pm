@@ -996,7 +996,7 @@ sub getSummaryStats
 		no strict;
 		$database = $db; # global
 		#inventory keyed by index and ifDescr so we need partial
-		my $intf_inventory = $S->inventory( concept => "interface", index => $index, partial => 1 );
+		my $intf_inventory = $S->inventory( concept => "interface", index => $index, partial => 1, nolog => 1);
 		if( $intf_inventory )
 		{
 			my $data = $intf_inventory->data();
