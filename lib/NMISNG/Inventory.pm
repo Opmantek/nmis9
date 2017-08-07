@@ -453,24 +453,38 @@ sub add_timed_data
 	return undef;
 }
 
-# retrieve the one most recent timed data for this instance
+# retrieve the one most recent timed data for this instance, this will come from the latest_data
+#  unless specifically told to get "from_timed"
 #(note: raw _id and inventory_id are not returned: not useful)
-# args: none
+# args: from_timed - set 1 if you must have the data from the timed_* collection
 # returns: hashref of success, error, time, data.
 sub get_newest_timed_data
 {
-	my ($self) = @_;
+	my ($self,%args) = @_;
+	my $from_timed = $args{from_timed} // 0;
 
 	# inventory not saved certainly means no pit data, but  that's no error
 	return {success => 1} if ( $self->is_new );
 
-	my $cursor = NMISNG::DB::find(
-		collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
-		query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
-		limit => 1,
-		sort        => {time => -1},
-		fields_hash => {time => 1, data => 1, derived_data => 1}
-	);
+	my $cursor;
+	if( $from_timed )
+	{
+		$cursor = NMISNG::DB::find(
+			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
+			limit => 1,
+			sort        => {time => -1},
+			fields_hash => {time => 1, data => 1, derived_data => 1}
+		);
+	}
+	else
+	{
+		$cursor = NMISNG::DB::find(
+			collection => $self->nmisng->latest_data_collection,
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
+			fields_hash => {time => 1, data => 1, derived_data => 1}
+		);
+	}
 	return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
 	return {success => 1} if ( !$cursor->count );
 
