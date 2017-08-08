@@ -470,7 +470,8 @@ sub updateRRD
 	my (@options, @ds);
 	my @values = ("N");							# that's 'reading is for Now'
 
-	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+	# ro clone is good enough. fixme9: non-node mode is an ugly hack
+	my $catchall = $S->{name}? $S->inventory( concept => 'catchall' )->data : {};
 	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{node_was_reset});
 	foreach my $var (keys %{$data})
 	{
