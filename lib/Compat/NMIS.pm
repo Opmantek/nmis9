@@ -3282,7 +3282,8 @@ sub loadServiceStatus
 		my $thisserver = $maybe->cluster_id;
 
 		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
-										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata}))
+										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata})),
+										node_uuid => $maybe->node_uuid
 				);
 
 		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
