@@ -606,7 +606,10 @@ sub runThreads
 		return;
 	}
 
-	NMISNG::Util::logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
+	# logmsg not useful for services, separate per-service policy in force
+	NMISNG::Util::logMsg("INFO Selected nodes for $type: "
+											 .join(" ", sort @todo_nodes)) if ($type ne "services");
+			
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
 	# now perform process safety operations
