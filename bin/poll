@@ -609,7 +609,7 @@ sub runThreads
 	# logmsg not useful for services, separate per-service policy in force
 	NMISNG::Util::logMsg("INFO Selected nodes for $type: "
 											 .join(" ", sort @todo_nodes)) if ($type ne "services");
-			
+
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
 	# now perform process safety operations
@@ -9019,10 +9019,14 @@ sub runLinks
 				{
 					my $nodeobj = $nmisng->node(name => $neednode);
 					die "No node named $neednode exists!\n" if (!$nodeobj); # fixme9: better option?
-					
+
+					my ($inventory,$error) = $nodeobj->inventory(concept => "catchall");
+					die "Failed to retrieve $neednode inventory: $error\n" if ($error);
+					$catchall{$neednode} = $inventory->data;
+
 					$catchall{$neednode} = $nodeobj->inventory(concept => "catchall")->data;
 				}
-				
+
 				if ( !exists $subnets{$subnet}{subnet} )
 				{
 					$subnets{$subnet}{subnet}      = $subnet;
@@ -9701,7 +9705,7 @@ sub doThreshold
 					{
 						# fixme what does that mean?
 						# instances that don't have a valid nodeinfo section mustn't be touched
-				  	# however logic only works in some cases: some model source sections don't 
+				  	# however logic only works in some cases: some model source sections don't
 						# have nodeinfo sections associated.
 
 						my $data = $item->{data};
@@ -9711,8 +9715,8 @@ sub doThreshold
 						if ($control)
 						{
 							NMISNG::Util::dbg( "control found:$control for s=$s type=$type, index=$index", 1 );
-							if ( !$S->parseString( string => "($control) ? 1:0", 
-																		 sect => $type, 
+							if ( !$S->parseString( string => "($control) ? 1:0",
+																		 sect => $type,
 																		 index => $index, eval => 1 ) )
 							{
 								NMISNG::Util::dbg("threshold of type $type, index $index skipped by control=$control");
