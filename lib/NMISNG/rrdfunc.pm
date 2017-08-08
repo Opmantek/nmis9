@@ -433,9 +433,6 @@ sub updateRRD
 	my ($S,$data,$type,$index,$item,$database,$extras) =
 			@args{"sys","data","type","index","item","database","extras"};
 
-	# fixme cannot work with the new inventory infrastructure
-	my $NI = $S->ndinfo;
-
 	++ $stats{nodes}->{$S->{name}};
 	NMISNG::Util::dbg("Starting RRD Update Process, db=$database, type=$type, index=$index, item=$item");
 
@@ -473,8 +470,8 @@ sub updateRRD
 	my (@options, @ds);
 	my @values = ("N");							# that's 'reading is for Now'
 
-	# fixme: broken with inventory
-	NMISNG::Util::dbg("node was reset, inserting U values") if ($NI->{system}->{node_was_reset});
+	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+	NMISNG::Util::dbg("node was reset, inserting U values") if ($catchall->{node_was_reset});
 	foreach my $var (keys %{$data})
 	{
 		# handle the nosave option
@@ -486,7 +483,7 @@ sub updateRRD
 
 		push @ds, $var;
 		# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
-		if ($NI->{system}->{node_was_reset})
+		if ($catchall->{node_was_reset})
 		{
 			push @values, 'U';
 		}
@@ -525,8 +522,7 @@ sub updateRRD
 	NMISNG::Util::dbg("DS $theds, $points");
 	NMISNG::Util::dbg("value $thevalue, $bytes bytes");
 
-	# fixme NI broken
-	NMISNG::Util::logPolling("$type,$NI->{system}{name},$index,$item,$theds,$thevalue");
+	NMISNG::Util::logPolling("$type,$S->{name},$index,$item,$theds,$thevalue");
 
 	if ( @options)
 	{

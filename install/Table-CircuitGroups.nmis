@@ -36,10 +36,10 @@ if ( $Q->{key} ne "" ) {
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$CG->{$key}{geNode},snmp=>'false');
-	my $NI = $S->ndinfo;
-	if ( exists $NI->{cps6000Cct} ) {
-		foreach (sort {$NI->{cps6000Cct}{$a}{cpsCctEntryIde} cmp $NI->{cps6000Cct}{$b}{cpsCctEntryIde}} keys %{$NI->{cps6000Cct}}) { 
-			push(@circuits,$NI->{cps6000Cct}{$_}{cpsCctEntryIde});
+	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+	if ( exists $catchall->{cps6000Cct} ) {
+		foreach (sort {$catchall->{cps6000Cct}{$a}{cpsCctEntryIde} cmp $catchall->{cps6000Cct}{$b}{cpsCctEntryIde}} keys %{$catchall->{cps6000Cct}}) { 
+			push(@circuits,$catchall->{cps6000Cct}{$_}{cpsCctEntryIde});
 		}
 	}
 }

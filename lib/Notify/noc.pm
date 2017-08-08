@@ -90,32 +90,16 @@ sub sendNotification {
 				
 			NMISNG::Util::dbg("Processing $node $event->{event}");
 			my $S = NMISNG::Sys->new; # get system object
-			$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-		
-			my $NI = $S->ndinfo;
-							
+			$S->init(name=>$node, snmp=>'false');
+
 			my @detailBits;
 		
-			if ( $includeGroup ) {
-				push(@detailBits,$NI->{system}{group});
+			if ( $includeGroup ) 
+			{
+				my $catchall_data = $S->inventory( concept => 'catchall' )->data;
+				push(@detailBits, $catchall_data->{group});
 			}
 	
-			# does the event have any interface details.
-			#if ( defined $event->{element} and $event->{element} ) {
-			#	my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-			#	if ( $IFD->{$event->{element}}{collect} eq "true" ) {
-		  #
-			#	if ( defined $IF->{$ifIndex}{Description} and $IF->{$ifIndex}{Description} ne "" ) {
-			#		push(@detailBits,"$IF->{$ifIndex}{Description}");
-			#	}
-		  #
-			#		if ($C->{global_events_bandwidth} eq 'true')
-			#		{
-			#				push(@detailBits,"Bandwidth=".$IFD->{$event->{element}}{ifSpeed});
-			#		}
-			#	}
-			#}
-		
 			push(@detailBits,$event->{details});
 			
 			my $details = join($detailSep,@detailBits);

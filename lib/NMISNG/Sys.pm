@@ -89,15 +89,34 @@ sub new
 
 #===================================================================
 sub mdl       { my $self = shift; return $self->{mdl} };                   # my $M = $S->mdl
-sub ndinfo    { my $self = shift; return $self->{info} };                  # my $NI = $S->ndinfo
 sub view      { my $self = shift; return $self->{view} };                  # my $V = $S->view
-sub ifinfo    { my $self = shift; return $self->{info}{interface} };       # my $IF = $S->ifinfo
 
 sub reach     { my $self = shift; return $self->{reach} };                 # my $R = $S->reach
 sub ndcfg     { my $self = shift; return $self->{cfg} };                   # my $NC = $S->ndcfg
 
-sub syshealth { my $self = shift; return $self->{info}{systemHealth} };    # my $SH = $S->syshealth
 sub alerts    { my $self = shift; return $self->{mdl}{alerts} };           # my $CA = $S->alerts
+
+# returns self's info, like the removed  ndinfo() function
+# mostly deprecated - only threshold and alerts are still using that
+sub compat_nodeinfo
+{
+	my ($self) = @_;
+	return $self->{info};
+}
+
+# deprecated, deliberately noisy, provides RO access to interface list
+sub ifinfo 
+{
+	my ($self) = @_;
+
+	Carp::cluck("sys::ifinfo function is deprecated!\n");
+	return {} if (!$self->nmisng_node);
+	
+	my $model_data = $self->nmisng_node->get_inventory_model(concept => "interface", 
+																													 filter => { historic => 0 });
+	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$model_data->data});
+	return \%ifdata;
+}
 
 # these don't create on access because re-running init is supposed to reset the object
 sub nmisng         { my $self = shift; return $self->{_nmisng} };
@@ -723,9 +742,7 @@ sub loadInfo
 
 		NMISNG::Util::dbg("MODEL loadInfo $self->{name} class=$class") if $wantdebug;
 
-		# my $target = $self->{info}->{$table} ||= {};
-
-# this takes each section returned and merges them together (all writes to output data do not mention the $section or $sect )
+		# this takes each section returned and merges them together (all writes to output data do not mention the $section or $sect )
 		foreach my $sect ( keys %{$result} )
 		{
 			print "MODEL loadInfo $self->{name} class=$class:\n" if $dmodel;
@@ -810,6 +827,7 @@ sub loadInfo
 # args: none
 # returns: 1 if worked (at least somewhat), 0 otherwise - check status() for details
 # NOTE: inventory keeping this around for now because whole node file not completely replaced yet
+# NOTE: this is NOT for loading the <node>-info.json file!
 sub loadNodeInfo
 {
 	my $self = shift;
@@ -864,7 +882,8 @@ sub getData
 		return;
 	}
 
-	$self->{info}{graphtype} ||= {};
+	# fixme9 should go away
+	$self->{info}->{graphtype} ||= {};
 
 	# this returns all collected goodies, disregarding nosave - must be handled upstream
 	my ( $result, $status ) = $self->getValues(
@@ -2285,12 +2304,7 @@ sub writeNodeInfo
 {
 	my $self = shift;
 
-	# remove ancient unwanted legacy info
-	delete $self->{info}{view_system};
-	delete $self->{info}{view_interface};
-
 	my $ext = NMISNG::Util::getExtension( dir => 'var' );
-
 	my $name = ( $self->{node} ne "" ) ? "$self->{node}-node" : 'nmis-system';
 
 	if ( $name eq "nmis-system" )

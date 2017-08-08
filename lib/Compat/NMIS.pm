@@ -2941,7 +2941,8 @@ sub loadCBQoS
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	# this is still used by huaweiqos, nothing else should be using it
-	my $NI = $S->ndinfo;
+	# fixme9: this needs to  be reworked to use inventory for huwawei, too...
+	my $NI = $S->compat_nodeinfo;
 
 	my $M = $S->mdl;
 	my $node = $catchall_data->{name};
@@ -4139,11 +4140,13 @@ sub rename_node
 	closedir(D);
 
 	print STDERR "Priming Sys objects for finding RRDs\n" if ($wantdiag);
+	# fixme9 doesn't work that way
 	# now prime sys objs for both old and new nodes, so that we can find and translate rrd names
 	my $oldsys = NMISNG::Sys->new; $oldsys->init(name => $old, snmp => "false");
 	my $newsys = NMISNG::Sys->new; $newsys->init(name => $new, snmp => "false");
 
-	my $oldinfo = $oldsys->ndinfo;
+	# fixme9: this cannot work - must look for concepts and storagenames...
+	my $oldinfo = $oldsys->compat_nodeinfo;
 	my %seen;									 # state cache for renamerrd
 
 	# find all rrds belonging to the old node

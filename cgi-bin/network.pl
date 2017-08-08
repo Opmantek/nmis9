@@ -1383,8 +1383,6 @@ sub selectLarge
 					}
 				);
 			}
-			#
-			#my $NI = Compat::NMIS::loadNodeInfoTable($node);
 			my $color;
 			if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
 			{
@@ -1603,72 +1601,62 @@ sub viewRunTime
 	}
 }    # viewRunTime
 
-### 2012-01-11 keiths, adding some polling information
 sub viewPollingSummary
 {
-
-	# $AU->CheckAccess, will send header and display message denying access if fails.
-	# using the same auth type as the nmis runtime graph
 	if ( $AU->CheckAccess( "tls_nmis_runtime", "header" ) )
 	{
 		my $sum;
 		my $qossum;
 		my $LNT = Compat::NMIS::loadLocalNodeTable();
+
 		foreach my $node ( keys %{$LNT} )
 		{
 			++$sum->{count}{node};
-			if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) )
+			next if (! NMISNG::Util::getbool( $LNT->{$node}{active} ) );
+
+			my $S    = NMISNG::Sys->new;
+			$S->init( name => $node, snmp => 'false' );
+			my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+
+			++$sum->{count}{active};
+
+			for my $item (qw(group nodeType roleType nodeModel))
 			{
-				++$sum->{count}{active};
+				++$sum->{$item}->{  $catchall_data->{$item} };
+			}
 
-				my $NI = Compat::NMIS::loadNodeInfoTable($node);
-				++$sum->{group}{$NI->{system}{group}};
-				++$sum->{nodeType}{$NI->{system}{nodeType}};
-				++$sum->{netType}{$NI->{system}{netType}};
-				++$sum->{roleType}{$NI->{system}{roleType}};
-				++$sum->{nodeModel}{$NI->{system}{nodeModel}};
-
-				### 2013-08-07 keiths, taking to long when MANY interfaces e.g. > 200,000
-				my $S = NMISNG::Sys->new;
-				if ( $S->init( name => $node, snmp => 'false' ) )
+			my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+			for my $oneif (@{$interfaces->data})
+			{
+				my $ifentry = $oneif->{data}; # oneif is a full inventory object, data area contains old-style info
+				
+				++$sum->{count}{interface};
+				++$sum->{ifType}->{ $ifentry->{ifType} };
+				if ( NMISNG::Util::getbool( $ifentry->{collect} ) )
 				{
-					my $IF = $S->ifinfo;
-					foreach my $int ( keys %{$IF} )
-					{
-						++$sum->{count}{interface};
-						++$sum->{ifType}{$IF->{$int}{ifType}};
-						if ( NMISNG::Util::getbool( $IF->{$int}{collect} ) )
-						{
-							++$sum->{count}{interface_collect};
-						}
-					}
+					++$sum->{count}{interface_collect};
 				}
 
 				my @cbqosdb = qw(cbqos-in cbqos-out);
 				foreach my $cbqos (@cbqosdb)
 				{
-					my @instances = $S->getTypeInstances( section => $cbqos );
-					if (@instances)
+					my $qosinventory = $S->nmisng_node->get_inventory_model( concept => $cbqos, 
+																															 filter => { historic => 0 });
+					if ($qosinventory->count)
 					{
 						++$sum->{count}{$cbqos};
-						foreach my $idx (@instances)
+						
+						foreach my $oneclass (@{$qosinventory->data})
 						{
-							++$qossum->{$cbqos}{interface};
-
-							# node info has cbqos -> {<ifindex>} -> {"in" or "out"}->{"ClassMap"}-> ... class details,
-							# and we want to count those classes
-							my $direction = ( $cbqos eq "cbqos-in" ? 'in' : 'out' );
-							my $count;
-
-							$count = scalar keys %{$NI->{cbqos}->{$idx}->{$direction}->{ClassMap}}
-								if ( exists $NI->{cbqos}->{$idx}->{$direction}
-								&& ref( $NI->{cbqos}->{$idx}->{$direction}->{ClassMap} ) eq "HASH" );
-
-							$qossum->{$cbqos}{classes} += $count;
+							++$qossum->{$cbqos}->{interface};
+							# we want the number  of classes == same as number of subconcepts
+							
+							$qossum->{$cbqos}{classes} += scalar($oneclass->{subconcepts});
 						}
 					}
 				}
 			}
+			
 			if ( NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 			{
 				++$sum->{count}{collect};
@@ -2470,6 +2458,7 @@ EO_HTML
 			}
 		}
 	}
+	
 	if (   NMISNG::Util::getbool( $catchall_data->{collect} )
 		or NMISNG::Util::getbool( $catchall_data->{ping} ) )
 	{
@@ -2569,12 +2558,14 @@ EO_HTML
 	elsif ( defined $catchall_data->{services} and $catchall_data->{services} ne "" )
 	{
 		print Tr( td( {class => 'header'}, 'Monitored Services' ) );
-		# TODO: figure out! fixme9
-		my $serviceStatus = {}; #$NI->{service_status};
-		foreach my $servicename ( keys %{$serviceStatus} )
+		my %servicestatus = Compat::NMIS::loadServiceStatus( node => $node );
+		# only this system's services of relevance
+		%servicestatus = %{$servicestatus{$C->{cluster_id}}} if (ref($servicestatus{$C->{cluster_id}}) eq "HASH");
+		
+		foreach my $servicename (sort keys %servicestatus)
 		{
-
-			my $thisservice = $serviceStatus->{$servicename};
+			next if (ref($servicestatus{$servicename}->{$node}) ne "HASH");
+			my $thisservice = $servicestatus{$servicename}->{$node}; # the actual data
 
 			my $thiswidth = int( 2 / 3 * $smallGraphWidth );
 
@@ -2591,25 +2582,24 @@ EO_HTML
 			print Tr( td( {class => "info Plain"}, a( {class => "islink", href => $serviceurl}, "$statustext" ) ), );
 			print Tr(
 				td( {class => 'image'},
-					Compat::NMIS::htmlGraph(
-						graphtype => "service",
-						node      => $node,
-						intf      => $servicename,
-						width     => $thiswidth,
-						height    => $smallGraphHeight
-					),
-					Compat::NMIS::htmlGraph(
-						graphtype => "service-response",
-						node      => $node,
-						intf      => $servicename,
-						width     => $thiswidth,
-						height    => $smallGraphHeight
-					)
+						Compat::NMIS::htmlGraph(
+							graphtype => "service",
+							node      => $node,
+							intf      => $servicename,
+							width     => $thiswidth,
+							height    => $smallGraphHeight
+						),
+						Compat::NMIS::htmlGraph(
+							graphtype => "service-response",
+							node      => $node,
+							intf      => $servicename,
+							width     => $thiswidth,
+							height    => $smallGraphHeight
+						)
 				)
-			);
-
+					);
+			
 		}
-
 	}
 	else
 	{
@@ -3803,7 +3793,7 @@ sub viewStatus
 	my $S = NMISNG::Sys->new;    # get system object
 	$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
 
-	my $NI = $S->ndinfo; # still needed for status section
+	my $NI = $S->compat_nodeinfo; # still needed for status section
 	my $nmisng_node = $S->nmisng_node;
 	my $configuration = $nmisng_node->configuration();
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
@@ -3811,7 +3801,7 @@ sub viewStatus
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "$node - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
-	if ( !$AU->InGroup( $NI->{system}{group} ) )
+	if ( !$AU->InGroup( $catchall_data->{group} ) )
 	{
 		print 'You are not authorized for this request';
 		return;
@@ -3985,8 +3975,6 @@ sub viewSystemHealth
 
 	my $ids = $nmisng_node->get_inventory_ids( concept => $section );
 
-	# TODO, bring back oid_lex_sort
-	# foreach my $index (oid_lex_sort(keys %{$NI->{$section}}) ) {
 	my $D = {};
 	foreach my $id (@$ids)
 	{
@@ -4316,7 +4304,6 @@ END_viewOverviewIntf:
 
 sub viewTop10
 {
-
 	print header($headeropts);
 	Compat::NMIS::pageStartJscript( title => "Top 10 - $C->{server_name}", refresh => $Q->{refresh} ) if ( !$wantwidget );
 
@@ -4324,7 +4311,6 @@ sub viewTop10
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $S  = NMISNG::Sys->new;
 
 	my $start           = time() - ( 15 * 60 );
 	my $end             = time();
@@ -4343,10 +4329,11 @@ sub viewTop10
 		next unless $AU->InGroup( $NT->{$reportnode}{group} );
 		if ( NMISNG::Util::getbool( $NT->{$reportnode}{active} ) )
 		{
+			my $S  = NMISNG::Sys->new;
 			$S->init( name => $reportnode, snmp => 'false' );
-			my $NI = $S->ndinfo;
-			my $IF = $S->ifinfo;
-
+			my $catchall =  $S->inventory( concept => 'catchall' );
+			my $catchall_data = $catchall->data();
+			
 			# reachable, available, health, response
 			%reportTable = (
 				%reportTable,
@@ -4356,8 +4343,13 @@ sub viewTop10
 
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			if ( $NI->{graphtype}{nodehealth} =~ /cpu/
-				and NMISNG::Util::getbool( $NI->{system}{collect} ) )
+			my $smellslikerouter = $S->nmisng_node->get_inventory_model( 
+				concept=> "catchall",  
+				filter => {
+					subconcepts => "nodehealth",
+					"dataset_info.datasets" => "avgBusy5" } );
+
+			if ($smellslikerouter->count and NMISNG::Util::getbool( $catchall_data->{collect} ))
 			{
 				%cpuTable = (
 					%cpuTable,
@@ -4367,34 +4359,37 @@ sub viewTop10
 							start => $start,
 							end   => $end,
 							index => $reportnode
-						)
+									) // {}
 					}
 				);
-				print STDERR "Result: " . Dumper \%cpuTable;
 			}
-
-			foreach my $int ( keys %{$IF} )
+			
+			my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+			
+			foreach my $entry ( @{$interfaces->data})
 			{
-				if ( NMISNG::Util::getbool( $IF->{$int}{collect} ) )
+				my $thisintf = $entry->{data};
+				
+				if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
 				{
 					# availability, inputUtil, outputUtil, totalUtil
-					my $intf = $IF->{$int}{ifIndex};
+					my $intf = $thisintf->{ifIndex}; # === index
 
 					# Availability, inputBits, outputBits
 					my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
 						index => $intf );
 					foreach my $k ( keys %{$hash->{$intf}} )
 					{
-						$linkTable{$int}{$k} = $hash->{$intf}{$k};
-						$linkTable{$int}{$k} =~ s/NaN/0/;
-						$linkTable{$int}{$k} ||= 0;
+						$linkTable{$intf}{$k} = $hash->{$intf}{$k};
+						$linkTable{$intf}{$k} =~ s/NaN/0/;
+						$linkTable{$intf}{$k} ||= 0;
 					}
-					$linkTable{$int}{node}        = $reportnode;
-					$linkTable{$int}{intf}        = $intf;
-					$linkTable{$int}{ifDescr}     = $IF->{$int}{ifDescr};
-					$linkTable{$int}{Description} = $IF->{$int}{Description};
+					$linkTable{$intf}{node}        = $reportnode;
+					$linkTable{$intf}{intf}        = $intf;
+					$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
+					$linkTable{$intf}{Description} = $thisintf->{Description};
 
-					$linkTable{$int}{totalBits} = ( $linkTable{$int}{inputBits} + $linkTable{$int}{outputBits} ) / 2;
+					$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
 				}
 			}
 		}    # end $reportnode loop
@@ -4652,6 +4647,7 @@ sub nodeAdminSummary
 		foreach my $node ( sort keys %{$LNT} )
 		{
 			#if ( $LNT->{$node}{active} eq "true" ) {
+			# fixme9: why did that get removed?
 			if (1)
 			{
 				if ( $AU->InGroup( $LNT->{$node}{group} ) and ( $group eq "" or $group eq $LNT->{$node}{group} ) )
@@ -4660,42 +4656,39 @@ sub nodeAdminSummary
 					my $intCount   = 0;
 					my $S          = NMISNG::Sys->new;    # get system object
 					$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-					my $NI        = $S->ndinfo;
-					my $IF        = $S->ifinfo;
+
+					my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+					my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+
 					my $exception = 0;
 					my @issueList;
 
 					# Is the node active and are we doing stats on it.
-					if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
+					if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) 
+							 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 					{
-						for my $ifIndex ( keys %{$IF} )
+						for my $entry (@{$interfaces->data})
 						{
 							++$intCount;
-							if ( $IF->{$ifIndex}{collect} eq "true" )
-							{
-								++$intCollect;
-
-  #print "$IF->{$ifIndex}{ifIndex}\t$IF->{$ifIndex}{ifDescr}\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}\n";
-							}
+							++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
 						}
 					}
-					my $sysDescr = $NI->{system}{sysDescr};
+					
+					my $sysDescr = $catchall_data->{sysDescr};
 					$sysDescr =~ s/[\x0A\x0D]/\\n/g;
 					$sysDescr =~ s/,/;/g;
 
 					my $community = "OK";
 					my $commClass = "info Plain";
 
-					# fixme9 utterly wrong data source
-					my $lastpoll = defined $NI->{system}{last_poll}
-						? NMISNG::Util::returnDateStamp( $NI->{system}{last_poll} )
+					my $lastpoll = defined $catchall_data->{last_poll}
+						? NMISNG::Util::returnDateStamp( $catchall_data->{last_poll} )
 						: "N/A";
 					my $lastpollclass = "info Plain";
 
-					# fixme9 utterly wrong data source
 					my $lastupdate
-						= defined $NI->{system}{last_update}
-						? NMISNG::Util::returnDateStamp( $NI->{system}{last_update} )
+						= defined $catchall_data->{last_update}
+						? NMISNG::Util::returnDateStamp( $catchall_data->{last_update} )
 						: "N/A";
 					my $lastupdateclass = "info Plain";
 
@@ -4722,15 +4715,14 @@ sub nodeAdminSummary
 						{
 							$lastpoll = "N/A"; # fixme wrong logic - still should show last poll before inactivation!
 						}
-						# fixme9 wrong data source
-						elsif ( not defined $NI->{system}{last_poll} )
+						elsif ( not defined $catchall_data->{last_poll} )
 						{
 							$lastpoll  = "unknown";
 							$lastpollclass = "info Plain Minor";
 							$exception        = 1;
 							push( @issueList, "Last collect poll is unknown" );
 						}
-						elsif ( $NI->{system}{last_poll} < ( time - 60 * 15 ) )
+						elsif ( $catchall_data->{last_poll} < ( time - 60 * 15 ) )
 						{
 							$lastpollclass = "info Plain Major";
 							$exception        = 1;
@@ -4741,14 +4733,14 @@ sub nodeAdminSummary
 						{
 							$lastupdate = "N/A"; # fixme wrong logic, should show last time  before deactivation
 						}
-						elsif ( not defined $NI->{system}{last_update} )
+						elsif ( not defined $catchall_data->{last_update} )
 						{
 							$lastupdate  = "unknown";
 							$lastupdateclass = "info Plain Minor";
 							$exception       = 1;
 							push( @issueList, "Last update poll is unknown" );
 						}
-						elsif ( $NI->{system}{last_update} < ( time - 86400 ) )
+						elsif ( $catchall_data->{last_update} < ( time - 86400 ) )
 						{
 							$lastupdateclass = "info Plain Major";
 							$exception       = 1;
@@ -4757,14 +4749,14 @@ sub nodeAdminSummary
 
 						$pingable  = "true";
 						$pingClass = "info Plain";
-						if ( not defined $NI->{system}{nodedown} )
+						if ( not defined $catchall_data->{nodedown} )
 						{
 							$pingable  = "unknown";
 							$pingClass = "info Plain Minor";
 							$exception = 1;
 							push( @issueList, "Node state is unknown" );
 						}
-						elsif ( $NI->{system}{nodedown} eq "true" )
+						elsif ( $catchall_data->{nodedown} eq "true" )
 						{
 							$pingable  = "false";
 							$pingClass = "info Plain Major";
@@ -4854,7 +4846,7 @@ sub nodeAdminSummary
 #a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
 					my $issues = join( "<br/>", @issueList );
 
-					my $sysObject = "$NI->{system}{sysObjectName} $NI->{system}{sysObjectID}";
+					my $sysObject = "$catchall_data->{sysObjectName} $catchall_data->{sysObjectID}";
 					my $intNums   = "$intCollect/$intCount";
 
 					if ( length($sysDescr) > 40 )
@@ -4893,9 +4885,9 @@ sub nodeAdminSummary
 							td( {class => $commClass},   $community ),
 							td( {class => 'info Plain'}, $LNT->{$node}{version} ),
 
-							td( {class => 'info Plain'}, $NI->{system}{nodeVendor} ),
-							td( {class => $moduleClass}, "$NI->{system}{nodeModel} ($LNT->{$node}{model})" ),
-							td( {class => 'info Plain'}, $NI->{system}{nodeType} ),
+							td( {class => 'info Plain'}, $catchall_data->{nodeVendor} ),
+							td( {class => $moduleClass}, "$catchall_data->{nodeModel} ($LNT->{$node}{model})" ),
+							td( {class => 'info Plain'}, $catchall_data->{nodeType} ),
 							td( {class => 'info Plain'}, $sysObject ),
 							td( {class => 'info Plain'}, $sysDescr ),
 							td( {class => 'info Plain'}, $intNums ),
