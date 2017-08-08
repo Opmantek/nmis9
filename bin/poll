@@ -9023,8 +9023,6 @@ sub runLinks
 					my ($inventory,$error) = $nodeobj->inventory(concept => "catchall");
 					die "Failed to retrieve $neednode inventory: $error\n" if ($error);
 					$catchall{$neednode} = $inventory->data;
-
-					$catchall{$neednode} = $nodeobj->inventory(concept => "catchall")->data;
 				}
 
 				if ( !exists $subnets{$subnet}{subnet} )
