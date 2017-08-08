@@ -1101,7 +1101,7 @@ sub getSubconceptStats
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$subconcept} eq "") {
-		NMISNG::Util::logMsg("ERROR ($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}");
+		NMISNG::Util::dbg("($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}, this may be expected");
 		return;
 	}
 
