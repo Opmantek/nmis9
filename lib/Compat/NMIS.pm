@@ -1101,7 +1101,7 @@ sub getSubconceptStats
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$subconcept} eq "") {
-		NMISNG::Util::logMsg("ERROR ($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}");
+		NMISNG::Util::dbg("($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}, this may be expected");
 		return;
 	}
 
@@ -3292,7 +3292,8 @@ sub loadServiceStatus
 		my $thisserver = $maybe->cluster_id;
 
 		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
-										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata}))
+										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata})),
+										node_uuid => $maybe->node_uuid
 				);
 
 		$result{ $maybe->cluster_id }->{ $semistaticdata->{service} }->{ $semistaticdata->{node} } = \%goodies;
