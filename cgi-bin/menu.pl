@@ -35,7 +35,6 @@ use Data::Dumper;
 
 use Compat::NMIS;
 use NMISNG::Util;
-use NMISNG::Sys;
 use Compat::Modules;
 
 use JSON::XS;
@@ -68,7 +67,6 @@ if ($AU->Require) {
 # dispatch the request
 if ($Q->{act} eq 'menu_bar_site') {			menu_bar_site(); # vertical parent menu
 } elsif ($Q->{act} eq 'menu_bar_portal') {	menu_bar_portal(); # hr portal select
-} elsif ($Q->{act} eq 'menu_panel_node') {	menu_panel_node();
 } elsif ($Q->{act} eq 'menu_about_view') {	menu_about_view();
 } elsif ( exists ($Q->{POSTDATA}) ) {	save_window_state();
 } else { notfound(); }
@@ -456,90 +454,6 @@ sub menu_bar_portal {
 				
 		return [ @menu_portal ];
 	}
-}
-
-# ADD Node panel on request
-
-sub menu_panel_node {
-	# popup the next panels, include the 'nodename' and submenu of that.
-	print header({-type=>"text/html",-expires=>'now'});
-	print		$q->start_ul({ class=>"jd_menu jd_menu_vertical"});
-	print_array_list( [( $Q->{node} , menu_node_panel(node=>$Q->{node}) )], 1, 1 );
-	print $q->end_ul();
-}
-
-#==============================
-
-# CREATE Node panel (for nodeselect links)
-# this is a <ul><li> .... </li></ul>
-
-sub menu_node_panel {
-	my %args = @_;
-	my $node = $args{node};
-	my $if;
-	my $tooltip;
-
-	my $NI = Compat::NMIS::loadNodeInfoTable($node);
-	my @menuInt;
-	my @tmp;
-	push @menuInt,	( qq|<a id="panel" name="Node" href="network.pl?conf=$Q->{conf}&amp;act=network_node_view&amp;node=$node&amp;server=$C->{server}">Node</a>| );
-	# added check for no interfaces, node is down or never collected due to snmp fault..
-	if ( NMISNG::Util::getbool($NI->{system}{collect}) and keys %{$NI->{interface}} ) {
-		#$menu_site[1][0] = qq|<a Interfaces</a>|;
-		# check for interface up and collect is true
-		# create temporal table
-		foreach my $intf (keys %{$NI->{interface}}) {
-			# get all interface where oper is up and collecting
-			if ($NI->{interface}{$intf}{ifAdminStatus} eq 'up' 
-					and NMISNG::Util::getbool($NI->{interface}{$intf}{collect})) {
-				$if->{$intf}{ifDescr} = $NI->{interface}{$intf}{ifDescr};
-				$if->{$intf}{Description} = $NI->{interface}{$intf}{Description};
-			}
-		}
-		@tmp=();
-		# create the sorted interface list
-		# but only if interface info available
-		foreach my $intf (NMISNG::Util::sorthash($if,['ifDescr'],'fwd')) {
-
-			#TBD - nmisdev - replace with jquery popup ??
-
-			$tooltip = '';
-			#	$tooltip = ($if->{$intf}{Description} ne '' and $if->{$intf}{Description} ne 'noSuchObject') ? $if->{$intf}{Description} : '';
-			#	$tooltip =~ s{[&<>/"']}{}g;  # needs work - fails ?
-	
-			if ($tooltip ne '') {
-				push @tmp, (
-						qq|<a id="panel" name="$if->{$intf}{ifDescr}" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view&amp;node=$node&amp;intf=$intf&amp;server=$C->{server}">$if->{$intf}{ifDescr}</a>|,
-					,
-					[ qq|<a id="panel" name="$if->{$intf}{ifDescr}_tp" title="$tooltip" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view&amp;node=$node&amp;intf=$intf&amp;server=$C->{server}">$tooltip</a>|
-					]);
-			} else {
-				push @tmp, (  qq|<a id="panel" name="$if->{$intf}{ifDescr}" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view&amp;node=$node&amp;intf=$intf&amp;server=$C->{server}">$if->{$intf}{ifDescr}</a>| );
-			}
-		} # end int by int
-		push @menuInt, ( 'Interfaces', [@tmp] );
-		push  @menuInt, (  qq|<a id="panel" name="All Interfaces" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view_all&amp;node=$node">All interfaces</a>|);
-		push  @menuInt, (  qq|<a id="panel" name="Active Interfaces" href="network.pl?conf=$Q->{conf}&amp;act=network_interface_view_act&amp;node=$node&amp;server=$C->{server}">Active Interfaces</a>|);
-		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}}) 
-		{
-			push  @menuInt, (  qq|<a id="panel" name="Port Stats" href="network.pl?conf=$Q->{conf}&amp;act=network_port_view&amp;node=$node&amp;server=$C->{server}">Port Stats</a>|);
-		}
-		if (ref($NI->{storage}) eq "HASH" && %{$NI->{storage}})
-		{
-			push  @menuInt, ( qq|<a id="panel" name="Storage" href="network.pl?conf=$Q->{conf}&amp;act=network_storage_view&amp;node=$node&amp;server=$C->{server}">Storage</a>|);
-		}
-	}
-
-	push  @menuInt, (  qq|<a id="panel" name="Events" href="events.pl?conf=$Q->{conf}&amp;act=event_table_view&amp;node=$node&amp;server=$C->{server}">Events</a>|);
-	push  @menuInt, (  qq|<a id="panel" name="Outage" href="outages.pl?conf=$Q->{conf}&amp;act=outage_table_view&amp;node=$node&amp;server=$C->{server}">Outage</a>|);
-	push  @menuInt, (  qq|Tools|,
-							[
-	 							qq|<a id="panel" name="Telnet" href="telnet://$NI->{system}{host}">Telnet</a>|,
-								qq|<a id="panel" name="Ping" href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_ping&amp;node=$node&amp;server=$C->{server}">Ping</a>|,
-								qq|<a id="panel" name="Trace" href="tools.pl?conf=$Q->{conf}&amp;act=tool_system_trace&amp;node=$node&amp;server=$C->{server}">Trace</a>|
-							]);
-	return [ @menuInt ];			# return all
-	
 }
 
 

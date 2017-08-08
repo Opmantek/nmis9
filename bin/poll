@@ -743,7 +743,6 @@ sub runThreads
 	# on update prime the interface summary
 	if ( $type eq "update" )
 	{
-		getNodeAllInfo();    # store node info in <nmis_var>/nmis-nodeinfo.xxxx
 		if ( !NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
 		{
 			getIntfAllInfo();    # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
@@ -1101,10 +1100,6 @@ sub doUpdate
 			NMISNG::Util::dbg("Plugin $plugin indicated no changes");
 		}
 	}
-
-	# fixme: deprecated, to be removed once all model-level custom plugins are converted to new plugin infrastructure
-	# and when the remaining customers using this have upgraded
-	runCustomPlugins( node => $name, sys => $S ) if ( defined $S->{mdl}{custom} );
 
 	my $updatetime = $updatetimer->elapTime();
 	NMISNG::Util::info("updatetime for $name was $updatetime");
@@ -7441,66 +7436,7 @@ sub getIntfAllInfo
 
 #=========================================================================================
 
-### create very rough outline hash of node information for caching
-sub getNodeAllInfo
-{
-	my %Info;
 
-	NMISNG::Util::dbg("Starting");
-	NMISNG::Util::dbg("Getting Info from all nodes");
-
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-
-	# Write a node entry for each  node
-	foreach my $node ( sort keys %{$NT} )
-	{
-		if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
-		{
-			my $nodeInfo = Compat::NMIS::loadNodeInfoTable($node);
-
-			$Info{$node}{nodeVendor} = $nodeInfo->{system}{nodeVendor};
-			$Info{$node}{nodeModel}  = $nodeInfo->{system}{nodeModel};
-			$Info{$node}{nodeType}   = $nodeInfo->{system}{nodeType};
-		}
-	}
-
-	# write to disk
-	NMISNG::Util::writeTable( dir => 'var', name => "nmis-nodeinfo", data => \%Info );
-	NMISNG::Util::dbg("Finished");
-}
-
-#=========================================================================================
-
-# fixme: deprecated, will be removed once the last customers who're using models
-# with this feature have upgraded to 8.5.6.
-sub runCustomPlugins
-{
-	my %args = @_;
-	my $S    = $args{sys};
-	my $node = $args{node};
-
-	NMISNG::Util::dbg("Starting, node $node");
-	foreach my $custom ( keys %{$S->{mdl}{custom}} )
-	{
-		if ( defined $S->{mdl}{custom}{$custom}{script} and $S->{mdl}{custom}{$custom}{script} ne "" )
-		{
-			NMISNG::Util::dbg("Found Custom Script $S->{mdl}{custom}{$custom}{script}");
-
-			#Only scripts in /usr/local/nmis8/admin can be run.
-			my $exec = "$C->{'<nmis_base>'}/$S->{mdl}{custom}{$custom}{script} node=$node debug=$C->{debug}";
-			my $out  = `$exec 2>&1`;
-			if ( $out and $C->{debug} )
-			{
-				NMISNG::Util::dbg($out);
-			}
-			elsif ($out)
-			{
-				NMISNG::Util::logMsg($out);
-			}
-		}
-	}
-	NMISNG::Util::dbg("Finished");
-}
 
 #=========================================================================================
 

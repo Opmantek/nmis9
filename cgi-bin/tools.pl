@@ -258,7 +258,8 @@ sub viewDNS {
 	elsif ($Q->{dns} eq 'loc') { viewLocDNS(); }
 }
 
-sub getInterfaceTable {
+sub getInterfaceTable 
+{
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	#Load the Interface Information file
@@ -406,8 +407,8 @@ sub viewArpaDNS {
 	print end_table,end_td,end_Tr;
 }
 
-sub viewLocDNS {
-
+sub viewLocDNS 
+{
 	my $node;
 	my $location;
 	my %location_data;
@@ -468,10 +469,15 @@ sub viewLocDNS {
 
 	foreach my $ip (NMISNG::Util::sortall($ii,'node','fwd')) {
 		if ( $ii->{$ip}{ipAdEntAddr} ne "" ) {
-			if ( $node ne $ii->{$ip}{node} ) {
+			if ( $node ne $ii->{$ip}{node} ) 
+			{
 				$node = $ii->{$ip}{node};
-				my $NI = Compat::NMIS::loadNodeInfoTable($node);
-				$location = lc($NI->{system}{sysLocation});
+
+				my $S    = NMISNG::Sys->new;
+				$S->init( name => $node, snmp => 'false' );
+				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+								
+				my $location = lc($catchall_data->{sysLocation}); # fixme why lowercase?
 				if ( $LT->{$location}{Latitude} ne "" and
 					$LT->{$location}{Longitude} ne "" and
 					$LT->{$location}{Altitude} ne ""

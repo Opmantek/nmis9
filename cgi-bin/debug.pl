@@ -376,6 +376,7 @@ my $ext = NMISNG::Util::getExtension(dir=>'var');
 
 foreach my $node (sort keys %{$NT}) {
 	if ( $C->{server_name} eq $NT->{$node}{server} ) {
+		# fixme9 this cannot work, there is no useful info in that node info file
 		my $nodeInfo = Compat::NMIS::loadNodeInfoTable($node);
 		
 		print "<h2>$node System File ( /var/$node.$ext) </h2><b>last updated  @{[ int ((-M \"$FindBin::Bin/../var/$node.$ext\") *24*60) ]} minutes ago</b><br>";

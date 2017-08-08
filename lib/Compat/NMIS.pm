@@ -2266,7 +2266,9 @@ sub loadOutageTable {
 # check outage of node
 # return status,key where status is pending or current, key is hash key of event table
 #
-sub outageCheck {
+# args: node, time (required)
+sub outageCheck 
+{
 	my %args = @_;
 	my $node = $args{node};
 	my $time = $args{time};
@@ -2274,15 +2276,22 @@ sub outageCheck {
 	my $OT = loadOutageTable();
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT}) {
-		if (($time-300) > $OT->{$key}{end}) {
-			outageRemove(key=>$key); # passed
-		} else {
-			if ( $node eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
+	foreach my $key (sort keys %{$OT}) 
+	{
+		if (($time-300) > $OT->{$key}{end}) 
+		{
+			outageRemove(key=>$key); # past
+		} 
+		else 
+		{
+			if ( $node eq $OT->{$key}{node}) 
+			{
+				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) 
+				{
 					return "current",$key;
 				}
-				elsif ($time < $OT->{$key}{start}) {
+				elsif ($time < $OT->{$key}{start}) 
+				{
 					return "pending",$key;
 				}
 			}
@@ -2290,13 +2299,19 @@ sub outageCheck {
 	}
 	# check also dependency
 	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) ) {
+	foreach my $nd ( split(/,/,$NT->{$node}{depend}) ) 
+	{
 		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
-					# check if this node is down
-					my $NI = loadNodeInfoTable($nd);
-					if (NMISNG::Util::getbool($NI->{system}{nodedown})) {
+			if ( $nd eq $OT->{$key}{node}) 
+			{
+				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) 
+				{
+					# check if this other node is down
+					my $S = NMISNG::Sys->new;
+					$S->init( name => $nd, snmp => 'false' );
+					my $status = PreciseNodeStatus(system => $S);
+					if (!$status->{overall}) # node unreachable
+					{
 						return "current",$key;
 					}
 				}
@@ -2512,7 +2527,7 @@ sub createHrButtons
 
 	my @out;
 
-	# still need this for things not switched over, like 'status'
+	# fixme9: still need this for status, which hasn't been switched to inventory just yet
 	my $NI = loadNodeInfoTable($node);
 	# note, not using live data beause this isn't used in collect/update
 	my $catchall_data = $S->inventory( concept => 'catchall')->data();
@@ -2534,11 +2549,6 @@ sub createHrButtons
 
 	push @out, CGI::td({class=>'header litehead'},'Node ',
 			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_node_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},$node));
-
-	if (scalar keys %{$NI->{module}}) {
-		push @out, CGI::td({class=>'header litehead'},
-			CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_module_view&node=$urlsafenode&server=$server"},"modules"));
-	}
 
 	if ($S->getTypeInstances(graphtype => 'service', section => 'service')) {
 		push @out, CGI::td({class=>'header litehead'},
