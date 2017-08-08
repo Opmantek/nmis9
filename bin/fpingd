@@ -487,7 +487,6 @@ sub fpingCheckEvent
 
 	my $S = NMISNG::Sys::->new;
 	$S->init(name => $node, snmp => 'false');
-	my $NI = $S->ndinfo; # pointer to node info table
 
 	Compat::NMIS::checkEvent( sys		=> $S,
 														event   => "Node Down",

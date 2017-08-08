@@ -360,11 +360,16 @@ sub displayIPSLAmenu {
 	# create source address list of probe node
 	if ( $pnode ) {
 		my $S = NMISNG::Sys->new; # get system object
+
 		$S->init(name=>$pnode,snmp=>'false'); # load node info and Model if name exists
-		my $II = $S->ifinfo;
-		foreach my $k (sort keys %{$II} ) {
-			if (ref($II->{$k}) eq "HASH" and $II->{$k}{ifAdminStatus} eq "up" and $II->{$k}{ipAdEntAddr1} ne "" ) {
-				push (@saddr,$II->{$k}{ipAdEntAddr1});
+		my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+
+		for my $oneif (sort { $a->{data}->{index} <=> $b->{data}->{index} } @{$interfaces->data})
+		{
+			if ($oneif->{data}->{ifAdminStatus} eq "up" 
+					and $oneif->{data}->{ipAdEntAddr1} ne "" ) 
+			{
+				push (@saddr, $oneif->{data}->{ipAdEntAddr1});
 			}
 		}
 	}
@@ -1112,13 +1117,13 @@ sub writeHashtoVar {
 	my $datafile = NMISNG::Util::getFileName(file => "$C->{'<nmis_var>'}/$file");
 
 
-	open DB, ">$datafile" or warn returnTime." writeHashtoVar: cannot open $datafile: $!\n";
-	flock(DB, LOCK_EX) or warn returnTime." writeHashtoVar: can't lock file $datafile, $!\n";
+	open DB, ">$datafile" or warn NMISNG::Util::returnTime." writeHashtoVar: cannot open $datafile: $!\n";
+	flock(DB, LOCK_EX) or warn NMISNG::Util::returnTime." writeHashtoVar: can't lock file $datafile, $!\n";
 	print DB Data::Dumper->Dump([$data], [qw(*hash)]);
 	close DB;
 
 	NMISNG::Util::setFileProtDiag(file =>$datafile);
-	print returnTime." writeHashtoVar: wrote @{[ scalar keys %{$data} ]} records to $datafile\n" if $debug > 1;
+	print NMISNG::Util::returnTime." writeHashtoVar: wrote @{[ scalar keys %{$data} ]} records to $datafile\n" if $debug > 1;
 
 }
 
@@ -1132,17 +1137,17 @@ sub readVartoHash {
 
 	if ( -r $datafile ) {
 		sysopen($handle, $datafile, O_RDONLY )
-			or warn returnTime." readVartoHash: cannot open $datafile, $!\n";
-		flock($handle, LOCK_SH) or warn returnTime." readVartoHash: can't lock file $datafile, $!\n";
+			or warn NMISNG::Util::returnTime." readVartoHash: cannot open $datafile, $!\n";
+		flock($handle, LOCK_SH) or warn NMISNG::Util::returnTime." readVartoHash: can't lock file $datafile, $!\n";
 		while (<$handle>) { $line .= $_; }
 		close $handle;
 
 		# convert data to hash
 		%hash = eval $line;
 	} else {
-		print returnTime." readVartoHash: file $datafile does not exist\n" if $debug;
+		print NMISNG::Util::returnTime." readVartoHash: file $datafile does not exist\n" if $debug;
 	}
-	print returnTime."  readVartoHash: read @{[ scalar keys %hash ]} records from $datafile\n" if $debug > 1;
+	print NMISNG::Util::returnTime."  readVartoHash: read @{[ scalar keys %hash ]} records from $datafile\n" if $debug > 1;
 
 	return %hash;
 }

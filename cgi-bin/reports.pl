@@ -180,60 +180,66 @@ sub healthReport {
 	my $header = "Summary Health Metrics from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $reportnode (sort keys %{$NT}) {
-		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
-			## AS 16 Mar 02, implementing David Gay's requirement for deactiving
-		# a node, ie keep a node in nodes.csv but no collection done.
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
-			$S->init(name=>$reportnode,snmp=>'false');
-			my $NI = $S->ndinfo;
-			# get reachable, available, health, response
-			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
-	   			%reportTable = (%reportTable,%{$h});
+	foreach my $reportnode (sort keys %{$NT}) 
+	{
+		next if (defined $AU && !$AU->InGroup($NT->{$reportnode}{group}));
+		next if (!NMISNG::Util::getbool($NT->{$reportnode}{active}));
 
-				$reportTable{$reportnode}{node} = $NT->{$reportnode}{name};
+		$S->init(name=>$reportnode,snmp=>'false');
+		my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
-				$reportTable{$reportnode}{reachable} = 0 if $reportTable{$reportnode}{reachable} eq "NaN";
-				$reportTable{$reportnode}{available} = 0 if $reportTable{$reportnode}{available} eq "NaN";
-				$reportTable{$reportnode}{health} = 0 if $reportTable{$reportnode}{health} eq "NaN";
-				$reportTable{$reportnode}{response} = 0 if $reportTable{$reportnode}{response} eq "NaN";
-				$reportTable{$reportnode}{loss} = 0 if $reportTable{$reportnode}{loss} eq "NaN";
-
-				$reportTable{$reportnode}{net} = $NT->{$reportnode}{netType};
-				$reportTable{$reportnode}{role} = $NT->{$reportnode}{roleType};
-				$reportTable{$reportnode}{devicetype} = $NI->{system}{nodeType};
-				$reportTable{$reportnode}{group} = $NT->{$reportnode}{group};
-
-				# Calculate the summaries!!!!
-				$summaryhash = "-$reportTable{$reportnode}{net}-$reportTable{$reportnode}{role}";
-				$summaryTable{$summaryhash}{net} = $reportTable{$reportnode}{net};
-				$summaryTable{$summaryhash}{role} = $reportTable{$reportnode}{role};
-				$summaryTable{$summaryhash}{reachable} = $summaryTable{$summaryhash}{reachable} + $reportTable{$reportnode}{reachable};
-				$summaryTable{$summaryhash}{available} = $summaryTable{$summaryhash}{available} + $reportTable{$reportnode}{available};
-				$summaryTable{$summaryhash}{health} = $summaryTable{$summaryhash}{health} + $reportTable{$reportnode}{health};
-				$summaryTable{$summaryhash}{response} = $summaryTable{$summaryhash}{response} + $reportTable{$reportnode}{response};
-				$summaryTable{$summaryhash}{loss} = $summaryTable{$summaryhash}{loss} + $reportTable{$reportnode}{loss};
-				++$summaryTable{$summaryhash}{count};
-
-				$summaryhash = $reportTable{$reportnode}{group};
-				$summaryTable{$summaryhash}{net} = $reportTable{$reportnode}{group};
-				$summaryTable{$summaryhash}{role} = "";
-				$summaryTable{$summaryhash}{group} = $reportTable{$reportnode}{group};
-				$summaryTable{$summaryhash}{reachable} = $summaryTable{$summaryhash}{reachable} + $reportTable{$reportnode}{reachable};
-				$summaryTable{$summaryhash}{available} = $summaryTable{$summaryhash}{available} + $reportTable{$reportnode}{available};
-				$summaryTable{$summaryhash}{health} = $summaryTable{$summaryhash}{health} + $reportTable{$reportnode}{health};
-				$summaryTable{$summaryhash}{response} = $summaryTable{$summaryhash}{response} + $reportTable{$reportnode}{response};
-				$summaryTable{$summaryhash}{loss} = $summaryTable{$summaryhash}{loss} + $reportTable{$reportnode}{loss};
-				++$summaryTable{$summaryhash}{count};
-			}
+		# get reachable, available, health, response
+		my $h;
+		if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",
+																						start=>$start,end=>$end,index=>$reportnode))) 
+		{
+			%reportTable = (%reportTable, %{$h});
+			my $thisnoderep = $reportTable{$reportnode} ||= {};
+			
+			$thisnoderep->{node} = $NT->{$reportnode}{name};
+			
+			$thisnoderep->{reachable} = 0 if $thisnoderep->{reachable} eq "NaN";
+			$thisnoderep->{available} = 0 if $thisnoderep->{available} eq "NaN";
+			$thisnoderep->{health} = 0 if $thisnoderep->{health} eq "NaN";
+			$thisnoderep->{response} = 0 if $thisnoderep->{response} eq "NaN";
+			$thisnoderep->{loss} = 0 if $thisnoderep->{loss} eq "NaN";
+			
+			$thisnoderep->{net} = $NT->{$reportnode}{netType};
+			$thisnoderep->{role} = $NT->{$reportnode}{roleType};
+			$thisnoderep->{devicetype} = $catchall->{nodeType};
+			$thisnoderep->{group} = $NT->{$reportnode}{group};
+			
+			# Calculate the summaries - fixme should be deep
+			$summaryhash = "-$thisnoderep->{net}-$thisnoderep->{role}";
+			my $thisentry = $summaryTable{$summaryhash} ||= {};
+			
+			$thisentry->{net} = $thisnoderep->{net};
+			$thisentry->{role} = $thisnoderep->{role};
+			$thisentry->{reachable} = $thisentry->{reachable} + $thisnoderep->{reachable};
+			$thisentry->{available} = $thisentry->{available} + $thisnoderep->{available};
+			$thisentry->{health} = $thisentry->{health} + $thisnoderep->{health};
+			$thisentry->{response} = $thisentry->{response} + $thisnoderep->{response};
+			$thisentry->{loss} = $thisentry->{loss} + $thisnoderep->{loss};
+			++$thisentry->{count};
+			
+			$summaryhash = $thisnoderep->{group};
+			$thisentry = $summaryTable{$summaryhash} ||= {};
+			
+			$thisentry->{net} = $thisnoderep->{group};
+			$thisentry->{role} = "";
+			$thisentry->{group} = $thisnoderep->{group};
+			$thisentry->{reachable} = $thisentry->{reachable} + $thisnoderep->{reachable};
+			$thisentry->{available} = $thisentry->{available} + $thisnoderep->{available};
+			$thisentry->{health} = $thisentry->{health} + $thisnoderep->{health};
+			$thisentry->{response} = $thisentry->{response} + $thisnoderep->{response};
+			$thisentry->{loss} = $thisentry->{loss} + $thisnoderep->{loss};
+			++$thisentry->{count};
 		}
 	}
 
 	# if debug, print all
 	if ( NMISNG::Util::getbool($Q->{debug}) ) {
-		print Dumper(\%reportTable);
-		print Dumper(\%summaryTable);
+		print Dumper(\%reportTable), Dumper(\%summaryTable);
 	}
 
 	# number of decimals
@@ -247,7 +253,7 @@ sub healthReport {
 			. hidden(-override => 1, -name => "widget", -value => $widget)
 			if (not $Q->{print});
 	print start_table;
-
+	
 	# header with time info
 	print Tr(td({id=>'top',class=>'header',colspan=>'2'},$header));
 
@@ -322,21 +328,24 @@ sub healthReport {
 			);
 
 		$Q->{sort} = 'node' if $Q->{sort} eq '';
-		for my $reportnode (NMISNG::Util::sortall(\%reportTable, $Q->{sort}, $sortdir)) {
-			if ($reportTable{$reportnode}{group} eq $group) {
+		for my $reportnode (NMISNG::Util::sortall(\%reportTable, $Q->{sort}, $sortdir)) 
+		{
+			my $thisnoderep = $reportTable{$reportnode};
+			
+			if ($thisnoderep->{group} eq $group) {
 				print Tr(
-					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportTable{$reportnode}{node})),
-					td({class=>'info Plain'},$reportTable{$reportnode}{devicetype}),
-					td({class=>'info Plain'},$reportTable{$reportnode}{role}),
-					td({class=>'info Plain'},$reportTable{$reportnode}{net}),
-					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{reachable}))},
-							sprintf($dec_format,$reportTable{$reportnode}{reachable})),
-					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{available}))},
-							sprintf($dec_format,$reportTable{$reportnode}{available})),
-					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{health}))},
-							sprintf($dec_format,$reportTable{$reportnode}{health})),
-					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorResponseTime($reportTable{$reportnode}{response},$C->{response_time_threshold}))},
-							sprintf($dec_format,$reportTable{$reportnode}{response}).' msec')
+					td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
+					td({class=>'info Plain'},$thisnoderep->{devicetype}),
+					td({class=>'info Plain'},$thisnoderep->{role}),
+					td({class=>'info Plain'},$thisnoderep->{net}),
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($thisnoderep->{reachable}))},
+							sprintf($dec_format,$thisnoderep->{reachable})),
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($thisnoderep->{available}))},
+							sprintf($dec_format,$thisnoderep->{available})),
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($thisnoderep->{health}))},
+							sprintf($dec_format,$thisnoderep->{health})),
+					td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorResponseTime($thisnoderep->{response},$C->{response_time_threshold}))},
+							sprintf($dec_format,$thisnoderep->{response}).' msec')
 				);
 			}
 		}
@@ -351,8 +360,8 @@ sub healthReport {
 
 #===============
 
-sub availReport {
-
+sub availReport 
+{
 	my $period = $Q->{period};
 	my $summaryhash;
 	my %reportTable;
@@ -361,7 +370,6 @@ sub availReport {
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 	my $S = NMISNG::Sys->new;
-	my $NI;
 
 	#start of page
 	if (not $Q->{print})
@@ -392,16 +400,24 @@ sub availReport {
 	my $header = "Availability Metric from $datestamp_start to $datestamp_end";
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $reportnode (keys %{$NT}) {
+	foreach my $reportnode (keys %{$NT}) 
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		{
 			$S->init(name=>$reportnode,snmp=>'false');
-			$NI = $S->ndinfo;
+			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+			
 			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
-	   			%reportTable = (%reportTable,%{$h});
-				$reportTable{$reportnode}{nodeType} = $NI->{system}{nodeType};
-				$reportTable{$reportnode}{node} = $reportnode;
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
+																							type=>"health",
+																							start=>$start,end=>$end,index=>$reportnode))) {
+				%reportTable = (%reportTable,%{$h});
+
+				my $thisnoderep = $reportTable{$reportnode} ||= {};
+				
+				$thisnoderep->{nodeType} = $catchall->{nodeType};
+				$thisnoderep->{node} = $reportnode;
 			}
 		}
 	}
@@ -437,13 +453,16 @@ sub availReport {
 				a({href=>"$url&sort=reachable"},'% Availability'))
 		);
 
-	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) {
+	foreach my $reportnode (NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) 
+	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
+		my $thisnoderep = $reportTable{$reportnode};
+		
 		print Tr(
 			td({class=>'info Plain'},a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
-			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
-			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($reportTable{$reportnode}{reachable}))},
-							sprintf($dec_format,$reportTable{$reportnode}{reachable}))
+			td({class=>'info Plain'},$thisnoderep->{nodeType}),
+			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor(NMISNG::Util::colorPercentHi($thisnoderep->{reachable}))},
+							sprintf($dec_format,$thisnoderep->{reachable}))
 			);
 	}
 	print end_table,end_td,end_Tr;
@@ -643,7 +662,6 @@ sub responseReport
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 	my $S = NMISNG::Sys->new;
-	my $NI;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -658,14 +676,20 @@ sub responseReport
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $reportnode (keys %{$NT}) {
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		{
 			$S->init(name=>$reportnode,snmp=>'false');
-			$NI = $S->ndinfo;
+			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+			
 			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode))) {
-	   			%reportTable = (%reportTable,%{$h});
-				$reportTable{$reportnode}{nodeType} = $NI->{system}{nodeType};
-				$reportTable{$reportnode}{node} = $NT->{$reportnode}{name};
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
+																							type=>"health",
+																							start=>$start,end=>$end,index=>$reportnode))) {
+				%reportTable = (%reportTable,%{$h});
+				my $thisnoderep = $reportTable{$reportnode} ||= {};
+				
+				$thisnoderep->{nodeType} = $catchall->{nodeType};
+				$thisnoderep->{node} = $NT->{$reportnode}{name};
 			}
 		}
 	}
@@ -715,15 +739,19 @@ sub responseReport
 
 
 	# drop the NaN's like this: @sorted = sort { $a <=> $b } grep { $_ == $_ } @unsorted
-	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) {
+	foreach my $reportnode ( NMISNG::Util::sortall(\%reportTable,$Q->{sort},$sortdir)) 
+	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		my $color = NMISNG::Util::colorResponseTime($reportTable{$reportnode}{response});
+
+		my $thisnoderep = $reportTable{$reportnode};
+		
+		my $color = NMISNG::Util::colorResponseTime($thisnoderep->{response});
 		print Tr(
 			td({class=>'info Plain'},
-				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportTable{$reportnode}{node})),
-			td({class=>'info Plain'},$reportTable{$reportnode}{nodeType}),
+				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$thisnoderep->{node})),
+			td({class=>'info Plain'},$thisnoderep->{nodeType}),
 			td({class=>'info Plain',align=>'right',style=>NMISNG::Util::getBGColor($color)},
-						sprintf($dec_format,$reportTable{$reportnode}{response}).' msec')
+						sprintf($dec_format,$thisnoderep->{response}).' msec')
 			);
 	}
 	print end_table,end_td,end_Tr;
@@ -892,14 +920,12 @@ sub top10Report
 		Compat::NMIS::pageStart(title => "NMIS Reports", refresh => $Q->{refresh}) 	if (!$wantwidget);
 	}
 
-
 	return unless $Q->{print} or $AU->CheckAccess('rpt_dynamic'); # same as menu
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 	my $II = Compat::NMIS::loadInterfaceInfo();
 	my $S = NMISNG::Sys->new;
-	my $NI;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -914,24 +940,34 @@ sub top10Report
 
 	# Get each of the nodes info in a HASH for playing with
 	my %cpuTable;
-	foreach my $reportnode ( keys %{$NT} ) {
+	foreach my $reportnode ( keys %{$NT} ) 
+	{
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
-		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) {
+
+		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
+		{
 			$S->init(name=>$reportnode,snmp=>'false');
-			my $NI = $S->ndinfo;
+			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+			
 			# reachable, available, health, response
 			my $h;
-			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)))
+			if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
+																							type=>"health",
+																							start=>$start,end=>$end,index=>$reportnode)))
 			{
 				%reportTable = (%reportTable,%{$h});
 				# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
-				if (NMISNG::Util::getbool($NI->{system}{collect}))
+				if (NMISNG::Util::getbool($catchall->{collect}))
 				{
 					# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-					if (($h = Compat::NMIS::getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)))
+					if (($h = Compat::NMIS::getSummaryStats(sys=>$S,
+																									type=>"nodehealth",
+																									start=>$start,end=>$end,index=>$reportnode)))
 					{
 						%cpuTable = (%cpuTable,%{$h});
-						$reportTable{$reportnode}{nodeType} = $NI->{nodeType} ;
+
+						my $thisnoderep = $reportTable{$reportnode} ||= {};
+						$thisnoderep->{nodeType} = $catchall->{nodeType} ;
 					}
 				}
 			}
@@ -972,9 +1008,9 @@ sub top10Report
 				$downTable{$int}{ifLastChange} = $interfaceInfo{$int}{ifLastChange};
 			}
 
-			if ($interfaceInfo{$int}{node} ne $prev_node) {
+			if ($interfaceInfo{$int}{node} ne $prev_node) 
+			{
 				$S->init(name=>$interfaceInfo{$int}{node},snmp=>'false');
-				$NI = $S->ndinfo;
 				$prev_node = $interfaceInfo{$int}{node};
 			}
 
@@ -1070,14 +1106,18 @@ sub top10Report
 		);
 
 	my $i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'response','rev')) 
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
-		$reportTable{$reportnode}{response} =~ /(^\d+)/;
+
+		my $thisnoderep = $reportTable{$reportnode};
+		
+		$thisnoderep->{response} =~ /(^\d+)/;
 		my $bar = $1 / 2;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=".uri_escape($reportnode)},$reportnode)),
-			td({class=>'rht Plain'},$reportTable{$reportnode}{response}),
+			td({class=>'rht Plain'},$thisnoderep->{response}),
 			td({class=>'lft Plain',colspan=>'6'},img({height=>'12',width=>"$bar",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 		);
 		# loop control
@@ -1094,14 +1134,18 @@ sub top10Report
 		);
 
 	$i=10;
-	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev')) {
+	for my $reportnode ( NMISNG::Util::sortall(\%reportTable,'loss','rev')) 
+	{
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group}) };
-		last if $reportTable{$reportnode}{loss} == 0;	# early exit if rest are zero.
-		$reportTable{$reportnode}{loss} =~ /(^\d+)/;
+
+		my $thisnoderep = $reportTable{$reportnode};
+		last if $thisnoderep->{loss} == 0;	# early exit if rest are zero.
+
+		$thisnoderep->{loss} =~ /(^\d+)/;
 		print Tr(
 			td({class=>"info Plain $nodewrap"},
 				a({href=>"network.pl?conf=$Q->{conf}&act=network_node_view&widget=$widget&node=$reportnode"},$reportnode)),
-			td({class=>'rht Plain'},$reportTable{$reportnode}{loss}),
+			td({class=>'rht Plain'},$thisnoderep->{loss}),
 			td({class=>'lft Plain'},img({height=>'12',width=>"$1",src=>"$C->{'<menu_url_base>'}/img/bar.png"})),
 			td({colspan=>'5'},'&nbsp;')
 		);
@@ -1522,56 +1566,48 @@ sub nodedetailsReport {
     print "Pragma: no-cache\n";
     print "Expires: 0\n\n";
 
-	my @line;
-	println( 'Name','Type','Location','System Uptime','Node Vendor','NodeModel', 'SystemName','S/N','Chassis','ProcMem','Version');
+	println( 'Name','Type','Location','System Uptime',
+					 'Node Vendor','NodeModel', 'SystemName','S/N','Chassis','ProcMem','Version');
 
-	foreach my $group (sort keys %{$GT}) {
-		if (defined $AU) { next unless $AU->InGroup($group) };
-		foreach my $node (sort keys %{$NT}) {
-			if ( $NT->{$node}{group} eq "$group" ) {
+	foreach my $group (sort keys %{$GT}) 
+	{
+		next if (defined $AU && !$AU->InGroup($group));
 
-				#my $NI = NMISNG::Util::readFiletoHash(name=>"$node-node");
-				my $S = NMISNG::Sys->new; # get system object
-				$S->init(name=>$node,snmp=>'false'); # load node info and Model if name exists
-				my $NI = $S->ndinfo;
+		foreach my $node (sort keys %{$NT}) 
+		{
+			next if ($NT->{$node}{group} ne "$group" );
 
-				undef @line;
+			my $S = NMISNG::Sys->new; # get system object
+			$S->init(name=>$node,snmp=>'false');
+			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
+			
+			my @line = map { $catchall->{$_} } (qw(name nodeType sysLocation sysUpTime nodeVendor 
+nodeModel sysObjectName serialNum chassisVer processorRam));
 
-				push( @line, $NI->{system}{name});
-				push( @line, $NI->{system}{nodeType});
-				push( @line, $NI->{system}{sysLocation});
-				push( @line, $NI->{system}{sysUpTime});
-				push( @line, $NI->{system}{nodeVendor});
-				push( @line, $NI->{system}{nodeModel});
-				push( @line, $NI->{system}{sysObjectName});
-				push( @line, $NI->{system}{serialNum});
-				push( @line, $NI->{system}{chassisVer});
-				push( @line, $NI->{system}{processorRam});
-
-				my $detailvar = $NI->{system}{sysDescr};
-				$detailvar =~ s/^.*WS/WS/g;
-				$detailvar =~ s/Cisco Catalyst Operating System Software/CatOS/g;
-				$detailvar =~ s/Copyright.*$//g;
-				$detailvar =~ s/TAC Support.*$//g;
-				$detailvar =~ s/RELEASE.*$//g;
-				$detailvar =~ s/Cisco.*tm\) //g;
-				# drop any 'built by'
-				$detailvar =~ s/built by.*$//;
-				# maybe a windows box ?
-				$detailvar =~ s/^.*Windows/Windows/;
-
-				push( @line, $detailvar);
-				println( @line );
-			}
+			my $detailvar = $catchall->{sysDescr};
+			$detailvar =~ s/^.*WS/WS/g;
+			$detailvar =~ s/Cisco Catalyst Operating System Software/CatOS/g;
+			$detailvar =~ s/Copyright.*$//g;
+			$detailvar =~ s/TAC Support.*$//g;
+			$detailvar =~ s/RELEASE.*$//g;
+			$detailvar =~ s/Cisco.*tm\) //g;
+			# drop any 'built by'
+			$detailvar =~ s/built by.*$//;
+			# maybe a windows box ?
+			$detailvar =~ s/^.*Windows/Windows/;
+			
+			push( @line, $detailvar);
+			println( @line );
 		}
 	}
+
 	sub println {
-	    local $\ = "\n";			# print newline
-	    local $, = ',';				# print seperator between arguments
-		    # strip embedded commas
-	    my @parms = @_;				# must copy or localise @_ for the 'for' loop to work.
-	    for (@parms) { s/,/_/g }
-	    print @parms;
+		local $\ = "\n";			# print newline
+		local $, = ',';				# print seperator between arguments
+		# strip embedded commas
+		my @parms = @_;				# must copy or localise @_ for the 'for' loop to work.
+		for (@parms) { s/,/_/g }
+		print @parms;
 	}
 }
 

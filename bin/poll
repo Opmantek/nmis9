@@ -1227,16 +1227,11 @@ sub doServices
 
 	my $S = NMISNG::Sys->new;
 	$S->init( name => $name );
-	NMISNG::Util::dbg( "node=$name "
-			. join( " ", map { "$_=" . $S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
 
 	$S->readNodeView;    # init does not load the node view, but runservices updates view data!
-
 	runServices( sys => $S, snmp => 'false' );
 
-	# we also have to update the node info file, or newly added service status info will be lost/missed...
-	# same argument for node view
-	$S->writeNodeInfo;
+	# we have to update the node view file, or newly added service status info will be lost/missed...
 	$S->writeNodeView;
 
 	return;
@@ -1504,8 +1499,7 @@ sub runPing
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;    # node info
-	my $V    = $S->view;      # web view
+	my $V    = $S->view;      # node view data
 	my $RI   = $S->reach;     # reach table
 	my $NC   = $S->ndcfg;     # node config
 
@@ -1653,7 +1647,6 @@ sub getNodeInfo
 {
 	my (%args) = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;         # node info table
 	my $RI   = $S->reach;          # reach table
 	my $V    = $S->view;           # web view
 	my $M    = $S->mdl;            # model table
@@ -1674,7 +1667,6 @@ sub getNodeInfo
 		and !NMISNG::Util::getbool( $NC->{node}{collect} ) )    # rebuild
 	{
 		delete $V->{interface};
-		delete $NI->{graphtype};
 	}
 
 	my $oldstate = $S->status;                    # what did we start with for snmp_enabled, wmi_enabled?
@@ -1683,7 +1675,7 @@ sub getNodeInfo
 	# if collect is off, only nodeconf overrides are loaded
 	if ( NMISNG::Util::getbool( $NC->{node}{collect} ) )
 	{
-		# get basic node info by snmp or wmi: sysDescr, sysObjectID, sysUpTime etc. and store in $NI table
+		# get basic node info by snmp or wmi: sysDescr, sysObjectID, sysUpTime etc
 
 		# this is normally with the DEFAULT model from Model.nmis
 		# fixme: not true if switched to update op on the go!
@@ -2290,9 +2282,7 @@ sub getIntfInfo
 		# BUT only if this is for all interfaces
 		if ( not $singleInterface )
 		{
-			# delete $NI->{interface};
-			NMISNG::Util::TODO("Need to mark interfaces as historic!");
-			delete $S->ndinfo->{inteface}; # keep this for now so NI get's cleaned up
+			NMISNG::Util::TODO("fixme9 Need to mark interfaces as historic!");
 		}
 
 		# load interface types (IANA). number => name
@@ -2357,8 +2347,7 @@ sub getIntfInfo
 			delete $V->{interface};    # rebuild interface view table
 		}
 
-		# Loop to get interface information, will be stored in {ifinfo} table => $IF
-		# keep the ifIndexs we care about.
+		# Loop to get interface information; keep the ifIndexs we care about.
 		my @ifIndexNumManage;
 		foreach my $index (@ifIndexNum)
 		{
@@ -3262,9 +3251,7 @@ sub getSystemHealthInfo
 	for my $section (@healthSections)
 	{
 		# TODO:
-		NMISNG::Util::TODO("Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");
-		# make sure NI is cleaned up
-		delete $S->ndinfo->{$section};
+		NMISNG::Util::TODO("fixme9 Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");
 
 		next
 			if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
@@ -3365,8 +3352,6 @@ sub getSystemHealthInfo
 
 				# save the seen index value
 				my $target = {$index_var => $indexvalue};
-
-				# $NI->{$section}->{$indexvalue}->{} = $indexvalue;
 
 				# then get all data for this indexvalue
 				# Inventory note: for now Sys will populate the nodeinfo section it cares about
@@ -3694,7 +3679,6 @@ sub updateNodeInfo
 	my $V    = $S->view;
 	my $RI   = $S->reach;
 	my $NC   = $S->ndcfg;    # node config
-	my $NI = $S->ndinfo;		 # fixme9: az doubts this is the right spot to write to???
 	my $M    = $S->mdl;
 
 	my $time_marker = $args{time_marker} || time;
@@ -3835,28 +3819,26 @@ sub updateNodeInfo
 		# anything to override?
 		if ( $override->{sysLocation} )
 		{
-			$NI->{nodeconf}{sysLocation} = $catchall_data->{sysLocation};
 			$catchall_data->{sysLocation} = $V->{system}{sysLocation_value} = $override->{sysLocation};
 			NMISNG::Util::info("Manual update of sysLocation by nodeConf");
 		}
 		if ( $override->{sysContact} )
 		{
-			$NI->{nodeconf}{sysContact} = $catchall_data->{sysContact};
 			$catchall_data->{sysContact} = $V->{system}{sysContact_value} = $override->{sysContact};
 			NMISNG::Util::info("Manual update of sysContact by nodeConf");
 		}
 
 		if ( $override->{nodeType} )
 		{
-			$catchall_data->{nodeType} = $NI->{nodeconf}->{nodeType} = $override->{nodeType};
+			$catchall_data->{nodeType} = $override->{nodeType};
 		}
 		else
 		{
-			delete $NI->{nodeconf}->{nodeType};
+			# fixme9: delete, really?
+			delete $catchall_data->{nodeType};
 		}
 
 		checkPIX( sys => $S );    # check firewall if needed
-		delete $NI->{database};   # no longer used at all
 
 		$V->{system}{status_value} = 'reachable';    # sort-of, at least one source worked
 		$V->{system}{status_color} = '#0F0';
@@ -3904,7 +3886,6 @@ sub processAlerts
 	my %args   = @_;
 	my $S      = $args{S};
 	my $alerts = $S->{alerts};
-	my $info   = $S->ndinfo;
 
 	foreach my $alert ( @{$alerts} )
 	{
@@ -3948,7 +3929,7 @@ sub processAlerts
 
 		### save the Alert result into the Status thingy
 		my $statusKey = "$alert->{event}--$alert->{ds}";
-		$info->{status}->{$statusKey} = {
+		$S->compat_nodeinfo->{status}->{$statusKey} = {
 			method   => "Alert",
 			type     => $alert->{type},
 			property => $alert->{test},
@@ -5176,8 +5157,7 @@ sub runServer
 	NMISNG::Util::info("Starting server device/storage collection, node $S->{name}");
 
 	# clean up node file
-	NMISNG::Util::TODO("Need a cleanup/historic checker");
-	delete $S->ndinfo->{device};
+	NMISNG::Util::TODO("fixme9 Need a cleanup/historic checker");
 
 	# get cpu info
 	if ( ref( $M->{device} ) eq "HASH" && keys %{$M->{device}} )
@@ -5576,7 +5556,6 @@ sub runServices
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $V    = $S->view;
 	my $C    = NMISNG::Util::loadConfTable();
 	my $NT   = Compat::NMIS::loadLocalNodeTable();
@@ -7324,18 +7303,6 @@ sub runReach
 			$inventory->save();
 		}
 	}
-	if ( $catchall_data->{nodeModel} eq 'PingOnly' )
-	{
-		$S->ndinfo->{graphtype}{health} = "health-ping,response";
-	}
-	elsif ( $catchall_data->{nodeModel} eq 'ServiceOnly' )
-	{
-		$S->ndinfo->{graphtype}{health} = "";
-	}
-	else
-	{
-		$S->ndinfo->{graphtype}{health} = "health,kpi,response,numintf,polltime";
-	}
 	NMISNG::Util::info("Finished");
 
 	return \%reachVal;
@@ -8233,9 +8200,6 @@ LABEL_ESC:
 			# when escalation hits 10 they could auto delete?
 			# core, distrib and access could escalate at different rates.
 
-			# note - all sent to lowercase here to get a match
-			# my $NI = Compat::NMIS::loadNodeInfoTable( $thisevent->{node}, suppress_errors => 1 );
-
 			my $nmisng_node = $nmisng->node( name => $thisevent->{node} );
 			my ($catchall_inventory,$error_message) = $nmisng_node->inventory( concept => "catchall" );
 			$nmisng->log->error("Failed to get catchall inventory for node:$thisevent->{node}, error_message:$error_message") && next
@@ -8981,7 +8945,6 @@ sub runMetrics
 {
 	my %args = @_;
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 
 	my $GT = Compat::NMIS::loadGroupTable();
 
@@ -9069,7 +9032,6 @@ sub runLinks
 	my $subnet;
 	my $cnt;
 
-	### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 	if ( NMISNG::Util::getbool( $C->{disable_interfaces_summary} ) )
 	{
 		NMISNG::Util::logMsg("runLinks disabled with disable_interfaces_summary=$C->{disable_interfaces_summary}");
@@ -9077,6 +9039,7 @@ sub runLinks
 	}
 
 	NMISNG::Util::dbg("Start");
+	my $nmisng = Compat::NMIS::new_nmisng();
 
 	if ( !( $II = Compat::NMIS::loadInterfaceInfo() ) )
 	{
@@ -9096,6 +9059,8 @@ sub runLinks
 	my $link_ifTypes = $C->{link_ifTypes} ne '' ? $C->{link_ifTypes} : '.';
 	my $qr_link_ifTypes = qr/$link_ifTypes/i;
 
+	my %catchall;
+
 	NMISNG::Util::dbg("Auto Generating Links file");
 	foreach my $intHash ( sort keys %{$II} )
 	{
@@ -9110,9 +9075,17 @@ sub runLinks
 				and NMISNG::Util::getbool( $II->{$intHash}{collect} )
 				and $II->{$intHash}{ifType} =~ /$qr_link_ifTypes/ )
 			{
+				my $neednode = $II->{$intHash}{node};
+				if (!$catchall{$neednode})
+				{
+					my $nodeobj = $nmisng->node(name => $neednode);
+					die "No node named $neednode exists!\n" if (!$nodeobj); # fixme9: better option?
+					
+					$catchall{$neednode} = $nodeobj->inventory(concept => "catchall")->data;
+				}
+				
 				if ( !exists $subnets{$subnet}{subnet} )
 				{
-					my $NI = Compat::NMIS::loadNodeInfoTable( $II->{$intHash}{node} );
 					$subnets{$subnet}{subnet}      = $subnet;
 					$subnets{$subnet}{address1}    = $ipAddr;
 					$subnets{$subnet}{count}       = 1;
@@ -9120,8 +9093,8 @@ sub runLinks
 					$subnets{$subnet}{mask}        = $II->{$intHash}{"ipAdEntNetMask$cnt"};
 					$subnets{$subnet}{ifSpeed}     = $II->{$intHash}{ifSpeed};
 					$subnets{$subnet}{ifType}      = $II->{$intHash}{ifType};
-					$subnets{$subnet}{net1}        = $NI->{system}{netType};
-					$subnets{$subnet}{role1}       = $NI->{system}{roleType};
+					$subnets{$subnet}{net1}        = $catchall{$neednode}->{netType};
+					$subnets{$subnet}{role1}       = $catchall{$neednode}->{roleType};
 					$subnets{$subnet}{node1}       = $II->{$intHash}{node};
 					$subnets{$subnet}{ifDescr1}    = $II->{$intHash}{ifDescr};
 					$subnets{$subnet}{ifIndex1}    = $II->{$intHash}{ifIndex};
@@ -9133,9 +9106,8 @@ sub runLinks
 					{    # use node2 description if node1 description did not exist.
 						$subnets{$subnet}{description} = $II->{$intHash}{Description};
 					}
-					my $NI = Compat::NMIS::loadNodeInfoTable( $II->{$intHash}{node} );
-					$subnets{$subnet}{net2}     = $NI->{system}{netType};
-					$subnets{$subnet}{role2}    = $NI->{system}{roleType};
+					$subnets{$subnet}{net2}     = $catchall{$neednode}->{netType};
+					$subnets{$subnet}{role2}    = $catchall{$neednode}->{roleType};
 					$subnets{$subnet}{node2}    = $II->{$intHash}{node};
 					$subnets{$subnet}{ifDescr2} = $II->{$intHash}{ifDescr};
 					$subnets{$subnet}{ifIndex2} = $II->{$intHash}{ifIndex};
@@ -9151,7 +9123,7 @@ sub runLinks
 			}
 			$cnt++;
 		}
-	}    # foreach
+	}
 	foreach my $subnet ( sort keys %subnets )
 	{
 		if ( $subnets{$subnet}{count} == 2 )
@@ -9724,7 +9696,9 @@ sub doThreshold
 		my $M  = $S->mdl;       # pointer to Model table
 		my $catchall_inventory = $S->inventory( concept => 'catchall' );
 		my $catchall_data = $catchall_inventory->data_live();
-		my $status_table = $S->ndinfo->{status};
+
+		# fixme9 one of the few spots that still require nodeinfo
+		my $statusinfo = $S->compat_nodeinfo->{status};
 
 		# skip if node down
 		if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
@@ -9875,35 +9849,35 @@ sub doThreshold
 		#},
 		my $count   = 0;
 		my $countOk = 0;
-		foreach my $statusKey ( sort keys %$status_table )
+		foreach my $statusKey ( sort keys %$statusinfo )
 		{
-			my $eventKey = $status_table->{$statusKey}{event};
+			my $eventKey = $statusinfo->{$statusKey}{event};
 			$eventKey = "Alert: $S->{info}{status}{$statusKey}{event}"
-				if $status_table->{$statusKey}{method} eq "Alert";
+				if $statusinfo->{$statusKey}{method} eq "Alert";
 
 			# event control is as configured or all true.
 			my $thisevent_control = $events_config->{$eventKey} || {Log => "true", Notify => "true", Status => "true"};
 
 			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
-			if ( $status_table->{$statusKey}{updated} < time - 500 )
+			if ( $statusinfo->{$statusKey}{updated} < time - 500 )
 			{
-				delete $status_table->{$statusKey};
+				delete $statusinfo->{$statusKey};
 			}
 
 			# in case of Status being off for this event, we don't have to include it in the calculations
 			elsif ( not NMISNG::Util::getbool( $thisevent_control->{Status} ) )
 			{
-				NMISNG::Util::dbg("Status Summary Ignoring: event=$status_table->{$statusKey}{event}, Status=$thisevent_control->{Status}",
+				NMISNG::Util::dbg("Status Summary Ignoring: event=$statusinfo->{$statusKey}{event}, Status=$thisevent_control->{Status}",
 					1
 				);
-				$status_table->{$statusKey}{status} = "ignored";
+				$statusinfo->{$statusKey}{status} = "ignored";
 				++$count;
 				++$countOk;
 			}
 			else
 			{
 				++$count;
-				if ( $status_table->{$statusKey}{status} eq "ok" )
+				if ( $statusinfo->{$statusKey}{status} eq "ok" )
 				{
 					++$countOk;
 				}
@@ -9981,9 +9955,7 @@ sub runThrHld
 	my %args = @_;
 
 	my $S    = $args{sys};
-	my $NI   = $S->ndinfo;
 	my $M    = $S->mdl;
-	my $IF   = $S->ifinfo;
 
 	my $sts     = $args{table};
 	my $type    = $args{type};

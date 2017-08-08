@@ -96,7 +96,7 @@ sub notfound {
 	Compat::NMIS::pageStart(title => "View Events - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 	print "View Event: ERROR, act=$Q->{act}<br>\n";
 	print "Request not found\n";
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 exit 0;
@@ -169,7 +169,7 @@ sub displayFlow{
 	print end_form;
 
 	if ($Q->{event} ne '') { displayEventFlow(); }
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 sub displayEventList
@@ -178,7 +178,7 @@ sub displayEventList
 	Compat::NMIS::pageStart(title => "View Event Database - $C->{server_name}", refresh => $Q->{refresh}) if (!$wantwidget);
 
 	# load all events, for all nodes
-	my %allevents = loadAllEvents;
+	my %allevents = Compat::NMIS::loadAllEvents;
 
 	# second print a list of event database entries
 	print start_table;
@@ -209,7 +209,7 @@ sub displayEventList
 	}
 	print Tr(td({class=>'info'},"no event current")) if !$flag;
 	print end_table;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 #
@@ -230,7 +230,7 @@ sub	displayEvent {
 	displayEventItems();
 
 	print end_table;
-	pageEnd if (!$wantwidget);
+	Compat::NMIS::pageEnd if (!$wantwidget);
 }
 
 #
@@ -247,15 +247,16 @@ sub displayEventFlow {
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
-	my $NI = $S->ndinfo;
+	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 	my $M = $S->mdl;
 
-	my $role = lc $NI->{system}{roleType};
-	my $type = $NI->{system}{nodeType};
+	my $role = lc($catchall->{roleType}); # fixme why lowercase?
+	my $type = $catchall->{nodeType};
 
 	print Tr(td({class=>'header',colspan=>'6'},"Event Policy"));
 
-	if ($NI->{system}{nodeModel} eq '') {
+	if (!$catchall->{nodeModel}) 
+	{
 		print Tr(td({class=>'error'},"this node does not have a node Model"));
 		return;
 	}
@@ -358,11 +359,11 @@ sub displayEventItems {
 
 	my $S = NMISNG::Sys->new;
 	$S->init(name=>$node,snmp=>'false');
-	my $NI = $S->ndinfo;
+	my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
-	my $group = lc $NT->{$thisevent->{node}}{group}; # group of node
-	my $role = lc $NI->{system}{roleType}; # role of node
-	my $type = lc $NI->{system}{nodeType}; # type of node
+	my $group = lc($NT->{$thisevent->{node}}{group}); # group of node - fixme why lowercase???
+	my $role = lc($catchall->{roleType}); # role of node, fixme why lowercase?
+	my $type = lc($catchall->{nodeType}); # type of node, fixme why lowercase
 	my $escalate = $thisevent->{escalate};	# save this as a flag
 
 	# set the current event time
@@ -491,7 +492,7 @@ sub displayEventItems {
 							# if sysContact, use device syscontact as key into the contacts table hash
 							if ( $contact eq "syscontact" ) {
 								my $contact_p = $contact;
-								$contact = $NI->{system}{sysContact};
+								$contact = $catchall->{sysContact};
 								printRow(3,"contact","$contact_p replaced by $contact");
 							}
 							if ( exists $CT->{$contact} ) {
@@ -525,7 +526,7 @@ sub displayEventItems {
 							# if sysContact, use device syscontact as key into the contacts table hash
 							if ( $contact eq "syscontact" ) {
 								my $contact_p = $contact;
-								$contact = $NI->{system}{sysContact};
+								$contact = $catchall->{sysContact};
 								printRow(3,"contact","$contact_p replaced by $contact");
 							}
 							if ( exists $CT->{$contact} ) {
@@ -565,7 +566,7 @@ sub displayEventItems {
 							# if sysContact, use device syscontact as key into the contacts table hash
 							if ( $contact eq "syscontact" ) {
 								my $contact_p = $contact;
-								$contact = $NI->{system}{sysContact};
+								$contact = $catchall->{sysContact};
 								printRow(3,"contact","$contact_p replaced by $contact");
 							}
 							if ( exists $CT->{$contact} ) {

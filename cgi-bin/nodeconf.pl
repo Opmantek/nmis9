@@ -178,16 +178,16 @@ sub displayNodeConf
 		print Tr,td({class=>'error',colspan=>'3'},"Error on getting info of node $node");
 		return;
 	}
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-
+	
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+	
 	# get any existing nodeconf overrides for this node
-	my $nodename = $NI->{system}->{name};
-	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $nodename)
-			if (Compat::NMIS::has_nodeconf(node => $nodename));
+	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
+			if (Compat::NMIS::has_nodeconf(node => $node));
 	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
-
+	
 	print Tr(td({class=>"header",width=>'20%'}),td({class=>"header",width=>'20%'}),
 			td({class=>"header",width=>'20%'},'<b>Original value</b>'),
 			eval {
@@ -223,26 +223,26 @@ sub displayNodeConf
 					} else { return ""; }
 				}));
 
-	my $NCT_sysContact = $NI->{system}{sysContact};
+	my $NCT_sysContact = $catchall_data->{sysContact};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Contact"),
 			td({class=>'header3'}, $NCT_sysContact),
 	td({class=>"Plain"},textfield(-name=>"contact",-override=>1,
 																-style => 'width: 95%',
 																-value => $override->{sysContact}||''));
 
-	my $NCT_sysLocation = $NI->{system}{sysLocation};
+	my $NCT_sysLocation = $catchall_data->{sysLocation};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Location"),
 			td({class=>'header3'}, $NCT_sysLocation),
 	td({class=>"Plain"},textfield(-name=>"location",-override=>1,
 																-style => 'width: 95%',
 																-value => $override->{sysLocation}||''));
 
-	if ( !NMISNG::Util::getbool($NI->{system}{collect}) ) {
+	if ( !NMISNG::Util::getbool($catchall_data->{collect}) ) {
 		print Tr(td({class=>"header"}),td({class=>"header"},"Collect"),
 				td({class=>'header'},'disabled'));
 	}
 
-	my $NCT_nodetype = $NI->{system}->{nodeType};
+	my $NCT_nodetype = $catchall_data->{nodeType};
 	print Tr,td({class=>"header"}),td({class=>"header"},"Node Type"),
 	td({class=>'header3'}, $NCT_nodetype),
 	td({class=>"Plain"},
@@ -256,16 +256,21 @@ sub displayNodeConf
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
-	if ( NMISNG::Util::getbool($NI->{system}{collect}) )
+	if ( NMISNG::Util::getbool($catchall_data->{collect})
+			 && $interfaces->count )
 	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
-		foreach my $intf (NMISNG::Util::sorthash( $IF, ['ifDescr'], 'fwd'))
-		{
-			next if (ref($IF->{$intf}) ne "HASH"
-							 or !defined($IF->{$intf}->{ifDescr})
-							 or $IF->{$intf}->{ifDescr} eq ''); # exists but empty text should no longer happen
 
-			my $intfstatus = $IF->{$intf};
+		my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$interfaces->data});
+
+		foreach my $intf (NMISNG::Util::sorthash( \%ifinfo, ['ifDescr'], 'fwd'))
+		{
+			my $intfstatus = $ifinfo{$intf};
+			
+			next if (ref($intfstatus) ne "HASH" or !keys %$intfstatus
+							 or !defined($intfstatus->{ifDescr})
+							 or $intfstatus->{ifDescr} eq ''); # exists but empty text should no longer happen
+
 			my ($description, $displayname, $speed, $speedIn, $speedOut,
 					$collect, $event, $threshold,$size, $setlimits);
 
@@ -372,7 +377,7 @@ sub displayNodeConf
 				print hidden(-name=>"event_${intf}", -default=>'unchanged',-override=>'1');
 			}
 
-			if (NMISNG::Util::getbool($NI->{system}{threshold})
+			if (NMISNG::Util::getbool($catchall_data->{threshold})
 					and (NMISNG::Util::getbool($collect) or (!NMISNG::Util::getbool($collect,"invert")
 																		 and NMISNG::Util::getbool($NCT_collect)) )) {
 				my $NCT_threshold = $intfstatus->{nc_threshold} || $intfstatus->{threshold};
@@ -409,16 +414,18 @@ sub updateNodeConf {
 	my $S = NMISNG::Sys->new;
 
 	if (!($S->init(name=>$node,snmp=>'false'))) {
-		##		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
+		print Tr,td({class=>'error',colspan=>'4'},"Error on getting info of node $node");
 		return;
 	}
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+		
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+	my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', 
+																												 filter => { historic => 0 });
+	my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$interfaces->data});
 
 	# get the current nodeconf overrides
-	my $nodename = $NI->{system}->{name};
-	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $nodename)
-			if (Compat::NMIS::has_nodeconf(node => $nodename));
+	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
+			if (Compat::NMIS::has_nodeconf(node => $node));
 	NMISNG::Util::logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
@@ -439,13 +446,12 @@ sub updateNodeConf {
 	}
 
 	# $intf is the ifIndex
-	foreach my $intf (keys %{$IF})
+	foreach my $intf (keys %ifinfo)
 	{
-		my $ifDescr = $IF->{$intf}{ifDescr};
-
+		my $ifDescr = $ifinfo{$intf}->{ifDescr};
 		my $thisintfover = $override->{$ifDescr} ||= {};
 
-		$thisintfover->{ifDescr} = $IF->{$intf}{ifDescr}; # for linking the if state to the nodeconf
+		$thisintfover->{ifDescr} = $ifinfo{$intf}->{ifDescr}; # for linking the if state to the nodeconf
 
 		my %tranferrables = ("descr_$intf" => "Description",
 												 "displayname_$intf" => "display_name",

@@ -593,13 +593,11 @@ sub typeGraph {
 
 } # end typeGraph
 
-# unreachable dead code as of 2016-08
-sub typeExport {
-
+sub typeExport 
+{
 	my $S = NMISNG::Sys->new; # get system object
 	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+
 	my $graphtype = $Q->{graphtype};
 
 	my $NT = Compat::NMIS::loadLocalNodeTable();
@@ -658,14 +656,11 @@ sub typeExport {
 	}
 }
 
-# unreachable dead code as of 2016-08
-sub typeStats {
-
+sub typeStats 
+{
 	my $S = NMISNG::Sys->new; # get system object
 	notfound("Node not found") && return if( !$S->init(name=>$Q->{node}) );
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-
+	
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $C = NMISNG::Util::loadConfTable();
 
@@ -685,14 +680,11 @@ sub typeStats {
 	# verify access to this command/tool bar/button
 	#
 	if ( $AU->Require ) {
-		# CheckAccess will throw up a web page and stop if access is not allowed
-		# $AU->CheckAccess( "") or die "Attempted unauthorized access";
 		if ( ! $AU->User ) {
 			do_force_login("Authentication is required to access this function. Please login.");
 			exit 0;
 		}
 	}
-
 
 	# verify that user is authorized to view the node within the user's group list
 	#
@@ -725,7 +717,9 @@ sub typeStats {
 
 	print start_table;
 
-	print Tr(td({class=>'header',colspan=>'11'},"NMIS RRD Graph Stats $NI->{system}{name} $IF->{$Q->{intf}}{ifDescr} $Q->{item} $starttime to $endtime"));
+	# fixme9: if ifdescr is really needed to be shown here, then then the inventory for interface needs to be loaded
+	# $IF->{$Q->{intf}}{ifDescr} 
+	print Tr(td({class=>'header',colspan=>'11'},"NMIS RRD Graph Stats $Q->{node} $Q->{intf} $Q->{item} $starttime to $endtime"));
 
 	foreach my $m (sort keys %{$statval}) {
 		if ($f) {
