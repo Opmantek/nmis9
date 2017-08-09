@@ -844,11 +844,13 @@ sub runThreads
 
 			NMISNG::Util::dbg("Running after_$type plugin $plugin");
 			NMISNG::Util::logMsg("Running after_$type plugin $plugin");
+			$S->nmisng->log->logprefix("$plugin ");
 			my ( $status, @errors );
 			eval { ( $status, @errors ) = &$funcname( sys => $S, 
 																								config => $C, 
 																								nodes => \@list_of_handled_nodes,
 																								nmisng => $S->nmisng, ); };
+			$S->nmisng->log->logprefix(undef);
 			if ( $status >= 2 or $status < 0 or $@ )
 			{
 				NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
@@ -1079,10 +1081,12 @@ sub doUpdate
 
 		NMISNG::Util::dbg("Running update plugin $plugin with node $name");
 		my ( $status, @errors );
+		$S->nmisng->log->logprefix("$plugin ");
 		eval { ( $status, @errors ) = &$funcname( node => $name, 
 																							sys => $S, 
 																							config => $C,
 																							nmisng => $S->nmisng, ); };
+		$S->nmisng->log->logprefix(undef);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
 			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);
@@ -1426,10 +1430,12 @@ sub doCollect
 
 		NMISNG::Util::dbg("Running collect plugin $plugin with node $name");
 		my ( $status, @errors );
+		$S->nmisng->log->logprefix("$plugin ");
 		eval { ( $status, @errors ) = &$funcname( node => $name, 
 																							sys => $S, 
 																							config => $C,
 																							nsisng => $S->nmisng ); };
+		$S->nmisng->log->logprefix(undef);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
 			NMISNG::Util::logMsg("Error: Plugin $plugin failed to run: $@") if ($@);

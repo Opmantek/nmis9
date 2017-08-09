@@ -29,19 +29,23 @@
 #
 # NMISNG log: adds extra functionality on top of Mojo log
 # supports mojo's log levels (debug, info, warn, error and fatal)
-# plus our more fine-grained debug1==debug, and debug2 to debug9
+# plus our more fine-grained debug1==debug, and debug2 to debug9,
+# plus optional logprefix
 package NMISNG::Log;
+our $VERSION = "1.1.0";
 use Mojo::Base 'Mojo::Log';
 use strict;
 
-
 # extra attribute to distinguish between debug levels 1 to 9
 __PACKAGE__->attr('detaillevel');
+# and extra attribute for logprefix
+__PACKAGE__->attr('logprefix');
 
 # args: all attributes from mojo::log (i.e. path, level, format, handle),
-# also extra level values.
+# also extra level values,
 # level: debug, info, warn, error, fatal, or 1..9.
 # also accepts t(rue),  y(es) - both meaning debug==1, and verbose == 9
+# and logprefix (default unset)
 #
 # to log to stderr: pass no path and no handle argument
 # to log to stdout: pass no path but \*STDOUT as handle.
@@ -50,6 +54,7 @@ sub new
 	my ($class, %args) = @_;
 	my $level = $args{level};
 	my $detaillevel = 0;
+	my $logprefix = $args{logprefix};
 
 	# transform extra level arguments into extra knowledge
 	# our default is 'info', not 'debug'
@@ -75,28 +80,55 @@ sub new
 
 	my $self = bless($class->SUPER::new(%args), $class);
 	$self->detaillevel($detaillevel);
+	$self->logprefix($logprefix);
+
 	return $self;
 }
 
-# our extra detaillevels for debug
-sub debug9 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 9); }
-sub debug8 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 8); }
-sub debug7 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 7); }
-sub debug6 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 6); }
-sub debug5 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 5); }
-sub debug4 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 4); }
-sub debug3 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 3); }
-sub debug2 { my $self = shift; $self->log( debug => @_ ) if ($self->detaillevel >= 2); }
-sub debug1 { shift->log(debug => @_); };
 
-# wrapper arount super's is_level
+# (possibly overloaded) log function
+# that adds logprefix to the first line if needed, and then delegates
+# to the correct superclass function - which depends on mojo versions :-/
+sub _log
+{
+	my ($self, $level, @lines) = @_;
+
+	if (my $prefix = $self->logprefix)
+	{
+		$lines[0] = $prefix.$lines[0];
+	}
+	# at some point mojo::log moved from log() to _log()
+	return Mojo::Log->can("log")?
+			$self->SUPER::log($level => @lines)
+			: $self->SUPER::_log($level => @lines);
+}
+
+# overloaded standard accessors
+sub debug { return shift->_log(debug => @_); }
+sub info { return shift->_log(info => @_); }
+sub warn { return shift->_log(warn => @_); }
+sub error { return shift->_log(error => @_); }
+sub fatal { return shift->_log(fatal => @_); }
+
+# plus our extra detaillevels for debug - bound to our log wrapper
+sub debug9 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 9); }
+sub debug8 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 8); }
+sub debug7 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 7); }
+sub debug6 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 6); }
+sub debug5 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 5); }
+sub debug4 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 4); }
+sub debug3 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 3); }
+sub debug2 { my $self = shift; $self->_log( debug => @_ ) if ($self->detaillevel >= 2); }
+sub debug1 { shift->_log(debug => @_); };
+
+# wrapper around super's is_level
 # understands: debug,info,warn,error,fatal, plus numeric 1..9
 # returns true if the given level is same or higher than logger's configured level
 # higher means here: verbosity. ie. debug3 includes debug2, debug, info, and all above.
 sub is_level
 {
 	use Carp;
-	
+
 	my ($self, $level) = @_;
 	if (defined($level) && $level =~ /^[1-9]$/)
 	{
@@ -115,7 +147,7 @@ sub reopen
 	my ($self) = @_;
 	return if (!$self->SUPER::path); # is it using an unnamed handle? can't reopen anything in this case
 
-	# depending on what version of mojo::log you're using, it may or may not 
+	# depending on what version of mojo::log you're using, it may or may not
 	# support closing/reopening handles at all.
 	my $oldhandle = $self->SUPER::handle;
 	close $oldhandle if ($oldhandle);

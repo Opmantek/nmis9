@@ -79,7 +79,7 @@ sub update_plugin
 
 			$vminventory->data($vmdata); # set changed info
 			(undef,$error) = $vminventory->save;
-			$NG->log->error("failed to save inventory for $vmid: $error")
+			$NG->log->error("Failed to save inventory for $vmid: $error")
 					if ($error);
 		}
 	}
