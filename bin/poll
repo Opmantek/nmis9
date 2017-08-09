@@ -1405,7 +1405,7 @@ sub doCollect
 	# compute thresholds with the node, if configured to do so
 	if ( NMISNG::Util::getbool( $C->{threshold_poll_node} ) )
 	{
-		doThreshold( name => $S->{name}, sys => $S, table => {} );
+		doThresholdsAndCreateStatus( name => $S->{name}, sys => $S, table => {} );
 	}
 
 	$S->writeNodeView;
@@ -9243,7 +9243,7 @@ sub runThreshold
 			die "Invalid node=$node: No node of that name\n"
 				if ( !( $node_select = Compat::NMIS::checkNodeName($node) ) );
 		}
-		doThreshold( name => $node_select, table => doSummaryBuild( name => $node_select ), running_independently => $running_independently );
+		doThresholdsAndCreateStatus( name => $node_select, table => doSummaryBuild( name => $node_select ), running_independently => $running_independently );
 	}
 	else
 	{
@@ -9406,20 +9406,22 @@ sub doSummaryBuild
 }
 
 # figures out which threshold alerts need to be run for one (or all) nodes, based on model
-# delegates the evaluation work to runThrHld, then updates info structures.
+# delegates the evaluation work to applyThresholdToNode, then updates info structures.
 #
 # args: name (optional), table (required, must be hash ref but may be empty),
 # sys (optional, only used if name is given)
 #
 # note: writes node info file if run as part of type=threshold
 # returns: nothing
-sub doThreshold
+sub doThresholdsAndCreateStatus
 {
 	my %args = @_;
 	my $name = $args{name};
 	my $sts  = $args{table};    # pointer to data built up by doSummaryBuild
 	my $S    = $args{sys};
 	my $running_independently = $args{running_independently};
+
+	my $nmisng = Compat::NMIS::new_nmisng();
 
 	NMISNG::Util::dbg("Starting");
 
@@ -9429,18 +9431,14 @@ sub doThreshold
 	my $pollTimer = Compat::Timing->new;
 
 	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
-	my $NT = Compat::NMIS::loadLocalNodeTable();
-
-	my @cand = ( $name && $NT->{$name} ? $name : keys %$NT );
-
-	for my $onenode (@cand)
-	{
-		next if ( !NMISNG::Util::getbool( $NT->{$onenode}{active} ) or !NMISNG::Util::getbool( $NT->{$onenode}{threshold} ) );
-
-		if ( @cand > 1 || !$S )
+	my $node_model_data = $nmisng->get_nodes_model( name => $name, filter => { active => 'true', threshold => 'true' }, sort => { name => 1 } );
+	
+	for my $onenode (@{$node_model_data->data})
+	{		
+		if ( $node_model_data->count() > 1 || !$S )
 		{
 			$S = NMISNG::Sys->new;
-			next if ( !$S->init( name => $onenode, snmp => 'false' ) );
+			next if ( !$S->init( name => $onenode->{name}, snmp => 'false' ) );
 		}
 
 		my $M  = $S->mdl;       # pointer to Model table
@@ -9459,8 +9457,9 @@ sub doThreshold
 		NMISNG::Util::info("Starting Thresholding node=$S->{name}");
 
 		# first the standard thresholds
-		my $thrname = 'response,reachable,available';
-		runThrHld( sys => $S, table => $sts, type => 'health', thrname => $thrname );
+		my $thrname = [qw(response reachable available)];
+		my $inventory = $S->inventory( concept => 'health' );
+		applyThresholdToNode( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
 
 		# search for threshold names in Model of this node
 		foreach my $s ( keys %{$M} )    # section name
@@ -9470,116 +9469,77 @@ sub doThreshold
 			foreach my $type ( keys %{$M->{$s}{$ts}} )    # name/type of subsection
 			{
 				my $thissection = $M->{$s}->{$ts}->{$type};
-				NMISNG::Util::dbg( "section $s, type $type " . ( $thissection->{threshold} ? "has a" : "has no" ) . " threshold" );
-				next if ( !$thissection->{threshold} );    # nothing to do
+				
+				if ( !$thissection->{threshold} )
+				{
+					NMISNG::Util::dbg( "section $s, type $type has no threshold" );	
+					next;     # nothing to do
+				}
+				NMISNG::Util::dbg( "section $s, type $type has a threshold" );	
+				
+				
+				# get commasep string of threshold name(s), turn it into an array, unless it's already an array
+				$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' ) 
+					? [ split( /,/, NMISNG::Util::stripSpaces($thissection->{threshold}) ) ] 
+					: $thissection->{threshold};
 
 				# attention: control expressions for indexed section must be run per instance,
 				# and no more getbool possible (see below for reason)
 				my $control = $thissection->{control};
-				if ($control
-					and (  !defined( $thissection->{indexed} )
-						or $thissection->{indexed} eq ""
-						or $thissection->{indexed} eq "false" )
-					)
+				NMISNG::Util::dbg( "control found:$control for section=$s type=$type", 1 ) if($control);
+
+				# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
+				# or not, this will run them all
+				my $inventory_model = $S->nmisng_node->get_inventory_model(filter => { subconcepts => $type, enabled => 1, historic => 0 });
+				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
+				# turn the 'models' into objects so that parseString can use it if required
+				NMISNG::Inventory::instantiate( nmisng => $S->nmisng_node->nmisng, modeldata => $inventory_model );
+				foreach my $inventory (@{$inventory_model->data})
 				{
-					NMISNG::Util::dbg( "control found:$control for section=$s type=$type, non-indexed", 1 );
-					if ( !$S->parseString( string => "($control) ? 1:0", sect => $type, eval => 1 ) )
+					my $data = $inventory->data;
+					my $index = $data->{index} // undef;
+					
+					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, eval => 1, inventory => $inventory ) )
 					{
-						NMISNG::Util::dbg("threshold of type $type skipped by control=$control");
+						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
 						next;
 					}
-				}
-
-				$thrname = $thissection->{threshold};    # get commasep string of threshold name(s)
-				NMISNG::Util::dbg("threshold=$thrname found in section=$s type=$type indexed=$thissection->{indexed}");
-
-				# getbool of this is not valid anymore, for WMI indexed must be named,
-				# so getbool 'indexed' => 'Name' evaluates to false. changing now to be not false.
-				if (not(    $thissection->{indexed} ne ""
-						and $thissection->{indexed} ne "false" )
-					)    # if indexed then all instances must be checked individually
-				{
-					runThrHld( sys => $S, table => $sts, type => $type, thrname => $thrname );    # single
-				}
-				else
-				{
-					# find all instances for this particular subconcept
-					my $instances = $S->nmisng_node->get_inventory_model(filter => { subconcepts => $type }) ;
-
-# fixme					NMISNG::Util::dbg( "threshold instances=" . ( join( ", ", @instances ) || "none" ) );
-
-					for my $item (@{$instances->data})
+					if( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
 					{
-						# fixme what does that mean?
-						# instances that don't have a valid nodeinfo section mustn't be touched
-				  	# however logic only works in some cases: some model source sections don't
-						# have nodeinfo sections associated.
-
-						my $data = $item->{data};
-						my $index = $data->{index};
-
-						# control must be checked individually, too!
-						if ($control)
-						{
-							NMISNG::Util::dbg( "control found:$control for s=$s type=$type, index=$index", 1 );
-							if ( !$S->parseString( string => "($control) ? 1:0",
-																		 sect => $type,
-																		 index => $index, eval => 1 ) )
-							{
-								NMISNG::Util::dbg("threshold of type $type, index $index skipped by control=$control");
-								next;
-							}
-						}
-
-						# thresholds can be selectively disabled for individual interfaces
-						if ( $type =~ /interface|pkts/ )
-						{
-							# look for interfaces; pkts and pkts_hc are not contained in nodeinfo
-							if ($data->{threshold} )
-							{
-								if ( NMISNG::Util::getbool( $data->{threshold} ) )
-								{
-									runThrHld(
-										sys     => $S,
-										table   => $sts,
-										type    => $type,
-										thrname => $thrname,
-										index   => $index
-									);
-								}
-								else
-								{
-									NMISNG::Util::dbg("skipping disabled threshold type $type for index $index");
-									next;
-								}
-							}
-						}
-						# this autovivifies but it does not matter
-						elsif ( $type =~ /cbqos/ and $data->{threshold} eq 'true')
-						{
-							my ( $cbqos, $direction ) = split( /\-/, $type );
-							my $inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
-							$data = $inventory->data();
-							NMISNG::Util::dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
-							foreach my $class ( keys %{$data->{ClassMap}} )
-							{
-								NMISNG::Util::dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
-								runThrHld(
-									sys     => $S,
-									table   => $sts,
-									type    => $type,
-									thrname => $thrname,
-									index   => $index,
-									item    => $data->{ClassMap}{$class}{Name},
-									class   => $class
-								);
-							}
-						}
-						else
-						{
-							runThrHld( sys => $S, table => $sts, type => $type, thrname => $thrname, index => $index );
-						}
+						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
+						next;	
 					}
+					applyThresholdToNode( 
+						sys     => $S,
+						table   => $sts,
+						type    => $type,
+						thrname => $thrname,
+						index   => $index,
+						inventory => $inventory
+					);
+					# item    => $data->{ClassMap}{$class}{Name},
+						# class   => $class
+						# TODO: CBQOS
+						# this autovivifies but it does not matter
+						# elsif ( $type =~ /cbqos/ and $data->{threshold} eq 'true')
+						# {
+						# 	my ( $cbqos, $direction ) = split( /\-/, $type );
+						# 	my $inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
+						# 	$data = $inventory->data();
+						# 	NMISNG::Util::dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
+						# 	foreach my $class ( keys %{$data->{ClassMap}} )
+						# 	{
+						# 		NMISNG::Util::dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
+						# 		applyThresholdToNode(
+						# 			sys     => $S,
+						# 			table   => $sts,
+						# 			type    => $type,
+						# 			thrname => [$thrname],
+						# 			index   => $index,
+						# 			item    => $data->{ClassMap}{$class}{Name},
+						# 			class   => $class
+						# 		);
+						# 	}
 				}
 			}
 		}
@@ -9697,14 +9657,17 @@ sub getThresholdPeriod
 
 # performs the threshold value checking and event raising for
 # one or more threshold configurations
-# args: sys, type, thrname, index, item, class (all required),
+# uses latest_data to get derived_data(stats) which should hold the stats with the correct
+# period calculated at the last poll cycle
+# args: sys, type, thrname (arrayref), index, item, class, inventory (all required),
 # table (required hashref but may be empty),
 # returns: nothing but raises/clears events (via thresholdProcess) and updates table
-sub runThrHld
+sub applyThresholdToNode
 {
 	my %args = @_;
 
 	my $S    = $args{sys};
+	my $inventory = $args{inventory};	
 	my $M    = $S->mdl;
 
 	my $sts     = $args{table};
@@ -9715,10 +9678,11 @@ sub runThrHld
 	my $class   = $args{class};
 	my $stats;
 	my $element;
+	die "cannot applyThresholdToNode on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
 
-	NMISNG::Util::dbg("WORKING ON Threshold for thrname=$thrname type=$type item=$item");
+	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type item=$item");
 
-	my $threshold_period = getThresholdPeriod( subconcept => $type );
+	my $data = $inventory->data();
 
 	#	check if values are already in table (done by doSummaryBuild)
 	if ( exists $sts->{$S->{name}}{$type} )
@@ -9727,62 +9691,67 @@ sub runThrHld
 	}
 	else
 	{
-		$stats = Compat::NMIS::getSummaryStats(
-			sys   => $S,
-			type  => $type,
-			start => $threshold_period,
-			end   => 'now',
-			index => $index,
-			item  => $item
-		);
+		# stats have already been calculated and stored in derived data, the threshold_period
+		# should have been used on them then, so just look up the last value		
+		my $latest_data_ret = $inventory->get_newest_timed_data();
+		if( $latest_data_ret->{success} )
+		{
+			$stats = $latest_data_ret->{derived_data};	
+		}
+		else
+		{
+			die "could not get latest_data for inventory: subconcept:$type, index:$index";
+		}		
 	}
-
-	# get name of element
-	my ($inventory,$data);
 
 	if ( $index eq '' )
 	{
 		$element = '';
 	}
-	elsif ( $index ne '' and $thrname =~ /^hrsmpcpu/ )
+	else
 	{
-		$element = "CPU $index";
+		$element = $inventory->description;
 	}
-	elsif ( $index ne '' and $thrname =~ /^hrdisk/ )
-	{
-		$inventory = $S->inventory( concept => 'storage', index => $index );
-		$data = ( $inventory ) ? $inventory->data : {};
-		$element = "$data->{hrStorageDescr}";
-	}
-	elsif ( $type =~ /cbqos|interface|pkts/ )
-	{
-		#inventory keyed by index and ifDescr so we need partial
-		my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 );
-		$data = ( $inventory ) ? $inventory->data : {};
-		if( $data->{ifDescr} )
-		{
-			$element = $data->{ifDescr};
-			$element = "$data->{ifDescr}: $item" if($type =~ /cbqos/);
-		}
-	}
-	elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
-		and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
-	{
-		NMISNG::Util::TODO("Inventory migration not complete here (and below)");
-		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
-		$inventory = $S->inventory( concept => $type, index => $index );
-		$data = ($inventory) ? $inventory->data() : {};
-		$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );
-	}
+
+	NMISNG::Util::TODO("Inventory will require description to be accurate");
+	NMISNG::Util::TODO("Inventory cbqos needs to be figured out after it's timed_data is complete");
+	# elsif ( $index ne '' and $thrname =~ /^hrsmpcpu/ )
+	# {
+	# 	$element = "CPU $index";
+	# }
+	# elsif ( $index ne '' and $thrname =~ /^hrdisk/ )
+	# {
+	# 	$inventory = $S->inventory( concept => 'storage', index => $index );
+	# 	$data = ( $inventory ) ? $inventory->data : {};
+	# 	$element = "$data->{hrStorageDescr}";
+	# }
+	# elsif ( $type =~ /cbqos|interface|pkts/ )
+	# {
+	# 	#inventory keyed by index and ifDescr so we need partial
+	# 	my $inventory = $S->inventory( concept => 'interface', index => $index, partial => 1 );
+	# 	$data = ( $inventory ) ? $inventory->data : {};
+	# 	if( $data->{ifDescr} )
+	# 	{
+	# 		$element = $data->{ifDescr};
+	# 		$element = "$data->{ifDescr}: $item" if($type =~ /cbqos/);
+	# 	}
+	# }
+	# elsif ( defined $M->{systemHealth}{sys}{$type}{indexed}
+	# 	and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
+	# {
+	# 	NMISNG::Util::TODO("Inventory migration not complete here (and below)");
+	# 	my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
+	# 	$inventory = $S->inventory( concept => $type, index => $index );
+	# 	$data = ($inventory) ? $inventory->data() : {};
+	# 	$element = $data->{$elementVar} if ($data->{$elementVar} ne "" );
+	# }
 	if ( $element eq "" )
 	{
 		$element = $index;
 	}
 
 	# walk through threshold names
-	$thrname = NMISNG::Util::stripSpaces($thrname);
-	my @nm_list = split( /,/, $thrname );
-	foreach my $nm (@nm_list)
+	foreach my $nm (@$thrname)
 	{
 		NMISNG::Util::dbg("processing threshold $nm");
 
@@ -9823,20 +9792,13 @@ sub runThrHld
 		}
 
 		### 2014-08-27 keiths, display human speed and handle ifSpeedIn and ifSpeedOut
-		if (    NMISNG::Util::getbool( $C->{global_events_bandwidth} )
+		if (  NMISNG::Util::getbool( $C->{global_events_bandwidth} )
 			and $type =~ /interface|pkts/
-			and $data->{ifSpeed} ne "" )
+			and $inventory->ifSpeed ne "" )
 		{
-			my $ifSpeed = $data->{ifSpeed};
-
-			if ( $event =~ /Input/ and exists $data->{ifSpeedIn} and $data->{ifSpeedIn} )
-			{
-				$ifSpeed = $data->{ifSpeedIn};
-			}
-			elsif ( $event =~ /Output/ and exists $data->{ifSpeedOut} and $data->{ifSpeedOut} )
-			{
-				$ifSpeed = $data->{ifSpeedOut};
-			}
+			my $ifSpeed = $inventory->ifSpeed();
+			$ifSpeed = $inventory->ifSpeedIn if ( $event =~ /Input/ );
+			$ifSpeed = $inventory->ifSpeedOut if ( $event =~ /Output/ );			
 			$details .= $spacer . "Bandwidth=" . NMISNG::Util::convertIfSpeed($ifSpeed);
 		}
 

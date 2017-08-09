@@ -308,25 +308,23 @@ sub get_inventory_model_query
 # arg limit: return only N records at the most
 # arg skip: skip N records at the beginning. index N in the result set is at 0 in the response
 # arg paginate: sets the pagination mode, in which case the result array is fudged up sparsely to
+# arg filter: any other filters on the list of nodes required, hashref
 # return 'complete' result elements without limit! - a dummy element is inserted at the 'complete' end,
 # but only 0..limit are populated
 sub get_nodes_model
 {
 	my ( $self, %args ) = @_;
+	my $filter = $args{filter};
+	$filter->{'uuid'}  = $args{uuid};
+	$filter->{'name'}  = $args{name};
+	$filter->{'host'}  = $args{host};
+	$filter->{'group'} = $args{group};
 
-	my $q = NMISNG::DB::get_query(
-		and_part => {
-			'uuid'  => $args{uuid},
-			'name'  => $args{name},
-			'host'  => $args{host},
-			'group' => $args{group}
-		}
-	);
+	my $q = NMISNG::DB::get_query( and_part => $filter );
 
 	my $model_data = [];
 	if ( $args{paginate} )
 	{
-
 		# fudge up a dummy result to make it reflect the total number
 		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
 		$model_data->[$count - 1] = {} if ($count);
@@ -487,7 +485,7 @@ sub inventory_collection
 			collection    => $self->{_db_inventory},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[{"concept"     => 1}, {unique => 0}],
+				[{"concept"     => 1, enabled => 1, historic => 1}, {unique => 0}],
 				[{"lastupdate"  => 1}, {unique => 0}],
 				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
 				[{"subconcepts" => 1}, {unique => 0}]

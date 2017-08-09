@@ -1881,7 +1881,7 @@ sub parseString
 {
 	my ( $self, %args ) = @_;
 
-	my ( $str, $indx, $itm, $sect, $type, $extras, $eval ) = @args{"string", "index", "item", "sect", "type", "extras", "eval"};
+	my ( $str, $indx, $itm, $sect, $type, $extras, $eval, $inventory ) = @args{"string", "index", "item", "sect", "type", "extras", "eval","inventory"};
 
 	NMISNG::Util::dbg( "parseString:: sect:$sect, type:$type, string to parse '$str'", 3 );
 
@@ -1894,7 +1894,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
-		my $inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 );
+		$inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 ) if(!$inventory);
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;
