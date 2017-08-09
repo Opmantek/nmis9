@@ -182,18 +182,12 @@ if ( $type =~ /^(collect|update|services)$/ )
 elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included in type=collect
 
 
-# fixme9: move those two to nmis-cli
-elsif ( $type eq "config" ) { checkConfig( change => "true" ); }
-elsif ( $type eq "audit" ) { checkConfig( audit => "true", change => "false" ); }
-
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
 elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # MIGHT BE included in type=collect
 elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
 elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # MIGHT be included in type=collect
 
-# fixme9: move this to nmis-cli or admin/node-admin
-elsif ( $type eq "groupsync" )  { sync_groups(); }
 
 else
 {
@@ -5529,19 +5523,6 @@ sub runServer
 	NMISNG::Util::info("Finished");
 }    # end runServer
 
-# converts date value to readable string
-sub snmp2date
-{
-	my @tt = unpack( "C*", shift );
-	return
-		  ( ( $tt[0] * 256 ) + $tt[1] ) . "-"
-		. $tt[2] . "-"
-		. $tt[3] . ","
-		. $tt[4] . ":"
-		. $tt[5] . ":"
-		. $tt[6] . "."
-		. $tt[7];
-}
 
 #=========================================================================================
 
@@ -9238,178 +9219,6 @@ sub runDaemons
 
 #=========================================================================================
 
-sub checkConfig
-{
-	my %args   = @_;
-	my $change = $args{change};
-	my $audit  = $args{audit};
-
-	my $ext = NMISNG::Util::getExtension( dir => 'conf' );
-
-	# depending on our job, create dirs with correct perms
-	# or just check and report them.
-	if ( NMISNG::Util::getbool($change) )
-	{
-		my $checkFunc = sub { my ($dirname) = @_; NMISNG::Util::createDir($dirname); NMISNG::Util::setFileProtDirectory( $dirname, 1 ); };
-		my $checkType = "Checking and Fixing";
-
-		# Do the var directories exist? if not make them and fix the perms!
-		NMISNG::Util::info("Config $checkType - Checking var directories, $C->{'<nmis_var>'}");
-		if ( $C->{'<nmis_var>'} ne '' )
-		{
-			&$checkFunc("$C->{'<nmis_var>'}");
-			&$checkFunc("$C->{'<nmis_var>'}/nmis_system");
-			&$checkFunc("$C->{'<nmis_var>'}/nmis_system/timestamps");
-		}
-
-		# Do the log directories exist, if not make them?
-		NMISNG::Util::info("Config $checkType - Checking log directories, $C->{'<nmis_logs>'}");
-		if ( $C->{'<nmis_logs>'} ne '' )
-		{
-			&$checkFunc("$C->{'<nmis_logs>'}");
-			&$checkFunc("$C->{'json_logs'}");
-			&$checkFunc("$C->{'config_logs'}");
-		}
-
-		# Do the conf directories exist if not make them?
-		NMISNG::Util::info("Config $checkType - Checking conf directories, $C->{'<nmis_conf>'}");
-		if ( $C->{'<nmis_conf>'} ne '' )
-		{
-			&$checkFunc("$C->{'<nmis_conf>'}");
-		}
-
-		# Does the database directory exist? if not make it.
-		NMISNG::Util::info("Config $checkType - Checking database directories");
-		if ( $C->{database_root} ne '' )
-		{
-			&$checkFunc("$C->{database_root}");
-		}
-		else
-		{
-			print "\n Cannot create directories because database_root is not defined in NMIS config\n";
-		}
-
-		# create files
-		if ( not NMISNG::Util::existFile( dir => 'logs', name => 'nmis.log' ) )
-		{
-			open( LOG, ">>$C->{'<nmis_logs>'}/nmis.log" );
-			close LOG;
-			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/nmis.log");
-		}
-
-		if ( not NMISNG::Util::existFile( dir => 'logs', name => 'auth.log' ) )
-		{
-			open( LOG, ">>$C->{'<nmis_logs>'}/auth.log" );
-			close LOG;
-			NMISNG::Util::setFileProtDiag(file =>"$C->{'<nmis_logs>'}/auth.log");
-		}
-
-		if ( not NMISNG::Util::existFile( dir => 'var', name => 'nmis-system' ) )
-		{
-			my ( $hsh, $handle ) = NMISNG::Util::loadTable( dir => 'var', name => 'nmis-system' );
-			$hsh->{startup} = time();
-			NMISNG::Util::writeTable( dir => 'var', name => 'nmis-system', data => $hsh );
-		}
-
-		# now perform exactly the same permission fixing operations as admin/fixperms.pl
-
-		# single depth directories
-		my %done;
-		for my $location (
-			$C->{'<nmis_data>'},    # commonly same as base
-			$C->{'<nmis_base>'},
-			$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
-			$C->{'<nmis_models>'},
-			$C->{'<nmis_logs>'},
-			$C->{'log_root'},       # should be the same as nmis_logs
-			$C->{'config_logs'},
-			$C->{'json_logs'},
-			$C->{'<menu_base>'},
-			$C->{'report_root'},
-			$C->{'script_root'},    # commonly under nmis_conf
-			$C->{'plugin_root'},
-			)                       # ditto
-		{
-			NMISNG::Util::setFileProtDirectory( $location, "false" ) if ( !$done{$location} );
-			$done{$location} = 1;
-		}
-
-		# deeper dirs with recursion
-		%done = ();
-		for my $location ( $C->{'<nmis_base>'} . "/lib",
-			$C->{'<nmis_conf>'}, $C->{'<nmis_var>'}, $C->{'<nmis_menu>'}, $C->{'mib_root'}, $C->{'database_root'},
-			$C->{'web_root'}, )
-		{
-			NMISNG::Util::setFileProtDirectory( $location, "true" ) if ( !$done{$location} );
-			$done{$location} = 1;
-		}
-	}
-
-	if ( NMISNG::Util::getbool($audit) )
-	{
-		my $overallstatus = 1;
-		my @problems;
-
-		# flat dirs first
-		my %done;
-		for my $location (
-			$C->{'<nmis_data>'},    # commonly same as base
-			$C->{'<nmis_base>'},
-			$C->{'<nmis_admin>'}, $C->{'<nmis_bin>'}, $C->{'<nmis_cgi>'},
-			$C->{'<nmis_models>'},
-			$C->{'<nmis_logs>'},
-			$C->{'log_root'},       # should be the same as nmis_logs
-			$C->{'config_logs'},
-			$C->{'json_logs'},
-			$C->{'<menu_base>'},
-			$C->{'report_root'},
-			$C->{'script_root'},    # commonly under nmis_conf
-			$C->{'plugin_root'},
-			)                       # ditto
-		{
-			my $where = Cwd::abs_path($location);
-			next if ( $done{$where} );
-
-			my ( $result, @newmsgs ) = NMISNG::Util::checkDirectoryFiles( $location, recurse => "false" );
-
-			$overallstatus = 0 if ( !$result );
-			push @problems, @newmsgs;
-
-			$done{$where} = 1;
-		}
-
-		# deeper dirs with recursion
-		%done = ();
-		for my $location ( $C->{'<nmis_base>'} . "/lib",
-			$C->{'<nmis_conf>'}, $C->{'<nmis_var>'}, $C->{'<nmis_menu>'}, $C->{'mib_root'}, $C->{'database_root'},
-			$C->{'web_root'}, )
-		{
-			my $where = Cwd::abs_path($location);
-			next if ( $done{$where} );
-
-			my ( $result, @newmsgs ) = NMISNG::Util::checkDirectoryFiles( $location, recurse => "true" );
-
-			$overallstatus = 0 if ( !$result );
-			push @problems, @newmsgs;
-
-			$done{$where} = 1;
-		}
-
-		if ( @problems && $overallstatus )
-		{
-			print "Informational messages:\n", join( "\n", @problems ), "\n";
-		}
-		elsif (@problems)
-		{
-			print "Detected problems:\n", join( "\n", @problems ), "\n";
-		}
-	}
-
-	# convert ancient config .csv to .xxxx (hash) file format
-	Compat::NMIS::convertConfFiles();
-
-	NMISNG::Util::info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
-}
 
 
 
@@ -10255,50 +10064,6 @@ sub printRunTime
 	my $endTime = sprintf( "%.2f", Time::HiRes::time() - $starttime );
 	NMISNG::Util::info("End of $0, type=$type ran for $endTime seconds.\n");
 }
-
-# iterate over nodes and add any new groups to the configuration
-# this is normally NOT automated, as groups are an administrative feature
-# for maintenance (as nodes in unlisted groups are active but not
-# shown in the gui)
-# args: none
-# returns: undef if ok, error message otherwise
-sub sync_groups
-{
-	my $NT = Compat::NMIS::loadLocalNodeTable();    # only local nodes
-	NMISNG::Util::dbg( "table Local Node loaded", 2 );
-
-	# reread the config with a lock and unflattened
-	my $fn = $C->{'<nmis_conf>'} . "/" . ( $nvp{conf} || "Config" ) . ".nmis";
-	my ( $rawC, $fh ) = NMISNG::Util::readFiletoHash( file => $fn, lock => 'true' );
-
-	return "Error: failed to read config $fn!" if ( !$rawC or !keys %$rawC );
-
-	my %oldgroups = map { $_ => 1 } ( split( /\s*,\s*/, $rawC->{system}->{group_list} ) );
-	my %newgroups;
-	for my $node ( keys %$NT )
-	{
-		my $thisgroup = $NT->{$node}->{group};
-		next if ( $oldgroups{$thisgroup} );
-		++$newgroups{$thisgroup};
-	}
-
-	print "Existing groups:\n\t", ( %oldgroups ? join( "\n\t", keys %oldgroups ) : "<None>" ),
-		"\n\nNew groups to add:\n\t", ( %newgroups ? join( "\n\t", keys %newgroups ) : "<None>" ),
-		"\n\n";
-
-	if (%newgroups)
-	{
-		$rawC->{system}->{group_list} = join( ",", sort( keys %oldgroups, keys %newgroups ) );
-		NMISNG::Util::writeHashtoFile( file => $fn, handle => $fh, data => $rawC );
-	}
-	else
-	{
-		close $fh;
-	}
-
-	return;
-}
-
 
 # sysUpTime under nodeinfo is a mess: not only is nmis overwriting it with
 # in nonreversible format on the go,

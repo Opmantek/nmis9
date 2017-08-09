@@ -61,11 +61,13 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
 
  act=import-nodes-file nodesfile=<path>
  act=import-nodeconf nodeconf=<path>
+ act=groupsync
 
  act=add-outage {node|group}=name start=HH:MM end=HH:MM [comment=text]
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
  act=config-backup
  act=purge [simulate=t/f]
+
  act=fixperms
 \n";
 
@@ -359,7 +361,7 @@ elsif ($Q->{act} eq "fixperms")
 	}
 	else
 	{
-		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}",$C->{'<nmis_base>'});
+		system("chown","-R","$C->{nmis_user}:$C->{nmis_group}", $C->{'<nmis_base>'});
 		system("chmod","-R","g+rw", $C->{'<nmis_base>'});
 
 		if ( $C->{'<nmis_base>'} ne $C->{'<nmis_data>'} )
@@ -385,13 +387,21 @@ elsif ($Q->{act} eq "fixperms")
 										$C->{'<menu_base>'},
 										$C->{'report_root'},
 										$C->{'script_root'}, # commonly under nmis_conf
-										$C->{'plugin_root'}, ) # ditto
+										$C->{'plugin_root'}, # ditto
+										$C->{'<nmis_var>'}."/nmis_system/timestamps", )
 	{
-		NMISNG::Util::setFileProtDirectory($location, "false")
-				if (!$done{$location});
+		next if ($done{$location});
+
+		if (!-d $location)
+		{
+			print "Creating missing directory $location\n" if ($wantverbose);
+			NMISNG::Util::createDir($location);
+		}
+		NMISNG::Util::setFileProtDirectory($location, "false");
+		
 		$done{$location} = 1;
 	}
-
+										
 	# deeper dirs with recursion
 	%done = ();
 	for my $location ($C->{'<nmis_base>'}."/lib",
@@ -402,13 +412,59 @@ elsif ($Q->{act} eq "fixperms")
 										$C->{'database_root'},
 										$C->{'web_root'}, )
 	{
-		NMISNG::Util::setFileProtDirectory($location, "true") 	if (!$done{$location});
+		next if ($done{$location});
+
+		if (!-d $location)
+		{
+			print "Creating missing directory $location\n" if ($wantverbose);
+			NMISNG::Util::createDir($location);
+		}
+		NMISNG::Util::setFileProtDirectory($location, "true");
+
 		$done{$location} = 1;
 	}
 
 	# remove the selftest cache file to ensure it's regenerated;
 	# otherwise we may show stale warnings about permissions that were already fixed
 	unlink($C->{'<nmis_var>'}."/nmis_system/selftest.json");
+}
+elsif ($Q->{act} eq "groupsync")
+{
+	# iterate over nodes and add any new groups to the configuration
+	# this is normally NOT automated, as groups are an administrative feature
+	# for maintenance (as nodes in unlisted groups are active but not
+	# shown in the gui)
+
+	my $NT = Compat::NMIS::loadLocalNodeTable();    # only local nodes
+	NMISNG::Util::dbg( "table Local Node loaded", 2 );
+
+	# reread the config with a lock and unflattened
+	my $fn = $C->{'<nmis_conf>'}. "/Config.nmis";
+	my ( $rawC, $fh ) = NMISNG::Util::readFiletoHash(file => $fn, lock => 'true' );
+	die "Error: failed to read config $fn!\n" if ( !$rawC or !keys %$rawC );
+
+	my %oldgroups = map { $_ => 1 } ( split( /\s*,\s*/, $rawC->{system}->{group_list} ) );
+	my %newgroups;
+	for my $node ( keys %$NT )
+	{
+		my $thisgroup = $NT->{$node}->{group};
+		next if ( $oldgroups{$thisgroup} );
+		++$newgroups{$thisgroup};
+	}
+
+	print "Existing groups:\n\t", ( %oldgroups ? join( "\n\t", keys %oldgroups ) : "<None>" ),
+	"\n\nNew groups to add:\n\t", ( %newgroups ? join( "\n\t", keys %newgroups ) : "<None>" ),
+	"\n\n";
+	
+	if (%newgroups)
+	{
+		$rawC->{system}->{group_list} = join( ",", sort( keys %oldgroups, keys %newgroups ) );
+		NMISNG::Util::writeHashtoFile( file => $fn, handle => $fh, data => $rawC );
+	}
+	else
+	{
+		close $fh;									# release lock
+	}
 }
 else
 {
@@ -554,3 +610,6 @@ sub purge_files
 	NMISNG::Util::info("Purging complete");
 	return;
 }
+
+
+

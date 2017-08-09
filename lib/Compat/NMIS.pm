@@ -2055,8 +2055,8 @@ sub overallNodeStatus {
 	return $overall_status;
 } # end overallNodeStatus
 
-# convert configuration files in dir conf to NMIS8
-
+# fixme9: this  cannot work with nmis9. code is also unreachable.
+# convert configuration files in dir conf to from 4  to NMIS8
 sub convertConfFiles {
 
 	my $C = NMISNG::Util::loadConfTable();
