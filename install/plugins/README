@@ -31,15 +31,17 @@ every node regardless of the plugins success or failure indications.
 the calling interface is the same for both functions:
 
 sub update_plugin(node => nodename, sys => live sys object, 
-		config => read-only configuration object/hash)
+		config => read-only configuration object/hash,
+		nmisng => live nmisng object)
 
 sub collect_plugin(node => nodename, sys => live sys object, 
-		config => configuration object/hash, treat as read-only)
+		config => configuration object/hash, treat as read-only,
+		nmisng => live nmisng object)
 
-the plugin can modify any node attributes via sys where required. it may call
-other nmis code (but care needs to be taken of nmmis config/table caching if 
-that is done). neither the local config object nor the global nmis config
-must be modified by a plugin.
+the plugin can modify node attributes via sys and nmisng where required.
+it may call other nmis code (but care needs to be taken of
+nmmis config/table caching if  that is done). neither the local
+config object nor the global nmis config must be modified by a plugin.
 
 return values:
 
@@ -69,11 +71,13 @@ the calling interface is the same for both functions:
 
 sub after_update_plugin(nodes => list of nodes that were handled, 
 		sys => live sys object, 
-		config => read-only configuration object/hash)	
+		config => read-only configuration object/hash,
+		nmisng => live nmisng object)	
 
 sub after_collect_plugin(nodes => list of nodes that were handled,
 		sys => live sys object,
-		config => configuration object/hash, treat as read-only)
+		config => configuration object/hash, treat as read-only,
+		nmisng => live nmisng object)
 
 the sys object is the 'global' one used for calculating system-wide metrics
 and so on. the plugin can modify any attributes via sys where required. it 

@@ -38,7 +38,7 @@ use strict;
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
 	# does this node host virtual machines?
 	my $vmitems = $S->nmisng_node->get_inventory_ids(
@@ -48,14 +48,14 @@ sub update_plugin
 	return (0,undef) if (!@$vmitems);
 	my $changesweremade = 0;
 
-	$S->nmisng->log->info("Working on $node VirtMachines");
+	$NG->log->info("Working on $node VirtMachines");
 
 	for my $vmid (@$vmitems)
 	{
 		my ($vminventory,$error) = $S->nmisng_node->inventory(_id => $vmid);
 		if ($error)
 		{
-			$S->nmisng->log->error("Failed to get inventory $vmid: $error");
+			$NG->log->error("Failed to get inventory $vmid: $error");
 			next;
 		}
 		
@@ -63,18 +63,23 @@ sub update_plugin
 		my $vmName = 	$vmdata->{vmwVmDisplayName};
 
 		# is there a managed node with the given vmwVmDisplayName?
-		if ( defined $S->nmisng->node(name => $vmName) )
+		my $managednode = $NG->node(name => $vmName);
+		if (ref($managednode) eq "NMISNG::Node")
 		{
 			$changesweremade = 1;
 
-			$S->nmisng->log->debug("Updating VM linkage for $vmName");
+			$NG->log->debug("Updating VM linkage for $vmName");
+			# futureproofing so that opCharts can also use this linkage safely
+			$vmdata->{node_uuid} = $managednode->uuid;
+
+			# nmis systemhealth view
 			$vmdata->{vmwVmDisplayName_url} 
 			= "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$vmName";
 			$vmdata->{vmwVmDisplayName_id} = "node_view_$vmName";
 
 			$vminventory->data($vmdata); # set changed info
 			(undef,$error) = $vminventory->save;
-			$S->nmisng->log->error("failed to save inventory for $vmid: $error")
+			$NG->log->error("failed to save inventory for $vmid: $error")
 					if ($error);
 		}
 	}
