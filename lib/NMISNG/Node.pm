@@ -216,7 +216,7 @@ sub delete
 # useful for iterating through all inventory
 # filters/arguments:
 #  cluster_id,node_uuid,concept
-# needs to always return array, not sure if it currently does
+# needs to always return array ref, not sure if it currently does
 sub get_inventory_ids
 {
 	my ( $self, %args ) = @_;
