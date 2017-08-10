@@ -32,14 +32,16 @@ package NMISNG::Snmp;
 our $VERSION = "1.1.0";
 
 use strict;
-# fixme9: is that required?
-# use lib "../../lib";
 
 use NMISNG::MIB;
 use Net::SNMP qw(oid_lex_sort);
-# ATTENTION: to support snmp v3 we must have Crypt::DES, Digest::MD5, Digest::HMAC
-# for now the installer tries to ensure their presence,
-# but we don't strictly enforce that via a use here.
+
+# to support snmp v3 we must have the following modules - net::snmp doesn't strictly require them
+use Crypt::DES;
+use Crypt::Rijndael;
+use Digest::MD5;
+use Digest::HMAC;
+use Digest::SHA;
 
 # creates new snmp object, does NOT open connection.
 # args: logging (optional, default 1), debug (optional, default 0),
