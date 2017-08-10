@@ -314,9 +314,6 @@ sub new
 		$self->datasets( subconcept => $subconcept, datasets => \%dataset_map );
 	}
 
-	# make it empty so tests are easier
-	$self->{_queued_pit} = {};
-
 	# in addition to these, there's also on-demand _deleted
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
@@ -353,11 +350,14 @@ sub _generic_getset
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
 # time (optional, defaults to now), delay_insert (optional, default no), 
 # subconcept OR datasets (exactly one is required)
+# flush, internal only, used for saving delayed
 #
 # delay_insert - delay inserting until save is called - if it's never called it's not saved!
 #   if data has already been queued for the time/concept/subconcept then new data provided will overwrite existing,
 #   derived_data and data are treated separately, so data can be set one call and derived_data in another,
 #   and per-subconcept data can be accumulated across calls as well.
+#   delay/non-delay add's do not mix, if a delay call is followed by a non-delay, the non-delay will ignore
+#   all existence of the delay'd data.
 #
 # subconcept/datasets - exactly one of these must be given!
 #
@@ -386,13 +386,13 @@ sub add_timed_data
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
 		if ( ref( $args{derived_data} ) ne "HASH" );    # empty hash is acceptable
-	my ( $data, $derived_data, $time, $delay_insert ) = @args{'data', 'derived_data', 'time', 'delay_insert'};
+	my ( $data, $derived_data, $time, $delay_insert, $flush ) = @args{'data', 'derived_data', 'time', 'delay_insert','flush'};
 
 	# automatically take care of datasets
 	# one of these two must be defined
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
-	return "one of subconcept or datasets needs to be defined, stack:" . Carp::longmess()
-			if ( !$subconcept && ref($datasets) ne 'HASH' );
+	return "one (and only one) of subconcept or datasets needs to be defined, stack:" . Carp::longmess()
+			if ( (!$subconcept && ref($datasets) ne 'HASH') || ($subconcept && ref($datasets) eq 'HASH') );
 
 	# ttl: record time plus purge_timeddata_after seconds (default 7 days)
 	$time ||= Time::HiRes::time;
@@ -404,40 +404,52 @@ sub add_timed_data
 			Time::Moment->from_epoch($expire_at)
 			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
 
-	my $timedrecord = {
-		time => $time,
-		expire_at => $expire_at,
-		data => $data,
-		derived_data => $derived_data
-	};
+	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record 
+	my $timedrecord = { time => $time, expire_at => $expire_at };
+	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
 
 	# if just the subconcept was given find the keys and make it look
 	# like the whole thing was provided as datasets
 	if ($subconcept)
 	{
 		$datasets->{$subconcept} = {map { $_ => 1 } ( keys %$data )};
+		# todo: verify that structure is not deep, if it is this 'auto' getting datasets breaks down
+		
+		# now store the data per subconcept, appending to data, replacing subconcept if it existed
+		$timedrecord->{data}{$subconcept} = $data;
+		$timedrecord->{derived_data}{$subconcept} = $derived_data;
+	}
+	else
+	{
+		# replace all data
+		$timedrecord->{data} = $data;
+		$timedrecord->{derived_data} = $derived_data;
 	}
 
 	# loop through all provided datasets and make sure they merged into
 	# the existing, keeping track if any modifications are actually made
+	# if this is a flush there is no need to do this, should already be done
 	my $datasets_modfied = 0;
-	foreach my $subc ( keys %$datasets )
+	if( !$flush )
 	{
-		my $new_datasets = $datasets->{$subc};
-		my $existing_datasets = $self->datasets( subconcept => $subc );
-		foreach my $key ( keys %$new_datasets )
+		foreach my $subc ( keys %$datasets )
 		{
-			if ( !defined( $existing_datasets->{$key} ) )
+			my $new_datasets = $datasets->{$subc};
+			my $existing_datasets = $self->datasets( subconcept => $subc );
+			foreach my $key ( keys %$new_datasets )
 			{
-				$existing_datasets->{$key} = 1;
-				$datasets_modfied++;
+				if ( !defined( $existing_datasets->{$key} ) )
+				{
+					$existing_datasets->{$key} = 1;
+					$datasets_modfied++;
+				}
 			}
+			$self->datasets( subconcept => $subc, datasets => $existing_datasets )
+				if ($datasets_modfied);
 		}
-		$self->datasets( subconcept => $subc, datasets => $existing_datasets )
-			if ($datasets_modfied);
 	}
 
-	if ( !$delay_insert )
+	if ( !$delay_insert || $flush )
 	{
 		return "cannot add timed data to unsaved inventory instance!"
 			if ( $self->is_new );
@@ -457,19 +469,15 @@ sub add_timed_data
 		);
 		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
 		
-		# if the datasets were modified they need to be saved
-		$self->save() if ($datasets_modfied);
+		# if the datasets were modified they need to be saved, only if we're not flushing
+		# which should only come from save (so don't start a recursive loop)
+		$self->save() if (!$flush && $datasets_modfied);
 	}
 	else
 	{
-		my $key = $timedrecord->{time} . $self->concept();
-		if ( defined( $self->{_queued_pit}{$key} ) )
-		{
-			my $existing = $self->{_queued_pit}{$key};
-			$timedrecord->{data}         //= $existing->{data};
-			$timedrecord->{derived_data} //= $existing->{derived_data};
-		}
-		$self->{_queued_pit}{$key} = $timedrecord;
+		# only queue a single record
+		$self->{_queued_pit} = $timedrecord;
+		print "queued redord:".Dumper($timedrecord);
 	}
 	return undef;
 }
@@ -966,29 +974,27 @@ sub save
 	$self->{_path} = $record->{path} if ( $result->{success} );
 
 	# save any queued time/pit data, not expecting many here so not very optimised
-	my @queued_keys = keys %{$self->{_queued_pit}};
-	if ( $result->{success} && @queued_keys > 0 )
+	if ( $result->{success} && defined($self->{_queued_pit}) )
 	{
-		foreach my $key (@queued_keys)
+		my $pit_record = $self->{_queued_pit};
+
+		# sending datasets this way so less special case handling required, this is not optimal but should
+		# not cause problems either
+		$pit_record->{datasets} = $self->{_datasets};
+
+		# using ourself means id will be added (so new inventories will work, no save first required)
+		# telling it to flush should bypass any special handling, allowing the data straight through
+		$pit_record->{flush} = 1;
+		my $error = $self->add_timed_data(%$pit_record);
+		if ($error)
 		{
-			my $pit_record = $self->{_queued_pit}{$key};
-
-			# sending datasets this way so less special case handling required, this is not optimal but shoul
-			# not cause problems either
-			$pit_record->{datasets} = $self->{_datasets};
-
-			# using ourself means id will be added (so new inventories will work, no save first required)
-			my $error = $self->add_timed_data(%$pit_record);
-			if ($error)
-			{
-				$result->{success} = 0;
-				$result->{error} .= "Error saving time data: $error";
-			}
-			else
-			{
-				# clean up successful saves
-				delete $self->{_queued_pit}{$key};
-			}
+			$result->{success} = 0;
+			$result->{error} .= "Error saving time data: $error";
+		}
+		else
+		{
+			# clean up successful saves
+			delete $self->{_queued_pit};
 		}
 	}
 
