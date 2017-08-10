@@ -105,14 +105,14 @@ sub compat_nodeinfo
 }
 
 # deprecated, deliberately noisy, provides RO access to interface list
-sub ifinfo 
+sub ifinfo
 {
 	my ($self) = @_;
 
 	Carp::cluck("sys::ifinfo function is deprecated!\n");
 	return {} if (!$self->nmisng_node);
-	
-	my $model_data = $self->nmisng_node->get_inventory_model(concept => "interface", 
+
+	my $model_data = $self->nmisng_node->get_inventory_model(concept => "interface",
 																													 filter => { historic => 0 });
 	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$model_data->data});
 	return \%ifdata;
@@ -302,9 +302,8 @@ sub init
 		{
 			$catchall_data = $catchall->data_live();
 			$self->{info} = NMISNG::Util::loadTable( dir => 'var', name => "$self->{node}-node" );
-			# load the saved node info data
-			if ( ref( $self->{info} ) eq "HASH"
-				&& keys %{$self->{info}} )
+			# load the saved node info data - note that an empty {} nodeinfo file is ok!
+			if ( ref( $self->{info} ) eq "HASH" )
 			{
 				if ( NMISNG::Util::getbool( $self->{debug} ) )
 				{
@@ -2012,7 +2011,7 @@ sub getTypeInstances
 	if (defined $section && $self->{name})
 	{
 		my $fields_hash = ($want_modeldata) ? undef :  { "data.index" => 1, "data.service" => 1 };
-																										 
+
 		# in case of indexed, return the index; for service return the service name
 		$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
 																											 node_uuid => $self->nmisng_node->uuid,
@@ -2026,7 +2025,7 @@ sub getTypeInstances
 			}
 		}
 	}
-	
+
 	# if a graphtype is given, infer the concept from that via graphtype2subconcept,
 	# subconcept == concept for anything but concept service (has more), and concept
 	# interface (has subconcepts pkts, pkts_hc, interface).
@@ -2063,8 +2062,8 @@ sub getTypeInstances
 
 		# graphtype ALSO given but same as (handled) section or points to that section,
 		# and we have instances? then ignore the graphtype,  or we'll get duplicates
-		if (($want_modeldata && $modeldata && $modeldata->count || @instances) 
-				&& defined($section) 
+		if (($want_modeldata && $modeldata && $modeldata->count || @instances)
+				&& defined($section)
 				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
 			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
