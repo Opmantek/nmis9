@@ -1067,6 +1067,12 @@ sub getSummaryStats
 
 # compute stats via rrd for a given subconcept,
 # returns: hashref with numeric values - or undef if infty or nan
+# args: inventory,subconcept,start,end,sys, all required
+#   subconcept is used to find the storage (db) and also the section in the stats 
+#   file.  
+#  stats_section - if provided this will be used to look up the location of the stats
+#   instead of subconcept. this is required for concepts like cbqos where the subconcept
+#   name is variable and based on class names which come from the device
 #
 # note: this does NOT return the string NaN, because json::xs utterly misencodes that
 sub getSubconceptStats
@@ -1074,6 +1080,7 @@ sub getSubconceptStats
 	my %args = @_;
 	my $inventory = $args{inventory};
 	my $subconcept = $args{subconcept};
+	my $stats_section = $args{stats_section} // $args{subconcept};
 
 	my $start = $args{start};
 	my $end = $args{end};
@@ -1114,7 +1121,7 @@ sub getSubconceptStats
 	}
 
 	# check if rrd option rules exist in Model for stats
-	if ($M->{stats}{type}{$subconcept} eq "") {
+	if ($M->{stats}{type}{$stats_section} eq "") {
 		NMISNG::Util::dbg("($S->{name}) subconcept=$subconcept not found in section stats of model=$catchall_data->{nodeModel}, this may be expected");
 		return;
 	}

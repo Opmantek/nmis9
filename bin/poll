@@ -4574,6 +4574,7 @@ sub getCBQoSdata
 {
 	my (%args)  = @_;
 	my $S     = $args{sys};
+	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
 	my $happy;
 	foreach my $direction ( "in", "out" )
@@ -4593,6 +4594,7 @@ sub getCBQoSdata
 			# for now ifIndex is stored in the index attribute
 			my $intf = $data->{index};
 			my $CB = $data;
+			my $previous_pit = $inventory->get_newest_timed_data();
 
 			next if ( !exists $CB->{'PolicyMap'}{'Name'} );
 
@@ -4612,6 +4614,7 @@ sub getCBQoSdata
 				my $CMName = $CB->{'ClassMap'}{$key}{'Name'};
 				my $OIndex = $CB->{'ClassMap'}{$key}{'Index'};
 				NMISNG::Util::info("Interface $intf, ClassMap $CMName, PolicyIndex $PIndex, ObjectsIndex $OIndex");
+				my $subconcept = $CMName;
 
 				# get the number of bytes/packets transfered and dropped
 				my $port = "$PIndex.$OIndex";
@@ -4652,12 +4655,17 @@ sub getCBQoSdata
 					}
 					else
 					{
-						# need to caputre rrd data here for time_data
-						# problem: item is not accounted for, we have an inventory item per
-						# interface/direction but an rrd per interface/direction/item, adding
-						# time data will make it so the values overwrite each other or we have
-						# several entries and no way to distinguish which item they are for
-						# unless the structure is made deep (which sucks because it breaks convention)
+						my $target = {};
+						NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $CMName );
+						# get stats, subconcept here is too specific, so use concept name, which is what
+						#  stats expects anyway
+						my $period = getThresholdPeriod( subconcept => $concept );
+						# subconcept is completely variable, so we must tell the system where to find the stats
+						my $stats = Compat::NMIS::getSubconceptStats( sys => $S, inventory => $inventory, subconcept => $CMName,
+																													stats_section => $concept, start => $period, end => time );
+
+						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName,
+																				time => $catchall_data->{last_poll}, delay_insert => 1 );
 					}
 				}
 				else
@@ -9691,6 +9699,7 @@ sub getThresholdPeriod
 # period calculated at the last poll cycle
 # args: sys, type, thrname (arrayref), index, item, class, inventory (all required),
 # table (required hashref but may be empty),
+# type is subconcept
 # returns: nothing but raises/clears events (via thresholdProcess) and updates table
 sub applyThresholdToInventory
 {
