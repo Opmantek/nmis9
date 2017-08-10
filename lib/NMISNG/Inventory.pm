@@ -203,11 +203,12 @@ sub parse_rrd_update_data
 				? $previous_pit->{data}{$subconcept}->{$key_raw}
 				: undef;
 			$target->{$key} = ($prev_value) ? ( $entry->{value} - $prev_value ) : 0;
+			# TODO: handle counter wrapping!!!
+			# $target->{$key} = ???!?!? 
+			# NMISNG::Util::logMsg( "ERROR: wrapped counter for $key $target->{$key} < $prev_value ") if( $target->{$key} && ($target->{$key} < $prev_value) );
+			
 			# try and force to a number
 			$target->{$key} += 0.0;
-			# TODO: handle counter wrapping?
-			NMISNG::Util::logMsg( "ERROR: wrapped counter for $key") if( $target->{$key} < $prev_value );
-			# $target->{$key} = ???!?!? 
 
 			# keep track of dataset
 			$key_meta{$key} = 1;
