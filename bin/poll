@@ -1134,10 +1134,10 @@ sub doUpdate
 	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
-		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats,
-			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', 
+																time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1482,10 +1482,10 @@ sub doCollect
 	{
 		my $pit = {};
 		my $previous_pit = $inventory->get_newest_timed_data();
-		my $datasets = NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit );
+		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats,
-			datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', 
+																time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -3607,7 +3607,6 @@ sub getSystemHealthData
 			my $howdiditgo = $S->status;
 
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
-			my ($alldata,$allstats,$datasets) = ({},{},{});
 
 			# were there any errors?
 			if ( !$anyerror && !$howdiditgo->{skipped} )
@@ -3642,19 +3641,19 @@ sub getSystemHealthData
 					else
 					{
 						# convert data into values we can use in pit (eg resolve counters)
-						$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						my $target = {};
+						NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect);
 						# get stats
 						my $period = getThresholdPeriod(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																												 subconcept => $sect, start => $period, end => time);
-						map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																				time => $catchall_data->{last_poll}, delay_insert => 1 );
 					}
 				}
 				NMISNG::Util::info("section=$section index=$index read and stored $count values");
 				# technically the path shouldn't change during collect so for now don't recalculate path
 				# put the new values into the inventory and save
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-					datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
 				$inventory->data($data);
 				$inventory->save();
 			}
@@ -3973,7 +3972,6 @@ sub getNodeData
 
 	if ( !$anyerror )
 	{
-		my ($alldata,$allstats,$datasets) = ({},{});
 		my $previous_pit = $inventory->get_newest_timed_data();
 
 		processAlerts( S => $S );
@@ -3993,16 +3991,17 @@ sub getNodeData
 			}
 			else
 			{
-				$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				my $target = {};
+				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
 				my $period = getThresholdPeriod( subconcept => $sect );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																										 subconcept => $sect, start => $period, end => time);
-				map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+
+				$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																		time => $catchall_data->{last_poll}, delay_insert => 1 );
 			}
 		}
-		# add data and stats, catchall should be saved at the end of the cycle which will save
-		$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-			datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
+		# NO save on inventory because it's the catchall right now
 	}
 	elsif( $howdiditgo->{skipped} ) {}
 	else
@@ -4247,8 +4246,6 @@ sub getIntfData
 		if ( !$anyerror && !$howdiditgo->{skipped} )
 		{
 			processAlerts( S => $S );
-
-			my ($alldata,$allstats,$datasets) = ({},{});
 			foreach my $sect ( keys %{$rrdData} )
 			{
 				my $D = $rrdData->{$sect}{$index};
@@ -4439,17 +4436,17 @@ sub getIntfData
 				else
 				{
 					# convert data into values we can use in pit (eg resolve counters)
-					$datasets->{$sect} = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+					my $target = {};					
+					NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
 					my $period = getThresholdPeriod( subconcept => $sect );
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																											 subconcept => $sect, start => $period, end => time);
-					map { $allstats->{$_} = $stats->{$_} } (keys %$stats);
+					# add data and stats
+					$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																			time => $catchall_data->{last_poll}, delay_insert => 1 );
 				}
 			}
-			# add data and stats
-			$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-				datasets => $datasets, time => $catchall_data->{last_poll}, delay_insert => 1 );
-
+			
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
 			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
@@ -5249,17 +5246,17 @@ sub runServer
 						$inventory->historic(0);
 						$inventory->enabled(1);
 
-						my ($alldata,$allstats) = ({},{});
 						my $previous_pit = $inventory->get_newest_timed_data();
 						# shouldn't need to save twice but this all could be optimise
-						my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+						my $target = {};
+						NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, 'hrsmpcpu' );
 						# get stats
 						my $period = getThresholdPeriod(subconcept => 'hrsmpcpu');
-						$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 							subconcept => 'hrsmpcpu', start => $period, end => time);
 
-						$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-							datasets => { 'hrsmpcpu' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
+						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => 'hrsmpcpu',
+																				time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 						($op,$error) = $inventory->save();
 						NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -5492,7 +5489,7 @@ sub runServer
 				}
 				$inventory->enabled(1);
 
-				my ($alldata,$allstats) = ({},{});
+				my $target = {};
 				my $previous_pit = $inventory->get_newest_timed_data();
 
 				# make sure the data is set and save
@@ -5500,14 +5497,14 @@ sub runServer
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
-				my $datasets = NMISNG::Inventory::parse_rrd_update_data( $D, $alldata, $previous_pit );
+				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $subconcept );
 				# get stats
 				my $period = getThresholdPeriod(subconcept => $subconcept);
-				$allstats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
+				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 					subconcept => $subconcept, start => $period, end => time);
 
-				$inventory->add_timed_data( data => $alldata, derived_data => $allstats,
-					datasets => { $subconcept => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
+				$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
+																		time => $catchall_data->{last_poll}, delay_insert => 1 );
 
 				($op,$error) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
@@ -7307,10 +7304,10 @@ sub runReach
 		{
 			my $pit = {};
 			my $previous_pit = $inventory->get_newest_timed_data();
-			my $datasets = NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit );
+			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit, "health" );
 			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-			$inventory->add_timed_data( data => $pit, derived_data => $stats,
-				datasets => { 'health' => $datasets }, time => $catchall_data->{last_poll}, delay_insert => 1 );
+			$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
+																	time => $catchall_data->{last_poll}, delay_insert => 1 );
 			# $inventory->data($data);
 			$inventory->save();
 		}
@@ -9439,7 +9436,7 @@ sub doSummaryBuild
 }
 
 # figures out which threshold alerts need to be run for one (or all) nodes, based on model
-# delegates the evaluation work to applyThresholdToNode, then updates info structures.
+# delegates the evaluation work to applyThresholdToInventory, then updates info structures.
 #
 # args: name (optional), table (required, must be hash ref but may be empty),
 # sys (optional, only used if name is given)
@@ -9492,7 +9489,7 @@ sub doThresholdsAndCreateStatus
 		# first the standard thresholds
 		my $thrname = [qw(response reachable available)];
 		my $inventory = $S->inventory( concept => 'health' );
-		applyThresholdToNode( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
+		applyThresholdToInventory( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
 
 		# search for threshold names in Model of this node
 		foreach my $s ( keys %{$M} )    # section name
@@ -9542,7 +9539,7 @@ sub doThresholdsAndCreateStatus
 						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
 						next;
 					}
-					applyThresholdToNode(
+					applyThresholdToInventory( 
 						sys     => $S,
 						table   => $sts,
 						type    => $type,
@@ -9563,7 +9560,7 @@ sub doThresholdsAndCreateStatus
 						# 	foreach my $class ( keys %{$data->{ClassMap}} )
 						# 	{
 						# 		NMISNG::Util::dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
-						# 		applyThresholdToNode(
+						# 		applyThresholdToInventory(
 						# 			sys     => $S,
 						# 			table   => $sts,
 						# 			type    => $type,
@@ -9695,7 +9692,7 @@ sub getThresholdPeriod
 # args: sys, type, thrname (arrayref), index, item, class, inventory (all required),
 # table (required hashref but may be empty),
 # returns: nothing but raises/clears events (via thresholdProcess) and updates table
-sub applyThresholdToNode
+sub applyThresholdToInventory
 {
 	my %args = @_;
 
@@ -9711,7 +9708,7 @@ sub applyThresholdToNode
 	my $class   = $args{class};
 	my $stats;
 	my $element;
-	die "cannot applyThresholdToNode on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
+	die "cannot applyThresholdToInventory on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
 
 	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type item=$item");
 
@@ -9729,7 +9726,7 @@ sub applyThresholdToNode
 		my $latest_data_ret = $inventory->get_newest_timed_data();
 		if( $latest_data_ret->{success} )
 		{
-			$stats = $latest_data_ret->{derived_data};
+			$stats = $latest_data_ret->{derived_data}{$type};
 		}
 		else
 		{
