@@ -683,6 +683,9 @@ sub runThreads
 				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
 						if ($mthreadDebug);
 
+				# make sure this gets a NEW nmisng object, with NEW database handles!
+				$nmisng = Compat::NMIS::new_nmisng(nocache => 1);
+
 				# don't run longer than X seconds
 				alarm($maxruntime) if ($maxruntime);
 				my @methodargs = ( name => $onenode,

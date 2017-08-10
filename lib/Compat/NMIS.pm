@@ -89,7 +89,7 @@ sub new_nmisng
 
 	if (ref($_nmisng) ne "NMISNG" or $args{nocache})
 	{
-		#	Carp::cluck("creating new nmisng obj");
+		# Carp::cluck("creating new nmisng obj in $$");
 		
 		my $C = NMISNG::Util::loadConfTable();
 		my $debug = NMISNG::Util::getDebug();
