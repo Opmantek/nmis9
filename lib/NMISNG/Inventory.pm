@@ -175,11 +175,18 @@ sub make_path
 #  rrd_data - data sent to create_update_rrd, hashref, each entry holding a hash keys @{value,option}
 #  target - where to put the parsed data
 #  previous_pit - previous entry for this thing, note: could be looked up if we want, not done right now
+#   expects the full pit, with data in subconcept hashes
+#  subconcept - data stored in timed under subconcept hash so this is needed for the return value to
+#    give the correct structure back for datasets, target is left alone, add_timed_data will put the 
+#    data where it should go
+#    the uses this value to find the data previous data from the correct sub-hash
 # NOTE: does not handle counter wrapping at this time
 # returns hashref with keys defined for datasets that have values
 sub parse_rrd_update_data
 {
-	my ( $rrd_data, $target, $previous_pit ) = @_;
+	my ( $rrd_data, $target, $previous_pit, $subconcept ) = @_;
+	die "subconcept required" if( !$subconcept );
+
 	my %key_meta;
 	foreach my $key ( keys %$rrd_data )
 	{
@@ -192,14 +199,15 @@ sub parse_rrd_update_data
 
 			# autovivifies but no problem
 			my $prev_value
-				= ( $previous_pit->{success} && exists( $previous_pit->{data}->{$key_raw} ) )
-				? $previous_pit->{data}->{$key_raw}
+				= ( $previous_pit->{success} && exists( $previous_pit->{data}{$subconcept}->{$key_raw} ) )
+				? $previous_pit->{data}{$subconcept}->{$key_raw}
 				: undef;
 			$target->{$key} = ($prev_value) ? ( $entry->{value} - $prev_value ) : 0;
 			# try and force to a number
 			$target->{$key} += 0.0;
-			# TODO: handle wrapping
-			# $target->{$key} = ???!?!? if( $target->{$key} < $prev_value );
+			# TODO: handle counter wrapping?
+			NMISNG::Util::logMsg( "ERROR: wrapped counter for $key") if( $target->{$key} < $prev_value );
+			# $target->{$key} = ???!?!? 
 
 			# keep track of dataset
 			$key_meta{$key} = 1;
@@ -211,10 +219,8 @@ sub parse_rrd_update_data
 			$key_meta{$key} = 1;
 		}
 	}
-
 	# all changes are done in place
-	#
-	return \%key_meta;
+	return { $subconcept => \%key_meta };
 }
 
 ###########
@@ -477,7 +483,6 @@ sub add_timed_data
 	{
 		# only queue a single record
 		$self->{_queued_pit} = $timedrecord;
-		print "queued redord:".Dumper($timedrecord);
 	}
 	return undef;
 }
