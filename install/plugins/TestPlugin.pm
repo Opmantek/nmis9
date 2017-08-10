@@ -1,18 +1,17 @@
-# this is a small example plugin, which doesn't do 
+# this is a small example plugin, which doesn't do
 # anything useful but demonstrate the concept.
 package TestPlugin;
-our $VERSION = "1.0.0";
+our $VERSION = "2.0.0";
 use strict;
-
-use NMISNG::Util; # required for logMsg
 
 sub after_update_plugin
 {
 	my (%args) = @_;
-	my ($nodes, $S, $C) = @args{qw(nodes sys config)};
+	my ($nodes, $S, $C, $NG) = @args{qw(nodes sys config nmisng)};
 
-	logMsg("The test plugin was run in the after_update phase");
-	logMsg("Nodes that this update handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
+	$NG->log->debug("The test plugin was run in the after_update phase");
+	$NG->log->debug("Nodes that this update handled: ".join(", ",@$nodes))
+			if (ref($nodes) eq "ARRAY");
 
 	return (0,undef);
 }
@@ -20,11 +19,11 @@ sub after_update_plugin
 sub after_collect_plugin
 {
 	my (%args) = @_;
-	my ($nodes, $S, $C) = @args{qw(nodes sys config)};
+	my ($nodes, $S, $C, $NG) = @args{qw(nodes sys config nmisng)};
 
-
-	logMsg("The test plugin was run in the after_collect phase");
-	logMsg("Nodes that this collect handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
+	$NG->log->debug("The test plugin was run in the after_collect phase");
+	$NG->log->debug("Nodes that this collect handled: ".join(", ",@$nodes))
+			if (ref($nodes) eq "ARRAY");
 
 	return (0,undef);
 }
@@ -32,9 +31,9 @@ sub after_collect_plugin
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C) = @args{qw(node sys config)};
+	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
 
-	logMsg("The test plugin was run in the per-node update phase for node $node");
+	$NG->log->debug("The test plugin was run in the per-node update phase for node $node");
 
 	return (0,undef);
 }
@@ -42,14 +41,12 @@ sub update_plugin
 sub collect_plugin
 {
 	my (%args) = @_;
-	my ($node, $S, $C) = @args{qw(node sys config)};
+	my ($node, $S, $C, $NG) = @args{qw(node sys config nmisng)};
 
 
-	logMsg("The test plugin was run in the per-node collect phase for node $node");
+	$NG->log->debug("The test plugin was run in the per-node collect phase for node $node");
 
 	return (0,undef);
 }
-
-
 
 1;

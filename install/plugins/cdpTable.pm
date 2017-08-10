@@ -27,111 +27,134 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for converting the cdp index into interface name.
+# a small update plugin for extracting node and interface 
+# info from cdp data for linkage in the nmis gui
 
 package cdpTable;
-our $VERSION = "1.0.1";
+our $VERSION = "2.0.0";
 
 use strict;
-
-use NMISNG::Util;												# for the conf table extras
-use Compat::NMIS;
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 	
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	# anything to do?
+	# anything to do? does this node collect cdp information?
+	my $cdpids = $S->nmisng_node->get_inventory_ids(
+		concept => "cdp",
+		filter => { historic => 0 });
 
-	return (0,undef) if (ref($NI->{cdp}) ne "HASH");
+	return (0,undef) if (!@$cdpids);
 	my $changesweremade = 0;
-	
-	info("Working on $node cdpTable");
 
-	my $LNT = Compat::NMIS::loadLocalNodeTable();
+	$NG->log->info("Working on $node cdp");
 
-	for my $key (keys %{$NI->{cdp}})
+	# for linkage lookup this needs the interfaces inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	# we don't want to re-query multiple times for the same interface...
+	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
+																												 filter => { historic => 0 });
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
+
+	for my $cdpid (@$cdpids)
 	{
-		my $entry = $NI->{cdp}->{$key};
-		my @parts;
-
-#    '1.11' => {
-#      'cdpCacheAddress' => '192.168.88.253',
-#      'cdpCacheAddressType' => 'ip',
-#      'cdpCacheDeviceId' => 'midgard',
-#      'cdpCacheDeviceIndex' => '11',
-#      'cdpCacheDevicePort' => 'GigabitEthernet1/0/23',
-#      'cdpCacheIfIndex' => '1',
-#      'cdpCachePlatform' => 'cisco WS-C3750G-24T',
-#      'cdpCacheVersion' => 'Cisco IOS Software, C3750 Software (C3750-IPBASEK9-M), Version 12.2(53)SE2, RELEASE SOFTWARE (fc3)
-#Technical Support: http://www.cisco.com/techsupport
-#Copyright (c) 1986-2010 by Cisco Systems, Inc.
-#Compiled Wed 21-Apr-10 04:49 by prod_rel_team',
-#      'ifDescr' => 'FastEthernet0/0',
-#      'index' => '1.11'
-#    },
+		my $mustsave;
 		
-		my $cdpNeighbour = $entry->{cdpCacheDeviceId};
+		my ($cdpinventory,$error) = $S->nmisng_node->inventory(_id => $cdpid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $cdpid: $error");
+			next;
+		}
+
+		my $cdpdata = $cdpinventory->data; # r/o copy, must be saved back if changed
+		my $cdpNeighbour = $cdpdata->{cdpCacheDeviceId};
 
 		# some cdp data includes Serial numbers and FQDN's
-		my @possibleNames;
-		push(@possibleNames,$cdpNeighbour);
-		push(@possibleNames,lc($cdpNeighbour));
-		if ( $cdpNeighbour =~ /\(\w+\)$/ ) {
+		my @possibleNames = ($cdpNeighbour, lc($cdpNeighbour));
+
+		if ( $cdpNeighbour =~ /\(\w+\)$/ ) 
+		{
 			my $name = $cdpNeighbour;
 			$name =~ s/\(\w+\)$//g;
-			push(@possibleNames,$name);
-			push(@possibleNames,lc($name));
+			
+			push @possibleNames, $name, lc($name);
 		}
-		if ( $cdpNeighbour =~ /\./ ) {
-			my @fqdn = split(/\./,$cdpNeighbour);
-			push(@possibleNames,$fqdn[0]);
-			push(@possibleNames,lc($fqdn[0]));
+		if ((my @fqdn = split(/\./,$cdpNeighbour)) > 1)
+		{
+			push @possibleNames,$fqdn[0], lc($fqdn[0]);
 		}
 
-		my $gotNeighbourName = 0;		
-		foreach my $cdpNeighbour (@possibleNames) {
-			if ( defined $LNT->{$cdpNeighbour} and defined $LNT->{$cdpNeighbour}{name} and $LNT->{$cdpNeighbour}{name} eq $cdpNeighbour ) {
-				$changesweremade = 1;
-				$entry->{cdpCacheDeviceId_raw} = $entry->{cdpCacheDeviceId};
-				$entry->{cdpCacheDeviceId} = $cdpNeighbour;
-				$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$cdpNeighbour";
-				$entry->{cdpCacheDeviceId_id} = "node_view_$cdpNeighbour";
+		my $gotNeighbourName = 0;
+		foreach my $maybe (@possibleNames) 
+		{
+			# is there a managed node with the given neighbour name?
+			my $managednode = $NG->node(name => $maybe);
+			if (ref($managednode) eq "NMISNG::Node")
+			{
+				$changesweremade = $mustsave = 1;
+				
+				$cdpdata->{cdpCacheDeviceId_raw} = $cdpdata->{cdpCacheDeviceId};
+				$cdpdata->{cdpCacheDeviceId_id} = "node_view_$maybe";
+				$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$maybe";
+				$cdpdata->{cdpCacheDeviceId} = $maybe;
+				# futureproofing so that opCharts can also use this linkage safely
+				$cdpdata->{node_uuid} = $managednode->uuid;
+
 				$gotNeighbourName = 1;
 				last;
 			}
 		}
 		
-		# did I get one, if not, look harder be a brute!
-		if ( not $gotNeighbourName ) {
-			foreach my $cdpNeighbour (@possibleNames) {
-				foreach my $aNode (keys %{$LNT}) {
-					if ( $cdpNeighbour eq $LNT->{$aNode}{host} ) {
-						# but the neighbour is actually the name from the LNT
-						$changesweremade = 1;
-						$entry->{cdpCacheDeviceId_raw} = $entry->{cdpCacheDeviceId};
-						$entry->{cdpCacheDeviceId} = $aNode;
-						$entry->{cdpCacheDeviceId_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$aNode";
-						$entry->{cdpCacheDeviceId_id} = "node_view_$aNode";
-						$gotNeighbourName = 1;
-						last;						
-					}
+		# nothing found? look harder - try to match by host property...
+		# ...but remember the proper node name
+		if ( not $gotNeighbourName )
+		{
+			for my $maybe (@possibleNames)
+			{
+				my $managednode = $NG->node(host => $maybe);
+				if (ref($managednode) eq "NMISNG::Node")
+				{
+					$changesweremade = $mustsave = 1;
+					
+					my $propername = $managednode->name;
+					$cdpdata->{cdpCacheDeviceId_raw} = $cdpdata->{cdpCacheDeviceId};
+					$cdpdata->{cdpCacheDeviceId_id} = "node_view_$propername";
+					$cdpdata->{cdpCacheDeviceId_url} = "$C->{network}?&act=network_node_view&node=$propername";
+					$cdpdata->{cdpCacheDeviceId} = $propername;
+					# futureproofing so that opCharts can also use this linkage safely
+					$cdpdata->{node_uuid} = $managednode->uuid;
+					
+					last;
 				}
 			}
 		}
-		
-		if ( @parts = split(/\./,$entry->{index}) ) {
-			$entry->{cdpCacheIfIndex} = shift(@parts);
-			$entry->{cdpCacheDeviceIndex} = shift(@parts);
-			if ( defined $IF->{$entry->{cdpCacheIfIndex}}{ifDescr} ) {
-				$entry->{ifDescr} = $IF->{$entry->{cdpCacheIfIndex}}{ifDescr};
-				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
-				$entry->{ifDescr_id} = "node_view_$node";
+
+		# index N.M? split and link to interface
+		my $cdpindex = $cdpdata->{index};
+		if ((my @parts = split(/\./, $cdpindex)) > 1)
+		{
+			$changesweremade = $mustsave = 1;
+			
+			my $index = $cdpdata->{cdpCacheIfIndex} = $parts[0];
+			$cdpdata->{cdpCacheDeviceIndex} = $parts[1];
+			
+			if (ref($ifdata{$index}) eq "HASH"
+					&& defined($ifdata{$index}->{ifDescr}))
+			{
+				$cdpdata->{ifDescr} = $ifdata{$index}->{ifDescr};
+				$cdpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$index&node=$node";
+				$cdpdata->{ifDescr_id} = "node_view_$node";
 			}
-			$changesweremade = 1;
+		}
+
+		if ($mustsave)
+		{
+			$cdpinventory->data($cdpdata); # set changed info
+			(undef,$error) = $cdpinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $cdpid: $error")
+					if ($error);
 		}
 	}
 	return ($changesweremade,undef); # report if we changed anything

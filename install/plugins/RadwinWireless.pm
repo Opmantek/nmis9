@@ -27,45 +27,56 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for converting the cdp index into interface name.
+# a small update plugin for linking radwin hbs objects to managed nodes in the nmis gui
 
 package RadwinWireless;
-our $VERSION = "1.0.1";
+our $VERSION = "2.0.0";
 
 use strict;
-
-use NMISNG::Util;												# for the conf table extras
-use Compat::NMIS;
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
-	
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	# anything to do?
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-	return (0,undef) if (ref($NI->{HBS}) ne "HASH");
+	# does this devices collect HBS information?
+	my $hbsids = $S->nmisng_node->get_inventory_ids(
+		concept => "HBS",
+		filter => { historic => 0 });
+	
+	return (0,undef) if (!@$hbsids);
 	my $changesweremade = 0;
-	
-	info("Working on $node RadwinWireless");
-	my $LNT = Compat::NMIS::loadLocalNodeTable();
 
-	for my $key (keys %{$NI->{HBS}})
+	$NG->log->info("Working on $node HBS");
+
+	for my $hbsid (@$hbsids)
 	{
-		my $entry = $NI->{HBS}->{$key};
-		info("key = $key");
-#		my @parts;
-
-		next unless ($entry->{hsuName});		
-                my $hsuName = $entry->{hsuName};	
-		if ( defined $LNT->{$hsuName} and defined $LNT->{$hsuName}{name} and $LNT->{$hsuName}{name} eq $hsuName ) {
-			$changesweremade = 1;
-			$entry->{hsuName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$hsuName";
-			$entry->{hsuName_id} = "node_view_$hsuName";
+		my ($hbsinventory,$error) = $S->nmisng_node->inventory(_id => $hbsid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $hbsid: $error");
+			next;
 		}
-		
+
+		my $hbsdata = $hbsinventory->data; # r/o copy, must be saved back if changed
+		my $name = $hbsdata->{hsuName};
+
+		# is there a managed node with the given hsuName?
+		my $managednode = $NG->node(name => $name);
+		if (ref($managednode) eq "NMISNG::Node")
+		{
+			$changesweremade = 1;
+			
+			$hbsdata->{hsuName_url} = "$C->{network}?act=network_node_view&node=$name";
+			$hbsdata->{hsuName_id} = "node_view_$name";
+			# futureproofing so that opCharts can also use this linkage safely
+			$hbsdata->{node_uuid} = $managednode->uuid;
+
+			$hbsinventory->data($hbsdata); # set changed info
+			(undef,$error) = $hbsinventory->save; # and save it to db
+			$NG->log->error("Failed to save inventory for $hbsid: $error")
+					if ($error);
+		}
 	}
 	return ($changesweremade,undef); # report if we changed anything
 }

@@ -27,52 +27,79 @@
 #  
 # *****************************************************************************
 #
-# To make sense of Cisco VLAN Bridge information.
+# small update plugin to provide vtpVlan linkage for the nmis gui
 
 package vtpVlan;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
-use NMISNG::Util;												# for logging, info
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 	
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	# anything to do?
+	# anything to do? does this node collect vtp information?
+	my $vtpids = $S->nmisng_node->get_inventory_ids(
+		concept => "vtpVlan",
+		filter => { historic => 0 });
 
-	return (0,undef) if (ref($NI->{vtpVlan}) ne "HASH");
-	
-	info("Working on $node vtpVlan");
-
+	return (0,undef) if (!@$vtpids);
 	my $changesweremade = 0;
-		
-	for my $key (keys %{$NI->{vtpVlan}})
+
+	$NG->log->info("Working on $node vtpVlan");
+
+	# for linkage lookup this needs the interfaces inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	# we don't want to re-query multiple times for the same interface...
+	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
+																												 filter => { historic => 0 });
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
+
+
+	for my $vtpid (@$vtpids)
 	{
-		my $entry = $NI->{vtpVlan}->{$key};
-	
-		# get the VLAN ID Number from the index
-		if ( my @parts = split(/\./,$entry->{index}) ) {
-			shift(@parts); # dummy
-			$entry->{vtpVlanIndex} = shift(@parts);
-			$changesweremade = 1;
+		my $mustsave;
+		
+		my ($vtpinventory,$error) = $S->nmisng_node->inventory(_id => $vtpid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $vtpid: $error");
+			next;
 		}
-				
-		# Get the devices ifDescr and give it a link.
-		my $ifIndex = $entry->{vtpVlanIfIndex};				
-		if ( defined $IF->{$ifIndex}{ifDescr} ) {
-			$changesweremade = 1;
-			$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
-			$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
-			$entry->{ifDescr_id} = "node_view_$node";
+
+		my $vtpdata = $vtpinventory->data; # r/o copy, must be saved back if changed
+
+		# get the VLAN ID Number from the index
+		if (my @parts = split(/\./, $vtpdata->{index})) 
+		{
+			# first component is irrelevant, second we keep
+			$vtpdata->{vtpVlanIndex} = $parts[1];
+			$changesweremade = $mustsave = 1;
 		}
 		
+		# get the interface's ifDescr and add linkage
+		my $ifIndex = $vtpdata->{vtpVlanIfIndex};
+
+		if (ref($ifdata{$ifIndex}) eq "HASH"
+				&& defined $ifdata{$ifIndex}->{ifDescr})
+		{
+			$vtpdata->{ifDescr} = $ifdata{$ifIndex}->{ifDescr};
+			$vtpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
+			$vtpdata->{ifDescr_id} = "node_view_$node";
+
+			$changesweremade = $mustsave = 1;
+		}
+
+		if ($mustsave)
+		{
+			$vtpinventory->data($vtpdata); # set changed info
+			(undef,$error) = $vtpinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $vtpid: $error")
+					if ($error);
+		}
 	}
 	return ($changesweremade,undef); # report if we changed anything
 }
-
 
 1;
