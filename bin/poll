@@ -846,8 +846,8 @@ sub runThreads
 			NMISNG::Util::logMsg("Running after_$type plugin $plugin");
 			$S->nmisng->log->logprefix("$plugin ");
 			my ( $status, @errors );
-			eval { ( $status, @errors ) = &$funcname( sys => $S, 
-																								config => $C, 
+			eval { ( $status, @errors ) = &$funcname( sys => $S,
+																								config => $C,
 																								nodes => \@list_of_handled_nodes,
 																								nmisng => $S->nmisng, ); };
 			$S->nmisng->log->logprefix(undef);
@@ -1082,8 +1082,8 @@ sub doUpdate
 		NMISNG::Util::dbg("Running update plugin $plugin with node $name");
 		my ( $status, @errors );
 		$S->nmisng->log->logprefix("$plugin ");
-		eval { ( $status, @errors ) = &$funcname( node => $name, 
-																							sys => $S, 
+		eval { ( $status, @errors ) = &$funcname( node => $name,
+																							sys => $S,
 																							config => $C,
 																							nmisng => $S->nmisng, ); };
 		$S->nmisng->log->logprefix(undef);
@@ -1431,8 +1431,8 @@ sub doCollect
 		NMISNG::Util::dbg("Running collect plugin $plugin with node $name");
 		my ( $status, @errors );
 		$S->nmisng->log->logprefix("$plugin ");
-		eval { ( $status, @errors ) = &$funcname( node => $name, 
-																							sys => $S, 
+		eval { ( $status, @errors ) = &$funcname( node => $name,
+																							sys => $S,
 																							config => $C,
 																							nsisng => $S->nmisng ); };
 		$S->nmisng->log->logprefix(undef);
@@ -6464,7 +6464,22 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		NMISNG::Util::logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 
 		# and add a new point-in-time record for this service
-		$error = $inventory->add_timed_data(data => \%status, derived_data => {}, time => NMISNG::Util::numify($thisrun), subconcept => 'service');
+		# must provide datasets info as status info is pretty deep
+		my %dspresent = (status => 1,  responsetime => 1 ); # standard
+		# optional semi-standard
+		for my $maybe (qw(memory cpu))
+		{
+			$dspresent{$maybe} = 1  if (exists $status{$maybe});
+		}
+
+		# extras collected from a program
+		map { $dspresent{$_} =1 } (values %{$status{ds}})
+				if (ref($status{ds}) eq "HASH");
+
+		$error = $inventory->add_timed_data(data => \%status,
+																				derived_data => {},
+																				time => NMISNG::Util::numify($thisrun),
+																				datasets => { "service" => \%dspresent } );
 		NMISNG::Util::logMsg("ERROR: service timed data saving failed: $error") if ($error);
 	}
 
@@ -9447,9 +9462,9 @@ sub doThresholdsAndCreateStatus
 
 	my $events_config = NMISNG::Util::loadTable( dir => 'conf', name => 'Events' );
 	my $node_model_data = $nmisng->get_nodes_model( name => $name, filter => { active => 'true', threshold => 'true' }, sort => { name => 1 } );
-	
+
 	for my $onenode (@{$node_model_data->data})
-	{		
+	{
 		if ( $node_model_data->count() > 1 || !$S )
 		{
 			$S = NMISNG::Sys->new;
@@ -9484,18 +9499,18 @@ sub doThresholdsAndCreateStatus
 			foreach my $type ( keys %{$M->{$s}{$ts}} )    # name/type of subsection
 			{
 				my $thissection = $M->{$s}->{$ts}->{$type};
-				
+
 				if ( !$thissection->{threshold} )
 				{
-					NMISNG::Util::dbg( "section $s, type $type has no threshold" );	
+					NMISNG::Util::dbg( "section $s, type $type has no threshold" );
 					next;     # nothing to do
 				}
-				NMISNG::Util::dbg( "section $s, type $type has a threshold" );	
-				
-				
+				NMISNG::Util::dbg( "section $s, type $type has a threshold" );
+
+
 				# get commasep string of threshold name(s), turn it into an array, unless it's already an array
-				$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' ) 
-					? [ split( /,/, NMISNG::Util::stripSpaces($thissection->{threshold}) ) ] 
+				$thrname = ( ref($thissection->{threshold}) ne 'ARRAY' )
+					? [ split( /,/, NMISNG::Util::stripSpaces($thissection->{threshold}) ) ]
 					: $thissection->{threshold};
 
 				# attention: control expressions for indexed section must be run per instance,
@@ -9513,7 +9528,7 @@ sub doThresholdsAndCreateStatus
 				{
 					my $data = $inventory->data;
 					my $index = $data->{index} // undef;
-					
+
 					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, eval => 1, inventory => $inventory ) )
 					{
 						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
@@ -9522,7 +9537,7 @@ sub doThresholdsAndCreateStatus
 					if( $data->{threshold} && !NMISNG::Util::getbool( $data->{threshold} ) )
 					{
 						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
-						next;	
+						next;
 					}
 					applyThresholdToInventory( 
 						sys     => $S,
@@ -9682,7 +9697,7 @@ sub applyThresholdToInventory
 	my %args = @_;
 
 	my $S    = $args{sys};
-	my $inventory = $args{inventory};	
+	my $inventory = $args{inventory};
 	my $M    = $S->mdl;
 
 	my $sts     = $args{table};
@@ -9707,16 +9722,16 @@ sub applyThresholdToInventory
 	else
 	{
 		# stats have already been calculated and stored in derived data, the threshold_period
-		# should have been used on them then, so just look up the last value		
+		# should have been used on them then, so just look up the last value
 		my $latest_data_ret = $inventory->get_newest_timed_data();
 		if( $latest_data_ret->{success} )
 		{
-			$stats = $latest_data_ret->{derived_data};	
+			$stats = $latest_data_ret->{derived_data};
 		}
 		else
 		{
 			die "could not get latest_data for inventory: subconcept:$type, index:$index";
-		}		
+		}
 	}
 
 	if ( $index eq '' )
@@ -9813,7 +9828,7 @@ sub applyThresholdToInventory
 		{
 			my $ifSpeed = $inventory->ifSpeed();
 			$ifSpeed = $inventory->ifSpeedIn if ( $event =~ /Input/ );
-			$ifSpeed = $inventory->ifSpeedOut if ( $event =~ /Output/ );			
+			$ifSpeed = $inventory->ifSpeedOut if ( $event =~ /Output/ );
 			$details .= $spacer . "Bandwidth=" . NMISNG::Util::convertIfSpeed($ifSpeed);
 		}
 

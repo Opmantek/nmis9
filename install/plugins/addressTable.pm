@@ -27,48 +27,75 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for converting the mac addresses in ciscorouter addresstables 
-# into a more human-friendly form
+# a small update plugin for converting the mac addresses 
+# in ciscorouter addresstables into a more human-friendly form,
+# and produces linkage for the nmis gui
 #
 package addressTable;
-our $VERSION = "1.0.0";
+our $VERSION = "2.0.0";
 
 use strict;
-use NMISNG::Util;												# for the conf table extras, and beautify_physaddress
+use NMISNG::Util;								# for beautify_physaddress
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-	my $NI = $S->ndinfo;
-	# anything to do?
-	return (0,undef) if (ref($NI->{addressTable}) ne "HASH");
+	# anything to do? does this node collect addresstable items?
+	my $atitems = $S->nmisng_node->get_inventory_ids(
+		concept => "addressTable",
+		filter => { historic => 0 });
+	
+	return (0,undef) if (!@$atitems);
 	my $changesweremade = 0;
 
-	info("Working on $node addressTable");
+	$NG->log->info("Working on $node addressTable");
 
-	my $IF = $S->ifinfo;
+	# for linkage lookup this needs the interfaces inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
+																												 filter => { historic => 0 });
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
 
-	for my $mackey (keys %{$NI->{addressTable}})
+	for my $atid (@$atitems)
 	{
-		my $macentry = $NI->{addressTable}->{$mackey};
-		my $macaddress = 	$macentry->{ipNetToMediaPhysAddress};
+		my ($atinventory,$error) = $S->nmisng_node->inventory(_id => $atid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $atid: $error");
+			next;
+		}
+
+		my $atdata = $atinventory->data; # r/o copy, must be saved back if changed
+
+		my $macaddress = 	$atdata->{ipNetToMediaPhysAddress};
+		my $nice = NMISNG::Util::beautify_physaddress($macaddress);
 		
-		my $nice = beautify_physaddress($macaddress);
 		if ($nice ne $macaddress)
 		{
-			$macentry->{ipNetToMediaPhysAddress} = $nice;
+			$atdata->{ipNetToMediaPhysAddress} = $nice;
 			$changesweremade = 1;
 		}
 
-		if ( defined $IF->{$macentry->{ipNetToMediaIfIndex}}{ifDescr} ) {
-			$macentry->{ifDescr} = $IF->{$macentry->{ipNetToMediaIfIndex}}{ifDescr};
-			$macentry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$macentry->{ipNetToMediaIfIndex}&node=$node";
-			$macentry->{ifDescr_id} = "node_view_$node";
+		my $atindex = $atdata->{ipNetToMediaIfIndex};
+		# is there an interface with a matching ifindex?
+		if ( ref($ifdata{$atindex}) eq "HASH"
+				 && defined $ifdata{$atindex}->{ifDescr})
+		{
+			$atdata->{ifDescr} = $ifdata{$atindex}->{ifDescr};
+			$atdata->{ifDescr_url} = "/cgi-nmis8/network.pl?act=network_interface_view&intf=$atindex&node=$node";
+			$atdata->{ifDescr_id} = "node_view_$node";
 			$changesweremade = 1;
 		}
 
+		if ($changesweremade)
+		{
+			$atinventory->data($atdata); # set changed info
+			(undef,$error) = $atinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $atid: $error")
+					if ($error);
+		}
 	}
 	return ($changesweremade,undef); # report if we changed anything
 }

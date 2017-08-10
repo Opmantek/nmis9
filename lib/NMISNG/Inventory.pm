@@ -342,17 +342,38 @@ sub _generic_getset
 		return $curval;
 }
 
-# add one point-in-time data record for this concept instance
-#  automatically adds/merges dataset info into the inventory
+# this function adds one point-in-time data record for this concept instance
+#
+# PIT data can consist of two types of information, a 'derived_data' hash (might be deep, currently isn't),
+# and a 'data' hash which MAY be deep if the caller controls datasets directly, or lets add_timed_data 
+# handle depth/structure via subconcept argument.
+#
+# note that the dataset info _in the inventory object_ is updated/extended from args given to this function.
+# 
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
-#     time (optional, defaults to now)
-#   delay_insert - delay inserting until save is called (if it's never called it's not saved)
-#     if data has already been queued for the time/concept then data provided will overwrite existing
-#     if provided, otherwise existing will be kept (so data can be set one place and derived_data in another)
-#   subconcept/datasets - one of these must be defined, subconcept - string, or datasets - hashref with
-#     structure { subconcept => { key => 1 }} all new keys will be merged, this is useful when multiple
-#     subconcepts need to be added at one time (because no merging of new time data yet)
+# time (optional, defaults to now), delay_insert (optional, default no), 
+# subconcept OR datasets (exactly one is required)
+#
+# delay_insert - delay inserting until save is called - if it's never called it's not saved!
+#   if data has already been queued for the time/concept/subconcept then new data provided will overwrite existing,
+#   derived_data and data are treated separately, so data can be set one call and derived_data in another,
+#   and per-subconcept data can be accumulated across calls as well.
+#
+# subconcept/datasets - exactly one of these must be given!
+#
+# subconcept: must be string, SHOULD match one of the known subconcepts for this inventory;
+#   if subconcept given, then data MUST be flat and add_timed_data arranges the 
+#   deep storage of data under this subconcept.
+#   all keys in that data are automatically added to the inventory's dataset info.
+#
+# datasets: must be hash that represents ALL of the desired dataset info for this inventory,
+#   ie. key subconceptA => { dsnameA => 1, dsnameB => 1 }, subconceptB => ....
+#   in this case, data may be a deep hash. if you repeat calls with delay_save in that situation, the last
+#   data/derived data wins. the inventory's datasets info is amended/extended from that dataset info.
+# 
+#
 # returns: undef or error message
+#
 # NOTE: inventory->save will call this function to saved "delayed_insert", the insert code below actually
 #   calls inventory->save again, this seems like a possible bad thing. the reason it's working right now is
 #   the second call to this function (from save) should not alter the datasets which is what triggers the save to be called
