@@ -9421,7 +9421,7 @@ sub doSummaryBuild
 }
 
 # figures out which threshold alerts need to be run for one (or all) nodes, based on model
-# delegates the evaluation work to applyThresholdToNode, then updates info structures.
+# delegates the evaluation work to applyThresholdToInventory, then updates info structures.
 #
 # args: name (optional), table (required, must be hash ref but may be empty),
 # sys (optional, only used if name is given)
@@ -9474,7 +9474,7 @@ sub doThresholdsAndCreateStatus
 		# first the standard thresholds
 		my $thrname = [qw(response reachable available)];
 		my $inventory = $S->inventory( concept => 'health' );
-		applyThresholdToNode( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
+		applyThresholdToInventory( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
 
 		# search for threshold names in Model of this node
 		foreach my $s ( keys %{$M} )    # section name
@@ -9524,7 +9524,7 @@ sub doThresholdsAndCreateStatus
 						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
 						next;	
 					}
-					applyThresholdToNode( 
+					applyThresholdToInventory( 
 						sys     => $S,
 						table   => $sts,
 						type    => $type,
@@ -9545,7 +9545,7 @@ sub doThresholdsAndCreateStatus
 						# 	foreach my $class ( keys %{$data->{ClassMap}} )
 						# 	{
 						# 		NMISNG::Util::dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
-						# 		applyThresholdToNode(
+						# 		applyThresholdToInventory(
 						# 			sys     => $S,
 						# 			table   => $sts,
 						# 			type    => $type,
@@ -9677,7 +9677,7 @@ sub getThresholdPeriod
 # args: sys, type, thrname (arrayref), index, item, class, inventory (all required),
 # table (required hashref but may be empty),
 # returns: nothing but raises/clears events (via thresholdProcess) and updates table
-sub applyThresholdToNode
+sub applyThresholdToInventory
 {
 	my %args = @_;
 
@@ -9693,7 +9693,7 @@ sub applyThresholdToNode
 	my $class   = $args{class};
 	my $stats;
 	my $element;
-	die "cannot applyThresholdToNode on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
+	die "cannot applyThresholdToInventory on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
 
 	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type item=$item");
 
