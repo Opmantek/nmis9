@@ -38,12 +38,13 @@ use Socket;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
+use Carp;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
-#! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
-use Fcntl qw(:DEFAULT :flock);
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
 
+use Fcntl qw(:DEFAULT :flock);  # Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
+use Data::Dumper;
+
+$Data::Dumper::Indent = 1;			# fixme9: costs, should not be enabled
 
 use Compat::IP;
 use NMISNG::CSV;
@@ -76,30 +77,43 @@ my $IFT_modtime;
 my $SRC_cache = undef; # Services table
 my $SRC_modtime;
 
+# this is a compatibility helper to quickly gain access 
+# to ONE persistent/shared nmisng object
+# 
+# args: nocache (optional, if set create new nmisng object)
+# returns: ref to one nmisng object
+my $_nmisng = undef;
 sub new_nmisng
 {
-	my $C = NMISNG::Util::loadConfTable();
-	my $debug = NMISNG::Util::getDebug();
-	die "Config required" if ( ref( $C ) ne "HASH" );
+	my (%args) = @_;
 
-	# log level is controlled by debug (from commandline or config file),
-	# output is stderr if debug came from command line, log file otherwise
-	my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
-	my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
-			if (-f $logfile);
-	warn "failed to set permissions: $error\n" if ($error);
-	my $logger = NMISNG::Log->new(
-		level => $debug // $C->{log_level},
-		path  =>  ($debug? undef : $logfile ),
-			);
+	if (ref($_nmisng) ne "NMISNG" or $args{nocache})
+	{
+		#	Carp::cluck("creating new nmisng obj");
+		
+		my $C = NMISNG::Util::loadConfTable();
+		my $debug = NMISNG::Util::getDebug();
+		die "Config required" if ( ref( $C ) ne "HASH" );
 
+		# log level is controlled by debug (from commandline or config file),
+		# output is stderr if debug came from command line, log file otherwise
+		my $logfile = $C->{'<nmis_logs>'} . "/nmis.log";
 
+		my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
+				if (-f $logfile);
+		warn "failed to set permissions: $error\n" if ($error);
+		
+		my $logger = NMISNG::Log->new(
+			level => $debug // $C->{log_level},
+			path  =>  ($debug? undef : $logfile ),
+				);
 
-	my $nmisng = NMISNG->new(
-		config => $C,
-		log => $logger,
-	);
-	return $nmisng;
+		$_nmisng = NMISNG->new(
+			config => $C,
+			log => $logger,
+				);
+	}
+	return $_nmisng;
 }
 
 # load local node table and store also in cache
