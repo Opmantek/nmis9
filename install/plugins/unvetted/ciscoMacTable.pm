@@ -27,29 +27,37 @@
 #  
 # *****************************************************************************
 #
-# To make sense of Cisco VLAN Bridge information.
+# this update plugin provides modelling for the cisco macTable
+# concept, based on post-processing of vtpVlan information
+# fixme9: half of this plugin duplicates the vtpVlan plugin!
 
 package ciscoMacTable;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
 
-use NMISNG::Util;												# for the conf table extras
-use Compat::NMIS;												# lnt
-use snmp 1.1.0;									# for snmp-related access
+use NMISNG::Util;								# for beautify_physaddress
+use NMISNG::Snmp;
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-	my $LNT = Compat::NMIS::loadLocalNodeTable();
+	# does this node need macTable processing as per its model?
+	# do not auto-vivify anything...
+	return (0,undef) if (ref($S->{mdl}) ne "HASH"
+											 or ref($S->{mdl}->{systemHealth}) ne "HASH"
+											 or ref($S->{mdl}->{systemHealth}->{sys}) ne "HASH"
+											 or ref($S->{mdl}->{systemHealth}->{sys}->{macTable}) ne "HASH");
+
+	# does this node collect vtp information?
+	my $vtpids = $S->nmisng_node->get_inventory_ids(
+		concept => "vtpVlan",
+		filter => { historic => 0 });
+
+	return (0,undef) if (!@$vtpids);
 	
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	my $NC = $S->ndcfg;
-	# anything to do?
-
 	my $status = {
 		'1' => 'other',
 		'2' => 'invalid',
@@ -58,129 +66,131 @@ sub update_plugin
 		'5' => 'mgmt',
 	};
 
-	return (0,undef) if (not defined $S->{mdl}{systemHealth}{sys}{macTable} or ref($NI->{vtpVlan}) ne "HASH");
-	
-	#dot1dBase
-	#vtpVlan
-	
-	info("Working on $node ciscoMacTable");
+	# nmisng::snmp doesn't honor global config as fallback
+	my $max_repetitions = ($S->nmisng_node->configuration->{max_repetitions} 
+												 || $C->{snmp_max_repetitions});
 
 	my $changesweremade = 0;
-
-	my $max_repetitions = $NC->{node}->{max_repetitions} || $C->{snmp_max_repetitions};
+	$NG->log->info("Working on $node CiscoMacTable");
 	
-	for my $key (keys %{$NI->{vtpVlan}})
+	# for linkage lookup this needs the interfaces inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	# we don't want to re-query multiple times for the same interface...
+	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
+																												 filter => { historic => 0 });
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
+
+	for my $vtpid (@$vtpids)
 	{
-		my $entry = $NI->{vtpVlan}->{$key};
-
-		info("processing vtpVlan $entry->{vtpVlanName}");
-	
-		# get the VLAN ID Number from the index
-		if ( my @parts = split(/\./,$entry->{index}) ) {
-			shift(@parts); # dummy
-			$entry->{vtpVlanIndex} = shift(@parts);
-			$changesweremade = 1;
-		}
-				
-		# Get the devices ifDescr and give it a link.
-		my $ifIndex = $entry->{vtpVlanIfIndex};				
-		if ( defined $IF->{$ifIndex}{ifDescr} ) {
-			$changesweremade = 1;
-			$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
-			$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
-			$entry->{ifDescr_id} = "node_view_$node";
-		}
+		my $mustsave;
 		
+		my ($vtpinventory,$error) = $S->nmisng_node->inventory(_id => $vtpid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $vtpid: $error");
+			next;
+		}
+
+		my $vtpdata = $vtpinventory->data; # r/o copy, must be saved back if changed
+
+		# get the VLAN ID Number from the index
+		if ((my @parts = split(/\./, $vtpdata->{index})) > 1)
+		{
+			# first component is irrelevant, second we keep
+			$vtpdata->{vtpVlanIndex} = $parts[1];
+			$changesweremade = $mustsave = 1;
+		}
+
+
+		# get the interface's ifDescr and add linkage
+		my $ifIndex = $vtpdata->{vtpVlanIfIndex};
+
+		if (ref($ifdata{$ifIndex}) eq "HASH"
+				&& defined $ifdata{$ifIndex}->{ifDescr})
+		{
+			$vtpdata->{ifDescr} = $ifdata{$ifIndex}->{ifDescr};
+			$vtpdata->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifIndex&node=$node";
+			$vtpdata->{ifDescr_id} = "node_view_$node";
+
+			$changesweremade = $mustsave = 1;
+		}
+
+		# done with the vtp data - save it back
+		if ($mustsave)
+		{
+			$vtpinventory->data($vtpdata); # set changed info
+			(undef,$error) = $vtpinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $vtpid: $error")
+					if ($error);
+		}
+
+		# now continue with collecting vlan data
 		# Get the connected devices if the VLAN is operational
-		if ( $entry->{vtpVlanState} eq "operational" ) 
+		if ($vtpdata->{vtpVlanState} eq "operational") 
 		{
 			my $snmp = NMISNG::Snmp->new(name => $node);
 
-			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}))
+			# configuration contains  all snmp needs to know
+			if (!$snmp->open(config => $S->nmisng_node->configuration))
 			{
-				logMsg("Could not open SNMP session to node $node: ".$snmp->error);
+				$NG->log->error("Could not open SNMP session to node $node: ".$snmp->error);
+				next;
 			}
-			else
-			{
-				my ($addresses, $ports, $addressStatus, $baseIndex);
-				if (!$snmp->testsession)
-				{
-					logMsg("Could not retrieve SNMP vars from node $node: ".$snmp->error);
-				}
-				else
-				{
-					my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
-					
-					my $baseIndex = $snmp->getindex($dot1dBasePortIfIndex,$max_repetitions);
-				}
 
-				my $gotAddresses = 0;
-				my $dot1dTpFdbAddress = "1.3.6.1.2.1.17.4.3.1.1"; #dot1dTpFdbAddress
-				if ( $addresses = $snmp->gettable($dot1dTpFdbAddress,$max_repetitions) ) 
-				{
-					$gotAddresses = 1;
-				}
-	
-				my $gotPorts = 0;
-				my $dot1dTpFdbPort = "1.3.6.1.2.1.17.4.3.1.2"; #dot1dTpFdbPort
-				if ( $ports = $snmp->gettable($dot1dTpFdbPort,$max_repetitions) ) 
-				{
-					$gotPorts = 1;
-				}
+			if (!$snmp->testsession)
+			{
+				$NG->log->error("Could not retrieve SNMP vars from node $node: ".$snmp->error);
+				next;
+			}
+
+			my $dot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"; #dot1dTpFdbStatus
+			my $baseIndex = $snmp->getindex($dot1dBasePortIfIndex,$max_repetitions);
+			
+			my $dot1dTpFdbAddress = "1.3.6.1.2.1.17.4.3.1.1"; #dot1dTpFdbAddress
+			my $addresses = $snmp->gettable($dot1dTpFdbAddress,$max_repetitions);
+			
+			my $dot1dTpFdbPort = "1.3.6.1.2.1.17.4.3.1.2"; #dot1dTpFdbPort
+			my $ports = $snmp->gettable($dot1dTpFdbPort,$max_repetitions);
 				
-				my $gotStatus = 0;
-				my $dot1dTpFdbStatus = "1.3.6.1.2.1.17.4.3.1.3"; #dot1dTpFdbStatus
-				if ( $addressStatus = $snmp->gettable($dot1dTpFdbStatus,$max_repetitions) ) 
-				{
-					$gotStatus = 1;
-				}
+			my $dot1dTpFdbStatus = "1.3.6.1.2.1.17.4.3.1.3"; #dot1dTpFdbStatus
+			my $addressStatus = $snmp->gettable($dot1dTpFdbStatus,$max_repetitions);
 				
-				if ( $gotAddresses and $gotPorts ) {
-					$changesweremade = 1;
-					#print Dumper $addresses;
-					#print Dumper $ports;
-					#print Dumper $addressStatus;
+			if ( ref($ports) eq "HASH" && ref($addresses) eq "HASH")
+			{
+				$changesweremade = 1;
+
+				foreach my $key (keys %$addresses) 
+				{
+					my $macAddress = NMISNG::Util::beautify_physaddress($addresses->{$key});
 					
-					foreach my $key (keys %$addresses) 
+					# got to use a different OID for the different queries.
+					my $portKey = my $statusKey = $key;
+					$portKey =~ s/17.4.3.1.1/17.4.3.1.2/;
+					$statusKey =~ s/17.4.3.1.1/17.4.3.1.3/;
+
+					my %newdata = ( 
+						dot1dTpFdbAddress => $macAddress,
+						dot1dTpFdbPort => $ports->{$portKey},
+						dot1dTpFdbStatus => $status->{ $addressStatus->{$statusKey} },
+						vlan => $vtpdata->{vtpVlanIndex}, );
+					
+					if ( defined $ports->{$portKey} )
 					{
-						#;
-						#my $macAddress = $key;					
-						#$macAddress =~ s/1\.3\.6\.1\.2\.1\.17\.4\.3\.1\.1\.//;
-						my $macAddress = beautify_physaddress($addresses->{$key});
-											
-						# got to use a different OID for the different queries.
-						my $portKey = $key;
-						my $statusKey = $key;
-						$portKey =~ s/17.4.3.1.1/17.4.3.1.2/;
-						$statusKey =~ s/17.4.3.1.1/17.4.3.1.3/;
-	
-						$NI->{macTable}->{$macAddress}{dot1dTpFdbAddress} = $macAddress;					
-						$NI->{macTable}->{$macAddress}{dot1dTpFdbPort} = $ports->{$portKey};
-						$NI->{macTable}->{$macAddress}{dot1dTpFdbStatus} = $status->{$addressStatus->{$statusKey}};
-						$NI->{macTable}->{$macAddress}{vlan} = $entry->{vtpVlanIndex};
-						$NI->{macTable}->{$macAddress}{updated} = time();
-						$NI->{macTable}->{$macAddress}{updateDate} = returnDateStamp();
+						my $addressIfIndex = $baseIndex->{ $ports->{$portKey} };
 						
-						if ( exists $ports->{$portKey} ) {
-							#my $addressIfIndex = $NI->{dot1dBase}->{$ports->{$portKey}}{dot1dBasePortIfIndex};
-							my $addressIfIndex = $baseIndex->{$ports->{$portKey}};
-							$NI->{macTable}->{$macAddress}{ifDescr} = $IF->{$addressIfIndex}{ifDescr};
-							$NI->{macTable}->{$macAddress}{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$addressIfIndex&node=$node";
-							$NI->{macTable}->{$macAddress}{ifDescr_id} = "node_view_$node";
-						}
-					
-						#dot1dTpFdbAddress
-						#dot1dTpFdbPort
-						#dot1dTpFdbStatus
-						#vlan
-						#status									
+						$newdata{ifDescr} = $ifdata{$addressIfIndex}->{ifDescr};
+						$newdata{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$addressIfIndex&node=$node";
+						$newdata{ifDescr_id} = "node_view_$node";
 					}
-				}			
+					
+					# fixme9: must get-or-make-new inventory object concept macTable, 
+					# path with $macAddress as index
+					# and save newdata as that
+				}
 			}
 		}
 	}
 	return ($changesweremade,undef); # report if we changed anything
 }
-
 
 1;
