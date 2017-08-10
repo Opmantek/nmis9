@@ -93,10 +93,8 @@ if ( @ARGV )
 my $wantwidget = (!NMISNG::Util::getbool($Q->{widget},"invert"));
 my $widget = $wantwidget ? "true" : "false";
 
-# Before going any further, check to see if we must handle
-# an authentication login or logout request
-
-if ( $#ARGV > 0 ) { $C->{auth_require} = 0; }
+# bypass auth iff called from command line
+$C->{auth_require} = 0 if (@ARGV);
 
 # NMIS Authentication module
 use NMISNG::Auth;

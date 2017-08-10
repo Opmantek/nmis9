@@ -52,8 +52,8 @@ my $C;
 # load NMIS configuration table
 if (!($C = NMISNG::Util::loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# if options, then called from command line
-if ( $#ARGV > 0 ) { $C->{auth_require} = 0; } # bypass auth
+# bypass auth iff called from command line
+$C->{auth_require} = 0 if (@ARGV);
 
 # NMIS Authentication module
 use NMISNG::Auth;
