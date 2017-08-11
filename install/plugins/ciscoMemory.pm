@@ -27,37 +27,62 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for adding links to the vmware guests if they're managed by nmis
+# a small update plugin that copies ent phys descr from entitymib to cempmempool
 
 package ciscoMemory;
-our $VERSION = "1.0.1";
+our $VERSION = "2.0.0";
 
 use strict;
-use NMISNG::Util;												# for the conf table extras
-use Compat::NMIS;
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
-
-	my $NI = $S->ndinfo;
-	# anything to do?
-	return (0,undef) if (ref($NI->{cempMemPool}) ne "HASH" and ref($NI->{entityMib}) ne "HASH");
-	my $changesweremade = 0;
-
-	info("Working on $node cempMemPool");
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 	
-	for my $index (keys %{$NI->{cempMemPool}})
+	# node must have have data for both entityMib and cempMemPool to be relevant
+	my $cempids = $S->nmisng_node->get_inventory_ids(
+		concept => "cempMemPool",
+		filter => { historic => 0 });
+	return (0,undef) if (!@$cempids);
+	
+	# for linkage lookup this needs the entitymib inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	# but it's likely  that an individual lookup, on-demand and later would be faster?
+	my $emibmodeldata = $S->nmisng_node->get_inventory_model(
+		concept => "entityMib",
+		filter => { historic => 0 });
+	my %emibdata =  map { ($_->{data}->{index} => $_->{data}) }
+	(@{$emibmodeldata->data});
+	
+	return (0,undef) if (!keys %emibdata);
+	my $changesweremade = 0;
+	
+	$NG->log->info("Working on $node cempMemPool");
+	
+	for my $cempid (@$cempids)
 	{
-		my $entry = $NI->{cempMemPool}{$index};
-		my ($entityIndex,$monkey) = split(/\./,$index);
-		if ( defined $NI->{entityMib}{$entityIndex}{entPhysicalDescr} ) {
-			$entry->{entPhysicalDescr} = $NI->{entityMib}{$entityIndex}{entPhysicalDescr};
-			$changesweremade = 1;
+		my ($cempinventory,$error) = $S->nmisng_node->inventory(_id => $cempid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $cempid: $error");
+			next;
 		}
-		else {
-			info("WARNING entPhysicalDescr not available for index $index");
+		
+		my $cempdata = $cempinventory->data; # r/o copy, must be saved back if changed
+		
+		# note that split returns everything if no . is present...
+		my ($entityIndex,undef) = split(/\./, $cempdata->{index});
+		
+		if (ref($emibdata{$entityIndex}) eq "HASH"
+				&& defined($emibdata{$entityIndex}->{entPhysicalDescr}))
+		{
+			$cempdata->{entPhysicalDescr} = $emibdata{$entityIndex}->{entPhysicalDescr};
+			$changesweremade = 1;
+			
+			$cempinventory->data($cempdata); # set changed info
+			(undef,$error) = $cempinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $cempid: $error")
+					if ($error);
 		}
 	}
 	return ($changesweremade,undef); # report if we changed anything
