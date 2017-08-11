@@ -2954,7 +2954,11 @@ sub getIntfInfo
 				{
 					$inventory->enabled(0);
 				}
-
+				# enable interfaces for viewing, no columns, someoneelse can define that
+				# disable pkts, for now, no idea
+				$inventory->data_info( subconcept => 'interface', enabled => 1 );
+				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
+				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 				my ( $op, $error ) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -3283,6 +3287,7 @@ sub getSystemHealthInfo
 		$index_var = $index_snmp = $thissection->{indexed};
 		$index_regex = $thissection->{index_regex} if ( exists( $thissection->{index_regex} ) );
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
+		my $headers = [ split(/,/, $thissection->{headers}) ];
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
@@ -3397,6 +3402,13 @@ sub getSystemHealthInfo
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
 					$inventory->enabled(1);
+					
+					# set which columns should be displayed
+					$inventory->data_info(
+						subconcept => $section,
+						enabled => 1,
+						display_keys => $headers
+					);
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -3502,6 +3514,13 @@ sub getSystemHealthInfo
 					$inventory->path( recalculate => 1 );
 					$inventory->historic(0);
 					$inventory->enabled(1);
+
+					# set which columns should be displayed
+					$inventory->data_info(
+						subconcept => $section,
+						enabled => 1,
+						display_keys => $headers
+					);
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
@@ -5130,8 +5149,9 @@ sub getCBQoSwalk
 								}
 							}
 						}
+						$inventory->data_info( subconcept => $classname, enabled => 0 );
 					}
-
+					
 					my ( $op, $error ) = $inventory->save();
 					NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
 					$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
@@ -5200,6 +5220,8 @@ sub runServer
 			$inventory->data( $overall_target );
 			$inventory->historic(0);
 			$inventory->enabled(1);
+			# disable for now
+			$inventory->data_info( subconcept => 'device_global', enabled => 0 );
 			($op,$error) = $inventory->save();
 			NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
 		}
@@ -5253,6 +5275,7 @@ sub runServer
 						$inventory->description( $device_target->{hrDeviceDescr} ) if( $device_target->{hrDeviceDescr} );
 						$inventory->historic(0);
 						$inventory->enabled(1);
+						$inventory->data_info( subconcept => 'hrsmpcpu', enabled => 0 );
 
 						my $previous_pit = $inventory->get_newest_timed_data();
 						# shouldn't need to save twice but this all could be optimise
@@ -5505,6 +5528,7 @@ sub runServer
 				$inventory->description( $storage_target->{hrStorageDescr} )
 					if( defined($storage_target->{hrStorageDescr}) && $storage_target->{hrStorageDescr});
 
+
 				NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $subconcept );
 				# get stats
 				my $period = getThresholdPeriod(subconcept => $subconcept);
@@ -5514,6 +5538,7 @@ sub runServer
 				$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
 																		time => $catchall_data->{last_poll}, delay_insert => 1 );
 
+				$inventory->data_info( subconcept => $subconcept, enabled => 0 );
 				($op,$error) = $inventory->save();
 				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
 				$S->nmisng->log->error("Failed to save storage inventory, op:$op, error_message:$error") if($error);
@@ -5671,6 +5696,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 																																 path_keys => [],
 																																 create => 1);
 			die "failed to create or load inventory for snmp_services: $error\n" if (!$processinventory);
+			# i think disabled here makes sense
+			$processinventory->data_info( subconcept => 'snmp_services', enabled => 0 );
 			(my $op, $error) = $processinventory->save();
 			die "failed to save inventory for snmp_services: $error\n" if ($error);
 			$error = $processinventory->add_timed_data(data => \%services, derived_data => {}, subconcept => 'snmp_services');
@@ -6468,6 +6495,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		$inventory->enabled(1);
 		$inventory->historic(0);
 
+		# TODO: enable this? needs to know some things to show potentially
+		$inventory->data_info( subconcept => 'service', enabled => 0 );
 		( my $op, $error ) = $inventory->save();
 		NMISNG::Util::logMsg("ERROR: service status saving inventory failed: $error") if ($error);
 
@@ -7296,6 +7325,7 @@ sub runReach
 		);
 		$inventory->enabled(1);
 		$inventory->historic(0);
+		$inventory->data_info( subconcept => 'health', enabled => 1 );
 		$inventory->save();
 	}
 

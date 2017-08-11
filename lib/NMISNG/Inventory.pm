@@ -309,7 +309,7 @@ sub new
 	# in the object datasets are stored optimally for adding/checking (hash of hashes)
 	# in the db they are stored optimally for querying/aggregating (array of arrays)
 	my $dataset_info = $args{dataset_info} // [];
-	die "datasets must be an array" . Carp::longmess() if ( ref($dataset_info) ne 'ARRAY' );
+	die "dataset_info must be an array" . Carp::longmess() if ( ref($dataset_info) ne 'ARRAY' );
 	$self->{_datasets} = {};
 	foreach my $entry (@$dataset_info)
 	{
@@ -319,6 +319,14 @@ sub new
 		# turn arrays into hashes here, we store as array in db because we can't do much with keys in mongo
 		my %dataset_map = map { $_ => 1 } (@$subconcept_datasets);
 		$self->dataset_info( subconcept => $subconcept, datasets => \%dataset_map );
+	}
+
+	my $data_info = $args{data_info} // [];
+	die "data_info must be an array" . Carp::longmess() if ( ref($data_info) ne 'ARRAY' );
+	$self->{_data_info} = {};
+	foreach my $entry (@$data_info)
+	{
+		$self->data_info( %$entry );		
 	}
 
 	# in addition to these, there's also on-demand _deleted
@@ -750,6 +758,24 @@ sub data_live
 	return $self->{_data};
 }
 
+# set columns available for data by subconcept, enable/disable the visiblity of the subconcept
+sub data_info
+{
+	my ( $self, %args ) = @_;
+	my ( $subconcept, $enabled, $display_keys ) = @args{'subconcept', 'enabled', 'display_keys'};	
+	return "cannot get or set data_info, invalid subconcept argument:$subconcept!"
+		if ( !$subconcept );    # must be something
+
+	if( defined($enabled) || defined($display_keys) )
+	{
+		$self->{_data_info}{$subconcept} = {
+			enabled => $enabled,
+			display_keys => $display_keys // []
+		};
+	}
+	return $self->{_data_info}{$subconcept} // undef;
+}
+
 # returns hashref of datasets defined for the specified subconcept or empty hash
 # arguments: subconcept - string, [newvalue] - new dataset hashref for given subconcept
 # right now dataset subconcepts are not hooked up to subconcept list
@@ -758,7 +784,7 @@ sub dataset_info
 	my ( $self, %args ) = @_;
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
 
-	return "cannot get or set datasets, invalid subconcept argument:$subconcept!"
+	return "cannot get or set dataset_info, invalid subconcept argument:$subconcept!"
 		if ( !$subconcept );    # must be something
 
 	if ( defined($datasets) )
@@ -951,6 +977,15 @@ sub save
 	{
 		my @datasets = keys %{$self->dataset_info( subconcept => $subconcept )};
 		push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets};
+	}
+
+	# data_info gets changed like dataset_info for easier mongo work, store as array with
+	# predictable keys
+	$record->{data_info} = [];
+	foreach my $subconcept ( keys %{$self->{_data_info}} )
+	{
+		my $subconcept_info = $self->data_info( subconcept => $subconcept );		
+		push( @{$record->{data_info}}, { %$subconcept_info, subconcept => $subconcept });
 	}
 
 	if ( $self->is_new() )
