@@ -28,13 +28,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Common-database.nmis select the correct style for this file.
-#      'fkGponOnu' => '/nodes/$node/health/fkGponOnu-$index.rrd',
-#      'fkGponOnu' => '/health/$nodeType/$node-fkGponOnu-$index.rrd',
-#
-# Common-heading.nmis
-#      'fkGponOnuStatus' => 'GPON ONU Status',
-#
 
 %hash = (
   '-common-' => {

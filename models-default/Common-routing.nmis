@@ -1,6 +1,4 @@
 #
-## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
-#
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -28,8 +26,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-#      'ospfNbr' => '/nodes/$node/health/ospfNbr-$index.rrd',
-#      'ospfNbr' => '/health/$nodeType/$node-ospfNbr-$index.rrd',
 
 %hash = (
   'alerts' => {

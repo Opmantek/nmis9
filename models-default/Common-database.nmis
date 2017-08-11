@@ -59,6 +59,8 @@
       'AirMax' => '/nodes/$node/health/ubnt-airmax-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
       'HBS' => '/nodes/$node/health/utilization-$index.rrd',
+			'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
+      'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
       'Juniper_CoS' => '/nodes/$node/health/Juniper_CoSstats-$cosDescription.rrd',
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
@@ -141,6 +143,10 @@
       'pkts_hc' => '/nodes/$node/interface/$ifDescr-pkts_hc.rrd',
       'power' => '/nodes/$node/health/power.rrd',
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
+
+			'ppxCardCPU' => '/nodes/$node/health/ppxCardCPU-$index.rrd',
+      'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
+
       'psuStatus' => '/nodes/$node/health/psustatus-$index.rrd',
 
       'radio' => '/nodes/$node/health/radio.rrd',

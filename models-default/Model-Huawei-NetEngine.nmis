@@ -52,29 +52,6 @@
       }
     }
   },
-  #'database' => {
-  #  'type' => {
-  #    'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
-  #    'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
-  #  }
-  #},
-  #'heading' => {
-  #  'graphtype' => {
-  #    'hwCpuMem' => 'Board CPU and Memory Usage',
-  #    'hwTempPwr' => 'Board Temperature and Power',
-  #    'hwGponStats' => 'GPON OLT Ethernet Statistics'
-  #  }
-  #},
-  #'stats' => {
-  #  'type' => {
-  #    'hwMusaBoard' => [
-  #      'DEF:cpuUtil=$database:BoardCpuRate:AVERAGE',
-  #      'DEF:memUtil=$database:BoardRamUseRate:AVERAGE',
-  #      'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
-  #      'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
-  #    ],
-  #  },
-  #},
   'systemHealth' => {
     'sections' => 'entityMib',
     #'rrd' => {

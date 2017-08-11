@@ -49,13 +49,6 @@
       }
     }
   },
-  'database' => {
-    'type' => {
-      'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
-      'ppxCardCPU' => '/nodes/$node/health/ppxCardCPU-$index.rrd',
-      'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
-    }
-  },
   'heading' => {
     'graphtype' => {
       'ppxAtmCells' => 'PPX ATM Cells',
@@ -68,16 +61,6 @@
     }
   },
     
-  #'stats' => {
-  #  'type' => {
-  #    'hwMusaBoard' => [
-  #      'DEF:cpuUtil=$database:BoardCpuRate:AVERAGE',
-  #      'DEF:memUtil=$database:BoardRamUseRate:AVERAGE',
-  #      'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
-  #      'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
-  #    ],
-  #  },
-  #},
   'system' => {
     'nodegraph' => 'health,response,ip',
     'nodeModel' => 'Ericsson-PPX',

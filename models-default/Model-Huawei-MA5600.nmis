@@ -52,12 +52,6 @@
       }
     }
   },
-  'database' => {
-    'type' => {
-      'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
-      'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
-    }
-  },
   'heading' => {
     'graphtype' => {
       'hwCpuMem' => 'Board CPU and Memory Usage',

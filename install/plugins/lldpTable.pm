@@ -27,114 +27,151 @@
 #
 # *****************************************************************************
 #
-# a small update plugin for converting the lldp index into interface name.
+# a small update plugin for converting the lldp index into interface name,
+# for linkage in the nmis gui
 
 package lldpTable;
-our $VERSION = "1.1.0";
+our $VERSION = "2.0.0";
 
 use strict;
-
-use NMISNG::Util; # required for logMsg
-
-use Compat::NMIS;
-
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
+	# anything to do? does this node collect lldp information?
+	my $ids = $S->nmisng_node->get_inventory_ids(
+		concept => "lldp",
+		filter => { historic => 0 });
 
-	return (0,undef) if (ref($NI->{lldp}) ne "HASH");
+	return (0,undef) if (!@$ids);
 	my $changesweremade = 0;
 
-	info("LLDP plugin update-phase Working on $node LLDP Table");
+	$NG->log->info("Working on $node LLDP Table");
 
-	my $LNT = Compat::NMIS::loadLocalNodeTable();
+	# for linkage lookup this needs the interfaces inventory as well, but
+	# a non-object r/o copy of just the data (no meta) is enough
+	# we don't want to re-query multiple times for the same interface...
+	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
+																												 filter => { historic => 0 });
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
 
-	for my $key (keys %{$NI->{lldp}})
+	# ditto for lldpLocal
+	my $localmodeldata = $S->nmisng_node->get_inventory_model(concept => "lldpLocal",
+																													 filter => { historic => 0 });
+	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$localmodeldata->data});
+
+	for my $lldpid (@$ids)
 	{
-		my $entry = $NI->{lldp}{$key};
-		my @parts;
+		my $mustsave;
 
-		my $lldpNeighbour = $entry->{lldpRemSysName};
-
-		my @possibleNames;
-		push(@possibleNames,$lldpNeighbour);
-		push(@possibleNames,lc($lldpNeighbour));
-		#may need some other munging for other optional naming schemes here e.g. FQDN
-		# IOS with LLDP returns complete FQDN so is required
-		if ( $lldpNeighbour =~ /\./ ) {
-			my @fqdn = split(/\./,$lldpNeighbour);
-			push(@possibleNames,$fqdn[0]);
-			push(@possibleNames,lc($fqdn[0]));
+		my ($lldpinventory,$error) = $S->nmisng_node->inventory(_id => $lldpid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $lldpid: $error");
+			next;
 		}
 
-		$changesweremade = 1;
+		my $data = $lldpinventory->data; # r/o copy, must be saved back if changed
+		my $lldpNeighbour = $data->{lldpRemSysName};
 
-		my $possNeighbour;
-		my $gotNeighbourName = 0;		
+		my @possibleNames = ($lldpNeighbour, lc($lldpNeighbour));
+		# IOS with LLDP returns complete FQDN
+		if ((my @fqdn = split(/\./,$lldpNeighbour)) > 1)
+		{
+			push @possibleNames, $fqdn[0], lc($fqdn[0]);
+		}
 
-		foreach $possNeighbour (@possibleNames) {
-			if ( defined $LNT->{$possNeighbour} and defined $LNT->{$possNeighbour}{name} and $LNT->{$possNeighbour}{name} eq $possNeighbour ) {
-				dbg("$lldpNeighbour found as $possNeighbour in LNT for $node");
-				$changesweremade = 1;
-				$entry->{lldpRemSysName_raw} = $entry->{lldpRemSysName};
-				$entry->{lldpRemSysName} = $possNeighbour;
-				$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$possNeighbour";
-				$entry->{lldpNeighbour_id} = "node_view_$possNeighbour";
+		my $gotNeighbourName = 0;
+		for my $maybe (@possibleNames)
+		{
+			# is there a managed node with the given neighbour name?
+			my $managednode = $NG->node(name => $maybe);
+			next if (ref($managednode) ne "NMISNG::Node");
+
+			$NG->log->debug("$lldpNeighbour found $maybe for $node");
+
+			$data->{lldpRemSysName_raw} = $data->{lldpRemSysName};
+			$data->{lldpRemSysName} = $maybe;
+			$data->{lldpRemSysName_url} = "$C->{network}?act=network_node_view&node=$maybe";
+			$data->{lldpNeighbour_id} = "node_view_$maybe";
+			# futureproofing so that opCharts can also use this linkage safely
+			$data->{node_uuid} = $managednode->uuid;
+
+			$changesweremade = $mustsave = $gotNeighbourName =1;
+			last;
+		}
+
+		# nothing found? look harder - try to match by host property...
+		# ...but remember the proper node name
+		if ( not $gotNeighbourName )
+		{
+			for my $maybe (@possibleNames)
+			{
+				my $managednode = $NG->node(host => $maybe);
+				next if (ref($managednode) ne "NMISNG::Node");
+
+				my $propername = $managednode->name;
+				$NG->log->debug("$lldpNeighbour found $propername (via host $maybe) for $node");
+
+				$data->{lldpRemSysName_raw} = $data->{lldpRemSysName};
+				$data->{lldpRemSysName} = $propername;
+				$data->{lldpRemSysName_url} = "$C->{network}?act=network_node_view&node=$propername";
+				$data->{lldpNeighbour_id} = "node_view_$propername";
+				# futureproofing so that opCharts can also use this linkage safely
+				$data->{node_uuid} = $managednode->uuid;
+
+				$changesweremade = $mustsave = $gotNeighbourName =1;
 				last;
 			}
 		}
 
-		# did I get one, if not, look harder be a brute!
-		if ( not $gotNeighbourName ) {
-			foreach my $possNeighbour (@possibleNames) {
-				foreach my $aNode (keys %{$LNT}) {
-					if ( $possNeighbour eq $LNT->{$aNode}{host} ) {
-						# but the neighbour is actually the name from the LNT
-						$changesweremade = 1;
-						$entry->{lldpRemSysName_raw} = $entry->{cdpCacheDeviceId};
-						$entry->{lldpRemSysName} = $aNode;
-						$entry->{lldpRemSysName_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_node_view&node=$aNode";
-						$entry->{lldpNeighbour_id} = "node_view_$aNode";
-						$gotNeighbourName = 1;
-						last;						
+		# deal with structured index N.M.O...
+		if ((my @parts = split(/\./, $data->{index})) > 2)
+		{
+			$changesweremade = $mustsave = 1;
+
+			# ignore first, keep second and third
+			my $portnum = $data->{lldpLocPortNum} = $parts[1];
+			$data->{lldpDeviceIndex} = $parts[2];
+
+			# can we find a lldpLocal entry with that portnumber?
+			if (ref($lldplocaldata{$portnum}) eq "HASH")
+			{
+				# can we find an interface whose description matches
+				# lldpLocPortDesc or lldpLocPortId?
+				for my $lldpLocalInt (qw(lldpLocPortDesc lldpLocPortId))
+				{
+					my $ifDescr = $lldplocaldata{$portnum}->{$lldpLocalInt};
+					# do we have an interface with that ifdescr?
+					if (my @matches = grep($ifdata{$_}->{ifDescr} eq $ifDescr,
+																 keys %ifdata))
+					{
+						my $ifindex  = $matches[0]; # there should be at most one match
+						$data->{lldpIfIndex} = $ifindex;
+
+						$data->{ifDescr} = $ifdata{$ifindex}->{ifDescr};
+						$data->{ifDescr_url} = "$C->{network}?act=network_interface_view&intf=$ifindex&node=$node";
+						$data->{ifDescr_id} = "node_view_$node";
+
+						last;
 					}
 				}
 			}
 		}
 
-		if ( @parts = split(/\./,$entry->{index}) ) {
-			$entry->{unused} = shift(@parts);
-			$entry->{lldpLocPortNum} = shift(@parts);
-			$entry->{lldpDeviceIndex} = shift(@parts);
-
-			# did I find an interface in the lldpLocPortDesc lldpLocPortId data?
-			my @lldpLocalThing = qw(lldpLocPortDesc lldpLocPortId);
-			foreach my $lldpLocalInt (@lldpLocalThing) {
-				if ( defined $NI->{lldpLocal} and defined $NI->{lldpLocal}{$entry->{lldpLocPortNum}} ) {
-					# yes, so get a local portnum and get the ifDescr, then get the ifIndex using the reverse index.
-					my $lldpLocPortNum = $entry->{lldpLocPortNum};
-					my $ifDescr = $NI->{lldpLocal}{$lldpLocPortNum}{$lldpLocalInt};
-					$entry->{lldpIfIndex} = $IFD->{$ifDescr}{ifIndex};
-				}
-
-				if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
-					$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
-					$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
-					$entry->{ifDescr_id} = "node_view_$node";
-					# exit the foreach loop
-					last;
-				}
-			}
+		if ($mustsave)
+		{
+			$lldpinventory->data($data); # set changed info
+			(undef,$error) = $lldpinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $lldpid: $error")
+					if ($error);
 		}
+
 	}
 
 	return ($changesweremade,undef); # report if we changed anything
-}	
+}
 
 1;

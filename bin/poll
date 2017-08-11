@@ -1136,7 +1136,7 @@ sub doUpdate
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', 
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
@@ -1299,7 +1299,6 @@ sub doCollect
 			. join( " ", map { "$_=" . $catchall_data->{$_} } (qw(group nodeType nodedown snmpdown wmidown)) ) );
 
 	# update node info data, merge in the node's configuration (which was loaded by sys' init)
-
 	$S->copyModelCfgInfo( type => 'all' );
 
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
@@ -1484,7 +1483,7 @@ sub doCollect
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health', 
+		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
 																time => $catchall_data->{last_poll}, delay_insert => 1 );
 		# $inventory->data($data);
 		$inventory->save();
@@ -3856,14 +3855,9 @@ sub updateNodeInfo
 			NMISNG::Util::info("Manual update of sysContact by nodeConf");
 		}
 
-		if ( $override->{nodeType} )
+		if ( exists($override->{nodeType}) )
 		{
 			$catchall_data->{nodeType} = $override->{nodeType};
-		}
-		else
-		{
-			# fixme9: delete, really?
-			delete $catchall_data->{nodeType};
 		}
 
 		checkPIX( sys => $S );    # check firewall if needed
@@ -4455,7 +4449,7 @@ sub getIntfData
 				else
 				{
 					# convert data into values we can use in pit (eg resolve counters)
-					my $target = {};					
+					my $target = {};
 					NMISNG::Inventory::parse_rrd_update_data( $D, $target, $previous_pit, $sect );
 					my $period = getThresholdPeriod( subconcept => $sect );
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
@@ -4465,7 +4459,7 @@ sub getIntfData
 																			time => $catchall_data->{last_poll}, delay_insert => 1 );
 				}
 			}
-			
+
 			# can't reu-se stats here because these run on default 6h, normal stats run on 15m
 			my $period = $C->{interface_util_period} || "-6 hours";    # bsts plus backwards compat
 			my $interface_util_stats = Compat::NMIS::getSubconceptStats(sys => $S,
@@ -9577,7 +9571,7 @@ sub doThresholdsAndCreateStatus
 						NMISNG::Util::dbg("skipping disabled threshold type:$type for index:$index");
 						next;
 					}
-					applyThresholdToInventory( 
+					applyThresholdToInventory(
 						sys     => $S,
 						table   => $sts,
 						type    => $type,
