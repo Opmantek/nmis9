@@ -3376,7 +3376,8 @@ sub viewStorage
 
 	print Tr( th( {class => 'title', colspan => '3'}, "Storage of node $catchall_data->{name}" ) );
 
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage' );
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage', 
+																								filter => { historic => 0 } );
 	foreach my $id ( @$ids )
 	{
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
@@ -3979,7 +3980,8 @@ sub viewSystemHealth
 		$gotHeaders = 1;
 	}
 
-	my $ids = $nmisng_node->get_inventory_ids( concept => $section );
+	my $ids = $nmisng_node->get_inventory_ids( concept => $section, 
+																						 filter => { historic => 0 } );
 
 	my $D = {};
 	foreach my $id (@$ids)
@@ -4352,6 +4354,7 @@ sub viewTop10
 			my $smellslikerouter = $S->nmisng_node->get_inventory_model(
 				concept=> "catchall",
 				filter => {
+					historic => 0,
 					subconcepts => "nodehealth",
 					"dataset_info.datasets" => "avgBusy5" } );
 
