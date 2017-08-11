@@ -26,31 +26,6 @@
 #  User group details:
 #  http://support.opmantek.com/users/
 # *****************************************************************************
-#
-# Changes to Enterprise.nmis and Model.nmis are required for model auto discovery
-#
-# Enterprise.nmis
-#  '30065' => {
-#    'Enterprise' => 'Arista Networks',
-#    'Enterprise_Original' => 'Arista Networks, Inc. (formerly Arastra, Inc.)',
-#    'OID' => '30065'
-#  },
-#
-# Model.nmis
-#    'Arista Networks' => {
-#      'order' => {
-#        '10' => {
-#          'AristaSwitch' => 'Arista Networks EOS'
-#        }
-#      }
-#    },
-#
-# Common-heading.nmis
-#  'hrProcessorLoad' => 'Processor Load',
-#
-# Common-database.nmis
-#  'hrProcessorLoad' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
-#
 
 %hash = (
   '-common-' => {

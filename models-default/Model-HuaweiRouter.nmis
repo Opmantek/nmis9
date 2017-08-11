@@ -29,13 +29,6 @@
 #  
 # *****************************************************************************
 
-# Common-database.nmis
-#      'hwCBQoS' => '/nodes/$node/misc/hwCBQoS-$index.rrd',
-#
-# Common-heading.nmis
-#      'huawei-cbqos' => 'Huawei CBQoS',
-#      'huawei-cbqos-pkt' => 'Huawei CBQoS Packets',
-
 %hash = (
   '-common-' => {
     'class' => {

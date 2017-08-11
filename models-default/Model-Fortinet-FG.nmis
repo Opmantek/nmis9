@@ -28,21 +28,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Common-database.nmis
-# 'fgSystemInfo' => '/nodes/$node/health/fgSystemInfo.rrd',
-# 'VirtualDomains' => '/nodes/$node/health/VirtualDomains-$index.rrd',
-#
-# *****************************************************************************
-# Common-heading.nmis
-#      'fortinet-cpu' => 'CPU Usage',
-#      'fortinet-disk' => 'Disk Usage',
-#      'fortinet-mem' => 'Memory Usage',
-#      'fortinet-sessions' => 'Session Count',
-#      'fortinet-vd-cpu' => 'Virtual Domain CPU Usage',
-#      'fortinet-vd-mem' => 'Virtual Domain Memory Usage',
-#      'fortinet-vd-sessions' => 'Virtual Domain Session Count',
-#
-# *****************************************************************************
 # nmis_mibs.oid
 #
 # "fgSysVersion"          "1.3.6.1.4.1.12356.101.4.1.1"

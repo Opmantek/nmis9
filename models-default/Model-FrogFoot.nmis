@@ -28,13 +28,6 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
-# Common-database.nmis select the correct style for this file.
-#      'mtxrWlRtab' => '/nodes/$node/health/mtxrWlRtab-$index.rrd',
-#      'mtxrWlRtab' => '/health/$nodeType/$node-mtxrWlRtab-$index.rrd',
-#
-# Common-heading.nmis
-#      'mtxrStrength' => 'Wireless Strength & Speed',
-#
 
 %hash = (
   '-common-' => {
