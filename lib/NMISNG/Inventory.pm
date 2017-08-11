@@ -318,7 +318,7 @@ sub new
 
 		# turn arrays into hashes here, we store as array in db because we can't do much with keys in mongo
 		my %dataset_map = map { $_ => 1 } (@$subconcept_datasets);
-		$self->datasets( subconcept => $subconcept, datasets => \%dataset_map );
+		$self->dataset_info( subconcept => $subconcept, datasets => \%dataset_map );
 	}
 
 	# in addition to these, there's also on-demand _deleted
@@ -442,7 +442,7 @@ sub add_timed_data
 		foreach my $subc ( keys %$datasets )
 		{
 			my $new_datasets = $datasets->{$subc};
-			my $existing_datasets = $self->datasets( subconcept => $subc );
+			my $existing_datasets = $self->dataset_info( subconcept => $subc );
 			foreach my $key ( keys %$new_datasets )
 			{
 				if ( !defined( $existing_datasets->{$key} ) )
@@ -451,7 +451,7 @@ sub add_timed_data
 					$datasets_modfied++;
 				}
 			}
-			$self->datasets( subconcept => $subc, datasets => $existing_datasets )
+			$self->dataset_info( subconcept => $subc, datasets => $existing_datasets )
 				if ($datasets_modfied);
 		}
 	}
@@ -753,7 +753,7 @@ sub data_live
 # returns hashref of datasets defined for the specified subconcept or empty hash
 # arguments: subconcept - string, [newvalue] - new dataset hashref for given subconcept
 # right now dataset subconcepts are not hooked up to subconcept list
-sub datasets
+sub dataset_info
 {
 	my ( $self, %args ) = @_;
 	my ( $subconcept, $datasets ) = @args{'subconcept', 'datasets'};
@@ -949,7 +949,7 @@ sub save
 	$record->{dataset_info} = [];
 	foreach my $subconcept ( keys %{$self->{_datasets}} )
 	{
-		my @datasets = keys %{$self->datasets( subconcept => $subconcept )};
+		my @datasets = keys %{$self->dataset_info( subconcept => $subconcept )};
 		push @{$record->{dataset_info}}, {subconcept => $subconcept, datasets => \@datasets};
 	}
 
