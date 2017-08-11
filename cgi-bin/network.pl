@@ -47,16 +47,15 @@ $Data::Dumper::Indent = 1;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
-# declare holder for CGI objects
-use vars qw($q $Q $C $AU);
-$q = new CGI;     # This processes all parameters passed via GET and POST
-$Q = $q->Vars;    # values in hash
+my $q = new CGI;     # This processes all parameters passed via GET and POST
+my $Q = $q->Vars;    # values in hash
 
 # load NMIS configuration table
-if ( !( $C = NMISNG::Util::loadConfTable( conf => $Q->{conf}, debug => $Q->{debug} ) ) ) { exit 1; }
+my $C = NMISNG::Util::loadConfTable(debug => $Q->{debug});
+die "cannot load configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
 
-# if options, then called from command line
-if ( $#ARGV > 0 ) { $C->{auth_require} = 0; }    # bypass auth
+# bypass auth iff called from command line
+$C->{auth_require} = 0 if (@ARGV);
 
 # NMIS Authentication module
 use NMISNG::Auth;
@@ -64,7 +63,7 @@ use NMISNG::Auth;
 # variables used for the security mods
 use vars qw($headeropts);
 $headeropts = {};                                #{type=>'text/html',expires=>'now'};
-$AU = NMISNG::Auth->new( conf => $C );
+my $AU = NMISNG::Auth->new( conf => $C );
 
 if ( $AU->Require )
 {
@@ -1605,8 +1604,7 @@ sub viewPollingSummary
 {
 	if ( $AU->CheckAccess( "tls_nmis_runtime", "header" ) )
 	{
-		my $sum;
-		my $qossum;
+		my $sum = {};
 		my $LNT = Compat::NMIS::loadLocalNodeTable();
 
 		foreach my $node ( keys %{$LNT} )
@@ -1619,44 +1617,52 @@ sub viewPollingSummary
 			my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 			++$sum->{count}{active};
-
-			for my $item (qw(group nodeType roleType nodeModel))
+			
+			# nodeModel and nodeType are dynamic from catchall, rest are configuration items
+			for my $item (qw(nodeModel nodeType))
 			{
-				++$sum->{$item}->{  $catchall_data->{$item} };
+				++$sum->{$item}->{ $catchall_data->{$item} };
+			}
+			for my $item (qw(group roleType netType))
+			{
+				++$sum->{$item}->{  $LNT->{$node}->{$item} };
 			}
 
-			my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+			my $interfaces = $S->nmisng_node->get_inventory_model(
+				concept => 'interface', filter => { historic => 0 });
 			for my $oneif (@{$interfaces->data})
 			{
 				my $ifentry = $oneif->{data}; # oneif is a full inventory object, data area contains old-style info
-				
+
 				++$sum->{count}{interface};
 				++$sum->{ifType}->{ $ifentry->{ifType} };
 				if ( NMISNG::Util::getbool( $ifentry->{collect} ) )
 				{
 					++$sum->{count}{interface_collect};
 				}
+			}
 
-				my @cbqosdb = qw(cbqos-in cbqos-out);
-				foreach my $cbqos (@cbqosdb)
+			# cbqos inventory is independent of interface
+			my @cbqosdb = qw(cbqos-in cbqos-out);
+			foreach my $cbqos (@cbqosdb)
+			{
+				my $qosinventory = $S->nmisng_node->get_inventory_model( 
+					concept => $cbqos,
+					filter => { historic => 0 });
+				if ($qosinventory->count)
 				{
-					my $qosinventory = $S->nmisng_node->get_inventory_model( concept => $cbqos, 
-																															 filter => { historic => 0 });
-					if ($qosinventory->count)
+					++$sum->{count}{$cbqos};
+					
+					foreach my $oneclass (@{$qosinventory->data})
 					{
-						++$sum->{count}{$cbqos};
+						++$sum->{$cbqos}->{interface};
+						# we want the number  of classes == same as number of subconcepts
 						
-						foreach my $oneclass (@{$qosinventory->data})
-						{
-							++$qossum->{$cbqos}->{interface};
-							# we want the number  of classes == same as number of subconcepts
-							
-							$qossum->{$cbqos}{classes} += scalar($oneclass->{subconcepts});
-						}
+						$sum->{$cbqos}->{classes} += scalar(@{$oneclass->{subconcepts}});
 					}
 				}
 			}
-			
+
 			if ( NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 			{
 				++$sum->{count}{collect};
@@ -1707,11 +1713,11 @@ sub viewPollingSummary
 			print Tr( td( {class => 'heading', colspan => '2'}, "QoS Summary for $cbqos" ) );
 			print Tr(
 				td( {class => 'heading3'},  "$cbqos Interface Count" ),
-				td( {class => 'rht Plain'}, $qossum->{$cbqos}{interface} )
+				td( {class => 'rht Plain'}, $sum->{$cbqos}->{interface} )
 			);
 			print Tr(
 				td( {class => 'heading3'},  "$cbqos Class Count" ),
-				td( {class => 'rht Plain'}, $qossum->{$cbqos}{classes} )
+				td( {class => 'rht Plain'}, $sum->{$cbqos}->{classes} )
 			);
 		}
 		print end_table;
@@ -2458,7 +2464,7 @@ EO_HTML
 			}
 		}
 	}
-	
+
 	if (   NMISNG::Util::getbool( $catchall_data->{collect} )
 		or NMISNG::Util::getbool( $catchall_data->{ping} ) )
 	{
@@ -2561,7 +2567,7 @@ EO_HTML
 		my %servicestatus = Compat::NMIS::loadServiceStatus( node => $node );
 		# only this system's services of relevance
 		%servicestatus = %{$servicestatus{$C->{cluster_id}}} if (ref($servicestatus{$C->{cluster_id}}) eq "HASH");
-		
+
 		foreach my $servicename (sort keys %servicestatus)
 		{
 			next if (ref($servicestatus{$servicename}->{$node}) ne "HASH");
@@ -2598,7 +2604,7 @@ EO_HTML
 						)
 				)
 					);
-			
+
 		}
 	}
 	else
@@ -2839,7 +2845,7 @@ sub viewInterface
 				)
 				);
 		}
-		
+
 		if ( grep( $_ eq $intf, $S->getTypeInstances( section => 'cbqos-out' ) ) )
 		{
 			print Tr( td( {class => 'header'}, "CBQoS out" ) ),
@@ -3250,7 +3256,7 @@ sub viewActivePort
 	foreach my $intf ( NMISNG::Util::sorthash( \%view, [$sort, "value"], $dir ) )
 	{
 		next if ( NMISNG::Util::getbool($active) and !NMISNG::Util::getbool( $view{$intf}{collect}{value} ) );
-		next if ( $graphtype =~ /cbqos/ 
+		next if ( $graphtype =~ /cbqos/
 							and !grep( $intf eq $_, $S->getTypeInstances( section => $graphtype ) ) );
 
 		print Tr(
@@ -4333,7 +4339,7 @@ sub viewTop10
 			$S->init( name => $reportnode, snmp => 'false' );
 			my $catchall =  $S->inventory( concept => 'catchall' );
 			my $catchall_data = $catchall->data();
-			
+
 			# reachable, available, health, response
 			%reportTable = (
 				%reportTable,
@@ -4343,8 +4349,8 @@ sub viewTop10
 
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			my $smellslikerouter = $S->nmisng_node->get_inventory_model( 
-				concept=> "catchall",  
+			my $smellslikerouter = $S->nmisng_node->get_inventory_model(
+				concept=> "catchall",
 				filter => {
 					subconcepts => "nodehealth",
 					"dataset_info.datasets" => "avgBusy5" } );
@@ -4363,13 +4369,13 @@ sub viewTop10
 					}
 				);
 			}
-			
+
 			my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-			
+
 			foreach my $entry ( @{$interfaces->data})
 			{
 				my $thisintf = $entry->{data};
-				
+
 				if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
 				{
 					# availability, inputUtil, outputUtil, totalUtil
@@ -4664,7 +4670,7 @@ sub nodeAdminSummary
 					my @issueList;
 
 					# Is the node active and are we doing stats on it.
-					if ( NMISNG::Util::getbool( $LNT->{$node}{active} ) 
+					if ( NMISNG::Util::getbool( $LNT->{$node}{active} )
 							 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 					{
 						for my $entry (@{$interfaces->data})
@@ -4673,7 +4679,7 @@ sub nodeAdminSummary
 							++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
 						}
 					}
-					
+
 					my $sysDescr = $catchall_data->{sysDescr};
 					$sysDescr =~ s/[\x0A\x0D]/\\n/g;
 					$sysDescr =~ s/,/;/g;
