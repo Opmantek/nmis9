@@ -27,49 +27,51 @@
 #  
 # *****************************************************************************
 #
-# a small update plugin for converting the cdp index into interface name.
+# a small update plugin for converting the hwmusaboard index into a board-frame-slot structure
 
 package hwMusaBoard;
-our $VERSION = "1.0.0";
+our $VERSION = "2.0.0";
 
 use strict;
-
-use NMISNG::Util;												# for the conf table extras
-use Compat::NMIS;
 
 sub update_plugin
 {
 	my (%args) = @_;
-	my ($node,$S,$C) = @args{qw(node sys config)};
-	
-	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
-	# anything to do?
+	my ($node,$S,$C,$NG) = @args{qw(node sys config nmisng)};
 
-	my $hwMusaBoard = 0;
-		
-	$hwMusaBoard = 1 if (ref($NI->{hwMusaBoard}) eq "HASH");
+	# anything to do? does this node have hwMusaBoard information?
+	my $ids = $S->nmisng_node->get_inventory_ids(
+		concept => "hwMusaBoard",
+		filter => { historic => 0 });
 
-	return (0,undef) if not $hwMusaBoard;
-	
+	return (0,undef) if (!@$ids);
+
 	my $changesweremade = 0;
-	
-	info("Working on $node hwMusaBoard");
-      
-	#BoardFrameSlot
-	for my $key (keys %{$NI->{hwMusaBoard}})
+	$NG->log->info("Working on $node hwMusaBoard");
+
+	for my $hmbid (@$ids)
 	{
-		# lets get the VRF Name first.
-		my $entry = $NI->{hwMusaBoard}->{$key};
+		my ($hmbinventory,$error) = $S->nmisng_node->inventory(_id => $hmbid);
+		if ($error)
+		{
+			$NG->log->error("Failed to get inventory $hmbid: $error");
+			next;
+		}
 		
-		if ( $entry->{index} =~ /(\d+)\.(.+)$/ ) {
-			my $frame = $1;
-			my $slot = $2;
-			$entry->{BoardFrameSlot} = "$frame/$slot";
+		my $hmbdata = $hmbinventory->data; # r/o copy, must be saved back if changed
+
+		if ( $hmbdata->{index} =~ /^(\d+)\.(.+)$/ ) 
+		{
+			my ($frame, $slot) = ($1,$2);
+			$hmbdata->{BoardFrameSlot} = "$frame/$slot";
 			$changesweremade = 1;
+
+			$hmbinventory->data($hmbdata); # set changed info
+			(undef,$error) = $hmbinventory->save; # and save to the db
+			$NG->log->error("Failed to save inventory for $hmbid: $error")
+					if ($error);
 		}
 	}
-
 	return ($changesweremade,undef); # report if we changed anything
 }
 
