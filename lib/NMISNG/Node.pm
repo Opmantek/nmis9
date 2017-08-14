@@ -99,16 +99,33 @@ sub _dirty
 # Public:
 ###########
 
-# bulk set records to be historic which match this node and are not in the array of active_indices provided
-# also updates records which are in the active_indices list to not be historic
-# args: active_indices (optional, see concept), arrayref of active ids, concept (optional, if not given all inventory entries for node will be
-#  marked historic (useful for update force=1)
+# bulk set records to be historic which match this node and are 
+# not in the array of active_indices (or active_ids) provided
+#
+# also updates records which are in the active_indices/active_ids 
+# list to not be historic
+#
+# args: active_indices (optional), arrayref of active indices,
+#   which can work if and  only if the concept uses 'index'!
+# active_ids (optional), arrayref of inventory ids (mongo oids or strings),
+#   note that you can pass in either active_indices OR active_ids 
+#   but not both
+# concept (optional, if not given all inventory entries for node will be 
+#   marked historic (useful for update force=1)
+# 
 # returns: hashref with number of records marked historic and nothistoric
 sub bulk_update_inventory_historic
 {
 	my ($self,%args) = @_;
-	my ($active_indices,$concept) = @args{'active_indices','concept'};
-	return "invalid input,active_indices must be an array!" if ($active_indices && ref($active_indices) ne "ARRAY");
+	my ($active_indices, $active_ids, $concept) = @args{'active_indices','active_ids','concept'};
+
+	return "invalid input, active_indices must be an array!" 
+			if ($active_indices && ref($active_indices) ne "ARRAY");
+	return "invalid input, active_ids must be an array!" 
+			if ($active_ids && ref($active_ids) ne "ARRAY");
+	return "invalid input, cannot handle both active_ids and active_indices!"
+		if ($active_ids and $active_indices);
+	
 	my $retval = {};
 	
 	# not a huge fan of hard coding these, not sure there is much of a better way 
@@ -119,7 +136,14 @@ sub bulk_update_inventory_historic
 	$q->{'path.2'} = $concept if( $concept );
 
 	# get_query currently doesn't support $nin, only $in
-	$q->{'data.index'} = {'$nin' => $active_indices} if($active_indices);
+	if ($active_ids)
+	{
+		$q->{'_id'} = { '$nin' => [ map { NMISNG::DB::make_oid($_) } (@$active_ids) ] };
+	}
+	else
+	{
+		$q->{'data.index'} = {'$nin' => $active_indices};
+	}
 
 	# mark historic where not in list
 	my $result = NMISNG::DB::update(
@@ -131,10 +155,21 @@ sub bulk_update_inventory_historic
 	);
 	$retval->{marked_historic} = $result->{updated_records};
 	$retval->{matched_historic} = $result->{matched_records};
-	# if we have a list unset historic
-	if( $active_indices )
+
+	# if we have a list of active anythings, unset historic on them
+	if( $active_indices  or $active_ids)
 	{
-		$q->{'data.index'} = {'$in' => $active_indices} if($active_indices);
+		# invert the selection
+		if ($active_ids)
+		{
+			# cheaper than rerunning the potential oid making
+			$q->{_id}->{'$in'} = $q->{_id}->{'$nin'};
+			delete $q->{_id}->{'$nin'};
+		}
+		else
+		{
+			$q->{'data.index'} = {'$in' => $active_indices};
+		}
 		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
 			freeform => 1,
