@@ -1436,7 +1436,7 @@ sub doCollect
 		eval { ( $status, @errors ) = &$funcname( node => $name,
 																							sys => $S,
 																							config => $C,
-																							nsisng => $S->nmisng ); };
+																							nmisng => $S->nmisng ); };
 		$S->nmisng->log->logprefix(undef);
 		if ( $status >= 2 or $status < 0 or $@ )
 		{
