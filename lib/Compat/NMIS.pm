@@ -1163,7 +1163,7 @@ sub getSubconceptStats
 			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
 		}
 		# read from Model and translate variable ($database etc.) rrd options
-		foreach my $str (@{$M->{stats}{type}{$subconcept}}) {
+		foreach my $str (@{$M->{stats}{type}{$stats_section}}) {
 			my $s = $str;
 			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {

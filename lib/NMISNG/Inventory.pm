@@ -531,7 +531,7 @@ sub get_newest_timed_data
 			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
 			limit => 1,
 			sort        => {time => -1},
-			fields_hash => {time => 1, data => 1, derived_data => 1}
+			fields_hash => {time => 1, subconcepts => 1}
 		);
 	}
 	else
@@ -539,7 +539,7 @@ sub get_newest_timed_data
 		$cursor = NMISNG::DB::find(
 			collection => $self->nmisng->latest_data_collection,
 			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ),
-			fields_hash => {time => 1, data => 1, derived_data => 1}
+			fields_hash => {time => 1, subconcepts => 1}
 		);
 	}
 	return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
