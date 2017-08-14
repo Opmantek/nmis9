@@ -533,7 +533,8 @@ sub latest_data_collection
 			collection    => $self->{_db_latest_data},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[{"inventory_id" => 1}, {unique => 1}]				
+				[{"inventory_id" => 1}, {unique => 1}],
+				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration	
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
