@@ -470,6 +470,26 @@ sub add_timed_data
 			if ( $self->is_new );
 
 		$timedrecord->{inventory_id} = $self->id;
+		
+		my @new_data =();
+		if( defined($timedrecord->{data}) )
+		{
+			foreach my $subconcept (keys %{$timedrecord->{data}})
+			{
+				push @new_data, { subconcept => $subconcept, values => $timedrecord->{data}{$subconcept}};
+			}
+			$timedrecord->{data} = \@new_data;
+		}
+		if( defined($timedrecord->{derived_data}) )
+		{
+			my @new_deriveddata = ();
+			foreach my $subconcept (keys %{$timedrecord->{derived_data}})
+			{
+				push @new_deriveddata, { subconcept => $subconcept, values => $timedrecord->{derived_data}{$subconcept}};
+			}
+			$timedrecord->{derived_data} = \@new_deriveddata;
+		}
+
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
 			record     => $timedrecord
@@ -532,6 +552,21 @@ sub get_newest_timed_data
 	return {success => 1} if ( !$cursor->count );
 
 	my $reading = $cursor->next;
+	
+	# data/derived data are stored for optimal searching (arrays of hashes),
+	# turn them back into hashes (which are much handier for use in perl)
+	my %new_deriveddata = ();
+	foreach my $entry (@{$reading->{derived_data}})
+	{
+		$new_deriveddata{$entry->{subconcept}} = $entry->{values};
+	}
+	$reading->{derived_data} = \%new_deriveddata;
+	my %new_data = ();
+	foreach my $entry (@{$reading->{data}})
+	{
+		$new_data{$entry->{subconcept}} = $entry->{values};
+	}
+	$reading->{data} = \%new_data;
 	return {success => 1, data => $reading->{data}, derived_data => $reading->{derived_data}, time => $reading->{time}};
 }
 
@@ -1018,15 +1053,11 @@ sub save
 	if ( $result->{success} && defined($self->{_queued_pit}) )
 	{
 		my $pit_record = $self->{_queued_pit};
-
 		# sending datasets this way so less special case handling required, this is not optimal but should
-		# not cause problems either
-		$pit_record->{datasets} = $self->{_datasets};
-
+		# not cause problems either		
 		# using ourself means id will be added (so new inventories will work, no save first required)
 		# telling it to flush should bypass any special handling, allowing the data straight through
-		$pit_record->{flush} = 1;
-		my $error = $self->add_timed_data(%$pit_record);
+		my $error = $self->add_timed_data(flush => 1, datasets => $self->{_datasets}, %$pit_record);
 		if ($error)
 		{
 			$result->{success} = 0;
