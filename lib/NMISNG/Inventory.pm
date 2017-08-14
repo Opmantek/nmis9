@@ -393,6 +393,9 @@ sub _generic_getset
 #   calls inventory->save again, this seems like a possible bad thing. the reason it's working right now is
 #   the second call to this function (from save) should not alter the datasets which is what triggers the save to be called
 #  so it will never happen
+# NOTE2: the data/derived data is not stored as is, it gets morphed from hash of hashes to array of hashes
+#   data goes from subconcepts->{$} => { data=>{},derived_data=>{}} 
+#   to subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
 sub add_timed_data
 {
 	my ( $self, %args ) = @_;
@@ -470,26 +473,21 @@ sub add_timed_data
 			if ( $self->is_new );
 
 		$timedrecord->{inventory_id} = $self->id;
-		
-		my @new_data =();
-		if( defined($timedrecord->{data}) )
-		{
-			foreach my $subconcept (keys %{$timedrecord->{data}})
-			{
-				push @new_data, { subconcept => $subconcept, values => $timedrecord->{data}{$subconcept}};
-			}
-			$timedrecord->{data} = \@new_data;
-		}
-		if( defined($timedrecord->{derived_data}) )
-		{
-			my @new_deriveddata = ();
-			foreach my $subconcept (keys %{$timedrecord->{derived_data}})
-			{
-				push @new_deriveddata, { subconcept => $subconcept, values => $timedrecord->{derived_data}{$subconcept}};
-			}
-			$timedrecord->{derived_data} = \@new_deriveddata;
-		}
 
+		# re-arrange the data for better searching/mongo work
+		my @subconcepts = ();
+		foreach my $subconcept (keys %{$timedrecord->{data}})
+		{
+			push @subconcepts, { 
+				subconcept => $subconcept, 
+				data => $timedrecord->{data}{$subconcept}, 
+				derived_data => $timedrecord->{derived_data}{$subconcept}
+			};
+		}
+		$timedrecord->{subconcepts} = \@subconcepts;
+		delete $timedrecord->{data};
+		delete $timedrecord->{derived_data};
+	
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
 			record     => $timedrecord
@@ -552,21 +550,17 @@ sub get_newest_timed_data
 	return {success => 1} if ( !$cursor->count );
 
 	my $reading = $cursor->next;
-	
+
 	# data/derived data are stored for optimal searching (arrays of hashes),
-	# turn them back into hashes (which are much handier for use in perl)
-	my %new_deriveddata = ();
-	foreach my $entry (@{$reading->{derived_data}})
+	# turn them back into hashes (which are much handier for use in perl)	
+	# data goes from subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
+	# to subconcepts->{$} => { data=>{},derived_data=>{}}
+	foreach my $entry (@{$reading->{subconcepts}})
 	{
-		$new_deriveddata{$entry->{subconcept}} = $entry->{values};
+		$reading->{ $entry->{subconcept} } = { data => $entry->{data}, derived_data => $entry->{derived_data} };
 	}
-	$reading->{derived_data} = \%new_deriveddata;
-	my %new_data = ();
-	foreach my $entry (@{$reading->{data}})
-	{
-		$new_data{$entry->{subconcept}} = $entry->{values};
-	}
-	$reading->{data} = \%new_data;
+	delete $reading->{subconcepts};
+	
 	return {success => 1, data => $reading->{data}, derived_data => $reading->{derived_data}, time => $reading->{time}};
 }
 
