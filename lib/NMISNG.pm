@@ -488,7 +488,8 @@ sub inventory_collection
 				[{"concept"     => 1, enabled => 1, historic => 1}, {unique => 0}],
 				[{"lastupdate"  => 1}, {unique => 0}],
 				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
-				[{"subconcepts" => 1}, {unique => 0}]
+				[{"subconcepts" => 1}, {unique => 0}],
+				[{"data_info"   => 1}, {unique => 0}]
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
