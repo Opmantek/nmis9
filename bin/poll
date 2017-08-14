@@ -6510,7 +6510,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		$error = $inventory->add_timed_data(data => \%status,
 																				derived_data => {},
 																				time => NMISNG::Util::numify($thisrun),
-																				datasets => { "service" => \%dspresent } );
+																				datasets => { "service" => \%dspresent },
+																				subconcept => "service" );
 		NMISNG::Util::logMsg("ERROR: service timed data saving failed: $error") if ($error);
 	}
 
