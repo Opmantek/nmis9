@@ -3667,6 +3667,7 @@ sub getSystemHealthData
 						my $period = getThresholdPeriod(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																												 subconcept => $sect, start => $period, end => time);
+						$stats //= {};
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -4012,7 +4013,7 @@ sub getNodeData
 				my $period = getThresholdPeriod( subconcept => $sect );
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																										 subconcept => $sect, start => $period, end => time);
-
+				$stats //= {};
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
 																								time => $catchall_data->{last_poll}, delay_insert => 1 );
 				NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -4459,6 +4460,7 @@ sub getIntfData
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																											 subconcept => $sect, start => $period, end => time);
 					# add data and stats
+					$stats //= {};
 					my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
 																									time => $catchall_data->{last_poll}, delay_insert => 1 );
 					NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -4681,7 +4683,7 @@ sub getCBQoSdata
 						# subconcept is completely variable, so we must tell the system where to find the stats
 						my $stats = Compat::NMIS::getSubconceptStats( sys => $S, inventory => $inventory, subconcept => $CMName,
 																													stats_section => $concept, start => $period, end => time );
-
+						$stats //= {};
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName,
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -5285,7 +5287,7 @@ sub runServer
 						my $period = getThresholdPeriod(subconcept => 'hrsmpcpu');
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 							subconcept => 'hrsmpcpu', start => $period, end => time);
-
+						$stats //= {};
 						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => 'hrsmpcpu',
 																										time => $catchall_data->{last_poll}, delay_insert => 1 );
 						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -5535,7 +5537,7 @@ sub runServer
 				my $period = getThresholdPeriod(subconcept => $subconcept);
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 					subconcept => $subconcept, start => $period, end => time);
-
+				$stats //= {};
 				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
 																								time => $catchall_data->{last_poll}, delay_insert => 1 );
 				NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
@@ -6483,7 +6485,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			my $newest = $inventory->get_newest_timed_data();
 
 			# autovivifies but no problem
-			my $prevcounter = ($newest->{success} && exists($newest->{data}->{cpu_raw}))? $newest->{data}->{cpu_raw} : 0;
+			my $prevcounter = ($newest->{success} && exists($newest->{data}->{service}->{cpu_raw}))? $newest->{data}->{service}->{cpu_raw} : 0;
 
 			$status{cpu_raw} = $cpu;	# the counter
 			# never done or done just now? zero

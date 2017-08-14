@@ -365,7 +365,7 @@ sub _generic_getset
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
 # time (optional, defaults to now), delay_insert (optional, default no), 
 # subconcept OR datasets (exactly one is required)
-# flush, internal only, used for saving delayed
+# flush, internal only, used for saving delayed, does not allow modifying anything
 #
 # delay_insert - delay inserting until save is called - if it's never called it's not saved!
 #   if data has already been queued for the time/concept/subconcept then new data provided will overwrite existing,
@@ -400,6 +400,8 @@ sub add_timed_data
 {
 	my ( $self, %args ) = @_;
 
+
+
 	return "cannot add timed data, invalid data argument!"
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
 	return "cannot add timed data, invalid derived_data argument!"
@@ -412,7 +414,6 @@ sub add_timed_data
 	return "subconcept is required stack:" . Carp::longmess() if ( !$subconcept && !$flush);
 	return "datasets must be hash if defined" . Carp::longmess()
 			if ( $datasets && ref($datasets) ne 'HASH' && !$flush );
-
 	# ttl: record time plus purge_timeddata_after seconds (default 7 days)
 	$time ||= Time::HiRes::time;
 	my $expire_at = $time + ($self->nmisng->config->{purge_timeddata_after} || 7*86400);
@@ -426,14 +427,17 @@ sub add_timed_data
 	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record 
 	my $timedrecord = { time => $time, expire_at => $expire_at };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
-
-	my $datasets_modfied = 0;
-	# if datasets was given don't try and figure them out, take them for whatever we are told they are
+	
+	# if datasets was not given (and not flushing) try and figure out what the datasets are
 	if (!$datasets && !$flush)
 	{
 		# todo: verify that structure is not deep, if it is this 'auto' getting datasets breaks down
 		$datasets->{$subconcept} = {map { $_ => 1 } ( keys %$data )};
-		
+	}
+	
+	my $datasets_modfied = 0;
+	if( !$flush )
+	{
 		# loop through all provided datasets and make sure they merged into
 		# the existing, keeping track if any modifications are actually made
 		# if this is a flush there is no need to do this, should already be done
@@ -452,15 +456,11 @@ sub add_timed_data
 			$self->dataset_info( subconcept => $subc, datasets => $existing_datasets )
 				if ($datasets_modfied);
 		}
+		# now store the data per subconcept, appending to data, replacing subconcept if it existed
+		# if flush is given we already have this, flush 
+		$timedrecord->{data}{$subconcept} = $data;
+		$timedrecord->{derived_data}{$subconcept} = $derived_data;
 	}
-	elsif( !$flush )
-	{
-		$self->dataset_info( subconcept => $subconcept, datasets => $datasets );
-	}
-
-	# now store the data per subconcept, appending to data, replacing subconcept if it existed
-	$timedrecord->{data}{$subconcept} = $data;
-	$timedrecord->{derived_data}{$subconcept} = $derived_data;
 
 	if ( !$delay_insert || $flush )
 	{
@@ -550,12 +550,12 @@ sub get_newest_timed_data
 	# data/derived data are stored for optimal searching (arrays of hashes),
 	# turn them back into hashes (which are much handier for use in perl)	
 	# data goes from subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
-	# to subconcepts->{$} => { data=>{},derived_data=>{}}
+	# to  data=>{$subconcept}{...},derived_data=>{$subconcept}{...}}
 	foreach my $entry (@{$reading->{subconcepts}})
 	{
-		$reading->{ $entry->{subconcept} } = { data => $entry->{data}, derived_data => $entry->{derived_data} };
+		$reading->{data}{$entry->{subconcept}} = $entry->{data};
+		$reading->{derived_data}{$entry->{subconcept}} = $entry->{derived_data};
 	}
-	delete $reading->{subconcepts};
 	
 	return {success => 1, data => $reading->{data}, derived_data => $reading->{derived_data}, time => $reading->{time}};
 }
