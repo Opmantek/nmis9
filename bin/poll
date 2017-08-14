@@ -1136,8 +1136,9 @@ sub doUpdate
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
-																time => $catchall_data->{last_poll}, delay_insert => 1 );
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+																						time => $catchall_data->{last_poll}, delay_insert => 1 );
+		NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -1483,8 +1484,9 @@ sub doCollect
 		my $previous_pit = $inventory->get_newest_timed_data();
 		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
 		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
-																time => $catchall_data->{last_poll}, delay_insert => 1 );
+		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+																						time => $catchall_data->{last_poll}, delay_insert => 1 );
+		NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
 		# $inventory->data($data);
 		$inventory->save();
 	}
@@ -3665,8 +3667,9 @@ sub getSystemHealthData
 						my $period = getThresholdPeriod(subconcept => $sect);
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																												 subconcept => $sect, start => $period, end => time);
-						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
-																				time => $catchall_data->{last_poll}, delay_insert => 1 );
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 					}
 				}
 				NMISNG::Util::info("section=$section index=$index read and stored $count values");
@@ -4010,8 +4013,9 @@ sub getNodeData
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																										 subconcept => $sect, start => $period, end => time);
 
-				$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
-																		time => $catchall_data->{last_poll}, delay_insert => 1 );
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																								time => $catchall_data->{last_poll}, delay_insert => 1 );
+				NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 			}
 		}
 		# NO save on inventory because it's the catchall right now
@@ -4455,8 +4459,9 @@ sub getIntfData
 					my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 																											 subconcept => $sect, start => $period, end => time);
 					# add data and stats
-					$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
-																			time => $catchall_data->{last_poll}, delay_insert => 1 );
+					my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $sect,
+																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+					NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 				}
 			}
 
@@ -4677,8 +4682,9 @@ sub getCBQoSdata
 						my $stats = Compat::NMIS::getSubconceptStats( sys => $S, inventory => $inventory, subconcept => $CMName,
 																													stats_section => $concept, start => $period, end => time );
 
-						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName,
-																				time => $catchall_data->{last_poll}, delay_insert => 1 );
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $CMName,
+																										time => $catchall_data->{last_poll}, delay_insert => 1 );
+						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 					}
 				}
 				else
@@ -5280,8 +5286,9 @@ sub runServer
 						my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 							subconcept => 'hrsmpcpu', start => $period, end => time);
 
-						$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => 'hrsmpcpu',
-																				time => $catchall_data->{last_poll}, delay_insert => 1 );
+						my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => 'hrsmpcpu',
+																										time => $catchall_data->{last_poll}, delay_insert => 1 );
+						NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 
 						($op,$error) = $inventory->save();
 						NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -5529,8 +5536,9 @@ sub runServer
 				my $stats = Compat::NMIS::getSubconceptStats(sys => $S, inventory => $inventory,
 					subconcept => $subconcept, start => $period, end => time);
 
-				$inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
-																		time => $catchall_data->{last_poll}, delay_insert => 1 );
+				my $error = $inventory->add_timed_data( data => $target, derived_data => $stats, subconcept => $subconcept,
+																								time => $catchall_data->{last_poll}, delay_insert => 1 );
+				NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 
 				$inventory->data_info( subconcept => $subconcept, enabled => 0 );
 				($op,$error) = $inventory->save();
@@ -7339,8 +7347,9 @@ sub runReach
 			my $previous_pit = $inventory->get_newest_timed_data();
 			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit, "health" );
 			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-			$inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
-																	time => $catchall_data->{last_poll}, delay_insert => 1 );
+			my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
+																						time => $catchall_data->{last_poll}, delay_insert => 1 );
+			NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
 			# $inventory->data($data);
 			$inventory->save();
 		}
