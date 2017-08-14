@@ -984,10 +984,13 @@ sub top10Report
 	my %pktsTable;
 	my %downTable;
 	my $prev_node;
+	my $S;
 	my %interfaceInfo = %{$II}; # copy
 
-	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) {
-		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) {
+	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) 
+	{
+		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) 
+		{
 			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) };
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = NMISNG::Util::convertIfName($interfaceInfo{$int}{ifDescr});
@@ -999,7 +1002,8 @@ sub top10Report
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "ok"
 				and $interfaceInfo{$int}{ifOperStatus} ne "dormant"
-			) {
+			) 
+			{
 				$downTable{$int}{node} = $interfaceInfo{$int}{node} ;
 				$downTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
 				$downTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
@@ -1008,7 +1012,7 @@ sub top10Report
 
 			if ($interfaceInfo{$int}{node} ne $prev_node) 
 			{
-				my $S = NMISNG::Sys->new;
+				$S = NMISNG::Sys->new;	# can be initialised exactly ONCE
 				$S->init(name=>$interfaceInfo{$int}{node},snmp=>'false');
 				$prev_node = $interfaceInfo{$int}{node};
 			}
