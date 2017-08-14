@@ -7598,17 +7598,14 @@ sub nmisSummary
 	NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => undef )
 		if ( $type eq "summary" );    # not if part of collect
 
-	my $S = NMISNG::Sys->new;
-
 	### 2014-08-28 keiths, configurable metric periods
 	my $metricsFirstPeriod
 		= defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
 	my $metricsSecondPeriod
 		= defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
 
-	summaryCache( sys => $S, file => 'nmis-summary8h', start => $metricsFirstPeriod, end => time() );
+	summaryCache(file => 'nmis-summary8h', start => $metricsFirstPeriod, end => time() );
 	my $k = summaryCache(
-		sys   => $S,
 		file  => 'nmis-summary16h',
 		start => $metricsSecondPeriod,
 		end   => $metricsFirstPeriod
@@ -7631,7 +7628,6 @@ sub nmisSummary
 sub summaryCache
 {
 	my %args        = @_;
-	my $S           = $args{sys};
 	my $file        = $args{file};
 	my $start       = $args{start};
 	my $end         = $args{end};
@@ -7643,6 +7639,7 @@ sub summaryCache
 	{
 		if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
 		{
+			my $S = NMISNG::Sys->new;
 			$S->init( name => $node, snmp => 'false' );
 			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
@@ -7655,7 +7652,10 @@ sub summaryCache
 			$summaryHash{$node}{intfColUp}   = 0;
 			my $stats;
 
-			if ( $stats = Compat::NMIS::getSummaryStats( sys => $S, type => "health", start => $start, end => $end, index => $node ) )
+			if ( $stats = Compat::NMIS::getSummaryStats( sys => $S,
+																									 type => "health",
+																									 start => $start, end => $end,
+																									 index => $node ) )
 			{
 				%summaryHash = ( %summaryHash, %{$stats} );
 			}
@@ -8462,7 +8462,7 @@ LABEL_ESC:
 											if ( $thisevent->{event} =~ /Interface/ )
 											{
 												my $ifIndex = undef;
-												my $S       = NMISNG::Sys->new;    # node object
+												my $S       = NMISNG::Sys->new;    # sys accessor object
 												if ( ( $S->init( name => $thisevent->{node}, snmp => 'false' ) ) )
 												{                          # get cached info of node only
 													my $IFD = $S->ifDescrInfo();    # interface info indexed by ifDescr

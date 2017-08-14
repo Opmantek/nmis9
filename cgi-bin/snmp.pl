@@ -181,7 +181,6 @@ sub viewSNMP {
 	my $node = $Q->{node};
 	my ($OIDS,$NAMES) = Mib::loadoid();
 	my $result;
-	my $S;
 	my $SNMP;
 
 	my $community = $Q->{community} eq '*****' ? $Q->{pcommunity} : $Q->{community};
@@ -209,7 +208,7 @@ sub viewSNMP {
 			return;
 		}
 	} else {
-		$S = NMISNG::Sys->new; # get system object
+		my $S = NMISNG::Sys->new; # get system object
 		if ($S->init(name=>$node)) { # open snmp
 			$SNMP = $S->snmp;
 			if (!$S->open()) {

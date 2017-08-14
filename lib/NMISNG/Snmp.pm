@@ -139,7 +139,7 @@ sub name_to_oid
 
 	if ($name =~ /^(\w+)(.*)$/)
 	{
-		$oid = NMISNG::MIB::name2oid($1).$2; 
+		$oid = NMISNG::MIB::name2oid($1).$2;
 	}
 	else
 	{
@@ -223,6 +223,7 @@ sub checkResult
 
 # opens an actual session
 # args: EITHER config (=hash with ALL the required args), OR individual arguments
+# providing both does NOT work; config arg wins.
 # returns: 1 if successful
 sub open
 {
@@ -230,7 +231,8 @@ sub open
 	undef $self->{error};
 	$self->{session}->close if ($self->{session});
 
-	my $cobj = (ref($args{config}) eq "HASH" && keys %{$args{config}})? $args{config} : {};
+	my $cobj = (ref($args{config}) eq "HASH"
+							&& keys %{$args{config}})? $args{config} : {};
 
 	$self->{config} = {
 		# host heuristics: (more-or-less undocumented) host_addr wins,

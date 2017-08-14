@@ -74,7 +74,8 @@ if ( @ARGV )
 {
 	my %nvp = %{ NMISNG::Util::get_args_multi(@ARGV) };
 
-	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
+	# fall back to report arg if no act=...
+	$Q->{act} ||= $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
 	$Q->{period} = $nvp{length};
 	$Q->{level} = $nvp{level} ? $nvp{level} : "node";		# for outage report
 	$Q->{debug} = $nvp{debug};
@@ -164,7 +165,6 @@ sub healthReport {
 
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $S = NMISNG::Sys->new;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -183,6 +183,7 @@ sub healthReport {
 		next if (defined $AU && !$AU->InGroup($NT->{$reportnode}{group}));
 		next if (!NMISNG::Util::getbool($NT->{$reportnode}{active}));
 
+		my $S = NMISNG::Sys->new;
 		$S->init(name=>$reportnode,snmp=>'false');
 		my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 
@@ -367,7 +368,6 @@ sub availReport
 
 	my $NT = Compat::NMIS::loadLocalNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $S = NMISNG::Sys->new;
 
 	#start of page
 	if (not $Q->{print})
@@ -403,6 +403,7 @@ sub availReport
 		if (defined $AU) { next unless $AU->InGroup($NT->{$reportnode}{group})};
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
 		{
+			my $S = NMISNG::Sys->new;
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 			
@@ -645,7 +646,6 @@ $percentage = $portCount{$intHash}{realportcount}?
 
 sub responseReport
 {
-
 	my %reportTable;
 
 	#start of page
@@ -659,7 +659,6 @@ sub responseReport
 
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
-	my $S = NMISNG::Sys->new;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -676,7 +675,8 @@ sub responseReport
 		if (defined $AU) {next unless $AU->InGroup($NT->{$reportnode}{group})};
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
 		{
-			$S->init(name=>$reportnode,snmp=>'false');
+			my $S = NMISNG::Sys->new;
+			$S->init(name=>$reportnode, snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 			
 			my $h;
@@ -923,7 +923,6 @@ sub top10Report
 	my $NT = Compat::NMIS::loadNodeTable();
 	my $GT = Compat::NMIS::loadGroupTable();
 	my $II = Compat::NMIS::loadInterfaceInfo();
-	my $S = NMISNG::Sys->new;
 
 	my ($time_elements,$start,$end) = getPeriod();
 	if ($start eq '' or $end eq '') {
@@ -944,6 +943,7 @@ sub top10Report
 
 		if ( NMISNG::Util::getbool($NT->{$reportnode}{active}) ) 
 		{
+			my $S = NMISNG::Sys->new;
 			$S->init(name=>$reportnode,snmp=>'false');
 			my $catchall = $S->inventory( concept => 'catchall' )->data; # ro clone is good enough
 			
@@ -984,10 +984,13 @@ sub top10Report
 	my %pktsTable;
 	my %downTable;
 	my $prev_node;
+	my $S;
 	my %interfaceInfo = %{$II}; # copy
 
-	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) {
-		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) {
+	foreach my $int (NMISNG::Util::sortall(\%interfaceInfo,'node','fwd') ) 
+	{
+		if ( NMISNG::Util::getbool($interfaceInfo{$int}{collect}) ) 
+		{
 			if (defined $AU) { next unless $AU->InGroup($NT->{$interfaceInfo{$int}{node}}{group}) };
 			# availability, inputUtil, outputUtil, totalUtil
 			my $tmpifDescr = NMISNG::Util::convertIfName($interfaceInfo{$int}{ifDescr});
@@ -999,7 +1002,8 @@ sub top10Report
 				and $interfaceInfo{$int}{ifOperStatus} ne "up"
 				and $interfaceInfo{$int}{ifOperStatus} ne "ok"
 				and $interfaceInfo{$int}{ifOperStatus} ne "dormant"
-			) {
+			) 
+			{
 				$downTable{$int}{node} = $interfaceInfo{$int}{node} ;
 				$downTable{$int}{ifDescr} = $interfaceInfo{$int}{ifDescr} ;
 				$downTable{$int}{Description} = $interfaceInfo{$int}{Description} ;
@@ -1008,6 +1012,7 @@ sub top10Report
 
 			if ($interfaceInfo{$int}{node} ne $prev_node) 
 			{
+				$S = NMISNG::Sys->new;	# can be initialised exactly ONCE
 				$S->init(name=>$interfaceInfo{$int}{node},snmp=>'false');
 				$prev_node = $interfaceInfo{$int}{node};
 			}

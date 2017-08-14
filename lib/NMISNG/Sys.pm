@@ -208,8 +208,8 @@ sub status
 }
 
 # initialise the system object for a given node
-# attention: while it's possible to reuse a sys object for different nodes,
-# it is NOT RECOMMENDED!
+# ATTENTION: re-initialisation is no longer supported.
+# you need a new sys object every time you want to call init().
 #
 # node config is loaded if snmp or wmi args are true
 # args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
@@ -247,6 +247,9 @@ sub init
 		$self->{error} = "failed to load configuration table!";
 		return 0;
 	}
+
+	Carp::confess("Sys objects cannot be reinitialised!")
+			if (defined $self->{_nmisng}); # new doesn't set that
 
 	# fixme9: assumption is that the caller has loaded compat::nmis, usually justified i guess...
 	$self->{_nmisng} = Compat::NMIS::new_nmisng();
