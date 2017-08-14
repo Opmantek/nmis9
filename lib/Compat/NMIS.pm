@@ -1248,7 +1248,7 @@ sub getNodeSummary {
 			if(!$inventory);
 
 		# we know the data here isn't changing so no need to use live data
-		my $catchall_data->$inventory->data();
+		my $catchall_data = $inventory->data();
 
 		$nt{$nd}{name} = $catchall_data->{name};
 		$nt{$nd}{group} = $catchall_data->{group};

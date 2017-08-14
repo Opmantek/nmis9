@@ -360,7 +360,6 @@ sub displayIPSLAmenu {
 	# create source address list of probe node
 	if ( $pnode ) {
 		my $S = NMISNG::Sys->new; # get system object
-
 		$S->init(name=>$pnode,snmp=>'false'); # load node info and Model if name exists
 		my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
 

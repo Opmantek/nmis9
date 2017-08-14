@@ -115,7 +115,6 @@ sub rrdDraw
 	my $filename = $Q->{filename};
 
 	my $S = NMISNG::Sys->new; # get system object
-
 	$S->init(name=>$nodename, snmp=>'false');
 	# fixme9: non-node mode is a dirty hack.
 	# fixme9: catchall_data is not used?!

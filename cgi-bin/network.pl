@@ -1617,7 +1617,7 @@ sub viewPollingSummary
 			my $catchall_data = $S->inventory( concept => 'catchall' )->data();
 
 			++$sum->{count}{active};
-			
+
 			# nodeModel and nodeType are dynamic from catchall, rest are configuration items
 			for my $item (qw(nodeModel nodeType))
 			{
@@ -1646,18 +1646,18 @@ sub viewPollingSummary
 			my @cbqosdb = qw(cbqos-in cbqos-out);
 			foreach my $cbqos (@cbqosdb)
 			{
-				my $qosinventory = $S->nmisng_node->get_inventory_model( 
+				my $qosinventory = $S->nmisng_node->get_inventory_model(
 					concept => $cbqos,
 					filter => { historic => 0 });
 				if ($qosinventory->count)
 				{
 					++$sum->{count}{$cbqos};
-					
+
 					foreach my $oneclass (@{$qosinventory->data})
 					{
 						++$sum->{$cbqos}->{interface};
 						# we want the number  of classes == same as number of subconcepts
-						
+
 						$sum->{$cbqos}->{classes} += scalar(@{$oneclass->{subconcepts}});
 					}
 				}
@@ -3376,7 +3376,7 @@ sub viewStorage
 
 	print Tr( th( {class => 'title', colspan => '3'}, "Storage of node $catchall_data->{name}" ) );
 
-	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage', 
+	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage',
 																								filter => { historic => 0 } );
 	foreach my $id ( @$ids )
 	{
@@ -3980,7 +3980,7 @@ sub viewSystemHealth
 		$gotHeaders = 1;
 	}
 
-	my $ids = $nmisng_node->get_inventory_ids( concept => $section, 
+	my $ids = $nmisng_node->get_inventory_ids( concept => $section,
 																						 filter => { historic => 0 } );
 
 	my $D = {};
@@ -4655,253 +4655,249 @@ sub nodeAdminSummary
 
 		foreach my $node ( sort keys %{$LNT} )
 		{
-			#if ( $LNT->{$node}{active} eq "true" ) {
-			# fixme9: why did that get removed?
-			if (1)
+			if ( $AU->InGroup( $LNT->{$node}{group} )
+					 and ( $group eq "" or $group eq $LNT->{$node}{group} ) )
 			{
-				if ( $AU->InGroup( $LNT->{$node}{group} ) and ( $group eq "" or $group eq $LNT->{$node}{group} ) )
+				my $intCollect = 0;
+				my $intCount   = 0;
+				my $S          = NMISNG::Sys->new;    # get system object
+				$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
+
+				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+				my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
+
+				my $exception = 0;
+				my @issueList;
+
+				# Is the node active and are we doing stats on it.
+				if ( NMISNG::Util::getbool( $LNT->{$node}{active} )
+						 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 				{
-					my $intCollect = 0;
-					my $intCount   = 0;
-					my $S          = NMISNG::Sys->new;    # get system object
-					$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-
-					my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-					my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-
-					my $exception = 0;
-					my @issueList;
-
-					# Is the node active and are we doing stats on it.
-					if ( NMISNG::Util::getbool( $LNT->{$node}{active} )
-							 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
+					for my $entry (@{$interfaces->data})
 					{
-						for my $entry (@{$interfaces->data})
-						{
-							++$intCount;
-							++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
-						}
+						++$intCount;
+						++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
 					}
+				}
 
-					my $sysDescr = $catchall_data->{sysDescr};
-					$sysDescr =~ s/[\x0A\x0D]/\\n/g;
-					$sysDescr =~ s/,/;/g;
+				my $sysDescr = $catchall_data->{sysDescr};
+				$sysDescr =~ s/[\x0A\x0D]/\\n/g;
+				$sysDescr =~ s/,/;/g;
 
-					my $community = "OK";
-					my $commClass = "info Plain";
+				my $community = "OK";
+				my $commClass = "info Plain";
 
-					my $lastpoll = defined $catchall_data->{last_poll}
-						? NMISNG::Util::returnDateStamp( $catchall_data->{last_poll} )
+				my $lastpoll = defined $catchall_data->{last_poll}
+				? NMISNG::Util::returnDateStamp( $catchall_data->{last_poll} )
 						: "N/A";
-					my $lastpollclass = "info Plain";
+				my $lastpollclass = "info Plain";
 
-					my $lastupdate
+				my $lastupdate
 						= defined $catchall_data->{last_update}
-						? NMISNG::Util::returnDateStamp( $catchall_data->{last_update} )
+				? NMISNG::Util::returnDateStamp( $catchall_data->{last_update} )
 						: "N/A";
-					my $lastupdateclass = "info Plain";
+				my $lastupdateclass = "info Plain";
 
-					my $pingable  = "unknown";
-					my $pingClass = "info Plain";
+				my $pingable  = "unknown";
+				my $pingClass = "info Plain";
 
-					my $snmpable  = "unknown";
-					my $snmpClass = "info Plain";
+				my $snmpable  = "unknown";
+				my $snmpClass = "info Plain";
 
-					my $wmiworks = "unknown";
-					my $wmiclass = "info Plain";
+				my $wmiworks = "unknown";
+				my $wmiclass = "info Plain";
 
-					my $moduleClass = "info Plain";
+				my $moduleClass = "info Plain";
 
-					my $actClass = "info Plain Minor";
+				my $actClass = "info Plain Minor";
+				if ( $LNT->{$node}{active} eq "false" )
+				{
+					push( @issueList, "Node is not active" );
+				}
+				else
+				{
+					$actClass = "info Plain";
 					if ( $LNT->{$node}{active} eq "false" )
 					{
-						push( @issueList, "Node is not active" );
+						$lastpoll = "N/A"; # fixme wrong logic - still should show last poll before inactivation!
+					}
+					elsif ( not defined $catchall_data->{last_poll} )
+					{
+						$lastpoll  = "unknown";
+						$lastpollclass = "info Plain Minor";
+						$exception        = 1;
+						push( @issueList, "Last collect poll is unknown" );
+					}
+					elsif ( $catchall_data->{last_poll} < ( time - 60 * 15 ) )
+					{
+						$lastpollclass = "info Plain Major";
+						$exception        = 1;
+						push( @issueList, "Last collect poll was over 5 minutes ago" );
+					}
+
+					if ( $LNT->{$node}{active} eq "false" )
+					{
+						$lastupdate = "N/A"; # fixme wrong logic, should show last time  before deactivation
+					}
+					elsif ( not defined $catchall_data->{last_update} )
+					{
+						$lastupdate  = "unknown";
+						$lastupdateclass = "info Plain Minor";
+						$exception       = 1;
+						push( @issueList, "Last update poll is unknown" );
+					}
+					elsif ( $catchall_data->{last_update} < ( time - 86400 ) )
+					{
+						$lastupdateclass = "info Plain Major";
+						$exception       = 1;
+						push( @issueList, "Last update poll was over 1 day ago" );
+					}
+
+					$pingable  = "true";
+					$pingClass = "info Plain";
+					if ( not defined $catchall_data->{nodedown} )
+					{
+						$pingable  = "unknown";
+						$pingClass = "info Plain Minor";
+						$exception = 1;
+						push( @issueList, "Node state is unknown" );
+					}
+					elsif ( $catchall_data->{nodedown} eq "true" )
+					{
+						$pingable  = "false";
+						$pingClass = "info Plain Major";
+						$exception = 1;
+						push( @issueList, "Node is currently unreachable" );
+					}
+
+					# figure out what sources are enabled and which of those work/are misconfig'd etc
+					my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
+
+					if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{wmi_enabled} )
+					{
+						$wmiworks = "N/A";
 					}
 					else
 					{
-						$actClass = "info Plain";
-						if ( $LNT->{$node}{active} eq "false" )
+						if ( !$status{wmi_status} )
 						{
-							$lastpoll = "N/A"; # fixme wrong logic - still should show last poll before inactivation!
-						}
-						elsif ( not defined $catchall_data->{last_poll} )
-						{
-							$lastpoll  = "unknown";
-							$lastpollclass = "info Plain Minor";
-							$exception        = 1;
-							push( @issueList, "Last collect poll is unknown" );
-						}
-						elsif ( $catchall_data->{last_poll} < ( time - 60 * 15 ) )
-						{
-							$lastpollclass = "info Plain Major";
-							$exception        = 1;
-							push( @issueList, "Last collect poll was over 5 minutes ago" );
-						}
-
-						if ( $LNT->{$node}{active} eq "false" )
-						{
-							$lastupdate = "N/A"; # fixme wrong logic, should show last time  before deactivation
-						}
-						elsif ( not defined $catchall_data->{last_update} )
-						{
-							$lastupdate  = "unknown";
-							$lastupdateclass = "info Plain Minor";
-							$exception       = 1;
-							push( @issueList, "Last update poll is unknown" );
-						}
-						elsif ( $catchall_data->{last_update} < ( time - 86400 ) )
-						{
-							$lastupdateclass = "info Plain Major";
-							$exception       = 1;
-							push( @issueList, "Last update poll was over 1 day ago" );
-						}
-
-						$pingable  = "true";
-						$pingClass = "info Plain";
-						if ( not defined $catchall_data->{nodedown} )
-						{
-							$pingable  = "unknown";
-							$pingClass = "info Plain Minor";
+							$wmiworks  = "false";
+							$wmiclass  = "Info Plain Major";
 							$exception = 1;
-							push( @issueList, "Node state is unknown" );
-						}
-						elsif ( $catchall_data->{nodedown} eq "true" )
-						{
-							$pingable  = "false";
-							$pingClass = "info Plain Major";
-							$exception = 1;
-							push( @issueList, "Node is currently unreachable" );
-						}
-
-						# figure out what sources are enabled and which of those work/are misconfig'd etc
-						my %status = Compat::NMIS::PreciseNodeStatus( system => $S );
-
-						if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{wmi_enabled} )
-						{
-							$wmiworks = "N/A";
+							push @issueList, "WMI access is currently down";
 						}
 						else
 						{
-							if ( !$status{wmi_status} )
-							{
-								$wmiworks  = "false";
-								$wmiclass  = "Info Plain Major";
-								$exception = 1;
-								push @issueList, "WMI access is currently down";
-							}
-							else
-							{
-								$wmiworks = "true";
-							}
-						}
-
-						if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{snmp_enabled} )
-						{
-							$community = $snmpable = "N/A";
-						}
-						else
-						{
-							$snmpable = 'true';
-							if ( !$status{snmp_status} )
-							{
-								$snmpable  = 'false';
-								$snmpClass = "info Plain Major";
-								$exception = 1;
-								push( @issueList, "SNMP access is currently down" );
-							}
-
-							if ( $LNT->{$node}{community} eq "" )
-							{
-								$community = "BLANK";
-								$commClass = "info Plain Major";
-								$exception = 1;
-								push( @issueList, "SNMP Community is blank" );
-							}
-
-							if ( $LNT->{$node}{community} eq "public" )
-							{
-								$community = "DEFAULT";
-								$commClass = "info Plain Minor";
-								$exception = 1;
-								push( @issueList, "SNMP Community is default (public)" );
-							}
-
-							if ( $LNT->{$node}{model} ne "automatic" )
-							{
-								$moduleClass = "info Plain Minor";
-								$exception   = 1;
-								push( @issueList, "Not using automatic model discovery" );
-							}
+							$wmiworks = "true";
 						}
 					}
 
-					my $wd = 850;
-					my $ht = 700;
-
-					my $idsafenode = $node;
-					$idsafenode = ( split( /\./, $idsafenode ) )[0];
-					$idsafenode =~ s/[^a-zA-Z0-9_:\.-]//g;
-
-					my $nodelink = a(
-						{   href => url( -absolute => 1 )
-								. "?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
-								. uri_escape($node),
-							id => "node_view_$idsafenode"
-						},
-						$LNT->{$node}{name}
-					);
-
-#my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
-#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
-					my $issues = join( "<br/>", @issueList );
-
-					my $sysObject = "$catchall_data->{sysObjectName} $catchall_data->{sysObjectID}";
-					my $intNums   = "$intCollect/$intCount";
-
-					if ( length($sysDescr) > 40 )
+					if ( !NMISNG::Util::getbool( $LNT->{$node}{collect} ) or !$status{snmp_enabled} )
 					{
-						my $shorter = substr( $sysDescr, 0, 40 );
-						$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
+						$community = $snmpable = "N/A";
 					}
-
-					if ( not $filter or ( $filter eq "exceptions" and $exception ) )
+					else
 					{
-						$noExceptions = 0;
+						$snmpable = 'true';
+						if ( !$status{snmp_status} )
+						{
+							$snmpable  = 'false';
+							$snmpClass = "info Plain Major";
+							$exception = 1;
+							push( @issueList, "SNMP access is currently down" );
+						}
 
-						my $urlsafegroup = uri_escape( $LNT->{$node}->{group} );
-						print Tr(
-							td( {class => "info Plain"}, $nodelink ),
-							td( {class => 'info Plain'},
-								a(  {   href => url( -absolute => 1 )
-											. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"
-									},
-									$LNT->{$node}{group}
-								)
-							),
-							td( {class => 'infolft Plain'},   $issues ),
-							td( {class => $actClass},         $LNT->{$node}{active} ),
-							td( {class => $lastpollclass}, $lastpoll ),
-							td( {class => $lastupdateclass},  $lastupdate ),
+						if ( $LNT->{$node}{community} eq "" )
+						{
+							$community = "BLANK";
+							$commClass = "info Plain Major";
+							$exception = 1;
+							push( @issueList, "SNMP Community is blank" );
+						}
 
-							td( {class => 'info Plain'}, $LNT->{$node}{ping} ),
-							td( {class => $pingClass},   $pingable ),
+						if ( $LNT->{$node}{community} eq "public" )
+						{
+							$community = "DEFAULT";
+							$commClass = "info Plain Minor";
+							$exception = 1;
+							push( @issueList, "SNMP Community is default (public)" );
+						}
 
-							td( {class => 'info Plain'}, $LNT->{$node}{collect} ),
+						if ( $LNT->{$node}{model} ne "automatic" )
+						{
+							$moduleClass = "info Plain Minor";
+							$exception   = 1;
+							push( @issueList, "Not using automatic model discovery" );
+						}
+					}
+				}
 
-							td( {class => $wmiclass}, $wmiworks ),
+				my $wd = 850;
+				my $ht = 700;
 
-							td( {class => $snmpClass},   $snmpable ),
-							td( {class => $commClass},   $community ),
-							td( {class => 'info Plain'}, $LNT->{$node}{version} ),
+				my $idsafenode = $node;
+				$idsafenode = ( split( /\./, $idsafenode ) )[0];
+				$idsafenode =~ s/[^a-zA-Z0-9_:\.-]//g;
 
-							td( {class => 'info Plain'}, $catchall_data->{nodeVendor} ),
-							td( {class => $moduleClass}, "$catchall_data->{nodeModel} ($LNT->{$node}{model})" ),
-							td( {class => 'info Plain'}, $catchall_data->{nodeType} ),
-							td( {class => 'info Plain'}, $sysObject ),
-							td( {class => 'info Plain'}, $sysDescr ),
-							td( {class => 'info Plain'}, $intNums ),
+				my $nodelink = a(
+					{   href => url( -absolute => 1 )
+									. "?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node="
+									. uri_escape($node),
+									id => "node_view_$idsafenode"
+					},
+					$LNT->{$node}{name}
 						);
-					}
+
+				#my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
+				#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
+				my $issues = join( "<br/>", @issueList );
+
+				my $sysObject = "$catchall_data->{sysObjectName} $catchall_data->{sysObjectID}";
+				my $intNums   = "$intCollect/$intCount";
+
+				if ( length($sysDescr) > 40 )
+				{
+					my $shorter = substr( $sysDescr, 0, 40 );
+					$sysDescr = "<span title=\"$sysDescr\">$shorter (more...)</span>";
+				}
+
+				if ( not $filter or ( $filter eq "exceptions" and $exception ) )
+				{
+					$noExceptions = 0;
+
+					my $urlsafegroup = uri_escape( $LNT->{$node}->{group} );
+					print Tr(
+						td( {class => "info Plain"}, $nodelink ),
+						td( {class => 'info Plain'},
+								a(  {   href => url( -absolute => 1 )
+														. "?conf=$Q->{conf}&amp;act=node_admin_summary&group=$urlsafegroup&refresh=$C->{page_refresh_time}&widget=$widget&filter=$filter"
+										},
+										$LNT->{$node}{group}
+								)
+						),
+						td( {class => 'infolft Plain'},   $issues ),
+						td( {class => $actClass},         $LNT->{$node}{active} ),
+						td( {class => $lastpollclass}, $lastpoll ),
+						td( {class => $lastupdateclass},  $lastupdate ),
+
+						td( {class => 'info Plain'}, $LNT->{$node}{ping} ),
+						td( {class => $pingClass},   $pingable ),
+
+						td( {class => 'info Plain'}, $LNT->{$node}{collect} ),
+
+						td( {class => $wmiclass}, $wmiworks ),
+
+						td( {class => $snmpClass},   $snmpable ),
+						td( {class => $commClass},   $community ),
+						td( {class => 'info Plain'}, $LNT->{$node}{version} ),
+
+						td( {class => 'info Plain'}, $catchall_data->{nodeVendor} ),
+						td( {class => $moduleClass}, "$catchall_data->{nodeModel} ($LNT->{$node}{model})" ),
+						td( {class => 'info Plain'}, $catchall_data->{nodeType} ),
+						td( {class => 'info Plain'}, $sysObject ),
+						td( {class => 'info Plain'}, $sysDescr ),
+						td( {class => 'info Plain'}, $intNums ),
+							);
 				}
 			}
 		}
