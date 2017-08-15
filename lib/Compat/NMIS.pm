@@ -1163,7 +1163,7 @@ sub getSubconceptStats
 			$outSpeed = $data->{ifSpeedOut} if $index ne "" and $data->{ifSpeedOut};
 		}
 		# read from Model and translate variable ($database etc.) rrd options
-		foreach my $str (@{$M->{stats}{type}{$subconcept}}) {
+		foreach my $str (@{$M->{stats}{type}{$stats_section}}) {
 			my $s = $str;
 			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
@@ -3312,7 +3312,8 @@ sub loadServiceStatus
 
 		my $thisserver = $maybe->cluster_id;
 
-		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
+		# timed data is structured by/under subconcept, one subconcept 'service' used for services now
+		my %goodies = ( (map { ($_ => $timeddata->{data}->{service}->{$_}) } (keys %{$timeddata->{data}->{service}})),
 										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata})),
 										node_uuid => $maybe->node_uuid
 				);

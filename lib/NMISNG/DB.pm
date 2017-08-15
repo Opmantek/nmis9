@@ -51,6 +51,7 @@ use boolean;         # do NOT use -truth! deprecated, segfaults in perl 5.20 and
 use MongoDB;
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
+use Carp;
 
 use version 0.77;    # needed to check driver version
 
@@ -378,29 +379,43 @@ sub constrain_record
 		# check every element for deeper structure
 		for my $idx ( 0 .. $#{$record} )
 		{
-			$newarray[$idx]
-				= ref( $record->[$idx] )
-				? constrain_record( record => $record->[$idx] )
-				: $record->[$idx];
+			# should the record be self-referential, DO NOT follow that loop!
+			if (ref($record->[$idx]) && $record->[$idx] eq $record)
+			{
+				Carp::confess("constrain_record encountered self-referntial record!\n");
+			}
+			else
+			{
+				$newarray[$idx]
+						= ref( $record->[$idx] )
+						? constrain_record( record => $record->[$idx] )
+						: $record->[$idx];
+			}
 		}
 		return \@newarray;
 	}
 	elsif ( ref($record) eq "HASH" )
 	{
-
 		# check all keys, rename if needed; then check deeper.
 		my %newhash;
 		foreach my $key ( keys %$record )
 		{
-
 			# . is not allowd in key, globally replace with _
 			my $original_key = $key;
 			$key =~ s/\./_/g;
 
-			$newhash{$key}
+			# should the record be self-referential, DO NOT follow that loop!
+			if (ref($record->{$original_key}) && $record->{$original_key} eq $record)
+			{
+				Carp::confess("constrain_record encountered self-referntial record!\n");
+			}
+			else
+			{
+				$newhash{$key}
 				= ref( $record->{$original_key} )
-				? constrain_record( record => $record->{$original_key} )
-				: $record->{$original_key};
+						? constrain_record( record => $record->{$original_key} )
+						: $record->{$original_key};
+			}
 		}
 		return \%newhash;
 	}
