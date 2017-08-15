@@ -3312,7 +3312,8 @@ sub loadServiceStatus
 
 		my $thisserver = $maybe->cluster_id;
 
-		my %goodies = ( (map { ($_ => $timeddata->{data}->{$_}) } (keys %{$timeddata->{data}})),
+		# timed data is structured by/under subconcept, one subconcept 'service' used for services now
+		my %goodies = ( (map { ($_ => $timeddata->{data}->{service}->{$_}) } (keys %{$timeddata->{data}->{service}})),
 										(map { ($_ => $semistaticdata->{$_}) } (keys %{$semistaticdata})),
 										node_uuid => $maybe->node_uuid
 				);
