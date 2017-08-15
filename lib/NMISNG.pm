@@ -489,7 +489,8 @@ sub inventory_collection
 				[{"lastupdate"  => 1}, {unique => 0}],
 				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
 				[{"subconcepts" => 1}, {unique => 0}],
-				[{"data_info"   => 1}, {unique => 0}]
+				[{"data_info"   => 1}, {unique => 0}],
+				[ { expire_at => 1 }, { expireAfterSeconds => 0 } ],			# ttl index for auto-expiration
 			] );
 		$self->log->error("index setup failed for inventory: $err") if ($err);
 	}
