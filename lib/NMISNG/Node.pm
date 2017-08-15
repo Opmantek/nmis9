@@ -104,6 +104,7 @@ sub _dirty
 #
 # also updates records which are in the active_indices/active_ids 
 # list to not be historic
+# please note: this cannot and does NOT extend the expire_at ttl for active records!
 #
 # args: active_indices (optional), arrayref of active indices,
 #   which can work if and  only if the concept uses 'index'!
