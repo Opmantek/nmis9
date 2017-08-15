@@ -224,6 +224,30 @@ sub parse_rrd_update_data
 	return { $subconcept => \%key_meta };
 }
 
+# used to turn 'headers' section in a model into the keys and descriptions
+# for displaying the subconcept in a table (for instance)
+# headers lists the data keys to be displayed but does not describe the column
+# headers, which can be re-defined in the model section
+# args - model_section - place in the model this is coming from, proto - snmp/wmi
+#  where to look in the model for the data/descriptions
+sub parse_model_subconcept_headers
+{
+	my ($model_section,$proto) = @_;
+	my $retval = [];
+	my $headers = [ split(/\s*,\s*/, $model_section->{headers}) ];
+	foreach my $key (@$headers)
+	{
+		my $title = $key;
+		if( defined($model_section->{$proto}{$key}) &&
+			 defined($model_section->{$proto}{$key}{title}) )
+		{
+			$title = $model_section->{$proto}{$key}{title};
+		}
+		push @$retval, { $key => $title };
+	}
+	return $retval;
+}
+
 ###########
 # Public:
 ###########

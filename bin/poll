@@ -3288,7 +3288,7 @@ sub getSystemHealthInfo
 		$index_var = $index_snmp = $thissection->{indexed};
 		$index_regex = $thissection->{index_regex} if ( exists( $thissection->{index_regex} ) );
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
-		my $headers = [ split(/,/, $thissection->{headers}) ];
+		my $header_info;
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
@@ -3308,6 +3308,7 @@ sub getSystemHealthInfo
 		if ( exists( $thissection->{wmi} ) )
 		{
 			NMISNG::Util::info("systemhealth: section=$section, source WMI, index_var=$index_var");
+			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'wmi' );
 
 			my $wmiaccessor = $S->wmi;
 			if ( !$wmiaccessor )
@@ -3408,7 +3409,7 @@ sub getSystemHealthInfo
 					$inventory->data_info(
 						subconcept => $section,
 						enabled => 1,
-						display_keys => $headers
+						display_keys => $header_info
 					);
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
@@ -3433,6 +3434,7 @@ sub getSystemHealthInfo
 		else
 		{
 			NMISNG::Util::info("systemHealth: section=$section, source SNMP, index_var=$index_var, index_snmp=$index_snmp");
+			$header_info = NMISNG::Inventory::parse_model_subconcept_headers( $thissection, 'snmp' );
 			my ( %healthIndexNum, $healthIndexTable );
 
 			# first loop gets the index we want to use out of the oid
@@ -3520,7 +3522,7 @@ sub getSystemHealthInfo
 					$inventory->data_info(
 						subconcept => $section,
 						enabled => 1,
-						display_keys => $headers
+						display_keys => $header_info
 					);
 
 					# the above will put data into inventory, so save
