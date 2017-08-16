@@ -38,6 +38,7 @@ use Socket;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
+use feature 'state';						# for new_nmisng
 use Carp;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 
@@ -56,7 +57,7 @@ use NMISNG::rrdfunc;
 use NMISNG::Notify;
 
 
-# Cache table pointers
+# fixme9 thise need to go and/or become state vars!
 my $NT_cache = undef; # node table (local + remote)
 my $NT_modtime; # file modification time
 my $LNT_cache = undef; # local node table
@@ -66,26 +67,15 @@ my $GT_modtime;
 my $ST_cache = undef; # server table
 my $ST_modtime;
 
-my $SUM8_cache = undef; # summary table
-my $SUM8_modtime;
-my $SUM16_cache = undef; # summary table
-my $SUM16_modtime;
-my $ENT_cache = undef; # enterprise table
-my $ENT_modtime;
-my $IFT_cache = undef; # ifTypes table
-my $IFT_modtime;
-my $SRC_cache = undef; # Services table
-my $SRC_modtime;
-
 # this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
 #
 # args: nocache (optional, if set create new nmisng object)
 # returns: ref to one nmisng object
-my $_nmisng = undef;
 sub new_nmisng
 {
 	my (%args) = @_;
+	state ($_nmisng);
 
 	if (ref($_nmisng) ne "NMISNG" or $args{nocache})
 	{
