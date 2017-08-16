@@ -2223,20 +2223,6 @@ sub statusNumber {
 	return $level;
 }
 
-# 24 Feb 2002 - A suggestion from someone? to remove \n from $string.
-# this also prints the message if debug, remove concurrent debug prints in code...
-
-sub logMessage {
-	my $string = shift;
-	my $C = NMISNG::Util::loadConfTable();
-
-	$string =~ s/\n+/ /g;      #remove all embedded newlines
-	sysopen(DATAFILE, "$C->{nmis_log}", O_WRONLY | O_APPEND | O_CREAT)
-		 or warn NMISNG::Util::returnTime." logMessage, Couldn't open log file $C->{nmis_log}. $!\n";
-	flock(DATAFILE, LOCK_EX) or warn "logMessage, can't lock filename: $!";
-	print DATAFILE NMISNG::Util::returnDateStamp.",$string\n";
-	close(DATAFILE) or warn "logMessage, can't close filename: $!";
-} # end logMessage
 
 # load the info of a node
 # if optional arg suppress_errors is given, then no errors are logged
@@ -2351,6 +2337,7 @@ sub outageRemove {
 	my @problems;
 
 	if ($string ne '') {
+		# fixme9: should use a sensible log mechanism
 		# log this action but DON'T DEADLOCK - NMISNG::Util::logMsg locks, too!
 		if ( open($handle,">>$C->{outage_log}") ) {
 			if ( flock($handle, LOCK_EX) ) {
