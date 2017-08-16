@@ -535,7 +535,7 @@ sub getDiskBytes {
 
 # tiny helper that translates level names or levels
 # into a debug number, does NOT set any config!
-# DEPRECATED. use nmisng::log::parse_debug_level instead!
+# NOT smart enough. DEPRECATED - use NMISNG::Log::parse_debug_level instead.
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
@@ -545,6 +545,8 @@ sub setDebug {
 	elsif (  $string eq "verbose" ) { $debug = 9; }
 	elsif ( $string =~ /\d+/ ) { $debug = $string; }
 	else { $debug = 0; }
+
+	
 	return $debug;
 }
 
@@ -711,8 +713,6 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
-	my $debug = $args{debug} || 0;
-	my $info = $args{info} || 0;
 
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
@@ -773,9 +773,17 @@ sub loadConfTable
 		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
 		$config_cache->{server} = $config_cache->{server_name}; # fixme9: still necessary?
 
-		# fixme9: possibly a bad idea, config vs. command line
-		$config_cache->{debug} = NMISNG::Util::setDebug($debug); # include debug setting in conf table
-		$config_cache->{info} = NMISNG::Util::setDebug($info); # include debug setting in conf table
+		# fixme9: saving this back is likely a bad idea, config vs. command line
+		# fixme: none of this is nmisng::log compatible, where info is only t/f,
+		# and verbosity is from fatal..info..debug..1-9.
+		my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
+		$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+		# info is only consulted if debug isn't
+		if (!$config_cache->{debug})
+		{
+			$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
+			$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+		}
 
 		$config_cache->{configfile} = $fn; # fixperms also wants that
 		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
@@ -1411,6 +1419,7 @@ sub info
 }
 
 # return the current debug level from the config cache
+# fixme9: should be reviewed
 sub getDebug
 {
 	my $C = loadConfTable();

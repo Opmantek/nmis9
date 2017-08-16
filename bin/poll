@@ -360,12 +360,6 @@ sub runThreads
 	NMISNG::Util::dbg("all relevant tables loaded");
 
 	my $nmisng = Compat::NMIS::new_nmisng();
-
-	my $debug_global = $C->{debug};
-	my $debug        = $C->{debug};
-	my $PIDFILE;
-	my $pid;
-
 	runDaemons();    # (re)start daemon processes
 
 	# the signal handler handles termination more-or-less gracefully,
@@ -871,7 +865,7 @@ sub runThreads
 
 	NMISNG::Util::logMsg("INFO end of $type process");
 
-	if ( $C->{info} or $debug or $mthreadDebug )
+	if ( $nvp{info} or $nvp{debug} or $mthreadDebug )
 	{
 		my $endTime = sprintf( "%.2f", Time::HiRes::time() - $starttime );
 		my $stats = NMISNG::rrdfunc::getUpdateStats();
@@ -1339,7 +1333,7 @@ sub doCollect
 		}
 		elsif ($updatewasok)    # at least some info was retrieved by wmi or snmp
 		{
-			if ( $model or $C->{info} )
+			if ( $model or $nvp{info} )
 			{
 				print
 					"MODEL $S->{name}: role=$catchall_data->{roleType} type=$catchall_data->{nodeType} sysObjectID=$catchall_data->{sysObjectID} sysObjectName=$catchall_data->{sysObjectName}\n";
@@ -5795,7 +5789,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 				 && ( ( time - $lastrun ) < $serviceinterval * 0.9 ) )
 		{
 			$msg .= "skipping this time.";
-			if ( $C->{info} or $C->{debug} )
+			if ( $nvp{info} or $C->{debug} )
 			{
 				NMISNG::Util::info($msg);
 				NMISNG::Util::logMsg("INFO: $msg");
@@ -5805,7 +5799,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		else
 		{
 			$msg .= "must be checked this time.";
-			if ( $C->{info} or $C->{debug} )
+			if ( $nvp{info} or $C->{debug} )
 			{
 				NMISNG::Util::info($msg);
 				NMISNG::Util::logMsg("INFO: $msg");

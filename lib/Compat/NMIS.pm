@@ -4100,6 +4100,7 @@ sub loadNodeConfTable
 }
 
 # this method renames a node, and all its files, too
+# fixme9: this function cannot work with nmis9  yet!
 #
 # args: old, new,
 # (optional) debug, (optional) info, (optional) originator
@@ -4220,6 +4221,7 @@ sub rename_node
 	return (0,undef);
 }
 
+# fixme9: this function does not work for nmis9 yet!
 # internal helper function for rename_node, LINKS one given rrd file to new name
 # caller must take care of removing the old rrd file later.
 #
