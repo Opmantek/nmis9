@@ -35,7 +35,6 @@
 use Compat::NMIS;
 use NMISNG::Auth;
 use NMISNG::Util;
-use Compat::UUID;
 
 my $C = NMISNG::Util::loadConfTable();
 # variables used for the security mods

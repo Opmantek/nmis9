@@ -31,7 +31,7 @@ package NMISNG::Util;
 our $VERSION = "9.0.0a";
 
 use strict;
-use feature 'state';						# loadconftable and friends
+use feature 'state';						# loadconftable, uuid functions
 
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
@@ -45,7 +45,7 @@ use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
 use Carp;
-use UUID::Tiny qw(:std);				# for loadconftable and cluster_id
+use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -53,8 +53,6 @@ use Proc::ProcessTable;
 use Data::Dumper;
 $Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
 $Data::Dumper::Sortkeys=1;
-
-
 
 
 sub TODO
@@ -2859,6 +2857,76 @@ sub releasePollLock {
 	return 0;
 }
 
+# this function creates a new uuid
+# if uuid namespaces are configured: either the optional node argument is used,
+# or a random component is added to make the namespaced uuid work. not relevant
+# for totally random uuids.
+#
+# args: node, optional
+# returns: uuid string
+sub getUUID
+{
+	my ($maybenode) = @_;
+	my $C = NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces= { map { my $varname = "UUID_NS_$_";
+																	 ("NameSpace_$_" => UUID::Tiny->$varname,
+																		$varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	#'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
+	#'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
+	# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
+	my $uuid;
+
+	if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+			 and defined($C->{'uuid_namespace_name'})
+			 and $C->{'uuid_namespace_name'}
+			 and $C->{'uuid_namespace_name'} ne "www.domain.com" ) # the shipped example default...
+	{
+		# namespace prefix plus node name or random component
+		my $nodecomponent = $maybenode || create_uuid(UUID_RANDOM);
+		$uuid = create_uuid_as_string(UUID_V5, $known_namespaces->{$C->{uuid_namespace_type}},
+																	$C->{uuid_namespace_name}.$nodecomponent);
+	}
+	else
+	{
+		$uuid = create_uuid_as_string(UUID_RANDOM);
+	}
+
+	return $uuid;
+}
+
+# create a new namespaced uuid from concat of all components that are passed in
+# if there's a configured namespace prefix that is used; otherwise
+# the UUID_NS_URL is used w/o prefix.
+#
+# args: list of components
+# returns: uuid string
+sub getComponentUUID
+{
+	my @components = @_;
+
+	my $C = NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces = { map { my $varname = "UUID_NS_$_";
+															("NameSpace_$_" => UUID::Tiny->$varname,
+															 $varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	my $uuid_ns = $known_namespaces->{"NameSpace_URL"};
+	my $prefix = '';
+	$prefix = $C->{'uuid_namespace_name'} if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+																						 and defined($C->{'uuid_namespace_name'})
+																						 and $C->{'uuid_namespace_name'}
+																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
+
+	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
 
 
 1;

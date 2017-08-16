@@ -527,7 +527,11 @@ sub overrides
 }
 
 # Save object to DB if it is dirty
-# returns tuple, 0 if no saving required ($sucess,$error_message), -1 if node is not valid, >0 if all good
+# returns tuple, ($sucess,$error_message), 
+# 0 if no saving required
+#-1 if node is not valid, 
+# >0 if all good
+#
 # TODO: error checking just uses assert right now, we may want
 #   a differnent way of doing this
 sub save

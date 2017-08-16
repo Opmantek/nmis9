@@ -29,7 +29,6 @@
 
 use Compat::NMIS;
 use NMISNG::Auth;
-use Compat::UUID;
 use NMISNG::Util;
 
 my $C = NMISNG::Util::loadConfTable();
@@ -49,15 +48,14 @@ my @nodes = ();
 my $LNT = Compat::NMIS::loadLocalNodeTable(); # load from file or db
 foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
 
-my @models = ();
-if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
-	@models = ('automatic',sort {uc($a) cmp uc($b)} (grep(s/^Model-(.*)\.nmis$/$1/,readdir MDL)));
-} else {
-	print Tr(td({class=>'error'},"Error on loading models names from directory $C->{'<nmis_models>'}"));
+my %knownmodels;
+for my $dir ($C->{"<nmis_default_models>"},$C->{"<nmis_models>"})
+{
+	next if !(opendir(MDL, $dir));
+	map { $knownmodels{$_} = 1; } (grep(s/^Model-(.+)\.nmis$/$1/, readdir(MDL)));
+	closedir(MDL);
 }
-closedir(MDL);
-
-my $uuid = Compat::UUID::getUUID();
+my @models = ('automatic', sort keys %knownmodels);
 
 %hash = (
 	Nodes =>
@@ -65,7 +63,8 @@ my $uuid = Compat::UUID::getUUID();
 	 { name => { mandatory => 'true', header => 'Name',display => 'key,header,text',value => [""] }},
 	 { new_name => { header => 'New Name', display => 'text,editonly', value => [""] }},
 
-	 { uuid => { header => 'UUID',display => 'header,readonly',value => ["$uuid"] }},
+	 # this will be filled in on save
+	 { uuid => { header => 'UUID',display => 'header,readonly',value => ['<created on save>'] }},
 
 	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""] }},
 	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups] }},

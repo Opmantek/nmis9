@@ -55,7 +55,6 @@ use Errno qw(EAGAIN ESRCH EPERM);
 use Compat::NMIS;
 use Compat::Connect;
 use Compat::Timing;
-use Compat::UUID;
 
 use NMISNG::Util;
 use NMISNG::Ping;
@@ -172,7 +171,7 @@ contact\@opmantek.com
 
 NMIS version $Compat::NMIS::VERSION
 
-/ if $C->{debug} or $C->{info};
+/ if $nvp{debug} or $nvp{info};
 
 
 if ( $type =~ /^(collect|update|services)$/ )
@@ -343,13 +342,6 @@ sub runThreads
 	my $NT = Compat::NMIS::loadLocalNodeTable();                 # only local nodes
 	NMISNG::Util::dbg( "table Local Node loaded", 2 );
 
-	# create uuids for all nodes that might still need them
-	# this changes the local nodes table!
-	if ( my $changed_nodes = Compat::UUID::createNodeUUID() )
-	{
-		$NT = Compat::NMIS::loadLocalNodeTable();
-		NMISNG::Util::dbg( "table Local Node reloaded after uuid updates", 2 );
-	}
 	my $C = NMISNG::Util::loadConfTable();    # config table from cache
 
 	# check if the fping results look sensible
@@ -679,6 +671,7 @@ sub runThreads
 			my $pid=fork;
 			if ( defined ($pid) and $pid==0)
 			{
+				srand();
 				# this will be run only by the child
 				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
 						if ($mthreadDebug);
@@ -5780,7 +5773,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		my $inventorydata = {
 			service     => $service, # == key in Services.nmis, primary identifier
 			# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+cluster_id+service+node's uuid
-			uuid        => Compat::UUID::getComponentUUID( $C->{cluster_id}, $service,
+			uuid        => NMISNG::Util::getComponentUUID( $C->{cluster_id}, $service,
 																									 $catchall_data->{uuid} ),
 			description => $thisservice->{Description},
 			display_name => $name, # logic-free, no idea why/how that can differ from $service

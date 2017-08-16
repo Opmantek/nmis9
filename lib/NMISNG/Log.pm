@@ -36,6 +36,8 @@ our $VERSION = "1.1.0";
 use Mojo::Base 'Mojo::Log';
 use strict;
 
+use Carp;
+
 # extra attribute to distinguish between debug levels 1 to 9
 __PACKAGE__->attr('detaillevel');
 # and extra attribute for logprefix
@@ -128,8 +130,6 @@ sub debug1 { shift->_log(debug => @_); };
 # higher means here: verbosity. ie. debug3 includes debug2, debug, info, and all above.
 sub is_level
 {
-	use Carp;
-
 	my ($self, $level) = @_;
 	if (defined($level) && $level =~ /^[1-9]$/)
 	{
@@ -137,7 +137,7 @@ sub is_level
 	}
 	else
 	{
-		confess("dud level $level") if (!defined($level) or $level !~ /^(debug|info|warn|error|fatal)$/ );
+		Carp::confess("dud level $level") if (!defined($level) or $level !~ /^(debug|info|warn|error|fatal)$/ );
 		return $self->SUPER::is_level($level);
 	}
 }
