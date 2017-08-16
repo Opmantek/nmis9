@@ -1073,8 +1073,6 @@ sub doUpdate
 	my $reachdata
 		= runReach( sys => $S, delayupdate => 1 );    # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
-	$S->writeNodeInfo;                                # save node info in file var/$NI->{name}-node.xxxx
-	$catchall_inventory->save();											# ensure the plugins don't end up with utterly stale data
 
 	# done with the standard work, now run any plugins that offer update_plugin()
 	for my $plugin (@active_plugins)
@@ -1102,8 +1100,6 @@ sub doUpdate
 		{
 			NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
-			$S->writeNodeInfo;
-			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
@@ -1123,25 +1119,19 @@ sub doUpdate
 		$prevval = $infohash->{'ds[polltime].last_ds'} if ( defined $infohash->{'ds[polltime].last_ds'} );
 	}
 	$reachdata->{polltime} = {value => $prevval, option => "gauge,0:U,"};
-
-	# runReach makes sure this is created
-	my $inventory = $S->inventory( concept => 'health' );
-	if ( !$S->create_update_rrd( data => $reachdata, type => "health", inventory => $inventory ) )
+	if (!$S->create_update_rrd(data=> $reachdata, type=>"health",inventory=>$catchall_inventory))
 	{
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
-	}
-	else
-	{
-		my $pit = {};
-		my $previous_pit = $inventory->get_newest_timed_data();
-		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
-		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
-																						time => $catchall_data->{last_poll}, delay_insert => 1 );
-		NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
-		# $inventory->data($data);
-		$inventory->save();
-	}
+	}	
+
+	my $pit = {};
+	my $previous_pit = $catchall_inventory->get_newest_timed_data();
+	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
+	my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $catchall_inventory );
+	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+	NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
+
 	$S->close;
 
 	$catchall_inventory->save();
@@ -1149,7 +1139,6 @@ sub doUpdate
 
 	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
 	{
-
 		NMISNG::Util::logMsg("Poll Time: $name, $catchall_data->{nodeModel}, $updatetime");
 	}
 	NMISNG::Util::info("Finished");
@@ -1422,9 +1411,7 @@ sub doCollect
 	}
 
 	$S->writeNodeView;
-	$S->writeNodeInfo;
-	$catchall_inventory->save();
-
+	
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin (@active_plugins)
 	{
@@ -1451,8 +1438,6 @@ sub doCollect
 		{
 			NMISNG::Util::dbg("Plugin $plugin indicated success, updating node and view files");
 			$S->writeNodeView;
-			$S->writeNodeInfo;
-			$catchall_inventory->save();
 		}
 		elsif ( $status == 0 )
 		{
@@ -1471,25 +1456,19 @@ sub doCollect
 		$prevval = $infohash->{'ds[updatetime].last_ds'} if ( defined $infohash->{'ds[updatetime].last_ds'} );
 	}
 	$reachdata->{updatetime} = {value => $prevval, option => "gauge,0:U," . ( 86400 * 3 )};
-
-	# runReach makes sure this is created
-	my $inventory = $S->inventory( concept => 'health' );
-	if ( !$S->create_update_rrd( data => $reachdata, type => "health", inventory => $inventory ) )
+	if (!$S->create_update_rrd(data=> $reachdata, type=>"health",inventory=>$catchall_inventory))
 	{
 		NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
 	}
-	else
-	{
-		my $pit = {};
-		my $previous_pit = $inventory->get_newest_timed_data();
-		NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
-		my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-		my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
-																						time => $catchall_data->{last_poll}, delay_insert => 1 );
-		NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
-		# $inventory->data($data);
-		$inventory->save();
-	}
+
+	my $pit = {};
+	my $previous_pit = $catchall_inventory->get_newest_timed_data();
+	NMISNG::Inventory::parse_rrd_update_data( $reachdata, $pit, $previous_pit, 'health' );
+	my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $catchall_inventory );
+	my $error = $catchall_inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => 'health',
+																					time => $catchall_data->{last_poll}, delay_insert => 1 );
+	NMISNG::Util::logMsg("ERROR: timed data adding for health failed: $error") if ($error);
+	
 	$S->close;
 
 	$catchall_inventory->save();
@@ -6825,11 +6804,12 @@ sub runReach
 {
 	my %args           = @_;
 	my $S              = $args{sys};                      # system object
-	my $donotupdaterrd = NMISNG::Util::getbool( $args{delayupdate} );
+	my $donotupdaterrd = $args{delayupdate};
 
 	my $RI = $S->reach;                                   # reach info
 	my $C  = NMISNG::Util::loadConfTable();
-	my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+	my $catchall_inventory = $S->inventory( concept => 'catchall' );
+	my $catchall_data = $catchall_inventory->data_live();
 
 	my $cpuWeight;
 	my $diskWeight;
@@ -7317,30 +7297,11 @@ sub runReach
 	$reachVal{intfCollect}{option} = "gauge,0:U";
 	$reachVal{intfColUp}{option}   = "gauge,0:U";
 
-	# make sure inventory exists so delayed saves don't have to create it
-	my $section = 'health';
-	my $inventory = $S->inventory( concept => $section, nolog => 1);
-	if( !$inventory )
-	{
-		my $path = $S->nmisng_node->inventory_path( concept => $section, path_keys => [], data => {} );
-		($inventory,my $error) = $S->nmisng_node->inventory(
-			concept => $section,
-			data => {},
-			path => $path,
-			path_keys => [],
-			create => 1
-		);
-		$inventory->enabled(1);
-		$inventory->historic(0);
-		$inventory->data_info( subconcept => 'health', enabled => 1 );
-		$inventory->save();
-	}
-
 	# update the rrd or leave it to a caller?
 	if ( !$donotupdaterrd )
 	{
 		# goes into catchall/general
-		my $db = $S->create_update_rrd( data => \%reachVal, type => "health", inventory => $inventory );    # database name is normally 'reach'
+		my $db = $S->create_update_rrd( data => \%reachVal, type => "health", inventory => $catchall_data );    # database name is normally 'reach'
 		if ( !$db )
 		{
 			NMISNG::Util::logMsg( "ERROR updateRRD failed: " . NMISNG::rrdfunc::getRRDerror() );
@@ -7348,14 +7309,14 @@ sub runReach
 		else
 		{
 			my $pit = {};
-			my $previous_pit = $inventory->get_newest_timed_data();
+			my $previous_pit = $catchall_data->get_newest_timed_data();
 			NMISNG::Inventory::parse_rrd_update_data( \%reachVal, $pit, $previous_pit, "health" );
-			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $inventory, catchall_data => $catchall_data);
-			my $error = $inventory->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
-																						time => $catchall_data->{last_poll}, delay_insert => 1 );
-			NMISNG::Util::logMsg("ERROR: timed data adding for ". $inventory->concept ." failed: $error") if ($error);
+			my $stats = nodeSummaryStats(C => $C,S => $S, inventory => $catchall_inventory );
+			my $error = $catchall_data->add_timed_data( data => $pit, derived_data => $stats, subconcept => "health",
+																									time => $catchall_data->{last_poll}, delay_insert => 1 );
+			NMISNG::Util::logMsg("ERROR: timed data adding for ". $catchall_data->concept ." failed: $error") if ($error);
 			# $inventory->data($data);
-			$inventory->save();
+			$catchall_data->save();
 		}
 	}
 	NMISNG::Util::info("Finished");
@@ -7374,7 +7335,6 @@ sub nodeSummaryStats
 	my $S = $args{S};
 	my $C = $args{C};
 	my $inventory = $args{inventory};
-	my $catchall_data = $args{catchall_data};
 
 	my $section = 'health';
 	my $metricsFirstPeriod  = $C->{'metric_comparison_first_period'} // "-8 hours";
@@ -7394,10 +7354,6 @@ sub nodeSummaryStats
 		start => $metricsSecondPeriod,
 		end => $metricsFirstPeriod
 	);
-
-	# nodedown isn't needed in summary info anymore
-	# $stats8->{nodedown} = 'false';
-	# $stats8->{nodedown} = 'true' if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) );
 
 	# map all stats into one package for derived, don't know if we want to keep it this way
 	my %allstats = ();
@@ -9534,8 +9490,7 @@ sub doThresholdsAndCreateStatus
 
 		# first the standard thresholds
 		my $thrname = [qw(response reachable available)];
-		my $inventory = $S->inventory( concept => 'health' );
-		applyThresholdToInventory( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $inventory );
+		applyThresholdToInventory( sys => $S, table => $sts, type => 'health', thrname => $thrname, inventory => $catchall_inventory );
 
 		# search for threshold names in Model of this node
 		foreach my $s ( keys %{$M} )    # section name
