@@ -31,7 +31,7 @@ package NMISNG::Util;
 our $VERSION = "9.0.0a";
 
 use strict;
-use feature 'state';						# loadconftable and friends
+use feature 'state';						# loadconftable, uuid functions
 
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
@@ -45,7 +45,7 @@ use POSIX qw();			 # we want just strftime
 use Cwd qw();
 use version 0.77;
 use Carp;
-use UUID::Tiny qw(:std);				# for loadconftable and cluster_id
+use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -53,8 +53,6 @@ use Proc::ProcessTable;
 use Data::Dumper;
 $Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
 $Data::Dumper::Sortkeys=1;
-
-
 
 
 sub TODO
@@ -535,7 +533,9 @@ sub getDiskBytes {
 	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
 }
 
-# only translates names or levels into debug number, does NOT set any config!
+# tiny helper that translates level names or levels
+# into a debug number, does NOT set any config!
+# DEPRECATED. use nmisng::log::parse_debug_level instead!
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
@@ -548,33 +548,24 @@ sub setDebug {
 	return $debug;
 }
 
-##  performs a binary copy of a file, used for backup of files.
-sub backupFile {
-	my %arg = @_;
-	my $buff;
-	if ( -r $arg{file} ) {
-		sysopen(IN, "$arg{file}", O_RDONLY) or warn ("ERROR: problem with file $arg{file}; $!");
-		flock(IN, LOCK_SH) or warn "can't lock filename: $!";
+# performs a binary copy of a file, used for backup of files.
+# args: file (= source path), backup (= destination path)
+# returns: undef if ok, error message otherwise
+sub backupFile
+{
+	my (%arg) = @_;
+	my ($source, $dest)  = @arg{"file","backup"};
+	return "no source file argument!" if (!$source);
+	return "no backup destination argument!" if (!$dest);
+	return "invalid backup destination!" if ($dest eq $source);
 
-		# change to secure sysopen with truncate after we got the lock
-		sysopen(OUT, "$arg{backup}", O_WRONLY | O_CREAT) or warn ("ERROR: problem with file $arg{backup}; $!");
-		flock(OUT, LOCK_EX) or warn "can't lock filename: $!";
-		enter_critical;
-		truncate(OUT, 0) or warn "can't truncate filename: $!";
+	# -f covers symlinks by checking the target
+	return "source file \"$source\" is not a file or doesn't exist!"
+			if (!-f $source);
 
-		binmode(IN);
-		binmode(OUT);
-		while (read(IN, $buff, 8 * 2**10)) {
-		    print OUT $buff;
-		}
-		close(IN) or warn "can't close filename: $!";
-		close(OUT) or warn "can't close filename: $!";
-		leave_critical;
-		return 1;
-	} else {
-		print STDERR "ERROR, backupFile file $arg{file} not readable.\n";
-		return 0;
-	}
+	return "failed to copy \"$source\" to \"$dest\": $!"
+			if (!File::Copy::cp($source, $dest));
+	return undef;
 }
 
 # funky sort, by Eric.
@@ -2866,6 +2857,76 @@ sub releasePollLock {
 	return 0;
 }
 
+# this function creates a new uuid
+# if uuid namespaces are configured: either the optional node argument is used,
+# or a random component is added to make the namespaced uuid work. not relevant
+# for totally random uuids.
+#
+# args: node, optional
+# returns: uuid string
+sub getUUID
+{
+	my ($maybenode) = @_;
+	my $C = NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces= { map { my $varname = "UUID_NS_$_";
+																	 ("NameSpace_$_" => UUID::Tiny->$varname,
+																		$varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	#'uuid_namespace_type' => 'NameSpace_URL' OR "UUID_NS_DNS"
+	#'uuid_namespace_name' => 'www.domain.com' AND we need to add the nodename to make it unique,
+	# because if namespaced, then name is the ONLY thing controlling the resulting uuid!
+	my $uuid;
+
+	if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+			 and defined($C->{'uuid_namespace_name'})
+			 and $C->{'uuid_namespace_name'}
+			 and $C->{'uuid_namespace_name'} ne "www.domain.com" ) # the shipped example default...
+	{
+		# namespace prefix plus node name or random component
+		my $nodecomponent = $maybenode || create_uuid(UUID_RANDOM);
+		$uuid = create_uuid_as_string(UUID_V5, $known_namespaces->{$C->{uuid_namespace_type}},
+																	$C->{uuid_namespace_name}.$nodecomponent);
+	}
+	else
+	{
+		$uuid = create_uuid_as_string(UUID_RANDOM);
+	}
+
+	return $uuid;
+}
+
+# create a new namespaced uuid from concat of all components that are passed in
+# if there's a configured namespace prefix that is used; otherwise
+# the UUID_NS_URL is used w/o prefix.
+#
+# args: list of components
+# returns: uuid string
+sub getComponentUUID
+{
+	my @components = @_;
+
+	my $C = NMISNG::Util::loadConfTable();
+
+	# translate between data::uuid and uuid::tiny namespace constants for config-compat,
+	# as the config file uses namespace_<X> (url,dns,oid,x500) in data::uuid,
+	# corresponds to UUID_NS_<X> in uuid::tiny
+	state $known_namespaces = { map { my $varname = "UUID_NS_$_";
+															("NameSpace_$_" => UUID::Tiny->$varname,
+															 $varname => UUID::Tiny->$varname) } (qw(DNS OID URL X500)) };
+
+	my $uuid_ns = $known_namespaces->{"NameSpace_URL"};
+	my $prefix = '';
+	$prefix = $C->{'uuid_namespace_name'} if ( $known_namespaces->{$C->{'uuid_namespace_type'}}
+																						 and defined($C->{'uuid_namespace_name'})
+																						 and $C->{'uuid_namespace_name'}
+																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
+
+	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
 
 
 1;

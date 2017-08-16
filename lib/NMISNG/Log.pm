@@ -36,6 +36,8 @@ our $VERSION = "1.1.0";
 use Mojo::Base 'Mojo::Log';
 use strict;
 
+use Carp;
+
 # extra attribute to distinguish between debug levels 1 to 9
 __PACKAGE__->attr('detaillevel');
 # and extra attribute for logprefix
@@ -44,7 +46,8 @@ __PACKAGE__->attr('logprefix');
 # args: all attributes from mojo::log (i.e. path, level, format, handle),
 # also extra level values,
 # level: debug, info, warn, error, fatal, or 1..9.
-# also accepts t(rue),  y(es) - both meaning debug==1, and verbose == 9
+# also accepts t(rue),  y(es) - both meaning debug==1,
+# and verbose == 9
 # and logprefix (default unset)
 #
 # to log to stderr: pass no path and no handle argument
@@ -52,30 +55,30 @@ __PACKAGE__->attr('logprefix');
 sub new
 {
 	my ($class, %args) = @_;
-	my $level = $args{level};
 	my $detaillevel = 0;
 	my $logprefix = $args{logprefix};
 
-	# transform extra level arguments into extra knowledge
+	# transform all nuances of the level argument
+	my $parsed = parse_debug_level(debug => $args{level});
+
 	# our default is 'info', not 'debug'
-	if (!defined($level) or $level eq '' or !$level)
+	if (!defined($parsed) or !$parsed)
 	{
 		$args{level} = 'info';
 	}
-	elsif ($level eq 'verbose')
+	elsif ($parsed =~ /^[1-9]$/)
 	{
 		$args{level} = 'debug';
-		$detaillevel = 9;
+		$detaillevel = $parsed;
 	}
-	elsif ($level =~ /^[1-9]$/)
-	{
-		$args{level} = 'debug';
-		$detaillevel = $level;
-	}
-	elsif ($level =~ /^(debug|y|yes|t|true)$/i)
+	elsif ($parsed eq "debug")
 	{
 		$args{level} = 'debug';
 		$detaillevel = 1;
+	}
+	else
+	{
+		$args{level} = $parsed;
 	}
 
 	my $self = bless($class->SUPER::new(%args), $class);
@@ -127,8 +130,6 @@ sub debug1 { shift->_log(debug => @_); };
 # higher means here: verbosity. ie. debug3 includes debug2, debug, info, and all above.
 sub is_level
 {
-	use Carp;
-
 	my ($self, $level) = @_;
 	if (defined($level) && $level =~ /^[1-9]$/)
 	{
@@ -136,7 +137,7 @@ sub is_level
 	}
 	else
 	{
-		confess("dud level $level") if (!defined($level) or $level !~ /^(debug|info|warn|error|fatal)$/ );
+		Carp::confess("dud level $level") if (!defined($level) or $level !~ /^(debug|info|warn|error|fatal)$/ );
 		return $self->SUPER::is_level($level);
 	}
 }
@@ -157,5 +158,43 @@ sub reopen
 	return;
 }
 
+# small package-function helper, replacement for the yucky setDebug thing
+# translates given info and/or debug arguments
+# into ONE log_level (== debug, info, warn, error, fatal, or 1..9.
+# debug is the same as 1.
+#
+# args: debug (optional), info (optional, ignored if debug is present)
+# debug can be any of the known log_levels, or t(rue), y(es) - both meaning debug,
+# and verbose - meaning 9.
+# info can be t(rue), y(es), 1/0.
+#
+# returns: replacement or undef if nothing was recognised
+sub parse_debug_level
+{
+	my (%args) = @_;
+	my $level;
+
+	if (defined (my $debug = $args{debug}))
+	{
+		if ($debug =~ /^\s*(yes|y|t|true|debug|1)\s*$/i)
+		{
+			$level = 'debug';
+		}
+		elsif (lc($debug) eq "verbose")
+		{
+			$level = 9;
+		}
+		elsif ($debug =~ /^\s*([1-9]|info|warn|error|fatal)\s*$/i)
+		{
+			$level = lc($debug);
+		}
+	}
+	# or info? can only switch level to info
+	elsif (defined (my $info = $args{info}))
+	{
+		$level = "info" if ($info =~ /^\s*(1|t|true|y|yes)\s*$/i);
+	}
+	return $level;
+}
 
 1;

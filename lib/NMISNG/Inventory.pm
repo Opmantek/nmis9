@@ -177,7 +177,7 @@ sub make_path
 #  previous_pit - previous entry for this thing, note: could be looked up if we want, not done right now
 #   expects the full pit, with data in subconcept hashes
 #  subconcept - data stored in timed under subconcept hash so this is needed for the return value to
-#    give the correct structure back for datasets, target is left alone, add_timed_data will put the 
+#    give the correct structure back for datasets, target is left alone, add_timed_data will put the
 #    data where it should go
 #    the uses this value to find the data previous data from the correct sub-hash
 # NOTE: does not handle counter wrapping at this time
@@ -204,9 +204,9 @@ sub parse_rrd_update_data
 				: undef;
 			$target->{$key} = ($prev_value) ? ( $entry->{value} - $prev_value ) : 0;
 			# TODO: handle counter wrapping!!!
-			# $target->{$key} = ???!?!? 
+			# $target->{$key} = ???!?!?
 			# NMISNG::Util::logMsg( "ERROR: wrapped counter for $key $target->{$key} < $prev_value ") if( $target->{$key} && ($target->{$key} < $prev_value) );
-			
+
 			# try and force to a number
 			$target->{$key} += 0.0;
 
@@ -317,7 +317,8 @@ sub new
 			_historic => 0,
 			(   map { ( "_$_" => $args{$_} ) } (
 					qw(concept node_uuid cluster_id data id nmisng
-						path path_keys storage subconcepts description lastupdate)
+						path path_keys storage subconcepts description
+            lastupdate)
 				)
 			)
 		},
@@ -350,7 +351,7 @@ sub new
 	$self->{_data_info} = {};
 	foreach my $entry (@$data_info)
 	{
-		$self->data_info( %$entry );		
+		$self->data_info( %$entry );
 	}
 
 	# in addition to these, there's also on-demand _deleted
@@ -381,13 +382,13 @@ sub _generic_getset
 # this function adds one point-in-time data record for this concept instance
 #
 # PIT data can consist of two types of information, a 'derived_data' hash (might be deep, currently isn't),
-# and a 'data' hash which MAY be deep if the caller controls datasets directly, or lets add_timed_data 
+# and a 'data' hash which MAY be deep if the caller controls datasets directly, or lets add_timed_data
 # handle depth/structure via subconcept argument.
 #
 # note that the dataset info _in the inventory object_ is updated/extended from args given to this function.
-# 
+#
 # args: self (must have been saved, ie. have _id), data (hashref), derived_data (hashref),
-# time (optional, defaults to now), delay_insert (optional, default no), 
+# time (optional, defaults to now), delay_insert (optional, default no),
 # subconcept OR datasets (exactly one is required)
 # flush, internal only, used for saving delayed, does not allow modifying anything
 #
@@ -401,7 +402,7 @@ sub _generic_getset
 # subconcept/datasets - exactly one of these must be given!
 #
 # subconcept: must be string, SHOULD match one of the known subconcepts for this inventory;
-#   if subconcept given, then data MUST be flat and add_timed_data arranges the 
+#   if subconcept given, then data MUST be flat and add_timed_data arranges the
 #   deep storage of data under this subconcept.
 #   all keys in that data are automatically added to the inventory's dataset info.
 #
@@ -409,7 +410,7 @@ sub _generic_getset
 #   ie. key subconceptA => { dsnameA => 1, dsnameB => 1 }, subconceptB => ....
 #   in this case, data may be a deep hash. if you repeat calls with delay_save in that situation, the last
 #   data/derived data wins. the inventory's datasets info is amended/extended from that dataset info.
-# 
+#
 #
 # returns: undef or error message
 #
@@ -418,7 +419,7 @@ sub _generic_getset
 #   the second call to this function (from save) should not alter the datasets which is what triggers the save to be called
 #  so it will never happen
 # NOTE2: the data/derived data is not stored as is, it gets morphed from hash of hashes to array of hashes
-#   data goes from subconcepts->{$} => { data=>{},derived_data=>{}} 
+#   data goes from subconcepts->{$} => { data=>{},derived_data=>{}}
 #   to subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
 sub add_timed_data
 {
@@ -448,17 +449,17 @@ sub add_timed_data
 			Time::Moment->from_epoch($expire_at)
 			: DateTime->from_epoch(epoch => $expire_at, time_zone => "UTC");
 
-	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record 
+	# if the request is to delay, append to the existing queue (or make an empty hash), otherwise make a new record
 	my $timedrecord = { time => $time, expire_at => $expire_at };
 	$timedrecord = $self->{_queued_pit} if( defined($self->{_queued_pit}) );
-	
+
 	# if datasets was not given (and not flushing) try and figure out what the datasets are
 	if (!$datasets && !$flush)
 	{
 		# todo: verify that structure is not deep, if it is this 'auto' getting datasets breaks down
 		$datasets->{$subconcept} = {map { $_ => 1 } ( keys %$data )};
 	}
-	
+
 	my $datasets_modfied = 0;
 	if( !$flush )
 	{
@@ -481,7 +482,7 @@ sub add_timed_data
 				if ($datasets_modfied);
 		}
 		# now store the data per subconcept, appending to data, replacing subconcept if it existed
-		# if flush is given we already have this, flush 
+		# if flush is given we already have this, flush
 		$timedrecord->{data}{$subconcept} = $data;
 		$timedrecord->{derived_data}{$subconcept} = $derived_data;
 	}
@@ -498,16 +499,16 @@ sub add_timed_data
 		my @subconcepts = ();
 		foreach my $subconcept (keys %{$timedrecord->{data}})
 		{
-			push @subconcepts, { 
-				subconcept => $subconcept, 
-				data => $timedrecord->{data}{$subconcept}, 
+			push @subconcepts, {
+				subconcept => $subconcept,
+				data => $timedrecord->{data}{$subconcept},
 				derived_data => $timedrecord->{derived_data}{$subconcept}
 			};
 		}
 		$timedrecord->{subconcepts} = \@subconcepts;
 		delete $timedrecord->{data};
 		delete $timedrecord->{derived_data};
-	
+
 		my $dbres = NMISNG::DB::insert(
 			collection => $self->nmisng->timed_concept_collection( concept => $self->concept() ),
 			record     => $timedrecord
@@ -521,7 +522,7 @@ sub add_timed_data
 			upsert => 1
 		);
 		return "failed to upsert data record: $dbres->{error}" if ( !$dbres->{success} );
-		
+
 		# if the datasets were modified they need to be saved, only if we're not flushing
 		# which should only come from save (so don't start a recursive loop)
 		$self->save() if (!$flush && $datasets_modfied);
@@ -572,7 +573,7 @@ sub get_newest_timed_data
 	my $reading = $cursor->next;
 
 	# data/derived data are stored for optimal searching (arrays of hashes),
-	# turn them back into hashes (which are much handier for use in perl)	
+	# turn them back into hashes (which are much handier for use in perl)
 	# data goes from subconcepts => [{ subconcept=>$,data=>{},derived_data =>{}}]
 	# to  data=>{$subconcept}{...},derived_data=>{$subconcept}{...}}
 	foreach my $entry (@{$reading->{subconcepts}})
@@ -580,7 +581,7 @@ sub get_newest_timed_data
 		$reading->{data}{$entry->{subconcept}} = $entry->{data};
 		$reading->{derived_data}{$entry->{subconcept}} = $entry->{derived_data};
 	}
-	
+
 	return {success => 1, data => $reading->{data}, derived_data => $reading->{derived_data}, time => $reading->{time}};
 }
 
@@ -811,7 +812,7 @@ sub data_live
 sub data_info
 {
 	my ( $self, %args ) = @_;
-	my ( $subconcept, $enabled, $display_keys ) = @args{'subconcept', 'enabled', 'display_keys'};	
+	my ( $subconcept, $enabled, $display_keys ) = @args{'subconcept', 'enabled', 'display_keys'};
 	return "cannot get or set data_info, invalid subconcept argument:$subconcept!"
 		if ( !$subconcept );    # must be something
 
@@ -981,7 +982,7 @@ sub path
 # save the inventory obj in the database
 # args: lastupdate, optional, defaults to now
 #
-# note: lastupdate is currently not added to object but is stored in db only
+# note: lastupdate and expire_at currently not added to object but stored in db only
 # the object's _id and _path are refreshed
 # returns ($op,$error), op is 1 for insert, 2 for save, error is string if there was an error
 sub save
@@ -1012,6 +1013,19 @@ sub save
 		lastupdate => $lastupdate,
 	};
 
+	# if not historic: extend expire_at ttl off the current lastupdate
+	if (!$self->historic)
+	{
+		# to make the db ttl expiration work this must be
+		# an acceptable date type for the driver version
+		my $pleasegoaway = $lastupdate + ($self->nmisng->config->{purge_inventory_after} || 14*86400);
+		$pleasegoaway = $NMISNG::DB::new_driver?
+				Time::Moment->from_epoch($pleasegoaway)
+				: DateTime->from_epoch(epoch => $pleasegoaway, time_zone => "UTC");
+
+		$record->{expire_at} = $pleasegoaway;
+	}
+
 	# numify anything in path
 	my $path = $record->{path};
 
@@ -1033,7 +1047,7 @@ sub save
 	$record->{data_info} = [];
 	foreach my $subconcept ( keys %{$self->{_data_info}} )
 	{
-		my $subconcept_info = $self->data_info( subconcept => $subconcept );		
+		my $subconcept_info = $self->data_info( subconcept => $subconcept );
 		push( @{$record->{data_info}}, { %$subconcept_info, subconcept => $subconcept });
 	}
 
@@ -1066,7 +1080,7 @@ sub save
 	# save any queued time/pit data, not expecting many here so not very optimised
 	if ( $result->{success} && defined($self->{_queued_pit}) )
 	{
-		my $pit_record = $self->{_queued_pit};		
+		my $pit_record = $self->{_queued_pit};
 		# using ourself means id will be added (so new inventories will work, no save first required)
 		# telling it to flush should bypass any special handling, allowing the data straight through
 		my $error = $self->add_timed_data(flush => 1, %$pit_record);

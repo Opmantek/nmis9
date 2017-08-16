@@ -20,8 +20,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # backup configuration, models and crontabs once a day (kept for 30 days)
 22 8 * * *  root /usr/local/nmis9/bin/nmis-cli act=config-backup
 
-# purge old files every few days
-2 2 */3 * *  root /usr/local/nmis9/bin/nmis-cli act=purge
+# purge old files daily
+21 2 * * *  root /usr/local/nmis9/bin/nmis-cli act=purge
+# cleanup orphaned database records daily as well
+42 3 * * *  root /usr/local/nmis9/bin/nmis-cli act=dbcleanup
 
 # create reports, Daily Monthly Weekly
 9 0 * * *  root /usr/local/nmis9/bin/nmis-cli act=run-reports period=day type=all

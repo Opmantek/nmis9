@@ -38,6 +38,7 @@ use Socket;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
+use feature 'state';						# for new_nmisng
 use Carp;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 
@@ -56,7 +57,7 @@ use NMISNG::rrdfunc;
 use NMISNG::Notify;
 
 
-# Cache table pointers
+# fixme9 thise need to go and/or become state vars!
 my $NT_cache = undef; # node table (local + remote)
 my $NT_modtime; # file modification time
 my $LNT_cache = undef; # local node table
@@ -66,31 +67,20 @@ my $GT_modtime;
 my $ST_cache = undef; # server table
 my $ST_modtime;
 
-my $SUM8_cache = undef; # summary table
-my $SUM8_modtime;
-my $SUM16_cache = undef; # summary table
-my $SUM16_modtime;
-my $ENT_cache = undef; # enterprise table
-my $ENT_modtime;
-my $IFT_cache = undef; # ifTypes table
-my $IFT_modtime;
-my $SRC_cache = undef; # Services table
-my $SRC_modtime;
-
-# this is a compatibility helper to quickly gain access 
+# this is a compatibility helper to quickly gain access
 # to ONE persistent/shared nmisng object
-# 
+#
 # args: nocache (optional, if set create new nmisng object)
 # returns: ref to one nmisng object
-my $_nmisng = undef;
 sub new_nmisng
 {
 	my (%args) = @_;
+	state ($_nmisng);
 
 	if (ref($_nmisng) ne "NMISNG" or $args{nocache})
 	{
 		# Carp::cluck("creating new nmisng obj in $$");
-		
+
 		my $C = NMISNG::Util::loadConfTable();
 		my $debug = NMISNG::Util::getDebug();
 		die "Config required" if ( ref( $C ) ne "HASH" );
@@ -102,7 +92,7 @@ sub new_nmisng
 		my $error = NMISNG::Util::setFileProtDiag(file => $logfile)
 				if (-f $logfile);
 		warn "failed to set permissions: $error\n" if ($error);
-		
+
 		my $logger = NMISNG::Log->new(
 			level => $debug // $C->{log_level},
 			path  =>  ($debug? undef : $logfile ),
@@ -339,10 +329,6 @@ sub loadCfgTable {
 	my %Cfg = (
   	'online' => [
 				{ 'nmis_docs_online' => { display => 'text', value => ['https://community.opmantek.com/']}},
-		],
-
-  	'modules' => [
-				{ 'display_opmaps_widget' => { display => 'popup', value => ["true", "false"]}},
 		],
 
   	'directories' => [
@@ -1068,8 +1054,8 @@ sub getSummaryStats
 # compute stats via rrd for a given subconcept,
 # returns: hashref with numeric values - or undef if infty or nan
 # args: inventory,subconcept,start,end,sys, all required
-#   subconcept is used to find the storage (db) and also the section in the stats 
-#   file.  
+#   subconcept is used to find the storage (db) and also the section in the stats
+#   file.
 #  stats_section - if provided this will be used to look up the location of the stats
 #   instead of subconcept. this is required for concepts like cbqos where the subconcept
 #   name is variable and based on class names which come from the device
@@ -2289,7 +2275,7 @@ sub loadOutageTable {
 # return status,key where status is pending or current, key is hash key of event table
 #
 # args: node, time (required)
-sub outageCheck 
+sub outageCheck
 {
 	my %args = @_;
 	my $node = $args{node};
@@ -2298,21 +2284,21 @@ sub outageCheck
 	my $OT = loadOutageTable();
 
 	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT}) 
+	foreach my $key (sort keys %{$OT})
 	{
-		if (($time-300) > $OT->{$key}{end}) 
+		if (($time-300) > $OT->{$key}{end})
 		{
 			outageRemove(key=>$key); # past
-		} 
-		else 
+		}
+		else
 		{
-			if ( $node eq $OT->{$key}{node}) 
+			if ( $node eq $OT->{$key}{node})
 			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) 
+				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
 				{
 					return "current",$key;
 				}
-				elsif ($time < $OT->{$key}{start}) 
+				elsif ($time < $OT->{$key}{start})
 				{
 					return "pending",$key;
 				}
@@ -2321,12 +2307,12 @@ sub outageCheck
 	}
 	# check also dependency
 	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) ) 
+	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
 	{
 		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node}) 
+			if ( $nd eq $OT->{$key}{node})
 			{
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) 
+				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} )
 				{
 					# check if this other node is down
 					my $S = NMISNG::Sys->new;

@@ -26,37 +26,38 @@
     'Service_Type' => 'script',
     'Port' => '80',
     'Poll_Interval' => '1m',
-    'Service_Name' => '',
+    'Service_Name' => 'http',
     'Name' => 'http'
   },
   'http-redir' => {
     'Service_Type' => 'script',
     'Port' => '80',
     'Poll_Interval' => '1m',
-    'Service_Name' => '',
+    'Service_Name' => 'http-redir',
     'Name' => 'http-redir'
   },
   'http-moved' => {
     'Service_Type' => 'script',
     'Port' => '80',
     'Poll_Interval' => '1m',
-    'Service_Name' => '',
+    'Service_Name' => 'http-moved',
     'Name' => 'http-moved'
   },
   'pop3' => {
     'Service_Type' => 'script',
     'Port' => '110',
     'Poll_Interval' => '1m',
-    'Service_Name' => '',
+    'Service_Name' => 'pop3',
     'Name' => 'pop3'
   },
   'http_server' => {
     'Service_Type' => 'service',
     'Port' => '',
     'Poll_Interval' => '5m',
-    'Service_Name' => 'httpd',
+    'Service_Name' => '(httpd|apache2)',
 		'Service_Parameters' => '',
-    'Name' => 'HTTP_Server'
+    'Name' => 'HTTP_Server',
+		'Description' => "looks for a live httpd or apache2  daemon",
   },
   'mysqld_daemon' => {
     'Service_Type' => 'service',

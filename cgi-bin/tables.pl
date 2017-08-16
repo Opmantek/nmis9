@@ -34,7 +34,6 @@ use lib "$FindBin::Bin/../lib";
 #
 use strict;
 use Compat::NMIS;
-use Compat::UUID;
 use NMISNG::Sys;
 use Compat::DBfunc;							# fixme9: should be removed
 use NMISNG::Util;
@@ -42,7 +41,7 @@ use Net::hostent;
 use Socket;
 use Data::Dumper;
 use URI::Escape;
-
+use UUID::Tiny;									# for nodes table uuid test
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -60,7 +59,7 @@ use NMISNG::Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = NMISNG::Auth->new(conf => $C); 
+my $AU = NMISNG::Auth->new(conf => $C);
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
@@ -114,8 +113,8 @@ sub loadReqTable {
 	{
 		$T = Compat::NMIS::loadLocalNodeTable();
 	}
-	else 
-	{		
+	else
+	{
 		my $db = "db_".lc($table)."_sql";
 		if (NMISNG::Util::getbool($C->{$db})) {
 			$T = Compat::DBfunc::->select(table=>$table); # full table
@@ -298,7 +297,7 @@ sub viewTable {
 			my $problematic = scalar grep($_->{polling_policy} eq $key, values %$LNT);
 			$forbidden = "Policy \"$key\" is used by $problematic nodes, cannot be deleted!" if ($problematic);
 		}
-		
+
 		if ($forbidden)
 		{
 			print Tr(td({class=>"Error", colspan => 2 }, $forbidden,
@@ -399,7 +398,7 @@ sub editTable
 
 	# polling policy: add and delete, no edit
 	return menuTable() if ($table eq "Polling-Policy" and $Q->{act} eq 'config_table_edit');
-	
+
 	my @hash; # items of key
 
 	#start of page
@@ -640,9 +639,11 @@ sub doeditTable
 			}
 		}
 
-		# ensure a uuid is present
-		$thisentry->{uuid} ||= Compat::UUID::getUUID($key);
-		$V->{uuid} ||= $thisentry->{uuid};
+		# ensure a real uuid is present
+		if (!$thisentry->{uuid} or !UUID::Tiny::is_uuid_string($thisentry->{uuid}))
+		{
+			$thisentry->{uuid} = $V->{uuid} = NMISNG::Util::getUUID($key);
+		}
 
 		# keep the new_name from being written to the config file
 		$new_name = $thisentry->{new_name};
@@ -650,18 +651,31 @@ sub doeditTable
 
 		my $nmisng = Compat::NMIS::new_nmisng;
 		# set create if addding
-		my $node = $nmisng->node( uuid => $thisentry->{uuid}, create => ($Q->{act} =~ /doadd/) ? 1 : 0 );
-		
+		my $node = $nmisng->node( uuid => $thisentry->{uuid},
+															create => ($Q->{act} =~ /doadd/) ? 1 : 0 );
+
+		# fixme9: unclear what that part means?
 		# NOTE, this is going to remove entries that NMIS is not asking about!!!
-		# NEED TO add a merge option or do the merge		
+		# NEED TO add a merge option or do the merge
 		my $configuration = $node->configuration();
-		
 		# do merge manually for now
 		map { $configuration->{$_} = $thisentry->{$_} } keys( %$thisentry );
 
+		if ($node->is_new)
+		{
+			$configuration->{cluster_id} = $C->{cluster_id};
+		}
+
 		# set the new configuration and save the changes
-		$node->configuration( $thisentry );
-		$node->save();
+		# fixme9: was using $thisentry, az thinks must use $configuration?!?
+		$node->configuration( $configuration);
+		my ($success,  $errmsg) = $node->save();
+		if ($success <= 0)						# 0 is no saving required, neg is bad
+		{
+			print header($headeropts),
+			Tr(td({class=>'error'}, escapeHTML("ERROR, creation of node \'$key\' failed: $errmsg")));
+			return 0;
+		}
 
 		# further special handling for nodes: rename and general update
 		# handle the renaming case
@@ -722,7 +736,7 @@ sub dodeleteTable {
 	my $T = loadReqTable(table=>$table);
 	# remote key
 	my $TT;
-	foreach (keys %{$T}) 
+	foreach (keys %{$T})
 	{
 		$TT->{$_} = $T->{$_}
 			if ($_ ne $key);
