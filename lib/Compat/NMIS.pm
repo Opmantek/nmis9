@@ -972,7 +972,7 @@ sub getSummaryStats
 
 	# check if rrd file exists - note that this is NOT an error if the db belongs to
 	# a section with source X but source X isn't enabled (e.g. only wmi or only snmp)
-	if (! -e $db )
+	if (! -f $db )
 	{
 		# unfortunately the sys object here is generally NOT a live one
 		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround
@@ -1086,7 +1086,7 @@ sub getSubconceptStats
 		#		gtype=>$type,start=>$start,end=>$end,index=>$index);
 	}
 
-	my $db = $C->{database_root}.$inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
+	my $db = $inventory->find_subconcept_type_storage( subconcept => $subconcept, type => 'rrd' );
 	my $data = $inventory->data;
 	my $index = $data->{index};
 
@@ -1105,6 +1105,7 @@ sub getSubconceptStats
 		NMISNG::Util::logMsg("ERROR ($S->{name}) no rrd name found for subconcept $subconcept, index $index");
 		return;
 	}
+	$db = $C->{database_root}.$db;
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$stats_section} eq "") {
@@ -1114,7 +1115,7 @@ sub getSubconceptStats
 
 	# check if rrd file exists - note that this is NOT an error if the db belongs to
 	# a section with source X but source X isn't enabled (e.g. only wmi or only snmp)
-	if (! -e $db )
+	if (! -f $db )
 	{
 		# unfortunately the sys object here is generally NOT a live one
 		# (ie. not init'd with snmp/wmi=true), so we use the PreciseNodeStatus workaround

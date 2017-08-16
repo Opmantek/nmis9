@@ -329,7 +329,7 @@ sub get_nodes_model
 		my $count = NMISNG::DB::count( collection => $self->nodes_collection, query => $q );
 		$model_data->[$count - 1] = {} if ($count);
 	}
-
+	# print "get_nodes_model, q".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->nodes_collection,
 		query      => $q,
