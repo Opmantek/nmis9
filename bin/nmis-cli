@@ -66,7 +66,8 @@ my $usage       = "Usage: $thisprogram [option=value...] <act=command>
  act=add-outage {node|group}=name start=HH:MM end=HH:MM [comment=text]
  act=run-reports period=<day|week|month> type=<all|times|health|top10|outage|response|avail|port>
  act=config-backup
- act=purge [simulate=t/f]
+ act=purge [simulate=t/f] [info=t/f]
+ act=dbcleanup [simulate=t/f] [info=t/f]
 
  act=fixperms
 \n";
@@ -78,22 +79,29 @@ my $wantverbose = (NMISNG::Util::getbool($Q->{verbose}));
 
 my $customconfdir = $Q->{dir}? $Q->{dir}."/conf" : undef;
 my $C      = NMISNG::Util::loadConfTable(dir => $customconfdir,
-																				 debug => $Q->{debug}, 
+																				 debug => $Q->{debug},
 																				 info => $Q->{info});
 die "no config available!\n" if (ref($C) ne "HASH" or !keys %$C);
+
+# the db config needs adjusting before dbcleanup is attempted: the aggregations
+# often take longer than the default 5s...and that param cannot be set on live connections.
+if ($Q->{act} eq "dbcleanup")
+{
+	$C->{db_query_timeout} = 1000*300;	# 5 minutes max
+}
 
 # log to stderr if debug or info are given
 my $logfile = $C->{'<nmis_logs>'} . "/cli.log";
 my $error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
 warn "failed to set permissions: $error\n" if ($error);
 
-my $logger = NMISNG::Log->new(
-	debug => $Q->{debug},
-	info  => $Q->{info},
-	level => $C->{log_level},
-	path  => (defined($Q->{debug}) or defined($Q->{info}) ? undef: $logfile),
-		);
+# use debug, or info arg, or configured log_level
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
+																 debug => $Q->{debug},
+																 info => $Q->{info}) // $C->{log_level},
+															 path  => (defined($Q->{debug}) || defined($Q->{info})? undef : $logfile));
 
+# this opens a database connection
 my $nmisng = NMISNG->new(
 	config => $C,
 	log    => $logger,
@@ -348,6 +356,11 @@ elsif ($Q->{act} eq 'purge')
 	my $res = purge_files(simulate => $Q->{simulate});
 	die "$res\n" if ($res);
 }
+elsif ($Q->{act} eq "dbcleanup")
+{
+	my $res = dbcleanup(simulate => $Q->{simulate});
+	die "$res\n" if ($res);
+}
 elsif ($Q->{act} eq "fixperms")
 {
 	if ($wantverbose)
@@ -398,10 +411,10 @@ elsif ($Q->{act} eq "fixperms")
 			NMISNG::Util::createDir($location);
 		}
 		NMISNG::Util::setFileProtDirectory($location, "false");
-		
+
 		$done{$location} = 1;
 	}
-										
+
 	# deeper dirs with recursion
 	%done = ();
 	for my $location ($C->{'<nmis_base>'}."/lib",
@@ -455,7 +468,7 @@ elsif ($Q->{act} eq "groupsync")
 	print "Existing groups:\n\t", ( %oldgroups ? join( "\n\t", keys %oldgroups ) : "<None>" ),
 	"\n\nNew groups to add:\n\t", ( %newgroups ? join( "\n\t", keys %newgroups ) : "<None>" ),
 	"\n\n";
-	
+
 	if (%newgroups)
 	{
 		$rawC->{system}->{group_list} = join( ",", sort( keys %oldgroups, keys %newgroups ) );
@@ -611,5 +624,138 @@ sub purge_files
 	return;
 }
 
+# this is a maintenance command for removing invalid database material
+# (old stuff is automatically done via TTL index on expire_at)
+#
+# args: simulate (default: false, if true only prints what it would do)
+# returns: undef if ok, error message otherwise
+sub dbcleanup
+{
+	my (%args) = @_;
+	my %nukem;
 
+	my $simulate = NMISNG::Util::getbool( $args{simulate} );
+	# we want to remove:
+	# all inventory entries whose node is gone,
+ 	# and all timed data whose inventory is gone.
+	# note that for timed orphans we have no cluster_id;
 
+	$logger->info("Starting Database cleanup");
+
+	# first find ditchable inventories
+	$logger->debug("Looking for orphaned inventory records");
+
+	my $invcoll = $nmisng->inventory_collection;
+	my ($goners, undef, $error) = NMISNG::DB::aggregate(
+		collection => $invcoll,
+		pre_count_pipeline => undef,
+		count => undef,
+		allowtempfiles => 1,
+		post_count_pipeline => [
+			# link inventory to parent node
+			{ '$lookup' => { from => "nodes",
+											 localField => "node_uuid",
+											 foreignField => "uuid",
+											 as =>  "parent"} },
+			# then select the ones without parent
+			{ '$match' => { parent => { '$size' => 0 } } },
+			# then give me just the inventory ids
+			{ '$project'  => { '_id' =>  1 } }]);
+
+	if ($error)
+	{
+		$logger->error("inventory aggregation failed: $error");
+		return "inventory aggregation failed: $error";
+	}
+	my @ditchables =  map { $_->{_id} } (@$goners);
+
+	# second, remove those - possibly orphaning stuff that we should pick up
+	if (!@ditchables)
+	{
+		$logger->debug("No orphaned inventory records detected.");
+	}
+	elsif ($simulate)
+	{
+		$logger->info("Cleanup would remove ".scalar(@ditchables). " orphaned inventory records, but not in simulation mode.");
+	}
+	else
+	{
+		my $res = NMISNG::DB::remove(collection => $invcoll,
+																 query => NMISNG::DB::get_query(
+																	 and_part => { _id => \@ditchables }));
+		if (!$res->{success})
+		{
+			$logger->error("failed to remove inventory instances: $res->{error}");
+			return "failed to remove inventory instances: $res->{error}";
+		}
+		$logger->info("Removed $res->{removed_records} orphaned inventory records.");
+	}
+
+	# third, determine what concepts exist, get their timed data collections
+	# and verify those against the inventory - plus the latest_data look-aside-cache
+	my $conceptnames = NMISNG::DB::distinct(collection => $nmisng->inventory_collection,
+																					key => "concept");
+	if (ref($conceptnames) ne "ARRAY")
+	{
+		$logger->error("failed to determine distinct concepts!");
+		return "failed to determine distinct concepts!";
+	}
+	for my $concept ("latest_data", @$conceptnames)
+	{
+		my $timedcoll = $concept eq "latest_data"?
+				$nmisng->latest_data_collection :
+				$nmisng->timed_concept_collection(concept => $concept);
+		next  if (!$timedcoll);		# timed_concept_collection already logs, ditto latest_data_collection
+
+		my $collname = $timedcoll->name;
+
+		$logger->debug("Looking for orphaned timed records for $concept");
+
+		my ($goners, undef, $error) = NMISNG::DB::aggregate(
+			collection => $timedcoll,
+			pre_count_pipeline => undef,
+			count => undef,
+			allowtempfiles => 1,
+			post_count_pipeline => [
+				# link to inventory parent
+				{ '$lookup' => { from => $invcoll->name,
+											 localField => "inventory_id",
+												 foreignField => "_id",
+												 as =>  "parent"} },
+				# then select the ones without parent
+				{ '$match' => { parent => { '$size' => 0 } } },
+				# then give me just the inventory ids
+				{ '$project'  => { '_id' =>  1 } }]);
+		if ($error)
+		{
+			$logger->error("$collname aggregation failed: $error");
+			return "$collname aggregation failed: $error";
+		}
+
+		my @ditchables = map { $_->{_id} } (@$goners);
+		if (!@ditchables)
+		{
+			$logger->debug("No orphaned $concept records detected.");
+		}
+		elsif ($simulate)
+		{
+			$logger->info("cleanup would remove ".scalar(@ditchables)
+										. " orphaned timed $concept records, but not in simulation mode.");
+		}
+		else
+		{
+			my $res = NMISNG::DB::remove(collection => $timedcoll,
+																	 query => NMISNG::DB::get_query(
+																	 and_part => { _id => \@ditchables }));
+			if (!$res->{success})
+			{
+				$logger->error("failed to remove $collname instances: $res->{error}");
+				return "failed to remove $collname instances: $res->{error}";
+			}
+			$logger->info("removed $res->{removed_records} orphaned timed records for $concept.");
+		}
+	}
+
+	$logger->info("Database cleanup complete");
+	return undef;
+}

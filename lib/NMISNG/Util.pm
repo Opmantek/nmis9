@@ -535,7 +535,9 @@ sub getDiskBytes {
 	else { /(\d+\.\d\d)/; return"$1 b${ps}"; }
 }
 
-# only translates names or levels into debug number, does NOT set any config!
+# tiny helper that translates level names or levels
+# into a debug number, does NOT set any config!
+# DEPRECATED. use nmisng::log::parse_debug_level instead!
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
@@ -548,33 +550,24 @@ sub setDebug {
 	return $debug;
 }
 
-##  performs a binary copy of a file, used for backup of files.
-sub backupFile {
-	my %arg = @_;
-	my $buff;
-	if ( -r $arg{file} ) {
-		sysopen(IN, "$arg{file}", O_RDONLY) or warn ("ERROR: problem with file $arg{file}; $!");
-		flock(IN, LOCK_SH) or warn "can't lock filename: $!";
+# performs a binary copy of a file, used for backup of files.
+# args: file (= source path), backup (= destination path)
+# returns: undef if ok, error message otherwise
+sub backupFile
+{
+	my (%arg) = @_;
+	my ($source, $dest)  = @arg{"file","backup"};
+	return "no source file argument!" if (!$source);
+	return "no backup destination argument!" if (!$dest);
+	return "invalid backup destination!" if ($dest eq $source);
 
-		# change to secure sysopen with truncate after we got the lock
-		sysopen(OUT, "$arg{backup}", O_WRONLY | O_CREAT) or warn ("ERROR: problem with file $arg{backup}; $!");
-		flock(OUT, LOCK_EX) or warn "can't lock filename: $!";
-		enter_critical;
-		truncate(OUT, 0) or warn "can't truncate filename: $!";
+	# -f covers symlinks by checking the target
+	return "source file \"$source\" is not a file or doesn't exist!"
+			if (!-f $source);
 
-		binmode(IN);
-		binmode(OUT);
-		while (read(IN, $buff, 8 * 2**10)) {
-		    print OUT $buff;
-		}
-		close(IN) or warn "can't close filename: $!";
-		close(OUT) or warn "can't close filename: $!";
-		leave_critical;
-		return 1;
-	} else {
-		print STDERR "ERROR, backupFile file $arg{file} not readable.\n";
-		return 0;
-	}
+	return "failed to copy \"$source\" to \"$dest\": $!"
+			if (!File::Copy::cp($source, $dest));
+	return undef;
 }
 
 # funky sort, by Eric.

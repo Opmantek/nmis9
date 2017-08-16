@@ -8,17 +8,12 @@ my %hash = (
     'db_server' => 'localhost',
     'db_username' => 'opUserRW'
   },
+
   'modules' => {
     'display_opcharts' => 'false',
     'display_community_rss_widget' => 'true',
     'display_module_list' => 'true',
     'display_network_view' => 'true',
-    'display_opmaps_widget' => 'false',
-    'display_opflow_widget' => 'false',
-    'opmaps_widget_width' => '750',
-    'opmaps_widget_height' => '450',
-    'opflow_widget_width' => '750',
-    'opflow_widget_height' => '460',
     'rss_widget_width' => '210',
     'rss_widget_height' => '460'
   },
@@ -78,6 +73,11 @@ my %hash = (
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com'
   },
+
+	'logging' => {
+		# can be set to info (default), debug, warn, error, fatal, or 1..9 for debug with extra verbosity 1..9
+		'log_level' => undef,
+	},
 
   'system' => {
     'group_list' => 'NMIS9,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
@@ -209,6 +209,7 @@ my %hash = (
 		'selftest_cron_name' => '(^|/)crond?$', # regexp for finding your cron implementation
 		'nmis4_compatibility' => 'false',
 		'plugins_enabled' => 'true',
+
 		# set to false to disable keeping of closed events in history section
 		'keep_event_history' => 'true',
 		'use_json' => 'true',
