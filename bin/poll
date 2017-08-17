@@ -1262,9 +1262,8 @@ sub doCollect
 		NMISNG::Util::dbg( "Sys init for $name failed: "
 				. join( ", ", map { "$_=" . $S->status->{$_} } (qw(error snmp_error wmi_error)) ) );
 
-		NMISNG::Util::info("no info available of node $name, switching to update operation instead");
+		NMISNG::Util::logMsg("Sys init for node $name failed, switching to update operation instead");
 		doUpdate( name => $name );
-		NMISNG::Util::info("Finished update instead of collect");
 		return;                          # collect has to wait until a next run
 	}
 
@@ -1280,12 +1279,14 @@ sub doCollect
 
 	$S->readNodeView;    # s->init does NOT load that, but we need it as we're overwriting some view info
 
-	# run an update if no update poll time is known
+	# run an update INSTEAD if no update poll time is known
 	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
 	{
-		NMISNG::Util::info("no cached node data available, running an update now");
+		NMISNG::Util::logMsg("'last update' time not known for $node, switching to update operation instead");
 		doUpdate( name => $name );
-		NMISNG::Util::info("update done, continue with collect");
+		return; # a full collect needs to wait until the next cycle, OR we need to reset the catchall data
+		# otherwise the live sys object belonging to collect will have a stale cached catchall
+		# which will cause a duplicate insertion on save
 	}
 
 	NMISNG::Util::info("node=$catchall_data->{name} role=$catchall_data->{roleType} type=$catchall_data->{nodeType}");
