@@ -19,7 +19,7 @@ my ($targetfile, @rtags) = @ARGV;
 
 die $usage if (!$targetfile or !@rtags);
 die "must be run from checked out nmis repository!\n"
-		if (!-d "./lib/NMIS" or !-d "./.git");
+		if (!-d "./lib/NMISNG/" or !-d "./.git");
 
 my (%sigs);
 
@@ -27,13 +27,12 @@ opendir(D, "install") or die "cannot open install: $!\n";
 my @files = grep(/^Table.+\.nmis$/, readdir(D));
 closedir(D);
 
-
 for my $todofile (@files)
 {
 	my $tempfile = "/tmp/$todofile.$$";
 	for my $tag (@rtags)
 	{
-		my $res = system("git show $tag:install/$todofile >$tempfile 2>/dev/null");
+		my $res = system("git show --format=raw $tag:install/$todofile >$tempfile 2>/dev/null");
 		# error? likely the file didn't exist in that version
 		next if ($res >> 8);
 
@@ -52,7 +51,7 @@ for my $todofile (@files)
 }
 
 # if we can update a file with __DATA__, we do;
-# if now we just write the targetfile
+# if not we just write the targetfile
 my @existingdata = read_file($targetfile) if (-f $targetfile);
 my @newdata;
 if (@existingdata)

@@ -27,17 +27,18 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+use strict;
+our $VERSION="9.0.0a";
 
-# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use strict;
-use NMISNG::Util;
 use File::Basename;
 use Getopt::Std;
 
+use NMISNG::Util;
+
 my $usage="Usage: ".basename($0)." [-q] <CONFIG_1> <CONFIG_2 or dir>
-eg: ".basename($0)." /usr/local/nmis8/install/Config.nmis /usr/local/nmis8/conf/
+eg: ".basename($0)." /usr/local/nmis9/install/Config.nmis /usr/local/nmis9/conf/
 
 This script compares two NMIS Config files and reports the differences.
 
@@ -72,77 +73,77 @@ my @diffsummary;
 # is called recursive, curpath identifies the location
 sub compare
 {
-		my ($first,$second,$curpath)=@_;
+	my ($first,$second,$curpath)=@_;
 
-		# either one not defined/missing?
-		if (defined $first ^ defined $second)
+	# either one not defined/missing?
+	if (defined $first ^ defined $second)
+	{
+		my $flabel=defined($first)? ref($first)?"<DEEP STRUCTURE>": $first : "<NOT PRESENT>";
+		my $slabel=defined($second)? ref($second)?"<DEEP STRUCTURE>": $second : "<NOT PRESENT>";
+
+		print "$curpath:\n-\t$flabel\n+\t$slabel\n\n";
+		push @diffsummary,$curpath;
+		return;
+	}
+
+	# are the structures of the same type?
+	my $ftype=ref($first);
+	my $stype=ref($second);
+
+	if ($ftype ne $stype)
+	{
+		my $flabel = $ftype? "<DEEP STRUCTURE, TYPE $ftype>" : $first;
+		my $slabel = $stype? "<DEEP STRUCTURE, TYPE $stype>" : $second;
+
+		print "$curpath:\n-\t$flabel\n+\t$slabel\n\n";
+		push @diffsummary,$curpath;
+		return;
+	}
+
+	# scalars or qr// regexps? compare directly
+	if (!$ftype or $ftype eq "Regexp")
+	{
+		if ($first ne $second)
 		{
-				my $flabel=defined($first)? ref($first)?"<DEEP STRUCTURE>": $first : "<NOT PRESENT>";
-				my $slabel=defined($second)? ref($second)?"<DEEP STRUCTURE>": $second : "<NOT PRESENT>";
-
-				print "$curpath:\n-\t$flabel\n+\t$slabel\n\n";
-				push @diffsummary,$curpath;
-				return;
+			print "$curpath:\n-\t$first\n+\t$second\n\n";
+			push @diffsummary,$curpath;
+			return;
 		}
-
-		# are the structures of the same type?
-		my $ftype=ref($first);
-		my $stype=ref($second);
-
-		if ($ftype ne $stype)
+	}
+	# array? recursively compare in the same order
+	elsif ($ftype eq "ARRAY")
+	{
+		for my $index (0..($#$first>$#$second?$#$first:$#$second))
 		{
-				my $flabel = $ftype? "<DEEP STRUCTURE, TYPE $ftype>" : $first;
-				my $slabel = $stype? "<DEEP STRUCTURE, TYPE $stype>" : $second;
+			compare($first->[$index],$second->[$index],"$curpath\[$index\]");
+		}
+	}
+	# hash? compare, ignore order
+	elsif ($ftype eq "HASH")
+	{
+		my %allkeys;
+		map { $allkeys{$_}=1; } (keys %$first);
+		map { $allkeys{$_}=1; } (keys %$second);
 
-				print "$curpath:\n-\t$flabel\n+\t$slabel\n\n";
-				push @diffsummary,$curpath;
-				return;
-		}
-
-		# scalars or qr// regexps? compare directly
-		if (!$ftype or $ftype eq "Regexp")
+		for my $key (keys %allkeys)
 		{
-				if ($first ne $second)
-				{
-						print "$curpath:\n-\t$first\n+\t$second\n\n";
-						push @diffsummary,$curpath;
-						return;
-				}
+			compare($first->{$key},$second->{$key},"$curpath/$key");
 		}
-		# array? recursively compare in the same order
-		elsif ($ftype eq "ARRAY")
-		{
-				for my $index (0..($#$first>$#$second?$#$first:$#$second))
-				{
-						compare($first->[$index],$second->[$index],"$curpath\[$index\]");
-				}
-		}
-		# hash? compare, ignore order
-		elsif ($ftype eq "HASH")
-		{
-				my %allkeys;
-				map { $allkeys{$_}=1; } (keys %$first);
-				map { $allkeys{$_}=1; } (keys %$second);
-
-				for my $key (keys %allkeys)
-				{
-						compare($first->{$key},$second->{$key},"$curpath/$key");
-				}
-		}
-		else
-		{
-				die "Error: unknown data structure at $curpath: first $ftype, second $stype\n\n";
-		}
+	}
+	else
+	{
+		die "Error: unknown data structure at $curpath: first $ftype, second $stype\n\n";
+	}
 }
 
 if (@diffsummary)
 {
-		print "Difference Summary:\n\t".join("\n\t",sort @diffsummary)."\n\n";
-		exit 1;
+	print "Difference Summary:\n\t".join("\n\t",sort @diffsummary)."\n\n";
+	exit 1;
 }
 else
 {
-		print "No differences found.\n";
-		exit 0;
+	print "No differences found.\n";
+	exit 0;
 }
 
