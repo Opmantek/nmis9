@@ -3882,6 +3882,7 @@ sub notify
 										 element=>$element, details=>$details, host => $catchall_data->{host},
 										 nmis_server => $C->{nmis_host} );
 		}
+		$catchall_data->{nodedown} = "true";
 	}
 
 	# log events if allowed
