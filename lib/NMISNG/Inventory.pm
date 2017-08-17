@@ -355,6 +355,7 @@ sub new
 	}
 
 	# in addition to these, there's also on-demand _deleted
+	# keeping a copy of nmisng which could go away means it needs weakening
 	Scalar::Util::weaken $self->{_nmisng} if ( !Scalar::Util::isweak( $self->{_nmisng} ) );
 	return $self;
 }
@@ -424,8 +425,6 @@ sub _generic_getset
 sub add_timed_data
 {
 	my ( $self, %args ) = @_;
-
-
 
 	return "cannot add timed data, invalid data argument!"
 		if ( ref( $args{data} ) ne "HASH" );    # empty hash is acceptable
@@ -979,7 +978,10 @@ sub path
 	return $path;
 }
 
-# save the inventory obj in the database
+# save the inventory obj in the database, if this thing thinks it's new do an upsert 
+#  using the path to make sure we don't create duplicates, this will clobber whatever
+#  is in the db if it does update instead of insert (but will grab that thigns id as well)
+#
 # args: lastupdate, optional, defaults to now
 #
 # note: lastupdate and expire_at currently not added to object but stored in db only
@@ -1053,15 +1055,43 @@ sub save
 
 	if ( $self->is_new() )
 	{
-		# could maybe be upsert?
-		$result = NMISNG::DB::insert(
+		# if it's new upsert to try and make sure we're not making a duplicate
+		my ($q,$path) = (undef,$self->path());
+		map { $q->{"path.$_"} = NMISNG::Util::numify( $path->[$_] ) } ( 0 .. $#$path );
+		$result = NMISNG::DB::update(
 			collection => $self->nmisng->inventory_collection,
+			query      => $q,
 			record     => $record,
-		);
-		$op = 1;
-
-		# _id is set on insert, grab it so we know we're not new
-		$self->{_id} = $result->{id} if ( $result->{success} );
+			upsert     => 1,
+			multiple   => 0	
+		);		
+		if( $result->{success} && $result->{upserted_id} )
+		{
+			# _id is set on insert, grab it so we know we're not new
+			$self->{_id} = $result->{upserted_id};
+			$op = 1;
+		}	
+		elsif( $result->{success} )
+		{
+			# we updated when tryin to insert which means we thought we were new but were not, we need to grab our id
+			# as the update will have changed the record to what we think it is but not returned us an id
+			$op = 2;
+			my $find_result = NMISNG::DB::find(
+				collection => $self->nmisng->inventory_collection,
+				query      => $q
+			);
+			if( $find_result )
+			{
+				my $entry = $find_result->next;
+				$self->{_id} = $entry->{_id};
+			}
+			else
+			{
+				$self->nmisng->log->error("Inventory save of new inventory resulted in update. Find for _id failed after update with".NMISNG::DB::get_error_string() );
+				$result->{success} = 0;
+				$result->{error} = "Inventory save of new inventory resulted in update. Find for _id failed after update with".NMISNG::DB::get_error_string();
+			}
+		}
 	}
 	else
 	{
