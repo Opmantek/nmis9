@@ -778,9 +778,6 @@ sub outputLine {
 	} # if event.log
 	# --------------------------------------------------------------------------------------
 	## nmis log
-
-	## 16-Jul-2012 00:37:25,network.pl::viewNode#844Sys::init#105func::loadTable#831<br>
-	### ERROR file does not exist dir=var name=192.168.1.234-node, nmis_var=/mnt/hgfs/Master/nmis8/var nmis_conf=/mnt/hgfs/Master/nmis8/conf
 	elsif ( lc $logName eq 'nmis_log') {
 
 		$line =~ s/&lt;br&gt;/,/gi ;
@@ -978,9 +975,6 @@ sub logRFCColor {
 
 
 
-
-# ------------------------------------------------------------------
-# nmisdev 3Jul2012 rewrote for NMIS8
 
 sub logSummary {
 

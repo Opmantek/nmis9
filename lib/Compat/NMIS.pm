@@ -414,7 +414,7 @@ sub loadCfgTable {
 		],
 
   	'url' => [
-				{ '<url_base>' => { display => 'text', value => ['/nmis8']}},
+				{ '<url_base>' => { display => 'text', value => ['/nmis9']}},
 				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis9']}},
 				{ '<menu_url_base>' => { display => 'text', value => ['/menu9']}},
 				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
@@ -2223,20 +2223,6 @@ sub statusNumber {
 	return $level;
 }
 
-# 24 Feb 2002 - A suggestion from someone? to remove \n from $string.
-# this also prints the message if debug, remove concurrent debug prints in code...
-
-sub logMessage {
-	my $string = shift;
-	my $C = NMISNG::Util::loadConfTable();
-
-	$string =~ s/\n+/ /g;      #remove all embedded newlines
-	sysopen(DATAFILE, "$C->{nmis_log}", O_WRONLY | O_APPEND | O_CREAT)
-		 or warn NMISNG::Util::returnTime." logMessage, Couldn't open log file $C->{nmis_log}. $!\n";
-	flock(DATAFILE, LOCK_EX) or warn "logMessage, can't lock filename: $!";
-	print DATAFILE NMISNG::Util::returnDateStamp.",$string\n";
-	close(DATAFILE) or warn "logMessage, can't close filename: $!";
-} # end logMessage
 
 # load the info of a node
 # if optional arg suppress_errors is given, then no errors are logged
@@ -2351,6 +2337,7 @@ sub outageRemove {
 	my @problems;
 
 	if ($string ne '') {
+		# fixme9: should use a sensible log mechanism
 		# log this action but DON'T DEADLOCK - NMISNG::Util::logMsg locks, too!
 		if ( open($handle,">>$C->{outage_log}") ) {
 			if ( flock($handle, LOCK_EX) ) {
@@ -2697,11 +2684,11 @@ sub loadPortalCode {
 			# If the link is part of NMIS, append the config
 			my $selected;
 
-			if ( $P->{$p}{Link} =~ /cgi-nmis8/ ) {
+			if ( $P->{$p}{Link} =~ /cgi-nmis9/ ) {
 				$P->{$p}{Link} .= "?conf=$conf";
 			}
 
-			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS8/ ) {
+			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS9/ ) {
 				$selected = " selected=\"$P->{$p}{Name}\"";
 			}
 			elsif ( $ENV{SCRIPT_NAME} =~ /maps/ and $P->{$p}{Name} =~ /Map/ ) {
@@ -4100,6 +4087,7 @@ sub loadNodeConfTable
 }
 
 # this method renames a node, and all its files, too
+# fixme9: this function cannot work with nmis9  yet!
 #
 # args: old, new,
 # (optional) debug, (optional) info, (optional) originator
@@ -4220,6 +4208,7 @@ sub rename_node
 	return (0,undef);
 }
 
+# fixme9: this function does not work for nmis9 yet!
 # internal helper function for rename_node, LINKS one given rrd file to new name
 # caller must take care of removing the old rrd file later.
 #

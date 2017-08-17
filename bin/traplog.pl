@@ -42,7 +42,7 @@ use Getopt::Std;
 use POSIX qw();
 
 my %options;
-getopts("nf:t:", \%options) or die "Usage: $0 [-n] [-f filterregex] [-t targetfile]\n-n: disable dns lookups\-f regex: suppress traps matching this regex\n-t targetfile: write to this file, defualt: ../logs/nmis8/trap.log\n\n";
+getopts("nf:t:", \%options) or die "Usage: $0 [-n] [-f filterregex] [-t targetfile]\n-n: disable dns lookups\-f regex: suppress traps matching this regex\n-t targetfile: write to this file, default: ../logs/nmis9/trap.log\n\n";
 
 my $filename = $options{t} || "$FindBin::RealBin/../logs/trap.log";
 my $trapfilter = $options{f}? qr/$options{f}/ : undef;

@@ -50,7 +50,7 @@ sub new {
 
 	my $dir = undef;
 	if ( defined $arg{dir} ) { $dir = $arg{dir} }
-	elsif ( not defined $dir ) { $dir = "$FindBin::Bin/../../nmis8/conf" }
+	elsif ( not defined $dir ) { $dir = "$FindBin::Bin/../../nmis9/conf" }
 
 	my $self = {
 	   	details => {},

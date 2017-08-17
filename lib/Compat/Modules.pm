@@ -43,14 +43,14 @@ sub new
 			loaded => 0,
 			installed => undef,
 			# match and value
-			searchbases => { 
+			searchbases => {
+				qr/^nmis9$/ => ($arg{nmis_base} ||  "/usr/local/nmis9"),
 				qr/^nmis8$/ => ($arg{nmis_base} ||  "/usr/local/nmis8"),
 				qr/^(oav2|open-audit)$/ => ($arg{oav2_base} || "/usr/local/open-audit"),
 				qr/^opmojo$/ => ($arg{opmojo_base} || "/usr/local/opmojo"),
-				qr/^omk$/ => ($arg{omk_base} || "/usr/local/omk/"),
 			},
 			# link constuction, not search
-			nmis_cgi_url_base => 	$arg{nmis_cgi_url_base} || "/cgi-nmis8",
+			nmis_cgi_url_base => 	$arg{nmis_cgi_url_base} || "/cgi-nmis9",
 		}, $class);
 	return $self;
 }

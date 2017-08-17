@@ -37,15 +37,7 @@
 #
 package NMISNG::Nodes;
 use strict;
-
-BEGIN {
-	our ($VERSION,$ABI,$MAGIC) = ("2.19.0","1.0.0","DEADCHICKEN");
-
-	if( scalar(@ARGV) == 1 && $ARGV[0] eq "--module-version" ) {
-		print __PACKAGE__." version=$VERSION\n".__PACKAGE__." abi=$ABI\n".__PACKAGE__." magic=$MAGIC\n";
-		exit(0);
-	}
-};
+our $VERSION = "9.0.0a";
 
 use Data::Dumper;
 use Test::Deep::NoTest;

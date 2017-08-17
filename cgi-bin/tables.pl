@@ -650,24 +650,22 @@ sub doeditTable
 		delete $thisentry->{new_name};
 
 		my $nmisng = Compat::NMIS::new_nmisng;
-		# set create if addding
+		# set create if addding node
 		my $node = $nmisng->node( uuid => $thisentry->{uuid},
 															create => ($Q->{act} =~ /doadd/) ? 1 : 0 );
 
-		# fixme9: unclear what that part means?
-		# NOTE, this is going to remove entries that NMIS is not asking about!!!
-		# NEED TO add a merge option or do the merge
+		# important: tables knows only its own properties, database may very
+		# well have more than that (e.g. other products), so the form-supplied info
+		# needs to be merged into what's there
 		my $configuration = $node->configuration();
 		# do merge manually for now
 		map { $configuration->{$_} = $thisentry->{$_} } keys( %$thisentry );
 
+		# required for every node in nmis9, not usefully representable in the tables form
 		if ($node->is_new)
 		{
 			$configuration->{cluster_id} = $C->{cluster_id};
 		}
-
-		# set the new configuration and save the changes
-		# fixme9: was using $thisentry, az thinks must use $configuration?!?
 		$node->configuration( $configuration);
 		my ($success,  $errmsg) = $node->save();
 		if ($success <= 0)						# 0 is no saving required, neg is bad

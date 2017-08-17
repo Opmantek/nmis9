@@ -62,16 +62,10 @@ my $usage = "Usage: $bn [debug=true] {--version}\n\n";
 die $usage if (@ARGV == 1 and $ARGV[0] =~ /^--?[h?]/);
 my %args = NMISNG::Util::getArguements(@ARGV);
 
-
-my $debuglevel = NMISNG::Util::setDebug($args{debug});
-my $infolevel = NMISNG::Util::setDebug($args{info});
-my $confname = $args{conf} || "Config";
-
 # get us a common config first
-my $config = NMISNG::Util::loadConfTable(conf=>$confname,
-													 dir=>"$FindBin::RealBin/../conf",
-													 debug => $debuglevel);
-die "could not load configuration $confname!\n"
+my $config = NMISNG::Util::loadConfTable(dir=>"$FindBin::RealBin/../conf",
+													 debug => $args{debug});
+die "could not load configuration!\n"
 		if (!$config or !keys %$config);
 
 my $dia = UI::Dialog->new('title' => "Service Graph Helper",
@@ -87,7 +81,7 @@ Use the arrow keys and tab to navigate, space to select from lists.");
 
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 
-my %allsvc = loadServiceStatus;
+my %allsvc = Compat::NMIS::loadServiceStatus;
 # only interested in this server's services!
 %allsvc = %{$allsvc{$config->{server_name}}} if (ref($allsvc{$config->{server_name}}) eq "HASH");
 

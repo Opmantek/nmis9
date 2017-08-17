@@ -535,7 +535,7 @@ sub getDiskBytes {
 
 # tiny helper that translates level names or levels
 # into a debug number, does NOT set any config!
-# DEPRECATED. use nmisng::log::parse_debug_level instead!
+# NOT smart enough. DEPRECATED - use NMISNG::Log::parse_debug_level instead.
 sub setDebug {
 	my $string = shift;
 	my $debug = 0;
@@ -545,6 +545,8 @@ sub setDebug {
 	elsif (  $string eq "verbose" ) { $debug = 9; }
 	elsif ( $string =~ /\d+/ ) { $debug = $string; }
 	else { $debug = 0; }
+
+
 	return $debug;
 }
 
@@ -711,8 +713,6 @@ sub loadConfTable
 	state ($config_cache);
 
 	my $dir = $args{dir} || "$FindBin::RealBin/../conf";
-	my $debug = $args{debug} || 0;
-	my $info = $args{info} || 0;
 
 	my $fn = Cwd::abs_path("$dir/Config.nmis");			# the one and only...
 	# ...but the caller may have given us a dir in a previous call and NONE now
@@ -773,9 +773,17 @@ sub loadConfTable
 		$config_cache->{auth_require} = 1; # auth_require false is no longer supported
 		$config_cache->{server} = $config_cache->{server_name}; # fixme9: still necessary?
 
-		# fixme9: possibly a bad idea, config vs. command line
-		$config_cache->{debug} = NMISNG::Util::setDebug($debug); # include debug setting in conf table
-		$config_cache->{info} = NMISNG::Util::setDebug($info); # include debug setting in conf table
+		# fixme9: saving this back is likely a bad idea, config vs. command line
+		# fixme: none of this is nmisng::log compatible, where info is only t/f,
+		# and verbosity is from fatal..info..debug..1-9.
+		my $verbosity = NMISNG::Log::parse_debug_level(debug => $args{debug});
+		$config_cache->{debug} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+		# info is only consulted if debug isn't
+		if (!$config_cache->{debug})
+		{
+			$verbosity = NMISNG::Log::parse_debug_level(debug => $args{info});
+			$config_cache->{info} = $verbosity =~ /^(debug|\d)+/? $verbosity : 0;
+		}
 
 		$config_cache->{configfile} = $fn; # fixperms also wants that
 		$config_cache->{mtime} = $stat->mtime; # remember modified time for cache logic
@@ -1377,7 +1385,7 @@ sub readFiletoHash
 	return undef;
 }
 
-# prints info message with (class::)method name
+# prints info message with (class::)method name to stdout
 # args: message, level (optional, default 1)
 # level must be BELOW filter limit level for printouts
 # if loadconftable() was given a debug level, THAT level controls printout and format.
@@ -1411,13 +1419,14 @@ sub info
 }
 
 # return the current debug level from the config cache
+# fixme9: should be reviewed
 sub getDebug
 {
 	my $C = loadConfTable();
 	return $C->{debug};
 }
 
-# debug info with (class::)method names and line number
+# print debug info to stdout, with (class::)method names and line number
 # args: message, level (default 1), upcall (only relevant if level is 1)
 sub dbg
 {
@@ -1465,66 +1474,29 @@ sub dbg
 	}
 }
 
-# debug info with (class::)method names and line number
-sub dbgPolling {
-	my $msg = shift;
-	my $level = shift || 1;
-	my $string;
-	my $caller;
-
-	my $C = loadConfTable();
-
-	if ($C->{debug_polling} >= $level or $level == 0) {
-		if ($level == 1) {
-			($string = (caller(1))[3]) =~ s/\w+:://;
-			$string .= ",";
-		} else {
-			if ((my $caller = (caller(1))[3]) =~ s/main:://) {
-				my $ln = (caller(0))[2];
-				print returnTime." $caller#$ln, $msg\n";
-			} else {
-				for my $i (1..10) {
-					my ($caller) = (caller($i))[3];
-					my ($ln) = (caller($i-1))[2];
-					$string = "$caller#$ln->".$string;
-					last if $string =~ s/main:://;
-				}
-				$string = "$string\n\t";
-			}
-		}
-		print returnTime." $string $msg\n";
-	}
-}
-
-# this function logs to nmis_log in a safe, locked fashion
+# this function logs to the nmis_log via the nmisng::log buffered logger
 # args: string, required; extended with (class::)method names and line number
-# optional: do_not_lock (default: false), to be used in signal handler ONLY!
 # returns: nothing
-sub NMISNG::Util::logMsg
+sub logMsg
 {
-	my ($msg, $do_not_lock) = @_;
-	$do_not_lock = NMISNG::Util::getbool($do_not_lock); # ie. true only if explicitely set
+	my ($msg) = @_;
 
 	my $C = loadConfTable();
 	my $handle;
 
-	if (ref($C) ne "HASH") {
-		# no config loaded
+	if (ref($C) ne "HASH" or !keys %$C )
+	{
 		die "FATAL NMISNG::Util::logMsg, NO Config Loaded: $msg\n";
 	}
-	elsif ( not -d $C->{'<nmis_logs>'} )
-	{
-		print "ERROR, NMISNG::Util::logMsg can't do anything but NAG YOU\n";
-		warn "ERROR NMISNG::Util::logMsg: the message which killed me was: $msg\n";
-		return undef;
-	}
 
+	# fixme9 how about the higher levels??
 	if ($C->{debug} == 1) {
 		my $string;
 		($string = (caller(1))[3]) =~ s/\w+:://;
 		print returnTime." $string, $msg\n";
 	} else {
-		NMISNG::Util::dbg($msg); #
+		# fixme9 why?
+		NMISNG::Util::dbg($msg);
 	}
 
 	my ($string,$caller,$ln,$fn);
@@ -1544,42 +1516,11 @@ sub NMISNG::Util::logMsg
 	$string .= "<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
-	# we MUST NOT use setfileprot because it may call logmsg...
-	# instead we use setfileprotdiag, and warn to stderr if need be
-	my $status_is_ok = 1;
-
-	if (!open($handle,">> $C->{nmis_log}"))
-	{
-		$status_is_ok = 0;
-		warn returnTime." NMISNG::Util::logMsg, Couldn't open log file $C->{nmis_log}: $!\n";
-	}
-	else
-	{
-		if (!$do_not_lock)
-		{
-			if (!flock($handle, LOCK_EX))
-			{
-				$status_is_ok = 0;
-				warn "NMISNG::Util::logMsg, can't lock filename: $!";
-			}
-		}
-
-		if (!print $handle NMISNG::Util::returnDateStamp().",$string\n")
-		{
-			$status_is_ok = 0;
-			warn returnTime." NMISNG::Util::logMsg, can't write file $C->{nmis_log}: $!\n";
-		}
-		if (!close $handle)
-		{
-			$status_is_ok = 0;
-			warn "NMISNG::Util::logMsg, can't close filename: $!";
-		}
-		if ($status_is_ok)
-		{
-			my $errmsg = NMISNG::Util::setFileProtDiag(file => $C->{nmis_log});
-			warn "NMISNG::Util::logMsg, cannot set permissions: $errmsg\n" if ($errmsg);
-		}
-	}
+	# fixme9: this assumes that the caller has loaded Compat::NMIS,
+	# which should be reasonable but...
+	my $nmisng = Compat::NMIS::new_nmisng(); # cached same single object where possible
+	$nmisng->log->info($string);						 # info seems sensible as default level
+	return;
 }
 
 #-----------------------------------
@@ -1591,86 +1532,21 @@ sub NMISNG::Util::logMsg
 # case insensitive
 # arbitrary strings can be used (only at debug level)
 # Only messages below $maxlevel are printed
-
-sub NMISNG::Util::logAuth2($;$) {
-	my $msg = shift;
-	my $level = shift || 3; # default: ERROR
-
-	my %loglevels = ( "EMERG"=>0,"ALERT"=>1,"CRITICAL"=>2,"ERROR"=>3,"WARNING"=>4,"NOTICE"=>5,"INFO"=>6,"DEBUG"=>7);
-	my $maxlevel = 7; # TODO: Put this in config file.
-
-	$level = $loglevels{uc $level} if exists $loglevels{uc $level};
-
-	my $levelmsg;
-	if( $level !~ /^[0-7]$/ ) {
-		$levelmsg = $level;
-		$level = 7;
-	} else {
-		$level = 0 if $level < 0;
-		$level = 7 if $level > 7;
-
-		$levelmsg = (keys %loglevels)[$level];
-	}
-
-	#NMISNG::Util::logAuth("$levelmsg: $msg") if $level <= $maxlevel;
-
-	my $C = loadConfTable;
-
-	if ($C eq '') { die "FATAL logAuth, NO Config Loaded: $msg"; }
-	elsif ( not -f $C->{auth_log} and not -d $C->{'<nmis_logs>'} ) {
-		print "ERROR, logAuth can't do anything but NAG YOU\n";
-		warn "ERROR logAuth: the message which killed me was: $msg\n";
-		return undef;
-	}
-
-	NMISNG::Util::dbg($msg);
-	my ($string,$caller,$ln,$fn);
-	for my $i (1..10) {
-		($caller) = (caller($i))[3]; # name sub
-		($ln) = (caller($i-1))[2];  # line number
-		$string = "$caller#$ln".$string;
-		if ($caller =~ /main/ or $caller eq '') {
-			($fn) = (caller($i-1))[1]; # file name
-			$fn =~ s|.*/(.*\.\w+)$|$1| ; # strip directory (basename???)
-			$string =~ s/main|//;
-			$string = "$fn".$string;
-			last;
-		}
-	}
-	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
-
-	my $handle;
-	open($handle,">>$C->{auth_log}") or warn returnTime." logAuth, Couldn't open log file $C->{auth_log}. $!\n";
-	flock($handle, LOCK_EX)  or warn "logAuth, can't lock filename: $!";
-	print $handle NMISNG::Util::returnDateStamp().",$string\n" or warn returnTime." logAuth, can't write file $C->{auth_log}. $!\n";
-	close $handle or warn "logAuth, can't close filename: $!";
-	NMISNG::Util::setFileProtDiag(file =>$C->{auth_log});
+# fixme9: this function doesn't do what it claims: the second argument, level, is utterly ignored
+# therefore simplified to wrap logAuth()
+sub logAuth2
+{
+	my ($msg,$level) = @_;
+	return logAuth($msg);
 }
 
 # message with (class::)method names and line number
-sub logAuth {
+sub logAuth
+{
 	my $msg = shift;
 	my $C = loadConfTable;
+
 	my $handle;
-
-	if ($C eq '') {
-		# no config loaded
-		die "FATAL logAuth, NO Config Loaded: $msg";
-	}
-	elsif ( not -f $C->{auth_log} and not -d $C->{'<nmis_logs>'} ) {
-		print "ERROR, logAuth can't do anything but NAG YOU\n";
-		warn "ERROR logAuth: the message which killed me was: $msg\n";
-		return undef;
-	}
-
-	if ($C->{debug} == 1) {
-		my $string;
-		($string = (caller(1))[3]) =~ s/\w+:://;
-		print STDERR returnTime." $string, $msg\n";
-	} else {
-		NMISNG::Util::dbg($msg); #
-	}
 
 	my ($string,$caller,$ln,$fn);
 	for my $i (1..10) {
@@ -2154,30 +2030,26 @@ sub setFileProtDirectory {
 # rgb(255,0,0) > rgb(255,255,0) > rgb(0,255,0)
 #
 
-sub hexval  {
-	return sprintf("%2.2X", shift);
-}
-
-### 2012-09-21 keiths, fixing up so NAN is not black.
 sub colorPercentHi {
 	use List::Util qw[min max];
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = 100 - int($val);
-		return '#' . hexval( int(min($val*2*2.55,255)) ) . hexval( int(min( (100-$val)*2*2.55,255)) ) .'00' ;
+		return sprintf("#%2.2X%2.2X00",
+									 int(min($val*2*2.55,255)), int(min( (100-$val)*2*2.55,255)));
 	}
 	else {
 		return '#AAAAAA';
 	}
 }
 
-### 2012-09-21 keiths, fixing up so NAN is not black.
-sub colorPercentLo {
+sub colorPercentLo
+{
 	use List::Util qw[min max];
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = int($val);
-		return '#' . hexval( int(min($val*2*2.55,255)) ) . hexval( int(min( (100-$val)*2*2.55,255)) ) .'00' ;
+		return sprintf("%2.2X%2.2X00", int(min($val*2*2.55,255)), int(min( (100-$val)*2*2.55,255)));
 	}
 	else {
 		return '#AAAAAA';
@@ -2192,29 +2064,24 @@ sub colorResponseTime {
 
 	return "#FF0000" if $val > $thresh;
 	return "#AAAAAA" if $val !~ /[0-9]+/;
-	return '#' . hexval( int((($val/255)*$ratio))) . hexval( int((($thresh-$val)/255)*$ratio )) .'00' ;
+	return sprintf("#%2.2X%2.2X00", int((($val/255)*$ratio)), int((($thresh-$val)/255)*$ratio));
 }
 
 sub checkPerlLib {
 	my $lib = shift;
-	my $found = 0;
 
 	my $path = $lib;
 	$path =~ s/\:\:/\//g;
 
-	if ( $path !~ /\.pm/ ) {
+	if ( $path !~ /\.pm$/ ) {
 		$path .= ".pm";
 	}
 
 	#check the USE path for the file.
 	foreach my $libdir (@INC) {
-		if ( -f "$libdir/$path" ) {
-			$found = 1;
-			last;
-		}
+		return 1 if (-f "$libdir/$path");
 	}
-
-	return $found;
+	return 0;
 }
 
 
