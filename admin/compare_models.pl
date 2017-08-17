@@ -1,13 +1,14 @@
 #!/usr/bin/perl
-# a small helper to conveniently compare models and models-install directories
-# offer to run a recursive diff of conf and install
+# a small helper to conveniently compare models directories, models-custom vs models-default
+# fixme9: currently flags files that don't exist in custom as a difference,
+# which makes no sense in nmis9: there we should have next to ZERO files in models-custom!
 use strict;
 use File::Basename;
 use POSIX;
 
 my $script = basename($0);
 
-my $usage = "Usage: $script <current models dir> <new models dir>
+my $usage = "Usage: $script <models dir A> <new models dir B>
 e.g. $script /usr/local/nmis9/models-custom /usr/local/nmis9/models-default
 
 Exit code: 0 if no differences, 1 if differences were found,
