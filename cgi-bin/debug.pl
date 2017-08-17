@@ -86,7 +86,7 @@ print
                               join('',<DATA>), 			# slurp __DATA__
                               ),
     				-meta => { 'CacheControl' => "no-cache", 'Pragma' => "no-cache", 'Expires' => -1 }),
-	$q->h2('NMIS8 Configuration and Var display for Developers '),
+	$q->h2('NMIS9 Configuration and Var display for Developers '),
 	$q->hr;
 
 

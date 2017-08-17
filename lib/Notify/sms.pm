@@ -50,7 +50,7 @@ $VERSION = 1.00;
 
 @EXPORT_OK = qw(	);
 
-my $smslog = "/usr/local/nmis8/logs/sms.log";
+my $smslog = "/usr/local/nmis9/logs/sms.log";
 
 my $debug = 1;
 

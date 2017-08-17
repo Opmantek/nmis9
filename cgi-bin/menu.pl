@@ -442,7 +442,7 @@ sub menu_bar_portal {
 
 	sub menu_portal {
 		my @menu_portal = [];
-				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS8 Home</a>|);
+				push @menu_portal,	( qq|<a href="nmiscgi.pl?conf=$Q->{conf}" target='_self'>NMIS9 Home</a>|);
 				push @menu_portal,	( qq|Client Views|,
 												[
 												 qq|<a href="http://master.domain.com/cgi-master/nmiscgi.pl" target='_blank'>NMIS4 Demo Master/Slave</a>|,

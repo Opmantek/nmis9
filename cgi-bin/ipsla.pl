@@ -934,8 +934,6 @@ sub displayRTTnode {
 				img({border=>"0", alt=>"$aref->[1]",
 					src=>"$C->{rrddraw}?conf=$Q->{conf}&act=draw_graph_view&node=$pnode&graphtype=$aref->[2]&start=0&end=0&width=350&height=50&title=small"})));
 	}
-
-	#src="/cgi-nmis8/rrddraw.pl?conf=Config.xxxx&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
 }
 
 sub displayRTTdata {

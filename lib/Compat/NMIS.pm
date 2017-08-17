@@ -414,7 +414,7 @@ sub loadCfgTable {
 		],
 
   	'url' => [
-				{ '<url_base>' => { display => 'text', value => ['/nmis8']}},
+				{ '<url_base>' => { display => 'text', value => ['/nmis9']}},
 				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis9']}},
 				{ '<menu_url_base>' => { display => 'text', value => ['/menu9']}},
 				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
@@ -2684,11 +2684,11 @@ sub loadPortalCode {
 			# If the link is part of NMIS, append the config
 			my $selected;
 
-			if ( $P->{$p}{Link} =~ /cgi-nmis8/ ) {
+			if ( $P->{$p}{Link} =~ /cgi-nmis9/ ) {
 				$P->{$p}{Link} .= "?conf=$conf";
 			}
 
-			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS8/ ) {
+			if ( $ENV{SCRIPT_NAME} =~ /nmiscgi/ and $P->{$p}{Link} =~ /nmiscgi/ and $P->{$p}{Name} =~ /NMIS9/ ) {
 				$selected = " selected=\"$P->{$p}{Name}\"";
 			}
 			elsif ( $ENV{SCRIPT_NAME} =~ /maps/ and $P->{$p}{Name} =~ /Map/ ) {
