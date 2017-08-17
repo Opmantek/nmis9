@@ -1534,7 +1534,7 @@ sub logMsg
 # Only messages below $maxlevel are printed
 # fixme9: this function doesn't do what it claims: the second argument, level, is utterly ignored
 # therefore simplified to wrap logAuth()
-sub logAuth2()
+sub logAuth2
 {
 	my ($msg,$level) = @_;
 	return logAuth($msg);
