@@ -54,6 +54,7 @@ use Data::Dumper;
 $Data::Dumper::Indent=1;				# fixme9: do we really need these globally on?
 $Data::Dumper::Sortkeys=1;
 
+use NMISNG::Log;								# for parse_debug_level
 
 sub TODO
 {
