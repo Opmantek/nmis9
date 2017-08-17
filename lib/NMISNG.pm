@@ -37,6 +37,7 @@ use strict;
 
 use Data::Dumper;
 use Tie::IxHash;
+use boolean; 
 
 use NMISNG::Util;
 use NMISNG::Log;
@@ -467,6 +468,58 @@ sub get_distinct_values
 		query => $query
 	);
 	return $values;
+}
+
+# group nodes by specified group, then summarise their reachability and health as well as get total count
+# per group as well as nodedown and nodedegraded status
+# args: group_by - the field
+sub grouped_node_summary
+{
+	my ($self,%args) = @_;
+	
+	my $group_by = ($args{group_by} ) // ['data.group'];
+	my $filters = $args{filters};
+
+	my %group_hash = map { $_ => '$'.$_ } (@$group_by);
+	print "group_hash:".Dumper(\%group_hash);
+	my $q = NMISNG::DB::get_query( and_part => $filters );
+	my @pipe = (
+		{ '$match'  => { 'concept' => 'catchall' } },
+		{ '$lookup' => { 'from' => 'nodes', 'localField' => 'node_uuid', 'foreignField' => 'uuid', 'as' => 'node_config'}},
+		{ '$unwind' => { 'path' => '$node_config', 'preserveNullAndEmptyArrays' => boolean::false }},
+		{ '$match'  => { 'node_config.active' => 'true' } },
+		{ '$lookup' => { 'from' => 'latest_data', 'localField' => '_id', 'foreignField' => 'inventory_id', 'as' => 'latest_data'}},
+		{ '$unwind' => { 'path' => '$latest_data', 'preserveNullAndEmptyArrays' => true }},
+		{ '$unwind' => { 'path' => '$latest_data.subconcepts', 'preserveNullAndEmptyArrays' => boolean::true } },
+		{ '$match'  => { 'latest_data.subconcepts.subconcept' => 'health', %$q }},
+		{ '$project' => { 
+				'_id' => 1,
+				'name' => '$data.name',
+				'data.group' => 1,
+				'down' => { '$cond' => { 'if' => { '$eq' => ['$data.nodedown','true'] }, 'then' => 1, 'else' => 0 } },
+				'degraded' => { '$cond' => { 'if' => { '$eq' => ['$data.nodestatus','degraded'] }, 'then' => 1, 'else' => 0 } },
+				'reachability' => '$latest_data.subconcepts.data.reachability',
+				'08_reachability' => '$latest_data.subconcepts.derived_data.08_reachable',
+				'health' => '$latest_data.subconcepts.data.health',
+				'08_health' => '$latest_data.subconcepts.derived_data.08_health'
+		}},
+		{ '$group' => { 
+				'_id' => { 'group' => '$data.group' },
+				'count' => {'$sum' => 1 },
+				'totaldown' => { '$sum' => '$down'}, 
+				'totaldegraded' => { '$sum' => '$degraded'},
+				'reachability_avg' => { '$avg' => '$reachability'},
+				'08_reachability_avg' => { '$avg' => '$08_reachability'},
+				'health_avg' => { '$avg' => '$health'},
+				'08_health_avg' => { '$avg' => '$08_health'}
+		}}
+	);
+	my ($entries,$count,$error) = NMISNG::DB::aggregate(
+		collection => $self->inventory_collection(),
+		pre_count_pipeline => \@pipe,
+		count => 0,		
+	);
+	return ($entries,$count,$error);
 }
 
 # helper to get/set inventory collection, primes the indices on set

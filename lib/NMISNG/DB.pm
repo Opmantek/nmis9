@@ -1494,6 +1494,7 @@ sub update
 
 	my $updated_records = 0;
 	my $matched_records = 0;
+	my $upserted_id;
 	my $success         = undef;
 	my ( $error, $error_type ) = ( undef, undef );
 	my $upsert   = $arg{upsert}   || 0;
@@ -1517,6 +1518,7 @@ sub update
 			{
 				$updated_records = $result->modified_count;
 				$matched_records = $result->matched_count;
+				$upserted_id = $result->upserted_id;
 			}
 			$success = 1;
 		}
@@ -1573,6 +1575,7 @@ sub update
 		success         => $success,
 		updated_records => $updated_records,
 		matched_records => $matched_records,
+		upserted_id     => $upserted_id,
 		error           => $error,
 		error_type      => $error_type
 	};
