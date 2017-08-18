@@ -1,0 +1,45 @@
+#!/bin/sh
+# offer to make a backup of an existing installation
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -n "$CLEANSLATE" -a  -f "$TARGETDIR/lib/NMISNG.pm" ]; then
+		printBanner "An existing installation was detected."
+
+		cat <<EOF
+
+The installer has found a pre-existing installation of $PRODUCT
+in $TARGETDIR. The installer can upgrade this installation. 
+
+It's nevertheless recommended that you let the installer 
+take a backup of your existing installation 
+(note that RRD files are not included).
+
+EOF
+	if input_yn "Do you want to take a backup of your current install?"; then
+
+			BACKUPTARGET=~/nmis-backup-`date +%Y-%m-%d`.tgz
+			echo "Creating backup, please wait..."
+			execPrint "tar -czf $BACKUPTARGET --exclude database $TARGETDIR"
+			if [ $? != 0 ]; then
+					echolog "Backup creation failed! Aborting installation"
+					exit 1
+			fi
+			echolog "Backup created, file name: $BACKUPTARGET"
+
+			cat <<EOF
+
+The installer has created a backup of your previous installion
+in ${BACKUPTARGET}. The installation of $PRODUCT will now proceed.
+
+EOF
+			input_ok "Hit <Enter> when ready to continue: "
+			
+	else
+			echolog "Continuing installation without backup as directed."
+	fi
+fi
+exit 0
+

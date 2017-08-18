@@ -1,0 +1,38 @@
+#!/bin/sh
+# check if selinux is enabled and if so warn the user
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "Checking SELinux status"
+if ! type selinuxenabled >/dev/null 2>&1; then
+		echolog "Cannot determine SELinux status, selinuxenabled tool not present."
+else
+		selinuxenabled >/dev/null 2>&1
+		RES=$?
+		if [ "$RES" = 0 ]; then
+				FLAVOUR=`getenforce 2>/dev/null`
+				if [ "$FLAVOUR" = "Permissive" ]; then
+						echolog "SELinux is enabled but in permissive mode."
+				else
+						echolog "SELinux is enabled!"
+						cat <<EOF 
+The installer has detected that SELinux is enabled on your system,
+and that it is set to enforce its policy.
+
+SELinux needs extensive configuration to work properly.
+
+In its default configuration it is known to interfere with $PRODUCT,
+and we do therefore STRONGLY recommend that you disable SELinux.
+
+See "man 8 selinux" for details.
+
+EOF
+						input_ok "Hit <Enter> when ready to continue: "
+				fi
+		else
+				echolog "SELinux is not enabled."
+		fi
+fi
+exit 0

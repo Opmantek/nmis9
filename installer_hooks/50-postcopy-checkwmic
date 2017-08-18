@@ -1,0 +1,35 @@
+#!/bin/sh
+# verify that the pre-compiled wmic actually works
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# check that the wmic we've shipped actually works on this platform
+WMICV=`$TARGETDIR/bin/wmic -V 2>&1`
+if [ $? != 0 ]; then
+		printBanner "Precompiled WMIC failed to run!"
+		logmsg "Output of wmic test was: $WMICV"
+
+		cat <<EOF
+NMIS ships with a precompiled WMI client ($TARGETDIR/bin/wmic),
+but for some reason or another the program failed to execute on
+your system. This may be caused by shared library incompatibilities,
+and the install.log may contain further clues as to what went wrong.
+
+If you want NMIS to collect data from WMI-based nodes you will
+have to download wmic from http://dl-nmis.opmantek.com/wmic-omk.tgz,
+then compile and install it by hand. The Opmantek Wiki at
+https://community.opmantek.com/x/VQJFAQ has more information
+on this procedure.
+
+If you do not plan to use WMI-based models you can safely ignore
+this issue.
+
+EOF
+		input_ok "Hit <Enter> when ready to continue: "
+else
+	logmsg "Precompiled WMIC ran ok, reported version: $WMICV"
+fi
+
+exit 0

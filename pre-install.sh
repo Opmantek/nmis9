@@ -4,8 +4,8 @@
 
 # note: this assumes that the current dir is the unpacked directory! (true in the .run environment)
 if type perl >/dev/null 2>&1; then
-		if perl -c ./install.pl 2>/dev/null; then
-				exec ./install.pl "$@";
+		if perl -c ./installer 2>/dev/null; then
+				exec ./installer "$@";
 		fi
 fi
 
@@ -44,17 +44,16 @@ if read -p "Enter y to continue, anything else to abort: "  X && [ "$X" = 'y' -o
 
 		# time to try once more
 		if type perl >/dev/null 2>&1; then
-				if perl -c ./install.pl 2>/dev/null; then
-						exec ./install.pl "$@";
+				if perl -c ./installer 2>/dev/null; then
+						exec ./installer "$@";
 				else
 						echo "Perl is present, but lacking some of the required modules! " >&2
-						perl -c ./install.pl
+						perl -c ./installer
 						exit 1
 				fi
 		fi
 		exit 0
 fi
-
 
 echo "No Perl available, aborting installation." >&2
 exit 1

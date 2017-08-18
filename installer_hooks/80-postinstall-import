@@ -1,0 +1,32 @@
+#!/bin/sh
+# check if nmis8 is around, offer an node import in that case
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if ! get_nmis_version; then
+		logmsg "No NMIS8 installed, nothing to import from.";
+		exit 0
+fi
+
+if [ -f $NMISDIR/conf/Nodes.nmis ]; then
+		printBanner "Importing NMIS8 Nodes"
+
+		cat <<EOF
+The installer has detected an NMIS 8 installation whose
+nodes could be imported into NMIS 9 at this time.
+
+EOF
+		if input_ok "OK to import NMIS8 nodes now?"; then
+				execPrint $TARGETDIR/bin/nmis-cli act=import-nodes-file nodesfile=$NMISDIR/conf/Nodes.nmis
+				[ -d "$NMISDIR/conf/nodeconf" ] && execPrint $TARGETDIR/bin/nmis-cli act=import-nodeconf nodeconf=$NMISDIR/conf/nodeconf
+		else
+				echolog "Not importing NMIS8 nodes as directed."
+		fi
+fi
+
+
+
+
+exit 0

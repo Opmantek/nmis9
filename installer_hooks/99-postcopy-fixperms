@@ -1,0 +1,13 @@
+#!/bin/sh
+# ensure that the permissions are ready for nmis
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+echo "Ensuring correct file permissions..."
+execPrint $TARGETDIR/bin/nmis-cli act=fixperms
+
+exit 0
+
+

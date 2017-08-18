@@ -1,6 +1,5 @@
 my %hash = (
   'database' => {
-    'db_enabled' => 'true',
     'db_name' => 'nmisng',
     'db_password' => 'op42flow42',
     'db_port' => '27017',

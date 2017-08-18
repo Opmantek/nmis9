@@ -1,0 +1,35 @@
+#!/bin/sh
+# offer to run type=update operation
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+printBanner "NMIS State Priming "
+
+cat <<EOF
+
+NMIS's node information needs to be updated, either now
+or very soon. If you have many nodes configured this operation
+could take a few minutes.
+
+EOF
+
+if input_yn "OK to run an NMIS type=update operation now?"; then
+		echolog "Update running, please be patient..."
+		execPrint "$site/bin/poll type=update force=true mthread=true"
+else
+		
+		echolog "Continuing without the update run as directed."
+		cat <<EOF
+
+It's highly recommended to run NMIS' poll type=update force=true
+especially after an NMIS upgrade - you need to do
+this manually.
+
+EOF
+		input_ok "Hit <Enter> when ready to continue: "
+fi
+
+exit 0
+
