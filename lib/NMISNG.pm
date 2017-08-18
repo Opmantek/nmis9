@@ -554,6 +554,7 @@ sub grouped_node_summary
 	}
 	else
 	{
+		push @pipe, $node_project;
 		push @pipe, $final_group;
 	}
 	# print "pipe:".Dumper(\@pipe);

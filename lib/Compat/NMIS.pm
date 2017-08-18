@@ -1336,6 +1336,7 @@ sub getGroupSummary {
 	my $nmisng = new_nmisng();
 	my ($entries,$count,$error) = $nmisng->grouped_node_summary( 
 		filters => { 'node_config.group' => $group },
+		group_by => ['node_config.group'],
 		include_nodes => $include_nodes
 	);
 
@@ -1358,13 +1359,11 @@ sub getGroupSummary {
 	my $C = NMISNG::Util::loadConfTable();
 	my $master_server_priority = $C->{master_server_priority} || 10;
 
-	# copy this hash for modification
-	
 	my @loopdata = ({key =>"reachable", precision => "3f"},{key =>"available", precision => "3f"},{key =>"health", precision => "3f"},{key =>"response", precision => "3f"});
 	foreach my $entry ( @loopdata )
 	{
 		my ($key,$precision) = @$entry{'key','precision'};
-		$summaryHash{average}{$key} = sprintf("%.$precision", $group_summary->{"08_${key}_avg"});
+		$summaryHash{average}{$key} = sprintf("%.${precision}", $group_summary->{"08_${key}_avg"});
 		$summaryHash{average}{"${key}_diff"} = $group_summary->{"16_${key}_avg"} - $group_summary->{"08_${key}_avg"};
 
 		# Now the summaryHash is full, calc some colors and check for empty results.
@@ -1399,12 +1398,12 @@ sub getGroupSummary {
 	
 	$summaryHash{average}{counttotal} = $group_summary->{count} || 0;
 	$summaryHash{average}{countdown} = $group_summary->{countdown} || 0;
-	$summaryHash{average}{countdegraded} = $group_summary->{countgraded} || 0;
-	$summaryHash{average}{countup} = $group_summary->{count} - $group_summary->{countgraded} - $group_summary->{countdown};
+	$summaryHash{average}{countdegraded} = $group_summary->{countdegraded} || 0;
+	$summaryHash{average}{countup} = $group_summary->{count} - $group_summary->{countdegraded} - $group_summary->{countdown};
 	
 	### 2012-12-17 keiths, fixed divide by zero error when doing group status summaries
-	if ( $summaryHash{average}{countdown} > 0 and $nodecount{counttotal} > 0 ) {
-		$summaryHash{average}{countdowncolor} = ($nodecount{countdown}/$nodecount{counttotal})*100;
+	if ( $summaryHash{average}{countdown} > 0 ) {
+		$summaryHash{average}{countdowncolor} = ($summaryHash{average}{countdown}/$summaryHash{average}{counttotal})*100;
 	}
 	else {
 		$summaryHash{average}{countdowncolor} = 0;

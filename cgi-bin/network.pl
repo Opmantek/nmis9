@@ -368,7 +368,8 @@ sub getSummaryStatsbyGroup
 	$groupSummary = Compat::NMIS::getGroupSummary(
 		group    => $group,
 		customer => $customer,
-		business => $business
+		business => $business,
+		include_nodes => $include_nodes
 	);
 	
 	$overallStatus = Compat::NMIS::overallNodeStatus( group => $group, customer => $customer, business => $business );
