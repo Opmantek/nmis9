@@ -23,7 +23,7 @@ EOF
 
 if input_yn "OK to update config files with new options?"; then
 		# main config first...
-	 	execPrint $TARGETDIR/admin/updateconfig.pl $TARGET/install/Config.nmis $TARGET/conf/Config.nmis
+	 	execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/install/Config.nmis $TARGETDIR/conf/Config.nmis
 
 		# ...non-table files next
 		for MERGABLE in `cd $TARGETDIR/install; ls *.nmis | grep -v Table`; do

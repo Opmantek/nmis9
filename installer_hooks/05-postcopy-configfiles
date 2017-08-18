@@ -20,7 +20,7 @@ else
 		printBanner "Updating configuration files"
 
 		cat <<EOF
-		NMIS needs the live configuration files in $targetdir/conf/,
+NMIS needs the live configuration files in $targetdir/conf/,
 and ships the defaults in $targetdir/install/. If you agree, the installer
 will copy all missing files to the live configuration directory - it will not
 overwrite any files that are already present.
@@ -30,9 +30,9 @@ EOF
 				# copy only missing files
 				# -n/--noclobber vital here, and no recursion
 				execPrint "cp -van $TARGETDIR/install/*.* $TARGETDIR/conf/"
-				execPrint "cp -van $TARGETDIR/conf/plugins/* $TARGETDIR/conf/plugins/"
+				execPrint "cp -van $TARGETDIR/install/plugins/* $TARGETDIR/conf/plugins/"
 				rm -f $TARGETDIR/conf/plugins/TestPlugin.pm
-				execPrint "cp -van $TARGETDIR/conf/scripts/* $TARGETDIR/conf/scripts/"
+				execPrint "cp -van $TARGETDIR/install/scripts/* $TARGETDIR/conf/scripts/"
 
 				# copy updated scripts and plugins after confirm
 				for MAYBE in $TARGETDIR/install/plugins/*; do
