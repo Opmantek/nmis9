@@ -21,7 +21,7 @@ fi
 printBanner "Adjusting users, ownerships and permissions"
 
 # nmis doesn't work w/o user
-if ! `id nmis >/dev/null 2>&1`; then
+if !id nmis >/dev/null 2>&1; then
 		echolog "Adding NMIS user"
 		execPrint $USERTOOL nmis
 fi
