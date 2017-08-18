@@ -39,7 +39,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use NMISNG::Util;
 use Compat::NMIS;
-use NMISNG::IP;
+use Compat::IP;
 
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 
@@ -86,7 +86,7 @@ sub notfound {
 }
 
 
-pageEnd if (!$wantwidget);
+Compat::NMIS::pageEnd if (!$wantwidget);
 exit;
 
 #===================
