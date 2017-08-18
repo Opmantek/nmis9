@@ -18,7 +18,9 @@ if [ -e "$TARGETFILE"  ] && diff -q $SRCFILE $TARGETFILE >/dev/null 2>&1 ; then
 
 		echolog "Uptodate logrotation config file $TARGETFILE already present."
 else
-		printBanner "Updated logrotation config file $SRCFILE available"
+		printBanner "Updated logrotation config file available"
+		echo "Config file $SRCFILE is new or different from installed version."
+		echo
 		if input_yn "Ok to install the updated logrotation config file?"; then
 				execPrint "cp -fa $SRCFILE $TARGETFILE"
 		else
