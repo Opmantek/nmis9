@@ -472,16 +472,28 @@ sub get_distinct_values
 
 # group nodes by specified group, then summarise their reachability and health as well as get total count
 # per group as well as nodedown and nodedegraded status
-# args: group_by - the field
+# args: group_by - the field, include_nodes - 1/0, if set return value changes to array with hash, one hash
+#  entry for the grouped data and another for the nodes included in the groups, this is added for backwards
+#  compat with how nmis group data worked in 8
 sub grouped_node_summary
 {
 	my ($self,%args) = @_;
 	
 	my $group_by = ($args{group_by} ) // ['data.group'];
+	my $include_nodes = $args{include_nodes} // 0;
 	my $filters = $args{filters};
 
-	my %group_hash = map { $_ => '$'.$_ } (@$group_by);
-	print "group_hash:".Dumper(\%group_hash);
+	# can't have dots in the output group _id values, replace with _
+	# also make a hash to project the group by values into the group stage
+	my (%groupby_hash,%groupproject_hash);
+	foreach my $entry (@$group_by)
+	{
+		my $value = $entry;
+		my $key = $entry;
+		$key =~ s/\./_/g;
+		$groupby_hash{$key} = '$'.$value;		
+		$groupproject_hash{$value} = 1;
+	}	
 	my $q = NMISNG::DB::get_query( and_part => $filters );
 	my @pipe = (
 		{ '$match'  => { 'concept' => 'catchall' } },
@@ -491,29 +503,60 @@ sub grouped_node_summary
 		{ '$lookup' => { 'from' => 'latest_data', 'localField' => '_id', 'foreignField' => 'inventory_id', 'as' => 'latest_data'}},
 		{ '$unwind' => { 'path' => '$latest_data', 'preserveNullAndEmptyArrays' => true }},
 		{ '$unwind' => { 'path' => '$latest_data.subconcepts', 'preserveNullAndEmptyArrays' => boolean::true } },
-		{ '$match'  => { 'latest_data.subconcepts.subconcept' => 'health', %$q }},
-		{ '$project' => { 
+		{ '$match'  => { 'latest_data.subconcepts.subconcept' => 'health', %$q }}
+	);
+	my $node_project = 
+			{ '$project' => { 
 				'_id' => 1,
 				'name' => '$data.name',
-				'data.group' => 1,
+				'uuid' => '$data.uuid',
+				'roleType' => '$data.roleType',
+				'nodedown' => '$data.nodedown',
 				'down' => { '$cond' => { 'if' => { '$eq' => ['$data.nodedown','true'] }, 'then' => 1, 'else' => 0 } },
 				'degraded' => { '$cond' => { 'if' => { '$eq' => ['$data.nodestatus','degraded'] }, 'then' => 1, 'else' => 0 } },
-				'reachability' => '$latest_data.subconcepts.data.reachability',
-				'08_reachability' => '$latest_data.subconcepts.derived_data.08_reachable',
+				'reachable' => '$latest_data.subconcepts.data.reachability',
+				'08_reachable' => '$latest_data.subconcepts.derived_data.08_reachable',
+				'16_reachable' => '$latest_data.subconcepts.derived_data.16_reachable',
 				'health' => '$latest_data.subconcepts.data.health',
-				'08_health' => '$latest_data.subconcepts.derived_data.08_health'
-		}},
+				'08_health' => '$latest_data.subconcepts.derived_data.08_health',
+				'16_health' => '$latest_data.subconcepts.derived_data.16_health',
+				'available' => '$latest_data.subconcepts.data.available',
+				'08_available' => '$latest_data.subconcepts.derived_data.08_available',
+				'16_available' => '$latest_data.subconcepts.derived_data.16_available',
+				'08_response' => '$latest_data.subconcepts.derived_data.08_response',
+				'16_response' => '$latest_data.subconcepts.derived_data.16_response',
+				%groupproject_hash
+		}};
+	my $final_group = 
 		{ '$group' => { 
-				'_id' => { 'group' => '$data.group' },
+				'_id' => \%groupby_hash,
 				'count' => {'$sum' => 1 },
-				'totaldown' => { '$sum' => '$down'}, 
-				'totaldegraded' => { '$sum' => '$degraded'},
-				'reachability_avg' => { '$avg' => '$reachability'},
-				'08_reachability_avg' => { '$avg' => '$08_reachability'},
+				'countdown' => { '$sum' => '$down'}, 
+				'countdegraded' => { '$sum' => '$degraded'},
+				'reachable_avg' => { '$avg' => '$reachability'},
+				'08_reachable_avg' => { '$avg' => '$08_reachable'},
+				'16_reachable_avg' => { '$avg' => '$16_reachable'},
 				'health_avg' => { '$avg' => '$health'},
-				'08_health_avg' => { '$avg' => '$08_health'}
-		}}
-	);
+				'08_health_avg' => { '$avg' => '$08_health'},
+				'16_health_avg' => { '$avg' => '$16_health'},
+				'available_avg' => { '$avg' => '$available'},
+				'08_available_avg' => { '$avg' => '$08_available'},
+				'16_available_avg' => { '$avg' => '$16_available'},
+				'08_response_avg' => { '$avg' => '$08_response'},
+				'16_response_avg' => { '$avg' => '$16_response'}
+		}};
+	if( $include_nodes )
+	{
+		push @pipe, { '$facet' => { 
+			node_data => [$node_project],
+			grouped_data => [ $node_project,$final_group ] 
+		}};
+	}
+	else
+	{
+		push @pipe, $final_group;
+	}
+	# print "pipe:".Dumper(\@pipe);
 	my ($entries,$count,$error) = NMISNG::DB::aggregate(
 		collection => $self->inventory_collection(),
 		pre_count_pipeline => \@pipe,

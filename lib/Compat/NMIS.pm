@@ -1318,6 +1318,7 @@ sub getGroupSummary {
 	my $business = $args{business};
 	my $start_time = $args{start};
 	my $end_time = $args{end};
+	my $include_nodes = $args{include_nodes} // 0;
 
 	my @tmpsplit;
 	my @tmparray;
@@ -1331,356 +1332,141 @@ sub getGroupSummary {
 	my $filename;
 
 	NMISNG::Util::dbg("Starting");
+	my %summaryHash = ();
+	my $nmisng = new_nmisng();
+	my ($entries,$count,$error) = $nmisng->grouped_node_summary( 
+		filters => { 'node_config.group' => $group },
+		include_nodes => $include_nodes
+	);
 
-	my (@devicelist,$i,@nodedetails);
-	# init the hash, so zero values display
-	$nodecount{counttotal} = 0;
-	$nodecount{countup} = 0;
-	$nodecount{countdown} = 0;
-	$nodecount{countdegraded} = 0;
-
-	my $S = NMISNG::Sys->new;
-	my $NT = loadNodeTable(); # local + nodes of remote servers
+	if( $error || @$entries != 1 )
+	{
+		$nmisng->log->error("Faied to get grouped_node_summary data, error:$error");
+		return \%summaryHash;
+	}
+	my ($group_summary,$node_data);
+	if( $include_nodes )
+	{
+		$group_summary = $entries->[0]{grouped_data}[0];
+		$node_data = $entries->[0]{node_data}
+	}
+	else
+	{
+		$group_summary = $entries->[0];	
+	}
+	
 	my $C = NMISNG::Util::loadConfTable();
-
 	my $master_server_priority = $C->{master_server_priority} || 10;
 
-	### 2014-08-28 keiths, configurable metric periods
-	my $metricsFirstPeriod = defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
-	my $metricsSecondPeriod = defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
-
-	if ( $start_time eq "" ) { $start_time = $metricsFirstPeriod; }
-	if ( $end_time eq "" ) { $end_time = time; }
-
-	if ( $start_time eq $metricsFirstPeriod ) {
-		$filename = "summary8h";
-	}
-	if ( $start_time eq $metricsSecondPeriod ) {
-		$filename = "summary16h";
-	}
-
-	# load table (from cache)
-	if ($filename ne "") {
-		my $mtime;
-		if ( (($SUM,$mtime) = NMISNG::Util::loadTable(dir=>'var',name=>"nmis-$filename",mtime=>'true')) ) {
-			if ($mtime < (time()-900)) {
-				NMISNG::Util::logMsg("INFO (nmis) cache file var/nmis-$filename does not exist or is old; calculate summary");
-			} else {
-				$cache = 1;
-			}
-		}
-	}	else {
-		NMISNG::Util::logMsg("ERROR (nmis) missing summary file specification");
-		return;
-	}
-
-	NMISNG::Util::dbg("Cache is $cache, filename=$filename");
-
-	# this server
-	unless ($cache) {
-		$SUM = {};
-		foreach my $node ( keys %{$NT} ) {
-			next if ( !NMISNG::Util::getbool($NT->{$node}{active}) or exists $NT->{$node}{server});
-			$SUM->{$node}{server_priority} = $master_server_priority;
-			$SUM->{$node}{reachable} = 'NaN';
-			$SUM->{$node}{response} = 'NaN';
-			$SUM->{$node}{loss} = 'NaN';
-			$SUM->{$node}{health} = 'NaN';
-			$SUM->{$node}{available} = 'NaN';
-			$SUM->{$node}{intfCollect} = 0;
-			$SUM->{$node}{intfColUp} = 0;
-
-			my $stats;
-			if (($stats = getSummaryStats(sys=>$S,type=>"health",start=>$start_time,end=>$end_time,index=>$node))) {
-				foreach (keys %{$stats}) { $SUM->{$node}{$_} = $stats->{$_};  }
-			}
-
-			# The other way to get node status is to ask Event State DB.
-			if ( eventExist($node, "Node Down", undef) ) {
-				$SUM->{$node}{nodedown} = "true";
-			}
-			else {
-				$SUM->{$node}{nodedown} = "false";
-			}
-
-		}
-	}
-
-	### 2011-12-30 keiths, loading node summary from cached file!
-	my $nodesum = "nmis-nodesum";
-	# I should now have an up to date file, if I don't log a message
-	if (NMISNG::Util::existFile(dir=>'var',name=>$nodesum) ) {
-		my $NS = NMISNG::Util::loadTable(dir=>'var',name=>$nodesum);
-		for my $node (keys %{$NS}) {
-			#if ( $group eq "" or $group eq $NS->{$node}{group} ) {
-			if ( 	($group eq "" and $customer eq "" and $business eq "")
-				 		or ($group ne "" and $NT->{$node}{group} eq $group)
-						or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-						or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
-			) {
-				for (keys %{$NS->{$node}}) {
-					$SUM->{$node}{$_} = $NS->{$node}{$_};
-				}
-			}
-		}
-	}
-
-
-	### 2011-12-29 keiths, moving master handling outside of Cache handling!
-	if (NMISNG::Util::getbool($C->{server_master})) {
-		NMISNG::Util::dbg("Master, processing Slave Servers");
-		my $ST = loadServersTable();
-		for my $srv (keys %{$ST}) {
-			## don't process server localhost for opHA2
-			next if $srv eq "localhost";
-
-			my $server_priority = $ST->{$srv}{server_priority} || 5;
-
-			my $slavefile = "nmis-$srv-$filename";
-			NMISNG::Util::dbg("Processing Slave $srv for $slavefile");
-
-			# I should now have an up to date file, if I don't log a message
-			if (NMISNG::Util::existFile(dir=>'var',name=>$slavefile) ) {
-				my $H = NMISNG::Util::loadTable(dir=>'var',name=>$slavefile);
-				for my $node (keys %{$H}) {
-					if ( not exists $SUM->{$node}
-							or $SUM->{$node}{server} eq $srv
-							or ( exists $SUM->{$node}
-								and $SUM->{$node}{server_priority}
-								and $SUM->{$node}{server_priority} < $server_priority
-								)
-					) {
-						for (keys %{$H->{$node}}) {
-							$SUM->{$node}{$_} = $H->{$node}{$_};
-						}
-						$SUM->{$node}{server_priority} = $server_priority;
-						$SUM->{$node}{server} = $srv;
-					}
-				}
-			}
-
-			my $slavenodesum = "nmis-$srv-nodesum";
-			NMISNG::Util::dbg("Processing Slave $srv for $slavenodesum");
-			# I should now have an up to date file, if I don't log a message
-			if (NMISNG::Util::existFile(dir=>'var',name=>$slavenodesum) ) {
-
-				my $NS = NMISNG::Util::loadTable(dir=>'var',name=>$slavenodesum);
-				for my $node (keys %{$NS}) {
-					if ( 	($group eq "" and $customer eq "" and $business eq "")
-				 				or ($group ne "" and $NS->{$node}{group} eq $group)
-								or ($customer ne "" and $NS->{$node}{customer} eq $customer)
-								or ($business ne "" and $NS->{$node}{businessService} =~ /$business/)
-					) {
-						if ( not exists $SUM->{$node}
-								or $SUM->{$node}{server} eq $srv
-								or ( exists $SUM->{$node}
-									and $SUM->{$node}{server_priority}
-									and $SUM->{$node}{server_priority} < $server_priority
-									)
-						) {
-							for (keys %{$NS->{$node}}) {
-								$SUM->{$node}{$_} = $NS->{$node}{$_};
-							}
-							$SUM->{$node}{server_priority} = $server_priority;
-							$SUM->{$node}{server} = $srv;
-						}
-					}
-				}
-			}
-		}
-	}
-
 	# copy this hash for modification
-	my %summaryHash = %{$SUM} if defined $SUM;
+	
+	my @loopdata = ({key =>"reachable", precision => "3f"},{key =>"available", precision => "3f"},{key =>"health", precision => "3f"},{key =>"response", precision => "3f"});
+	foreach my $entry ( @loopdata )
+	{
+		my ($key,$precision) = @$entry{'key','precision'};
+		$summaryHash{average}{$key} = sprintf("%.$precision", $group_summary->{"08_${key}_avg"});
+		$summaryHash{average}{"${key}_diff"} = $group_summary->{"16_${key}_avg"} - $group_summary->{"08_${key}_avg"};
 
-	# Insert some nice status info about the devices for the summary menu.
-NODE:
-	foreach $node (sort keys %{$NT} ) {
-		# Only do the group - or everything if no group passed to us.
-		if (	($group eq "" and $customer eq "" and $business eq "")
-				 	or ($group ne "" and $NT->{$node}{group} eq $group)
-					or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-					or ($business ne "" and $NT->{$node}{businessService} =~ /$business/)
-		) {
-			if ( NMISNG::Util::getbool($NT->{$node}{active}) ) {
-				++$nodecount{counttotal};
-				my $outage = '';
-				# check nodes
-				# Carefull logic here, if nodedown is false then the node is up
-				#print STDERR "DEBUG: node=$node nodedown=$summaryHash{$node}{nodedown}\n";
-				if (NMISNG::Util::getbool($summaryHash{$node}{nodedown})) {
-					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$NT->{$node}{roleType});
-					++$nodecount{countdown};
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				elsif (exists $C->{display_status_summary}
-					and NMISNG::Util::getbool($C->{display_status_summary})
-					and exists $summaryHash{$node}{nodestatus}
-					and $summaryHash{$node}{nodestatus} eq "degraded"
-				) {
-					$summaryHash{$node}{event_status} = "Error";
-					$summaryHash{$node}{event_color} = "#ffff00";
-					++$nodecount{countdegraded};
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$NT->{$node}{roleType});
-					++$nodecount{countup};
-				}
-
-				# dont if outage current with node down
-				if ($outage ne 'current') {
-					if ( $summaryHash{$node}{reachable} !~ /NaN/i	) {
-						++$nodecount{reachable};
-						$summaryHash{$node}{reachable_color} = colorHighGood($summaryHash{$node}{reachable});
-						$summaryHash{total}{reachable} = $summaryHash{total}{reachable} + $summaryHash{$node}{reachable};
-					} else { $summaryHash{$node}{reachable} = "NaN" }
-
-					if ( $summaryHash{$node}{available} !~ /NaN/i ) {
-						++$nodecount{available};
-						$summaryHash{$node}{available_color} = colorHighGood($summaryHash{$node}{available});
-						$summaryHash{total}{available} = $summaryHash{total}{available} + $summaryHash{$node}{available};
-					} else { $summaryHash{$node}{available} = "NaN" }
-
-					if ( $summaryHash{$node}{health} !~ /NaN/i ) {
-						++$nodecount{health};
-						$summaryHash{$node}{health_color} = colorHighGood($summaryHash{$node}{health});
-						$summaryHash{total}{health} = $summaryHash{total}{health} + $summaryHash{$node}{health};
-					} else { $summaryHash{$node}{health} = "NaN" }
-
-					if ( $summaryHash{$node}{response} !~ /NaN/i ) {
-						++$nodecount{response};
-						$summaryHash{$node}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{$node}{response});
-						$summaryHash{total}{response} = $summaryHash{total}{response} + $summaryHash{$node}{response};
-					} else { $summaryHash{$node}{response} = "NaN" }
-
-					if ( $summaryHash{$node}{intfCollect} !~ /NaN/i ) {
-						++$nodecount{intfCollect};
-						$summaryHash{total}{intfCollect} = $summaryHash{total}{intfCollect} + $summaryHash{$node}{intfCollect};
-					} else { $summaryHash{$node}{intfCollect} = "NaN" }
-
-					if ( $summaryHash{$node}{intfColUp} !~ /NaN/i ) {
-						++$nodecount{intfColUp};
-						$summaryHash{total}{intfColUp} = $summaryHash{total}{intfColUp} + $summaryHash{$node}{intfColUp};
-					} else { $summaryHash{$node}{intfColUp} = "NaN" }
-				} else {
-		###			NMISNG::Util::logMsg("INFO Node=$node skipped OU=$outage");
-				}
-
-			} else {
-				# node not active
-				$summaryHash{$node}{event_status} = "N/A";
-				$summaryHash{$node}{reachable} = "N/A";
-				$summaryHash{$node}{available} = "N/A";
-				$summaryHash{$node}{health} = "N/A";
-				$summaryHash{$node}{response} = "N/A";
-				$summaryHash{$node}{event_color} = "#aaaaaa";
-				$summaryHash{$node}{reachable_color} = "#aaaaaa";
-				$summaryHash{$node}{available_color} = "#aaaaaa";
-				$summaryHash{$node}{health_color} = "#aaaaaa";
-				$summaryHash{$node}{response_color} = "#aaaaaa";
-			}
+		# Now the summaryHash is full, calc some colors and check for empty results.
+		if ( $summaryHash{average}{$key} ne "" ) 
+		{
+			$summaryHash{average}{$key} = 100 if( $summaryHash{average}{$key} > 100  && $key ne 'response') ;
+			$summaryHash{average}{"${key}_color"} = colorHighGood($summaryHash{average}{$key})
+		}
+		else 
+		{
+			$summaryHash{average}{"${key}_color"} = "#aaaaaa";
+			$summaryHash{average}{$key} = "N/A";
 		}
 	}
 
-	if ( $summaryHash{total}{reachable} > 0 ) {
-		$summaryHash{average}{reachable} = sprintf("%.3f",$summaryHash{total}{reachable} / $nodecount{reachable} );
-	}
-	if ( $summaryHash{total}{available} > 0 ) {
-		$summaryHash{average}{available} = sprintf("%.3f",$summaryHash{total}{available} / $nodecount{available} );
-	}
-	if ( $summaryHash{total}{health} > 0 ) {
-		$summaryHash{average}{health} = sprintf("%.3f",$summaryHash{total}{health} / $nodecount{health} );
-	}
-	if ( $summaryHash{total}{response} > 0 ) {
-		# Changing default precision to 1 decimal, as changing to 3 might mess up many screens.
-		$summaryHash{average}{response} = sprintf("%.1f",$summaryHash{total}{response} / $nodecount{response} );
-	}
-
-	if ( $summaryHash{total}{reachable} > 0 and $summaryHash{total}{available} > 0 and $summaryHash{total}{health} > 0 ) {
+	if ( $summaryHash{average}{reachable} > 0 and $summaryHash{average}{available} > 0 and $summaryHash{average}{health} > 0 ) 
+	{
 		# new weighting for metric
 		$summaryHash{average}{metric} = sprintf("%.3f",(
 			( $summaryHash{average}{reachable} * $C->{metric_reachability} ) +
 			( $summaryHash{average}{available} * $C->{metric_availability} ) +
-			( $summaryHash{average}{health} ) * $C->{metric_health} )
+			( $summaryHash{average}{health} * $C->{metric_health} ))
 		);
+		$summaryHash{average}{"16_metric"} = sprintf("%.3f",(
+			( $group_summary->{"16_reachable_avg"} * $C->{metric_reachability} ) +
+			( $group_summary->{"16_available_avg"} * $C->{metric_availability} ) +
+			( $group_summary->{"16_health_avg"} * $C->{metric_health} ))
+		);
+		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
 	}
 
-	# interface availability calculation NEW
-	if ($nodecount{intfColUp} > 0 and $nodecount{intfCollect} > 0 and
-			$summaryHash{total}{intfColUp} > 0 and $summaryHash{total}{intfCollect} > 0) {
-		$summaryHash{average}{intfAvail} = (($summaryHash{total}{intfColUp} / $nodecount{intfColUp}) /
-										($summaryHash{total}{intfCollect} / $nodecount{intfCollect})) * 100;
-	} else {
-		$summaryHash{average}{intfAvail} = 100;
-	}
-
-	$summaryHash{average}{intfColUp} = $summaryHash{total}{intfColUp} eq '' ? 0 : $summaryHash{total}{intfColUp};
-	$summaryHash{average}{intfCollect} = $summaryHash{total}{intfCollect} eq '' ? 0 : $summaryHash{total}{intfCollect};
-
-	$summaryHash{average}{countdown} = $nodecount{countdown};
-	$summaryHash{average}{countdegraded} = $nodecount{countdegraded};
+	
+	$summaryHash{average}{counttotal} = $group_summary->{count} || 0;
+	$summaryHash{average}{countdown} = $group_summary->{countdown} || 0;
+	$summaryHash{average}{countdegraded} = $group_summary->{countgraded} || 0;
+	$summaryHash{average}{countup} = $group_summary->{count} - $group_summary->{countgraded} - $group_summary->{countdown};
+	
 	### 2012-12-17 keiths, fixed divide by zero error when doing group status summaries
-	if ( $nodecount{countdown} > 0 and $nodecount{counttotal} > 0 ) {
+	if ( $summaryHash{average}{countdown} > 0 and $nodecount{counttotal} > 0 ) {
 		$summaryHash{average}{countdowncolor} = ($nodecount{countdown}/$nodecount{counttotal})*100;
 	}
 	else {
 		$summaryHash{average}{countdowncolor} = 0;
 	}
 
-	$summaryHash{average}{counttotal} = $nodecount{counttotal};
-	$summaryHash{average}{countup} = $nodecount{countup};
+	# if the node info is needed then add it.
+	if( $include_nodes )
+	{
+		foreach my $entry (@$node_data)
+		{
+			my $node = $entry->{name};
+			++$nodecount{counttotal};
+			my $outage = '';
+			$summaryHash{$node} = $entry;
+			# check nodes
+			# Carefull logic here, if nodedown is false then the node is up
+			#print STDERR "DEBUG: node=$node nodedown=$summaryHash{$node}{nodedown}\n";
+			if (NMISNG::Util::getbool($summaryHash{$node}{nodedown})) {
+				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Down",$entry->{roleType});
+				++$nodecount{countdown};
+				($outage,undef) = outageCheck(node=>$node,time=>time());
+			}
+			elsif (exists $C->{display_status_summary}
+				and NMISNG::Util::getbool($C->{display_status_summary})
+				and exists $summaryHash{$node}{nodestatus}
+				and $summaryHash{$node}{nodestatus} eq "degraded"
+			) {
+				$summaryHash{$node}{event_status} = "Error";
+				$summaryHash{$node}{event_color} = "#ffff00";
+				++$nodecount{countdegraded};
+				($outage,undef) = outageCheck(node=>$node,time=>time());
+			}
+			else {
+				($summaryHash{$node}{event_status},$summaryHash{$node}{event_color}) = eventLevel("Node Up",$entry->{roleType});
+				++$nodecount{countup};
+			}
 
-	# Now the summaryHash is full, calc some colors and check for empty results.
-	if ( $summaryHash{average}{reachable} ne "" ) {
-		$summaryHash{average}{reachable} = 100 if $summaryHash{average}{reachable} > 100 ;
-		$summaryHash{average}{reachable_color} = colorHighGood($summaryHash{average}{reachable})
-	}
-	else {
-		$summaryHash{average}{reachable_color} = "#aaaaaa";
-		$summaryHash{average}{reachable} = "N/A";
+			# dont if outage current with node down
+			if ($outage ne 'current') {
+				if ( $summaryHash{$node}{reachable} !~ /NaN/i	) {
+					++$nodecount{reachable};
+					$summaryHash{$node}{reachable_color} = colorHighGood($summaryHash{$node}{reachable});					
+				} else { $summaryHash{$node}{reachable} = "NaN" }
+
+				if ( $summaryHash{$node}{available} !~ /NaN/i ) {
+					++$nodecount{available};
+					$summaryHash{$node}{available_color} = colorHighGood($summaryHash{$node}{available});				
+				} else { $summaryHash{$node}{available} = "NaN" }
+
+				if ( $summaryHash{$node}{health} !~ /NaN/i ) {
+					++$nodecount{health};
+					$summaryHash{$node}{health_color} = colorHighGood($summaryHash{$node}{health});					
+				} else { $summaryHash{$node}{health} = "NaN" }
+
+				if ( $summaryHash{$node}{response} !~ /NaN/i ) {
+					++$nodecount{response};
+					$summaryHash{$node}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{$node}{response});					
+				} else { $summaryHash{$node}{response} = "NaN" }				
+			}
+		}
 	}
 
-	# modification of interface available calculation
-	if (NMISNG::Util::getbool($C->{intf_av_modified})) {
-		$summaryHash{average}{available} =
-				sprintf("%.3f",($summaryHash{total}{intfColUp} / $summaryHash{total}{intfCollect}) * 100 );
-	}
-
-	if ( $summaryHash{average}{available} ne "" ) {
-		$summaryHash{average}{available} = 100 if $summaryHash{average}{available} > 100 ;
-		$summaryHash{average}{available_color} = colorHighGood($summaryHash{average}{available});
-	}
-	else {
-		$summaryHash{average}{available_color} = "#aaaaaa";
-		$summaryHash{average}{available} = "N/A";
-	}
-
-	if ( $summaryHash{average}{health} ne "" ) {
-		$summaryHash{average}{health} = 100 if $summaryHash{average}{health} > 100 ;
-		$summaryHash{average}{health_color} = colorHighGood($summaryHash{average}{health});
-	}
-	else {
-		$summaryHash{average}{health_color} = "#aaaaaa";
-		$summaryHash{average}{health} = "N/A";
-	}
-
-	if ( $summaryHash{average}{response} ne "" ) {
-		$summaryHash{average}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{average}{response})
-	}
-	else {
-		$summaryHash{average}{response_color} = "#aaaaaa";
-		$summaryHash{average}{response} = "N/A";
-	}
-
-	if ( $summaryHash{average}{metric} ne "" ) {
-		$summaryHash{average}{metric} = 100 if $summaryHash{average}{metric} > 100 ;
-		$summaryHash{average}{metric_color} = colorHighGood($summaryHash{average}{metric})
-	}
-	else {
-		$summaryHash{average}{metric_color} = "#aaaaaa";
-		$summaryHash{average}{metric} = "N/A";
-	}
 	NMISNG::Util::dbg("Finished");
 	return \%summaryHash;
 } # end getGroupSummary
