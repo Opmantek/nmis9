@@ -38,7 +38,7 @@ use Data::Dumper;
 use JSON::XS;
 use Try::Tiny;
 use boolean;         # do NOT use -truth! deprecated, segfaults in perl 5.20 and impossible with 5.22+
-use MongoDB 1.4.0;	 # we require a reasonably new Mongodb driver
+use MongoDB 1.2.3;	 # we require a reasonably new Mongodb driver
 use Safe::Isa;       # provides $_isa, recommended by MongoDB driver for error handling
 use Time::Moment;    # opCharts needs times (for TTL) and using this is much faster
 use Carp;

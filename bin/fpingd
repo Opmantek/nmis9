@@ -519,6 +519,8 @@ sub fpingNotify
 												element => "",
 												details => "Ping failed",
 												context => { type => "node" });
+	$S->inventory( concept => 'catchall' )->save();
+
 }
 
 # hup? reopen log

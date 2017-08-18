@@ -319,7 +319,6 @@ my $metricsSecondPeriod
 
 # define global stats, and default stats period.
 my $groupSummary;
-my $oldGroupSummary;
 my $start = $metricsSecondPeriod;
 my $end   = $metricsFirstPeriod;
 
@@ -362,29 +361,17 @@ sub getSummaryStatsbyGroup
 	my $group    = $args{group};
 	my $customer = $args{customer};
 	my $business = $args{business};
+	my $include_nodes = $args{include_nodes};
 
 	NMISNG::Util::logMsg( "TIMING: " . $t->elapTime() . " getSummaryStatsbyGroup begin: $group$customer$business" ) if $timing;
-
-	my $metricsFirstPeriod
-		= defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
-	my $metricsSecondPeriod
-		= defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
 
 	$groupSummary = Compat::NMIS::getGroupSummary(
 		group    => $group,
 		customer => $customer,
 		business => $business,
-		start    => $metricsFirstPeriod,
-		end      => "now"
+		include_nodes => $include_nodes
 	);
-	$oldGroupSummary = Compat::NMIS::getGroupSummary(
-		group    => $group,
-		customer => $customer,
-		business => $business,
-		start    => $metricsSecondPeriod,
-		end      => $metricsFirstPeriod
-	);
-
+	
 	$overallStatus = Compat::NMIS::overallNodeStatus( group => $group, customer => $customer, business => $business );
 	$overallColor = NMISNG::Util::eventColor($overallStatus);
 
@@ -394,33 +381,20 @@ sub getSummaryStatsbyGroup
 	foreach my $t (@h)
 	{
 		# defaults
-		#$icon{${t}} = 'arrow_down_black';
-		if ( $t eq "response" )
+		#$icon{${t}} = 'arrow_down_black';		
+		if ( $groupSummary->{average}{"${t}_dif"} + ( $C->{average_diff} )  >= 0 )
 		{
-			if ( $oldGroupSummary->{average}{$t} <= ( $groupSummary->{average}{$t} + $C->{average_diff} ) )
-			{
-				$icon{${t}} = 'arrow_up_red';
-			}
-			else
-			{
-				$icon{${t}} = 'arrow_down_green';
-			}
+			$icon{${t}} = ( $t eq "response" ) ? 'arrow_up_red' : 'arrow_up';
 		}
 		else
 		{
-			if ( $oldGroupSummary->{average}{$t} <= ( $groupSummary->{average}{$t} + $C->{average_diff} ) )
-			{
-				$icon{${t}} = 'arrow_up';
-			}
-			else
-			{
-				$icon{${t}} = 'arrow_down';
-			}
+			$icon{${t}} = ( $t eq "response" ) ? 'arrow_down_green' : 'arrow_down';
 		}
+
 	}
 
 	# metric difference
-	my $metric = sprintf( "%2.0u", $groupSummary->{average}{metric} - $oldGroupSummary->{average}{metric} );
+	my $metric = sprintf( "%2.0u", $groupSummary->{average}{"metric_diff"});
 
 	my $metric_color;
 	if ( $metric <= -1 )
@@ -1294,7 +1268,7 @@ sub selectLarge
 	my $customer = $args{customer};
 	my $business = $args{business};
 
-	getSummaryStatsbyGroup();
+	getSummaryStatsbyGroup(include_nodes => 1);
 	my @headers = (
 		'Node',   'Location', 'Type',         'Net',        'Role',   'Status',
 		'Health', 'Reach',    'Intf. Avail.', 'Resp. Time', 'Outage', 'Esc.',
@@ -1447,28 +1421,18 @@ sub selectLarge
 			{
 				# defaults
 				#$icon{${t}} = 'arrow_down_black';
-				if ( $t eq "response" )
+				
+				if ( $groupSummary->{$node}{"${t}_dif"} + ( $C->{average_diff} )  >= 0 )
 				{
-					if ( $oldGroupSummary->{$node}{$t} <= ( $groupSummary->{$node}{$t} + $C->{average_diff} ) )
-					{
-						$groupSummary->{$node}{"$t-icon"} = 'arrow_up_red';
-					}
-					else
-					{
-						$groupSummary->{$node}{"$t-icon"} = 'arrow_down_green';
-					}
+					$icon{${t}} = ( $t eq "response" ) ? 'arrow_up_red' : 'arrow_up';
 				}
 				else
 				{
-					if ( $oldGroupSummary->{$node}{$t} <= ( $groupSummary->{$node}{$t} + $C->{average_diff} ) )
-					{
-						$groupSummary->{$node}{"$t-icon"} = 'arrow_up';
-					}
-					else
-					{
-						$groupSummary->{$node}{"$t-icon"} = 'arrow_down';
-					}
+					$icon{${t}} = ( $t eq "response" ) ? 'arrow_down_green' : 'arrow_down';
+				}
 
+				if ( $t ne "response" )
+				{
 					#Get some consistent formatting of the variable to be printed.
 					$groupSummary->{$node}{$t} = sprintf( "%.1f", $groupSummary->{$node}{$t} );
 
