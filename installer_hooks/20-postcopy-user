@@ -15,7 +15,7 @@ if [ "$OSFLAVOUR" = "redhat" ]; then
 elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 		WEBGRP=www-data
 		GRPTOOL="adduser www-data nmis"
-		USERTOOL="adduser"
+		USERTOOL="adduser --no-create-home --shell /bin/false --gecos NMIS --disabled-login --quiet"
 fi
 
 printBanner "Adjusting users, ownerships and permissions"
