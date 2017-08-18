@@ -38,14 +38,14 @@ EOF
 				for MAYBE in $TARGETDIR/install/plugins/*; do
 						[ "$MAYBE" =  "$TARGETDIR/install/plugins/TestPlugin.pm" ] && continue;
 						THERE=$TARGETDIR/conf/plugins/`basename "$MAYBE"`
-						if [ -e "$THERE" ] && !diff -q $MAYBE $THERE \
+						if [ -e "$THERE" ] && ! diff -q $MAYBE $THERE \
 									 && input_yn "OK to replace changed plugin $MAYBE?"; then
 								execPrint cp -va $MAYBE $THERE;
 						fi
 				done
 				for MAYBE in $TARGETDIR/install/scripts/*; do
 						THERE=$TARGETDIR/conf/scripts/`basename "$MAYBE"`
-						if [ -e "$THERE" ] && !diff -q $MAYBE $THERE \
+						if [ -e "$THERE" ] && ! diff -q $MAYBE $THERE \
 									 && input_yn "OK to replace changed service script $MAYBE?"; then
 								execPrint cp -va $MAYBE $THERE;
 						fi
