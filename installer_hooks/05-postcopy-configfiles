@@ -10,8 +10,8 @@ if [ -n "$CLEANSLATE" ]; then
 
 		# don't want fully recursive copy: rsyslogd, snmpd, apache, cron.d, logrotate not relevant
 		execPrint "cp -va $TARGETDIR/install/*.* $TARGETDIR/conf/"
-		execPrint cp -va $TARGETDIR/conf/plugins $TARGETDIR/conf/
-		execPrint cp -va $TARGETDIR/conf/scripts $TARGETDIR/conf/
+		execPrint cp -va $TARGETDIR/install/plugins $TARGETDIR/conf/
+		execPrint cp -va $TARGETDIR/install/scripts $TARGETDIR/conf/
 
 		# and the testplugin shouldn't be live
 		rm -f $TARGETDIR/conf/plugins/TestPlugin.pm

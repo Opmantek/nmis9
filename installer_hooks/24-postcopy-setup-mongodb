@@ -10,7 +10,7 @@ if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
 
 		if input_yn "Do you want to run the MongoDB setup helper now?"; then
 				[ -n "$UNATTENDED" ] && EXTRAARGS='auto=true'
-				$TARGETDIR/bin/setup_mongodb.pl $EXTRAARGS
+				$TARGETDIR/admin/setup_mongodb.pl $EXTRAARGS
 				logmsg "MongoDB setup helper returned $?"
 		else
 				echolog "Skipping MongoDB setup helper as instructed."
