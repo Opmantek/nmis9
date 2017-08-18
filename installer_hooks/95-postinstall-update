@@ -17,7 +17,7 @@ EOF
 
 if input_yn "OK to run an NMIS type=update operation now?"; then
 		echolog "Update running, please be patient..."
-		execPrint "$site/bin/poll type=update force=true mthread=true"
+		execPrint "$TARGETDIR/bin/poll type=update force=true mthread=true"
 else
 		
 		echolog "Continuing without the update run as directed."
