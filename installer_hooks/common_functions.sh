@@ -139,6 +139,7 @@ flavour () {
 
 }
 
+# this function detects NMIS 8, not NMIS 9!
 # sets NMISDIR, NMIS_VERSION, NMIS_MAJOR, NMIS_MINOR and NMIS_PATCH
 # and returns 0 if installed/ok, 1 otherwise
 get_nmis_version() {
@@ -151,15 +152,20 @@ get_nmis_version() {
 				return 1
 		fi
 
+
+		local RAWVERSION
 		# if nmis is in working shape that'll do...
-		NMIS_VERSION=`$NMISDIR/bin/nmis.pl 2>/dev/null |grep -F version | cut -f 3 -d " "`
+		RAWVERSION=`$NMISDIR/bin/nmis.pl --version 2>/dev/null |grep -F -e version= -e " version  "`
+		# newest version honors --version, output version=1.2.3x; older versions have "NMIS version 1.2.3x" banner
+		[ -n "$RAWVERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -f 2 -d "="`
+		[ -n "$RAWVERSION" -a -z "$NMIS_VERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -f 3 -d " "`
 		# ...but if not, try a bit harder
 		if [ -z "$NMIS_VERSION" ]; then
 				NMIS_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMISDIR/lib/NMIS.pm 2>/dev/null | cut -f 2 -d '"';`
 		fi
 		# and if that doesn't work, give up
 		[ -z "$NMIS_VERSION" ] && return 1
-		
+
 		NMIS_MAJOR=`echo $NMIS_VERSION | cut -f 1 -d .`
 		# nmis doesn't consistently use N.M.Og, but also occasionally just N.Mg
 		NMIS_MINOR=`echo $NMIS_VERSION | cut -f 2 -d . | tr -d a-zA-Z`
@@ -167,6 +173,37 @@ get_nmis_version() {
 
 		return 0
 }
+
+# this function detects NMIS 9, not NMIS 8!
+# sets NMIS9DIR, NMIS9_VERSION, NMIS9_MAJOR/MINOR/PATCH
+# returns 0 if installed/ok, 1 otherwise
+get_nmis9_version()
+{
+		if [ -d "/usr/local/nmis9" ]; then
+				NMIS9DIR=/usr/local/nmis9
+		else
+				NMIS9DIR=''
+				return 1
+		fi
+
+		# if nmis9 is properly installed, nmis-cli will report its version
+		NMIS9_VERSION=`$NMIS9DIR/bin/nmis-cli --version 2>/dev/null |grep -F version= | cut -f 2 -d =`
+		# ...but if it does not run (yet), try a bit harder
+		if [ -z "$NMIS9_VERSION" ]; then
+				NMIS9_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMIS9DIR/lib/NMISNG.pm 2>/dev/null | cut -f 2 -d '"';`
+		fi
+		# and if that doesn't work, give up
+		[ -z "$NMIS9_VERSION" ] && return 1
+
+		NMIS9_MAJOR=`echo $NMIS9_VERSION | cut -f 1 -d .`
+		NMIS9_MINOR=`echo $NMIS9_VERSION | cut -f 2 -d . `
+		# the patch usually has textual suffixes, which we ignore!
+		NMIS9_PATCH=`echo $NMIS9_VERSION| cut -f 3 -d . | tr -d a-zA-Z`
+
+		return 0
+}
+
+
 
 # takes six args: major/minor/patch current, major/minor/patch min
 # returns 0 if current at or above minimum, 1 otherwise
