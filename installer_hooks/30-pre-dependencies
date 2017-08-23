@@ -1,0 +1,249 @@
+#!/bin/sh
+# check the stated dependencies, offer to yum/apt install them
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+. $SCRIPTPATH/common_mongodb.sh
+. $SCRIPTPATH/common_repos.sh
+
+printBanner "Checking the required dependencies..."
+
+flavour
+if [ $OSFLAVOUR = "redhat" ]; then
+		MGR=YUM
+		PKGLIST="httpd httpd-tools rrdtool logrotate ntp \
+		perl-core autoconf automake gcc cvs cairo cairo-devel \
+    pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel \
+    libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs \
+    net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay \
+    perl-JSON-XS fping nmap make groff perl-CPAN crontabs dejavu* \
+    perl-libwww-perl perl-Net-DNS perl-Digest-SHA \
+    perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl \
+    perl-Proc-ProcessTable perl-Authen-SASL \
+    perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP \
+    perl-GD rrdtool perl-SNMP_Session \
+    rrdtool-perl perl-Test-Deep dialog \ 
+    perl-Excel-Writer-XLSX perl-Digest-HMAC perl-Crypt-DES perl-Clone \
+    perl-CGI"  		# cgi was removed from core in 5.20, we're lazy here...
+		
+		# custom rrdtool is compiled against centos/rh6 libpng(=12)
+		# time-modules package gone in centos/rh7
+		if [ $OS_MAJOR -ge 7 ]; then
+				PKGLIST="$PKGLIST libpng12 perl-Time-ParseDate"
+		else
+				PKGLIST="$PKGLIST perl-Time-modules"
+		fi
+else
+		MGR=APT
+		PKGLIST="build-essential apache2 rrdtool apache2-utils ntp logrotate librrd4 libpng12-0 \
+		autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev \
+    libpango1.0-dev libxml2 libxml2-dev libgd-perl libgd-graph-perl libnet-ssleay-perl \
+    libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl \
+    libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl \
+    libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl \
+    libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl  \
+    libdigest-sha-perl libnet-xmpp-perl libsafe-isa-perl libtie-ixhash-perl \
+    libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl \
+    libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl \
+    libauthen-sasl-perl librrds-perl libtest-deep-perl dialog \
+    libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl \
+    libexcel-writer-xlsx-perl libsnmp-session-perl libmojolicious-perl libcgi-pm-perl \
+    libmongodb-perl libtime-moment-perl libdatetime-perl libstatistics-lite-perl libcarp-assert-perl 
+    libtext-csv-perl libproc-queue-perl libboolean-perl liblist-moreutils-perl"
+
+		# 9/stretch has that in perl, older need the updated package
+		[ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -lt 9 ] && PKGLIST="$PKGLIST libsys-syslog-perl"
+
+fi
+
+is_web_available && CANUSEWEB=1
+if [ "$CANUSEWEB" != 1 ]; then
+		cat <<EOF
+
+Your system cannot access the web, therefore $MGR will not
+be able to download any missing software packages. If any
+such missing packages are detected and you don't have
+a local source of packages (e.g. an installation DVD) then the
+installation won't complete successfully.
+
+We recommend that you check our Wiki article on working around
+package installation without Internet access in that case:
+
+https://community.opmantek.com/x/boSG
+
+EOF
+		input_ok "Hit <Enter> when ready to continue: "
+fi
+
+if [ "$CANUSEWEB" = 1 ]; then
+		[ "$OSFLAVOUR" = "redhat" ] && prime_yum
+		[ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ] && prime_apt
+fi
+
+# ignore mongodb if NO_LOCAL_MONGODB is set
+if [ -n "$NO_LOCAL_MONGODB" ]; then
+		printBanner "Ignoring local MongoDB installation state as directed!"
+		cat <<EOF
+The installer has been instructed to not check or install a local
+MongoDB instance. Please note that $PRODUCT will not work unless
+you deploy and configure a network-accessible MongoDB instance
+as documented on this page:
+
+https://community.opmantek.com/x/h4Aj
+
+EOF
+		input_ok "Hit <Enter> when ready to continue: "
+
+elif ! is_mongo_installed; then
+		echo
+		printBanner "No local MongoDB installation detected."
+		cat <<EOF
+
+Please note that $PRODUCT requires MongoDB to be either installed
+locally on this server, OR accessible via the network. MongoDB also
+MUST be configured for authentication, and needs to be primed
+specifically for Opmantek use as documented on this page:
+
+https://community.opmantek.com/x/h4Aj
+
+EOF
+		if input_yn "Would you like to install MongoDB locally?"; then
+
+				if [ "$CANUSEWEB" != 1 ]; then
+						printBanner "Cannot install MongoDB without Web access!"
+						cat <<EOF
+
+Web access is required for installing MongoDB, but your system
+does not have that.
+
+You will have to install MongoDB manually (downloadable
+from http://mongodb.org/).
+
+EOF
+						exit 1
+				fi
+				
+				echolog "Installing MongoDB repository and software"
+				add_mongo_repository
+				install_mongo
+		else
+				echo
+				echolog "Not installing MongoDB as instructed."
+		fi
+
+else
+		echo
+		echolog "MongoDB package is installed locally."
+		
+		if [ -z "$MONGO_VERSION" ]; then
+				printBanner "Could not determine MongoDB Version!";
+				cat <<EOF
+It seems that MongoDB is installed on your system but the installer
+could not find the 'mongod' executable and thus could not determine
+your MongoDB version. Please ensure that the PATH
+environment variable includes the directory of the 'mongod' executable,
+then restart the installer, e.g.:
+
+PATH=\$PATH:/where/mongod/lives sh ./$PRODUCT-Linux-x86_64-$VERSION.run
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+				exit 1;
+		elif ! version_meets_min "$MONGO_MAJOR" "$MONGO_MINOR" "$MONGO_PATCH" 3 4 0; then
+				printBanner "MongoDB Version is too old."
+				cat <<EOF
+Your installed version of MongoDB ($MONGO_VERSION) is too old for $PRODUCT.
+$PRODUCT requires MongoDB 3.4.0 or newer for correct operation.
+
+Please upgrade your installation to MongoDB 3.4.0, then restart
+the $PRODUCT installer. MongoDB can be downloaded
+from http://mongodb.org/ and our wiki has further information about
+MongoDB upgrades here: https://community.opmantek.com/x/h4Aj
+
+EOF
+ 				logmsg "MongoDB Version $MONGO_VERSION is too old to continue."
+				exit 1
+		else
+				echolog "MongoDB version is $MONGO_VERSION."
+		fi
+fi
+
+# sets MISSING, returns 1 if missing stuff
+printBanner "Checking Installed Packages"
+if ! check_missing_packages $PKGLIST; then
+
+		printBanner "Some required packages are missing!"
+		echo "$PRODUCT requires the following packages which are not installed:";
+		echo
+		echo $MISSING;
+		echo
+		echo "The installer can use $MGR to download and install these packages.";
+
+		if input_yn "Do you want to install these packages with $MGR now?"; then
+
+				for pkg in $MISSING; do
+						if [ "$OSFLAVOUR" = "redhat" ]; then
+								REPO=''
+								NEEDREPO=''
+								if [ "$pkg" = "perl-Net-SNMP" \
+														-o "$pkg" = "glib" \
+														-o "$pkg" = "glib-devel" \
+														-o "$pkg" = "perl-Crypt-Rijndael" \
+														-o "$pkg" = "perl-JSON-XS" \
+														-o "$pkg" = "perl-Net-SMTPS" \
+														-o "$pkg" = "perl-Net-SNPP" \
+														-o "$pkg" eq "perl-Proc-ProcessTable" ]; then
+										REPO="--enablerepo=epel"
+										NEEDREPO="epel"
+										REPONAME="EPEL"
+										REPOURL="https://fedoraproject.org/wiki/EPEL/"
+								elif [ "$OS_MAJOR" = 6 ] \
+												 &&  [ "$pkg" = "rrdtool" -o "$pkg" = "fping" -o "$pkg" = "rrdtool-perl" ]; then
+										REPO="--enablerepo=gf-plus"
+										NEEDREPO="gf"
+										REPONAME="Ghettoforge"
+										REPOURL="http://ghettoforge.org/"
+								fi
+						elif [ "$OSFLAVOUR" = "debian" -a "$OS_MAJOR" -ge "9" ]; then
+								NEEDDISTRO=''
+								# librrd4 and libpng12-0 are only present up to jessie/8
+								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
+										NEEDDISTRO="jessie"
+								fi
+						elif [ "$OSFLAVOUR" = "ubuntu" -a \( "$OS_MAJOR" -gt "16" -o \( "$OS_MAJOR" = "16" -a "$OS_MINOR" -gt "4" \) \) ] ; then
+								NEEDDISTRO=''
+								# librrd4 and libpng12-0 are only present up to xenial/16.04, NOT 16.10...
+								if [ "$pkg" = "librrd4" -o "$pkg" = "libpng12-0" ]; then
+										NEEDDISTRO="xenial"
+								fi
+						fi
+
+						install_package $pkg
+						RES=$?
+
+						if [ "$OSFLAVOUR" = "redhat" -a "$pkg" = "httpd" ]; then
+								# silly redhat doesn't start services on installation
+								chkconfig --add httpd
+								chkconfig httpd on
+						fi
+				done
+
+		else
+				echolog "Packages missing but installer was instructed to NOT install them."
+				cat <<EOF
+
+$PRODUCT will not run without the following packages installed:
+
+$MISSING
+
+You will have to resolve these
+dependencies manually before $PRODUCT will operate properly.
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+fi
+echo
+
+exit 0

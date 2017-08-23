@@ -30,6 +30,12 @@
 use strict;
 our $VERSION="9.0.0a";
 
+if ( @ARGV == 1 && $ARGV[0] eq "--version" )
+{
+	print "version=$VERSION\n";
+	exit 0;
+}
+
 # local modules live in <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";

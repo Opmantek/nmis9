@@ -1,0 +1,42 @@
+#!/bin/sh
+# ensure nmis user exists
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# guesses os flavour, sets OSFLAVOUR
+flavour
+
+if [ "$OSFLAVOUR" = "redhat" ]; then
+		WEBGRP=apache
+		GRPTOOL="usermod -G nmis apache"
+		USERTOOL="useradd"
+elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
+		WEBGRP=www-data
+		GRPTOOL="adduser www-data nmis"
+		USERTOOL="adduser --no-create-home --shell /bin/false --gecos NMIS --disabled-login --quiet"
+fi
+
+printBanner "Adjusting users, ownerships and permissions"
+
+# nmis doesn't work w/o user
+if ! id nmis >/dev/null 2>&1; then
+		echolog "Adding NMIS user"
+		execPrint $USERTOOL nmis
+fi
+
+# and apache needs to be able to access stuff
+echolog "Adding web user to NMIS group"
+execPrint $GRPTOOL
+
+
+# the web user should in most scenarios be able to write to the users.dat password file
+if [ -f "$TARGETDIR/conf/users.dat" ]; then
+		execPrint chgrp $WEBGRP $TARGETDIR/conf/users.dat
+		execPrint chmod g+rw $TARGETDIR/conf/users.dat
+fi
+
+exit 0
+
+

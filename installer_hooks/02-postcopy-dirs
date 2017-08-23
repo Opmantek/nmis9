@@ -1,0 +1,16 @@
+#!/bin/sh
+# create some directories
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+echolog "Creating standard directories"
+
+for ITEM in conf var database logs models-custom backups \
+						htdocs/reports conf/plugins conf/scripts; do
+    MAYBE=$TARGETDIR/$ITEM
+    [ -e "$MAYBE" ] || execPrint "mkdir -p $MAYBE"
+done
+
+exit 0

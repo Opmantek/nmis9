@@ -111,13 +111,20 @@ my $nmisng = NMISNG->new(
 if ( $Q->{act} eq "import-nodes-file" )
 {
 	my $nodesfile = $Q->{nodesfile};
+
+	die "nodesfile=<path> required!\n" if (!$nodesfile);
+	die "invalid nodesfile $nodesfile argument!\n" if (!-f $nodesfile);
+
+	$logger->info( "Starting " . $Q->{act} );
 	my $node_table =  $nodesfile? NMISNG::Util::readFiletoHash(file => $nodesfile)
 			: NMISNG::Util::loadTable( dir => 'conf', name => 'Nodes' );
-
+	
 	foreach my $node_name_key ( keys %$node_table )
 	{
 		my $node_configuration = $node_table->{$node_name_key};
-		my $node = $nmisng->node( uuid => $node_configuration->{uuid}, create => 1 );
+		my $node = $nmisng->node( uuid => $node_configuration->{uuid} 
+															|| NMISNG::Util::getUUID($node_name_key), 
+															create => 1 );
 
 		# set the configuration, ensure that the right cluster_id is set
  		if ( $node->is_new )
@@ -128,8 +135,15 @@ if ( $Q->{act} eq "import-nodes-file" )
 
 		# save
 		my ($op,$error) = $node->save();
-		$logger->error("Error saving node:",$error) if($error);
-		$logger->debug( "$node_name_key saved to database, op:", $op );
+		if($error)
+		{
+			$logger->error("Error saving node $node_name_key: $error");
+			print STDERR "Error saving node $node_name_key: $error\n";
+		}
+		else
+		{
+			$logger->debug( "$node_name_key saved to database, op:", $op );
+		}
 	}
 }
 elsif ( $Q->{act} eq "import-nodeconf" )

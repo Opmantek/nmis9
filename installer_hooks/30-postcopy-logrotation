@@ -1,0 +1,42 @@
+#!/bin/sh
+# offer to install the log rotation config file
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# rh6: has ancient pre-3.8.0 logrotate
+flavour
+
+SRCFILE=$TARGETDIR/install/logrotate/logrotate.conf
+[ "$OSFLAVOUR" = "redhat" -a "$OS_MAJOR" -lt 7 ] \
+		&& SRCFILE=$TARGETDIR/install/logrotate/logrotate_ancient.conf
+TARGETFILE=/etc/logrotate.d/nmis9.conf
+
+# compare file against shipped version and offer to replace
+if [ -e "$TARGETFILE"  ] && diff -q $SRCFILE $TARGETFILE >/dev/null 2>&1 ; then
+
+		echolog "Uptodate logrotation config file $TARGETFILE already present."
+else
+		printBanner "Updated logrotation config file available"
+		echo "Config file $SRCFILE is new or different from installed version."
+		echo
+		if input_yn "Ok to install the updated logrotation config file?"; then
+				execPrint "cp -fa $SRCFILE $TARGETFILE"
+		else
+				echolog "Skipping installation of updated logrotation config as instructed."
+				cat <<EOF
+
+NMIS produces logfiles that can potentially fill
+your disks if they are not rotated and expired after a while. You chose 
+not to install the provided log rotation config file 
+from $SRCFILE; It is highly recommended that you
+adjust it to your requirements and 
+then install it as ${TARGETFILE}.
+
+EOF
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+fi
+
+exit 0

@@ -1,0 +1,61 @@
+#!/bin/sh
+# various config files copying, from (in and under) the install directory to conf 
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -n "$CLEANSLATE" ]; then
+		printBanner "Installing default config files"
+
+		# don't want fully recursive copy: rsyslogd, snmpd, apache, cron.d, logrotate not relevant
+		execPrint "cp -va $TARGETDIR/install/*.* $TARGETDIR/conf/"
+		execPrint cp -va $TARGETDIR/install/plugins $TARGETDIR/conf/
+		execPrint cp -va $TARGETDIR/install/scripts $TARGETDIR/conf/
+
+		# and the testplugin shouldn't be live
+		rm -f $TARGETDIR/conf/plugins/TestPlugin.pm
+else
+		# upgrade case
+		printBanner "Updating configuration files"
+
+		cat <<EOF
+NMIS needs the live configuration files in $targetdir/conf/,
+and ships the defaults in $targetdir/install/. If you agree, the installer
+will copy all missing files to the live configuration directory - it will not
+overwrite any files that are already present.
+
+EOF
+		if input_yn "Ok to copy new/missing config files to the live configuration directory?"; then
+				# copy only missing files
+				# -n/--noclobber vital here, and no recursion
+				execPrint "cp -van $TARGETDIR/install/*.* $TARGETDIR/conf/"
+				execPrint "cp -van $TARGETDIR/install/plugins/* $TARGETDIR/conf/plugins/"
+				rm -f $TARGETDIR/conf/plugins/TestPlugin.pm
+				execPrint "cp -van $TARGETDIR/install/scripts/* $TARGETDIR/conf/scripts/"
+
+				# copy updated scripts and plugins after confirm
+				for MAYBE in $TARGETDIR/install/plugins/*; do
+						[ "$MAYBE" =  "$TARGETDIR/install/plugins/TestPlugin.pm" ] && continue;
+						THERE=$TARGETDIR/conf/plugins/`basename "$MAYBE"`
+						if [ -e "$THERE" ] && ! diff -q $MAYBE $THERE \
+									 && input_yn "OK to replace changed plugin $MAYBE?"; then
+								execPrint cp -va $MAYBE $THERE;
+						fi
+				done
+				for MAYBE in $TARGETDIR/install/scripts/*; do
+						THERE=$TARGETDIR/conf/scripts/`basename "$MAYBE"`
+						if [ -e "$THERE" ] && ! diff -q $MAYBE $THERE \
+									 && input_yn "OK to replace changed service script $MAYBE?"; then
+								execPrint cp -va $MAYBE $THERE;
+						fi
+				done
+		else
+        echo "Not adding missing/new configuration files as instructed."
+				logmsg "Skipping configuration file copying as instructed."
+		fi
+fi
+
+exit 0
+
+

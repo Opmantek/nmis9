@@ -510,8 +510,6 @@ sub grouped_node_summary
 				'_id' => 1,
 				'name' => '$data.name',
 				'uuid' => '$data.uuid',
-				'roleType' => '$data.roleType',
-				'nodedown' => '$data.nodedown',
 				'down' => { '$cond' => { 'if' => { '$eq' => ['$data.nodedown','true'] }, 'then' => 1, 'else' => 0 } },
 				'degraded' => { '$cond' => { 'if' => { '$eq' => ['$data.nodestatus','degraded'] }, 'then' => 1, 'else' => 0 } },
 				'reachable' => '$latest_data.subconcepts.data.reachability',
@@ -525,6 +523,15 @@ sub grouped_node_summary
 				'16_available' => '$latest_data.subconcepts.derived_data.16_available',
 				'08_response' => '$latest_data.subconcepts.derived_data.08_response',
 				'16_response' => '$latest_data.subconcepts.derived_data.16_response',
+				# add in all the things network.pl is expecting:
+				'nodedown' => '$data.nodedown',
+				'nodestatus' => '$data.nodestatus',
+				'netType' => '$data.netType',
+				'nodeType' => '$data.nodeType',
+				'response' => '$latest_data.subconcepts.data.responsetime',
+				'roleType' => '$data.roleType',
+				'ping' => '$data.ping',
+				'sysLocation' => '$data.sysLocation',
 				%groupproject_hash
 		}};
 	my $final_group = 

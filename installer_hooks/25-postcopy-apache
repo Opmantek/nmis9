@@ -1,0 +1,62 @@
+#!/bin/sh
+# setup apache - note user perms are done by *-postcopy-user
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# guesses os flavour, sets OSFLAVOUR and OS_*
+flavour
+
+CFGSRC=$TARGETDIR/install/apache/
+SRCNAME=nmis_apache.conf
+CFGNAME=nmis.conf
+
+if [ "$OSFLAVOUR" = "redhat" ]; then
+		CFGTARGET=/etc/httpd/conf.d
+		[ "$OS_MAJOR" -ge 7 ] && SRCNAME=nmis_apache24.conf
+		
+elif [ "$OSFLAVOUR" = "debian" -o  "$OSFLAVOUR" = "ubuntu" ]; then
+		# all apache 2.4
+		SRCNAME=nmis_apache24.conf
+		CFGTARGET=/etc/apache2/sites-available # and symlink into sites-enabled
+fi
+
+if [ -z "$CFGTARGET" -o ! -d "$CFGTARGET" ]; then
+		printBanner "Apache config directory unknown or non-existent, cannot install apache config file!"
+		cat <<EOF
+
+You will need to integrate NMIS with your web server manually.
+
+Please use configuration file examples from $TARGETDIR/install/apache 
+and check the NMIS Installation guide at 
+https://community.opmantek.com/x/Dgh4
+for further info.\n";
+
+EOF
+		input_ok "Hit <Enter> when ready to continue."
+		exit 0
+fi
+
+if [ ! -e "$CFGTARGET/$CFGNAME" ] || ! diff -q "$CFGTARGET/$CFGNAME"  "$CFGSRC/$SRCNAME" >/dev/null 2>&1 ; then
+		printBanner "Setting up Apache for NMIS"
+
+		execPrint cp -f $CFGSRC/$SRCNAME $CFGTARGET/$CFGNAME
+		
+		if [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
+				logmsg "Enabling NMIS apache config and cgi module"
+				execPrint a2ensite $CFGNAME
+				execPrint a2enmod cgi
+
+				echolog "Restarting Apache"
+				execPrint "service apache2 restart"
+		else
+				# redhat: cgi automatically enabled, and no enabled/installed distinction
+				echolog "Restarting Apache"
+				execPrint "service httpd restart"
+		fi
+else
+		logmsg "Apache config already exists, unchanged."
+fi
+
+exit 0

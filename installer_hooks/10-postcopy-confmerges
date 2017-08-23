@@ -1,0 +1,61 @@
+#!/bin/sh
+# perform config updates on upgrade
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -n "$CLEANSLATE" ]; then
+		logmsg "No config updates required"
+		exit 0
+fi
+
+printBanner "Config file updates"
+
+cat <<EOF
+
+The installer can update most configuration files with new
+settings, which doesn't overwrite customisations. It is
+highly recommended that you let the installer perform this
+operation.
+
+EOF
+
+if input_yn "OK to update config files with new options?"; then
+		# main config first...
+	 	execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/install/Config.nmis $TARGETDIR/conf/Config.nmis
+
+		# ...non-table files next
+		for MERGABLE in `cd $TARGETDIR/install; ls *.nmis | grep -v Table`; do
+				execPrint $TARGETDIR/admin/updateconfig.pl $TARGETDIR/install/$MERGABLE $TARGETDIR/conf/$MERGABLE;
+		done
+
+
+		# handle table files, automatically where possible
+		# note: don't capture
+		$TARGETDIR/admin/upgrade_tables.pl $TARGETDIR/install $TARGETDIR/conf >/dev/null 2>&1;
+		STATE=$?										# 2 or 3 means upgradables
+
+		if [ "$STATE" = 2 -o "$STATE" = 3 ]; then
+				printBanner "Performing Table Upgrades"
+
+				execPrint $TARGETDIR/admin/upgrade_tables.pl -u $TARGETDIR/install $TARGETDIR/conf
+		fi
+
+		if [ "$STATE" = 1 -o "$STATE" = 3 ]; then
+
+				printBanner "Non-upgradeable Table files detected"
+				cat <<EOF
+The installer has detected the following table files that require
+manual updating:
+EOF
+				$TARGETDIR/admin/upgrade_tables.pl -p $TARGETDIR/install $TARGETDIR/conf
+
+				input_ok "Hit <Enter> when ready to continue: "
+		fi
+else
+		echo "Not updating config files, as directed."
+		logmsg "Not updating config files, as directed."
+fi
+
+exit 0

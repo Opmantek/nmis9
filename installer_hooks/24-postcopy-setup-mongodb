@@ -1,0 +1,26 @@
+#!/bin/sh
+# offer to setup mongodb auth and users, clean up historic stuff
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+if [ -e $TARGETDIR/admin/setup_mongodb.pl ]; then
+		printBanner "Running MongoDB setup helper"
+
+		if input_yn "Do you want to run the MongoDB setup helper now?"; then
+				[ -n "$UNATTENDED" ] && EXTRAARGS='auto=true'
+				$TARGETDIR/admin/setup_mongodb.pl $EXTRAARGS
+				logmsg "MongoDB setup helper returned $?"
+		else
+				echolog "Skipping MongoDB setup helper as instructed."
+				cat <<EOF
+
+You can perform the MongoDB setup at any time by running
+$TARGETDIR/bin/setup_mongodb.pl as the root user.
+
+EOF
+		fi
+fi
+
+exit 0

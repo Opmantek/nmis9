@@ -1,0 +1,13 @@
+#!/bin/sh
+# unlock nmis
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# remove stale selftest file
+rm -f $TARGETDIR/var/nmis_system/selftest.json
+# and the lock files
+rm -f /tmp/nmis_install_running $TARGETDIR/conf/NMIS_IS_LOCKED
+
+exit 0

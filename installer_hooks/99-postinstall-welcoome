@@ -1,0 +1,62 @@
+#!/bin/sh
+# welcome the user to nmis, and point them to the documentation
+
+# find out where we are, and get common functions
+SCRIPTPATH=${0%/*}
+. $SCRIPTPATH/common_functions.sh
+
+# an initial install of this product
+if [ -n "$CLEANSLATE" ]; then
+		printBanner "NMIS Installation Complete"
+		cat <<EOF 
+This initial installation of $PRODUCT is now complete.
+
+However, to configure and fine-tune the application suitably for
+your environment you will need to make certain configuration adjustments.
+
+We highly recommend that you visit the documentation site for $PRODUCT at
+
+https://community.opmantek.com/display/$PRODUCT/Home
+
+The next step is to determine what configuration changes
+will be required for your environment.
+
+EOF
+		echo
+else
+		# an upgrade of version xyz of product
+		printBanner "$PRODUCT was Upgraded"
+		cat <<EOF
+
+Your $PRODUCT installation has now been upgraded.
+
+Please note that your existing configuration files were updated with new
+configuration settings and some important default options were changed 
+(if you selected that option earlier), but all other settings 
+remain unchanged. 
+
+You may want to use the tools diffconfigs.pl, compare_models 
+and patch_config.pl (in $TARGETDIR/admin/) to detect differences between 
+the new defaults in $TARGETDIR/install and your active configuration.
+
+You will find more information in the release notes at
+
+https://community.opmantek.com/display/$PRODUCT/${PRODUCT}+Release+Notes
+
+EOF
+fi
+
+cat <<EOF
+
+You should now be able to access NMIS at
+
+http://<HOSTNAME_OR_IP>/nmis9/
+
+If your browser is running on the same machine as opEvents was 
+installed onto, this would be
+
+http://localhost/nmis9/
+
+EOF
+
+exit 0
