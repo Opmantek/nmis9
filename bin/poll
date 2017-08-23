@@ -3255,7 +3255,7 @@ sub getSystemHealthInfo
 		$index_var = $index_snmp = $thissection->{indexed};
 		$index_regex = $thissection->{index_regex} if ( exists( $thissection->{index_regex} ) );
 		$index_snmp  = $thissection->{index_oid}   if ( exists( $thissection->{index_oid} ) );
-		my $header_info;
+		my ($header_info,$description);
 
 		if ( !defined($index_var) or $index_var eq '' )
 		{
@@ -3378,6 +3378,13 @@ sub getSystemHealthInfo
 						enabled => 1,
 						display_keys => $header_info
 					);
+					if( @$header_info > 0 )
+					{
+						my @keys = keys (%{$header_info->[0]});
+						# use first key in headers to get description
+						$description = $target->{ $keys[0] };
+						$inventory->description( $description ) if($description);
+					}
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
 					NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
@@ -3491,6 +3498,13 @@ sub getSystemHealthInfo
 						enabled => 1,
 						display_keys => $header_info
 					);
+					if( @$header_info > 0 )
+					{
+						my @keys = keys (%{$header_info->[0]});
+						# use first key in headers to get description
+						$description = $target->{ $keys[0] };
+						$inventory->description( $description ) if($description);
+					}
 
 					# the above will put data into inventory, so save
 					my ( $op, $error ) = $inventory->save();
