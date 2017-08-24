@@ -130,12 +130,12 @@ flavour () {
 		fi
 
 		if [ -f "/etc/os-release" ]; then
-			OSVERSION=$(grep "VERSION_ID=" /etc/os-release | cut -d\" -f2)
+			OSVERSION=$(grep "VERSION_ID=" /etc/os-release | cut -s -d\" -f2)
 		fi
 
-		OS_MAJOR=`echo "$OS_VERSION" | cut -f 1 -d .`;
-		OS_MINOR=`echo "$OS_VERSION" | cut -f 2 -d .`;
-		OS_PATCH=`echo "$OS_VERSION" | cut -f 3 -d .`;
+		OS_MAJOR=`echo "$OS_VERSION" | cut -s -f 1 -d .`;
+		OS_MINOR=`echo "$OS_VERSION" | cut -s -f 2 -d .`;
+		OS_PATCH=`echo "$OS_VERSION" | cut -s -f 3 -d .`;
 
 }
 
@@ -157,19 +157,19 @@ get_nmis_version() {
 		# if nmis is in working shape that'll do...
 		RAWVERSION=`$NMISDIR/bin/nmis.pl --version 2>/dev/null |grep -F -e version= -e " version  "`
 		# newest version honors --version, output version=1.2.3x; older versions have "NMIS version 1.2.3x" banner
-		[ -n "$RAWVERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -f 2 -d "="`
-		[ -n "$RAWVERSION" -a -z "$NMIS_VERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -f 3 -d " "`
+		[ -n "$RAWVERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -s -f 2 -d "="`
+		[ -n "$RAWVERSION" -a -z "$NMIS_VERSION" ] && NMIS_VERSION=`echo "$RAWVERSION" | cut -s -f 3 -d " "`
 		# ...but if not, try a bit harder
 		if [ -z "$NMIS_VERSION" ]; then
-				NMIS_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMISDIR/lib/NMIS.pm 2>/dev/null | cut -f 2 -d '"';`
+				NMIS_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMISDIR/lib/NMIS.pm 2>/dev/null | cut -s -f 2 -d '"';`
 		fi
 		# and if that doesn't work, give up
 		[ -z "$NMIS_VERSION" ] && return 1
 
-		NMIS_MAJOR=`echo $NMIS_VERSION | cut -f 1 -d .`
+		NMIS_MAJOR=`echo $NMIS_VERSION | cut -s -f 1 -d .`
 		# nmis doesn't consistently use N.M.Og, but also occasionally just N.Mg
-		NMIS_MINOR=`echo $NMIS_VERSION | cut -f 2 -d . | tr -d a-zA-Z`
-		NMIS_PATCH=`echo $NMIS_VERSION| cut -f 3 -d . | tr -d a-zA-Z`
+		NMIS_MINOR=`echo $NMIS_VERSION | cut -s -f 2 -d . | tr -d a-zA-Z`
+		NMIS_PATCH=`echo $NMIS_VERSION| cut -s -f 3 -d . | tr -d a-zA-Z`
 
 		return 0
 }
@@ -187,18 +187,18 @@ get_nmis9_version()
 		fi
 
 		# if nmis9 is properly installed, nmis-cli will report its version
-		NMIS9_VERSION=`$NMIS9DIR/bin/nmis-cli --version 2>/dev/null |grep -F version= | cut -f 2 -d =`
+		NMIS9_VERSION=`$NMIS9DIR/bin/nmis-cli --version 2>/dev/null |grep -F version= | cut -s -f 2 -d =`
 		# ...but if it does not run (yet), try a bit harder
 		if [ -z "$NMIS9_VERSION" ]; then
-				NMIS9_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMIS9DIR/lib/NMISNG.pm 2>/dev/null | cut -f 2 -d '"';`
+				NMIS9_VERSION=`grep -E '^\s*our\s*\\$VERSION' $NMIS9DIR/lib/NMISNG.pm 2>/dev/null | cut -s -f 2 -d '"';`
 		fi
 		# and if that doesn't work, give up
 		[ -z "$NMIS9_VERSION" ] && return 1
 
-		NMIS9_MAJOR=`echo $NMIS9_VERSION | cut -f 1 -d .`
-		NMIS9_MINOR=`echo $NMIS9_VERSION | cut -f 2 -d . `
+		NMIS9_MAJOR=`echo $NMIS9_VERSION | cut -s -f 1 -d .`
+		NMIS9_MINOR=`echo $NMIS9_VERSION | cut -s -f 2 -d . `
 		# the patch usually has textual suffixes, which we ignore!
-		NMIS9_PATCH=`echo $NMIS9_VERSION| cut -f 3 -d . | tr -d a-zA-Z`
+		NMIS9_PATCH=`echo $NMIS9_VERSION| cut -s -f 3 -d . | tr -d a-zA-Z`
 
 		return 0
 }
@@ -211,12 +211,7 @@ get_nmis9_version()
 # so that the defaults detection can work.
 version_meets_min()
 {
-		local IS_MAJ
-		local IS_MIN
-		local IS_PATCH
-		local MIN_MAJ
-		local MIN_MIN
-		local MIN_PATCH
+		local IS_MAJ IS_MIN IS_PATCH MIN_MAJ MIN_MIN MIN_PATCH
 
 		IS_MAJ=${1:-0}
 		IS_MIN=${2:-0}
@@ -230,4 +225,24 @@ version_meets_min()
 		[ "$IS_MAJ" = "$MIN_MAJ" -a "$IS_MIN" = "$MIN_MIN" -a "$IS_PATCH" -lt "$MIN_PATCH" ] && return 1
 
 		return  0
+}
+
+# takes two version string arguments, N.M.Oxyz and A.B.Cefg,
+# textual xyz/efg suffixes are optional and IGNORED
+# at least the major component MUST be there
+# returns: 0 if versions are the same, 1 if first > second, 2 if second > first
+version_compare()
+{
+		local i
+		for i in 1 2 3; do
+				local ACOMP BCOMP
+				ACOMP=`echo "$1" | cut -s -f $i -d . | tr -d a-zA-Z`
+				ACOMP=${ACOMP:-0}
+				BCOMP=`echo "$2" | cut -s -f $i -d . | tr -d a-zA-Z`
+				BCOMP=${BCOMP:-0}
+
+				[ "$ACOMP" -gt "$BCOMP" ] && return 1
+				[ "$ACOMP" -lt "$BCOMP" ] && return 2
+		done
+		return 0
 }

@@ -1806,11 +1806,11 @@ sub prep_extras_with_catchalls
 	{
 		# if new one is there use it
 		my $data = $self->inventory(concept => "catchall")->data_live();
-		$extras->{node} = $self->{node};
+		$extras->{node} ||= $self->{node};
 
 		foreach my $key (qw(name host group roleType nodeModel nodeType nodeVendor sysDescr sysObjectName location))
 		{
-			$extras->{$key} = $data->{$key};
+			$extras->{$key} ||= $data->{$key};
 		}
 
 		# if I am wanting a storage thingy, then lets populate the variables I need.
@@ -1823,7 +1823,7 @@ sub prep_extras_with_catchalls
 
 			foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
 			{
-				$extras->{$key} = $data->{$key};
+				$extras->{$key} ||= $data->{$key};
 			}
 			$extras->{hrDiskSize} = $extras->{hrStorageSize} * $extras->{hrStorageUnits};
 			$extras->{hrDiskUsed} = $extras->{hrStorageUsed} * $extras->{hrStorageUnits};
@@ -1843,27 +1843,27 @@ sub prep_extras_with_catchalls
 				$data = $interface_inventory->data();
 				foreach my $key (qw(ifAlias Description ifDescr ifType))
 				{
-					$extras->{$key} = $interface_inventory->$key();
+					$extras->{$key} ||= $interface_inventory->$key();
 				}
-				$extras->{ifDescr} = NMISNG::Util::convertIfName( $extras->{ifDescr} );
-				$extras->{ifMaxOctets} = $interface_inventory->max_octets();
-				$extras->{maxBytes}    = $interface_inventory->max_bytes();
-				$extras->{maxPackets}  = $interface_inventory->max_packets();
-				$extras->{ifSpeedIn}   = $interface_inventory->ifSpeedIn();
-				$extras->{ifSpeedOut}  = $interface_inventory->ifSpeedOut();
-				$extras->{ifSpeed} = $interface_inventory->ifSpeed();
-				$extras->{speed}       = $interface_inventory->speed();
+				$extras->{ifDescr} ||= NMISNG::Util::convertIfName( $extras->{ifDescr} );
+				$extras->{ifMaxOctets} ||= $interface_inventory->max_octets();
+				$extras->{maxBytes}    ||= $interface_inventory->max_bytes();
+				$extras->{maxPackets}  ||= $interface_inventory->max_packets();
+				$extras->{ifSpeedIn}   ||= $interface_inventory->ifSpeedIn();
+				$extras->{ifSpeedOut}  ||= $interface_inventory->ifSpeedOut();
+				$extras->{ifSpeed} ||= $interface_inventory->ifSpeed();
+				$extras->{speed}       ||= $interface_inventory->speed();
 			}
 		}
 		else
 		{
-			$extras->{ifDescr} = $extras->{ifType}      = '';
-			$extras->{ifSpeed} = $extras->{ifMaxOctets} = 'U';
+			$extras->{ifDescr} ||= $extras->{ifType} ||= '';
+			$extras->{ifSpeed} ||= $extras->{ifMaxOctets} ||= 'U'; # fixme9 not clear what purpose that served?
 		}
 	}
 
-	$extras->{item}            = $item;
-	$extras->{index}           = $index;
+	$extras->{item} ||= $item;
+	$extras->{index} ||= $index;
 
 	return $extras;
 }
