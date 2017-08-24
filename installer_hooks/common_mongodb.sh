@@ -1,6 +1,6 @@
 # a set of functions for installing a local mongodb if desired
-# assumes that the common_functions are available,
-# and that flavour() was called
+# note: this module assumes that common_functions AND common_repos are available,
+# and that flavour() was called.
 
 # returns 0 if mongo is locally installed, 1 otherwise
 # also sets MONGO_VERSION, MONGO_MAJOR, _MINOR and _PATCH if installed and mongod can be found
@@ -38,7 +38,7 @@ add_mongo_repository () {
 
 		local DESIREDVER
 		DESIREDVER=${1:-3.4}
-		
+
 		# redhat/centos: mongodb supplies rpms for 3.2 and 3.4 for all platforms and versions we care about
 		if [ "$OSFLAVOUR" = "redhat" ]; then
 				REPOFILE=/etc/yum.repos.d/mongodb-org-$DESIREDVER.repo
@@ -60,15 +60,15 @@ EOF
 		elif [ "$OSFLAVOUR" = "debian" -o "$OSFLAVOUR" = "ubuntu" ]; then
 				SOURCESFILE=/etc/apt/sources.list.d/mongodb-org-$DESIREDVER.list
 				[ ! -d /etc/apt/sources.list.d ] && mkdir -p /etc/apt/sources.list.d
-				if [ -f "$SOURCESFILE" ]; then
-						logmsg "Mongodb.org sources list already present."
-						return 0;
-				fi
+
 				RELEASENAME=`lsb_release -sc`
 				# debian 7, 8: 3.4 is a/v - upstream doesn't have newer version-specific packages
+				# debian 9: 3.2 is in debian proper but we normally need 3.4.
 				if [ "$OSFLAVOUR" = "debian" ]; then
 						[ "$OS_MAJOR" = 7 ] && MONGORELNAME=wheezy || MONGORELNAME=jessie
 						echo "deb http://repo.mongodb.org/apt/debian $MONGORELNAME/mongodb-org/$DESIREDVER main" >$SOURCESFILE
+						# debian 9: mongo package for jessie requires older libssl, only a/v in jessie
+						[ "$OS_MAJOR" -ge 9 ] && enable_distro "jessie"
 				else
 						# ubuntu 12, 14, 16: 3.2 is /av
 						MONGORELNAME="xenial"; # aka 16.xx
@@ -77,9 +77,10 @@ EOF
 
 						echo "deb http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
 				fi
+
 				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 				# apt-key adv doesn't work cleanly with gpg 2.1+
-				$GIMMEKEY | apt-key add - 
+				$GIMMEKEY | apt-key add -
 				apt-get update -qq
  		else
 				logmsg "Unknown distribution $OSFLAVOUR!"
