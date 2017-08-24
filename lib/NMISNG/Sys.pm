@@ -327,18 +327,12 @@ sub init
 		}
 	}
 
-	# This is overriding the devices with nodedown=true!
-	if ( ( my $info = NMISNG::Util::loadTable( dir => 'var', name => "nmis-system" ) ) )
+	# fixme9: unclear what that is supposed to be good for?
+	if (-f (my $globsysstatusfile = NMISNG::Util::getFileName(dir => 'var', name => "nmis-system")))
 	{
-		# unwanted legacy gunk?
-		delete $info->{system} if ( ref($info) eq "HASH" );
-
-		$self->_mergeHash( $self->{info}, $info );    # let's consider this nonterminal
-	}
-	else
-	{
-		# not terminal
-		$self->{error} = "Failed to load nmis-system info!";
+		# This is overriding the devices with nodedown=true!
+		my $info = NMISNG::Util::loadTable( dir => 'var', name => "nmis-system" );
+		$self->_mergeHash( $self->{info}, $info ) if ($info);
 	}
 
 	# load node configuration - attention: only done if snmp or wmi are true
@@ -1844,7 +1838,7 @@ sub prep_extras_with_catchalls
 				foreach my $key (qw(ifAlias Description ifType))
 				{
 					$extras->{$key} ||= $interface_inventory->$key();
-					
+
 				}
 				$extras->{ifDescr} ||=  NMISNG::Util::convertIfName($interface_inventory->ifDescr());
 				$extras->{ifMaxOctets} ||= $interface_inventory->max_octets();
@@ -2309,13 +2303,6 @@ sub writeNodeInfo
 
 	my $ext = NMISNG::Util::getExtension( dir => 'var' );
 	my $name = ( $self->{node} ne "" ) ? "$self->{node}-node" : 'nmis-system';
-
-	if ( $name eq "nmis-system" )
-	{
-		### 2013-08-27 keiths, the system object should not exist for nmis-system
-		delete $self->{info}->{system};
-		delete $self->{info}->{graphtype}->{health} if ( ref( $self->{info}->{graphtype} ) eq "HASH" );
-	}
 
 	NMISNG::Util::writeTable( dir => 'var', name => $name, data => $self->{info} );    # write node info
 }
