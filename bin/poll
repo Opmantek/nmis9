@@ -1066,6 +1066,7 @@ sub doUpdate
 	my $reachdata
 		= runReach( sys => $S, delayupdate => 1 );    # don't let it make the rrd update, we want to add updatetime!
 	$S->writeNodeView;                                # save node view info in file var/$NI->{name}-view.xxxx
+	$S->writeNodeInfo();
 
 	# done with the standard work, now run any plugins that offer update_plugin()
 	for my $plugin (@active_plugins)
@@ -1405,6 +1406,7 @@ sub doCollect
 	}
 
 	$S->writeNodeView;
+	$S->writeNodeInfo();
 	
 	# done with the standard work, now run any plugins that offer collect_plugin()
 	for my $plugin (@active_plugins)
