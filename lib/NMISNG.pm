@@ -475,25 +475,35 @@ sub get_distinct_values
 # args: group_by - the field, include_nodes - 1/0, if set return value changes to array with hash, one hash
 #  entry for the grouped data and another for the nodes included in the groups, this is added for backwards
 #  compat with how nmis group data worked in 8
+# If no group_by is given all nodes will be used and put into a single group, this is required to get overall
+# status
 sub grouped_node_summary
 {
 	my ($self,%args) = @_;
 	
-	my $group_by = ($args{group_by} ) // ['data.group'];
+	my $group_by = $args{group_by} // []; #'data.group'
 	my $include_nodes = $args{include_nodes} // 0;
 	my $filters = $args{filters};
 
 	# can't have dots in the output group _id values, replace with _
 	# also make a hash to project the group by values into the group stage
 	my (%groupby_hash,%groupproject_hash);
-	foreach my $entry (@$group_by)
+	if( @$group_by > 0 )
 	{
-		my $value = $entry;
-		my $key = $entry;
-		$key =~ s/\./_/g;
-		$groupby_hash{$key} = '$'.$value;		
-		$groupproject_hash{$value} = 1;
-	}	
+		foreach my $entry (@$group_by)
+		{
+			my $value = $entry;
+			my $key = $entry;
+			$key =~ s/\./_/g;
+			$groupby_hash{$key} = '$'.$value;		
+			$groupproject_hash{$value} = 1;
+		}	
+	}
+	else
+	{
+		$groupby_hash{empty_group} = '$empty_group';
+	}
+
 	my $q = NMISNG::DB::get_query( and_part => $filters );
 	my @pipe = (
 		{ '$match'  => { 'concept' => 'catchall' } },
