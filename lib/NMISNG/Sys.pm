@@ -1849,7 +1849,7 @@ sub prep_extras_with_catchalls
 				$extras->{ifDescr} ||=  NMISNG::Util::convertIfName($interface_inventory->ifDescr());
 				$extras->{ifMaxOctets} ||= $interface_inventory->max_octets();
 				$extras->{maxBytes}    ||= $interface_inventory->max_bytes();
-				$extras->{maxPackets}  ||= $interface_inventorny->max_packets();
+				$extras->{maxPackets}  ||= $interface_inventory->max_packets();
 				$extras->{ifSpeedIn}   ||= $interface_inventory->ifSpeedIn();
 				$extras->{ifSpeedOut}  ||= $interface_inventory->ifSpeedOut();
 				$extras->{ifSpeed} ||= $interface_inventory->ifSpeed();
