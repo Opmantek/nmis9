@@ -380,7 +380,7 @@ sub inventory_datasets_by_subconcept
 	}
 	
 	my $q = $self->nmisng->get_inventory_model_query( %args );
-	my $retval;
+	my $retval = {};
 
 	# print "q".Dumper($q);
 	# query parts that don't look at $datasets could run first if we need optimisation

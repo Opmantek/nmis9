@@ -188,7 +188,7 @@ elsif ( $type eq "escalate" ) { runEscalate(); printRunTime(); }    # included i
 
 
 elsif ( $type eq "links" )      { runLinks(); }                                            # included in type=update
-elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # MIGHT BE included in type=collect
+# elsif ( $type eq "summary" )    { nmisSummary(); printRunTime(); }                         # MIGHT BE included in type=collect
 elsif ( $type eq "rme" )        { Compat::NMIS::loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )  { runThreshold($node,1); printRunTime(); }                   # USUALLY included in type=collect
 elsif ( $type eq "master" )     { nmisMaster(); printRunTime(); }                          # MIGHT be included in type=collect
@@ -762,15 +762,15 @@ sub runThreads
 		}
 
 		# calculate and cache the summary stats
-		if (!NMISNG::Util::getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
-				&& NMISNG::Util::getbool($C->{cache_summary_tables}))
-		{
-			NMISNG::Util::dbg("Starting nmisSummary");
+		# if (!NMISNG::Util::getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
+		# 		&& NMISNG::Util::getbool($C->{cache_summary_tables}))
+		# {
+		# 	NMISNG::Util::dbg("Starting nmisSummary");
 
-			# fixme9: catchall needs to be written before this runs as it loads the data
-			# locally, it has no $S
-			nmisSummary(update_operations_stamp => 1);
-		}
+		# 	# fixme9: catchall needs to be written before this runs as it loads the data
+		# 	# locally, it has no $S
+		# 	nmisSummary(update_operations_stamp => 1);
+		# }
 
 		NMISNG::Util::dbg("Starting runMetrics");
 		runMetrics( sys => $S );
@@ -7571,92 +7571,92 @@ sub nmisMaster
 #=========================================================================================
 
 # preload all summary stats - for metric update and dashboard display.
-sub nmisSummary
-{
-	my %args = @_;
-	my $update_operations_stamp = $args{update_operations_stamp} // 1;
-	my $pollTimer = Compat::Timing->new;
+# sub nmisSummary
+# {
+# 	my %args = @_;
+	# my $update_operations_stamp = $args{update_operations_stamp} // 1;
+	# my $pollTimer = Compat::Timing->new;
 
-	NMISNG::Util::dbg("Calculating NMIS network stats for cgi cache");
-	NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => undef )
-		if ( $type eq "summary" );    # not if part of collect
+	# NMISNG::Util::dbg("Calculating NMIS network stats for cgi cache");
+	# NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => undef )
+	# 	if ( $type eq "summary" );    # not if part of collect
 
-	### 2014-08-28 keiths, configurable metric periods
-	my $metricsFirstPeriod
-		= defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
-	my $metricsSecondPeriod
-		= defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
+	# ### 2014-08-28 keiths, configurable metric periods
+	# my $metricsFirstPeriod
+	# 	= defined $C->{'metric_comparison_first_period'} ? $C->{'metric_comparison_first_period'} : "-8 hours";
+	# my $metricsSecondPeriod
+	# 	= defined $C->{'metric_comparison_second_period'} ? $C->{'metric_comparison_second_period'} : "-16 hours";
 
-	summaryCache(file => 'nmis-summary8h', start => $metricsFirstPeriod, end => time() );
-	my $k = summaryCache(
-		file  => 'nmis-summary16h',
-		start => $metricsSecondPeriod,
-		end   => $metricsFirstPeriod
-	);
+	# summaryCache(file => 'nmis-summary8h', start => $metricsFirstPeriod, end => time() );
+	# my $k = summaryCache(
+	# 	file  => 'nmis-summary16h',
+	# 	start => $metricsSecondPeriod,
+	# 	end   => $metricsFirstPeriod
+	# );
 
-	my $NS = Compat::NMIS::getNodeSummary( C => $C );
-	my $file = "nmis-nodesum";
-	NMISNG::Util::writeTable( dir => 'var', name => $file, data => $NS );
-	NMISNG::Util::dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
-	NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => Time::HiRes::time() )
-		if ( $update_operations_stamp );    # not if part of collect
+	# my $NS = Compat::NMIS::getNodeSummary( C => $C );
+	# my $file = "nmis-nodesum";
+	# NMISNG::Util::writeTable( dir => 'var', name => $file, data => $NS );
+	# NMISNG::Util::dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
+	# NMISNG::Util::update_operations_stamp( type => "summary", start => $starttime, stop => Time::HiRes::time() )
+	# 	if ( $update_operations_stamp );    # not if part of collect
 
-	if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
-	{
-		my $polltime = $pollTimer->elapTime();
-		NMISNG::Util::logMsg("Poll Time: $polltime");
-	}
-}
+	# if ( defined $C->{log_polling_time} and NMISNG::Util::getbool( $C->{log_polling_time} ) )
+	# {
+	# 	my $polltime = $pollTimer->elapTime();
+	# 	NMISNG::Util::logMsg("Poll Time: $polltime");
+	# }
+# }
+	
+# sub summaryCache
+# {
+# 	my %args        = @_;
+# 	my $file        = $args{file};
+# 	my $start       = $args{start};
+# 	my $end         = $args{end};
+# 	my %summaryHash = ();
+# 	my $NT          = Compat::NMIS::loadLocalNodeTable();
 
-sub summaryCache
-{
-	my %args        = @_;
-	my $file        = $args{file};
-	my $start       = $args{start};
-	my $end         = $args{end};
-	my %summaryHash = ();
-	my $NT          = Compat::NMIS::loadLocalNodeTable();
 
+# 	foreach my $node ( keys %{$NT} )
+# 	{
+# 		if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
+# 		{
+# 			my $S = NMISNG::Sys->new;
+# 			$S->init( name => $node, snmp => 'false' );
+# 			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
 
-	foreach my $node ( keys %{$NT} )
-	{
-		if ( NMISNG::Util::getbool( $NT->{$node}{active} ) )
-		{
-			my $S = NMISNG::Sys->new;
-			$S->init( name => $node, snmp => 'false' );
-			my $catchall_data = $S->inventory( concept => 'catchall' )->data_live();
+# 			$summaryHash{$node}{reachable}   = 'NaN';
+# 			$summaryHash{$node}{response}    = 'NaN';
+# 			$summaryHash{$node}{loss}        = 'NaN';
+# 			$summaryHash{$node}{health}      = 'NaN';
+# 			$summaryHash{$node}{available}   = 'NaN';
+# 			$summaryHash{$node}{intfCollect} = 0;
+# 			$summaryHash{$node}{intfColUp}   = 0;
+# 			my $stats;
 
-			$summaryHash{$node}{reachable}   = 'NaN';
-			$summaryHash{$node}{response}    = 'NaN';
-			$summaryHash{$node}{loss}        = 'NaN';
-			$summaryHash{$node}{health}      = 'NaN';
-			$summaryHash{$node}{available}   = 'NaN';
-			$summaryHash{$node}{intfCollect} = 0;
-			$summaryHash{$node}{intfColUp}   = 0;
-			my $stats;
+# 			if ( $stats = Compat::NMIS::getSummaryStats( sys => $S,
+# 																									 type => "health",
+# 																									 start => $start, end => $end,
+# 																									 index => $node ) )
+# 			{
+# 				%summaryHash = ( %summaryHash, %{$stats} );
+# 			}
+# 			if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
+# 			{
+# 				$summaryHash{$node}{nodedown} = 'true';
+# 			}
+# 			else
+# 			{
+# 				$summaryHash{$node}{nodedown} = 'false';
+# 			}
+# 		}
+# 	}
 
-			if ( $stats = Compat::NMIS::getSummaryStats( sys => $S,
-																									 type => "health",
-																									 start => $start, end => $end,
-																									 index => $node ) )
-			{
-				%summaryHash = ( %summaryHash, %{$stats} );
-			}
-			if ( NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
-			{
-				$summaryHash{$node}{nodedown} = 'true';
-			}
-			else
-			{
-				$summaryHash{$node}{nodedown} = 'false';
-			}
-		}
-	}
+# 	NMISNG::Util::writeTable( dir => 'var', name => $file, data => \%summaryHash );
 
-	NMISNG::Util::writeTable( dir => 'var', name => $file, data => \%summaryHash );
-
-	return ( scalar keys %summaryHash );
-}
+# 	return ( scalar keys %summaryHash );
+# }
 
 #=========================================================================================
 
