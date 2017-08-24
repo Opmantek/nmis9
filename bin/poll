@@ -7076,29 +7076,26 @@ sub runReach
 			foreach my $id (@$ids)
 			{
 				my ($intf_inventory,$error) = $S->nmisng_node->inventory( _id => $id );
-				my $data = $intf_inventory->data();
-				my $index = $data->{index};
-
-				# Get the link availability from the local node!!!
-				my $util = Compat::NMIS::getSummaryStats(
-					sys   => $S,
-					type  => "interface",
-					start => "-15 minutes",
-					end   => time(),
-					index => $index
-				);
-				if ( $util->{$index}{inputUtil} eq 'NaN' or $util->{$index}{outputUtil} eq 'NaN' )
+				# stats have already been run on the interface, just look them up
+				my $latest_ret = $intf_inventory->get_newest_timed_data();
+				if( !$latest_ret->{success} )
 				{
-					NMISNG::Util::dbg("SummaryStats for interface=$index of node $S->{name} skipped because value is NaN"
-					);
+					NMISNG::Util::dbg("Faild to get_newest_timed_data for interface");
+					next;
+				}
+				# stats data is derived, stored by subconcept
+				my $util = $latest_ret->{derived_data}{interface};
+				if ( $util->{inputUtil} eq 'NaN' or $util->{outputUtil} eq 'NaN' )
+				{
+					NMISNG::Util::dbg("SummaryStats for interface=$index of node $S->{name} skipped because value is NaN");
 					next;
 				}
 
 				# lets make the interface metric the largest of input or output
-				my $intUtil = $util->{$index}{inputUtil};
-				if ( $intUtil < $util->{$index}{outputUtil} )
+				my $intUtil = $util->{inputUtil};
+				if ( $intUtil < $util->{outputUtil} )
 				{
-					$intUtil = $util->{$index}{outputUtil};
+					$intUtil = $util->{outputUtil};
 				}
 
 				# only add interfaces with utilisation above metric_int_utilisation_above configuration option
@@ -7107,7 +7104,7 @@ sub runReach
 					$intsummary = $intsummary + ( 100 - $intUtil );
 					++$intcount;
 					NMISNG::Util::info(
-						"Intf Summary util=$intUtil in=$util->{$index}{inputUtil} out=$util->{$index}{outputUtil} intsumm=$intsummary count=$intcount"
+						"Intf Summary util=$intUtil in=$util->{inputUtil} out=$util->{outputUtil} intsumm=$intsummary count=$intcount"
 					);
 				}
 
