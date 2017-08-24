@@ -1841,11 +1841,12 @@ sub prep_extras_with_catchalls
 				# no fallback to info section as interface update is running
 				# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
 				$data = $interface_inventory->data();
-				foreach my $key (qw(ifAlias Description ifDescr ifType))
+				foreach my $key (qw(ifAlias Description ifType))
 				{
 					$extras->{$key} ||= $interface_inventory->$key();
+					
 				}
-				$extras->{ifDescr} ||= NMISNG::Util::convertIfName( $extras->{ifDescr} );
+				$extras->{ifDescr} ||=  NMISNG::Util::convertIfName($interface_inventory->ifDescr());
 				$extras->{ifMaxOctets} ||= $interface_inventory->max_octets();
 				$extras->{maxBytes}    ||= $interface_inventory->max_bytes();
 				$extras->{maxPackets}  ||= $interface_inventory->max_packets();
