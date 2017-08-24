@@ -1205,101 +1205,101 @@ sub getSubconceptStats
 	return;
 }
 
-### 2011-12-29 keiths, added for consistent nodesummary generation
-sub getNodeSummary {
-	my %args = @_;
-	my $C = $args{C};
-	my $group = $args{group};
+# ### 2011-12-29 keiths, added for consistent nodesummary generation
+# sub getNodeSummary {
+# 	my %args = @_;
+# 	my $C = $args{C};
+# 	my $group = $args{group};
 
-	my $NT = loadLocalNodeTable();
-	my $OT = loadOutageTable();
-	my %nt;
-	my $nmisng = new_nmisng();
+# 	my $NT = loadLocalNodeTable();
+# 	my $OT = loadOutageTable();
+# 	my %nt;
+# 	my $nmisng = new_nmisng();
 
-	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
-	my $node_summary_field_list = "customer,businessService";
-	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
-		$node_summary_field_list = $C->{node_summary_field_list};
-	}
+# 	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
+# 	my $node_summary_field_list = "customer,businessService";
+# 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
+# 		$node_summary_field_list = $C->{node_summary_field_list};
+# 	}
 
-	my @node_summary_properties = split(",",$node_summary_field_list);
+# 	my @node_summary_properties = split(",",$node_summary_field_list);
 
-	foreach my $nd (keys %{$NT}) {
-		next if (!NMISNG::Util::getbool($NT->{$nd}{active}));
-		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
+# 	foreach my $nd (keys %{$NT}) {
+# 		next if (!NMISNG::Util::getbool($NT->{$nd}{active}));
+# 		next if $group ne '' and $NT->{$nd}{group} !~ /$group/;
 
-		# could use name here I guess
-		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
-		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
-		$nmisng->log->error("Failed to get catchall inventory for node:$nd, error:$error") && next
-			if(!$inventory);
+# 		# could use name here I guess
+# 		my $nmisng_node = $nmisng->node( uuid => $NT->{$nd}{uuid} );
+# 		my ($inventory,$error) = $nmisng_node->inventory( concept => 'catchall' );
+# 		$nmisng->log->error("Failed to get catchall inventory for node:$nd, error:$error") && next
+# 			if(!$inventory);
 
-		# we know the data here isn't changing so no need to use live data
-		my $catchall_data = $inventory->data();
+# 		# we know the data here isn't changing so no need to use live data
+# 		my $catchall_data = $inventory->data();
 
-		$nt{$nd}{name} = $catchall_data->{name};
-		$nt{$nd}{group} = $catchall_data->{group};
-		$nt{$nd}{collect} = $catchall_data->{collect};
-		$nt{$nd}{active} = $NT->{$nd}{active};
-		$nt{$nd}{ping} = $NT->{$nd}{ping};
-		$nt{$nd}{netType} = $catchall_data->{netType};
-		$nt{$nd}{roleType} = $catchall_data->{roleType};
-		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
-		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
-		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
-		$nt{$nd}{lastUpdateSec} = $catchall_data->{lastUpdateSec};
-		$nt{$nd}{sysName} = $catchall_data->{sysName};
-		$nt{$nd}{server} = $C->{'server_name'};
+# 		$nt{$nd}{name} = $catchall_data->{name};
+# 		$nt{$nd}{group} = $catchall_data->{group};
+# 		$nt{$nd}{collect} = $catchall_data->{collect};
+# 		$nt{$nd}{active} = $NT->{$nd}{active};
+# 		$nt{$nd}{ping} = $NT->{$nd}{ping};
+# 		$nt{$nd}{netType} = $catchall_data->{netType};
+# 		$nt{$nd}{roleType} = $catchall_data->{roleType};
+# 		$nt{$nd}{nodeType} = $catchall_data->{nodeType};
+# 		$nt{$nd}{nodeModel} = $catchall_data->{nodeModel};
+# 		$nt{$nd}{nodeVendor} = $catchall_data->{nodeVendor};
+# 		$nt{$nd}{lastUpdateSec} = $catchall_data->{lastUpdateSec};
+# 		$nt{$nd}{sysName} = $catchall_data->{sysName};
+# 		$nt{$nd}{server} = $C->{'server_name'};
 
-		foreach my $property (@node_summary_properties) {
-			$nt{$nd}{$property} = $catchall_data->{$property};
-		}
+# 		foreach my $property (@node_summary_properties) {
+# 			$nt{$nd}{$property} = $catchall_data->{$property};
+# 		}
 
-		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
-		# find out if a node down event exists, and if so store
-		# its escalate setting
-		my $curescalate = undef;
-		if (my $eventexists = eventExist($nd, "Node Down", undef))
-		{
-			my $erec = eventLoad(filename => $eventexists);
-			$curescalate = $erec->{escalate} if ($erec);
-		}
-		$nt{$nd}{escalate} = $curescalate;
+# 		$nt{$nd}{nodedown} = $catchall_data->{nodedown};
+# 		# find out if a node down event exists, and if so store
+# 		# its escalate setting
+# 		my $curescalate = undef;
+# 		if (my $eventexists = eventExist($nd, "Node Down", undef))
+# 		{
+# 			my $erec = eventLoad(filename => $eventexists);
+# 			$curescalate = $erec->{escalate} if ($erec);
+# 		}
+# 		$nt{$nd}{escalate} = $curescalate;
 
-		### adding node_status to the summary data
-		# check status from event db
-		my $nodestatus = nodeStatus(catchall_data => $catchall_data);
-		if ( not $nodestatus ) {
-			$nt{$nd}{nodestatus} = "unreachable";
-		}
-		elsif ( $nodestatus == -1 ) {
-			$nt{$nd}{nodestatus} = "degraded";
-		}
-		else {
-			$nt{$nd}{nodestatus} = "reachable";
-		}
+# 		### adding node_status to the summary data
+# 		# check status from event db
+# 		my $nodestatus = nodeStatus(catchall_data => $catchall_data);
+# 		if ( not $nodestatus ) {
+# 			$nt{$nd}{nodestatus} = "unreachable";
+# 		}
+# 		elsif ( $nodestatus == -1 ) {
+# 			$nt{$nd}{nodestatus} = "degraded";
+# 		}
+# 		else {
+# 			$nt{$nd}{nodestatus} = "reachable";
+# 		}
 
-		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
-		my $outageText;
-		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
-			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
+# 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
+# 		my $outageText;
+# 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
+# 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
 
-			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{start})
-			."<br>end=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
-		}
-		$nt{$nd}{outage} = $otgStatus;
-		$nt{$nd}{outageText} = $outageText;
+# 			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{start})
+# 			."<br>end=".NMISNG::Util::returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
+# 		}
+# 		$nt{$nd}{outage} = $otgStatus;
+# 		$nt{$nd}{outageText} = $outageText;
 
-		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
-		my $sysLocation = $catchall_data->{sysLocation};
-		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
-			# Node has sysLocation that is formatted for Geo Data
-			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
-		}
-		$nt{$nd}{sysLocation} = $sysLocation ;
-	}
-	return \%nt;
-}
+# 		# If sysLocation is formatted for GeoStyle, then remove long, lat and alt to make display tidier
+# 		my $sysLocation = $catchall_data->{sysLocation};
+# 		if (($catchall_data->{sysLocation}  =~ /$C->{sysLoc_format}/ ) and $C->{sysLoc} eq "on") {
+# 			# Node has sysLocation that is formatted for Geo Data
+# 			( my $lat, my $long, my $alt, $sysLocation) = split(',',$catchall_data->{sysLocation});
+# 		}
+# 		$nt{$nd}{sysLocation} = $sysLocation ;
+# 	}
+# 	return \%nt;
+# }
 
 ### AS 9/4/01 added getGroupSummary for doing the metric stuff centrally!
 ### AS 24/5/01 fixed so that colors show for things which aren't complete
