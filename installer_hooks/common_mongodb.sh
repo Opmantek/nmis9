@@ -78,11 +78,6 @@ EOF
 						echo "deb http://repo.mongodb.org/apt/ubuntu $MONGORELNAME/mongodb-org/$DESIREDVER multiverse" >$SOURCESFILE
 				fi
 
-				if [ -f "$SOURCESFILE" ]; then
-						logmsg "Mongodb.org sources list already present."
-						return 0;
-				fi
-
 				type wget >/dev/null 2>&1 && GIMMEKEY="wget -q -T 20 -O - https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc" || GIMMEKEY="curl -s -m 20 https://www.mongodb.org/static/pgp/server-$DESIREDVER.asc"
 				# apt-key adv doesn't work cleanly with gpg 2.1+
 				$GIMMEKEY | apt-key add -
