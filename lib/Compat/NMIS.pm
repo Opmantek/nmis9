@@ -1334,9 +1334,12 @@ sub getGroupSummary {
 	NMISNG::Util::dbg("Starting");
 	my %summaryHash = ();
 	my $nmisng = new_nmisng();
+	my $group_by = ['node_config.group'];
+	$group_by = undef if( !$group );
+	
 	my ($entries,$count,$error) = $nmisng->grouped_node_summary( 
 		filters => { 'node_config.group' => $group },
-		group_by => ['node_config.group'],
+		group_by => $group_by,
 		include_nodes => $include_nodes
 	);
 
