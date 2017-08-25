@@ -55,21 +55,25 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 
 \t$bn act=list
 \t$bn act={create|update|show} node=nodeX
-\t$bn act={export|delete} {node=nodeX|group=groupY}
+\t$bn act=export [format=nodes] [file=path] {node=nodeX|group=groupY}
+\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
+\t$bn act=delete {node=nodeX|group=groupY}
+
 \t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename old=nodeX new=nodeY [entry.A=B...]
-\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
-\t$bn act=export_bulk nodes=filepath 
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
 create: requires file=NewNodeDef.json
-export: exports to file=someFile.json (or STDOUT if no file given)
+export: exports to file=someFile (or STDOUT if no file given),
+ either json or as Nodes.nmis if format=nodes is given
+
 update: updates existing node from file=someFile.json (or STDIN)
 delete: only deletes if confirm=yes (in uppercase) is given
 
 show: prints the nodes properties in the same format as set
+ with option quoted=true, show adds double-quotes where needed
 set: adjust one or more node properties
 
 extras: deletedata=<true,false> which makes delete also
@@ -87,7 +91,7 @@ my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
 my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
 																					debug => $cmdline->{debug},
 																					info => $cmdline->{info});
-die "no config avaialble!\n" if (ref($config) ne "HASH" 
+die "no config available!\n" if (ref($config) ne "HASH" 
 																 or !keys %$config);
 
 # log to stderr if debug or info are given
@@ -105,8 +109,8 @@ my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
 # now get us an nmisng object, which has a database handle and all the goods
 my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
-# now for the real work!
-#
+
+
 # import from nodes file, overwriting existing data in the db
 if ($cmdline->{act} =~ /^import[_-]bulk$/ 
 		&& (my $nodesfile = $cmdline->{nodes}))
@@ -122,6 +126,8 @@ if ($cmdline->{act} =~ /^import[_-]bulk$/
 	# this kind of thing ALWAYS has key repeated as value 'name'
 	foreach my $onenode ( values %$node_table )
 	{
+		# note that this looks up the node by uuid, exclusively. if the nodes file has dud uuids,
+		# then existing nodes will NOT be found.
 		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}), 
 															create => 1 );
 		++$stats{ $node->is_new? "created":"updated" };
@@ -199,45 +205,30 @@ elsif ($cmdline->{act} =~ /^import[_-]bulk$/
 	$logger->info("Bulk import complete, updated overrides for $counter nodes");
 	exit 0;
 }
-
-__END__
-
-
-
-
-
-
-if ($cmdline{act} eq "list")
+elsif ($cmdline->{act} eq "list")
 {
-	# just list the nodes in existence
-	if (!%$nodeinfo)
+	# just list the nodes in existence - just their names
+	my $nodelist = $nmisng->get_node_names;
+	if (ref($nodelist) ne "ARRAY" or !@$nodelist)
 	{
-		print "No nodes exist.\n";
+		print STDERR "No nodes exist.\n"; # but not an error, so let's not die
 	}
 	else
 	{
-		print "Node Names:\n===========\n",join("\n",sort keys %{$nodeinfo}),"\n";
+		print "Node Names:\n===========\n" if (-t \*STDOUT); # if to terminal, not pipe etc.
+		print join("\n",sort @$nodelist),"\n";
 	}
 	exit 0;
 }
-elsif ($cmdline{act} eq "export")
+elsif ($cmdline->{act} eq "export")
 {
-	my ($node,$group,$file) = @args{"node","group","file"};
+	my ($node,$group,$file,$wantformat) = @{$cmdline}{"node","group","file","format"};
 
-	die "Cannot export without node or group argument!\n\n$usage\n" if (!$node and !$group);
+	# no node, no group => export all of them
 	die "File \"$file\" already exists, NOT overwriting!\n" if (defined $file && $file ne "-" && -f $file);
 
-	my ($noderec,@nodegroup);
-	if ($node)
-	{
-		$noderec = $nodeinfo->{$node};
-		die "Node $node does not exist.\n" if (!$noderec);
-	}
-	elsif ($group)
-	{
-		@nodegroup = grep ( $_->{group} eq $group, values %$nodeinfo);
-		die "Group $group does not exist or has no members.\n" if (!@nodegroup);
-	}
+	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group);
+	die "No matching nodes exist\n" if (!$nodemodel->count);
 
 	my $fh;
 	if (!$file or $file eq "-")
@@ -246,83 +237,127 @@ elsif ($cmdline{act} eq "export")
 	}
 	else
 	{
-			 open($fh,">$file") or die "cannot write to $file: $!\n";
+		open($fh,">$file") or die "cannot write to $file: $!\n";
 	}
-	# ensure that the output is indeed valid json, utf-8 encoded
-	print $fh JSON::XS->new->pretty(1)->canonical(1)->utf8->encode( $noderec||\@nodegroup);
+	# array of hashes, 1 or more
+	my $allofthem = $nodemodel->data;
+	# ...except that the _id doesn't do us any good on export
+	map { delete $_->{_id}; } (@$allofthem);
+
+	# ...and if format=nodes is requested, ditch the nodeconf overrides and dummy addresses as well
+	# nodes.nmis is a hash of nodename => FLAT record
+	if (defined($wantformat) && $wantformat eq "nodes")
+	{
+		map { delete $_->{overrides}; delete $_->{addresses}; } (@$allofthem);
+		my %compathash = map { ($_->{name} => $_) } (@$allofthem);
+
+		print $fh Data::Dumper->new([\%compathash],[qw(*hash)])->Sortkeys(1)->Dump;
+	}
+	else
+	{
+		# if just one node was wanted then we write a hash; in all other cases
+		# we write the array
+		my $which = ($node && !ref($node) && @$allofthem == 1)? $allofthem->[0] : $allofthem;
+		
+		# ensure that the output is indeed valid json, utf-8 encoded
+		print $fh JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1)->utf8->encode( $which);
+	}
 	close $fh if ($fh != \*STDOUT);
 
-	print STDERR "Successfully exported $node configuration to file $file\n" if ($fh != \*STDOUT);
+	print STDERR "Successfully exported node configuration to file $file\n" if ($fh != \*STDOUT);
 	exit 0;
 }
-elsif ($cmdline{act} eq "show")
+elsif ($cmdline->{act} eq "show")
 {
-	my $node = $cmdline{"node"};
+	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
+	my $wantquoted = NMISNG::Util::getbool($cmdline->{quoted});
 
-	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
+	die "Cannot show node without node argument!\n\n$usage\n" 
+			if (!$node && !$uuid);
 
-	my $noderec = $nodeinfo->{$node};
-	die "Node $node does not exist.\n" if (!$noderec);
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
+	die "Node $node does not exist.\n" if (!$nodeobj);
+	$node ||= $nodeobj->name;			# if  looked up via uuid
 
-	my %flatearth = flatten($noderec);
+	# we want the config AND any overrides
+	my $dumpables = $nodeobj->configuration;
+	$dumpables->{overrides} = $nodeobj->overrides;
+	
+	my ($error, %flatearth) = NMISNG::Util::flatten_dotfields($dumpables);
+	die "failed to transform output: $error\n" if ($error);
 	for my $k (sort keys %flatearth)
 	{
+		next if ($k eq "_id");			# no use in show
 		my $val = $flatearth{$k};
-		print "$k=$flatearth{$k}\n";
+		# any special-ish characters to quote?
+		print "$k=". ($wantquoted && $flatearth{$k} =~ /['"\$\s\(\)\{\}\[\]]/?
+									"\"$flatearth{$k}\"": $flatearth{$k})."\n";
 	}
 	exit 0;
 }
-elsif ($cmdline{act} eq "set")
+elsif ($cmdline->{act} eq "set")
 {
-	my $node = $cmdline{"node"};
-	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
+	my ($node, $uuid) = @{$cmdline}{"node","uuid"}; # uuid is safer
+	
+	die "Cannot set node without node argument!\n\n$usage\n" 
+			if (!$node && !$uuid);
 
-	my $noderec = $nodeinfo->{$node};
-	die "Node $node does not exist.\n" if (!$noderec);
+	my $nodeobj = $nmisng->node(uuid => $uuid, name => $node);
+	die "Node $node does not exist.\n" if (!$nodeobj);
+	$node ||= $nodeobj->name;			# if looked up via uuid
+
+	my $curconfig = $nodeobj->configuration;
+	my $curoverrides = $nodeobj->overrides;
 	my $anythingtodo;
-
-	for my $name (keys %args)
+	
+	for my $name (keys %$cmdline)
 	{
 		next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
 		++$anythingtodo;
 
-		my $value = $cmdline{$name};
+		my $value = $cmdline->{$name};
 		$name =~ s/^entry\.//;
 
-		$noderec->{$name} = $value;
-
-		my $error = translate_dotfields($noderec);
-		die "translation of arguments failed: $error\n" if ($error);
+		if ($name =~ /^overrides\.(.+)$/)
+		{
+			$curoverrides->{$1} = $value;
+		}
+		else
+		{
+			$curconfig->{$name} = $value;
+		}
 	}
+	my $error = NMISNG::Util::translate_dotfields($curconfig);
+	die "translation of config arguments failed: $error\n" if ($error);
+	$error = NMISNG::Util::translate_dotfields($curoverrides);
+	die "translation of override arguments failed: $error\n" if ($error);
+
 	die "No changes for node \"$node\"!\n" if (!$anythingtodo);
 
-	die "Invalid node data, does not have required attributes name, host and group\n"
-			if (!$noderec->{name} or !$noderec->{host} or !$noderec->{group});
-
-	die "Invalid node data, netType \"$noderec->{netType}\" is not known!\n"
-			if (!grep($noderec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));
-	die "Invalid node data, roleType \"$noderec->{roleType}\" is not known!\n"
-			if (!grep($noderec->{roleType} eq $_, split(/\s*,\s*/, $config->{roletype_list})));
-
-	# check the group
+	# check the group - only warn about
 	my @knowngroups = split(/\s*,\s*/, $config->{group_list});
-	if (!grep($_ eq $noderec->{group}, @knowngroups))
+	if (!grep($_ eq $curconfig->{group}, @knowngroups))
 	{
-		print STDERR "\nWarning: your node info sets group \"$noderec->{group}\", which does not exist!
+		print STDERR "\nWarning: your node info sets group \"$curconfig->{group}\", which does not exist!
 Please adjust group_list in your configuration,
-or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing groups.\n\n";
+or run '".$config->{'<nmis_bin>'}."/nmis-cli act=groupsync' to add all missing groups.\n\n";
 	}
 
-	# ok, looks good enough. save the node info.
-	print STDERR "Saving node $node in Nodes table\n" if ($debuglevel or $infolevel);
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
+	$nodeobj->overrides($curoverrides);
+	$nodeobj->configuration($curconfig);
+
+	(my $op, $error) = $nodeobj->save;
+	die "Failed to save $node: $error\n" if ($error);
 
 	print STDERR "Successfully updated node $node.
-You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
-
+You should run '".$config->{'<nmis_bin>'}."/poll type=update node=$node' soon.\n" 
+if (-t \*STDOUT);								# if terminal
+	
 	exit 0;
 }
+
+
+__END__
 elsif ($cmdline{act} eq "delete")
 {
 	my ($node,$group,$confirmation,$nukedata) = @args{"node","group","confirm","deletedata"};
@@ -582,116 +617,4 @@ else
 
 exit 0;
 
-# translates EXISTING deep structure into key1.key2.key3 constructs,
-# also supports key1.N.key2.M but toplevel thing must be hash.
-# args: deep hash ref
-# returns: flat hash
-sub flatten
-{
-	my ($deep, $prefix) = @_;
-	my %flattened;
 
-	if ($prefix)
-	{
-		$prefix .= ".";
-	}
-	else
-	{
-		$prefix='entry.';
-	}
-
-	if (ref($deep) eq "HASH")
-	{
-		for my $k (keys %$deep)
-		{
-			if (ref($deep->{$k}))
-			{
-				%flattened = (%flattened, flatten($deep->{$k}, "$prefix$k"));
-			}
-			else
-			{
-				$flattened{"$prefix$k"} = $deep->{$k};
-			}
-		}
-	}
-	elsif (ref($deep) eq "ARRAY")
-	{
-		for my $idx (0..$#$deep)
-		{
-			if (ref($deep->[$idx]))
-			{
-				%flattened = (%flattened, flatten($deep->[$idx], "$prefix$idx"));
-			}
-			else
-			{
-				$flattened{"$prefix$idx"} = $deep->[$idx];
-			}
-		}
-	}
-	else
-	{
-		die "invalid inputs to flatten: ".Dumper($deep)."\n";
-	}
-	return %flattened;
-}
-
-# this function translates a toplevel hash with fields in dot-notation
-# into a deep structure. this is primarily needed in deep data objects
-# handled by the crudcontroller but not necessarily just there.
-#
-# notations supported: fieldname.number for array,
-# fieldname.subfield for hash and nested combos thereof
-#
-# args: resource record ref to fix up, which will be changed inplace!
-# returns: undef if ok, error message if problems were encountered
-sub translate_dotfields
-{
-	my ($resource) = @_;
-	return "toplevel structure must be hash, not ".ref($resource) if (ref($resource) ne "HASH");
-
-	# we support hashkey1.hashkey2.hashkey3, and hashkey1.NN.hashkey2.MM
-	for my $dotkey (grep(/\./, keys %{$resource}))
-	{
-		my $target = $resource;
-		my @indir = split(/\./, $dotkey);
-		for my $idx (0..$#indir) # span the intermediate structure
-		{
-			my $thisstep = $indir[$idx];
-			# numeric? make array, textual? make hash
-			if ($thisstep =~ /^\d+$/)
-			{
-				# check that structure is ok.
-				return "data conflict with $dotkey at step $idx: need array but found ".(ref($target) || "leaf value")
-						if (ref($target) ne "ARRAY");
-				# last one? park value
-				if ($idx == $#indir)
-				{
-					$target->[$thisstep] = $resource->{$dotkey};
-				}
-				else
-				{
-					# check what the next one is and prime the obj
-					$target = $target->[$thisstep] ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
-				}
-			}
-			else											# hash
-			{
-				# check that structure is ok.
-				return "data conflict with $dotkey at step $idx: need hash but found ". (ref($target) || "leaf value")
-						if (ref($target) ne "HASH");
-				# last one? park value
-				if ($idx == $#indir)
-				{
-					$target->{$thisstep} = $resource->{$dotkey};
-				}
-				else
-				{
-					# check what the next one is and prime the obj
-					$target = $target->{$thisstep} ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
-				}
-			}
-		}
-		delete $resource->{$dotkey};
-	}
-	return undef;
-}

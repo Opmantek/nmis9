@@ -26,7 +26,8 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Utility package
+# 
+# Utility package for various reusable general-purpose functions
 package NMISNG::Util;
 our $VERSION = "9.0.0a";
 
@@ -2801,6 +2802,144 @@ sub getComponentUUID
 																						 and $C->{'uuid_namespace_name'} ne "www.domain.com" );
 
 	return create_uuid_as_string(UUID_V5, $uuid_ns, join('', $prefix, @components));
+}
+
+
+# this function translates a toplevel hash with fields in dot-notation
+# into a deep structure. this is primarily needed in deep data objects
+# handled by the crudcontroller but not necessarily just there.
+#
+# notations supported: fieldname.number for array,
+# fieldname.subfield for hash and nested combos thereof
+#
+# args: resource record ref to fix up, which will be changed inplace!
+# returns: undef if ok, error message if problems were encountered
+sub translate_dotfields
+{
+	my ($resource) = @_;
+	return "toplevel structure must be hash, not ".ref($resource) if (ref($resource) ne "HASH");
+
+	# we support hashkey1.hashkey2.hashkey3, and hashkey1.NN.hashkey2.MM
+	for my $dotkey (grep(/\./, keys %{$resource}))
+	{
+		my $target = $resource;
+		my @indir = split(/\./, $dotkey);
+		for my $idx (0..$#indir) # span the intermediate structure
+		{
+			my $thisstep = $indir[$idx];
+			# numeric? make array, textual? make hash
+			if ($thisstep =~ /^\d+$/)
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need array but found ".(ref($target) || "leaf value")
+						if (ref($target) ne "ARRAY");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					$target->[$thisstep] = $resource->{$dotkey};
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->[$thisstep] ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+			else											# hash
+			{
+				# check that structure is ok.
+				return "data conflict with $dotkey at step $idx: need hash but found ". (ref($target) || "leaf value")
+						if (ref($target) ne "HASH");
+				# last one? park value
+				if ($idx == $#indir)
+				{
+					$target->{$thisstep} = $resource->{$dotkey};
+				}
+				else
+				{
+					# check what the next one is and prime the obj
+					$target = $target->{$thisstep} ||= ($indir[$idx+1] =~ /^\d+$/? []:  {} );
+				}
+			}
+		}
+		delete $resource->{$dotkey};
+	}
+	return undef;
+}
+
+# this function flattens a toplevel hash structure into a flat hash of dotted fields
+# args: data (hashref or array ref), prefix (optional, if set each field name starts with "prefix.")
+# if data is array ref then prefix is required or you'll get ugly ".0.bla", ".1.blu" etc.
+#
+# hashes, arrays, mongodb::oids and json::xs::booleans are supported
+# oids are stringified, booleans are transformed into 1 or 0.
+#
+# returns: (undef, flattened hash) or (error message)
+sub flatten_dotfields
+{
+	my ($deep, $prefix) = @_;
+	my %flatearth;
+
+	$prefix = (defined $prefix? "$prefix." : "");
+
+	if (ref($deep) eq "HASH")
+	{
+		for my $k (keys %$deep)
+		{
+			if (ref($deep->{$k}))			# hash, array, oid or boolean
+			{
+				if (ref($deep->{$k}) eq "MongoDB::OID")
+				{
+					$flatearth{$prefix.$k} =  $deep->{$k}->value;
+				}
+				elsif (ref($deep->{$k}) eq "JSON::XS::Boolean")
+				{
+					$flatearth{$prefix.$k} = ( $deep->{$k}? 1:0);
+				}
+				else
+				{
+					my ($error, %subfields) = flatten_dotfields($deep->{$k}, $prefix.$k);
+					return $error if ($error);
+					%flatearth = (%flatearth, %subfields);
+				}
+			}
+			else
+			{
+				$flatearth{$prefix.$k} = $deep->{$k};
+			}
+		}
+	}
+	elsif (ref($deep) eq "ARRAY")
+	{
+		for my $idx (0..$#$deep)
+		{
+			if (ref($deep->[$idx])) 			# hash, array, oid or boolean
+			{
+				if (ref($deep->[$idx]) eq "MongoDB::OID")
+				{
+					$flatearth{$prefix.$idx} =  $deep->[$idx]->value;
+				}
+				elsif (ref($deep->[$idx]) eq "JSON::XS::Boolean")
+				{
+					$flatearth{$prefix.$idx} = ($deep->[$idx]? 1:0);
+				}
+				else
+				{
+					my ($error, %subfields) = flatten_dotfields($deep->[$idx], $prefix.$idx);
+					return $error if ($error);
+					%flatearth = (%flatearth, %subfields);
+				}
+			}
+			else
+			{
+				$flatearth{$prefix.$idx} = $deep->[$idx];
+			}
+		}
+	}
+	else
+	{
+		return "invalid input to flatten_dotfields: ".ref($deep);
+	}
+	return (undef, %flatearth);
 }
 
 
