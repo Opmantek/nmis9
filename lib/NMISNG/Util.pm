@@ -46,6 +46,7 @@ use Cwd qw();
 use version 0.77;
 use Carp;
 use UUID::Tiny qw(:std);				# for loadconftable, cluster_id, uuid functions
+use IO::Handle;
 
 use JSON::XS;
 use Proc::ProcessTable;
@@ -2646,8 +2647,8 @@ sub getFilePollLock {
 # checks a lock's status
 # args: type, conf, node (all required)
 #
-# returns: true iff poll lock file exists
-# and some other process is holding the lock, false otherwise
+# returns: (pid of holder or 1) iff poll lock file exists
+# and some other process is holding the lock, 0 otherwise
 sub existsPollLock
 {
 	my %args = @_;
@@ -2662,8 +2663,12 @@ sub existsPollLock
 
 	open($handle, $lockFile)
 			or warn "existsPollLock: ERROR cannot open $lockFile: $!\n";
+	# read any  pid
+	my $holder = <$handle>;
+	chomp $holder; $holder = int($holder) || 1;
+
 	# test the lock: if we cannot lock, somebody is holding it
-	return 1 if (! flock($handle, LOCK_EX|LOCK_NB));
+	return $holder if (! flock($handle, LOCK_EX|LOCK_NB));
 
 	close($handle);								# let's be polite and ditch the lock and open handle
 	return 0;
@@ -2694,6 +2699,7 @@ sub createPollLock
 
 		open($handle, ">$lockFile")  or warn "createPollLock: ERROR cannot open $lockFile: $!\n";
 		flock($handle, LOCK_EX) or warn "createPollLock: ERROR can't lock file $lockFile, $!\n";
+		$handle->autoflush;
 
 		# we ignore any problems with the perms
 		NMISNG::Util::setFileProtDiag(file => $lockFile,
@@ -2702,6 +2708,7 @@ sub createPollLock
 										permission => $C->{os_fileperm});
 
 		print $handle "$PID\n";
+
 		return($handle);
 	}
 	return undef;
