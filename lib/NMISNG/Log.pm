@@ -161,7 +161,8 @@ sub reopen
 # small package-function helper, replacement for the yucky setDebug thing
 # translates given info and/or debug arguments
 # into ONE log_level (== debug, info, warn, error, fatal, or 1..9.
-# debug is the same as 1.
+# debug is the same as 1
+# but fixme9: for compat-purposes we return 1, until everything stops comparing $C->{debug} numerically
 #
 # args: debug (optional), info (optional, ignored if debug is present)
 # debug can be any of the known log_levels, or t(rue), y(es) - both meaning debug,
@@ -178,7 +179,8 @@ sub parse_debug_level
 	{
 		if ($debug =~ /^\s*(yes|y|t|true|debug|1)\s*$/i)
 		{
-			$level = 'debug';
+			# fixme9 see compat comment above			$level = 'debug';
+			$level = 1;
 		}
 		elsif (lc($debug) eq "verbose")
 		{
