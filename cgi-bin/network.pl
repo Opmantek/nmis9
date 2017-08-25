@@ -512,7 +512,6 @@ sub selectMetrics
 
 			my @h    = qw/Metric Reachablility InterfaceAvail Health ResponseTime/;
 			my @k    = qw/metric reachable available health response/;
-			my @item = qw/status reachability intfAvail health responsetime/;
 			my $time = time;
 			my $cp;
 
