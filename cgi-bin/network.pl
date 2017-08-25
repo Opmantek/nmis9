@@ -3340,7 +3340,7 @@ sub viewStorage
 	print Tr( th( {class => 'title', colspan => '3'}, "Storage of node $catchall_data->{name}" ) );
 
 	my $ids = $S->nmisng_node->get_inventory_ids( concept => 'storage',
-																								filter => { historic => 0 } );
+																								filter => { historic => 0, enabled => 1 } );
 	foreach my $id ( @$ids )
 	{
 		my ($inventory,$error_message) = $S->nmisng_node->inventory( _id => $id );
