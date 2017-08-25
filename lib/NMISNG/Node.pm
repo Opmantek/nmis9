@@ -309,10 +309,6 @@ sub inventory
 {
 	my ( $self, %args ) = @_;
 
-	# before trying anything make sure we are ok
-	my ($valid,$invalid_message) = $self->validate();
-	return ( undef, "Node Invalid:".$invalid_message ) if ( !$valid );
-
 	my $create = $args{create};
 	delete $args{create};
 	my ( $inventory, $class ) = ( undef, undef );
@@ -391,7 +387,10 @@ sub inventory_datasets_by_subconcept
 		{ '$group' => 
 			{ '_id' => { "subconcept" => '$dataset_info.subconcept'},  # group by subconcepts
 			'datasets' => { '$addToSet' => '$dataset_info.datasets'}, # accumulate all unique datasets
-			'indexed' => { '$max' => '$data.index' } # if this != null then it's indexed
+			'indexed' => { '$max' => '$data.index' }, # if this != null then it's indexed
+			# rarely this is needed, if so it shoudl be consistent across all models
+			# cbqos so far the only place
+			'concept' => { '$first' => '$concept' } 
 		}}
   );
   my ($entries,$count,$error) = NMISNG::DB::aggregate(
