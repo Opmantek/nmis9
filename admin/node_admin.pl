@@ -28,8 +28,9 @@
 #
 # *****************************************************************************
 #
-# a command-line node administration tool for NMIS
-our $VERSION = "1.3.0";
+# a command-line node administration tool for NMIS 9
+use strict;
+our $VERSION = "9.0.0a";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -37,7 +38,6 @@ if (@ARGV == 1 && $ARGV[0] eq "--version")
 	exit 0;
 }
 
-use strict;
 use FindBin;
 use lib "$FindBin::RealBin/../lib";
 
@@ -46,9 +46,9 @@ use File::Spec;
 use Data::Dumper;
 use JSON::XS;
 
+use NMISNG;
+use NMISNG::Log;
 use NMISNG::Util;
-use Compat::NMIS;
-use Compat::UUID;
 
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
@@ -59,6 +59,8 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=set node=nodeX entry.X=Y...
 \t$bn act=mktemplate [placeholder=1/0]
 \t$bn act=rename old=nodeX new=nodeY [entry.A=B...]
+\t$bn act=import_bulk {nodes=filepath|nodeconf=dirpath}
+\t$bn act=export_bulk nodes=filepath 
 
 mktemplate: prints blank template for node creation,
  optionally with __REPLACE_XX__ placeholder
@@ -71,32 +73,141 @@ show: prints the nodes properties in the same format as set
 set: adjust one or more node properties
 
 extras: deletedata=<true,false> which makes delete also
-delete all RRD files for the node. default is false.
+delete inventory data and RRD files for a node. default is true.
 
-extras: conf=<configname> to use different configuration
 extras: debug={1..9,verbose} sets debugging verbosity
 extras: info=1 sets general verbosity
 \n\n";
 
-die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^--?[h?]/));
-my %args = NMISNG::Util::getArguements(@ARGV);
+die $usage if (!@ARGV or ( @ARGV == 1 and $ARGV[0] =~ /^-(h|\?|-help)$/ ));
+my $cmdline = NMISNG::Util::get_args_multi(@ARGV);
 
-my $debuglevel = NMISNG::Util::setDebug($args{debug});
-my $infolevel = NMISNG::Util::setDebug($args{info});
-my $confname = $args{conf} || "Config";
+# first we need a config object
+my $customconfdir = $cmdline->{dir}? $cmdline->{dir}."/conf" : undef;
+my $config = NMISNG::Util::loadConfTable( dir => $customconfdir,
+																					debug => $cmdline->{debug},
+																					info => $cmdline->{info});
+die "no config avaialble!\n" if (ref($config) ne "HASH" 
+																 or !keys %$config);
 
-# get us a common config first
-my $config = NMISNG::Util::loadConfTable(conf=>$confname,
-													 dir=>"$FindBin::RealBin/../conf",
-													 debug => $debuglevel);
-die "could not load configuration $confname!\n"
-		if (!$config or !keys %$config);
+# log to stderr if debug or info are given
+my $logfile = $config->{'<nmis_logs>'} . "/cli.log"; # shared by nmis-cli and this one
+my $error = NMISNG::Util::setFileProtDiag(file => $logfile) if (-f $logfile);
+warn "failed to set permissions: $error\n" if ($error);
 
-print STDERR "Reading Nodes table\n" if ($debuglevel or $infolevel);
-my $nodeinfo = Compat::NMIS::loadLocalNodeTable();
+# use debug, or info arg, or configured log_level
+my $logger = NMISNG::Log->new( level => NMISNG::Log::parse_debug_level(
+																 debug => $cmdline->{debug},
+																 info => $cmdline->{info}) // $config->{log_level},
+															 path  => (defined($cmdline->{debug}) 
+																				 || defined($cmdline->{info})? undef : $logfile));
+
+# now get us an nmisng object, which has a database handle and all the goods
+my $nmisng = NMISNG->new(config => $config, log  => $logger);
 
 # now for the real work!
-if ($args{act} eq "list")
+#
+# import from nodes file, overwriting existing data in the db
+if ($cmdline->{act} =~ /^import[_-]bulk$/ 
+		&& (my $nodesfile = $cmdline->{nodes}))
+{
+	die "invalid nodes file $nodesfile argument!\n" if (!-f $nodesfile);
+	
+	$logger->info("Starting bulk import of nodes");
+	my $node_table = NMISNG::Util::readFiletoHash(file => $nodesfile);
+	die "nodes file contains no data!\n" 
+			if (ref($node_table) ne "HASH" or !keys %$node_table);
+
+	my %stats = (created => 0, updated => 0);
+	# this kind of thing ALWAYS has key repeated as value 'name'
+	foreach my $onenode ( values %$node_table )
+	{
+		my $node = $nmisng->node( uuid => $onenode->{uuid} || NMISNG::Util::getUUID($onenode->{name}), 
+															create => 1 );
+		++$stats{ $node->is_new? "created":"updated" };
+		$logger->debug(($node->is_new? "creating": "updating")." node $onenode->{name}");
+		
+		# any node on this system must have this system's cluster_id.
+		$onenode->{cluster_id} = $config->{cluster_id};
+
+		# and OVERWRITE the configuration
+		my $curconfig = $node->configuration; # mostly empty when new
+		for my $copyable (grep($_ ne "_id", keys %$onenode)) # must not trash that attrib
+		{
+			$curconfig->{$copyable} = $onenode->{$copyable};
+		}
+		$node->configuration($curconfig);
+
+		# and save
+		my ($op,$error) = $node->save();
+		if($error)
+		{
+			$logger->error("Error saving node ".$node->name.": $error");
+		}
+		else
+		{
+			$logger->debug( $node->name." saved to database, op: $op" );
+		}
+	}
+	$logger->info("Bulk import complete, newly created $stats{created}, updated $stats{updated} nodes");
+	exit 0;
+}
+elsif ($cmdline->{act} =~ /^import[_-]bulk$/ 
+			 && (my $nodeconfdir = $cmdline->{nodeconf}))
+{
+	die "invalid nodeconf directory $nodeconfdir!\n" if (!-d $nodeconfdir);
+
+	$logger->info( "Starting bulk import of node-conf overrides");
+
+	opendir( D, $nodeconfdir ) or die "Cannot open nodeconf dir $nodeconfdir: $!\n";
+	my @cands = grep( /^[a-z0-9_-]+\.json$/, readdir(D) );
+	closedir(D);
+
+	die "No nodeconfig data in $nodeconfdir!\n" if (!@cands);
+
+	my $counter = 0;
+	for my $maybe (@cands)
+	{
+		my $data = NMISNG::Util::readFiletoHash( file => "$nodeconfdir/$maybe", json => 1 );
+		if ( ref($data) ne "HASH" or !keys %$data or !$data->{name} )
+		{
+			$logger->error("nodeconf $nodeconfdir/$maybe had invalid data! Skipping.");
+			next;
+		}
+
+		# get the node, don't create it, it must exist already
+		my $node_name = $data->{name};
+		my $node = $nmisng->node( name => $node_name );
+		if ( !$node )
+		{
+			$logger->error("cannot import nodeconf for $data->{name} because node does not exist! Skipping.");
+			next;
+		}
+
+		++$counter;
+
+		# don't bother saving the name in it
+		delete $data->{name};
+		$node->overrides($data);
+		
+		my ($op,$error) = $node->save();
+		$logger->error("Error saving node: ",$error) if($error);
+
+		$logger->debug( "imported nodeconf for $node_name, overrides saved to database, op: $op" );
+	}
+
+	$logger->info("Bulk import complete, updated overrides for $counter nodes");
+	exit 0;
+}
+
+__END__
+
+
+
+
+
+
+if ($cmdline{act} eq "list")
 {
 	# just list the nodes in existence
 	if (!%$nodeinfo)
@@ -109,7 +220,7 @@ if ($args{act} eq "list")
 	}
 	exit 0;
 }
-elsif ($args{act} eq "export")
+elsif ($cmdline{act} eq "export")
 {
 	my ($node,$group,$file) = @args{"node","group","file"};
 
@@ -144,9 +255,9 @@ elsif ($args{act} eq "export")
 	print STDERR "Successfully exported $node configuration to file $file\n" if ($fh != \*STDOUT);
 	exit 0;
 }
-elsif ($args{act} eq "show")
+elsif ($cmdline{act} eq "show")
 {
-	my $node = $args{"node"};
+	my $node = $cmdline{"node"};
 
 	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
 
@@ -161,9 +272,9 @@ elsif ($args{act} eq "show")
 	}
 	exit 0;
 }
-elsif ($args{act} eq "set")
+elsif ($cmdline{act} eq "set")
 {
-	my $node = $args{"node"};
+	my $node = $cmdline{"node"};
 	die "Cannot show node without node argument!\n\n$usage\n" if (!$node);
 
 	my $noderec = $nodeinfo->{$node};
@@ -175,7 +286,7 @@ elsif ($args{act} eq "set")
 		next if ($name !~ /^entry\./); # we want only entry.thingy, so that act= and debug= don't interfere
 		++$anythingtodo;
 
-		my $value = $args{$name};
+		my $value = $cmdline{$name};
 		$name =~ s/^entry\.//;
 
 		$noderec->{$name} = $value;
@@ -212,7 +323,7 @@ You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon
 
 	exit 0;
 }
-elsif ($args{act} eq "delete")
+elsif ($cmdline{act} eq "delete")
 {
 	my ($node,$group,$confirmation,$nukedata) = @args{"node","group","confirm","deletedata"};
 
@@ -301,7 +412,7 @@ elsif ($args{act} eq "delete")
 	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 	exit 0;
 }
-elsif ($args{act} eq "rename")
+elsif ($cmdline{act} eq "rename")
 {
 	my ($old, $new) = @args{"old","new"};
 
@@ -310,7 +421,7 @@ elsif ($args{act} eq "rename")
 																				originator => "node_admin",
 																				info => $infolevel, debug => $debuglevel);
 	die "$msg\n" if ($error);
-	print STDERR "Successfully renamed node $args{old} to $args{new}.\n";
+	print STDERR "Successfully renamed node $cmdline{old} to $cmdline{new}.\n";
 
 	# any property setting operations requested?
 	if (my @todo =  grep(/^entry\..+/, keys %args))
@@ -320,7 +431,7 @@ elsif ($args{act} eq "rename")
 
 		for my $name (@todo)
 		{
-			my $value = $args{$name};
+			my $value = $cmdline{$name};
 			$name =~ s/^entry\.//;
 
 			$noderec->{$name} = $value;
@@ -333,10 +444,10 @@ elsif ($args{act} eq "rename")
 	}
 	exit 0;
 }
-elsif ($args{act} eq "mktemplate")
+elsif ($cmdline{act} eq "mktemplate")
 {
 	# default: no placeholder
-	my $wantblank = !$args{placeholder};
+	my $wantblank = !$cmdline{placeholder};
 
 	my @nodecomments = ( "Please see https://community.opmantek.com/display/NMIS/Home for further descriptions of the properties!", undef,
 											 "name is essential and sets the node's name",
@@ -377,7 +488,7 @@ elsif ($args{act} eq "mktemplate")
 
 	exit 0;
 }
-elsif ($args{act} =~ /^(create|update)$/)
+elsif ($cmdline{act} =~ /^(create|update)$/)
 {
 	my ($node,$file) = @args{"node","file"};
 
@@ -388,8 +499,8 @@ elsif ($args{act} =~ /^(create|update)$/)
 			if ($node =~ /[^a-zA-Z0-9_-]/);
 
 	my $noderec = $nodeinfo->{$node};
-	die "Node $node does not exist.\n" if (!$noderec && $args{act} eq "update");
-	die "Node $node already exist.\n" if ($noderec && $args{act} eq "create");
+	die "Node $node does not exist.\n" if (!$noderec && $cmdline{act} eq "update");
+	die "Node $node already exist.\n" if ($noderec && $cmdline{act} eq "create");
 
 	print STDERR "Reading node configuration data for $node\n" if ($debuglevel or $infolevel);
 	# suck in the data
@@ -444,7 +555,7 @@ Use act=rename for renaming nodes.\n"
 	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 
 	# nix any pending events
-	if ($args{act} eq "update")
+	if ($cmdline{act} eq "update")
 	{
 		print STDERR "Removing events for node $node\n" if ($debuglevel or $infolevel);
 		Compat::NMIS::cleanEvent($node,"node-admin");
@@ -459,7 +570,7 @@ Please adjust group_list in your configuration,
 or run '".$config->{'<nmis_bin>'}."/nmis.pl type=groupsync' to add all missing groups.\n\n";
 	}
 
-	print STDERR "Successfully $args{act}d node $node.
+	print STDERR "Successfully $cmdline{act}d node $node.
 You should run '".$config->{'<nmis_bin>'}."/nmis.pl type=update node=$node' soon.\n";
 	exit 0;
 }

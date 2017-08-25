@@ -19,8 +19,8 @@ nodes could be imported into NMIS 9 at this time.
 
 EOF
 		if input_ok "OK to import NMIS8 nodes now?"; then
-				execPrint $TARGETDIR/bin/nmis-cli act=import-nodes-file nodesfile=$NMISDIR/conf/Nodes.nmis
-				[ -d "$NMISDIR/conf/nodeconf" ] && execPrint $TARGETDIR/bin/nmis-cli act=import-nodeconf nodeconf=$NMISDIR/conf/nodeconf
+				execPrint $TARGETDIR/admin/node_admin.pl act=import_bulk nodes=$NMISDIR/conf/Nodes.nmis info=true
+				[ -d "$NMISDIR/conf/nodeconf" ] && execPrint $TARGETDIR/admin/node_admin.pl  act=import_bulk nodeconf=$NMISDIR/conf/nodeconf info=true
 		else
 				echolog "Not importing NMIS8 nodes as directed."
 		fi
