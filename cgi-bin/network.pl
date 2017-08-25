@@ -3575,9 +3575,9 @@ sub viewServiceList
 		my $banner = "Running services on node $catchall_data->{name}";
 
 		my $res = $processinventory->get_newest_timed_data();
-		if ($res->{success} && $res->{data})
+		if ($res->{success} && ref($res->{data}) eq "HASH")
 		{
-			$processlist = $res->{data};
+			$processlist = $res->{data}->{snmp_services};
 			$banner .= " (at ". NMISNG::Util::returnDateStamp($res->{time}).")";
 
 			print Tr( th( {class => 'title', colspan => '7'}, $banner ) );
