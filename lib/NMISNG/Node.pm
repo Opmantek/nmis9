@@ -311,7 +311,7 @@ sub inventory
 
 	# before trying anything make sure we are ok
 	my ($valid,$invalid_message) = $self->validate();
-	return ( undef, "Node Invalid:".$invalid_message ) if ( !$valid );
+	return ( undef, "Node Invalid: ".$invalid_message ) if ( $valid <= 0 );
 
 	my $create = $args{create};
 	delete $args{create};
@@ -543,7 +543,7 @@ sub save
 	return ( 0,  undef )          if ( !$self->_dirty() );
 
 	my ( $valid, $validation_error ) = $self->validate();
-	return ( $valid, $validation_error ) if ( $valid < 1 );
+	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
 	my $result;
 	my $op;
@@ -591,22 +591,32 @@ sub nmisng
 	return $self->{_nmisng};
 }
 
-# get the nodes id (which is it's UUID)
+# get the nodes id (which is its UUID)
 sub uuid
 {
 	my ($self) = @_;
 	return $self->{uuid};
 }
 
-# returns 0/1 if the node is valid
+# returns (1,nothing) if the node configuration is valid,
+# (negative or 0, explanation) otherwise
 sub validate
 {
 	my ($self) = @_;
 	my $configuration = $self->configuration();
 
-	return (-1, "node requires name") if ( !$configuration->{name} );
 	return (-2, "node requires cluster_id") if ( !$configuration->{cluster_id} );
-	return (1,undef);
+	for my $musthave (qw(name host group))
+	{
+		return (-1, "node requires $musthave property") if (!$configuration->{$musthave} ); # empty or zero is not ok
+	}
+	return (-3, "given netType is not a known type")
+			if (!grep($configuration->{netType} eq $_, 
+								split(/\s*,\s*/, $self->nmisng->config->{nettype_list})));
+	return (-3, "given roleType is not a known type")
+			if (!grep($configuration->{roleType} eq $_, 
+								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
+		return (1,undef);
 }
 
 1;

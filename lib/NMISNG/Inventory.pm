@@ -978,7 +978,7 @@ sub path
 	return $path;
 }
 
-# save the inventory obj in the database, if this thing thinks it's new do an upsert 
+# save the inventory obj in the database, if this thing thinks it's new do an upsert
 #  using the path to make sure we don't create duplicates, this will clobber whatever
 #  is in the db if it does update instead of insert (but will grab that thigns id as well)
 #
@@ -993,7 +993,7 @@ sub save
 	my $lastupdate = $args{lastupdate} // time;
 
 	my ( $valid, $validation_error ) = $self->validate();
-	return ( $valid, $validation_error ) if ( !$valid );
+	return ( $valid, $validation_error ) if ( $valid <= 0 );
 
 	my ( $result, $op );
 
@@ -1063,14 +1063,14 @@ sub save
 			query      => $q,
 			record     => $record,
 			upsert     => 1,
-			multiple   => 0	
-		);		
+			multiple   => 0
+		);
 		if( $result->{success} && $result->{upserted_id} )
 		{
 			# _id is set on insert, grab it so we know we're not new
 			$self->{_id} = $result->{upserted_id};
 			$op = 1;
-		}	
+		}
 		elsif( $result->{success} )
 		{
 			# we updated when tryin to insert which means we thought we were new but were not, we need to grab our id
@@ -1130,7 +1130,8 @@ sub save
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
 
-# returns 0/1 if the node is valid
+# returns (positive, nothing) if the inventory is valid,
+# (negative or zero, error message) if it's no good
 sub validate
 {
 	my ($self)  = @_;
