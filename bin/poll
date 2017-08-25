@@ -9551,6 +9551,13 @@ sub doThresholdsAndCreateStatus
 				# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
 				# or not, this will run them all
 				my $inventory_model = $S->nmisng_node->get_inventory_model(filter => { subconcepts => $type, enabled => 1, historic => 0 });
+
+				# cbqos stores subconcepts for classes, searching for subconcept here can't work, have to use concept
+				if( $type =~ /cbqos/ )
+				{
+					$inventory_model = $S->nmisng_node->get_inventory_model(concept => $type, filter => { enabled => 1, historic => 0 });
+				}
+
 				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
 				# turn the 'models' into objects so that parseString can use it if required
 				NMISNG::Inventory::instantiate( nmisng => $S->nmisng_node->nmisng, modeldata => $inventory_model );
@@ -9577,29 +9584,6 @@ sub doThresholdsAndCreateStatus
 						index   => $index,
 						inventory => $inventory
 					);
-					# item    => $data->{ClassMap}{$class}{Name},
-						# class   => $class
-						# TODO: CBQOS
-						# this autovivifies but it does not matter
-						# elsif ( $type =~ /cbqos/ and $data->{threshold} eq 'true')
-						# {
-						# 	my ( $cbqos, $direction ) = split( /\-/, $type );
-						# 	my $inventory = $S->inventory( concept => "cbqos-$direction", index => $index );
-						# 	$data = $inventory->data();
-						# 	NMISNG::Util::dbg("CBQOS cbqos=$cbqos direction=$direction index=$index");
-						# 	foreach my $class ( keys %{$data->{ClassMap}} )
-						# 	{
-						# 		NMISNG::Util::dbg("  CBQOS class=$class $data->{ClassMap}{$class}{Name}");
-						# 		applyThresholdToInventory(
-						# 			sys     => $S,
-						# 			table   => $sts,
-						# 			type    => $type,
-						# 			thrname => [$thrname],
-						# 			index   => $index,
-						# 			item    => $data->{ClassMap}{$class}{Name},
-						# 			class   => $class
-						# 		);
-						# 	}
 				}
 			}
 		}
@@ -9723,6 +9707,7 @@ sub getThresholdPeriod
 # table (required hashref but may be empty),
 # type is subconcept
 # returns: nothing but raises/clears events (via thresholdProcess) and updates table
+#  formerly runThrhld
 sub applyThresholdToInventory
 {
 	my %args = @_;
@@ -9741,7 +9726,7 @@ sub applyThresholdToInventory
 	my $element;
 	die "cannot applyThresholdToInventory on something with no inventory, subconcept:$type,index:$index" if(!$inventory);
 
-	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type item=$item");
+	NMISNG::Util::dbg("WORKING ON Threshold for thrname=".join(",",@$thrname)." type=$type index=$index item=$item, inventory_id:".$inventory->id);
 
 	my $data = $inventory->data();
 
@@ -9758,6 +9743,7 @@ sub applyThresholdToInventory
 		if( $latest_data_ret->{success} )
 		{
 			$stats = $latest_data_ret->{derived_data}{$type};
+			NMISNG::Util::dbg("Using stats from newest timed data for subconcept=$type", 2);
 		}
 		else
 		{
@@ -9927,8 +9913,7 @@ sub getThresholdLevel
 	my $reset = 0;
 
 	# item is the attribute name of summary stats of Model
-	$value = $stats->{$M->{threshold}{name}{$thrname}{item}}         if $index eq "";
-	$value = $stats->{$index}{$M->{threshold}{name}{$thrname}{item}} if $index ne "";
+	$value = $stats->{$M->{threshold}{name}{$thrname}{item}};
 	NMISNG::Util::dbg("threshold=$thrname, item=$M->{threshold}{name}{$thrname}{item}, value=$value");
 
 	# check unknow value
@@ -10079,6 +10064,10 @@ sub thresholdProcess
 			value    => $args{value},
 			updated  => time()
 		};
+	}
+	else
+	{
+		NMISNG::Util::dbg("Skipped $args{thrname}, $args{event}, $args{level}, $args{element}, value=$args{value}, bad value",2);
 	}
 }
 
