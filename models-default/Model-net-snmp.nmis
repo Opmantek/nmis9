@@ -472,7 +472,49 @@
         'threshold' => 'hrdisk',
       },
     },
-  },  
+  },
+  'hrmem' => {
+    'rrd' => {
+      'hrmem' => {
+        'graphtype' => 'hrmem',
+      },
+    },
+  },
+  'hrbufmem' => {
+    'rrd' => {
+      'hrbufmem' => {
+        'graphtype' => 'hrbufmem',
+      },
+    },
+  },
+  'hrcachemem' => {
+    'rrd' => {
+      'hrcachemem' => {
+        'graphtype' => 'hrcachemem',
+      },
+    },
+  },
+  'hrsmpcpu' => {
+    'rrd' => {
+      'hrsmpcpu' => {
+        'graphtype' => 'hrsmpcpu',
+      },
+    },
+  },
+  'hrswapmem' => {
+    'rrd' => {
+      'hrswapmem' => {
+        'graphtype' => 'hrswapmem',
+      },
+    },
+  },
+  'hrvmem' => {
+    'rrd' => {
+      'hrvmem' => {
+        'graphtype' => 'hrvmem',
+      },
+    },
+  },
   'device' => {
     'sys' => {
       'cpu' => {
