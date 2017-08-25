@@ -9218,7 +9218,8 @@ sub runDaemons
 			chomp($alreadyrunning);
 
 			undef $alreadyrunning if (!$alreadyrunning # nothing there
-																or !kill(0, $alreadyrunning)); # or not alive
+																# or not alive - note that kill-testing misfires if you're not privileged
+																or ($< == 0 && !kill(0, $alreadyrunning))); 
 		}
 
 		if (!$alreadyrunning)
