@@ -497,7 +497,7 @@ my %hash = (
 		'purge_state_after' => 30*86400,	 # unused nmis state files
 		'purge_event_after' => 30*86400,	 # historic, closed events
 		'purge_jsonlog_after' => 30*86400, # json log files
-		'purge_timeddata_after' => 7*86400,		 # timed data (automatic expiration)
+		'purge_timeddata_after' => 86400,		 # timed data (automatic expiration)
 		'purge_inventory_after' => 14*86400,		 # unused/historic inventory data (automatic expiration)
 	},
 );
