@@ -3045,16 +3045,26 @@ sub loadServiceStatus
 	push @selectors, ("data.service" => $wantservice ) if ($wantservice);
 
 
-	# first find all inventory instances that match,
-	# then get the newest timed data for them
-	my $modeldata = $nmisng->get_inventory_model(@selectors);
-	return %result if (!$modeldata->count);
-
-	my $error = NMISNG::Inventory::instantiate(nmisng => $nmisng, modeldata => $modeldata);
-	die "failed to instantiate inventory objects: $error\n" if ($error);
-
+	# first find all inventory instances that match, as objects please,
+	# then get the newest timed data for them 
+	my $result = $nmisng->get_inventory_model(@selectors, 
+																						class_name => NMISNG::Inventory::get_inventory_model("service"));
+	if (!$result->{success})
+	{
+		$nmisng->log->error("failed to retrieve service inventory: $result->{error}");
+		die "failed to retrieve service inventory: $result->{error}\n";
+	}
+	return %result if (!$result->{model_data}->count);
+	
+	my $objectresult = $result->{model_data}->objects; # we need objects
+	if (!$objectresult->{success})
+	{
+		$nmisng->log->error("object access failed: $objectresult->{error}");
+		die "object access failed: $objectresult->{error}\n";
+	}
+	
 	my %nodeobjs;
-	for my $maybe (@{$modeldata->data})
+	for my $maybe (@{$objectresult->{objects}})
 	{
 		# we need to check each node for being disabled if only_known is set
 		# reason: historic isn't set on service inventories if the node is disabled

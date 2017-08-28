@@ -453,8 +453,14 @@ sub runThreads
 		# unfortunately we require each candidate node's nodeinfo/catchall data to make the
 		# candidate-or-not decision...
 		#	fixme9 should we add the node uuid as filter?
-		my $accessor = $nmisng->get_inventory_model(concept => "catchall",
-																								cluster_id => $C->{cluster_id});
+		my $result = $nmisng->get_inventory_model(concept => "catchall",
+																							cluster_id => $C->{cluster_id});
+		if (!$result->{success})
+		{
+			$nmisng->log->fatal("Failed to load catchall inventory: $result->{error}");
+			die "Failed to load catchall inventory: $result->{error}\n";
+		}
+		my $accessor = $result->{model_data};		
 		# node information, by node uuid
 		my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
 
@@ -955,8 +961,10 @@ sub doUpdate
 	# create the update lock now.
 	my $lockHandle = NMISNG::Util::createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
-	# now check for collect jobs; if one is running we shoot it
-	if (my $conflict = NMISNG::Util::existsPollLock(type => "collect", conf => $C->{conf}, node => $name))
+	# now check for collect jobs; if one is running we shoot it - but not ourselves!
+	my $conflict = NMISNG::Util::existsPollLock(type => "collect", 
+																							conf => $C->{conf}, node => $name);
+	if (defined($conflict) && $conflict != $$)
 	{
 		NMISNG::Util::logMsg("WARNING collect lock for $node interferes with update. Killing process $conflict.");
 		if ($conflict > 1)						# nope, not init
@@ -1255,7 +1263,7 @@ sub doCollect
 	# an error when we're polling frequently!
 	if ( NMISNG::Util::existsPollLock( type => "update", conf => $C->{conf}, node => $name ) )
 	{
-		NMISNG::Util::logMsg("INFO skipping collect for node $node because of active update lock");
+		NMISNG::Util::logMsg("INFO skipping collect for node $name because of active update lock");
 		return;
 	}
 	if ( NMISNG::Util::existsPollLock( type => "collect", conf => $C->{conf}, node => $name ) )
@@ -1301,7 +1309,7 @@ sub doCollect
 	# run an update INSTEAD if no update poll time is known
 	if ( !exists( $catchall_data->{last_update} ) or !$catchall_data->{last_update} )
 	{
-		NMISNG::Util::logMsg("'last update' time not known for $node, switching to update operation instead");
+		NMISNG::Util::logMsg("'last update' time not known for $name, switching to update operation instead");
 		doUpdate( name => $name );
 		return; # a full collect needs to wait until the next cycle, OR we need to reset the catchall data
 		# otherwise the live sys object belonging to collect will have a stale cached catchall
@@ -1331,7 +1339,7 @@ sub doCollect
 		# failed already?
 		if ( $S->status->{snmp_error} )
 		{
-			NMISNG::Util::logMsg( "ERROR SNMP session open to $node failed: " . $S->status->{snmp_error} );
+			NMISNG::Util::logMsg( "ERROR SNMP session open to $name failed: " . $S->status->{snmp_error} );
 			$S->disable_source("snmp");
 		}
 
@@ -4115,7 +4123,7 @@ sub getIntfData
 	$RI->{intfUp} = $RI->{intfColUp} = 0;    # reset counters of interface Up and interface collected Up
 
 	# find all id's that are needed for the first section of searching
-	my $model_data = $nmisng_node->get_inventory_model(
+	my $result = $nmisng_node->get_inventory_model(
 		'concept' => 'interface',
 		fields_hash => {
 			'_id' => 1,
@@ -4126,10 +4134,13 @@ sub getIntfData
 			'data.ifLastChange' => 1,
 			'enabled' => 1,
 			'historic' => 1
-		}
-	);
-
-	my $data = $model_data->data();
+		} );
+	if (!$result->{success})
+	{
+		$nmisng->log->error("get inventory model failed: $result->{error}");
+		return undef;
+	}
+	my $data = $result->{model_data}->data();
 	# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 	my %if_data_map = map
 		{
@@ -4741,7 +4752,7 @@ sub getCBQoSwalk
 		my $nmisng = $S->nmisng;
 		my $nmisng_node = $S->nmisng_node;
 
-		my $model_data = $nmisng_node->get_inventory_model(
+		my $result = $nmisng_node->get_inventory_model(
 			'concept' => 'interface',
 			fields_hash => {
 				'_id' => 1,
@@ -4757,9 +4768,14 @@ sub getCBQoSwalk
 				'historic' => 1
 			}
 				);
-
+		if (!$result->{success})
+		{
+			$nmisng->log->error("get inventory model failed: $result->{error}");
+			next;
+		}
+	
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
-		my $data = $model_data->data();
+		my $data = $result->{model_data}->data();
 		my %if_data_map = map
 			{
 				$_->{data}{_id} = $_->{_id};
@@ -5749,20 +5765,25 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 	# find and mark as historic any services no longer configured for this host
 	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
 
-	my $modeldata = $nmisng_node->get_inventory_model(concept => "service",
-																							filter => { historic => 0 },
-																							fields_hash => { "data.service" => 1,
-																															 _id => 1, });
-	my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$modeldata->data});
-	for my $maybedead (keys %oldservice)
+	
+	my $result = $nmisng_node->get_inventory_model(concept => "service",
+																								 filter => { historic => 0 },
+																								 fields_hash => { "data.service" => 1,
+																																	_id => 1, });
+	# fixme: better error handling 
+	if ($result->{success} && $result->{model_data}->count)
 	{
-		next if ($desiredservices{$maybedead});
-		NMISNG::Util::dbg("marking as historic inventory record for service $maybedead");
-		my ( $invobj, $error) = $nmisng_node->inventory(_id => $oldservice{$maybedead});
-		die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
-		$invobj->historic(1);
-		$error = $invobj->save();
-		NMISNG::Util::logMsg("ERROR failed to save historic inventory object for service $maybedead: $error") if ($error);
+		my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$result->{model_data}->data});
+		for my $maybedead (keys %oldservice)
+		{
+			next if ($desiredservices{$maybedead});
+			NMISNG::Util::dbg("marking as historic inventory record for service $maybedead");
+			my ( $invobj, $error) = $nmisng_node->inventory(_id => $oldservice{$maybedead});
+			die "cannot instantiate inventory object: $error\n" if ($error or !ref($invobj));
+			$invobj->historic(1);
+			$error = $invobj->save();
+			NMISNG::Util::logMsg("ERROR failed to save historic inventory object for service $maybedead: $error") if ($error);
+		}
 	}
 
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
@@ -9550,23 +9571,39 @@ sub doThresholdsAndCreateStatus
 
 				# find all instances of this subconcept and try and run thresholding for them, doesn't matter if indexed
 				# or not, this will run them all
-				my $inventory_model = $S->nmisng_node->get_inventory_model(filter => { subconcepts => $type, enabled => 1, historic => 0 });
-
 				# cbqos stores subconcepts for classes, searching for subconcept here can't work, have to use concept
-				if( $type =~ /cbqos/ )
-				{
-					$inventory_model = $S->nmisng_node->get_inventory_model(concept => $type, filter => { enabled => 1, historic => 0 });
-				}
+				my %callargs = ($type =~ /cbqos/)? (concept => $type, filter => { enabled => 1, historic => 0 })
+						: (filter => { subconcepts => $type, enabled => 1, historic => 0 });
 
+				# pass the modeldata object enough info to figure out what object to instantiate
+				$callargs{nmisng} = $nmisng;
+				$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
+				my $result = $S->nmisng_node->get_inventory_model(%callargs);
+				
+				if (!$result->{success})
+				{
+					$nmisng->log->error("get inventory model failed: $result->{error}");
+					return undef;
+				}
+				my $inventory_model = $result->{model_data};
+						 
 				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
+
 				# turn the 'models' into objects so that parseString can use it if required
-				NMISNG::Inventory::instantiate( nmisng => $S->nmisng_node->nmisng, modeldata => $inventory_model );
-				foreach my $inventory (@{$inventory_model->data})
+				my $objectresult = $inventory_model->objects;
+				if (!$objectresult->{success})
+				{
+					$nmisng->log->error("object access failed: $objectresult->{error}");
+					return undef;
+				}
+				# these are now objects
+				foreach my $inventory (@{$objectresult->{objects}})
 				{
 					my $data = $inventory->data;
 					my $index = $data->{index} // undef;
 
-					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, eval => 1, inventory => $inventory ) )
+					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, 
+																						 eval => 1, inventory => $inventory ) )
 					{
 						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
 						next;

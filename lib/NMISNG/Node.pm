@@ -226,11 +226,33 @@ sub configuration
 	return Clone::clone( $self->{_configuration} );
 }
 
-# remove this node from the db
+# remove this node from the db and clean up all leftovers: 
+# node configuration, inventories, timed data,
+# -node and -view files.
+# args: keep_rrd (default false)
+# returns (success, message) or (0, error) 
 sub delete
 {
-	my ($self) = @_;
+	my ($self,%args) = @_;
 
+	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
+
+	return (1, "Node already deleted") if ($self->{_deleted});
+	return (0, "Node has never been saved, nothing to delete") if ($self->is_new);
+
+	# first, get all the inventory objects for this node
+	# second, extract all rrd names from those inventories and remove the files
+	# third, delete all timed data for each of the inventory ids
+	# fourth, delete the inventories themselves
+	# fifth, remove the node and info files
+	# sixth, remove the node record
+
+	# get everything, historic or not
+#fixmecontinue 	my $invmodel = $self->get_inventory_model();
+	
+	
+		 
+	
 	if ( !$self->is_new && !$self->{_deleted} && $self->{_id} )
 	{
 		my $result = NMISNG::DB::remove(
@@ -252,7 +274,7 @@ sub delete
 # useful for iterating through all inventory
 # filters/arguments:
 #  cluster_id,node_uuid,concept
-# needs to always return array ref, not sure if it currently does
+# returns: array ref (may be empty)
 sub get_inventory_ids
 {
 	my ( $self, %args ) = @_;
@@ -260,22 +282,29 @@ sub get_inventory_ids
 	# what happens when an error happens here?
 	$args{fields_hash} = {'_id' => 1};
 
-	my $model_data = $self->get_inventory_model(%args);
-
-	my $data = $model_data->data();
-	my @ids = map { $_->{_id}{value} } @$data;
-	return \@ids;
+	my $result = $self->get_inventory_model(%args);
+	# fixme: add better error handling
+	if ($result->{success} && $result->{model_data}->count)
+	{
+		return [ map { $_->{_id}->{value} } (@{$result->{model_data}->data()}) ];
+	}
+	else
+	{
+		return [];
+	}
 }
 
+# wrapper around the global inventory model accessor
+# which adds in the  current node's uuid and cluster id
+# returns: hash ref with success, error, model_data
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
 	$args{cluster_id} = $self->cluster_id;
 	$args{node_uuid}  = $self->uuid();
 
-	my $model_data = $self->nmisng->get_inventory_model(%args);
-
-	return $model_data;
+	my $result = $self->nmisng->get_inventory_model(%args);
+	return $result;
 }
 
 # find all unique values for key from collection and filter provided
@@ -324,23 +353,22 @@ sub inventory
 	# it sucks hard coding this to 1, please find a better way
 	$path->[1] = $self->uuid;
 
-	# what happens when an error happens here?
-	my $model_data = $self->nmisng->get_inventory_model(%args);
+	# tell get_inventory_model enough to instantiate object later
+	my $result = $self->nmisng->get_inventory_model(
+		class_name => { "concept" => \&NMISNG::Inventory::get_inventory_class },
+		%args);
+	return (undef, "failed to get inventory: $result->{error}")
+			if (!$result->{success} && !$create);
+	
+	my $model_data = $result->{model_data};
 	if ( $model_data->count() > 0 )
 	{
 		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
-			if($model_data->count() > 1);
-		my $model = $model_data->data()->[0];
-		$class = NMISNG::Inventory::get_inventory_class( $model->{concept} );
+				if($model_data->count() > 1);
 
-		# use the model as arguments because everything is in the right place
-		$model->{nmisng} = $self->nmisng;
-
-		# some Inventory classes require extra params, assume they have been passed in and need to go to new
-		map { $model->{$_} = $args{$_} if ( !defined( $model->{$_} ) ) } keys %args;
-
-		Module::Load::load $class;
-		$inventory = $class->new(%$model);
+		# instantiate as object, please
+		(my $error, $inventory) = $model_data->object(0);
+		return (undef, "instantiation failed: $error") if ($error);
 	}
 	elsif ($create)
 	{
@@ -352,7 +380,6 @@ sub inventory
 		$args{nmisng} = $self->nmisng;
 		Module::Load::load $class;
 		$inventory = $class->new(%args);
-
 	}
 
 	return ( $inventory, undef );

@@ -222,8 +222,11 @@ sub get_inventory_available_concepts
 #. or _id, overriding all of the above
 #
 #. filter - hashref, will be added to the query
-#.   [fields_hash] - which fields should be returned, if not provided the whole record is returned
-# returns: model_data object
+#.   [fields_hash] - which fields should be returned, if not provided the 
+#    whole record is returned
+#.   sort/skip/limit - adjusts the query
+#
+# returns: hash ref with success, error, model_data object
 sub get_inventory_model
 {
 	my ( $self, %args ) = @_;
@@ -232,14 +235,6 @@ sub get_inventory_model
 
 	my $q = $self->get_inventory_model_query( %args );
 
-	my $model_data = [];
-	if ( $args{paginate} )
-	{
-		# fudge up a dummy result to make it reflect the total number
-		my $count = NMISNG::DB::count( collection => $self->_inventory_collection, query => $q );
-		$model_data->[$count - 1] = {} if ($count);
-	}
-	# print "get_inventory_model: q:".Dumper($q);
 	my $entries = NMISNG::DB::find(
 		collection => $self->inventory_collection,
 		query      => $q,
@@ -247,16 +242,20 @@ sub get_inventory_model
 		limit      => $args{limit},
 		skip       => $args{skip},
 		fields_hash => $args{fields_hash},
-	);
+			);
+	return { error => "find failed: ".NMISNG::DB::get_error_string } if (!defined $entries);
 
-	my $index = 0;
+	my @all;
 	while ( my $entry = $entries->next )
 	{
-		$model_data->[$index++] = $entry;
+		push @all, $entry;
 	}
 
-	my $model_data_object = NMISNG::ModelData->new( model_name => "inventory", data => $model_data );
-	return $model_data_object;
+	# create modeldata object with instantiation info from caller
+	my $model_data_object = NMISNG::ModelData->new( nmisng => $self,
+																									class_name => $args{class_name},
+																									data => \@all );
+	return { success => 1, error => undef, model_data => $model_data_object };
 }
 
 # this does not need to be a member function, could be 'static'
@@ -346,7 +345,9 @@ sub get_nodes_model
 		$model_data->[$index++] = $entry;
 	}
 
-	my $model_data_object = NMISNG::ModelData->new( model_name => "nodes", data => $model_data );
+	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node", 
+																									nmisng => $self,
+																									data => $model_data );
 	return $model_data_object;
 }
 
@@ -373,8 +374,9 @@ sub get_node_uuids
 #  optional historic and enabled (for filtering),
 #  OR inventory_id (which overrules all of the above)
 #  time, (for timed-data selection)
-#  sort/skip/limit/paginate - FIXME sorts/skip/limit not supported if the selection spans more than one concept!
-# returns: modeldata object or undef if error
+#  sort/skip/limit - FIXME sorts/skip/limit not supported if the selection spans more than one concept!
+# returns: modeldata object or undef if error (and error is logged)
+# fixme: better error reporting would be good
 sub get_timed_data_model
 {
 	my ($self, %args) = @_;
@@ -402,9 +404,15 @@ sub get_timed_data_model
 			$selectionargs{filter}->{$maybe} = $args{$maybe} if (exists $args{$maybe});
 		}
 		$selectionargs{fields_hash} = { _id => 1, concept => 1 }; # don't need anything else
-		my $lotsamaybes = $self->get_inventory_model(%selectionargs);
-
+		my $result = $self->get_inventory_model(%selectionargs);
+		if (!$result->{success})
+		{
+			$self->log->error("get inventory model failed: $result->{error}");
+			return undef;
+		}
+		my $lotsamaybes = $result->{model_data};
 		return undef if (!$lotsamaybes or !$lotsamaybes->count); # fixme: nosuch inventory should count as an error or not?
+		
 		for my $oneinv (@{$lotsamaybes->data})
 		{
 			$concept2cand{$oneinv->{concept}} ||= [];
@@ -426,9 +434,9 @@ sub get_timed_data_model
 		}
 	}
 
-	# more than one concept and thus collection? cannot sort/skip/limit/paginate
+	# more than one concept and thus collection? cannot sort/skip/limit
 	# fixme: must report this as error, or at least ditch those args,
-	# or possibly do sort+limit per concept and ditch skip and paginate?
+	# or possibly do sort+limit per concept and ditch skip?
 
 	my @rawtimedata;
 	# now figure out the appropriate collection for each of the concepts,
@@ -450,7 +458,9 @@ sub get_timed_data_model
 			push @rawtimedata, $tdata;
 		}
 	}
-	return NMISNG::ModelData->new(model_name => "timed_data", data => \@rawtimedata);
+
+	# no object instantiation expected or possible for timed data
+	return NMISNG::ModelData->new(data => \@rawtimedata);
 }
 
 # find all unique values for key from collection and filter provided

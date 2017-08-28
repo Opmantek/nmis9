@@ -358,17 +358,23 @@ sub displayIPSLAmenu {
 	}
 
 	# create source address list of probe node
-	if ( $pnode ) {
+	if ( $pnode ) 
+	{
 		my $S = NMISNG::Sys->new; # get system object
 		$S->init(name=>$pnode,snmp=>'false'); # load node info and Model if name exists
-		my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-
-		for my $oneif (sort { $a->{data}->{index} <=> $b->{data}->{index} } @{$interfaces->data})
+		
+		my $result = $S->nmisng_node->get_inventory_model( 
+			concept => 'interface', filter => { historic => 0 });
+		if($result->{success})
 		{
-			if ($oneif->{data}->{ifAdminStatus} eq "up" 
-					and $oneif->{data}->{ipAdEntAddr1} ne "" ) 
+			for my $oneif (sort { $a->{data}->{index} <=> $b->{data}->{index} } 
+										 @{$result->{model_data}->data})
 			{
-				push (@saddr, $oneif->{data}->{ipAdEntAddr1});
+				if ($oneif->{data}->{ifAdminStatus} eq "up" 
+						and $oneif->{data}->{ipAdEntAddr1} ne "" ) 
+				{
+					push (@saddr, $oneif->{data}->{ipAdEntAddr1});
+				}
 			}
 		}
 	}

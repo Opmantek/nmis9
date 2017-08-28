@@ -48,11 +48,18 @@ sub update_plugin
 	# for linkage lookup this needs the entitymib inventory as well, but
 	# a non-object r/o copy of just the data (no meta) is enough
 	# but it's likely  that an individual lookup, on-demand and later would be faster?
-	my $emibmodeldata = $S->nmisng_node->get_inventory_model(
+	my $result = $S->nmisng_node->get_inventory_model(
 		concept => "entityMib",
 		filter => { historic => 0 });
+	
+	if (!$result->{success})
+	{
+		$NG->log->error("Failed to get inventory: $result->{error}");
+		return(0,undef);
+	}
+	
 	my %emibdata =  map { ($_->{data}->{index} => $_->{data}) }
-	(@{$emibmodeldata->data});
+	(@{$result->{model_data}->data});
 	
 	return (0,undef) if (!keys %emibdata);
 	my $changesweremade = 0;

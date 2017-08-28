@@ -105,6 +105,7 @@ sub compat_nodeinfo
 }
 
 # deprecated, deliberately noisy, provides RO access to interface list
+# fixme: no error handling
 sub ifinfo
 {
 	my ($self) = @_;
@@ -112,9 +113,14 @@ sub ifinfo
 	Carp::cluck("sys::ifinfo function is deprecated!\n");
 	return {} if (!$self->nmisng_node);
 
-	my $model_data = $self->nmisng_node->get_inventory_model(concept => "interface",
-																													 filter => { historic => 0 });
-	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$model_data->data});
+	my $result = $self->nmisng_node->get_inventory_model(concept => "interface",
+																											 filter => { historic => 0 });
+	if (!$result->{success})
+	{
+		$self->nmisng->log->error("get inventory model failed: $result->{error}");
+		return {};
+	}
+	my %ifdata = map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
 	return \%ifdata;
 }
 
@@ -621,9 +627,13 @@ sub ifDescrInfo
 	}
 	else
 	{
-		my $model_data = $self->nmisng_node->get_inventory_model( concept => 'interface' );
-		my $data = $model_data->data();
-		foreach my $model ( @$data )
+		my $result = $self->nmisng_node->get_inventory_model( concept => 'interface' );
+		if (!$result->{success})
+		{
+			$self->nmisng->log->error("get inventory model failed: $result->{error}");
+			return {};
+		}
+		foreach my $model (@{$result->{model_data}->data})
 		{
 			my $thisentry = $model->{data};
 			my $ifDescr   = $thisentry->{ifDescr};
@@ -2011,13 +2021,18 @@ sub getTypeInstances
 		my $fields_hash = ($want_modeldata) ? undef :  { "data.index" => 1, "data.service" => 1 };
 
 		# in case of indexed, return the index; for service return the service name
-		$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
-																											 node_uuid => $self->nmisng_node->uuid,
-																											 concept => $section,
-																											 fields_hash => $fields_hash );
-		if ($modeldata->count && !$want_modeldata)
+		my $result = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																										node_uuid => $self->nmisng_node->uuid,
+																										concept => $section,
+																										fields_hash => $fields_hash );
+		# fixme: better error handling would be nice
+		if (!$result->{success})
 		{
-			for my $entry (@{$modeldata->data})
+			$self->nmisng->log->error("get inventory model failed: $result->{error}");
+		}
+		elsif ($result->{model_data}->count && !$want_modeldata)
+		{
+			for my $entry (@{$result->{model_data}->data})
 			{
 				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 			}
@@ -2065,6 +2080,7 @@ sub getTypeInstances
 				&& (($section eq $concept) || ($section eq $graphtype)))
 		{
 			NMISNG::Util::dbg("covered section $section, not looking up graphtype $graphtype",2);
+			# modeldata is just a container here, no object instantiation expected or possible
 			return $want_modeldata? ($modeldata || NMISNG::ModelData->new(data => \@instances)) : @instances;
 		}
 
@@ -2081,20 +2097,26 @@ sub getTypeInstances
 				$filter->{enabled} = 1;
 				$filter->{historic} = 0;
 			}
-			$modeldata = $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
-																											node_uuid => $self->nmisng_node->uuid,
-																											concept => $concept,
-																											filter => $filter,
-																											fields_hash => $fields_hash );
-			if ($modeldata->count && !$want_modeldata)
+			my $result =  $self->nmisng->get_inventory_model(cluster_id => $self->nmisng_node->cluster_id,
+																											 node_uuid => $self->nmisng_node->uuid,
+																											 concept => $concept,
+																											 filter => $filter,
+																											 fields_hash => $fields_hash );
+			# fixme: better error handling would be nice
+			if (!$result->{success})
 			{
-				for my $entry (@{$modeldata->data})
+				$self->nmisng->log->error("get inventory model failed: $result->{error}");
+			}
+			elsif ($result->{model_data}->count && !$want_modeldata)
+			{
+				for my $entry (@{$result->{model_data}->data})
 				{
 					push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 				}
 			}
 		}
 	}
+	# modeldata is just a container here, no object instantiation expected or possible
 	return ($want_modeldata) ? ($modeldata || NMISNG::ModelData->new()) : @instances;
 }
 

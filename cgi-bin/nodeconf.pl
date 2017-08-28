@@ -180,8 +180,9 @@ sub displayNodeConf
 	}
 	
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-	
+	my $result = $S->nmisng_node->get_inventory_model( 
+		concept => 'interface', filter => { historic => 0 });
+		
 	# get any existing nodeconf overrides for this node
 	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)
 			if (Compat::NMIS::has_nodeconf(node => $node));
@@ -256,12 +257,13 @@ sub displayNodeConf
 	# label for the 'desired state' column
 	my %rglabels = ('unchanged' => 'unchanged', 'false' => 'false', 'true' => 'true');
 
+	# result is from interface inventory lookup
 	if ( NMISNG::Util::getbool($catchall_data->{collect})
-			 && $interfaces->count )
+			 && $result->{success} && $result->{model_data}->count )
 	{
 		print Tr,td({class=>'header'},'<b>Interfaces</b>');
 
-		my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$interfaces->data});
+		my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->{model_data}->data});
 
 		foreach my $intf (NMISNG::Util::sorthash( \%ifinfo, ['ifDescr'], 'fwd'))
 		{
@@ -419,9 +421,14 @@ sub updateNodeConf {
 	}
 		
 	my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-	my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', 
-																												 filter => { historic => 0 });
-	my %ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$interfaces->data});
+	my %ifinfo;
+	my $result = $S->nmisng_node->get_inventory_model( 
+		concept => 'interface', 
+		filter => { historic => 0 });
+	if ($result->{success})
+	{
+		%ifinfo = map { ($_->{data}->{index} => $_->{data} )} (@{$result->{model_data}->data});
+	}
 
 	# get the current nodeconf overrides
 	my ($errmsg, $override) = Compat::NMIS::get_nodeconf(node => $node)

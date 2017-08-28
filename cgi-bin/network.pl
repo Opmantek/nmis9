@@ -1591,17 +1591,21 @@ sub viewPollingSummary
 				++$sum->{$item}->{  $LNT->{$node}->{$item} };
 			}
 
-			my $interfaces = $S->nmisng_node->get_inventory_model(
+			my $result = $S->nmisng_node->get_inventory_model(
 				concept => 'interface', filter => { historic => 0 });
-			for my $oneif (@{$interfaces->data})
+			if ($result->{success})
 			{
-				my $ifentry = $oneif->{data}; # oneif is a full inventory object, data area contains old-style info
-
-				++$sum->{count}{interface};
-				++$sum->{ifType}->{ $ifentry->{ifType} };
-				if ( NMISNG::Util::getbool( $ifentry->{collect} ) )
+				for my $oneif (@{$result->{model_data}->data})
 				{
-					++$sum->{count}{interface_collect};
+					my $ifentry = $oneif->{data}; # oneif is an inventory datastructure (but not object)
+					# data area contains old-style info
+					
+					++$sum->{count}{interface};
+					++$sum->{ifType}->{ $ifentry->{ifType} };
+					if ( NMISNG::Util::getbool( $ifentry->{collect} ) )
+					{
+						++$sum->{count}{interface_collect};
+					}
 				}
 			}
 
@@ -1609,23 +1613,23 @@ sub viewPollingSummary
 			my @cbqosdb = qw(cbqos-in cbqos-out);
 			foreach my $cbqos (@cbqosdb)
 			{
-				my $qosinventory = $S->nmisng_node->get_inventory_model(
+				my $result = $S->nmisng_node->get_inventory_model(
 					concept => $cbqos,
 					filter => { historic => 0 });
-				if ($qosinventory->count)
+				if ($result->{success} && $result->{model_data}->count)
 				{
 					++$sum->{count}{$cbqos};
 
-					foreach my $oneclass (@{$qosinventory->data})
+					foreach my $oneclass (@{$result->{model_data}->data})
 					{
 						++$sum->{$cbqos}->{interface};
 						# we want the number  of classes == same as number of subconcepts
-
+						
 						$sum->{$cbqos}->{classes} += scalar(@{$oneclass->{subconcepts}});
 					}
 				}
 			}
-
+			
 			if ( NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 			{
 				++$sum->{count}{collect};
@@ -3708,6 +3712,7 @@ sub viewCpuList
 
 	# instead of using this hammer we'll fall back to using getTypeInstances
 	# something like getTypeInstances that returns _id's or even inventory objects would be nicer
+	# fixme9: should use get_inventory_model and then objects() to instantiate
 
 	# my $modeldata = $S->nmisng->get_inventory_model(cluster_id => $S->nmisng_node->cluster_id,
 	# 																										 node_uuid => $S->nmisng_node->uuid,
@@ -4314,14 +4319,15 @@ sub viewTop10
 
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
-			my $smellslikerouter = $S->nmisng_node->get_inventory_model(
+			my $result = $S->nmisng_node->get_inventory_model(
 				concept=> "catchall",
 				filter => {
 					historic => 0,
 					subconcepts => "nodehealth",
 					"dataset_info.datasets" => "avgBusy5" } );
-
-			if ($smellslikerouter->count and NMISNG::Util::getbool( $catchall_data->{collect} ))
+			if ($result->{success} 
+					&& $result->{model_data}->count
+					&& NMISNG::Util::getbool( $catchall_data->{collect} ))
 			{
 				%cpuTable = (
 					%cpuTable,
@@ -4336,35 +4342,38 @@ sub viewTop10
 				);
 			}
 
-			my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-
-			foreach my $entry ( @{$interfaces->data})
+			my $intfresult = $S->nmisng_node->get_inventory_model( concept => 'interface', 
+																												 filter => { historic => 0 });
+			if ($intfresult->{success})
 			{
-				my $thisintf = $entry->{data};
-
-				if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
+				foreach my $entry ( @{$intfresult->{model_data}->data})
 				{
-					# availability, inputUtil, outputUtil, totalUtil
-					my $intf = $thisintf->{ifIndex}; # === index
-
-					# Availability, inputBits, outputBits
-					my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
-						index => $intf );
-					foreach my $k ( keys %{$hash->{$intf}} )
+					my $thisintf = $entry->{data};
+					
+					if ( NMISNG::Util::getbool( $thisintf->{collect} ) )
 					{
-						$linkTable{$intf}{$k} = $hash->{$intf}{$k};
-						$linkTable{$intf}{$k} =~ s/NaN/0/;
-						$linkTable{$intf}{$k} ||= 0;
-					}
-					$linkTable{$intf}{node}        = $reportnode;
-					$linkTable{$intf}{intf}        = $intf;
-					$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
-					$linkTable{$intf}{Description} = $thisintf->{Description};
+						# availability, inputUtil, outputUtil, totalUtil
+						my $intf = $thisintf->{ifIndex}; # === index
+						
+						# Availability, inputBits, outputBits
+						my $hash = Compat::NMIS::getSummaryStats( sys => $S, type => "interface", start => $start, end => $end,
+																											index => $intf );
+						foreach my $k ( keys %{$hash->{$intf}} )
+						{
+							$linkTable{$intf}{$k} = $hash->{$intf}{$k};
+							$linkTable{$intf}{$k} =~ s/NaN/0/;
+							$linkTable{$intf}{$k} ||= 0;
+						}
+						$linkTable{$intf}{node}        = $reportnode;
+						$linkTable{$intf}{intf}        = $intf;
+						$linkTable{$intf}{ifDescr}     = $thisintf->{ifDescr};
+						$linkTable{$intf}{Description} = $thisintf->{Description};
 
-					$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+						$linkTable{$intf}{totalBits} = ( $linkTable{$intf}{inputBits} + $linkTable{$intf}{outputBits} ) / 2;
+					}
 				}
 			}
-		}    # end $reportnode loop
+		}
 	}
 
 	foreach my $k ( keys %cpuTable )
@@ -4623,23 +4632,27 @@ sub nodeAdminSummary
 			{
 				my $intCollect = 0;
 				my $intCount   = 0;
-				my $S          = NMISNG::Sys->new;    # get system object
-				$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
-
-				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
-				my $interfaces = $S->nmisng_node->get_inventory_model( concept => 'interface', filter => { historic => 0 });
-
 				my $exception = 0;
 				my @issueList;
 
+				my $S          = NMISNG::Sys->new;    # get system object
+				$S->init( name => $node, snmp => 'false' );    # load node info and Model if name exists
+				
+
+				my $catchall_data = $S->inventory( concept => 'catchall' )->data();
+				my $result = $S->nmisng_node->get_inventory_model( concept => 'interface', 
+																													 filter => { historic => 0 });
 				# Is the node active and are we doing stats on it.
 				if ( NMISNG::Util::getbool( $LNT->{$node}{active} )
 						 and NMISNG::Util::getbool( $LNT->{$node}{collect} ) )
 				{
-					for my $entry (@{$interfaces->data})
+					if ($result->{success})
 					{
-						++$intCount;
-						++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
+						for my $entry (@{$result->{model_data}->data})
+						{
+							++$intCount;
+							++$intCollect if (NMISNG::Util::getbool($entry->{data}->{collect}));
+						}
 					}
 				}
 

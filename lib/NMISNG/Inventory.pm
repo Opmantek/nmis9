@@ -69,36 +69,6 @@ sub get_inventory_class
 	return $class;
 }
 
-# small helper that massages a modeldata object's members into instantiated inventory objects
-# note: this is a generic class function, not object method!
-# args: nmisng, modeldata (must be modeldata object and members will be modified!), both required
-# returns: error message or undef
-#
-# please note that this requires the modeldata members to be fully populated,
-# i.e. they must not be filtered with fields_hash or the object instantiation will make a mess or fail.
-sub instantiate
-{
-	my (%args) = @_;
-	my ( $nmisng, $modeldata ) = @args{"nmisng", "modeldata"};
-	return "invalid input, nmnisng  argument missing!" if ( ref($nmisng) ne "NMISNG" );
-	return "invalid input, not modeldata object!"      if ( ref($modeldata) ne "NMISNG::ModelData" );
-
-	my @objects;
-	for my $entry ( @{$modeldata->data} )
-	{
-		# what kind of object is that supposed to be?
-		my $class = get_inventory_class( $entry->{concept} );
-		Module::Load::load($class);
-
-		# and now instantiate the object from whatever we were given
-		my $object = $class->new( nmisng => $nmisng, %{$entry} );
-		return "failed to instantiate object!" if ( !$object );
-		push @objects, $object;
-	}
-	$modeldata->data( \@objects );
-	return undef;
-}
-
 # compute path from data and selection args.
 # note: this is a generic class function, not object method!
 #
@@ -912,7 +882,9 @@ sub reload
 
 	if ( !$self->is_new )
 	{
-		my $modeldata = $self->nmisng->get_inventory_model( _id => $self->id );
+		my $result = $self->nmisng->get_inventory_model( _id => $self->id );
+		return "get inventory model failed: $result->{error}" if (!$result->{success});
+		my $modeldata = $result->{model_data};
 		return "no inventory object with id " . $self->id . " in database!" if ( !$modeldata->count );
 		my $newme = $modeldata->data()->[0];
 

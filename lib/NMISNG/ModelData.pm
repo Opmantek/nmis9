@@ -27,50 +27,177 @@
 #
 # *****************************************************************************
 
-# Generic class to hold modeldata, which is an array of hashes
+# Generic class to hold modeldata (which is an array of hashes), 
+# but with optional object instantiation and access
 package NMISNG::ModelData;
 use strict;
 
 our $VERSION = "1.0.0";
 
+use Scalar::Util;       # for weaken
 use Data::Dumper;
+use Module::Load;       # for getting subclasses in instantiate
 
+# accepts data, class_name, nmisng, all optional
+# data must be array ref if given
+# class_name and nmisng are required if you want to use object(s) accessors
+# class_name can be either a string (for homogenous modeldata) or
+# a hashref of (attribute name => function ref) 
+# which will be called with the given attribute value as sole argument
 sub new
 {
-	my ( $class, %args ) = @_;
+	my ($class, %args) = @_;
 
-	die "Data must be array if defined" if ( $args{data} && ref( $args{data} ) ne "ARRAY" );
-	my $self = bless(
-		{   _model_name => $args{model_name} // undef,
-			_data      => $args{data}      // undef
-		},
-		$class
-	);
+	die "Data must be array\n" 
+			if (defined($args{data}) && ref($args{data}) ne "ARRAY" );
+
+	my $self = bless({
+		_class_name => undef,
+		_resolver => undef,
+		_attribute_name => undef,
+		_nmisng => $args{nmisng},
+		_data => $args{data},
+									 }, $class );
+	
+	my $maybestatic = $args{class_name};
+	if (ref($maybestatic) eq "HASH")
+	{
+		($self->{_attribute_name},$self->{_resolver}) = each(%$maybestatic);
+		die "Invalid class_name argument, resolver not a function\n" 
+				if (ref($self->{_resolver}) ne "CODE");
+	}
+	elsif (!ref($maybestatic))
+	{
+		$self->{_class_name} = $maybestatic;
+	}
+	else
+	{
+		die "Invalid class_name argument, neither static nor attribute/resolver!\n";
+	}
+	
+	# keeping a copy of nmisng which could go away means it needs weakening
+	Scalar::Util::weaken $self->{_nmisng} if (ref($self->{_nmisng}) 
+																						&& !Scalar::Util::isweak($self->{_nmisng}));
 	return $self;
 }
 
+# a setter-getter for the data array
+# returns the live data
+#
+# args: new data array ref
+# returns: data array ref (post update!) or dies on error
 sub data
 {
 	my ( $self, $newvalue ) = @_;
-	if ( defined($newvalue) )
+	if ( ref($newvalue) eq "ARRAY" )
 	{
 		$self->{_data} = $newvalue;
+	}
+	elsif (defined $newvalue)
+	{
+		die "Data must be array!\n";
 	}
 	return $self->{_data};
 }
 
-# readonly - returns number of entries in modeldata
+# readonly - returns number of entries in data or zero if no data
 sub count
 {
 	my ($self) = @_;
-	my $count  = 0;
-	my $data   = $self->data();
 
-	if ( ref($data) eq 'ARRAY' )
+	return (ref($self->{_data}) eq 'ARRAY')? scalar(@{$self->{_data}}) : 0;
+}
+
+# returns a list of instantiated objects for the current data
+# args: none
+# returns: hashref, contains success, error, objects (list ref, may be empty)
+sub objects
+{
+	my ($self) = @_;
+
+	# nothing to do is NOT an error
+	return { success => 1, objects => [] } 
+	if (ref($self->{_data}) ne "ARRAY" or !@{$self->{_data}});
+	# but not knowing what objects to make is
+	return { error => "Missing class_name or nmisng, cannot instantiate objects!" } 
+	if ((!$self->{_class_name} and !$self->{_attribute_name})
+			or ref($self->{_nmisng}) ne "NMISNG");
+
+	# how do we find out the class name? either static or via resolver function
+	Module::Load::load($self->{_class_name}) 	if ($self->{_class_name});
+
+	my @objects;
+	for my $raw (@{$self->{_data}})
 	{
-		$count = scalar(@$data);
+		my $classname = $self->{_class_name};
+		# the dynamic case with resolver function
+		if (!$classname)
+		{
+			my $function = $self->{_resolver};
+			$classname = &$function($raw->{$self->{_attribute_name}});
+			if (!$classname)
+			{
+				$self->{_nmisng}->log->error("modeldata instantiate failed: no classname, data ".
+																		 Data::Dumper->new([$raw])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+				return  { error => "modeldata instantiate failed: no classname!" };
+			}
+			Module::Load::load($classname);
+		}
+		
+		my $thing = $classname->new(nmisng => $self->{_nmisng}, %$raw);
+		if ( !$thing )
+		{
+			$self->{_nmisng}->log->error("modeldata instantiate failed, type $self->{_class_name}, data ".
+																	 Data::Dumper->new([$raw])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+			return { error => "failed to instantiate object of type $self->{_class_name}!"  };
+		}
+		push @objects, $thing;
 	}
-	return $count;
+
+	return { success => 1, objects => \@objects };
+}
+
+# returns the Nth data entry instantiated as an object
+# args: n
+# returns: (undef, object ref) or (error message)
+sub object
+{
+	my ($self, $nth) = @_;
+
+	return "Missing nth argument!" if (!defined $nth);
+	return "Missing class_name or nmisng, cannot instantiate objects!"
+			if ((!$self->{_class_name} and !$self->{_resolver}) 
+					or ref($self->{_nmisng}) ne "NMISNG");
+	
+	return "nth argument outside of limits!"
+			if (ref($self->{_data}) ne "ARRAY"
+					or !exists $self->{_data}->[$nth]);
+	
+	my $raw = $self->{_data}->[$nth];
+
+	# how do we find out the class name? either static or via resolver function
+	my $classname = $self->{_class_name};
+	if (!$classname)
+	{
+		my $function = $self->{_resolver};
+		$classname = &$function($raw->{$self->{_attribute_name}});
+		if (!$classname)
+		{
+			$self->{_nmisng}->log->error("modeldata instantiate failed: no classname, data ".
+																	 Data::Dumper->new([$raw])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+			return "modeldata instantiate failed: no classname!";
+		}
+	}
+	Module::Load::load($classname);
+	my $thing = $classname->new(nmisng => $self->{_nmisng}, %{$raw});
+	if (!$thing)
+	{
+		$self->{_nmisng}->log->error("modeldata instantiate failed, type $self->{_class_name}, data ".
+																	 Data::Dumper->new([$raw])->Terse(1)->Indent(0)->Pair(": ")->Dump);
+		return "Failed to instantiate object of type $self->{_class_name}!";
+	}
+
+	return (undef, $thing);
 }
 
 1;
