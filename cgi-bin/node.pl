@@ -318,6 +318,9 @@ sub typeGraph {
 	}
 	print comment("typeGraph begin");
 
+	# fixme9: we have enough data to not need getTypeInstances anymore, should be able to
+	# directly access inventory
+	
 	# section needed to find cbqos instances
 	my $modeldata = $S->getTypeInstances(section => $section, 
 																			 graphtype => $graphtype, 
