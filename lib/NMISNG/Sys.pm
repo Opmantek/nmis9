@@ -2037,6 +2037,10 @@ sub getTypeInstances
 				push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 			}
 		}
+		else
+		{
+			$modeldata = $result->{model_data};
+		}
 	}
 
 	# if a graphtype is given, infer the concept from that via graphtype2subconcept,
@@ -2113,6 +2117,10 @@ sub getTypeInstances
 				{
 					push @instances, $entry->{data}->{index} // $entry->{data}->{service};
 				}
+			}
+			else
+			{
+				$modeldata = $result->{model_data};
 			}
 		}
 	}
