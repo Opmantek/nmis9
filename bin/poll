@@ -5866,9 +5866,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		my $gotMemCpu = 0;
 		my (%Val, %status);
 
+		# log that we're checking (or why not)
 		NMISNG::Util::info(
-			"Checking service_type=$servicetype name=$name service_name=$servicename"
-		);
+			($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
+			: "Checking service_type=$servicetype name=$name service_name=$servicename" );
 
 		# clear global hash each time around as this is used to pass results to rrd update
 		my $ret      = 0;
@@ -5965,12 +5966,12 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 		}
 
 		# now the snmp services - but only if snmp is on
+		# only do the SNMP checking if and when you are supposed to!
+		# snmp not allowed also includes the case of snmp having failed just now
 		elsif ( $servicetype eq "service"
-			and NMISNG::Util::getbool( $NT->{$node}{collect} ) )
+						and NMISNG::Util::getbool($NT->{$node}{collect}) )
 		{
-			# only do the SNMP checking if and when you are supposed to!
-			# snmp not allowed also includes the case of snmp having failed just now
-			next if ( !$snmp_allowed );
+			next if (!$snmp_allowed);
 
 			NMISNG::Util::dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$catchall_data->{snmpdown} nodedown=$catchall_data->{nodedown}"
 			);
@@ -6020,7 +6021,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 						. " total and "
 						. scalar(@livingpids)
 						. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
-						. join( " ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids) ) );
+						. join( " ", @livingpids) );
 
 				if ( !@livingpids )
 				{
