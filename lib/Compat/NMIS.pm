@@ -3048,7 +3048,7 @@ sub loadServiceStatus
 	# first find all inventory instances that match, as objects please,
 	# then get the newest timed data for them 
 	my $result = $nmisng->get_inventory_model(@selectors, 
-																						class_name => NMISNG::Inventory::get_inventory_model("service"));
+																						class_name => NMISNG::Inventory::get_inventory_class("service"));
 	if (!$result->{success})
 	{
 		$nmisng->log->error("failed to retrieve service inventory: $result->{error}");
