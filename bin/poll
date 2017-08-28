@@ -5112,6 +5112,7 @@ sub getCBQoSwalk
 
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
+					$inventory->description("$if_data->{ifDescr} - CBQoS $direction");
 					$inventory->data($data);
 					$inventory->historic(0);
 					$inventory->enabled(1);
