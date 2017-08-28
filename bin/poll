@@ -2931,13 +2931,13 @@ sub getIntfInfo
 			{
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
 					concept   => 'interface',
-					data      => $target,
 					path      => $path,
 					create    => 1
 				);
 				$S->nmisng->log->error("Failed to create interface inventory, error:$error_message") && next if ( !$inventory );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
+				$inventory->data( $target );
 				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
@@ -3389,7 +3389,6 @@ sub getSystemHealthInfo
 					my $path = $nmisng_node->inventory_path( concept => $section, data => $target, path_keys => $path_keys );
 					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => $section,
-						data      => $target,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
@@ -3397,6 +3396,7 @@ sub getSystemHealthInfo
 					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
+					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -3509,7 +3509,6 @@ sub getSystemHealthInfo
 					# NOTE: systemHealth requires {index} => $index to be set, it
 					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => $section,
-						data      => $target,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
@@ -3517,6 +3516,7 @@ sub getSystemHealthInfo
 					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
+					$inventory->data($target);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5103,18 +5103,16 @@ sub getCBQoSwalk
 				{
 					my ( $inventory, $error_message ) = $nmisng_node->inventory(
 						concept   => "cbqos-$direction",
-						data      => $data,
 						path      => $path,
 						path_keys => $path_keys,
 						create    => 1
-							);
+					);
 
 					$nmisng->log->error("Failed to create inventory, error:$error_message") && next if ( !$inventory );
 
-					$inventory->data($data); # fixme why twice? already given in  the constructor...
-
 					# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 					$inventory->path( recalculate => 1 );
+					$inventory->data($data);
 					$inventory->historic(0);
 					$inventory->enabled(1);
 
@@ -5230,7 +5228,6 @@ sub runServer
 			concept => 'device_global',
 			path => $path,
 			path_keys => [],
-			data => $overall_target,
 			create => 1
 		);
 		$S->nmisng->log->error("Failed to get inventory for device_global, error_message:$error_message") if(!$inventory);
@@ -5278,7 +5275,6 @@ sub runServer
 						concept => 'device',
 						path => $path,
 						path_keys => ['index'],
-						data => $device_target,
 						create => 1
 					);
 					$S->nmisng->log->error("Failed to get inventory, error_message:$error_message") if(!$inventory);
@@ -5377,7 +5373,6 @@ sub runServer
 																											data => $storage_target );
 					($inventory,$error) = $S->nmisng_node->inventory(
 						concept => 'storage',
-						data => $storage_target,
 						path => $path,
 						path_keys => ['index'],
 						create => 1
@@ -5723,7 +5718,6 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			my $procinv_path = $nmisng_node->inventory_path(concept => "snmp_services", path_keys => [], data => {});
 			die "failed to create path for snmp_services: $procinv_path\n" if (!ref($procinv_path));
 			my ( $processinventory, $error)  = $nmisng_node->inventory( concept => "snmp_services",
-																																 data => {},
 																																 path => $procinv_path,
 																																 path_keys => [],
 																																 create => 1);
@@ -5820,11 +5814,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 
 		my ($inventory, $error) = $nmisng_node->inventory(
 			concept => "service",
-			data    => $inventorydata,
 			path => $path,
 			path_keys => $path_keys,
 			create  => 1,
-				);
+		);
 		die "failed to create or load inventory for $service: $error\n" if (!$inventory);
 
 		# when was this service checked last?
@@ -6525,10 +6518,10 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			$status{cpu} = ($lastrun && $thisrun != $lastrun)? (($cpu - $prevcounter) / ($thisrun - $lastrun)) : 0;
 		}
 
-		# update the inventory data
-		my $invdata = $inventory->data;
-		$invdata->{last_run} = $thisrun;
-		$inventory->data($invdata);
+		# update the inventory data, use what was created above
+		# add in last_run
+		$inventorydata->{last_run} = $thisrun;
+		$inventory->data($inventorydata);
 		$inventory->enabled(1);
 		$inventory->historic(0);
 
