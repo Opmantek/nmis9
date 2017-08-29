@@ -460,7 +460,7 @@ sub runThreads
 			$nmisng->log->fatal("Failed to load catchall inventory: $result->{error}");
 			die "Failed to load catchall inventory: $result->{error}\n";
 		}
-		my $accessor = $result->{model_data};		
+		my $accessor = $result->{model_data};
 		# node information, by node uuid
 		my %node_info_ro = map { ($_->{node_uuid} => $_->{data}) } (@{$accessor->data});
 
@@ -962,7 +962,7 @@ sub doUpdate
 	my $lockHandle = NMISNG::Util::createPollLock( type => "update", conf => $C->{conf}, node => $name );
 
 	# now check for collect jobs; if one is running we shoot it - but not ourselves!
-	my $conflict = NMISNG::Util::existsPollLock(type => "collect", 
+	my $conflict = NMISNG::Util::existsPollLock(type => "collect",
 																							conf => $C->{conf}, node => $name);
 	if ($conflict && $conflict != $$)
 	{
@@ -4773,7 +4773,7 @@ sub getCBQoSwalk
 			$nmisng->log->error("get inventory model failed: $result->{error}");
 			next;
 		}
-	
+
 		# create a map by ifindex so we can look them up easily, flatten _id into data to make things easier
 		my $data = $result->{model_data}->data();
 		my %if_data_map = map
@@ -5760,12 +5760,12 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 	# find and mark as historic any services no longer configured for this host
 	my %desiredservices = map { ($_ => 1) } (split /,/, $NT->{$S->{name}}{services} );
 
-	
+
 	my $result = $nmisng_node->get_inventory_model(concept => "service",
 																								 filter => { historic => 0 },
 																								 fields_hash => { "data.service" => 1,
 																																	_id => 1, });
-	# fixme: better error handling 
+	# fixme: better error handling
 	if ($result->{success} && $result->{model_data}->count)
 	{
 		my %oldservice = map { ($_->{data}->{service} => $_->{_id}) } (@{$result->{model_data}->data});
@@ -5871,10 +5871,8 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			($servicetype eq "service" && !$snmp_allowed)? "Not checking name=$name, no SNMP available"
 			: "Checking service_type=$servicetype name=$name service_name=$servicename" );
 
-		# clear global hash each time around as this is used to pass results to rrd update
-		my $ret      = 0;
-		my $snmpdown = 0;
 
+		my $ret      = 0;
 		# record the service response time, more precisely the time it takes us testing the service
 		$timer->resetTime;
 		my $responsetime;    # blank the responsetime
@@ -5965,101 +5963,80 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			}
 		}
 
-		# now the snmp services - but only if snmp is on
-		# only do the SNMP checking if and when you are supposed to!
-		# snmp not allowed also includes the case of snmp having failed just now
+		# now the snmp services - but only if snmp is on and if it did work.
 		elsif ( $servicetype eq "service"
 						and NMISNG::Util::getbool($NT->{$node}{collect}) )
 		{
+			# snmp not allowed also includes the case of snmp having failed just now
+			# in which case we cannot and must not say anything about this service
 			next if (!$snmp_allowed);
 
-			NMISNG::Util::dbg("snmp_stop_polling_on_error=$C->{snmp_stop_polling_on_error} snmpdown=$catchall_data->{snmpdown} nodedown=$catchall_data->{nodedown}"
-			);
-			if (NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error}, "invert" )
-				or (    NMISNG::Util::getbool( $C->{snmp_stop_polling_on_error} )
-					and !NMISNG::Util::getbool( $catchall_data->{snmpdown} )
-					and !NMISNG::Util::getbool( $catchall_data->{nodedown} ) )
-				)
+			my $wantedprocname = $servicename;
+			my $parametercheck = $thisservice->{Service_Parameters};
+
+			if ( !$wantedprocname and !$parametercheck )
 			{
-				my $wantedprocname = $servicename;
-				my $parametercheck = $thisservice->{Service_Parameters};
+				NMISNG::Util::info("ERROR, Both Service_Name and Service_Parameters are empty");
+				NMISNG::Util::logMsg(
+					"ERROR, ($S->{name}) service=$service Service_Name and Service_Parameters are empty!");
+				next;
+			}
 
-				if ( !$wantedprocname and !$parametercheck )
-				{
-					NMISNG::Util::dbg("ERROR, Both Service_Name and Service_Parameters are empty");
-					NMISNG::Util::logMsg(
-						"ERROR, ($S->{name}) service=$service Service_Name and Service_Parameters are empty!");
-					next;
-				}
+			# one of the two blank is ok
+			$wantedprocname ||= ".*";
+			$parametercheck ||= ".*";
 
-				# one of the two blank is ok
-				$wantedprocname ||= ".*";
-				$parametercheck ||= ".*";
+			# lets check the service status from snmp for matching process(es)
+			# it's common to have multiple processes with the same name on a system,
+			# heuristic: one or more living processes -> service is ok,
+			# no living ones -> down.
+			# living in terms of host-resources mib = runnable or running;
+			# interpretation of notrunnable is not clear.
+			# invalid is for (short-lived) zombies, which should be ignored.
 
-				# lets check the service status from snmp for matching process(es)
-				# it's common to have multiple processes with the same name on a system,
-				# heuristic: one or more living processes -> service is ok,
-				# no living ones -> down.
-				# living in terms of host-resources mib = runnable or running;
-				# interpretation of notrunnable is not clear.
-				# invalid is for (short-lived) zombies, which should be ignored.
+			# we check: the process name, against regex from Service_Name definition,
+			# AND the process path + parameters, against regex from Service_Parameters
+			# services list is keyed by "name:pid"
+			my @matchingpids = grep( ( /^$wantedprocname:\d+$/
+																 && ( $services{$_}->{hrSWRunPath} . " " . $services{$_}->{hrSWRunParameters} )
+																 =~ /$parametercheck/
+															 ),
+															 keys %services );
+			my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
 
-				# we check: the process name, against regex from Service_Name definition,
-				# AND the process path + parameters, against regex from Service_Parameters
-				# services list is keyed by "name:pid"
-				my @matchingpids = grep( (
-						/^$wantedprocname:\d+$/
-							&& ( $services{$_}->{hrSWRunPath} . " " . $services{$_}->{hrSWRunParameters} )
-							=~ /$parametercheck/
-					),
-					keys %services );
+			NMISNG::Util::dbg(      "runServices: found "
+															. scalar(@matchingpids)
+															. " total and "
+															. scalar(@livingpids)
+															. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
+															. join( " ", @livingpids) );
 
-				my @livingpids = grep ( $services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i, @matchingpids );
+			if ( !@livingpids )
+			{
+				$ret       = 0;
+				$cpu       = 0;
+				$memory    = 0;
+				$gotMemCpu = 1;
 
-				NMISNG::Util::dbg(      "runServices: found "
-						. scalar(@matchingpids)
-						. " total and "
-						. scalar(@livingpids)
-						. " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: "
-						. join( " ", @livingpids) );
-
-				if ( !@livingpids )
-				{
-					$ret       = 0;
-					$cpu       = 0;
-					$memory    = 0;
-					$gotMemCpu = 1;
-					NMISNG::Util::logMsg(
-						"INFO, service $name is down, "
-							. (
-							@matchingpids
-							? "only non-running processes"
-							: "no matching processes"
-							)
-					);
-				}
-				else
-				{
-					# return the average values for cpu and mem
-					$ret       = 1;
-					$gotMemCpu = 1;
-
-					# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
-					# memory is in kb, and a gauge.
-					$cpu = int( mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ) );
-					$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
-
-				  #					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
-				  #					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
-
-					NMISNG::Util::info(
-						"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
-				}
+				NMISNG::Util::logMsg("INFO, service $name is down, "
+														 . ( @matchingpids? "only non-running processes" : "no matching processes" ));
 			}
 			else
 			{
-				# is the service already down?
-				$snmpdown = 1;
+				# return the average values for cpu and mem
+				$ret       = 1;
+				$gotMemCpu = 1;
+
+				# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
+				# memory is in kb, and a gauge.
+				$cpu = int( mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ) );
+				$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+
+				#					NMISNG::Util::dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
+				#					NMISNG::Util::dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+
+				NMISNG::Util::info(
+					"INFO, service $name is up, " . scalar(@livingpids) . " running process(es)" );
 			}
 		}
 
@@ -6352,14 +6329,7 @@ hrSWRunPerfCPU hrSWRunPerfMem)) );
 			. uri_escape($service);
 
 		# let's raise or clear service events based on the status
-		if ($snmpdown)    # only set IFF this is an snmp-based service AND snmp is broken/down.
-		{
-			NMISNG::Util::dbg("$servicetype $name is not checked, snmp is down");
-			$V->{system}{"${service}_value"} = 'unknown';
-			$V->{system}{"${service}_color"} = 'gray';
-			$serviceValue                    = '';
-		}
-		elsif ( $serviceValue == 100 )    # service is fully up
+		if ( $serviceValue == 100 )    # service is fully up
 		{
 			NMISNG::Util::dbg("$servicetype $name is available ($serviceValue)");
 
@@ -9574,14 +9544,14 @@ sub doThresholdsAndCreateStatus
 				$callargs{nmisng} = $nmisng;
 				$callargs{class_name} = { "concept" => \&NMISNG::Inventory::get_inventory_class };
 				my $result = $S->nmisng_node->get_inventory_model(%callargs);
-				
+
 				if (!$result->{success})
 				{
 					$nmisng->log->error("get inventory model failed: $result->{error}");
 					return undef;
 				}
 				my $inventory_model = $result->{model_data};
-						 
+
 				NMISNG::Util::dbg( "threshold=".join(",",@$thrname)." found in section=$s type=$type indexed=$thissection->{indexed}, count=".$inventory_model->count() );
 
 				# turn the 'models' into objects so that parseString can use it if required
@@ -9597,7 +9567,7 @@ sub doThresholdsAndCreateStatus
 					my $data = $inventory->data;
 					my $index = $data->{index} // undef;
 
-					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index, 
+					if ( $control && !$S->parseString( string => "($control) ? 1:0", sect => $type, index => $index,
 																						 eval => 1, inventory => $inventory ) )
 					{
 						NMISNG::Util::dbg("threshold of type:$type, index:$index skipped by control=$control");
