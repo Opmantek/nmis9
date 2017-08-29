@@ -129,22 +129,25 @@ sub nmisng         { my $self = shift; return $self->{_nmisng} };
 sub nmisng_node    { my $self = shift; return $self->{_nmisng_node} };
 
 # return an inventory object for the node
-# this assumes that a data section with a single entry 'index' is enough to find what is needed
-# or that no index is necessary at all
+# if only index is required for the path a data section with a single entry 'index' will be created,
+# if more is needed pass in data, this assumes that the path_keys needed to make the inventory are known
+# by the specific inventory type, defaultinventory with more path_keys entries should be made another way
+# if no index is necessary this will also work
 # arguments:
 #  concept - string
 #  [index] - optional, for now all things that are indexed use the key 'index' to find them
-#  partial - set to 1 if the path may have a partial match (generally it won't and you don't want this)
+#  [partial] - set to 1 if the path may have a partial match (generally it won't and you don't want this)
 #   the case where you do is when the key has two pieces of unique data and either can be used to find it
 #   eg, interfaces, ifIndex and ifDescr
-#  nolog - set to 1 if it's ok that the inventory is not found and an error should not be logged
+#  [data] - pass in data required to make path if the path is more complex than empty or just index
+#  [nolog] - set to 1 if it's ok that the inventory is not found and an error should not be logged
 # NOTE: for now this caches the catchall/global inventory object because it's used all over the place
 #  and needs to have a longer life
 sub inventory
 {
 	my ($self,%args) = @_;
 	my $node = $self->nmisng_node;
-	my ($concept,$index,$partial,$nolog) = @args{'concept','index','partial','nolog'};
+	my ($concept,$index,$partial,$data,$nolog) = @args{'concept','index','partial','data','nolog'};
 	return if(!$node);
 	return if(!$concept);
 
@@ -155,8 +158,13 @@ sub inventory
 	# for now map pkts into interface
 	$concept = 'interface' if( $concept =~ /pkts/ );
 
-	my ($data,$path_keys) = ({},[]);
+	# if data was not passed in
+	$data //= {};
+	my $path_keys = [];
+
 	# if we have an index put it into the data so a path can be made
+	# path keys is assumed to be index, if inventory subtype is more specific it will
+	# ignore this and use the keys from data that it wants
 	if( $index )
 	{
 		$data->{index} = $index;
@@ -171,7 +179,8 @@ sub inventory
 		{
 			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it
 			# instead of having one magic place that makes it and that has to be run first
-			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);
+			# does not pass in data, doing that on create is not the right way, setting the value after creation is more consistent
+			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, create => 1);
 		}
 		$self->nmisng->log->error("Failed to get inventory for node:".$node->name.", concept:$concept error_message:$error_message path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
