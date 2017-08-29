@@ -69,7 +69,7 @@ sub new
 
 	# modify data section, put IP into a format we can search/use (array of hashes with consistent keys)
 	# for now leave the original attributes as well
-	my $data = $args{data};
+	my $data = $args{data} // {};
 	my $cnt = 1;
 	$data->{ip} = [];
 	while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
