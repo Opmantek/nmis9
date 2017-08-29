@@ -741,7 +741,7 @@ sub dodeleteTable {
 		NMISNG::Util::writeTable(dir=>'conf',name=>$table,data=>$TT);
 	}
 
-	# nodes are special
+	# nodes are special - magic delegated to nmisng::node.
 	# make sure to remove events for deleted nodes
 	if ($table eq "Nodes")
 	{
@@ -756,7 +756,6 @@ sub dodeleteTable {
 				print Tr(td({class=>'error'} , escapeHTML("Error removing node: $error")));
 				return 0;
 			}
-			Compat::NMIS::cleanEvent($key,"tables.pl.editNodeTable");
 		}
 	}
 }

@@ -40,7 +40,7 @@ our $VERSION = "1.0.0";
 # then get our parent to make us
 # path_keys is required unless the object is not new (has _id), if it is not
 #   specified then the path cannot be re-calculated
-#   keys from data used to make the path, this does not include things that are automatically added
+#   keys from data are used to make the path, this does not include things that are automatically added
 #    this isn't necessarily needed if make_path is overridden
 use Data::Dumper;
 
@@ -51,9 +51,6 @@ sub new
 	my $nmisng = $args{nmisng};
 	return if ( !$nmisng );    # check this so we can use it to log
 
-	# validate data section
-	my $data = $args{data};
-	$nmisng->log->error("DefaultInventory cannot be created without data") && return if ( !$data );
 	$nmisng->log->error("DefaultInventory cannot be created without path_keys") && return
 		if ( !$args{path_keys} && !$args{_id} );
 
@@ -85,24 +82,5 @@ sub make_path
 																								partial => $args{partial});
 }
 
-# making a path can be done even on !new objects, in that case we may not have
-# path keys so allow passing them in, overriding what is there if you want
-# args: just recalculate
-sub path
-{
-	my ( $self, %args ) = @_;
-
-	$self->SUPER::path(recalculate => $args{recalculate});
-}
-
-
-# sub validate
-# {
-# 	my ($self) = @_;
-# 	my ($valid,$reason) = $self->SUPER::validate();
-# 	return ($valid,$reason) if(!$valid);
-
-	
-# }
 
 1;

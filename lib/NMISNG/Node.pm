@@ -42,6 +42,7 @@ use Data::Dumper;
 
 use NMISNG::DB;
 use NMISNG::Inventory;
+use Compat::NMIS;								# for cleanEvent
 
 # create a new node object
 # params:
@@ -237,37 +238,58 @@ sub delete
 
 	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
 
+	# not errors but message doesn't hurt
 	return (1, "Node already deleted") if ($self->{_deleted});
-	return (0, "Node has never been saved, nothing to delete") if ($self->is_new);
+	return (1, "Node has never been saved, nothing to delete") if ($self->is_new);
 
-	# first, get all the inventory objects for this node
-	# second, extract all rrd names from those inventories and remove the files
-	# third, delete all timed data for each of the inventory ids
-	# fourth, delete the inventories themselves
-	# fifth, remove the node and info files
-	# sixth, remove the node record
+	$self->nmisng->log->debug("starting to delete node ".$self->name);
 
-	# get everything, historic or not
-#fixmecontinue 	my $invmodel = $self->get_inventory_model();
+	# get all the inventory objects for this node
+	# tell them to delete themselves (and the rrd files)
+
+	# get everything, historic or not - make it instantiatable
+	# concept type is unknown/dynamic, so have it ask nmisng
+	my $result = $self->get_inventory_model(
+		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
+	return (0, "Failed to retrieve inventories: $result->{error}")
+			if (!$result->{success});
 	
-	
-		 
-	
-	if ( !$self->is_new && !$self->{_deleted} && $self->{_id} )
+	my $gimme = $result->{model_data}->objects;
+	return (0, "Failed to instantiate inventory: $gimme->{error}")
+			if (!$gimme->{success});
+	for my $invinstance (@{$gimme->{objects}})
 	{
-		my $result = NMISNG::DB::remove(
-			collection => $self->nmisng->nodes_collection,
-			query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} } ),
-			just_one   => 1
-		);
-		# print STDERR "delete: $result->{error}\n";
-		$self->{_deleted} = 1 if ( $result->{success} );
-		return ( $result->{success}, $result->{error} );
+		$self->nmisng->log->debug("deleting inventory instance "
+															.$invinstance->id
+															.", concept ".$invinstance->concept
+															.", description \"".$invinstance->description.'"');
+		my ($ok, $error) = $invinstance->delete(keep_rrd => $keeprrd);
+		return (0, "Failed to delete inventory ".$invinstance->id.": $error")
+				if (!$ok);
 	}
-	else
+
+	# node and view files, if present - failure is not error-worthy
+	for my $goner (map { $self->nmisng->config->{'<nmis_var>'}
+											 .lc($self->name)."-$_.json" } ('node','view'))
 	{
-		return ( undef, "Node did not meet criteria for deleting" );
+		next if (!-f $goner);
+		$self->nmisng->log->debug("deleting file $goner");
+		unlink($goner) if (-f $goner);
 	}
+
+	# delete any open events, failure undetectable *sigh* and not error-worthy
+	Compat::NMIS::cleanEvent($self->name, "NMISNG::Node"); # fixme9: we don't have any useful caller
+
+ 	# finally delete the node record itself
+	$result = NMISNG::DB::remove(
+		collection => $self->nmisng->nodes_collection,
+		query      => NMISNG::DB::get_query( and_part => { _id => $self->{_id} } ),
+		just_one   => 1 );
+	return (0, "Node config removal failed: $result->{error}") if (!$result->{success});
+
+	$self->nmisng->log->debug("deletion of node ".$self->name." complete");
+	$self->{_deleted} = 1;
+	return (1,undef);
 }
 
 # get a list of id's for inventory related to this node,

@@ -356,97 +356,30 @@ if (-t \*STDOUT);								# if terminal
 	exit 0;
 }
 
-
-__END__
-elsif ($cmdline{act} eq "delete")
+elsif ($cmdline->{act} eq "delete")
 {
-	my ($node,$group,$confirmation,$nukedata) = @args{"node","group","confirm","deletedata"};
-
+	my ($node,$group,$confirmation,$nukedata) = @{$cmdline}{"node","group","confirm","deletedata"};
+	
 	die "Cannot delete without node or group argument!\n\n$usage\n" if (!$node and !$group);
 	die "NOT deleting anything:\nplease rerun with the argument confirm='yes' in all uppercase\n\n"
 			if (!$confirmation or $confirmation ne "YES");
 
-	my @morituri = $node? ($node) : grep($nodeinfo->{$_}->{group} eq $group, keys %$nodeinfo);
-	my @todelete;
+	my $nodemodel = $nmisng->get_nodes_model(name => $node, group => $group);
+	die "No matching nodes exist\n" if (!$nodemodel->count);
 
-	die "Node $node does not exist.\n" if ($node && !$nodeinfo->{$node});
-	die "Group $group does not exist or has no members.\n" if ($group && !@morituri);
+	my $gimmeobj = $nodemodel->objects; # instantiate, please!
+	die "Failed to instantiate node objects: $gimmeobj->{error}\n"
+			if (!$gimmeobj->{success});
 
-	for my $mustdie (@morituri)
+	for my $mustdie (@{$gimmeobj->{objects}})
 	{
-		# first thing, get rid of any events
-		Compat::NMIS::cleanEvent($mustdie,"node_admin");
-
-		# if data is to be deleted, do that FIRST (need working sys object to find stuff)
-		if (NMISNG::Util::getbool($nukedata))
-		{
-			print STDERR "Priming Sys object for finding RRD files\n" if ($debuglevel or $infolevel);
-			my $S = NMISNG::Sys->new; $S->init(name => $mustdie, snmp => "false");
-
-			my $oldinfo = $S->ndinfo;
-			# find and nuke all rrds belonging to the deletable node
-			for my $section (keys %{$oldinfo->{graphtype}})
-			{
-				next if ($section =~ /^(network|nmis|metrics)$/);
-				if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
-				{
-					my $index = $section;
-					for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
-					{
-						if ($subsection =~ /^cbqos-(in|out)$/)
-						{
-							my $dir = $1;
-							# need to find the qos classes and hand them to getdbname as item
-							for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
-							{
-								my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
-								push @todelete, $S->makeRRDname(graphtype => $subsection,
-																								index => $index, 
-																								item => $item);
-							}
-						}
-						else
-						{
-							push @todelete, $S->makeRRDname(graphtype => $subsection, 
-																							index => $index);
-						}
-					}
-				}
-				else
-				{
-					push @todelete, $S->getDBName(graphtype => $section);
-				}
-			}
-
-			# then take care of the var files
-			my $vardir = $config->{'<nmis_var>'};
-			opendir(D, $vardir) or die "cannot read dir $vardir: $!\n";
-			for my $fn (readdir(D))
-			{
-				push @todelete, "$vardir/$fn" if ($fn =~ /^$mustdie-(node|view)\.(\S+)$/i);
-			}
-			closedir D;
-		}
-
-		# finally remove the old node from the nodes file
-		print STDERR "Deleting node $mustdie from Nodes table\n" if ($debuglevel or $infolevel);
-		delete $nodeinfo->{$mustdie};
-		print STDERR "Successfully deleted $mustdie\n";
+		my ($ok, $error) = $mustdie->delete(
+			keep_rrd => NMISNG::Util::getbool($nukedata, "invert")); # === eq false
+		die $mustdie->name.": $error\n" if (!$ok);
 	}
-
-	# then deal with the unwanted stuff
-	for my $fn (@todelete)
-	{
-		next if (!defined $fn);
-		my $relfn = File::Spec->abs2rel($fn, $config->{'<nmis_base>'});
-		print STDERR "Deleting file $relfn, no longer required\n" if ($debuglevel or $infolevel);
-		unlink($fn);
-	}
-
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a different write function
-	NMISNG::Util::writeTable(dir => 'conf', name => "Nodes", data => $nodeinfo);
 	exit 0;
 }
+__END__
 elsif ($cmdline{act} eq "rename")
 {
 	my ($old, $new) = @args{"old","new"};

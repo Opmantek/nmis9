@@ -26,38 +26,37 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-
+#
 # Service Inventory Class
+# differs from defaultinventory in that it requies (data) properties uuid and service
+# doesn't have index.
+
 package NMISNG::Inventory::ServiceInventory;
 use parent 'NMISNG::Inventory';
 use strict;
 
 our $VERSION = "1.0.0";
 
-# double check the arguments required were provided
-# then get our parent to make us
-sub new
+#  returns (positive, nothing) if the inventory is valid,
+# (negative or zero, error message) if it's no good
+sub validate
 {
-	my ( $class, %args ) = @_;
-
-	my $nmisng = $args{nmisng};
-	return if ( !$nmisng );    # check this so we can use it to log
+	my ($self) = @_;
 
 	# validate data section
-	# services must be named (in property service)
-	# and must have a uuid.
+	# services must be named (in property service), and must have a uuid.
 	# anything else is optional
-	my $data = $args{data};
-
-	return if ( !$data->{service} );
-	return if ( !$data->{uuid} );
-
-	my $self = $class->SUPER::new(%args);
-	$nmisng->log->error(__PACKAGE__." failed to get parent new!") && return
-			if (!ref($self));
-
-	bless($self, $class);
-	return $self;
+	my $data = $self->data;
+	return (-1, "ServiceInventory requires data section") 
+			if (!defined($data) or ref($data) ne "HASH"
+					or !keys %$data);
+	for my $musthave (qw(service uuid))
+	{
+		return (-1, "ServiceInventory requires data property $musthave")
+				if (!$data->{$musthave} );
+	}
+	# all good so far
+	return 	$self->SUPER::validate;
 }
 
 # make a path suitable for service-type inventory

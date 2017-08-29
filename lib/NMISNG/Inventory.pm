@@ -86,10 +86,11 @@ sub make_path_from_keys
 
 	my $keys = $args{"path_keys"};
 	return "make_path_from_keys cannot work without path_keys!"
-		if ( ref($keys) ne "ARRAY" );
+			if ( ref($keys) ne "ARRAY" );
+	# this could be passed in as undef instead of being omitted, so don't use exists
 	return "make_path_from_keys has invalid data argument: " . ref( $args{data} )
-		if ( exists( $args{data} ) && ref( $args{data} ) ne "HASH" );
-
+		if ( defined($args{data}) && ref( $args{data} ) ne "HASH" );
+	
 	my @path;
 
 	# to make the path globally unique
@@ -227,10 +228,10 @@ sub parse_model_subconcept_headers
 # this method is expected to be subclassed!
 #
 # params: concept (=class name, type of inventory),
-#  nmisng (parent object), node_uuid, cluster_id,
-#  data - all required
+#  nmisng (parent object), node_uuid, cluster_id - all required
 # optional: id  (alias _id, the db _id of this thing if it's not new),
 #  path (used if provided, not required, normally can be calculated on save),
+#  data (used if provided, one of path or data needed at time of save)
 #  enabled (1/0, "nmis does something with this inventory item"),
 #  historic (not present or 0, or anything else),
 #  storage (hash of subconcept name -> path to the rrd file for this thing, relative to database_root),
@@ -252,8 +253,8 @@ sub new
 		}
 	}
 
-	my $data = $args{data};
-	if ( ref($data) ne "HASH" )
+	my $data = ($args{data} //= {});	# synthesise data as hash (if empty) for db consistency
+	if ( defined($data) && ref($data) ne "HASH" )
 	{
 		$nmisng->log->fatal("Inventory object cannot be created with invalid data argument!");
 		return undef;
@@ -817,27 +818,61 @@ sub dataset_info
 	return $self->{_datasets}{$subconcept} // {};
 }
 
-# remove this inventory entry from the db
-# can't delete if its new, or if it's already been deleted or if it doesn't have an id
-#  (which is_new checks but not a bad idea to double check)
+# remove this inventory entry from the db, including all timed_data instances,
+# as well as all rrd files
+# args: keep_rrd (optional, default false)
+#
+# returns (success, message) or (0,error)
 sub delete
 {
-	my ($self) = @_;
+	my ($self, %args) = @_;
 
-	if ( !$self->is_new && !$self->{_deleted} && $self->id() )
+	my $keeprrd = NMISNG::Util::getbool($args{keep_rrd});
+
+	# not errors but message doesn't hurt
+	return (1, "Inventory already deleted") if ($self->{_deleted});
+	return (1, "Inventory has never been saved, nothing to delete") if ($self->is_new);
+
+	# delete all timed instances of this one,
+	# and anything from latest data
+	for my $coll ($self->nmisng->timed_concept_collection( concept => $self->concept() ),
+								$self->nmisng->latest_data_collection)
 	{
 		my $result = NMISNG::DB::remove(
-			collection => $self->nmisng->inventory_collection,
-			query      => NMISNG::DB::get_query( and_part => {_id => $self->id()} ),
-			just_one   => 1
-		);
-		$self->{_deleted} = 1 if ( $result->{success} );
-		return ( $result->{success}, $result->{error} );
+			collection => $coll,
+			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ) );
+		return (1, "Inventory instance removal from ".$coll->name." failed: ".$result->{error})
+				if (!$result->{success});
+		$self->nmisng->log->debug("deleted $result->{removed_records} from collection "
+															.$coll->name." for inventory ".$self->id);
 	}
-	else
+	# ...the ditch any rrd files
+	# note: supports storage type rrd only, for now
+	if (!$keeprrd && ref($self->{_storage}) eq "HASH")
 	{
-		return ( undef, "Inventory did not meet criteria for deleting" );
+		for my $subconcept (keys %{$self->{_storage}})
+		{
+			next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
+							 or !defined $self->{_storage}->{$subconcept}->{"rrd"});
+			my $goner = $self->nmisng->config->{database_root} . $self->{_storage}->{$subconcept}->{"rrd"};
+			if (-e $goner && !-d $goner) # exists but isn't a dir
+			{
+				$self->nmisng->log->debug("deleting file $goner for $subconcept of inventory ".$self->id);
+				my $res = unlink($goner);
+				return (1, "Failed to remove storage file $goner: $!") if (!$res);
+			}
+		}
 	}
+
+	# and finally the inventory itself
+	my $result = NMISNG::DB::remove(
+		collection => $self->nmisng->inventory_collection,
+		query      => NMISNG::DB::get_query( and_part => {_id => $self->id()} ),
+		just_one   => 1 );
+	return (1, "Inventory removal failed: $result->{error}") if (!$result->{success});
+
+	$self->{_deleted} = 1; # mark in mem-copy as gone
+	return (1, undef);
 }
 
 # get the id (_id), readonly
@@ -909,7 +944,7 @@ sub reload
 
 # (re)make or get the path and return it
 # args: recalculate - [0/1], optional (default 0)
-# returns: arrayref
+# returns: arrayref, or error message
 #
 # new objects will recalculate their path on each call, specifiying recalculate makes no difference
 # objects which are not new should already have a path and that value will be returned
@@ -920,34 +955,32 @@ sub path
 {
 	my ( $self, %args ) = @_;
 
-	my $path;
 	if ( !$self->is_new() && !$self->{_path} && !$args{recalculate} )
 	{
-		$self->nmisng->log->error("Saved inventory should already have a path!");
+		return "Saved inventory must already have a path!";
 	}
 	elsif ( !$self->is_new() && $self->{_path} && !$args{recalculate} )
 	{
-		$path = $self->{_path};
+		return $self->{_path};
 	}
 	else
 	{
 		# make_path itself will ignore the first arg here, but finding the right subclass's
 		# make_path does require it.
-		$path = $self->make_path(
+		my $newpath = $self->make_path(
 			cluster_id => $self->cluster_id,
 			node_uuid  => $self->node_uuid,
 			concept    => $self->concept,
 			path_keys  => $self->path_keys,    # possibly nonex, up to subclass to worry about
 			data       => $self->data
-		);
+				);
+		# this produces error message or path array ref
+		return "make_path failed: $newpath" if (ref($newpath) ne "ARRAY");
 
 		# always store the path, it may be re-calculated next time but that's fine
 		# if we don't store here recalculate/save won't work
-		$self->{_path} = $path;
+		return $self->{_path} = $newpath;
 	}
-	$self->nmisng->log->error("Path must be an array!") if ( ref($path) ne "ARRAY" );
-
-	return $path;
 }
 
 # save the inventory obj in the database, if this thing thinks it's new do an upsert
@@ -1102,6 +1135,7 @@ sub save
 	return ( $result->{success} ) ? ( $op, undef ) : ( undef, $result->{error} );
 }
 
+
 # returns (positive, nothing) if the inventory is valid,
 # (negative or zero, error message) if it's no good
 sub validate
@@ -1113,7 +1147,7 @@ sub validate
 	# must have, alphabetical for now, make cheapest first later?
 	return ( -1, "invalid cluster_id" )        if ( !$self->cluster_id );
 	return ( -2, "invalid concept" )           if ( !$self->concept );
-	return ( -3, "invalid data" )              if ( ref( $self->data() ) ne 'HASH' );
+	return ( -3, "invalid data" )              if ( ref($self->data()) ne 'HASH' );
 	return ( -4, "invalid path" )              if ( !$path || @$path < 1 );
 	return ( -5, "invalid node_uuid" )         if ( !$self->node_uuid );
 	return ( -6, "invalid storage structure" ) if ( defined($storage) && ref($storage) ne "HASH" );
