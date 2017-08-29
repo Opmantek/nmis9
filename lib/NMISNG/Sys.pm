@@ -171,7 +171,7 @@ sub inventory
 		{
 			# catchall can/should be created if not found, it's better to create it here so whoever needs it can get it
 			# instead of having one magic place that makes it and that has to be run first
-			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, data => $data, create => 1);
+			($inventory,$error_message) = $node->inventory(concept => $concept, path => $path, path_keys => $path_keys, create => 1);
 		}
 		$self->nmisng->log->error("Failed to get inventory for node:".$node->name.", concept:$concept error_message:$error_message path:".join(',', @$path)) if(!$inventory && !$nolog);
 	}
