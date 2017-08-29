@@ -964,7 +964,7 @@ sub doUpdate
 	# now check for collect jobs; if one is running we shoot it - but not ourselves!
 	my $conflict = NMISNG::Util::existsPollLock(type => "collect", 
 																							conf => $C->{conf}, node => $name);
-	if (defined($conflict) && $conflict != $$)
+	if ($conflict && $conflict != $$)
 	{
 		NMISNG::Util::logMsg("WARNING collect lock for $node interferes with update. Killing process $conflict.");
 		if ($conflict > 1)						# nope, not init
