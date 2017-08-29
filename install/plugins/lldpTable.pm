@@ -57,15 +57,20 @@ sub update_plugin
 																										filter => { historic => 0 });
 	if (!$result->{success})
 	{
-		$NG->log->error("Failed to get inventory: $result->{error}");
+		$NG->log->error("Failed to get interface inventory: $result->{error}");
 		return(0,undef);
 	}
 	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
 
 	# ditto for lldpLocal
-	my $localmodeldata = $S->nmisng_node->get_inventory_model(concept => "lldpLocal",
-																													 filter => { historic => 0 });
-	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$localmodeldata->data});
+	 $result = $S->nmisng_node->get_inventory_model(concept => "lldpLocal",
+																									filter => { historic => 0 });
+	if (!$result->{success})
+	{
+		$NG->log->error("Failed to get lldpLocal inventory: $result->{error}");
+		return(0,undef);
+	}
+	my %lldplocaldata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
 
 	for my $lldpid (@$ids)
 	{

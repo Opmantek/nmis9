@@ -100,9 +100,14 @@ sub update_plugin
 	# both qos and netflow magic needs this
 	# for the interface linkage lookup this needs the interfaces inventory
 	# as well, but a non-object r/o copy of just the data (no meta) is enough
-	my $ifmodeldata = $S->nmisng_node->get_inventory_model(concept => "interface",
-																												 filter => { historic => 0 });
-	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$ifmodeldata->data});
+	my $result = $S->nmisng_node->get_inventory_model(concept => "interface",
+																										filter => { historic => 0 });
+	if (!$result->{success})
+	{
+		$NG->log->error("Failed to get inventory: $result->{error}");
+		return(0,undef);
+	}
+	my %ifdata =  map { ($_->{data}->{index} => $_->{data}) } (@{$result->{model_data}->data});
 
 	# cisco-cbqos items need to be linked to interfaces
 	# does that node collect cisco-type qos information?
