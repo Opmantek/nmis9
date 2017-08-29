@@ -69,18 +69,21 @@ sub new
 
 	# modify data section, put IP into a format we can search/use (array of hashes with consistent keys)
 	# for now leave the original attributes as well
-	my $data = $args{data} // {};
-	my $cnt = 1;
-	$data->{ip} = [];
-	while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
+	my $data = $args{data};
+	if( $data )
 	{
-		my $dest = {};
-		for my $attr (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
+		my $cnt = 1;
+		$data->{ip} = [];
+		while ( defined( $data->{"ipAdEntAddr$cnt"} ) )
 		{
-			$dest->{$attr} = $data->{$attr.$cnt};
+			my $dest = {};
+			for my $attr (qw(ipAdEntAddr ipAdEntNetMask ipSubnet ipSubnetBits))
+			{
+				$dest->{$attr} = $data->{$attr.$cnt};
+			}
+			push @{$data->{ip}}, $dest;
+			$cnt++;
 		}
-		push @{$data->{ip}}, $dest;
-		$cnt++;
 	}
 
 	my $self = $class->SUPER::new(%args);
