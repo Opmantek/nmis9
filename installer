@@ -306,8 +306,9 @@ sub check_installed_modules
 	# these modules are in core since 5.19 or thereabouts
 	
 	$modules{"IO::Socket::IP"} = { file => undef, usetype  => "use",
-																 usedby => "lib/NMISNG/Auth.pm", priority => 99 };
+																 usedby => "lib/NMISNG/Auth.pm", priority => 98 };
 	# io socket ip needs at least this version of socket...
+	# and that must be FIRST
 	$modules{"Socket"} = { file => undef, usetype  => "use",
 												 usedby => "lib/NMISNG/Auth.pm", 
 												 minversion => "1.97",
@@ -327,6 +328,23 @@ sub check_installed_modules
 	$modules{"Test::More"} = { file => undef, usetype => "use",
 														 usedby => "lib/NMSING/Auth.pm", 
 														 minversion => "0.96", priority => 100 };
+
+	# for compiling the mongodb perl driver
+	$modules{"Config::AutoConf"} = { file => undef, usetype => "use",
+														 usedby => "lib/NMSING/DB.pm", 
+																	 minversion => "0.3", priority => 100 };
+
+	$modules{"Path::Tiny"} = { file => undef, usetype => "use",
+														 usedby => "lib/NMSING/DB.pm", 
+														 # minversion => "0.3", 
+														 priority => 100 };
+
+	# must be cpan'd before datetime and mongodb
+	$modules{"DateTime::Locale"} = { file => undef, usetype => "use",
+																	 usedby => "lib/NMSING/DB.pm", 
+																	 # minversion => "0.3", 
+																	 priority => 100 };
+
 	
 	my $libprefix = "$sourcedir/lib";
 

@@ -25,7 +25,20 @@ if [ $OSFLAVOUR = "redhat" ]; then
     perl-GD rrdtool perl-SNMP_Session \
     rrdtool-perl perl-Test-Deep dialog \
     perl-Excel-Writer-XLSX perl-Digest-HMAC perl-Crypt-DES perl-Clone \
-    perl-CGI"  		# cgi was removed from core in 5.20, we're lazy here...
+    perl-CGI \
+perl-Authen-SASL perl-B-Hooks-EndOfScope perl-boolean perl-Capture-Tiny \
+perl-Class-Inspector perl-Class-Data-Inheritable \
+perl-DateTime  perl-Devel-StackTrace perl-Devel-GlobalDestruction-XS \
+perl-List-MoreUtils perl-File-ShareDir perl-Carp-Assert \
+perl-Try-Tiny perl-Text-CSV perl-Proc-Queue perl-Tie-IxHash \
+perl-Safe-Isa perl-Test-Requires \
+perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta \
+perl-Class-XSAccessor perl-JSON-MaybeXS perl-Test-Deep \
+perl-namespace-clean perl-Dist-CheckConflicts perl-namespace-autoclean \
+perl-ExtUtils-Config perl-ExtUtils-Helpers perl-ExtUtils-InstallPaths \
+perl-File-Copy-Recursive perl-Scope-Guard perl-Eval-Closure \
+perl-Module-Runtime perl-Exception-Class perl-IPC-Run3 \
+perl-Sub-Exporter-Progressive perl-Perl-OSType perl-Test-NoWarnings"
 
 		# custom rrdtool is compiled against centos/rh6 libpng(=12)
 		# time-modules package gone in centos/rh7
