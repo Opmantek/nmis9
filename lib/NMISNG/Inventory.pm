@@ -45,6 +45,7 @@ use Time::Moment;								# for ttl indices
 use DateTime;										# ditto
 use List::MoreUtils;    # for uniq
 use Carp;
+use File::Basename;							# for relocate_storage
 
 use NMISNG::DB;
 
@@ -90,7 +91,7 @@ sub make_path_from_keys
 	# this could be passed in as undef instead of being omitted, so don't use exists
 	return "make_path_from_keys has invalid data argument: " . ref( $args{data} )
 		if ( defined($args{data}) && ref( $args{data} ) ne "HASH" );
-	
+
 	my @path;
 
 	# to make the path globally unique
@@ -841,7 +842,7 @@ sub delete
 		my $result = NMISNG::DB::remove(
 			collection => $coll,
 			query => NMISNG::DB::get_query( and_part => {inventory_id => $self->id} ) );
-		return (1, "Inventory instance removal from ".$coll->name." failed: ".$result->{error})
+		return (0, "Inventory instance removal from ".$coll->name." failed: ".$result->{error})
 				if (!$result->{success});
 		$self->nmisng->log->debug("deleted $result->{removed_records} from collection "
 															.$coll->name." for inventory ".$self->id);
@@ -859,7 +860,7 @@ sub delete
 			{
 				$self->nmisng->log->debug("deleting file $goner for $subconcept of inventory ".$self->id);
 				my $res = unlink($goner);
-				return (1, "Failed to remove storage file $goner: $!") if (!$res);
+				return (0, "Failed to remove storage file $goner: $!") if (!$res);
 			}
 		}
 	}
@@ -869,10 +870,106 @@ sub delete
 		collection => $self->nmisng->inventory_collection,
 		query      => NMISNG::DB::get_query( and_part => {_id => $self->id()} ),
 		just_one   => 1 );
-	return (1, "Inventory removal failed: $result->{error}") if (!$result->{success});
+	return (0, "Inventory removal failed: $result->{error}") if (!$result->{success});
 
 	$self->{_deleted} = 1; # mark in mem-copy as gone
 	return (1, undef);
+}
+
+# handle node renaming wrt. rrd file names, and saves self
+#
+# inventories don't care about node names but nmis assumes a variety of
+# things about where rrds go.
+#
+# note that this might be made more robust wrt. weird common-database structures,
+# as the inventory instance doesn't have enough context to be perfect.
+#
+# args: current node name, new node name
+# returns (success, message, list of old names) or (0, error message))
+sub relocate_storage
+{
+	my ($self, %args) = @_;
+	my ($curname,$newname) = @args{"current","new"};
+
+	return (0, "storage relocating requires current name argument") if (!$curname);
+	return (0, "storage relocation requires new name argument")	if (!$newname);
+
+	return (1, "no storage relocation required") if ($newname eq $curname
+																									 or ref($self->{_storage}) ne "HASH"
+																									 or !keys %{$self->{_storage}});
+
+	my $dbroot = $self->nmisng->config->{'database_root'};
+
+	# full sanity check FIRST - can the path fixup happen? does the current name match?
+	my $safetomangle = Clone::clone($self->{_storage});
+	my %seen;											# certain rrds show up more than once
+	for my $subconcept (keys %{$self->{_storage}})
+	{
+		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
+						 or !defined $self->{_storage}->{$subconcept}->{"rrd"});
+
+		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
+		if (! -f "$dbroot/$existing")
+		{
+			return (0, "file \"$existing\" does not exist, cannot relocate!");
+		}
+
+		# word chars are alphanum plus _, we want to allow _ as delimiter as well
+		# just count the matches, not the delims!
+		my @matches = ($existing =~ /(?:^|\W|_)$curname(?:$|\W|_)/g);
+		if (!@matches)
+		{
+			return (0, "current name \"$curname\" not detected in \"$existing\" - cannot relocate!");
+		}
+		# possible ambiguity, so we warn about it
+		elsif (@matches > 1)
+		{
+			$self->nmisng->log->warn("storage relocation of \"$existing\" ambiguous, \"$curname\" appeared ".scalar(@matches)." times. relocation will replace first match.");
+		}
+
+		$safetomangle->{$subconcept}->{"rrd"} =~ s/(^|\W|_)$curname($|\W|_)/$1$newname$2/;
+		my $newfile = $safetomangle->{$subconcept}->{"rrd"};
+
+		return (0, "clash: cannot relocate \"$existing\" to \"$newfile\", target already exists!")
+				if (!$seen{$newfile} && -f "$dbroot/$newfile");
+		$seen{$newfile} = 1;
+
+		$self->nmisng->log->debug("planning to relocate \"$existing\" to \"$safetomangle->{$subconcept}->{rrd}\"");
+	}
+
+	# all checks survived, hardlink the files, update storage and save self
+	my (@oktorm, %done);
+	for my $subconcept (keys %{$self->{_storage}})
+	{
+		next if (ref($self->{_storage}->{$subconcept}) ne "HASH"
+						 or !defined $self->{_storage}->{$subconcept}->{"rrd"});
+		my $existing = $self->{_storage}->{$subconcept}->{"rrd"}; # a relative path
+		my $new = $safetomangle->{$subconcept}->{"rrd"};
+
+		next if ($done{$new});			# some rrds show up more than once...
+		$done{$new} = 1;
+
+		my $fullexisting = $self->nmisng->config->{'database_root'}.$existing;
+		my $fullnew = $self->nmisng->config->{'database_root'}.$new;
+
+		if (! -d (my $targetdir = dirname($fullnew)))
+		{
+			NMISNG::Util::createDir($targetdir);
+		}
+		if (!link($fullexisting, $fullnew))
+		{
+			return (0, "cannot link \"$fullexisting\" to \"$fullnew\": $!");
+		}
+		push @oktorm, $existing;
+	}
+
+	# update storage and save
+	$self->{_storage} = $safetomangle;
+	my ($op, $error) = $self->save;
+	return (0, "failed to save updated inventory: $error")
+			if ($op <= 0);
+
+	return (1, '', @oktorm);
 }
 
 # get the id (_id), readonly
@@ -991,7 +1088,8 @@ sub path
 #
 # note: lastupdate and expire_at currently not added to object but stored in db only
 # the object's _id and _path are refreshed
-# returns ($op,$error), op is 1 for insert, 2 for save, error is string if there was an error
+# returns ($op,$error), op is 1 for insert, 2 for save, 0 or negative on error;
+# error is string if there was an error
 sub save
 {
 	my ( $self, %args ) = @_;

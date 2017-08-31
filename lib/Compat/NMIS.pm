@@ -1336,8 +1336,8 @@ sub getGroupSummary {
 	my $nmisng = new_nmisng();
 	my $group_by = ['node_config.group'];
 	$group_by = undef if( !$group );
-	
-	my ($entries,$count,$error) = $nmisng->grouped_node_summary( 
+
+	my ($entries,$count,$error) = $nmisng->grouped_node_summary(
 		filters => { 'node_config.group' => $group },
 		group_by => $group_by,
 		include_nodes => $include_nodes
@@ -1356,9 +1356,9 @@ sub getGroupSummary {
 	}
 	else
 	{
-		$group_summary = $entries->[0];	
+		$group_summary = $entries->[0];
 	}
-	
+
 	my $C = NMISNG::Util::loadConfTable();
 	my $master_server_priority = $C->{master_server_priority} || 10;
 
@@ -1370,19 +1370,19 @@ sub getGroupSummary {
 		$summaryHash{average}{"${key}_diff"} = $group_summary->{"16_${key}_avg"} - $group_summary->{"08_${key}_avg"};
 
 		# Now the summaryHash is full, calc some colors and check for empty results.
-		if ( $summaryHash{average}{$key} ne "" ) 
+		if ( $summaryHash{average}{$key} ne "" )
 		{
 			$summaryHash{average}{$key} = 100 if( $summaryHash{average}{$key} > 100  && $key ne 'response') ;
 			$summaryHash{average}{"${key}_color"} = colorHighGood($summaryHash{average}{$key})
 		}
-		else 
+		else
 		{
 			$summaryHash{average}{"${key}_color"} = "#aaaaaa";
 			$summaryHash{average}{$key} = "N/A";
 		}
 	}
 
-	if ( $summaryHash{average}{reachable} > 0 and $summaryHash{average}{available} > 0 and $summaryHash{average}{health} > 0 ) 
+	if ( $summaryHash{average}{reachable} > 0 and $summaryHash{average}{available} > 0 and $summaryHash{average}{health} > 0 )
 	{
 		# new weighting for metric
 		$summaryHash{average}{metric} = sprintf("%.3f",(
@@ -1398,12 +1398,12 @@ sub getGroupSummary {
 		$summaryHash{average}{metric_diff} = $summaryHash{average}{"16_metric"} - $summaryHash{average}{metric};
 	}
 
-	
+
 	$summaryHash{average}{counttotal} = $group_summary->{count} || 0;
 	$summaryHash{average}{countdown} = $group_summary->{countdown} || 0;
 	$summaryHash{average}{countdegraded} = $group_summary->{countdegraded} || 0;
 	$summaryHash{average}{countup} = $group_summary->{count} - $group_summary->{countdegraded} - $group_summary->{countdown};
-	
+
 	### 2012-12-17 keiths, fixed divide by zero error when doing group status summaries
 	if ( $summaryHash{average}{countdown} > 0 ) {
 		$summaryHash{average}{countdowncolor} = ($summaryHash{average}{countdown}/$summaryHash{average}{counttotal})*100;
@@ -1448,23 +1448,23 @@ sub getGroupSummary {
 			if ($outage ne 'current') {
 				if ( $summaryHash{$node}{reachable} !~ /NaN/i	) {
 					++$nodecount{reachable};
-					$summaryHash{$node}{reachable_color} = colorHighGood($summaryHash{$node}{reachable});					
+					$summaryHash{$node}{reachable_color} = colorHighGood($summaryHash{$node}{reachable});
 				} else { $summaryHash{$node}{reachable} = "NaN" }
 
 				if ( $summaryHash{$node}{available} !~ /NaN/i ) {
 					++$nodecount{available};
-					$summaryHash{$node}{available_color} = colorHighGood($summaryHash{$node}{available});				
+					$summaryHash{$node}{available_color} = colorHighGood($summaryHash{$node}{available});
 				} else { $summaryHash{$node}{available} = "NaN" }
 
 				if ( $summaryHash{$node}{health} !~ /NaN/i ) {
 					++$nodecount{health};
-					$summaryHash{$node}{health_color} = colorHighGood($summaryHash{$node}{health});					
+					$summaryHash{$node}{health_color} = colorHighGood($summaryHash{$node}{health});
 				} else { $summaryHash{$node}{health} = "NaN" }
 
 				if ( $summaryHash{$node}{response} !~ /NaN/i ) {
 					++$nodecount{response};
-					$summaryHash{$node}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{$node}{response});					
-				} else { $summaryHash{$node}{response} = "NaN" }				
+					$summaryHash{$node}{response_color} = NMISNG::Util::colorResponseTime($summaryHash{$node}{response});
+				} else { $summaryHash{$node}{response} = "NaN" }
 			}
 		}
 	}
@@ -3046,8 +3046,8 @@ sub loadServiceStatus
 
 
 	# first find all inventory instances that match, as objects please,
-	# then get the newest timed data for them 
-	my $result = $nmisng->get_inventory_model(@selectors, 
+	# then get the newest timed data for them
+	my $result = $nmisng->get_inventory_model(@selectors,
 																						class_name => NMISNG::Inventory::get_inventory_class("service"));
 	if (!$result->{success})
 	{
@@ -3055,14 +3055,14 @@ sub loadServiceStatus
 		die "failed to retrieve service inventory: $result->{error}\n";
 	}
 	return %result if (!$result->{model_data}->count);
-	
+
 	my $objectresult = $result->{model_data}->objects; # we need objects
 	if (!$objectresult->{success})
 	{
 		$nmisng->log->error("object access failed: $objectresult->{error}");
 		die "object access failed: $objectresult->{error}\n";
 	}
-	
+
 	my %nodeobjs;
 	for my $maybe (@{$objectresult->{objects}})
 	{
@@ -3883,208 +3883,6 @@ sub loadNodeConfTable
 		return {};
 	}
 	return $data;
-}
-
-# this method renames a node, and all its files, too
-# fixme9: this function cannot work with nmis9  yet!
-#
-# args: old, new,
-# (optional) debug, (optional) info, (optional) originator
-# originator is used for cleanEvent
-# returns: (0,undef) if ok, (1, error message) if op failed
-#
-# note: prints progress info to stderr if debug or info are enabled!
-sub rename_node
-{
-	my (%args) = @_;
-
-	my ($old, $new) = @args{"old","new"};
-	my $wantdiag = NMISNG::Util::setDebug($args{debug})
-			|| NMISNG::Util::setDebug($args{info}); # don't care about the actual values
-
-	return (1, "Cannot rename node without separate old and new names!")
-			if (!$old or !$new or $old eq $new);
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	my $nmisng = new_nmisng;
-	# do the rename just baed on name
-	my $node = $nmisng->node( name => $old );
-
-	return (1, "Old node $old does not exist!") if (!$node);
-
-	# fixme: less picky? spaces required?
-	return(1, "Invalid node name \"$new\"")	if ($new =~ /[^a-zA-Z0-9_-]/);
-
-	# merge the new name into the existing config
-	my $configuration = $node->configuration();
-	$configuration->{name} = $new;
-	$node->configuration($configuration);
-
-	# now write out the new nodes file, so that the new node becomes
-	# workable (with sys etc)
-	# fixme lowprio: if db_nodes_sql is enabled we need to use a
-	#different write function
-	print STDERR "Saving new name in Nodes table\n" if ($wantdiag);
-	$node->save();
-
-	# then hardlink the var files - do not delete anything yet!
-	my @todelete;
-	my $vardir = $C->{'<nmis_var>'};
-	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
-	for my $fn (readdir(D))
-	{
-		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
-		{
-			my ($component,$ext) = ($1,$2);
-			my $newfn = lc("$new-$component.$ext");
-			push @todelete, "$vardir/$fn";
-			print STDERR "Renaming/linking var/$fn to $newfn\n" if ($wantdiag);
-			link("$vardir/$fn", "$vardir/$newfn") or
-					return(1,"cannot hardlink $fn to $newfn: $!");
-		}
-	}
-	closedir(D);
-
-	print STDERR "Priming Sys objects for finding RRDs\n" if ($wantdiag);
-	# fixme9 doesn't work that way
-	# now prime sys objs for both old and new nodes, so that we can find and translate rrd names
-	my $oldsys = NMISNG::Sys->new; $oldsys->init(name => $old, snmp => "false");
-	my $newsys = NMISNG::Sys->new; $newsys->init(name => $new, snmp => "false");
-
-	# fixme9: this cannot work - must look for concepts and storagenames...
-	my $oldinfo = $oldsys->compat_nodeinfo;
-	my %seen;									 # state cache for renamerrd
-
-	# find all rrds belonging to the old node
-	for my $section (keys %{$oldinfo->{graphtype}})
-	{
-		if (ref($oldinfo->{graphtype}->{$section}) eq "HASH")
-		{
-			my $index = $section;
-			for my $subsection (keys %{$oldinfo->{graphtype}->{$section}})
-			{
-				if ($subsection =~ /^cbqos-(in|out)$/)
-				{
-					my $dir = $1;
-					# need to find the qos classes and hand them to the renamer as item
-					for my $classid (keys %{$oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}})
-					{
-						my $item = $oldinfo->{cbqos}->{$index}->{$dir}->{ClassMap}->{$classid}->{Name};
-						push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection,
-																			index => $index, item => $item, debug => $wantdiag,
-																			seen => \%seen);
-					}
-				}
-				else
-				{
-					push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $subsection,
-																		index => $index, debug => $wantdiag, seen => \%seen);
-				}
-			}
-		}
-		else
-		{
-			push @todelete, renameRRD(old => $oldsys, new => $newsys, graphtype => $section,
-																debug => $wantdiag, seen => \%seen);
-		}
-	}
-
-	# then deal with the no longer wanted data: remove the old links
-	for my $fn (@todelete)
-	{
-		next if (!defined $fn);
-		my $relfn = File::Spec->abs2rel($fn, $C->{'<nmis_base>'});
-		print STDERR "Deleting file $relfn, no longer required\n" if ($wantdiag);
-		unlink($fn);
-	}
-
-	# now clear all events for old node
-	print STDERR "Removing events for old node\n" if ($wantdiag);
-	cleanEvent($old,$args{originator});
-
-	print STDERR "Successfully renamed node $old to $new\n" if ($wantdiag);
-	return (0,undef);
-}
-
-# fixme9: this function does not work for nmis9 yet!
-# internal helper function for rename_node, LINKS one given rrd file to new name
-# caller must take care of removing the old rrd file later.
-#
-# args: old and new (both sys objects), graphtype, seen (hash REF for state caching),
-# index (optional), item (optional), info, debug (both optional),
-# returns: old (now removable) file name, or undef if nothing done
-#
-# higher-level functionality/logic, so NOT a candidate for rrdfunc.pm.
-#
-# note: prints diags on stderr if info or debug are set!
-sub renameRRD
-{
-	my (%args) = @_;
-
-	my $C = NMISNG::Util::loadConfTable();
-
-	my $oldfilename = $args{old}->makeRRDname(graphtype => $args{graphtype},
-																						index => $args{index},
-																						item => $args{item});
-	# don't try to rename a file more than once...
-	return undef if $args{seen}->{$oldfilename};
-	$args{seen}->{$oldfilename}=1;
-
-	my $wantdiag = NMISNG::Util::setDebug($args{debug})
-			|| NMISNG::Util::setDebug($args{info}); # don't care about the actual values
-
-	my $newfilename = $args{new}->makeRRDname(graphtype => $args{graphtype},
-																						index => $args{index},
-																						item => $args{item});
-	return undef if ($newfilename eq $oldfilename);
-
-	if (!$newfilename or !$oldfilename)
-	{
-		print STDERR "Warning: no RRD file name found for graphtype $args{graphtype} index $args{index} item $args{item}\n"
-				if ($wantdiag);
-		return undef;
-	}
-
-	my $oldrelname = File::Spec->abs2rel( $oldfilename, $C->{'<nmis_base>'} );
-	my $newrelname = File::Spec->abs2rel( $newfilename, $C->{'<nmis_base>'} );
-
-	if (!-f $oldfilename)
-	{
-		print STDERR "Warning: RRD file $oldrelname does not exist, cannot rename!\n" if ($wantdiag);
-		return undef;
-	}
-
-	# ensure the target dir hierarchy exists
-	my $dirname = dirname($newfilename);
-	if (!-d $dirname)
-	{
-		print STDERR "Creating directory $dirname for RRD files\n" if ($wantdiag);
-		my $curdir;
-		for my $component (File::Spec->splitdir($dirname))
-		{
-			next if !$component;
-			$curdir.="/$component";
-			if (!-d $curdir)
-			{
-				if (!mkdir $curdir,0755)
-				{
-					print STDERR "cannot create directory $curdir: $!\n"  if ($wantdiag);
-					return undef;
-				}
-				NMISNG::Util::setFileProtDiag(file =>$curdir);
-			}
-		}
-	}
-
-	print STDERR "Renaming/linking RRD file $oldrelname to $newrelname\n" if ($wantdiag);
-	if (!link($oldfilename,$newfilename))
-	{
-		print STDERR "cannot link $oldrelname to $newrelname: $!\n"  if ($wantdiag);
-		return undef;
-	}
-
-	return $oldfilename;
 }
 
 1;

@@ -679,9 +679,9 @@ sub doeditTable
 		# handle the renaming case
 		if ($new_name && $new_name ne $thisentry->{name})
 		{
-			my ($error,$message) = NMIS::rename_node(old => $thisentry->{name}, new => $new_name,
-																							 originator => "tables.pl.editNodeTable");
-			if ($error)
+			my ($ok,$message) = $node->rename(new_name => $new_name,
+																				originator => "tables.pl.editNodeTable");
+			if (!$ok)
 			{
 				print header($headeropts),
 				Tr(td({class=>'error'}, escapeHTML("ERROR, renaming node \'$thisentry->{name}\' to \'$new_name\' failed: $message")));

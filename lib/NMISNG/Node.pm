@@ -100,37 +100,37 @@ sub _dirty
 # Public:
 ###########
 
-# bulk set records to be historic which match this node and are 
+# bulk set records to be historic which match this node and are
 # not in the array of active_indices (or active_ids) provided
 #
-# also updates records which are in the active_indices/active_ids 
+# also updates records which are in the active_indices/active_ids
 # list to not be historic
 # please note: this cannot and does NOT extend the expire_at ttl for active records!
 #
 # args: active_indices (optional), arrayref of active indices,
 #   which can work if and  only if the concept uses 'index'!
 # active_ids (optional), arrayref of inventory ids (mongo oids or strings),
-#   note that you can pass in either active_indices OR active_ids 
+#   note that you can pass in either active_indices OR active_ids
 #   but not both
-# concept (optional, if not given all inventory entries for node will be 
+# concept (optional, if not given all inventory entries for node will be
 #   marked historic (useful for update force=1)
-# 
+#
 # returns: hashref with number of records marked historic and nothistoric
 sub bulk_update_inventory_historic
 {
 	my ($self,%args) = @_;
 	my ($active_indices, $active_ids, $concept) = @args{'active_indices','active_ids','concept'};
 
-	return "invalid input, active_indices must be an array!" 
+	return "invalid input, active_indices must be an array!"
 			if ($active_indices && ref($active_indices) ne "ARRAY");
-	return "invalid input, active_ids must be an array!" 
+	return "invalid input, active_ids must be an array!"
 			if ($active_ids && ref($active_ids) ne "ARRAY");
 	return "invalid input, cannot handle both active_ids and active_indices!"
 		if ($active_ids and $active_indices);
-	
+
 	my $retval = {};
-	
-	# not a huge fan of hard coding these, not sure there is much of a better way 
+
+	# not a huge fan of hard coding these, not sure there is much of a better way
 	my $q = {
 		'path.0'  => $self->cluster_id,
 		'path.1'  => $self->uuid,
@@ -227,11 +227,11 @@ sub configuration
 	return Clone::clone( $self->{_configuration} );
 }
 
-# remove this node from the db and clean up all leftovers: 
+# remove this node from the db and clean up all leftovers:
 # node configuration, inventories, timed data,
 # -node and -view files.
 # args: keep_rrd (default false)
-# returns (success, message) or (0, error) 
+# returns (success, message) or (0, error)
 sub delete
 {
 	my ($self,%args) = @_;
@@ -253,7 +253,7 @@ sub delete
 		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
 	return (0, "Failed to retrieve inventories: $result->{error}")
 			if (!$result->{success});
-	
+
 	my $gimme = $result->{model_data}->objects;
 	return (0, "Failed to instantiate inventory: $gimme->{error}")
 			if (!$gimme->{success});
@@ -291,6 +291,101 @@ sub delete
 	$self->{_deleted} = 1;
 	return (1,undef);
 }
+
+# this utility function renames a node and all its files,
+# and deletes the node's events (cannot be renamed sensibly)
+#
+# function doesn't have to do anything about inventories, because
+# these are linked by node's uuid which is invariant
+# args: new_name, optional originator (for events)
+# returns: (success, message) or (0, error message)
+sub rename
+{
+	my ($self, %args) = @_;
+	my $newname = $args{new_name};
+	my $old = $self->name;
+
+	return (0, "Invalid new_name argument")
+			if (!$newname or $newname =~ /[^a-zA-Z0-9_-]/); # fixme should we be less picky? allow spaces?
+	return (1, "new_name same as current, nothing to do")
+			if ($newname eq $old);
+
+	my $clash = $self->nmisng->get_nodes_model(name => $newname);
+	return (0, "A node named \"$newname\" already exists!")
+			if ($clash->count);
+
+	$self->nmisng->log->debug("Starting to rename node $old to new name $newname");
+	# find the node's var files and  hardlink them - do not delete anything yet!
+	my @todelete;
+
+	my $vardir = $self->nmisng->config->{'<nmis_var>'};
+	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
+	for my $fn (readdir(D))
+	{
+		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
+		{
+			my ($component,$ext) = ($1,$2);
+			my $newfn = lc("$newname-$component.$ext");
+			push @todelete, "$vardir/$fn";
+			$self->nmisng->log->debug("Renaming/linking var/$fn to $newfn");
+			link("$vardir/$fn", "$vardir/$newfn") or
+					return(0, "cannot hardlink $fn to $newfn: $!");
+		}
+	}
+	closedir(D);
+
+	# find all the node's inventory instances, tell them to hardlink their rrds
+	# get everything, historic or not - make it instantiatable
+	# concept type is unknown/dynamic, so have it ask nmisng
+	my $result = $self->get_inventory_model(
+		class_name => { 'concept' => \&NMISNG::Inventory::get_inventory_class } );
+	return (0, "Failed to retrieve inventories: $result->{error}")
+			if (!$result->{success});
+
+	my $gimme = $result->{model_data}->objects;
+	return (0, "Failed to instantiate inventory: $gimme->{error}")
+			if (!$gimme->{success});
+	for my $invinstance (@{$gimme->{objects}})
+	{
+		$self->nmisng->log->debug("relocating rrds for inventory instance "
+															.$invinstance->id
+															.", concept ".$invinstance->concept
+															.", description \"".$invinstance->description.'"');
+		my ($ok, $error, @oktorm) = $invinstance->relocate_storage(current => $old,
+																															 new => $newname);
+		return (0, "Failed to relocate inventory storage ".$invinstance->id.": $error")
+				if (!$ok);
+		# informational
+		$self->nmisng->log->debug2("relocation reported $error") if ($error);
+
+		# relocate storage returns relative names
+		my $dbroot = $self->nmisng->config->{'database_root'};
+		push @todelete, map { "$dbroot/$_" } (@oktorm);
+	}
+
+	# then update ourself and save
+	$self->{_configuration}->{name} = $newname;
+	$self->_dirty(1, 'configuration');
+	my ($ok, $error) = $self->save;
+	return (0, "Failed to save node record: $error") if ($ok <= 0);
+
+	# and finally deal with the no longer required old links
+	for my $fn (@todelete)
+	{
+		next if (!defined $fn);
+		my $relfn = File::Spec->abs2rel($fn, $self->nmisng->config->{'<nmis_base>'});
+		$self->nmisng->log->debug("Deleting file $relfn, no longer required");
+		unlink($fn);
+	}
+
+	# now clear all events for old node
+	$self->nmisng->log->debug("Removing events for old node");
+	Compat::NMIS::cleanEvent($old, $args{originator});
+
+	$self->nmisng->log->debug("Successfully renamed node $old to $newname");
+	return (1,undef);
+}
+
 
 # get a list of id's for inventory related to this node,
 # useful for iterating through all inventory
@@ -333,7 +428,7 @@ sub get_inventory_model
 # makes sure unique values are for this node
 sub get_distinct_values
 {
-	my ($self, %args) = @_;	
+	my ($self, %args) = @_;
 	my $collection = $args{collection};
 	my $key = $args{key};
 	my $filter = $args{filter};
@@ -350,10 +445,10 @@ sub get_distinct_values
 # the DefaultInventory class will be used/returned.
 # if searching by path then it needs to be passed in, caller will know what type of
 # inventory class they want so they can call the appropriate make_path function
-# args: 
-#    any args that can be used for finding an inventory model, 
+# args:
+#    any args that can be used for finding an inventory model,
 #  if none is found then:
-#    concept, data, path path_keys, create - 0/1 
+#    concept, data, path path_keys, create - 0/1
 #    (possibly not path_keys but whatever path info is needed for that specific inventory type)
 # returns: (inventory object, undef) or (undef, error message)
 sub inventory
@@ -381,7 +476,7 @@ sub inventory
 		%args);
 	return (undef, "failed to get inventory: $result->{error}")
 			if (!$result->{success} && !$create);
-	
+
 	my $model_data = $result->{model_data};
 	if ( $model_data->count() > 0 )
 	{
@@ -394,7 +489,7 @@ sub inventory
 	}
 	elsif ($create)
 	{
-		# concept must be supplied, for now, "leftovers" may end up being a concept,		
+		# concept must be supplied, for now, "leftovers" may end up being a concept,
 		$class = NMISNG::Inventory::get_inventory_class( $args{concept} );
 		$self->nmisng->log->debug("Creating Inventory for concept: $args{concept}, class:$class");
 		$self->nmisng->log->error("Creating Inventory without concept") if ( !$args{concept} );
@@ -423,7 +518,7 @@ sub inventory_datasets_by_subconcept
 		$filter->{'dataset_info.subconcept'} = $filter->{subconcepts};
 		delete $filter->{subconcepts};
 	}
-	
+
 	my $q = $self->nmisng->get_inventory_model_query( %args );
 	my $retval = {};
 
@@ -433,13 +528,13 @@ sub inventory_datasets_by_subconcept
 		{ '$unwind' => '$dataset_info' },
 		{ '$match' => $q },
 		{ '$unwind' => '$dataset_info.datasets' },
-		{ '$group' => 
+		{ '$group' =>
 			{ '_id' => { "subconcept" => '$dataset_info.subconcept'},  # group by subconcepts
 			'datasets' => { '$addToSet' => '$dataset_info.datasets'}, # accumulate all unique datasets
 			'indexed' => { '$max' => '$data.index' }, # if this != null then it's indexed
 			# rarely this is needed, if so it shoudl be consistent across all models
 			# cbqos so far the only place
-			'concept' => { '$first' => '$concept' } 
+			'concept' => { '$first' => '$concept' }
 		}}
   );
   my ($entries,$count,$error) = NMISNG::DB::aggregate(
@@ -448,8 +543,8 @@ sub inventory_datasets_by_subconcept
 		allowtempfiles => 1
 	);
 	foreach my $entry (@$entries)
-	{	
-		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;	
+	{
+		$entry->{indexed} = ( $entry->{indexed} ) ? 1 : 0;
 		$entry->{subconcept} = $entry->{_id}{subconcept};
 		delete $entry->{_id};
 		$retval->{ $entry->{subconcept} } = $entry;
@@ -537,6 +632,8 @@ sub load_part
 	}
 }
 
+# ro-accessor for node name
+# renaming is more complex and requires use of the rename() function
 sub name
 {
 	my ($self) = @_;
@@ -575,9 +672,9 @@ sub overrides
 }
 
 # Save object to DB if it is dirty
-# returns tuple, ($sucess,$error_message), 
+# returns tuple, ($sucess,$error_message),
 # 0 if no saving required
-#-1 if node is not valid, 
+#-1 if node is not valid,
 # >0 if all good
 #
 # TODO: error checking just uses assert right now, we may want
@@ -659,10 +756,10 @@ sub validate
 		return (-1, "node requires $musthave property") if (!$configuration->{$musthave} ); # empty or zero is not ok
 	}
 	return (-3, "given netType is not a known type")
-			if (!grep($configuration->{netType} eq $_, 
+			if (!grep($configuration->{netType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{nettype_list})));
 	return (-3, "given roleType is not a known type")
-			if (!grep($configuration->{roleType} eq $_, 
+			if (!grep($configuration->{roleType} eq $_,
 								split(/\s*,\s*/, $self->nmisng->config->{roletype_list})));
 		return (1,undef);
 }

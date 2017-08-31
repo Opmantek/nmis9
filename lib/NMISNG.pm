@@ -37,7 +37,7 @@ use strict;
 
 use Data::Dumper;
 use Tie::IxHash;
-use boolean; 
+use boolean;
 
 use NMISNG::Util;
 use NMISNG::Log;
@@ -222,7 +222,7 @@ sub get_inventory_available_concepts
 #. or _id, overriding all of the above
 #
 #. filter - hashref, will be added to the query
-#.   [fields_hash] - which fields should be returned, if not provided the 
+#.   [fields_hash] - which fields should be returned, if not provided the
 #    whole record is returned
 #.   sort/skip/limit - adjusts the query
 #
@@ -345,7 +345,7 @@ sub get_nodes_model
 		$model_data->[$index++] = $entry;
 	}
 
-	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node", 
+	my $model_data_object = NMISNG::ModelData->new( class_name => "NMISNG::Node",
 																									nmisng => $self,
 																									data => $model_data );
 	return $model_data_object;
@@ -412,7 +412,7 @@ sub get_timed_data_model
 		}
 		my $lotsamaybes = $result->{model_data};
 		return undef if (!$lotsamaybes or !$lotsamaybes->count); # fixme: nosuch inventory should count as an error or not?
-		
+
 		for my $oneinv (@{$lotsamaybes->data})
 		{
 			$concept2cand{$oneinv->{concept}} ||= [];
@@ -490,7 +490,7 @@ sub get_distinct_values
 sub grouped_node_summary
 {
 	my ($self,%args) = @_;
-	
+
 	my $group_by = $args{group_by} // []; #'data.group'
 	my $include_nodes = $args{include_nodes} // 0;
 	my $filters = $args{filters};
@@ -505,9 +505,9 @@ sub grouped_node_summary
 			my $value = $entry;
 			my $key = $entry;
 			$key =~ s/\./_/g;
-			$groupby_hash{$key} = '$'.$value;		
+			$groupby_hash{$key} = '$'.$value;
 			$groupproject_hash{$value} = 1;
-		}	
+		}
 	}
 	else
 	{
@@ -525,8 +525,8 @@ sub grouped_node_summary
 		{ '$unwind' => { 'path' => '$latest_data.subconcepts', 'preserveNullAndEmptyArrays' => boolean::true } },
 		{ '$match'  => { 'latest_data.subconcepts.subconcept' => 'health', %$q }}
 	);
-	my $node_project = 
-			{ '$project' => { 
+	my $node_project =
+			{ '$project' => {
 				'_id' => 1,
 				'name' => '$data.name',
 				'uuid' => '$data.uuid',
@@ -554,11 +554,11 @@ sub grouped_node_summary
 				'sysLocation' => '$data.sysLocation',
 				%groupproject_hash
 		}};
-	my $final_group = 
-		{ '$group' => { 
+	my $final_group =
+		{ '$group' => {
 				'_id' => \%groupby_hash,
 				'count' => {'$sum' => 1 },
-				'countdown' => { '$sum' => '$down'}, 
+				'countdown' => { '$sum' => '$down'},
 				'countdegraded' => { '$sum' => '$degraded'},
 				'reachable_avg' => { '$avg' => '$reachability'},
 				'08_reachable_avg' => { '$avg' => '$08_reachable'},
@@ -574,9 +574,9 @@ sub grouped_node_summary
 		}};
 	if( $include_nodes )
 	{
-		push @pipe, { '$facet' => { 
+		push @pipe, { '$facet' => {
 			node_data => [$node_project],
-			grouped_data => [ $node_project,$final_group ] 
+			grouped_data => [ $node_project,$final_group ]
 		}};
 	}
 	else
@@ -588,7 +588,7 @@ sub grouped_node_summary
 	my ($entries,$count,$error) = NMISNG::DB::aggregate(
 		collection => $self->inventory_collection(),
 		pre_count_pipeline => \@pipe,
-		count => 0,		
+		count => 0,
 	);
 	return ($entries,$count,$error);
 }
@@ -666,7 +666,7 @@ sub latest_data_collection
 	return $self->{_db_latest_data};
 }
 
-# get an NMISNG::Node object given arguments that will make it unique
+# get or create an NMISNG::Node object from the given arguments (that should make it unique)
 # the first node found matching all arguments is provided (if >1 is found)
 # arg: create => 0/1, if 1 and node is not found a new one will be returned, it is
 #   not persisted into the db until the object has it's save method called
