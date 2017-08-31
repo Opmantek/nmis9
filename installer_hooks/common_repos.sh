@@ -138,7 +138,7 @@ enable_custom_repo() {
 
 		elif [ "$REPONAME" = "gf" ]; then
 				printBanner "Enabling Ghettoforge repository";
-				execPrint yum -y install "http://mirror.symnds.com/distributions/gf/el/${OS_MAJOR}/gf/x86_64/gf-release-${OS_MAJOR}-10.gf.el${OS_MAJOR}.noarch.rpm"
+				execPrint yum -y install "http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el${OS_MAJOR}.noarch.rpm"
 
 		elif [ "$REPONAME" = "repoforge" -o "$REPONAME" = "rpmforge" ]; then
 				printBanner "Enabling RepoForge repository"
