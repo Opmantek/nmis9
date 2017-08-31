@@ -401,7 +401,7 @@ sub get_timed_data_model
 			$self->log->error("inventory $args{inventory_id} does not exist!");
 			return undef;;
 		}
-		
+
 		$concept2cand{$inv->{concept}} = $args{inventory_id};
 	}
 	# any other selectors given? then find instances and create list of wanted ones per concept
@@ -620,7 +620,7 @@ sub inventory_collection
 			collection    => $self->{_db_inventory},
 			drop_unwanted => $drop_unwanted,
 			indices       => [
-				[{"concept"     => 1, enabled => 1, historic => 1}, {unique => 0}],
+				[ Tie::IxHash->new("concept" => 1, enabled => 1, historic => 1), {unique => 0}],
 				[{"lastupdate"  => 1}, {unique => 0}],
 				[{"path"        => 1}, {unique => 0}],		# can't make this unique, index must be unique per array element for that
 				[{"subconcepts" => 1}, {unique => 0}],

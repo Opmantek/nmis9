@@ -26,7 +26,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# 
+#
 # Utility package for various reusable general-purpose functions
 package NMISNG::Util;
 our $VERSION = "9.0.0a";
@@ -60,9 +60,11 @@ use NMISNG::Log;								# for parse_debug_level
 
 sub TODO
 {
+	my (@stuff) = @_;
+
 	# TODO: find a better way to enable/disabling this, !?!
 	my $show_todos = 0;
-	print "TODO: " . shift . "\n" if ($show_todos);
+	print "TODO: " . $stuff[0] . "\n" if ($show_todos);
 }
 
 # like getargs, but arrayify multiple occurrences of a parameter
