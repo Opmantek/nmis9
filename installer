@@ -208,8 +208,9 @@ printBanner("Copying Files");
 find(sub {
 	my ($name,$dir,$fn) = ($_, $File::Find::dir, $File::Find::name);
 	next if ($name =~ /^\./ # no hidden files
-					 or $name =~  /^(installer|installer_hooks|pre-install.sh)$/); # or installer files
-
+					 or $name =~  /^(installer|pre-install.sh)$/ # or installer files
+					 or $dir =~ m!/installer_hooks$!  # installer files
+					 or ($name eq "installer_hooks" && -d $fn)); # installer files
 	print ".";
 
 	# $dir includes sourcedir prefix
