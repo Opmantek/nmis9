@@ -389,8 +389,19 @@ sub get_timed_data_model
 		my $cursor = NMISNG::DB::find(collection => $self->inventory_collection,
 																	query => NMISNG::DB::get_query(and_part => { _id => $args{inventory_id} }),
 																	fields_hash =>  { concept => 1 });
-		return undef if (!$cursor or $cursor->count != 1); # fixme: nosuch inventory should count as an error or not?
+		if (!$cursor)
+		{
+			$self->log->error("Failed to retrieve inventory $args{inventory_id}: "
+												.NMISNG::DB::get_error_string);
+			return undef;
+		}
 		my $inv = $cursor->next;
+		if (!defined $inv)
+		{
+			$self->log->error("inventory $args{inventory_id} does not exist!");
+			return undef;;
+		}
+		
 		$concept2cand{$inv->{concept}} = $args{inventory_id};
 	}
 	# any other selectors given? then find instances and create list of wanted ones per concept

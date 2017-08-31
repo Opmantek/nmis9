@@ -816,12 +816,16 @@ sub ensure_index
 }
 
 # combines arguments into a query pipeline for mongodb, and fires that
-# returns the resulting mongodb cursor, or undef if the args are duds
-# sets the error_string if problems are encountered.
 #
 # args: collection and query are required,
 # sort, skip and limit are optional.
 # fields_hash takes a hash of { field1 => 1, field2 => 1, ... }
+#
+# note: newer perl driver does NOT support cursor->count anymore,
+# you must run a separate collection->count operation!
+#
+# returns the resulting mongodb cursor, or undef if the args are duds
+# sets the error_string if problems are encountered.
 sub find
 {
 	my %arg        = @_;

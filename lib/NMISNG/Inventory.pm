@@ -539,9 +539,10 @@ sub get_newest_timed_data
 		);
 	}
 	return {success => 0, error => NMISNG::DB::get_error_string} if ( !$cursor );
-	return {success => 1} if ( !$cursor->count );
 
 	my $reading = $cursor->next;
+	# new driver doesn't offer cursor->count anymore...
+	return {success => 1} if (!defined $reading);
 
 	# data/derived data are stored for optimal searching (arrays of hashes),
 	# turn them back into hashes (which are much handier for use in perl)
