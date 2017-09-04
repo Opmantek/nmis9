@@ -487,21 +487,30 @@ sub moduleVersion
 sub input_yn
 {
 	my ($query) = @_;
-
-	print $query;
-	if ($noninteractive)
+	
+	while (1)
 	{
-		print " (auto-default YES)\n\n";
-		return 1;
-	}
-	else
-	{
-		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
-		my $input = <STDIN>;
-		chomp $input;
-		logmsg(0, "User input for \"$query\": \"$input\"");
+		print $query;
+		if ($noninteractive)
+		{
+			print " (auto-default YES)\n\n";
+			return 1;
+		}
+		else
+		{
+			print "\nType 'y' or <Enter> to accept, or 'n' to decline: ";
+			my $input = <STDIN>;
+			chomp $input;
+			logmsg(0, "User input for \"$query\": \"$input\"");
 
-		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
+			if ($input !~ /^\s*[yn]?\s*$/i)
+			{
+				print "Invalid input \"$input\"\n\n";
+				next;
+			}
+
+			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+		}
 	}
 }
 
