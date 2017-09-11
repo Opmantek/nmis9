@@ -346,6 +346,11 @@ sub check_installed_modules
 																	 # minversion => "0.3", 
 																	 priority => 100 };
 
+	# we strictly requre mojolicious 6.47 or newer,
+	# as the older mojo::log api is too different
+	$modules{"Mojolicious"} = { file => undef, usetype => "use",
+															usedby => "lib/NMISNG/Log.pm",
+															minversion => "6.47", };
 	
 	my $libprefix = "$sourcedir/lib";
 

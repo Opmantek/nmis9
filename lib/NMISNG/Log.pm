@@ -33,6 +33,10 @@
 # plus optional logprefix
 package NMISNG::Log;
 our $VERSION = "1.1.0";
+
+# note that we need mojo 6.47 or newer: older api lacks is_level
+# unfortunately there are no versions declared on any of the mojo packages,
+# so we can't enforce that here
 use Mojo::Base 'Mojo::Log';
 use strict;
 
