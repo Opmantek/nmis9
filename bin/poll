@@ -2945,10 +2945,11 @@ sub getIntfInfo
 					create    => 1
 				);
 				$S->nmisng->log->error("Failed to create interface inventory, error:$error_message") && next if ( !$inventory );
+				$inventory->data( $target );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
+				# for a new object this must happen AFTER data is set
 				$inventory->path( recalculate => 1 );
 				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
-				$inventory->data( $target );
 				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
 				# historic is only set when the index/_id is in the db but not found in the device, we are looping
