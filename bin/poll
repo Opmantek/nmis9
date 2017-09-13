@@ -51,6 +51,7 @@ use Proc::Queue ':all';
 use Data::Dumper;
 use File::Find;
 use File::Spec;
+use Clone;
 use Statistics::Lite qw(mean);
 use POSIX qw(:sys_wait_h);
 
@@ -2930,7 +2931,12 @@ sub getIntfInfo
 
 			# For now, create inventory at the very end
 			# get the inventory object for this, path_keys required as we don't know what type it will be
-			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $target );
+			# if interface descriptions change for existing interfaces, then we MUST NOT create duplicates
+			# so, only the ifdescr may go into the path calculation logic, NOT ifindex
+			my $pathdata = Clone::clone($target);
+			delete $pathdata->{index};
+			my $path = $nmisng_node->inventory_path( concept => 'interface', data => $pathdata, partial => 1 );
+
 			if( ref($path) eq 'ARRAY')
 			{
 				my ( $inventory, $error_message ) = $nmisng_node->inventory(
@@ -2941,6 +2947,7 @@ sub getIntfInfo
 				$S->nmisng->log->error("Failed to create interface inventory, error:$error_message") && next if ( !$inventory );
 				# regenerate the path, if this thing wasn't new the path may have changed, which is ok
 				$inventory->path( recalculate => 1 );
+				$path = $inventory->path; # no longer the same - path was partial, now it no longer is
 				$inventory->data( $target );
 				$inventory->description( $target->{Description} || $target->{ifDescr} );
 
@@ -2960,7 +2967,7 @@ sub getIntfInfo
 				$inventory->data_info( subconcept => 'pkts_hc', enabled => 0 );
 				$inventory->data_info( subconcept => 'pkts', enabled => 0 );
 				my ( $op, $error ) = $inventory->save();
-				NMISNG::Util::info( "saved ".join(',', @$path)." op: $op");
+				NMISNG::Util::info( "saved ".join(',', @{$inventory->path})." op: $op");
 				$nmisng->log->error( "Failed to save inventory:" . join( ",", @{$inventory->path} ) . " error:$error" )
 					if ($error);
 			}
