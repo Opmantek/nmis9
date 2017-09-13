@@ -473,6 +473,7 @@ sub inventory
 	# tell get_inventory_model enough to instantiate object later
 	my $result = $self->nmisng->get_inventory_model(
 		class_name => { "concept" => \&NMISNG::Inventory::get_inventory_class },
+		sort => { _id => 1 },				# normally just one object -> no cost
 		%args);
 	return (undef, "failed to get inventory: $result->{error}")
 			if (!$result->{success} && !$create);
@@ -480,6 +481,8 @@ sub inventory
 	my $model_data = $result->{model_data};
 	if ( $model_data->count() > 0 )
 	{
+		# sort above ensures that we return the same 'first' object every time,
+		# even in that clash/duplicate case
 		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
 				if($model_data->count() > 1);
 
