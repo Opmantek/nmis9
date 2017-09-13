@@ -106,16 +106,20 @@ sub new_nmisng
 	return $_nmisng;
 }
 
-# load local node table and store also in cache
-sub loadLocalNodeTable {
+# load local nodes (only!)
+# args: none
+# returns: hash of node name -> node record
+sub loadLocalNodeTable
+{
 	my $nmisng = new_nmisng();
-	# get all nodes
-	my $modelData = $nmisng->get_nodes_model();
+
+	my $modelData = $nmisng->get_nodes_model( filter => { cluster_id => $nmisng->config->{cluster_id} } );
 	my $data = $modelData->data();
 	my %map = map { $_->{name} => $_ } @$data;
 	return \%map;
 }
 
+# fixme9: rework
 sub loadNodeTable {
 
 	my $reload = 'false';
