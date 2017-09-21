@@ -176,11 +176,15 @@ sub convertIfName {
 	return $ifName
 }
 
-sub rmBadChars {
+# remove undesirable characters from ifdescr strings
+sub rmBadChars
+{
 	my $intf = shift;
-	$intf =~ s/\x00//g;
-	$intf =~ s/'//g;		# 'PIX interface descr need these removed
-	$intf =~ s/,//g;		# all descr need "," removed else .csv will parse incorrectly.
+
+	# \0 shouldn't be there anyway,
+	# ' is produced by cisco PIX
+	# , is removed because csv generation and parsing in nmis is not good
+	$intf =~ s/[\x00',]//g;
 	return $intf;
 }
 
