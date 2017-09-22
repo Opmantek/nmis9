@@ -38,6 +38,7 @@ our $VERSION = "1.0.0";
 use Module::Load 'none';
 use Carp::Assert;
 use Clone;    # for copying overrides out of the record
+use List::Util;
 use Data::Dumper;
 
 use NMISNG::DB;
@@ -481,13 +482,22 @@ sub inventory
 	my $model_data = $result->{model_data};
 	if ( $model_data->count() > 0 )
 	{
-		# sort above ensures that we return the same 'first' object every time,
-		# even in that clash/duplicate case
-		$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args))
-				if($model_data->count() > 1);
+		my $bestchoice = 0;
+
+		if($model_data->count() > 1)
+		{
+			# sort above ensures that we return the same 'first' object every time,
+			# even in that clash/duplicate case
+			$self->nmisng->log->warn("Inventory search returned more than one value, using the first!".Dumper(\%args));
+
+			# HOWEVER, if we can we'll return the first non-historic object
+			# as the most useful of all bad choices
+			my $rawdata = $model_data->data; # inefficient is fine here
+			$bestchoice = List::Util::first { !$rawdata->[$_]->{historic} } (0..$#{$rawdata});
+		}
 
 		# instantiate as object, please
-		(my $error, $inventory) = $model_data->object(0);
+		(my $error, $inventory) = $model_data->object($bestchoice // 0);
 		return (undef, "instantiation failed: $error") if ($error);
 	}
 	elsif ($create)

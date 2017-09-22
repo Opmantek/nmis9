@@ -4174,18 +4174,31 @@ sub getIntfData
 		return undef;
 	}
 
+	my (%if_data_map, %leftovers);	# leftovers: 1 is presumed dead, 0 is ok
+
 	# create a map of the inventory state,
 	# by ifindex so we can look them up easily, clone _id into data to make things easier
 	# note that ifdescr is treated as invariant, NOT ifindex.
-	# note also: this includes disabled and historic interfaces, too
-	my %if_data_map = map {
-		$_->{data}{_id} = $_->{_id};
-		$_->{data}{enabled} = $_->{enabled};
-		$_->{data}{historic} = $_->{historic};
+	# note also: this includes disabled and historic interfaces, too, IFF their ifIndex is nonclashing
+	# make sure non-historic ones are tackled before historic stuff!
+	for my $maybeevil (sort { $a->{historic} cmp $b->{historic} } @{$result->{model_data}->data()})
+	{
+		$leftovers{ $maybeevil->{_id} } = 1; # everything goes here, clash or noclash
 
-		$_->{data}{ifIndex} => $_->{data}; } (@{$result->{model_data}->data()});
-	# accumulator for inventory ids, 1 is presumed dead, 0 is ok
-	my %leftovers = map { ($_->{_id} => 1) } (values %if_data_map);
+		my $thisindex = $maybeevil->{data}->{ifIndex};
+		if (exists $if_data_map{$thisindex} )
+		{
+			$nmisng->log->warn("clashing inventories for interface index $thisindex!");
+			next;
+		}
+
+		# move these over into data for simplicity
+		for my $thing (qw(_id enabled historic))
+		{
+			$maybeevil->{data}->{$thing} = $maybeevil->{$thing};
+		}
+		$if_data_map{ $thisindex } = $maybeevil->{data};
+	}
 
 	# 2a. get the ifadminstatus, ifoperstatus and iflastchange tables
 	# and add them to our knowledge
