@@ -1019,8 +1019,9 @@ sub doUpdate
 	}
 	else
 	{
-		# make all things historic, they can bring them back if they want
-		$S->nmisng_node->bulk_update_inventory_historic();
+		# make all things for this node historic, they can bring them back if they want
+		my $result = $S->nmisng_node->bulk_update_inventory_historic();
+		$S->nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 	}
 
 	# prime default values, overridden if we can find anything better
@@ -3038,6 +3039,7 @@ sub getIntfInfo
 		{
 			my $result = $S->nmisng_node->bulk_update_inventory_historic( active_ids => [keys %activeones],
 																																		concept => 'interface' );
+			$nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 			NMISNG::Util::logMsg("$nodename, found intfs alive: $result->{matched_nothistoric}, already historic: $result->{matched_historic}, marked alive: $result->{marked_nothistoric}, marked historic: $result->{marked_historic}");
 		}
 
@@ -3273,9 +3275,6 @@ sub getSystemHealthInfo
 	);
 	for my $section (@healthSections)
 	{
-		# TODO:
-		NMISNG::Util::TODO("fixme9 Does deleting all of the inventory for a section does not make sense, need to loop through and mark unused as historic!");
-
 		next
 			if ( !exists( $M->{systemHealth}->{sys}->{$section} ) ); # if the config provides list but the model doesn't
 
@@ -3366,9 +3365,14 @@ sub getSystemHealthInfo
 				next;
 			}
 
-			# update historic setting in records
+			# we need to ditch no longer existent stuff by marking it historic, and for that we
+			# keep track of the live inventory items
 			my @active_indices = keys %$fields;
-			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+			my $res = $S->nmisng_node->bulk_update_inventory_historic(
+				active_indices => \@active_indices,
+				concept => $section );
+			$nmisng->log->error("bulk update historic failed: $res->{error}") if ($res->{error});
+
 
 			# fixme: meta might tell us that the indexing didn't work with the given field, if so we should bail out
 			for my $indexvalue ( @active_indices )
@@ -3491,7 +3495,9 @@ sub getSystemHealthInfo
 
 			# mark historic records
 			my @active_indices = (sort keys %healthIndexNum);
-			$S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices, concept => $section );
+			my $result = $S->nmisng_node->bulk_update_inventory_historic(
+				active_indices => \@active_indices, concept => $section );
+			$nmisng->log->error("bulk update historic failed: $result->{error}") if ($result->{error});
 
 			# Loop to get information, will be stored in {info}{$section} table
 			foreach my $index ( @active_indices )
@@ -4739,6 +4745,7 @@ sub getIntfData
 
 	my $nuked = $S->nmisng_node->bulk_update_inventory_historic(
 		active_ids => \@keep, concept => 'interface' );
+	$nmisng->log->error("bulk update historic failed: $nuked->{error}") if ($nuked->{error});
 
 	NMISNG::Util::logMsg("$nodename, found intfs alive: $nuked->{matched_nothistoric}, already historic: $nuked->{matched_historic}, marked alive: $nuked->{marked_nothistoric}, marked historic: $nuked->{marked_historic}");
 
@@ -6725,8 +6732,9 @@ sub runAlerts
 
 	foreach my $sect ( keys %{$CA} )
 	{
-		# only use inventory that already exists
-		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect );
+		# get the inventory instances that are relevant for this section,
+		# ie. only enabled and nonhistoric ones
+		my $ids = $S->nmisng_node->get_inventory_ids( concept => $sect, filter => { enabled => 1, historic => 0 } );
 		NMISNG::Util::info("Custom Alerts for $sect");
 		foreach my $id ( @$ids )
 		{

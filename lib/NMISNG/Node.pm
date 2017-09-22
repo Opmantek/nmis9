@@ -121,11 +121,11 @@ sub bulk_update_inventory_historic
 	my ($self,%args) = @_;
 	my ($active_indices, $active_ids, $concept) = @args{'active_indices','active_ids','concept'};
 
-	return "invalid input, active_indices must be an array!"
+	return { error => "invalid input, active_indices must be an array!" }
 			if ($active_indices && ref($active_indices) ne "ARRAY");
-	return "invalid input, active_ids must be an array!"
+	return { error => "invalid input, active_ids must be an array!" }
 			if ($active_ids && ref($active_ids) ne "ARRAY");
-	return "invalid input, cannot handle both active_ids and active_indices!"
+	return { error => "invalid input, cannot handle both active_ids and active_indices!" }
 		if ($active_ids and $active_indices);
 
 	my $retval = {};
