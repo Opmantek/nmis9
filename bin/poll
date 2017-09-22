@@ -2347,7 +2347,7 @@ sub getIntfInfo
 			}
 
 			# remove unknown interfaces, found in previous runs, from table
-			# fixme9 this cannot work by INDICES - it MUST use ifdescr!
+			# fixme9 this cannot work by INDICES - it MUST use ifdescr, or ideally the active_ids
 			my @active_indices = keys %$ifIndexMap;
 			my $result = $S->nmisng_node->bulk_update_inventory_historic( active_indices => \@active_indices,
 																																		concept => 'interface' );
@@ -3014,7 +3014,9 @@ sub getIntfInfo
 					my ( $datatype, $dsregex ) = @$_;
 
 					# rrd file exists and readable?
-					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype, index => $index ) ) )
+					if ( -r ( my $rrdfile = $S->makeRRDname( graphtype => $datatype,
+																									 index => $index,
+																									 inventory => $inventory ) ) )
 					{
 						my $fileinfo = RRDs::info($rrdfile);
 						for my $matching ( grep /^ds\[.+\]\.max$/, keys %$fileinfo )
@@ -3110,9 +3112,12 @@ sub checkIntfInfo
 
 	$V->{interface}{"${index}_ifSpeed_value"} = NMISNG::Util::convertIfSpeed( $thisintf->{ifSpeed} );
 
-	# convert time integer to time string
-	$V->{interface}{"${index}_ifLastChange_value"} = $thisintf->{ifLastChange}
-		= NMISNG::Util::convUpTime( $thisintf->{ifLastChangeSec} = int( $thisintf->{ifLastChange} / 100 ) );
+	# convert time integer from ticks to time string
+	# fixme9: unsafe, non-idempotent, broken if function is called more than once, self-referential loopy
+	# trashing of ifLastChange via ifLastChangeSec...
+	$V->{interface}{"${index}_ifLastChange_value"}
+	= $thisintf->{ifLastChange} = NMISNG::Util::convUpTime(
+		$thisintf->{ifLastChangeSec} = int( $thisintf->{ifLastChange} / 100 ) );
 
 }    # end checkIntfInfo
 
@@ -4160,7 +4165,7 @@ sub getIntfData
 			'data.ifOperStatus' => 1,
 			'data.ifDescr' => 1,
 			'data.ifIndex' => 1,
-			'data.ifLastChange' => 1,
+			'data.ifLastChangeSec' => 1, # ifLastChange is textual and NO GOOD
 			'data.real' => 1,
 			'enabled' => 1,
 			'historic' => 1
@@ -4211,18 +4216,19 @@ sub getIntfData
 		}
 	}
 	# default for ifLastChange-based detection is OFF
-	if (ref( $S->{mdl}{custom} ) eq "HASH"
+	if ((ref( $S->{mdl}{custom} ) eq "HASH"
 			and ref( $S->{mdl}{custom}{interface} ) eq "HASH"
-			and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) )
+			and NMISNG::Util::getbool( $S->{mdl}{custom}{interface}{ifLastChange} ) ))
 	{
 		# fixme: this cannot work for non-snmp node
 		NMISNG::Util::info("Using ifLastChange for Interface Change Detection");
 
+		# iflastchange is in 1/100s ticks
 		if ( my $ifLastChangeTable = $S->snmp->getindex('ifLastChange') )
 		{
 			for my $index (keys %$ifLastChangeTable)
 			{
-				$if_data_map{$index}->{_ifLastChange} = $ifLastChangeTable->{$index};
+				$if_data_map{$index}->{_ifLastChangeSec} = int($ifLastChangeTable->{$index} / 100);
 			}
 		}
 	}
@@ -4269,13 +4275,12 @@ sub getIntfData
 		}
 
 		# or has ifLastChange changed? not enabled by default, must check if it's been loaded
-		if ( defined($thisif->{_ifLastChange}) # we've consulted snmp for it
-				 and ( !defined($thisif->{ifLastChange}) # and we had none before
-							 or $thisif->{ifLastChange} != $thisif->{_ifLastChange}) ) # or the old value is different
+		if ( defined($thisif->{_ifLastChangeSec}) # we've consulted snmp for it
+				 and ( !defined($thisif->{ifLastChangeSec}) # and we had none before
+							 or $thisif->{ifLastChangeSec} != $thisif->{_ifLastChangeSec}) ) # or the old value is different
 		{
-			$nmisng->log->info("Interface index $index, needs update because of ifLastChange " .
-												 int($thisif->{_ifLastChange}/100)
-												 . ($thisif->{ifLastChange}? (", was ".int($thisif->{ifLastChange}/100))
+			$nmisng->log->info("Interface index $index, needs update because of ifLastChange $thisif->{_ifLastChangeSec}s"
+												 . ($thisif->{ifLastChangeSec}? ", was $thisif->{ifLastChangeSec}"
 														: ", new interface"));
 			$thisif->{_needs_update} = 1;
 			# no next, this is the last cheap test
@@ -4580,7 +4585,7 @@ sub getIntfData
 			delete $ifsection->{ifDescr};
 			delete $ifsection->{ifAdminStatus};
 
-			# convert time integer to time string
+			# convert time 1/100s tics to uptime string, but also save the seconds
 			if (ref($ifsection->{ifLastChange}) eq "HASH"
 					&& defined($ifsection->{ifLastChange}->{value}))
 			{
@@ -4589,7 +4594,7 @@ sub getIntfData
 				= NMISNG::Util::convUpTime(
 					$inventory_data->{ifLastChangeSec}
 					= int( $ifsection->{ifLastChange}{value} / 100 ) );
-				NMISNG::Util::dbg("last change time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
+				NMISNG::Util::dbg("last change for index $index time=$inventory_data->{ifLastChange}, timesec=$inventory_data->{ifLastChangeSec}");
 			}
 			delete $ifsection->{ifLastChange};
 
@@ -4683,12 +4688,6 @@ sub getIntfData
 				details => $inventory_data->{Description}
 					);
 		}
-
-
-# 		fixme bla only if error...
-	#	NMISNG::Util::logMsg("ERROR ($S->{name}) on getIntfData of interface=$index, $anyerror");
-	#	$V->{interface}{"${index}_operAvail_value"} = 'N/A';
-	#	$V->{interface}{"${index}_totalUtil_value"} = 'N/A';
 
 		# header info of web page
 		$V->{interface}{"${index}_operAvail_title"} = 'Intf. Avail.';

@@ -1810,6 +1810,7 @@ sub prep_extras_with_catchalls
 	my $section = $args{section};
 	my $str = $args{str};
 	my $type = $args{type};
+	my $inventory = $args{inventory};
 
 	# so sadly this is not enough to make interface work right now
 	$section ||= $type;
@@ -1831,7 +1832,9 @@ sub prep_extras_with_catchalls
 				 and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ )
 		{
 			my $data;
-			my $storage_inventory = $self->inventory(concept => 'storage', index => $index, nolog => 1);
+			# get the storage's inventory if not passed in
+			my $storage_inventory = $inventory
+					|| $self->inventory(concept => 'storage', index => $index, nolog => 1);
 			$data = $storage_inventory->data() if( $storage_inventory );
 
 			foreach my $key (qw(hrStorageType hrStorageUnits hrStorageSize hrStorageUsed))
@@ -1846,11 +1849,12 @@ sub prep_extras_with_catchalls
 		# pretty sure cbqos needs this too, or just if it's got a numbered index (unhappy!!!!)
 		if ( ($section =~ /interface|pkts|cbqos/ || $str =~ /interface/) && $index =~ /\d+/ )
 		{
-			#inventory keyed by index and ifDescr so we need partial
-			my $interface_inventory = $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
+			# inventory keyed by index and ifDescr so we need partial; using _the_ passed in
+			# inventory is clearly safer
+			my $interface_inventory = $inventory
+					|| $self->inventory(concept => 'interface', index => $index, nolog => 1, partial => 1);
 			if( $interface_inventory )
 			{
-
 				# no fallback to info section as interface update is running
 				# $data = $self->{info}{interface}{$indx} if(defined($self->{info}{interface}) && defined($self->{info}{interface}{$indx}));
 				$data = $interface_inventory->data();
@@ -1888,6 +1892,7 @@ sub prep_extras_with_catchalls
 # optional: sect, index, item, type. CVAR stuff works ONLY if sect is set!
 # type and index are only used in substitutions, no logic attached.
 # also optional: extras (hash of substitutable varname-values)
+# also optional: inventory (passed through to the prep function if present)
 #
 # note: variables in BOTH rrd and sys sections should be found in this routine,
 # regardless of whether our caller is looking at rrd or sys.
@@ -1910,7 +1915,7 @@ sub parseString
 	# find custom variables CVAR[n]=thing; in section, and substitute $extras->{CVAR[n]} with the value
 	if ( $sect )
 	{
-		$inventory = $self->inventory( concept => $sect, index => $indx, nolog => 1 ) if(!$inventory);
+		$inventory ||= $self->inventory( concept => $sect, index => $indx, nolog => 1 );
 		my $data = ($inventory) ? $inventory->data : {};
 		my $consumeme = $str;
 		my $rebuilt;
@@ -1942,7 +1947,13 @@ sub parseString
 
 	$extras //= {};
 
-	$self->prep_extras_with_catchalls( extras => $extras, index => $indx, item => $itm, section => $sect, str => $str, type => $type);
+	$self->prep_extras_with_catchalls( extras => $extras,
+																		 index => $indx,
+																		 item => $itm,
+																		 section => $sect,
+																		 str => $str,
+																		 type => $type,
+																		 inventory => $inventory);
 	NMISNG::Util::dbg( "extras:".Data::Dumper->new([$extras])->Terse(1)->Indent(0)->Pair(": ")->Dump, 3);
 
 	# massage the string and replace any available variables from extras,
@@ -2141,7 +2152,8 @@ sub getTypeInstances
 # which is based on graphtype -> subsection/rrd name,
 # index and item; and certainly the information in the node's model and common-database.
 #
-# args: type or graphtype, index, item (mostly required), extras (optional, hash), nmis4 (optional),
+# args: type or graphtype, index, item (mostly required), inventory (optional),
+# extras (optional, hash), nmis4 (optional),
 # relative (optional, default false - if set, path is relative to database_root)
 #
 # if graphtype is given, a translation from that to rrd section name is performed (e.g. abits => interface)
@@ -2161,6 +2173,7 @@ sub makeRRDname
 
 	my $extras = $args{extras};
 	my $wantrelative = NMISNG::Util::getbool($args{relative});
+	my $inventory = $args{inventory};
 	my $C = NMISNG::Util::loadConfTable if (!$wantrelative); # only needed for database_root
 
 	# if necessary, find the subconcept that belongs to this graphtype  - this
@@ -2224,6 +2237,7 @@ sub makeRRDname
 																	index => $safeindex,
 																	item => $safeitem,
 																	extras => \%safeextras,
+																	inventory => $inventory,
 																	'eval' => 0); # only expand, no expression to evaluate
 	if (!$dbpath)
 	{

@@ -1349,7 +1349,8 @@ sub getGroupSummary {
 
 	if( $error || @$entries != 1 )
 	{
-		$nmisng->log->error("Faied to get grouped_node_summary data, error:$error");
+		$error ||= "No data returned";
+		$nmisng->log->error("Failed to get grouped_node_summary data, error:$error");
 		return \%summaryHash;
 	}
 	my ($group_summary,$node_data);
