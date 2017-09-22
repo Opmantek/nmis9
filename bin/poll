@@ -4174,6 +4174,7 @@ sub getIntfData
 	# create a map of the inventory state,
 	# by ifindex so we can look them up easily, clone _id into data to make things easier
 	# note that ifdescr is treated as invariant, NOT ifindex.
+	# note also: this includes disabled and historic interfaces, too
 	my %if_data_map = map {
 		$_->{data}{_id} = $_->{_id};
 		$_->{data}{enabled} = $_->{enabled};
@@ -4231,6 +4232,8 @@ sub getIntfData
 	{
 		my $thisif = $if_data_map{$index};
 
+		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
+
 		# new interface, no inventory yet?
 		if (!$thisif->{_id})
 		{
@@ -4241,12 +4244,13 @@ sub getIntfData
 		# removed interface? skippy!
 		elsif (!exists $thisif->{_ifAdminStatus})
 		{
-			$nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!");
+			# we have to track already dead ones (in if_data_map), but we don't work on them
+			$nmisng->log->info("Interface $index, $thisif->{ifDescr} was removed!")
+					if (!$thisif->{historic});
+
 			delete $if_data_map{$index}; # nothing to do except mark it as historic at the end
 			next;
 		}
-
-		# fixme what about not collectable? then _ifAdminStatus isn't a/v....
 
 		# admin status changed in a relevant transition?
 		my $curstatus = $thisif->{ifAdminStatus};
@@ -4290,7 +4294,11 @@ sub getIntfData
 		# ...which MAY be different from the one we've got in the if_data_map
 		if (!defined $thisif->{_id} or $maybenew->id ne $thisif->{_id})
 		{
-			# update the if_data_map. index is the same, contents may differ
+			$nmisng->log->debug2("Interface index $needsmust "
+													 .(defined($thisif->{_id})? "has changed substantially" : "is new")
+													 . " and has a new inventory");
+
+			# update the if_data_map. index is the same, contents may differ; must keep relevant stuff!
 			$if_data_map{$needsmust} = { %{$maybenew->data},
 																	 _id => $maybenew->id,
 																	 _was_updated => 1, # mark as 'getintfinfo done'
@@ -4395,12 +4403,15 @@ sub getIntfData
 
 	# 6. figure out if any other interfaces need an update, based on the snmp information now available
 	# this covers reordered interfaces (interface index is not invariant, ifdescr is treated as invariant)
+	# new interfaces should have been handled in 4.
 	for my $index (keys %if_data_map)
 	{
 		my $thisif = $if_data_map{$index};
 
-		next if (!$thisif->{_rrd_data} # no rrd data collectable -> cannot do anything
-						 or (ref($thisif->{_rrd_data}->{interface}) ne "HASH"));
+		next if (!$thisif->{enabled} # we track historic/disabled ones but don't work on them...
+						 or $thisif->{historic}
+						 or !$thisif->{_rrd_data} # no rrd data collectable -> cannot do anything
+						 or ref($thisif->{_rrd_data}->{interface}) ne "HASH");
 
 		my $intfsection = $thisif->{_rrd_data}->{interface}->{$index};
 
@@ -4432,26 +4443,35 @@ sub getIntfData
 	}
 
 	# 7. redo the getIntfInfo exercise from 4. for these other interfaces in need of help
+	# these 'other' interfaces should not be totally new ones, those should have been covered in 4.
 	for my $needsmust (grep($if_data_map{$_}->{_needs_update}, keys %if_data_map))
 	{
 		# all done by index, so far
 		my $thisif = $if_data_map{$needsmust};
-		$nmisng->log->debug("Performing phase 2 getIntfInfo for $needsmust");
+		$nmisng->log->debug("Performing phase 2 getIntfInfo for index $needsmust");
+
+		assert(!$thisif->{_was_updated}, "should getintfinfo-update index $needsmust at most once!");
 
 		# this returns an inventory object...
 		my $maybenew = getIntfInfo( sys => $S, index => $needsmust);
 		# ...which MAY be different from the one we've got in the if_data_map
 		if ($maybenew->id ne $thisif->{_id})
 		{
+			$nmisng->log->debug2("Interface index $needsmust has changed substantially and has a new inventory");
+
 			# update the if_data_map. index is the same, contents may differ
+			# we must keep the relevant already collected stuff, especially the rrd data!
 			$if_data_map{$needsmust} = { %{$maybenew->data},
 																	 _id => $maybenew->id,
 																	 _was_updated => 1, # mark as 'getintfinfo done'
 																	 # a new inventory may be lacking both enabled and historic
 																	 enabled  => $maybenew->{enabled} // 1,
 																	 historic => $maybenew->{historic} // 0,
+																	 #
 																	 _ifAdminStatus => $maybenew->data->{ifAdminStatus},
 																	 _ifOperStatus => $maybenew->data->{ifOperStatus},
+																	 _rrd_data => $thisif->{_rrd_data}, # keep
+																	 _rrd_status => $thisif->{_rrd_status} , # keep
 			};
 		}
 		else
@@ -4469,7 +4489,9 @@ sub getIntfData
 	my $RI   = $S->reach;
 	$RI->{intfUp} = $RI->{intfColUp} = 0;
 
-	for my $index (sort keys %if_data_map)
+	# work on enabled and nonhistoric
+	for my $index (sort grep($if_data_map{$_}->{enabled}
+													 && !$if_data_map{$_}->{historic}, keys %if_data_map))
 	{
 		my $thisif = $if_data_map{$index};
 
@@ -4490,7 +4512,7 @@ sub getIntfData
 
 
 		NMISNG::Util::info(
-			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was => OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
+			"$inventory_data->{ifDescr}: ifIndex=$inventory_data->{ifIndex}, was: OperStatus=$inventory_data->{ifOperStatus}, ifAdminStatus=$inventory_data->{ifAdminStatus}, Collect=$inventory_data->{collect}"
 				);
 
 
@@ -4600,7 +4622,7 @@ sub getIntfData
 			{
 				for my $ds (keys %{$thissection})
 				{
-					NMISNG::Util::dbg( "rrdData section $sectionname, ds $ds, value=$thissection->{$ds}->{value}, option=$thissection->{$ds}->{option}", 2 );
+					$nmisng->log->debug2( "rrdData section $sectionname, ds $ds, value=$thissection->{$ds}->{value}, option=$thissection->{$ds}->{option}");
 				}
 			}
 
@@ -4709,8 +4731,8 @@ sub getIntfData
 	{
 		if ($leftovers{$invid})
 		{
-			# fixme: should try to show more details about the goner
-			$nmisng->log->debug("$nodename, marking inventory $invid as historic");
+			# note that leftovers contain already marked historic ones, so that debug isn't super-useful
+			$nmisng->log->debug3("$nodename, (re)marking inventory $invid as historic");
 		}
 		else
 		{
