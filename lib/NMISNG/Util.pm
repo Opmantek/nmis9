@@ -37,6 +37,7 @@ use feature 'state';						# loadconftable, uuid functions
 use Fcntl qw(:DEFAULT :flock :mode);
 use FindBin;										# bsts; normally loaded by the caller
 use File::Path;
+use File::Basename;
 use File::stat;
 use File::Spec;
 use File::Copy;
@@ -1508,27 +1509,37 @@ sub logMsg
 		NMISNG::Util::dbg($msg);
 	}
 
-	my ($string,$caller,$ln,$fn);
-	for my $i (1..10) {
-		($caller) = (caller($i))[3];	# name sub
-		($ln) = (caller($i-1))[2];	# linenumber
-		$string = "$caller#$ln".$string;
-		if ($caller =~ /main/ or $caller eq '') {
-			($fn) = (caller($i-1))[1];	# filename
-			$fn =~ s;.*/(.*\.\w+)$;$1; ; # strip directory
-			$string =~ s/main|//;
-			$string = "$fn".$string;
-			last;
-		}
-	}
+	my @frames;
+	my $nodeeperthan = 10;				# fixme9 too generous i think
+	
+	# fixme9: maybe print just essentials if not under debug, ie. outermost filename plus innermost stack frame?
+	for my $i (0..$nodeeperthan) # 0 is this function but we need the line nr
+	{
+		my @oneframe = caller($i);
+		last if (!@oneframe);
 
-	$string .= "<br>$msg";
-	$string =~ s/\n/ /g;      #remove all embedded newlines
+		my ($filename,$lineno,$subname) = @oneframe[1,2,3];
+
+		$subname =~ s/^main:://;			# not useful
+		$frames[$i]->{subname} = $subname;
+		
+		$frames[$i+1]->{lineno} = $lineno; # save in outer frame
+		$frames[$i+1]->{filename} = $filename;
+	}
+	shift @frames;								# ditch empty zeroth frame
+	
+	# filename#lineno!outermostfunc#lineno!nextfunc#lineno...
+	my $prefix = join('!', (map { ($_->{subname}|| basename($_->{filename}))."#$_->{lineno}" } (reverse @frames)));
+	$msg =~ s/\n+/ /g;  # replace any embedded newlines
+	my $output = "$prefix<br>$msg";
 
 	# fixme9: this assumes that the caller has loaded Compat::NMIS,
 	# which should be reasonable but...
-	my $nmisng = Compat::NMIS::new_nmisng(); # cached same single object where possible
-	$nmisng->log->info($string);						 # info seems sensible as default level
+	# cached same single object where possible
+	my $nmisng = Compat::NMIS::new_nmisng();
+	# info seems sensible as default level
+	$nmisng->log->info($output);
+
 	return;
 }
 
