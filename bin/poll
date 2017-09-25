@@ -4214,8 +4214,9 @@ sub getIntfData
 		NMISNG::Util::info("Using ifAdminStatus and ifOperStatus for Interface Change Detection");
 
 		# want both or we don't care
-		if (my $ifAdminTable = $S->snmp->getindex('ifAdminStatus')
-				&& (my $ifOperTable = $S->snmp->getindex('ifOperStatus')))
+		my $ifAdminTable = $S->snmp->getindex('ifAdminStatus');
+		my $ifOperTable = $S->snmp->getindex('ifOperStatus');
+		if ($ifAdminTable && $ifOperTable)
 		{
 			# index == ifindex
 			for my $index ( keys %{$ifAdminTable} )
