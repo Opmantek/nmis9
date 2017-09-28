@@ -61,7 +61,7 @@
       'HBS' => '/nodes/$node/health/utilization-$index.rrd',
 			'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
       'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
-      'Juniper_CoS' => '/nodes/$node/health/Juniper_CoSstats-$cosDescription.rrd',
+      'Juniper_CoS' => '/nodes/$node/interface/Juniper_CoSstats-$index.rrd',
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
